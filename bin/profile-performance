@@ -1,0 +1,111 @@
+#!/bin/sh
+set -eu
+
+PROJECT="SnipSnipSnip.xcodeproj"
+SCHEME="SnipSnipSnip"
+DESTINATION="platform=macOS,arch=arm64"
+DERIVED_DATA_DEFAULT="/private/tmp/SnipSnipSnip-PerfDerivedData"
+OUTPUT_ROOT_DEFAULT="build/profiling"
+
+XCODEBUILD="$(xcrun --find xcodebuild 2>/dev/null || true)"
+if [ -z "$XCODEBUILD" ]; then
+  XCODEBUILD="$(command -v xcodebuild || true)"
+fi
+if [ -z "$XCODEBUILD" ]; then
+  echo "error: xcodebuild not found" >&2
+  exit 1
+fi
+
+TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
+OUTPUT_ROOT="${1:-$OUTPUT_ROOT_DEFAULT/$TIMESTAMP}"
+DERIVED_DATA="${2:-$DERIVED_DATA_DEFAULT}"
+
+RESULT_BUNDLE="$OUTPUT_ROOT/PerformanceTests.xcresult"
+LOG_PATH="$OUTPUT_ROOT/performance-tests.log"
+TIME_TRACE="$OUTPUT_ROOT/time-profiler.trace"
+ALLOC_TRACE="$OUTPUT_ROOT/allocations.trace"
+
+PERF_TESTS="-only-testing:SnipSnipSnipTests/EditorRendererTests/testRenderPerformanceDenseAnnotationScene -only-testing:SnipSnipSnipTests/ScrollingStitcherTests/testAppendPerformanceLongScrollingSession"
+
+mkdir -p "$OUTPUT_ROOT"
+
+if [ -d "$RESULT_BUNDLE" ]; then
+  rm -rf "$RESULT_BUNDLE"
+fi
+rm -rf "$TIME_TRACE" "$ALLOC_TRACE"
+
+run_perf_tests() {
+  "$XCODEBUILD" test \
+    -project "$PROJECT" \
+    -scheme "$SCHEME" \
+    -destination "$DESTINATION" \
+    -derivedDataPath "$DERIVED_DATA" \
+    -resultBundlePath "$RESULT_BUNDLE" \
+    $PERF_TESTS | tee "$LOG_PATH"
+}
+
+echo "[profile] Output: $OUTPUT_ROOT"
+echo "[profile] Result bundle: $RESULT_BUNDLE"
+echo "[profile] Running focused performance tests..."
+run_perf_tests
+
+XCTRACE="$(xcrun --find xctrace 2>/dev/null || true)"
+if [ -z "$XCTRACE" ]; then
+  XCTRACE="$(command -v xctrace || true)"
+fi
+
+TRACE_WRAPPER="$OUTPUT_ROOT/xcodebuild-trace-wrapper.sh"
+
+write_trace_wrapper() {
+  cat > "$TRACE_WRAPPER" <<EOF
+#!/bin/sh
+exec "$XCODEBUILD" test \
+  -project "$PROJECT" \
+  -scheme "$SCHEME" \
+  -destination "$DESTINATION" \
+  -derivedDataPath "$DERIVED_DATA" \
+  $PERF_TESTS
+EOF
+  chmod +x "$TRACE_WRAPPER"
+}
+
+run_trace() {
+  local template="$1"
+  local output="$2"
+  local trace_log
+
+  trace_log="$OUTPUT_ROOT/xctrace-$(echo "$template" | tr ' ' '-').log"
+
+  echo "[profile] Capturing $template trace..."
+
+  set +e
+  "$XCTRACE" record \
+    --template "$template" \
+    --output "$output" \
+    --launch -- \
+    "$TRACE_WRAPPER" >"$trace_log" 2>&1
+  status=$?
+  set -e
+
+  if [ "$status" -eq 0 ] || [ "$status" -eq 54 ]; then
+    if [ -e "$output" ]; then
+      echo "[profile] Saved $template trace to $output."
+      return 0
+    fi
+  fi
+
+  echo "[profile] Warning: $template trace capture failed (exit $status)."
+  echo "[profile]          See $trace_log for xctrace diagnostics."
+  return 1
+}
+
+if [ -n "$XCTRACE" ]; then
+  write_trace_wrapper
+
+  run_trace "Time Profiler" "$TIME_TRACE" || true
+  run_trace "Allocations" "$ALLOC_TRACE" || true
+else
+  echo "[profile] xctrace not found, skipping Instruments trace capture."
+fi
+
+echo "[profile] Done. Artifacts are in: $OUTPUT_ROOT"

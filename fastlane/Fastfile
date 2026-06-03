@@ -1,0 +1,697 @@
+require "json"
+require "time"
+
+default_platform(:mac)
+
+REPOSITORY_ROOT = File.expand_path("..", __dir__)
+SCHEME = ENV.fetch("SNIP_SCHEME", "SnipSnipSnip")
+TARGET = ENV.fetch("SNIP_TARGET", "SnipSnipSnip")
+APP_IDENTIFIER_VALUE = ENV.fetch("SNIP_APP_IDENTIFIER", "com.oontz.SnipSnipSnip")
+DEVELOPER_TEAM_ID_VALUE = ENV.fetch("SNIP_DEVELOPER_TEAM_ID", "8RN882MNR5")
+
+def resolve_repo_path(path)
+  return path if Pathname.new(path).absolute?
+
+  File.expand_path(path, REPOSITORY_ROOT)
+end
+
+PROJECT_PATH = resolve_repo_path(ENV.fetch("SNIP_XCODEPROJ", "SnipSnipSnip.xcodeproj"))
+BUILD_ARTIFACTS_DIRECTORY = resolve_repo_path(
+  ENV.fetch("SNIP_BUILD_DIRECTORY", File.expand_path("~/Library/Caches/SnipSnipSnip/fastlane"))
+)
+DERIVED_DATA_DIRECTORY = resolve_repo_path(
+  ENV.fetch("SNIP_DERIVED_DATA_PATH", File.expand_path("~/Library/Developer/Xcode/DerivedData/SnipSnipSnip-fastlane"))
+)
+ARCHIVE_PATH = File.join(BUILD_ARTIFACTS_DIRECTORY, "#{SCHEME}.xcarchive")
+UPLOAD_STATE_PATH = File.join(BUILD_ARTIFACTS_DIRECTORY, "upload_state.json")
+RELEASE_TEST_TARGETS_DEFAULT = [
+  "SnipSnipSnipTests/CaptureModelsTests",
+  "SnipSnipSnipTests/GeometrySupportTests",
+  "SnipSnipSnipTests/EditorControllerTests/testPresentationCornerRadiusClampsToOneHundred",
+  "SnipSnipSnipTests/EditorControllerTests/testPresentationDefaultsToTransparentBackground",
+  "SnipSnipSnipTests/EditorControllerTests/testPresentationPresetChangesAreUndoable",
+  "SnipSnipSnipTests/EditorControllerTests/testPresentationShadowDirectionControlsSignedOffsets"
+].freeze
+
+def required_env!(key)
+  value = ENV[key]
+  UI.user_error!("Missing required environment variable `#{key}`.") if value.to_s.strip.empty?
+  value
+end
+
+def boolean_option(value, default_value: false)
+  return default_value if value.nil?
+
+  %w[1 true yes y on].include?(value.to_s.strip.downcase)
+end
+
+def nullable_boolean_option(value)
+  return nil if value.nil? || value.to_s.strip.empty?
+
+  boolean_option(value)
+end
+
+def csv_option(value)
+  return nil if value.nil?
+
+  items = value.to_s.split(",").map(&:strip).reject(&:empty?)
+  items.empty? ? nil : items
+end
+
+def current_release_version
+  get_version_number(
+    xcodeproj: PROJECT_PATH,
+    target: TARGET,
+    configuration: "Release"
+  )
+end
+
+def current_build_number
+  get_build_number(xcodeproj: PROJECT_PATH).to_i
+end
+
+def submission_information_from(options)
+  encryption_value = options[:uses_non_exempt_encryption]
+  encryption_value = ENV["USES_NON_EXEMPT_ENCRYPTION"] if encryption_value.to_s.strip.empty?
+  return nil if encryption_value.to_s.strip.empty?
+
+  {
+    export_compliance_uses_encryption: boolean_option(encryption_value)
+  }
+end
+
+def changelog_from(options)
+  changelog = options[:changelog].to_s.strip
+  changelog.empty? ? nil : changelog
+end
+
+def app_version_from(options)
+  app_version = options[:app_version].to_s.strip
+  app_version = options[:version].to_s.strip if app_version.empty?
+  app_version.empty? ? nil : app_version
+end
+
+def ensure_build_directory
+  FileUtils.mkdir_p(BUILD_ARTIFACTS_DIRECTORY)
+end
+
+def current_git_commit
+  Actions.sh("cd #{Shellwords.escape(REPOSITORY_ROOT)} && git rev-parse HEAD", log: false).strip
+end
+
+def git_log_arguments(from_ref: nil)
+  range = from_ref.to_s.strip.empty? ? "HEAD" : "#{from_ref}..HEAD"
+  [
+    "git",
+    "log",
+    range,
+    "--no-merges",
+    "--pretty=format:%h %s",
+    "--max-count=20"
+  ]
+end
+
+def git_ref_exists?(ref)
+  return false if ref.to_s.strip.empty?
+
+  Actions.sh(
+    "cd #{Shellwords.escape(REPOSITORY_ROOT)} && git rev-parse --verify #{Shellwords.escape(ref)}^{commit}",
+    log: false,
+    error_callback: ->(_result) {}
+  )
+  true
+rescue StandardError
+  false
+end
+
+def git_log_entries(from_ref: nil)
+  return [] if from_ref && !git_ref_exists?(from_ref)
+
+  command = git_log_arguments(from_ref: from_ref).map { |part| Shellwords.escape(part) }.join(" ")
+  output = Actions.sh("cd #{Shellwords.escape(REPOSITORY_ROOT)} && #{command}", log: false).strip
+  output.split("\n").map(&:strip).reject(&:empty?)
+end
+
+def record_fastlane_run_metadata(lane_name:, version: nil, build_number: nil, changelog: nil, changelog_source: nil)
+  @fastlane_run_metadata ||= {}
+  @fastlane_run_metadata.merge!(lane_name: lane_name)
+  @fastlane_run_metadata[:version] = version if version
+  @fastlane_run_metadata[:build_number] = build_number if build_number
+  @fastlane_run_metadata[:changelog] = changelog if changelog
+  @fastlane_run_metadata[:changelog_source] = changelog_source if changelog_source
+end
+
+def current_fastlane_run_metadata
+  @fastlane_run_metadata || {}
+end
+
+def fastlane_run_duration
+  return nil unless @fastlane_run_started_at
+
+  Time.now.utc - @fastlane_run_started_at
+end
+
+def formatted_run_duration
+  duration = fastlane_run_duration
+  return "n/a" unless duration
+
+  hours = (duration / 3600).to_i
+  minutes = ((duration % 3600) / 60).to_i
+  seconds = (duration % 60).round
+
+  if hours.positive?
+    format("%d:%02d:%02d", hours, minutes, seconds)
+  else
+    format("%d:%02d", minutes, seconds)
+  end
+end
+
+def read_upload_state
+  return {} unless File.exist?(UPLOAD_STATE_PATH)
+
+  JSON.parse(File.read(UPLOAD_STATE_PATH))
+rescue JSON::ParserError => error
+  UI.important("Ignoring unreadable upload state at #{UPLOAD_STATE_PATH}: #{error.message}")
+  {}
+end
+
+def write_upload_state(state)
+  ensure_build_directory
+  File.write(UPLOAD_STATE_PATH, JSON.pretty_generate(state))
+end
+
+def last_upload_record_for(lane_name)
+  state = read_upload_state
+  uploads = state["last_uploads"] || {}
+  upload = uploads[lane_name]
+  return upload if upload.is_a?(Hash)
+
+  legacy_upload = state["last_upload"]
+  legacy_upload.is_a?(Hash) ? legacy_upload : {}
+end
+
+def tracked_changelog_details(provided_changelog: nil, lane_name: nil)
+  manual_changelog = provided_changelog.to_s.strip
+  return { text: manual_changelog, source: "manual" } unless manual_changelog.empty?
+
+  previous_upload = lane_name ? last_upload_record_for(lane_name) : read_upload_state["last_upload"] || {}
+  previous_commit = previous_upload["git_commit"].to_s.strip
+  previous_commit = nil unless git_ref_exists?(previous_commit)
+  entries = git_log_entries(from_ref: previous_commit)
+
+  if entries.empty?
+    head_entry = git_log_entries(from_ref: nil).first
+    entries = [head_entry || "No source changes recorded"]
+  end
+
+  {
+    text: entries.map { |entry| "- #{entry}" }.join("\n"),
+    source: previous_commit.nil? || previous_commit.empty? ? "git-history" : "git-range",
+    previous_commit: previous_commit.nil? || previous_commit.empty? ? nil : previous_commit
+  }
+end
+
+def persist_upload_record(lane_name:, prepared:, changelog:, distribution: nil)
+  state = read_upload_state
+  state["last_uploads"] ||= {}
+  state["last_uploads"][lane_name] = {
+    "lane" => lane_name,
+    "distribution" => distribution,
+    "version" => prepared[:version],
+    "build_number" => prepared[:build_number],
+    "git_commit" => current_git_commit,
+    "changelog" => changelog,
+    "uploaded_at" => Time.now.utc.iso8601
+  }.compact
+
+  state["last_upload"] = state["last_uploads"][lane_name]
+  write_upload_state(state)
+end
+
+def increment_patch_version(version)
+  segments = version.to_s.split(".")
+  UI.user_error!("Cannot auto-increment patch version from `#{version}`.") if segments.length < 3
+
+  patch = Integer(segments[-1], 10) + 1
+  (segments[0..-2] + [patch.to_s]).join(".")
+rescue ArgumentError
+  UI.user_error!("Cannot auto-increment patch version from `#{version}`.")
+end
+
+def requested_version_for_release(options)
+  requested_version = options[:version].to_s.strip
+  return requested_version unless requested_version.empty?
+
+  next_version = increment_patch_version(current_release_version)
+  UI.message("Auto-incrementing release version to #{next_version}")
+  next_version
+end
+
+def release_safety_checks_enabled?(options = {})
+  boolean_option(
+    options[:release_safety_checks] || ENV["RELEASE_SAFETY_CHECKS"],
+    default_value: true
+  )
+end
+
+def release_confirmation!(env_key, label)
+  return if boolean_option(ENV[env_key], default_value: false)
+
+  UI.user_error!(
+    "Release safety check failed: set #{env_key}=true to confirm #{label}. " \
+    "Set RELEASE_SAFETY_CHECKS=false only for emergency overrides."
+  )
+end
+
+def release_test_targets(options = {})
+  explicit_targets = options[:only_testing].to_s.strip
+  explicit_targets = ENV["RELEASE_TEST_ONLY"].to_s.strip if explicit_targets.empty?
+  return RELEASE_TEST_TARGETS_DEFAULT if explicit_targets.empty?
+
+  explicit_targets.split(",").map(&:strip).reject(&:empty?)
+end
+
+private_lane :clear_external_beta_review_submission do |options|
+  api_key = app_store_connect_api_key_from_env
+  version = app_version_from(options) || current_release_version
+
+  builds = Spaceship::ConnectAPI::Build.all(
+    version: version,
+    platform: "MAC_OS",
+    includes: "app,buildBetaDetail,preReleaseVersion,betaAppReviewSubmission",
+    limit: 30
+  ).select { |build| build.bundle_id == APP_IDENTIFIER_VALUE }
+
+  review_builds = builds.select do |build|
+    detail = build.build_beta_detail
+    submission = build.beta_app_review_submission
+    detail && submission && %w[WAITING_FOR_BETA_REVIEW IN_BETA_REVIEW].include?(detail.external_build_state)
+  end
+
+  UI.user_error!("No external beta review submission found for version #{version}.") if review_builds.empty?
+
+  review_builds.each do |build|
+    build.expire!
+    UI.message("Expired build #{build.app_version} (#{build.version}) to clear its external beta review state.")
+  end
+end
+
+private_lane :ensure_project_configuration do
+  UI.user_error!("Project file `#{PROJECT_PATH}` does not exist.") unless File.exist?(PROJECT_PATH)
+end
+
+private_lane :app_store_connect_api_key_from_env do
+  key_id = required_env!("APP_STORE_CONNECT_API_KEY_KEY_ID")
+  issuer_id = required_env!("APP_STORE_CONNECT_API_KEY_ISSUER_ID")
+  key_filepath = resolve_repo_path(required_env!("APP_STORE_CONNECT_API_KEY_PATH"))
+
+  UI.user_error!("App Store Connect API key file not found at `#{key_filepath}`.") unless File.exist?(key_filepath)
+
+  app_store_connect_api_key(
+    key_id: key_id,
+    issuer_id: issuer_id,
+    key_filepath: key_filepath,
+    duration: 1200
+  )
+end
+
+private_lane :prepare_version_and_build_number do |options|
+  requested_version = options[:version].to_s.strip
+  unless requested_version.empty?
+    increment_version_number(
+      version_number: requested_version,
+      xcodeproj: PROJECT_PATH
+    )
+    UI.message("Set marketing version to #{requested_version}")
+  end
+
+  version = current_release_version
+  local_build = current_build_number
+
+  remote_build = begin
+    latest_testflight_build_number(
+      api_key: options[:api_key],
+      app_identifier: APP_IDENTIFIER_VALUE,
+      version: version,
+      platform: "osx",
+      initial_build_number: local_build
+    ).to_i
+  rescue => error
+    UI.important("Could not read the latest TestFlight build number: #{error.message}")
+    local_build
+  end
+
+  next_build = [local_build, remote_build].max + 1
+
+  increment_build_number(
+    build_number: next_build,
+    xcodeproj: PROJECT_PATH
+  )
+
+  UI.message("Prepared #{version} (#{next_build})")
+  {
+    version: version,
+    build_number: next_build
+  }
+end
+
+private_lane :build_release_pkg do |options|
+  build_target = options[:build_target] || "Release"
+  compilation_conditions = build_target == "Self Release" ? "" : "$(inherited) APP_STORE_BUILD"
+  xcargs = [
+    "-allowProvisioningUpdates",
+    "SNIP_BUILD_TARGET=#{build_target}",
+    "SWIFT_ACTIVE_COMPILATION_CONDITIONS='#{compilation_conditions}'"
+  ]
+
+  build_mac_app(
+    project: PROJECT_PATH,
+    scheme: SCHEME,
+    configuration: "Release",
+    clean: true,
+    export_method: "app-store",
+    export_team_id: DEVELOPER_TEAM_ID_VALUE,
+    derived_data_path: DERIVED_DATA_DIRECTORY,
+    output_directory: BUILD_ARTIFACTS_DIRECTORY,
+    archive_path: ARCHIVE_PATH,
+    xcargs: xcargs.join(" "),
+    export_xcargs: "-allowProvisioningUpdates"
+  )
+end
+
+private_lane :ensure_release_preflight_confirmations do |options|
+  return unless release_safety_checks_enabled?(options)
+
+  release_confirmation!("RELEASE_METADATA_READY", "App Store metadata and screenshots are complete")
+  release_confirmation!("RELEASE_TESTS_CONFIRMED", "required release tests are green")
+  release_confirmation!("RELEASE_MANUAL_QA_CONFIRMED", "manual release QA was completed")
+end
+
+private_lane :run_release_test_gate do |options|
+  return if boolean_option(options[:skip_tests] || ENV["RELEASE_SKIP_TESTS"], default_value: false)
+
+  derived_data_path = resolve_repo_path(
+    ENV.fetch(
+      "SNIP_RELEASE_TEST_DERIVED_DATA_PATH",
+      File.join(BUILD_ARTIFACTS_DIRECTORY, "DerivedDataReleaseGate")
+    )
+  )
+
+  UI.message("Running release test gate in #{derived_data_path}")
+
+  only_testing_args = release_test_targets(options).flat_map do |test_target|
+    ["-only-testing", Shellwords.escape(test_target)]
+  end
+
+  Actions.sh(
+    [
+      "xcodebuild",
+      "test",
+      "-project", Shellwords.escape(PROJECT_PATH),
+      "-scheme", Shellwords.escape(SCHEME),
+      "-destination", Shellwords.escape("platform=macOS,arch=arm64"),
+      "-derivedDataPath", Shellwords.escape(derived_data_path),
+      *only_testing_args,
+      "CODE_SIGNING_ALLOWED=NO"
+    ].join(" ")
+  )
+end
+
+private_lane :upload_testflight_build do |options|
+  api_key = app_store_connect_api_key_from_env
+  distribute_only = boolean_option(
+    options[:distribute_only] || ENV["TESTFLIGHT_DISTRIBUTE_ONLY"],
+    default_value: false
+  )
+  distribute_external = boolean_option(
+    options[:external] || ENV["TESTFLIGHT_DISTRIBUTE_EXTERNAL"],
+    default_value: false
+  )
+  groups = csv_option(options[:groups] || ENV["TESTFLIGHT_GROUPS"])
+
+  if distribute_external && groups.nil?
+    UI.user_error!("`groups` is required when distributing to external testers.")
+  end
+
+  lane_name = distribute_external ? "external_testing" : "internal_testing"
+  changelog_details = tracked_changelog_details(provided_changelog: options[:changelog], lane_name: lane_name)
+  prepared = nil
+
+  unless distribute_only
+    prepared = prepare_version_and_build_number(
+      api_key: api_key,
+      version: options[:version]
+    )
+
+    build_release_pkg(build_target: distribute_external ? "External" : "Internal")
+  end
+
+  upload_options = {
+    api_key: api_key,
+    app_platform: "osx",
+    changelog: changelog_details[:text],
+    distribute_only: distribute_only,
+    distribute_external: distribute_external,
+    groups: groups,
+    app_version: app_version_from(options),
+    build_number: options[:build_number],
+    skip_submission: boolean_option(
+      options[:skip_submission] || ENV["TESTFLIGHT_SKIP_SUBMISSION"],
+      default_value: !distribute_external
+    ),
+    skip_waiting_for_build_processing: boolean_option(
+      options[:skip_waiting] || ENV["TESTFLIGHT_SKIP_WAITING_FOR_BUILD_PROCESSING"],
+      default_value: false
+    )
+  }
+
+  notify_external = nullable_boolean_option(
+    options[:notify_external] || ENV["TESTFLIGHT_NOTIFY_EXTERNAL_TESTERS"]
+  )
+  upload_options[:notify_external_testers] = notify_external unless notify_external.nil?
+
+  uses_non_exempt_encryption = boolean_option(
+    options[:uses_non_exempt_encryption] || ENV["USES_NON_EXEMPT_ENCRYPTION"],
+    default_value: false
+  )
+  upload_options[:uses_non_exempt_encryption] = uses_non_exempt_encryption
+
+  upload_to_testflight(upload_options)
+
+  run_version = prepared ? prepared[:version] : (app_version_from(options) || current_release_version)
+  run_build = (prepared ? prepared[:build_number] : options[:build_number]).to_s.strip
+  record_fastlane_run_metadata(
+    lane_name: lane_name,
+    version: run_version,
+    build_number: run_build.empty? ? nil : run_build,
+    changelog: changelog_details[:text],
+    changelog_source: changelog_details[:source]
+  )
+
+  distribution_label = distribute_external ? "external testers" : "internal testers"
+  if prepared
+    persist_upload_record(
+      lane_name: lane_name,
+      prepared: prepared,
+      changelog: changelog_details[:text],
+      distribution: distribution_label
+    )
+  end
+
+  UI.message("Changelog source: #{changelog_details[:source]}")
+  UI.message(changelog_details[:text])
+  if prepared
+    UI.success("Uploaded #{prepared[:version]} (#{prepared[:build_number]}) to TestFlight for #{distribution_label}.")
+  else
+    target_version = app_version_from(options) || current_release_version
+    target_build = options[:build_number].to_s.strip
+    build_label = target_build.empty? ? "latest processed build for #{target_version}" : "#{target_version} (#{target_build})"
+    UI.success("Distributed #{build_label} to #{distribution_label}.")
+  end
+end
+
+private_lane :upload_app_store_build do |options|
+  api_key = app_store_connect_api_key_from_env
+  changelog_details = tracked_changelog_details(provided_changelog: options[:changelog], lane_name: "release")
+  prepared = prepare_version_and_build_number(
+    api_key: api_key,
+    version: requested_version_for_release(options)
+  )
+
+  build_release_pkg(build_target: "Release")
+
+  upload_options = {
+    api_key: api_key,
+    platform: "osx",
+    changelog: changelog_details[:text],
+    submit_for_review: boolean_option(
+      options[:submit_for_review] || ENV["APP_STORE_SUBMIT_FOR_REVIEW"],
+      default_value: true
+    ),
+    automatic_release: boolean_option(
+      options[:automatic_release] || ENV["APP_STORE_AUTOMATIC_RELEASE"],
+      default_value: false
+    ),
+    force: true,
+    skip_metadata: true,
+    skip_screenshots: true
+  }
+
+  submission_information = submission_information_from(options)
+  upload_options[:submission_information] = submission_information unless submission_information.nil?
+
+  upload_to_app_store(upload_options)
+
+  record_fastlane_run_metadata(
+    lane_name: "release",
+    version: prepared[:version],
+    build_number: prepared[:build_number],
+    changelog: changelog_details[:text],
+    changelog_source: changelog_details[:source]
+  )
+
+  persist_upload_record(
+    lane_name: "release",
+    prepared: prepared,
+    changelog: changelog_details[:text],
+    distribution: "app-store"
+  )
+
+  UI.message("Changelog source: #{changelog_details[:source]}")
+  UI.message(changelog_details[:text])
+  UI.success("Uploaded #{prepared[:version]} (#{prepared[:build_number]}) to App Store Connect.")
+end
+
+platform :mac do
+  before_all do
+    ensure_project_configuration
+    @fastlane_run_started_at = Time.now.utc
+  end
+
+  after_all do |lane|
+    metadata = current_fastlane_run_metadata
+    UI.header("Fastlane run summary")
+    UI.message("Lane: #{lane}")
+    UI.message("Run timestamp: #{@fastlane_run_started_at.iso8601}")
+    UI.message("Duration: #{formatted_run_duration}")
+
+    if metadata[:version] && metadata[:build_number]
+      UI.message("Build/version: #{metadata[:version]} (#{metadata[:build_number]})")
+    elsif metadata[:version]
+      UI.message("Version: #{metadata[:version]}")
+    end
+
+    if metadata[:changelog]
+      UI.message("Change set source: #{metadata[:changelog_source] || 'git-history'}")
+      UI.message(metadata[:changelog])
+    else
+      UI.message("Change set:")
+      git_log_entries(from_ref: nil).each do |entry|
+        UI.message("- #{entry}")
+      end
+    end
+  end
+
+  desc "Validate the local fastlane and App Store Connect setup"
+  lane :doctor do
+    api_key = app_store_connect_api_key_from_env
+
+    UI.message("Project: #{PROJECT_PATH}")
+    UI.message("Scheme: #{SCHEME}")
+    UI.message("Target: #{TARGET}")
+    UI.message("Bundle ID: #{APP_IDENTIFIER_VALUE}")
+    UI.message("Developer Team ID: #{DEVELOPER_TEAM_ID_VALUE}")
+    UI.message("Current version/build: #{current_release_version} (#{current_build_number})")
+    UI.message("Loaded App Store Connect API key #{api_key[:key_id]}")
+
+    record_fastlane_run_metadata(
+      lane_name: "doctor",
+      version: current_release_version,
+      build_number: current_build_number.to_s,
+      changelog_source: "status-check"
+    )
+  end
+
+  desc "Build and upload a macOS package to TestFlight for internal testers"
+  lane :internal_testing do |options|
+    upload_testflight_build(options.merge(external: false))
+  end
+
+  desc "Build and upload a macOS package to TestFlight for external testers"
+  lane :external_testing do |options|
+    upload_testflight_build(options.merge(external: true))
+  end
+
+  desc "Clear the current external beta review submission for a version"
+  lane :clear_external_review do |options|
+    clear_external_beta_review_submission(options)
+  end
+
+  desc "Build, upload, and optionally submit a macOS package for App Store review"
+  lane :release do |options|
+    ensure_release_preflight_confirmations(options)
+    run_release_test_gate(options)
+    upload_app_store_build(options)
+  end
+
+  desc "Build a website-distribution package with Self Release feature flags"
+  lane :self_release do |options|
+    api_key = app_store_connect_api_key_from_env
+    prepared = prepare_version_and_build_number(
+      api_key: api_key,
+      version: options[:version]
+    )
+
+    build_release_pkg(build_target: "Self Release")
+
+    record_fastlane_run_metadata(
+      lane_name: "self_release",
+      version: prepared[:version],
+      build_number: prepared[:build_number],
+      changelog_source: "build-only"
+    )
+
+    UI.success("Built #{prepared[:version]} (#{prepared[:build_number]}) with SNIP_BUILD_TARGET=Self Release.")
+  end
+
+  desc "Submit an already uploaded build for App Store review without rebuilding"
+  lane :submit_review do |options|
+    ensure_release_preflight_confirmations(options)
+    api_key = app_store_connect_api_key_from_env
+
+    upload_options = {
+      api_key: api_key,
+      platform: "osx",
+      build_number: options[:build_number],
+      submit_for_review: true,
+      automatic_release: boolean_option(
+        options[:automatic_release] || ENV["APP_STORE_AUTOMATIC_RELEASE"],
+        default_value: false
+      ),
+      force: true,
+      skip_binary_upload: true,
+      skip_metadata: true,
+      skip_screenshots: true
+    }
+
+    submission_information = submission_information_from(options)
+    upload_options[:submission_information] = submission_information unless submission_information.nil?
+
+    upload_to_app_store(upload_options)
+
+    build_number = options[:build_number].to_s.strip
+    run_version = app_version_from(options) || current_release_version
+    record_fastlane_run_metadata(
+      lane_name: "submit_review",
+      version: run_version,
+      build_number: build_number.empty? ? nil : build_number
+    )
+
+    build_label = build_number.empty? ? "latest processed build" : "build #{build_number}"
+    UI.success("Submitted #{build_label} for App Store review.")
+  end
+end
+
+error do |lane, exception|
+  UI.error("Lane `#{lane}` failed: #{exception.message}")
+end

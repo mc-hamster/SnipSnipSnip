@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+if command -v brew >/dev/null 2>&1; then
+  ruby_prefix="$(brew --prefix ruby 2>/dev/null || true)"
+  if [ -n "$ruby_prefix" ] && [ -x "$ruby_prefix/bin/bundle" ]; then
+    PATH="$ruby_prefix/bin:$PATH"
+    export PATH
+  fi
+fi
+
+exec bundle exec fastlane "$@"

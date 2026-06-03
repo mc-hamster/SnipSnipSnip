@@ -1,0 +1,108 @@
+name: Release App Store
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Optional marketing version (e.g. 1.0.17). Leave blank to auto-bump patch."
+        required: false
+        type: string
+      submit_for_review:
+        description: "Submit to App Review after upload"
+        required: true
+        default: true
+        type: boolean
+      automatic_release:
+        description: "Automatically release after approval"
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: app-store-release
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby with bundler cache
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+
+      - name: Select latest Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Run release test gate
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project SnipSnipSnip.xcodeproj \
+            -scheme SnipSnipSnip \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedDataReleaseGate" \
+            -only-testing 'SnipSnipSnipTests/CaptureModelsTests' \
+            -only-testing 'SnipSnipSnipTests/GeometrySupportTests' \
+            -only-testing 'SnipSnipSnipTests/EditorControllerTests/testPresentationCornerRadiusClampsToOneHundred' \
+            -only-testing 'SnipSnipSnipTests/EditorControllerTests/testPresentationDefaultsToTransparentBackground' \
+            -only-testing 'SnipSnipSnipTests/EditorControllerTests/testPresentationPresetChangesAreUndoable' \
+            -only-testing 'SnipSnipSnipTests/EditorControllerTests/testPresentationShadowDirectionControlsSignedOffsets' \
+            CODE_SIGNING_ALLOWED=NO
+
+  release:
+    needs: preflight
+    runs-on: macos-latest
+    timeout-minutes: 90
+    environment: app-store-production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby with bundler cache
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+
+      - name: Select latest Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Write App Store Connect API key file
+        env:
+          APP_STORE_CONNECT_API_KEY_P8_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8_BASE64 }}
+        run: |
+          mkdir -p fastlane
+          echo "$APP_STORE_CONNECT_API_KEY_P8_BASE64" | base64 --decode > fastlane/AuthKey_ci.p8
+
+      - name: Fastlane doctor
+        env:
+          APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}
+          APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_PATH: fastlane/AuthKey_ci.p8
+        run: ./bin/fastlane mac doctor
+
+      - name: Fastlane release
+        env:
+          APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}
+          APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_PATH: fastlane/AuthKey_ci.p8
+          APP_STORE_SUBMIT_FOR_REVIEW: ${{ inputs.submit_for_review }}
+          APP_STORE_AUTOMATIC_RELEASE: ${{ inputs.automatic_release }}
+          RELEASE_METADATA_READY: true
+          RELEASE_TESTS_CONFIRMED: true
+          RELEASE_MANUAL_QA_CONFIRMED: true
+          RELEASE_SKIP_TESTS: true
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            ./bin/fastlane mac release version:${{ inputs.version }}
+          else
+            ./bin/fastlane mac release
+          fi

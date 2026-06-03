@@ -1,0 +1,5 @@
+app_identifier(ENV.fetch("SNIP_APP_IDENTIFIER", "com.oontz.SnipSnipSnip"))
+team_id(ENV.fetch("SNIP_DEVELOPER_TEAM_ID", "8RN882MNR5"))
+
+itc_team_id(ENV["SNIP_ITC_TEAM_ID"]) if ENV["SNIP_ITC_TEAM_ID"]
+itc_team_name(ENV["SNIP_ITC_TEAM_NAME"]) if ENV["SNIP_ITC_TEAM_NAME"]

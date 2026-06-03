@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>56</string>
+	<key>CFBundleDisplayName</key>
+	<string>SnipSnipSnip</string>
+	<key>SnipBuildTarget</key>
+	<string>$(SNIP_BUILD_TARGET)</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>SnipSnipSnip Document</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.oontz.snipsnipsnip.document</string>
+			</array>
+			<key>LSTypeIsPackage</key>
+			<true/>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>SnipSnipSnip Video Document</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.oontz.snipsnipsnip.video-document</string>
+			</array>
+			<key>LSTypeIsPackage</key>
+			<true/>
+		</dict>
+	</array>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright 2026 Oontz. All rights reserved.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>SnipSnipSnip can include microphone narration in screen recordings when you enable microphone audio.</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>SnipSnipSnip can include system audio in screen recordings when you enable system audio.</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>com.apple.package</string>
+				<string>public.content</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>SnipSnipSnip Document</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.oontz.snipsnipsnip.document</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>sss</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>com.apple.package</string>
+				<string>public.audiovisual-content</string>
+				<string>public.content</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>SnipSnipSnip Video Document</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.oontz.snipsnipsnip.video-document</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>sssvideo</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+</dict>
+</plist>
