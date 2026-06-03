@@ -5,13 +5,16 @@ SnipSnipSnip is a local-first macOS screenshot, annotation, history, OCR, and sc
 ## Features
 
 - Region, window, frontmost window, fullscreen, repeat, and scrolling screenshot capture.
-- Non-destructive screenshot editor with crop, rectangle, ellipse, line, arrow, freehand, highlight, text, callouts, ruler measurements, spotlight/dim, image overlays, rotation, grouping, alignment, snapping, and redaction.
+- Non-destructive screenshot editor with crop, rectangle, ellipse, line, arrow, freehand, highlight, text, callouts, ruler measurements, spotlight/dim, image overlays, rotation, layer ordering, grouping, alignment, snapping, and blur/pixelate/solid redaction.
 - Local OCR for capture-history search and selectable Copy Text from a dragged screenshot region.
-- PNG, JPEG, and PDF screenshot export with newly encoded metadata-stripped output.
+- PNG, JPEG, and PDF screenshot export with re-encoded metadata-stripped output.
 - Drag-out sharing for rendered screenshots, styled presentation previews, and trimmed MP4 recordings.
+- Floating reference screenshots for pinning rendered editor or history snapshots in lightweight always-on-top windows.
 - Editable `.sss` screenshot packages with base image, preview, annotations, undo/redo history, search metadata, and image overlay assets.
-- Region, window, and fullscreen screen recording with cursor/click options, system audio, microphone narration, trim editing, `.sssvideo` packages, and MP4 export presets.
+- Region, window, and fullscreen screen recording with current-display, selected-display, and all-displays fullscreen modes, cursor/click options, system audio, microphone narration, pause/resume controls, trim editing, `.sssvideo` packages, and MP4 export presets.
 - Autosave checkpoints, recent snips, archive search, recycle bin, archive size limits, and custom archive location.
+
+For the detailed current feature inventory, partial features, and known gaps, see [FEATURE_LIST.md](FEATURE_LIST.md).
 
 ## Privacy Posture
 
