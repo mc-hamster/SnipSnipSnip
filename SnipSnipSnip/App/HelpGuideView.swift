@@ -647,9 +647,9 @@ struct HelpGuideView: View {
                         Text("No help topics found")
                             .foregroundStyle(.secondary)
                     } else {
-                        Section(category.title) {
+                        Section(AppBranding.branded(category.title)) {
                             ForEach(category.articles) { article in
-                                Text(article.title)
+                                Text(AppBranding.branded(article.title))
                                     .tag(Optional(article.id))
                             }
                         }
@@ -658,7 +658,7 @@ struct HelpGuideView: View {
             }
             .listStyle(.sidebar)
             .searchable(text: $searchText, placement: .sidebar, prompt: "Search Help")
-            .navigationTitle("SnipSnipSnip Help")
+            .navigationTitle("\(AppBranding.displayName) Help")
             .navigationSplitViewColumnWidth(min: 220, ideal: 270, max: 340)
         } detail: {
             HelpArticleView(
@@ -715,11 +715,11 @@ private struct HelpArticleView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(article.title)
+            Text(AppBranding.branded(article.title))
                 .font(.largeTitle.weight(.semibold))
                 .textSelection(.enabled)
 
-            Text(article.summary)
+            Text(AppBranding.branded(article.summary))
                 .font(.title3)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -737,7 +737,7 @@ private struct HelpArticleView: View {
                     Button {
                         onSelectRelated(article)
                     } label: {
-                        Text(article.title)
+                        Text(AppBranding.branded(article.title))
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.link)
@@ -752,12 +752,12 @@ private struct HelpArticleSectionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(section.title)
+            Text(AppBranding.branded(section.title))
                 .font(.title2.weight(.semibold))
                 .textSelection(.enabled)
 
             if let body = section.body {
-                Text(body)
+                Text(AppBranding.branded(body))
                     .font(.body)
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -773,7 +773,7 @@ private struct HelpArticleSectionView: View {
                                 .foregroundStyle(.secondary)
                                 .frame(width: 24, alignment: .trailing)
 
-                            Text(step)
+                            Text(AppBranding.branded(step))
                                 .fixedSize(horizontal: false, vertical: true)
                                 .textSelection(.enabled)
                         }
@@ -789,7 +789,7 @@ private struct HelpArticleSectionView: View {
                                 .foregroundStyle(.secondary)
                                 .frame(width: 24, alignment: .trailing)
 
-                            Text(bullet)
+                            Text(AppBranding.branded(bullet))
                                 .fixedSize(horizontal: false, vertical: true)
                                 .textSelection(.enabled)
                         }
@@ -809,7 +809,7 @@ private struct HelpImportantView: View {
                 .font(.headline)
 
             ForEach(items, id: \.self) { item in
-                Text(item)
+                Text(AppBranding.branded(item))
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
             }

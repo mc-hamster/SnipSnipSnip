@@ -167,7 +167,7 @@ Use this to build a release archive with website-only feature flags enabled:
 ./bin/fastlane mac self_release version:1.0.1
 ```
 
-This lane builds the `Release` configuration with `SNIP_BUILD_TARGET=Self Release`. It does not upload to App Store Connect, and it explicitly clears `APP_STORE_BUILD`, so scrolling capture remains compiled into the website-distribution binary.
+This lane builds the `Release` configuration with `SNIP_BUILD_TARGET=Self Release`. It does not upload to App Store Connect, it explicitly clears `APP_STORE_BUILD`, and it stamps the app display name as `SnipSnipSnip Pro` for the website-distribution binary.
 
 To build and publish the package to https://github.com/mc-hamster/SnipSnipSnip/releases:
 
@@ -207,7 +207,7 @@ Optional publish parameters:
 
 - `repository:owner/name` to override the destination repo (default `mc-hamster/SnipSnipSnip`)
 - `tag:v1.0.18-self.123` to override the generated tag
-- `release_name:"SnipSnipSnip 1.0.18 Website"` to override the release title
+- `release_name:"SnipSnipSnip Pro 1.0.18 Website"` to override the release title
 - `draft:true` and `prerelease:true` for release state
 - `asset_path:/absolute/path/to/SnipSnipSnip.pkg` to upload a specific package
 

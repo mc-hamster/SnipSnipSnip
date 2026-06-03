@@ -392,20 +392,17 @@ private_lane :github_release_exists? do |options|
   tag = options[:tag]
   repo = options[:repo]
 
-  Actions.sh(
+  output = Actions.sh(
     [
       "cd", Shellwords.escape(REPOSITORY_ROOT), "&&",
-      "gh", "release", "view", Shellwords.escape(tag),
-      "--repo", Shellwords.escape(repo),
-      ">/dev/null", "2>&1"
+      "if gh release view", Shellwords.escape(tag),
+      "--repo", Shellwords.escape(repo), ">/dev/null 2>&1;",
+      "then echo exists; else echo missing; fi"
     ].join(" "),
-    log: false,
-    error_callback: ->(_result) {}
-  )
+    log: false
+  ).strip
 
-  true
-rescue StandardError
-  false
+  output == "exists"
 end
 
 private_lane :publish_self_release_package do |options|
@@ -427,7 +424,7 @@ private_lane :publish_self_release_package do |options|
   tag = "v#{prepared[:version]}-self.#{prepared[:build_number]}" if tag.empty?
 
   release_name = options[:release_name].to_s.strip
-  release_name = "SnipSnipSnip #{prepared[:version]} (#{prepared[:build_number]}) Self Release" if release_name.empty?
+  release_name = "SnipSnipSnip Pro #{prepared[:version]} (#{prepared[:build_number]}) Self Release" if release_name.empty?
 
   asset_path = options[:asset_path].to_s.strip
   asset_path = latest_pkg_path if asset_path.empty?
@@ -499,6 +496,9 @@ private_lane :build_release_pkg do |options|
     "SNIP_BUILD_TARGET=#{Shellwords.escape(build_target)}",
     "SWIFT_ACTIVE_COMPILATION_CONDITIONS='#{compilation_conditions}'"
   ]
+  if build_target == "Self Release"
+    xcargs << "INFOPLIST_KEY_CFBundleDisplayName=#{Shellwords.escape('SnipSnipSnip Pro')}"
+  end
 
   build_mac_app(
     project: PROJECT_PATH,

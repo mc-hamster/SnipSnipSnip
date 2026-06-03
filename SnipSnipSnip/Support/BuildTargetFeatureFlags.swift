@@ -89,3 +89,13 @@ nonisolated enum FeatureFlags {
         accessibilityAutomationEnabled(for: .current)
     }
 }
+
+nonisolated enum AppBranding {
+    static var displayName: String {
+        BuildTarget.current == .selfRelease ? "SnipSnipSnip Pro" : "SnipSnipSnip"
+    }
+
+    static func branded(_ text: String) -> String {
+        text.replacingOccurrences(of: "SnipSnipSnip", with: displayName)
+    }
+}

@@ -60,7 +60,7 @@ private struct CaptureCommands: Commands {
 
             Divider()
 
-            Button("Open SnipSnipSnip", action: showMainWindow)
+            Button("Open \(AppBranding.displayName)", action: showMainWindow)
                 .keyboardShortcut(AppShortcut.openWindowKey, modifiers: AppShortcut.modifiers)
 
             Menu("Timer") {
@@ -94,7 +94,7 @@ private struct CaptureCommands: Commands {
 private struct AppInfoCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {
-            Button("About SnipSnipSnip", action: showAboutPanel)
+            Button("About \(AppBranding.displayName)", action: showAboutPanel)
         }
     }
 
@@ -114,7 +114,7 @@ private struct HelpCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .help) {
-            Button("SnipSnipSnip Help", action: showHelpWindow)
+            Button("\(AppBranding.displayName) Help", action: showHelpWindow)
                 .keyboardShortcut("/", modifiers: [.command, .shift])
 
             Button("Show Onboarding", action: model.requestOnboardingPresentation)
@@ -361,7 +361,7 @@ struct SnipSnipSnipApp: App {
     }
 
     var body: some Scene {
-        Window("SnipSnipSnip", id: AppSceneID.mainWindow) {
+        Window(AppBranding.displayName, id: AppSceneID.mainWindow) {
             FirstMouseHostingContainer {
                 ContentView(model: model)
             }
@@ -381,7 +381,7 @@ struct SnipSnipSnipApp: App {
             CaptureCommands(model: model)
         }
 
-        Window("Welcome to SnipSnipSnip", id: AppSceneID.onboardingWindow) {
+        Window("Welcome to \(AppBranding.displayName)", id: AppSceneID.onboardingWindow) {
             OnboardingView(model: model)
         }
         .windowStyle(.hiddenTitleBar)
@@ -389,7 +389,7 @@ struct SnipSnipSnipApp: App {
         .windowResizability(.contentSize)
         .restorationBehavior(.disabled)
 
-        Window("SnipSnipSnip Help", id: AppSceneID.helpWindow) {
+        Window("\(AppBranding.displayName) Help", id: AppSceneID.helpWindow) {
             HelpGuideView()
         }
         .defaultSize(width: 920, height: 760)
