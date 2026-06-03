@@ -355,12 +355,148 @@ private_lane :prepare_version_and_build_number do |options|
   }
 end
 
+private_lane :prepare_local_version_and_build_number do |options|
+  requested_version = options[:version].to_s.strip
+  unless requested_version.empty?
+    increment_version_number(
+      version_number: requested_version,
+      xcodeproj: PROJECT_PATH
+    )
+    UI.message("Set marketing version to #{requested_version}")
+  end
+
+  version = current_release_version
+  next_build = current_build_number + 1
+
+  increment_build_number(
+    build_number: next_build,
+    xcodeproj: PROJECT_PATH
+  )
+
+  UI.message("Prepared #{version} (#{next_build})")
+  {
+    version: version,
+    build_number: next_build
+  }
+end
+
+private_lane :latest_pkg_path do
+  pkg_path = Dir.glob(File.join(BUILD_ARTIFACTS_DIRECTORY, "*.pkg"))
+    .max_by { |path| File.mtime(path) }
+
+  UI.user_error!("No .pkg artifact found in #{BUILD_ARTIFACTS_DIRECTORY}.") if pkg_path.nil?
+  pkg_path
+end
+
+private_lane :github_release_exists? do |options|
+  tag = options[:tag]
+  repo = options[:repo]
+
+  Actions.sh(
+    [
+      "cd", Shellwords.escape(REPOSITORY_ROOT), "&&",
+      "gh", "release", "view", Shellwords.escape(tag),
+      "--repo", Shellwords.escape(repo),
+      ">/dev/null", "2>&1"
+    ].join(" "),
+    log: false,
+    error_callback: ->(_result) {}
+  )
+
+  true
+rescue StandardError
+  false
+end
+
+private_lane :publish_self_release_package do |options|
+  required_env!("GITHUB_TOKEN")
+
+  Actions.sh("command -v gh >/dev/null 2>&1")
+
+  prepared = options[:prepared]
+  changelog_details = tracked_changelog_details(
+    provided_changelog: options[:changelog],
+    lane_name: "self_release"
+  )
+  repository = options[:repository].to_s.strip
+  repository = ENV["GITHUB_RELEASE_REPOSITORY"].to_s.strip if repository.empty?
+  repository = ENV["GITHUB_REPOSITORY"].to_s.strip if repository.empty?
+  repository = "mc-hamster/SnipSnipSnip" if repository.empty?
+
+  tag = options[:tag].to_s.strip
+  tag = "v#{prepared[:version]}-self.#{prepared[:build_number]}" if tag.empty?
+
+  release_name = options[:release_name].to_s.strip
+  release_name = "SnipSnipSnip #{prepared[:version]} (#{prepared[:build_number]}) Self Release" if release_name.empty?
+
+  asset_path = options[:asset_path].to_s.strip
+  asset_path = latest_pkg_path if asset_path.empty?
+  asset_path = resolve_repo_path(asset_path)
+
+  draft = boolean_option(options[:draft] || ENV["GITHUB_RELEASE_DRAFT"], default_value: false)
+  prerelease = boolean_option(options[:prerelease] || ENV["GITHUB_RELEASE_PRERELEASE"], default_value: false)
+
+  release_exists = github_release_exists?(tag: tag, repo: repository)
+  if release_exists
+    Actions.sh(
+      [
+        "cd", Shellwords.escape(REPOSITORY_ROOT), "&&",
+        "gh", "release", "upload", Shellwords.escape(tag),
+        Shellwords.escape(asset_path),
+        "--repo", Shellwords.escape(repository),
+        "--clobber"
+      ].join(" ")
+    )
+
+    Actions.sh(
+      [
+        "cd", Shellwords.escape(REPOSITORY_ROOT), "&&",
+        "gh", "release", "edit", Shellwords.escape(tag),
+        "--repo", Shellwords.escape(repository),
+        "--title", Shellwords.escape(release_name),
+        "--notes", Shellwords.escape(changelog_details[:text])
+      ].join(" ")
+    )
+  else
+    create_command = [
+      "cd", Shellwords.escape(REPOSITORY_ROOT), "&&",
+      "gh", "release", "create", Shellwords.escape(tag),
+      Shellwords.escape(asset_path),
+      "--repo", Shellwords.escape(repository),
+      "--title", Shellwords.escape(release_name),
+      "--notes", Shellwords.escape(changelog_details[:text])
+    ]
+    create_command << "--draft" if draft
+    create_command << "--prerelease" if prerelease
+    Actions.sh(create_command.join(" "))
+  end
+
+  persist_upload_record(
+    lane_name: "self_release",
+    prepared: prepared,
+    changelog: changelog_details[:text],
+    distribution: "github-releases"
+  )
+
+  record_fastlane_run_metadata(
+    lane_name: "self_release",
+    version: prepared[:version],
+    build_number: prepared[:build_number],
+    changelog: changelog_details[:text],
+    changelog_source: changelog_details[:source]
+  )
+
+  UI.message("Changelog source: #{changelog_details[:source]}")
+  UI.message(changelog_details[:text])
+  UI.success("Published #{prepared[:version]} (#{prepared[:build_number]}) to GitHub Releases as #{tag}.")
+end
+
 private_lane :build_release_pkg do |options|
   build_target = options[:build_target] || "Release"
   compilation_conditions = build_target == "Self Release" ? "" : "$(inherited) APP_STORE_BUILD"
   xcargs = [
     "-allowProvisioningUpdates",
-    "SNIP_BUILD_TARGET=#{build_target}",
+    "SNIP_BUILD_TARGET=#{Shellwords.escape(build_target)}",
     "SWIFT_ACTIVE_COMPILATION_CONDITIONS='#{compilation_conditions}'"
   ]
 
@@ -636,13 +772,30 @@ platform :mac do
 
   desc "Build a website-distribution package with Self Release feature flags"
   lane :self_release do |options|
-    api_key = app_store_connect_api_key_from_env
-    prepared = prepare_version_and_build_number(
-      api_key: api_key,
+    prepared = prepare_local_version_and_build_number(
       version: options[:version]
     )
 
     build_release_pkg(build_target: "Self Release")
+
+    publish_enabled = boolean_option(
+      options[:publish] || ENV["SELF_RELEASE_PUBLISH"],
+      default_value: false
+    )
+
+    if publish_enabled
+      publish_self_release_package(
+        prepared: prepared,
+        changelog: options[:changelog],
+        repository: options[:repository],
+        tag: options[:tag],
+        release_name: options[:release_name],
+        asset_path: options[:asset_path],
+        prerelease: options[:prerelease],
+        draft: options[:draft]
+      )
+      next prepared
+    end
 
     record_fastlane_run_metadata(
       lane_name: "self_release",
@@ -652,6 +805,12 @@ platform :mac do
     )
 
     UI.success("Built #{prepared[:version]} (#{prepared[:build_number]}) with SNIP_BUILD_TARGET=Self Release.")
+    prepared
+  end
+
+  desc "Build and publish the Self Release package to GitHub Releases"
+  lane :self_release_publish do |options|
+    self_release(options.merge(publish: true))
   end
 
   desc "Submit an already uploaded build for App Store review without rebuilding"

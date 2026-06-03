@@ -8,6 +8,7 @@ It is designed for:
 
 - building the `SnipSnipSnip` release archive and exporting a Mac App Store package
 - building a website-distribution archive with `SNIP_BUILD_TARGET=Self Release`
+- publishing website-distribution builds to GitHub Releases
 - uploading a build to TestFlight for internal testers
 - uploading a build to TestFlight for external testers
 - uploading and submitting a build to the App Store for release
@@ -168,6 +169,48 @@ Use this to build a release archive with website-only feature flags enabled:
 
 This lane builds the `Release` configuration with `SNIP_BUILD_TARGET=Self Release`. It does not upload to App Store Connect, and it explicitly clears `APP_STORE_BUILD`, so scrolling capture remains compiled into the website-distribution binary.
 
+To build and publish the package to https://github.com/mc-hamster/SnipSnipSnip/releases:
+
+```bash
+GITHUB_TOKEN=ghp_xxx \
+./bin/fastlane mac self_release_publish
+```
+
+Common variations:
+
+```bash
+GITHUB_TOKEN=ghp_xxx \
+./bin/fastlane mac self_release_publish version:1.0.18
+
+GITHUB_TOKEN=ghp_xxx \
+./bin/fastlane mac self_release_publish version:1.0.18 changelog:"Website release with scrolling capture fixes"
+
+GITHUB_TOKEN=ghp_xxx \
+./bin/fastlane mac self_release_publish version:1.0.18 prerelease:true
+```
+
+You can also publish through `self_release` directly:
+
+```bash
+GITHUB_TOKEN=ghp_xxx \
+./bin/fastlane mac self_release publish:true
+```
+
+Publishing details:
+
+1. Fastlane increments the local build number and builds with `SNIP_BUILD_TARGET=Self Release`.
+2. Fastlane discovers the newest `.pkg` in the build artifacts directory (or uses `asset_path:...` if provided).
+3. Fastlane creates or updates a GitHub release (default repo `mc-hamster/SnipSnipSnip`).
+4. Fastlane uploads the `.pkg` asset to that release.
+
+Optional publish parameters:
+
+- `repository:owner/name` to override the destination repo (default `mc-hamster/SnipSnipSnip`)
+- `tag:v1.0.18-self.123` to override the generated tag
+- `release_name:"SnipSnipSnip 1.0.18 Website"` to override the release title
+- `draft:true` and `prerelease:true` for release state
+- `asset_path:/absolute/path/to/SnipSnipSnip.pkg` to upload a specific package
+
 ### Build target feature flags
 
 The app reads `SnipBuildTarget` from its bundle Info.plist. Local Xcode `Debug` builds default to `Dev`, local Xcode `Release` builds default to `Release`, and Fastlane can stamp shipped builds as `Internal`, `External`, `Release`, or `Self Release`.
@@ -263,7 +306,7 @@ RELEASE_MANUAL_QA_CONFIRMED=true \
 
 ## CI automation
 
-Two GitHub Actions workflows are included:
+Three GitHub Actions workflows are included:
 
 - `.github/workflows/ci-tests.yml`: runs `xcodebuild test` on pull requests and pushes to `main`.
 - `.github/workflows/release-app-store.yml`: manual (`workflow_dispatch`) App Store release workflow with:
@@ -271,12 +314,15 @@ Two GitHub Actions workflows are included:
 	- environment approval gate (`app-store-production`)
 	- Fastlane doctor + release execution
 	- App Store Connect API key loaded from GitHub Secrets
+- `.github/workflows/release-self-release.yml`: manual (`workflow_dispatch`) website release workflow that builds with `SNIP_BUILD_TARGET=Self Release` and publishes the package to GitHub Releases.
 
 Required repository secrets for the release workflow:
 
 - `APP_STORE_CONNECT_API_KEY_KEY_ID`
 - `APP_STORE_CONNECT_API_KEY_ISSUER_ID`
 - `APP_STORE_CONNECT_API_KEY_P8_BASE64`
+
+The website release workflow uses the built-in `GITHUB_TOKEN` with `contents: write` permissions and does not require App Store Connect secrets.
 
 ## Encryption flag
 

@@ -63,6 +63,14 @@ Build, upload, and optionally submit a macOS package for App Store review
 
 Build a website-distribution package with Self Release feature flags
 
+### mac self_release_publish
+
+```sh
+[bundle exec] fastlane mac self_release_publish
+```
+
+Build and publish the Self Release package to GitHub Releases
+
 ### mac submit_review
 
 ```sh

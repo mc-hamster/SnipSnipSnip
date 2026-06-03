@@ -1,0 +1,64 @@
+name: Release Self Hosted Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Optional marketing version (for example 1.0.18)
+        required: false
+        type: string
+      changelog:
+        description: Optional release notes override
+        required: false
+        type: string
+      prerelease:
+        description: Mark GitHub release as pre-release
+        required: true
+        default: false
+        type: boolean
+      draft:
+        description: Create GitHub release as draft
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: self-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby with bundler cache
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+
+      - name: Select latest Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Fastlane self release publish
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          lane_args="prerelease:${{ inputs.prerelease }} draft:${{ inputs.draft }}"
+
+          if [ -n "${{ inputs.version }}" ]; then
+            lane_args="$lane_args version:${{ inputs.version }}"
+          fi
+
+          if [ -n "${{ inputs.changelog }}" ]; then
+            lane_args="$lane_args changelog:${{ inputs.changelog }}"
+          fi
+
+          ./bin/fastlane mac self_release_publish $lane_args
