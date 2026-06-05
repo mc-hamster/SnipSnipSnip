@@ -220,8 +220,19 @@ nonisolated struct ClipboardPreferences: Codable, Equatable, Sendable {
         ClipboardIgnoredApp(name: "Dashlane", match: "com.dashlane.dashlanephonefinal"),
         ClipboardIgnoredApp(name: "LastPass", match: "com.lastpass.LastPass"),
         ClipboardIgnoredApp(name: "KeePassXC", match: "org.keepassxc.keepassxc"),
+        ClipboardIgnoredApp(name: "Keeper Password Manager", match: "com.keepersecurity.passwordmanager"),
+        ClipboardIgnoredApp(name: "RoboForm", match: "RoboForm"),
+        ClipboardIgnoredApp(name: "Enpass", match: "Enpass"),
+        ClipboardIgnoredApp(name: "mSecure", match: "mSecure"),
+        ClipboardIgnoredApp(name: "mSecure", match: "com.mseven.mSecure"),
         ClipboardIgnoredApp(name: "NordPass", match: "com.nordsec.NordPass"),
-        ClipboardIgnoredApp(name: "Proton Pass", match: "me.proton.pass")
+        ClipboardIgnoredApp(name: "Proton Pass", match: "me.proton.pass"),
+        ClipboardIgnoredApp(name: "KeeWeb", match: "KeeWeb"),
+        ClipboardIgnoredApp(name: "MacPass", match: "MacPass"),
+        ClipboardIgnoredApp(name: "Strongbox", match: "Strongbox"),
+        ClipboardIgnoredApp(name: "Secrets", match: "Secrets"),
+        ClipboardIgnoredApp(name: "Buttercup", match: "Buttercup"),
+        ClipboardIgnoredApp(name: "SafeInCloud", match: "SafeInCloud")
     ]
 
     static let `default` = ClipboardPreferences(

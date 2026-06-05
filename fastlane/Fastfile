@@ -490,6 +490,7 @@ end
 
 private_lane :build_release_pkg do |options|
   build_target = options[:build_target] || "Release"
+  export_method = build_target == "Self Release" ? "developer-id" : "app-store"
   compilation_conditions = build_target == "Self Release" ? "" : "$(inherited) APP_STORE_BUILD"
   xcargs = [
     "-allowProvisioningUpdates",
@@ -505,7 +506,7 @@ private_lane :build_release_pkg do |options|
     scheme: SCHEME,
     configuration: "Release",
     clean: true,
-    export_method: "app-store",
+    export_method: export_method,
     export_team_id: DEVELOPER_TEAM_ID_VALUE,
     derived_data_path: DERIVED_DATA_DIRECTORY,
     output_directory: BUILD_ARTIFACTS_DIRECTORY,
@@ -513,6 +514,33 @@ private_lane :build_release_pkg do |options|
     xcargs: xcargs.join(" "),
     export_xcargs: "-allowProvisioningUpdates"
   )
+end
+
+private_lane :notarize_self_release_package do |options|
+  key_id = required_env!("APP_STORE_CONNECT_API_KEY_KEY_ID")
+  issuer_id = required_env!("APP_STORE_CONNECT_API_KEY_ISSUER_ID")
+  key_filepath = resolve_repo_path(required_env!("APP_STORE_CONNECT_API_KEY_PATH"))
+
+  UI.user_error!("App Store Connect API key file not found at `#{key_filepath}`.") unless File.exist?(key_filepath)
+
+  pkg_path = options[:pkg_path].to_s.strip
+  pkg_path = latest_pkg_path if pkg_path.empty?
+  pkg_path = resolve_repo_path(pkg_path)
+
+  UI.message("Submitting #{pkg_path} for notarization")
+  Actions.sh(
+    [
+      "xcrun", "notarytool", "submit", Shellwords.escape(pkg_path),
+      "--wait",
+      "--key", Shellwords.escape(key_filepath),
+      "--key-id", Shellwords.escape(key_id),
+      "--issuer", Shellwords.escape(issuer_id)
+    ].join(" ")
+  )
+
+  Actions.sh("xcrun stapler staple #{Shellwords.escape(pkg_path)}")
+  Actions.sh("xcrun stapler validate #{Shellwords.escape(pkg_path)}")
+  UI.success("Notarized and stapled #{pkg_path}")
 end
 
 private_lane :ensure_release_preflight_confirmations do |options|
@@ -777,6 +805,12 @@ platform :mac do
     )
 
     build_release_pkg(build_target: "Self Release")
+
+    notarize_enabled = boolean_option(
+      options[:notarize] || ENV["SELF_RELEASE_NOTARIZE"],
+      default_value: true
+    )
+    notarize_self_release_package if notarize_enabled
 
     publish_enabled = boolean_option(
       options[:publish] || ENV["SELF_RELEASE_PUBLISH"],

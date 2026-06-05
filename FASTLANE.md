@@ -167,7 +167,16 @@ Use this to build a release archive with website-only feature flags enabled:
 ./bin/fastlane mac self_release version:1.0.1
 ```
 
-This lane builds the `Release` configuration with `SNIP_BUILD_TARGET=Self Release`. It does not upload to App Store Connect, it explicitly clears `APP_STORE_BUILD`, and it stamps the app display name as `SnipSnipSnip Pro` for the website-distribution binary.
+This lane builds the `Release` configuration with `SNIP_BUILD_TARGET=Self Release` using a Developer ID export profile for website distribution. It does not upload to App Store Connect, it explicitly clears `APP_STORE_BUILD`, and it stamps the app display name as `SnipSnipSnip Pro` for the website-distribution binary.
+
+By default, `self_release` also notarizes and staples the generated `.pkg` so downloaded installs should open without requiring users to manually clear quarantine attributes.
+
+If you need to skip notarization temporarily (for example while debugging local signing), use:
+
+```bash
+SELF_RELEASE_NOTARIZE=false \
+./bin/fastlane mac self_release
+```
 
 To build and publish the package to https://github.com/mc-hamster/SnipSnipSnip/releases:
 
@@ -199,9 +208,10 @@ GITHUB_TOKEN=ghp_xxx \
 Publishing details:
 
 1. Fastlane increments the local build number and builds with `SNIP_BUILD_TARGET=Self Release`.
-2. Fastlane discovers the newest `.pkg` in the build artifacts directory (or uses `asset_path:...` if provided).
-3. Fastlane creates or updates a GitHub release (default repo `mc-hamster/SnipSnipSnip`).
-4. Fastlane uploads the `.pkg` asset to that release.
+2. Fastlane notarizes and staples the `.pkg` by default.
+3. Fastlane discovers the newest `.pkg` in the build artifacts directory (or uses `asset_path:...` if provided).
+4. Fastlane creates or updates a GitHub release (default repo `mc-hamster/SnipSnipSnip`).
+5. Fastlane uploads the `.pkg` asset to that release.
 
 Optional publish parameters:
 

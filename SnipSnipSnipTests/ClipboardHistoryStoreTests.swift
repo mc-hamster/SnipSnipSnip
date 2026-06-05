@@ -101,6 +101,26 @@ final class ClipboardHistoryStoreTests: XCTestCase {
         XCTAssertFalse(ClipboardPasteboardReader.containsSensitiveOrTransientType(["public.utf8-plain-text"]))
     }
 
+    func testDefaultIgnoredAppsIncludeAdditionalPasswordManagers() {
+        let preferences = ClipboardPreferences.default
+        let managers = [
+            ClipboardSourceApp(name: "mSecure", bundleIdentifier: "com.mseven.mSecure"),
+            ClipboardSourceApp(name: "Keeper Password Manager", bundleIdentifier: "com.keepersecurity.passwordmanager"),
+            ClipboardSourceApp(name: "RoboForm", bundleIdentifier: "com.siber.roboform"),
+            ClipboardSourceApp(name: "Enpass", bundleIdentifier: "in.sinew.Enpass-Desktop"),
+            ClipboardSourceApp(name: "KeeWeb", bundleIdentifier: "com.antelle.keeweb"),
+            ClipboardSourceApp(name: "MacPass", bundleIdentifier: "com.hicknhacksoftware.MacPass"),
+            ClipboardSourceApp(name: "Strongbox", bundleIdentifier: "com.strongboxsafe.Strongbox"),
+            ClipboardSourceApp(name: "Secrets", bundleIdentifier: "com.outercorner.Secrets"),
+            ClipboardSourceApp(name: "Buttercup", bundleIdentifier: "com.buttercup.desktop"),
+            ClipboardSourceApp(name: "SafeInCloud", bundleIdentifier: "com.safe-in-cloud.SafeInCloud")
+        ]
+
+        for manager in managers {
+            XCTAssertTrue(preferences.ignores(manager), "Expected default clipboard privacy filters to ignore \(manager.displayName).")
+        }
+    }
+
     func testSearchMatchesTextSourceAndType() {
         let storeName = "ClipboardHistoryStoreTests.search"
         removeStore(named: storeName)
