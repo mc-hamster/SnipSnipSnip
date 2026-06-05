@@ -171,6 +171,13 @@ This lane builds the `Release` configuration with `SNIP_BUILD_TARGET=Self Releas
 
 By default, `self_release` also notarizes and staples the generated `.pkg` so downloaded installs should open without requiring users to manually clear quarantine attributes.
 
+Self Release signing prerequisites on the build Mac:
+
+- `Developer ID Application` certificate for team `8RN882MNR5`
+- `Developer ID Installer` certificate for team `8RN882MNR5`
+
+If either certificate is missing, Fastlane now stops before building with a clear error instead of failing later during notarization.
+
 If you need to skip notarization temporarily (for example while debugging local signing), use:
 
 ```bash

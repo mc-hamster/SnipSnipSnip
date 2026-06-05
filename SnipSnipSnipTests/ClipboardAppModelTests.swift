@@ -131,5 +131,6 @@ final class ClipboardAppModelTests: XCTestCase {
         XCTAssertEqual(reloaded.maxItemCount, 10)
         XCTAssertEqual(reloaded.maxStorageMB, 25)
         XCTAssertTrue(reloaded.ignoredApps.contains(where: { $0.match == "com.example.SecretApp" }))
+        XCTAssertTrue(reloaded.ignoredApps.contains(where: { $0.match == "com.mseven.mSecure" }))
     }
 }

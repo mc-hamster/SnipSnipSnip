@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class ClipboardManagerWindowController: NSWindowController {
     private weak var model: AppModel?
+    private var previousFrontmostApplication: NSRunningApplication?
 
     init(model: AppModel) {
         self.model = model
@@ -34,12 +35,21 @@ final class ClipboardManagerWindowController: NSWindowController {
             return
         }
 
+        if let frontmostApplication = NSWorkspace.shared.frontmostApplication,
+           frontmostApplication.bundleIdentifier != Bundle.main.bundleIdentifier {
+            previousFrontmostApplication = frontmostApplication
+        }
+
         if !window.isVisible {
             window.center()
         }
 
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func activatePreviousApplicationForPaste() {
+        previousFrontmostApplication?.activate(options: [])
     }
 }
 
@@ -75,6 +85,7 @@ struct ClipboardManagerView: View {
             Divider()
             footer
         }
+        .background(shortcutHandler)
         .frame(minWidth: 460, minHeight: 420)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
@@ -187,17 +198,29 @@ struct ClipboardManagerView: View {
                     model.copyClipboardItem(selectedItem)
                 }
             }
-            .keyboardShortcut(.return, modifiers: [])
             .disabled(selectedItem == nil)
 
-            Button("Paste") {
+            Button("Copy & Paste") {
                 if let selectedItem {
                     model.pasteClipboardItem(selectedItem)
                 }
             }
+            .keyboardShortcut(.return, modifiers: [])
+            .help("Copy this item, keep Clipboard History open, return to the previous app, and send Command-V.")
             .disabled(selectedItem == nil)
         }
         .padding(12)
+    }
+
+    private var shortcutHandler: some View {
+        ClipboardShortcutHandler { number in
+            guard number > 0, number <= filteredItems.count else {
+                return
+            }
+
+            model.copyClipboardItem(filteredItems[number - 1])
+        }
+        .frame(width: 0, height: 0)
     }
 
     private func moveSelection(_ direction: MoveCommandDirection) {
@@ -245,7 +268,7 @@ private struct ClipboardItemRow: View {
                         .foregroundStyle(.secondary)
 
                     if let shortcutNumber {
-                        Text("⌘\(shortcutNumber)")
+                        Text("⌥\(shortcutNumber)")
                             .font(.caption2.monospaced())
                             .foregroundStyle(.tertiary)
                     }
@@ -308,9 +331,9 @@ private struct ClipboardItemRow: View {
             copyButton
 
             Button(action: onPaste) {
-                Image(systemName: "arrow.turn.down.left")
+                Image(systemName: "keyboard")
             }
-            .help("Paste")
+            .help("Copy & Paste: copy this item, keep Clipboard History open, return to the previous app, and send Command-V.")
 
             if case .snip = item.kind {
                 Button(action: onOpenSnip) {
@@ -334,13 +357,11 @@ private struct ClipboardItemRow: View {
 
     @ViewBuilder
     private var copyButton: some View {
-        if let shortcutNumber,
-           let character = String(shortcutNumber).first {
+        if let shortcutNumber {
             Button(action: onCopy) {
                 Image(systemName: "doc.on.doc")
             }
-            .help("Copy")
-            .keyboardShortcut(KeyEquivalent(character), modifiers: .command)
+            .help("Copy. Press Option-\(shortcutNumber) while Clipboard History is focused.")
         } else {
             Button(action: onCopy) {
                 Image(systemName: "doc.on.doc")
@@ -364,4 +385,53 @@ private struct ClipboardItemRow: View {
         }
     }
 
+}
+
+private struct ClipboardShortcutHandler: NSViewRepresentable {
+    let onNumberShortcut: (Int) -> Void
+
+    func makeNSView(context: Context) -> ClipboardShortcutView {
+        let view = ClipboardShortcutView()
+        view.onNumberShortcut = onNumberShortcut
+        return view
+    }
+
+    func updateNSView(_ view: ClipboardShortcutView, context: Context) {
+        view.onNumberShortcut = onNumberShortcut
+    }
+}
+
+private final class ClipboardShortcutView: NSView {
+    var onNumberShortcut: ((Int) -> Void)?
+    private var monitor: Any?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+
+        if window == nil {
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+                self.monitor = nil
+            }
+            return
+        }
+
+        guard monitor == nil else {
+            return
+        }
+
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self,
+                  self.window?.isKeyWindow == true,
+                  event.modifierFlags.intersection([.command, .control, .option]) == .option,
+                  let characters = event.charactersIgnoringModifiers,
+                  let number = Int(characters),
+                  (1...9).contains(number) else {
+                return event
+            }
+
+            self.onNumberShortcut?(number)
+            return nil
+        }
+    }
 }

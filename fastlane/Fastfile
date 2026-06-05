@@ -491,6 +491,7 @@ end
 private_lane :build_release_pkg do |options|
   build_target = options[:build_target] || "Release"
   export_method = build_target == "Self Release" ? "developer-id" : "app-store"
+  export_options = nil
   compilation_conditions = build_target == "Self Release" ? "" : "$(inherited) APP_STORE_BUILD"
   xcargs = [
     "-allowProvisioningUpdates",
@@ -499,6 +500,12 @@ private_lane :build_release_pkg do |options|
   ]
   if build_target == "Self Release"
     xcargs << "INFOPLIST_KEY_CFBundleDisplayName=#{Shellwords.escape('SnipSnipSnip Pro')}"
+    export_options = {
+      method: "developer-id",
+      teamID: DEVELOPER_TEAM_ID_VALUE,
+      signingCertificate: "Developer ID Application",
+      installerSigningCertificate: "Developer ID Installer"
+    }
   end
 
   build_mac_app(
@@ -512,7 +519,34 @@ private_lane :build_release_pkg do |options|
     output_directory: BUILD_ARTIFACTS_DIRECTORY,
     archive_path: ARCHIVE_PATH,
     xcargs: xcargs.join(" "),
+    export_options: export_options,
     export_xcargs: "-allowProvisioningUpdates"
+  )
+end
+
+private_lane :ensure_self_release_signing_ready do
+  code_sign_identities = Actions.sh(
+    "security find-identity -v -p codesigning",
+    log: false
+  )
+  installer_identities = Actions.sh(
+    "security find-identity -v -p basic",
+    log: false
+  )
+
+  has_developer_id_application = code_sign_identities.include?("Developer ID Application")
+  has_developer_id_installer = installer_identities.include?("Developer ID Installer")
+
+  return if has_developer_id_application && has_developer_id_installer
+
+  missing = []
+  missing << "Developer ID Application" unless has_developer_id_application
+  missing << "Developer ID Installer" unless has_developer_id_installer
+
+  UI.user_error!(
+    "Self Release signing prerequisites missing: #{missing.join(', ')}. " \
+    "Install these certificates in Keychain Access for team #{DEVELOPER_TEAM_ID_VALUE}, " \
+    "then rerun self_release."
   )
 end
 
@@ -526,21 +560,64 @@ private_lane :notarize_self_release_package do |options|
   pkg_path = options[:pkg_path].to_s.strip
   pkg_path = latest_pkg_path if pkg_path.empty?
   pkg_path = resolve_repo_path(pkg_path)
+  staple_retry_count = Integer(ENV.fetch("SELF_RELEASE_STAPLE_RETRIES", "6"), 10)
+  staple_retry_delay_seconds = Integer(ENV.fetch("SELF_RELEASE_STAPLE_RETRY_DELAY_SECONDS", "15"), 10)
 
   UI.message("Submitting #{pkg_path} for notarization")
-  Actions.sh(
+  submit_output = Actions.sh(
     [
       "xcrun", "notarytool", "submit", Shellwords.escape(pkg_path),
       "--wait",
+      "--output-format", "json",
       "--key", Shellwords.escape(key_filepath),
       "--key-id", Shellwords.escape(key_id),
       "--issuer", Shellwords.escape(issuer_id)
     ].join(" ")
   )
+  submit_result = JSON.parse(submit_output)
+  submission_id = submit_result["id"].to_s
+  submission_status = submit_result["status"].to_s
 
-  Actions.sh("xcrun stapler staple #{Shellwords.escape(pkg_path)}")
-  Actions.sh("xcrun stapler validate #{Shellwords.escape(pkg_path)}")
-  UI.success("Notarized and stapled #{pkg_path}")
+  if submission_status != "Accepted"
+    notary_log = if submission_id.empty?
+                   ""
+                 else
+                   Actions.sh(
+                     [
+                       "xcrun", "notarytool", "log", Shellwords.escape(submission_id),
+                       "--key", Shellwords.escape(key_filepath),
+                       "--key-id", Shellwords.escape(key_id),
+                       "--issuer", Shellwords.escape(issuer_id)
+                     ].join(" "),
+                     log: false,
+                     error_callback: ->(_result) {}
+                   )
+                 end
+
+    UI.user_error!(
+      "Notarization failed for #{pkg_path}. Status: #{submission_status}. " \
+      "Submission id: #{submission_id.empty? ? 'n/a' : submission_id}.\n#{notary_log}"
+    )
+  end
+
+  (1..staple_retry_count).each do |attempt|
+    begin
+      Actions.sh("xcrun stapler staple #{Shellwords.escape(pkg_path)}")
+      Actions.sh("xcrun stapler validate #{Shellwords.escape(pkg_path)}")
+      UI.success("Notarized and stapled #{pkg_path}")
+      return
+    rescue StandardError => error
+      raise if attempt >= staple_retry_count
+
+      UI.important(
+        "Staple attempt #{attempt}/#{staple_retry_count} failed: #{error.message}. " \
+        "Retrying in #{staple_retry_delay_seconds}s to allow notarization ticket propagation."
+      )
+      sleep(staple_retry_delay_seconds)
+    end
+  end
+
+  UI.user_error!("Notarized package could not be stapled after #{staple_retry_count} attempts: #{pkg_path}")
 end
 
 private_lane :ensure_release_preflight_confirmations do |options|
@@ -800,6 +877,8 @@ platform :mac do
 
   desc "Build a website-distribution package with Self Release feature flags"
   lane :self_release do |options|
+    ensure_self_release_signing_ready
+
     prepared = prepare_local_version_and_build_number(
       version: options[:version]
     )

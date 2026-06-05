@@ -5,7 +5,6 @@ struct CaptureAutomationSettingsView: View {
     @ObservedObject var model: AppModel
     @State private var selectedTab: SettingsTab = .general
     @State private var isShowingResetDefaultsConfirmation = false
-    @State private var ignoredClipboardAppMatch = ""
     @State private var launchAtLoginErrorMessage: String?
 
     var body: some View {
@@ -306,28 +305,68 @@ struct CaptureAutomationSettingsView: View {
                 Section("Ignored Apps") {
                     SettingsHelpText("SnipSnipSnip skips concealed and transient clipboard types and ignores Apple Passwords plus common password managers by default.")
 
-                    HStack {
-                        TextField("Bundle ID or app name", text: $ignoredClipboardAppMatch)
-                        Button("Add") {
-                            model.addIgnoredClipboardApp(match: ignoredClipboardAppMatch)
-                            ignoredClipboardAppMatch = ""
+                    HStack(spacing: 10) {
+                        Menu("Ignore Running App") {
+                            if model.clipboardRunningAppIgnoreCandidates.isEmpty {
+                                Text("No available running apps")
+                            } else {
+                                ForEach(model.clipboardRunningAppIgnoreCandidates) { app in
+                                    Button(app.name) {
+                                        model.addIgnoredClipboardApp(app)
+                                    }
+                                }
+                            }
                         }
-                        .disabled(ignoredClipboardAppMatch.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        Button("Choose App...", action: model.chooseIgnoredClipboardApp)
                     }
 
-                    ForEach(model.clipboardPreferences.ignoredApps) { app in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(app.name)
-                                Text(app.match)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                    if !model.clipboardRecentSourceAppIgnoreCandidates.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Recent Sources")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+
+                            ForEach(model.clipboardRecentSourceAppIgnoreCandidates.prefix(5)) { app in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(app.name)
+                                        Text(app.match)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    Spacer(minLength: 12)
+
+                                    Button("Ignore") {
+                                        model.addIgnoredClipboardApp(app)
+                                    }
+                                }
                             }
+                        }
+                    }
 
-                            Spacer(minLength: 12)
+                    Divider()
 
-                            Button("Remove") {
-                                model.removeIgnoredClipboardApp(app)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Ignored")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+
+                        ForEach(model.clipboardPreferences.ignoredApps) { app in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(app.name)
+                                    Text(app.match)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer(minLength: 12)
+
+                                Button("Remove") {
+                                    model.removeIgnoredClipboardApp(app)
+                                }
                             }
                         }
                     }

@@ -130,6 +130,37 @@ struct HelpGuideView: View {
                         ]
                         : [],
                     relatedIDs: ["troubleshoot-capture", "privacy"]
+                ),
+                HelpArticle(
+                    id: "clipboard-history",
+                    title: "Use Clipboard History",
+                    summary: "Find copied text, links, images, files, and recent non-private snips in one local timeline.",
+                    sections: [
+                        HelpArticleSection(
+                            title: "Open clipboard history",
+                            body: "Choose Clipboard History from the menu bar icon or use Command-Shift-V. Search is focused when the floating window opens."
+                        ),
+                        HelpArticleSection(
+                            title: "What appears",
+                            body: "Clipboard History saves copied text, links, images, files, and non-private SnipSnipSnip screenshots. Snips are added even when Auto Copy is off. Private Capture screenshots are not added."
+                        ),
+                        HelpArticleSection(
+                            title: "Copy and paste actions",
+                            body: "Copy writes the selected item back to the system clipboard. Copy & Paste writes the item to the clipboard, keeps Clipboard History open, returns to the app that was active before Clipboard History opened, and sends Command-V. Use Option-1 through Option-9 while the Clipboard History window is focused to copy the matching visible item."
+                        ),
+                        HelpArticleSection(
+                            title: "Ignore apps",
+                            body: "Open Settings > Clipboard to manage ignored apps. Use Ignore Running App for apps that are currently open, Choose App to pick an app from Applications, or Ignore beside a recent clipboard source."
+                        ),
+                        HelpArticleSection(
+                            title: "Privacy defaults",
+                            body: "SnipSnipSnip skips concealed and transient pasteboard types and ignores Apple Passwords plus common password managers by default. Clipboard history is local to this Mac."
+                        )
+                    ],
+                    important: [
+                        "Use Private Capture for screenshots that should stay out of Clipboard History."
+                    ],
+                    relatedIDs: ["privacy", "copy-save-export"]
                 )
             ]
         ),

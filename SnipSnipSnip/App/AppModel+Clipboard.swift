@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import UniformTypeIdentifiers
 
 extension AppModel {
     var clipboardHistoryItems: [ClipboardItem] {
@@ -12,7 +13,11 @@ extension AppModel {
             return .default
         }
 
-        return preferences.sanitized()
+        var migratedPreferences = preferences
+        let existingMatches = Set(migratedPreferences.ignoredApps.map { $0.id })
+        let missingDefaultIgnores = ClipboardPreferences.defaultIgnoredApps.filter { !existingMatches.contains($0.id) }
+        migratedPreferences.ignoredApps.append(contentsOf: missingDefaultIgnores)
+        return migratedPreferences.sanitized()
     }
 
     func persistClipboardPreferences() {
@@ -50,6 +55,14 @@ extension AppModel {
     }
 
     func addIgnoredClipboardApp(match: String) {
+        addIgnoredClipboardApp(name: match, match: match)
+    }
+
+    func addIgnoredClipboardApp(_ app: ClipboardIgnoredApp) {
+        addIgnoredClipboardApp(name: app.name, match: app.match)
+    }
+
+    func addIgnoredClipboardApp(name: String, match: String) {
         let normalizedMatch = match.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedMatch.isEmpty else {
             return
@@ -61,8 +74,73 @@ extension AppModel {
             return
         }
 
-        preferences.ignoredApps.append(ClipboardIgnoredApp(name: normalizedMatch, match: normalizedMatch))
+        let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        preferences.ignoredApps.append(ClipboardIgnoredApp(
+            name: normalizedName.isEmpty ? normalizedMatch : normalizedName,
+            match: normalizedMatch
+        ))
         clipboardPreferences = preferences
+    }
+
+    var clipboardRunningAppIgnoreCandidates: [ClipboardIgnoredApp] {
+        let candidates = NSWorkspace.shared.runningApplications.compactMap { app -> ClipboardIgnoredApp? in
+            guard app.activationPolicy == .regular,
+                  app.bundleIdentifier != Bundle.main.bundleIdentifier else {
+                return nil
+            }
+
+            let name = app.localizedName ?? app.bundleURL?.deletingPathExtension().lastPathComponent ?? app.bundleIdentifier
+            guard let name else {
+                return nil
+            }
+
+            return ClipboardIgnoredApp(
+                name: name,
+                match: app.bundleIdentifier ?? name
+            )
+        }
+
+        return filteredClipboardIgnoreCandidates(candidates)
+    }
+
+    var clipboardRecentSourceAppIgnoreCandidates: [ClipboardIgnoredApp] {
+        let candidates = clipboardHistoryItems.compactMap { item -> ClipboardIgnoredApp? in
+            guard let sourceApp = item.sourceApp,
+                  sourceApp.bundleIdentifier != Bundle.main.bundleIdentifier else {
+                return nil
+            }
+
+            let match = sourceApp.bundleIdentifier ?? sourceApp.displayName
+            return ClipboardIgnoredApp(name: sourceApp.displayName, match: match)
+        }
+
+        return filteredClipboardIgnoreCandidates(candidates)
+    }
+
+    func chooseIgnoredClipboardApp() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose App to Ignore"
+        panel.prompt = "Ignore"
+        panel.message = "Choose an app. SnipSnipSnip will skip clipboard history entries copied from it."
+        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
+        panel.allowedContentTypes = [.applicationBundle]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+
+        guard panel.runModal() == .OK,
+              let appURL = panel.url else {
+            return
+        }
+
+        let bundle = Bundle(url: appURL)
+        let displayName = bundle?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+            ?? bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String
+            ?? appURL.deletingPathExtension().lastPathComponent
+        addIgnoredClipboardApp(
+            name: displayName,
+            match: bundle?.bundleIdentifier ?? displayName
+        )
     }
 
     func removeIgnoredClipboardApp(_ app: ClipboardIgnoredApp) {
@@ -75,6 +153,20 @@ extension AppModel {
         var preferences = clipboardPreferences
         preferences.ignoredApps = ClipboardPreferences.defaultIgnoredApps
         clipboardPreferences = preferences
+    }
+
+    private func filteredClipboardIgnoreCandidates(_ candidates: [ClipboardIgnoredApp]) -> [ClipboardIgnoredApp] {
+        let ignoredMatches = Set(clipboardPreferences.ignoredApps.map(\.id))
+        var seenMatches = Set<String>()
+
+        return candidates
+            .filter { !ignoredMatches.contains($0.id) }
+            .filter { candidate in
+                seenMatches.insert(candidate.id).inserted
+            }
+            .sorted { lhs, rhs in
+                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
     }
 
     func clearUnpinnedClipboardItems() {
@@ -103,9 +195,9 @@ extension AppModel {
 
     func pasteClipboardItem(_ item: ClipboardItem) {
         writeClipboardItemToPasteboard(item, plainTextOnly: false)
-        clipboardManagerWindowController?.window?.orderOut(nil)
+        clipboardManagerWindowController?.activatePreviousApplicationForPaste()
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
             Self.sendPasteKeystroke()
         }
     }
