@@ -118,6 +118,7 @@ struct ContentView: View {
             model.refreshPermissions()
             model.refreshAvailableWindows()
             handlePendingDocumentOpenRequests()
+            handlePendingPasteboardImageImportRequests()
         }
         .onAppear {
             model.mainWindowDidAppear()
@@ -127,6 +128,9 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .sssPendingDocumentURLsDidChange)) { _ in
             handlePendingDocumentOpenRequests()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .sssPendingPasteboardImageImportsDidChange)) { _ in
+            handlePendingPasteboardImageImportRequests()
         }
         .onReceive(windowRefreshTimer) { _ in
             guard NSApp.isActive else {
@@ -959,10 +963,27 @@ struct ContentView: View {
         }
 
         if urls.count > 1 {
-            model.errorMessage = "SnipSnipSnip can only open one .sss document at a time. Opened \(firstURL.lastPathComponent)."
+            model.errorMessage = "SnipSnipSnip can only open or import one file at a time. Opened \(firstURL.lastPathComponent)."
         }
 
-        model.openDocument(at: firstURL)
+        model.openExternalFile(at: firstURL)
+    }
+
+    private func handlePendingPasteboardImageImportRequests() {
+        let requests = PendingPasteboardImageImportRequests.drain()
+
+        guard let firstRequest = requests.first else {
+            return
+        }
+
+        if requests.count > 1 {
+            model.errorMessage = "SnipSnipSnip can only import one shared image at a time."
+        }
+
+        model.importImageFromPasteboard(
+            named: firstRequest.pasteboardName,
+            sourceName: firstRequest.sourceName
+        )
     }
 
     private var quickStartDetail: String {

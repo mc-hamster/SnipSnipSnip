@@ -29,6 +29,16 @@ extension AppModel {
         }
     }
 
+    func openExternalFile(at url: URL) {
+        performAfterHandlingUnsavedChanges { [weak self] in
+            if Self.isEditableDocumentURL(url) {
+                self?.loadDocument(from: url)
+            } else {
+                self?.importImage(from: url)
+            }
+        }
+    }
+
     func saveDocument() {
         Task {
             _ = await saveCurrentDocument()
@@ -583,18 +593,57 @@ extension AppModel {
             }
 
             let sourceName = url.deletingPathExtension().lastPathComponent
-            let capture = CapturedScreenshot(
-                image: image,
-                kind: .region,
-                sourceName: sourceName.isEmpty ? "Imported Image" : sourceName,
-                sourceRect: CGRect(origin: .zero, size: CGSize(width: image.width, height: image.height)),
-                capturedAt: Date()
-            )
-            let controller = EditorController(capture: capture)
-            installEditorController(controller, documentURL: nil, savedSession: nil)
-            requestMainWindowPresentation()
+            importImage(image, sourceName: sourceName)
         } catch {
             present(error)
+        }
+    }
+
+    func importImageFromPasteboard(named pasteboardName: String, sourceName: String?) {
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(pasteboardName))
+
+        do {
+            guard let imageData = pasteboard.data(forType: .png)
+                    ?? pasteboard.data(forType: .tiff),
+                  let imageSource = CGImageSourceCreateWithData(imageData as CFData, nil),
+                  let image = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
+                throw ImportedImageLoadError()
+            }
+
+            importImage(image, sourceName: sourceName ?? "Shared Photo")
+            pasteboard.clearContents()
+        } catch {
+            present(error)
+        }
+    }
+
+    private func importImage(_ image: CGImage, sourceName: String?) {
+        let resolvedSourceName: String
+
+        if let sourceName, !sourceName.isEmpty {
+            resolvedSourceName = sourceName
+        } else {
+            resolvedSourceName = "Imported Image"
+        }
+
+        let capture = CapturedScreenshot(
+            image: image,
+            kind: .region,
+            sourceName: resolvedSourceName,
+            sourceRect: CGRect(origin: .zero, size: CGSize(width: image.width, height: image.height)),
+            capturedAt: Date()
+        )
+        let controller = EditorController(capture: capture)
+        installEditorController(controller, documentURL: nil, savedSession: nil)
+        requestMainWindowPresentation()
+    }
+
+    private static func isEditableDocumentURL(_ url: URL) -> Bool {
+        switch url.pathExtension.lowercased() {
+        case "sss", "sssvideo":
+            return true
+        default:
+            return false
         }
     }
 

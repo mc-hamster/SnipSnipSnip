@@ -7,6 +7,13 @@
 	objects = {
 
 /* Begin PBXContainerItemProxy section */
+		A100000C2F84000000A95020 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 3EEB1E722F83676F00A95020 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A10000062F84000000A95020;
+			remoteInfo = SnipSnipSnipShareExtension;
+		};
 		4A0C010A2F83700100A95020 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 3EEB1E722F83676F00A95020 /* Project object */;
@@ -19,6 +26,9 @@
 /* Begin PBXFileReference section */
 		3EEB1E7A2F83676F00A95020 /* SnipSnipSnip.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnipSnipSnip.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4A0C01012F83700100A95020 /* SnipSnipSnipTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SnipSnipSnipTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000012F84000000A95020 /* SnipSnipSnipShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = wrapper.app-extension; includeInIndex = 0; path = SnipSnipSnipShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A100000E2F84000000A95020 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		A100000F2F84000000A95020 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -33,6 +43,25 @@
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXBuildFile section */
+		A100000A2F84000000A95020 /* SnipSnipSnipShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A10000012F84000000A95020 /* SnipSnipSnipShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A10000102F84000000A95020 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000E2F84000000A95020 /* ShareViewController.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A100000B2F84000000A95020 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A100000A2F84000000A95020 /* SnipSnipSnipShareExtension.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		3EEB1E772F83676F00A95020 /* Frameworks */ = {
@@ -49,6 +78,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A10000032F84000000A95020 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -56,6 +92,7 @@
 			isa = PBXGroup;
 			children = (
 				3EEB1E7C2F83676F00A95020 /* SnipSnipSnip */,
+				A10000022F84000000A95020 /* SnipSnipSnipShareExtension */,
 				4A0C01022F83700100A95020 /* SnipSnipSnipTests */,
 				3EEB1E7B2F83676F00A95020 /* Products */,
 			);
@@ -65,9 +102,19 @@
 			isa = PBXGroup;
 			children = (
 				3EEB1E7A2F83676F00A95020 /* SnipSnipSnip.app */,
+				A10000012F84000000A95020 /* SnipSnipSnipShareExtension.appex */,
 				4A0C01012F83700100A95020 /* SnipSnipSnipTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A10000022F84000000A95020 /* SnipSnipSnipShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				A100000F2F84000000A95020 /* Info.plist */,
+				A100000E2F84000000A95020 /* ShareViewController.swift */,
+			);
+			path = SnipSnipSnipShareExtension;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -80,10 +127,12 @@
 				3EEB1E762F83676F00A95020 /* Sources */,
 				3EEB1E772F83676F00A95020 /* Frameworks */,
 				3EEB1E782F83676F00A95020 /* Resources */,
+				A100000B2F84000000A95020 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				A100000D2F84000000A95020 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				3EEB1E7C2F83676F00A95020 /* SnipSnipSnip */,
@@ -94,6 +143,25 @@
 			productName = SnipSnipSnip;
 			productReference = 3EEB1E7A2F83676F00A95020 /* SnipSnipSnip.app */;
 			productType = "com.apple.product-type.application";
+		};
+		A10000062F84000000A95020 /* SnipSnipSnipShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10000092F84000000A95020 /* Build configuration list for PBXNativeTarget "SnipSnipSnipShareExtension" */;
+			buildPhases = (
+				A10000042F84000000A95020 /* Sources */,
+				A10000032F84000000A95020 /* Frameworks */,
+				A10000052F84000000A95020 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SnipSnipSnipShareExtension;
+			packageProductDependencies = (
+			);
+			productName = SnipSnipSnipShareExtension;
+			productReference = A10000012F84000000A95020 /* SnipSnipSnipShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 		4A0C01062F83700100A95020 /* SnipSnipSnipTests */ = {
 			isa = PBXNativeTarget;
@@ -131,6 +199,9 @@
 					3EEB1E792F83676F00A95020 = {
 						CreatedOnToolsVersion = 26.2;
 					};
+					A10000062F84000000A95020 = {
+						CreatedOnToolsVersion = 26.2;
+					};
 					4A0C01062F83700100A95020 = {
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = 3EEB1E792F83676F00A95020;
@@ -152,6 +223,7 @@
 			projectRoot = "";
 			targets = (
 				3EEB1E792F83676F00A95020 /* SnipSnipSnip */,
+				A10000062F84000000A95020 /* SnipSnipSnipShareExtension */,
 				4A0C01062F83700100A95020 /* SnipSnipSnipTests */,
 			);
 		};
@@ -166,6 +238,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		4A0C01052F83700100A95020 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10000052F84000000A95020 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -189,9 +268,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A10000042F84000000A95020 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000102F84000000A95020 /* ShareViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		A100000D2F84000000A95020 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A10000062F84000000A95020 /* SnipSnipSnipShareExtension */;
+			targetProxy = A100000C2F84000000A95020 /* PBXContainerItemProxy */;
+		};
 		4A0C010B2F83700100A95020 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 3EEB1E792F83676F00A95020 /* SnipSnipSnip */;
@@ -395,6 +487,67 @@
 			};
 			name = Release;
 		};
+		A10000072F84000000A95020 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 68;
+				DEVELOPMENT_TEAM = 8RN882MNR5;
+				ENABLE_APP_SANDBOX = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SnipSnipSnipShareExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0.19;
+				PRODUCT_BUNDLE_IDENTIFIER = com.oontz.SnipSnipSnip.ShareExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		A10000082F84000000A95020 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 68;
+				DEVELOPMENT_TEAM = 8RN882MNR5;
+				ENABLE_APP_SANDBOX = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SnipSnipSnipShareExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0.19;
+				PRODUCT_BUNDLE_IDENTIFIER = com.oontz.SnipSnipSnip.ShareExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) APP_STORE_BUILD";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
 		4A0C01082F83700100A95020 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -466,6 +619,15 @@
 			buildConfigurations = (
 				3EEB1E882F83677000A95020 /* Debug */,
 				3EEB1E892F83677000A95020 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A10000092F84000000A95020 /* Build configuration list for PBXNativeTarget "SnipSnipSnipShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000072F84000000A95020 /* Debug */,
+				A10000082F84000000A95020 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

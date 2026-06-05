@@ -81,7 +81,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Open an existing image",
-                            body: "Choose File > Import Image to open PNG, JPEG, TIFF, HEIC, GIF, and other common image formats in the screenshot editor."
+                            body: "Choose File > Import Image to open PNG, JPEG, TIFF, HEIC, GIF, and other common image formats in the screenshot editor. You can also open supported images from Finder with Open With > SnipSnipSnip, or share a photo from Apple Photos to SnipSnipSnip."
                         )
                     ],
                     important: [
@@ -460,6 +460,10 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Export screenshots",
                             body: "Choose Export PNG, Export JPEG, or Export PDF from the File menu. In Presentation, start with Plain, Canvas, or Drop Shadow. Open Customize only when you need to adjust the background, spacing, corners, or shadow. Transparent presentation output uses PNG so rounded corners and shadows can stay on alpha."
+                        ),
+                        HelpArticleSection(
+                            title: "Import from Finder or Photos",
+                            body: "In Finder, use Open With > SnipSnipSnip on common image files to import them into the screenshot editor. In Apple Photos, right-click a photo, choose Share, then choose SnipSnipSnip to open that photo as an editable imported image."
                         ),
                         HelpArticleSection(
                             title: "Drag output into another app",
