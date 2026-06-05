@@ -145,6 +145,10 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         }
     }
 
+    @objc private func openClipboardHistory() {
+        model?.showClipboardManager()
+    }
+
     @objc private func toggleAutoCopy() {
         guard let model else {
             return
@@ -304,6 +308,15 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             action: #selector(openMainWindow),
             keyEquivalent: "o",
             keyModifiers: captureShortcutModifiers,
+            enabled: true
+        ))
+
+        menu.addItem(actionItem(
+            title: "Clipboard History",
+            systemImage: "clipboard",
+            action: #selector(openClipboardHistory),
+            keyEquivalent: "v",
+            keyModifiers: [.command, .shift],
             enabled: true
         ))
 

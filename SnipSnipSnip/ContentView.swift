@@ -60,6 +60,7 @@ struct ContentView: View {
                         ),
                         dragOutPayloadProvider: model.promisedAnnotatedImagePayload
                     )
+                    .id(ObjectIdentifier(editorController))
                 } else if let videoController = model.videoEditorController {
                     VideoEditorView(controller: videoController)
                 } else {

@@ -5,6 +5,7 @@ struct CaptureAutomationSettingsView: View {
     @ObservedObject var model: AppModel
     @State private var selectedTab: SettingsTab = .general
     @State private var isShowingResetDefaultsConfirmation = false
+    @State private var ignoredClipboardAppMatch = ""
     @State private var launchAtLoginErrorMessage: String?
 
     var body: some View {
@@ -263,6 +264,83 @@ struct CaptureAutomationSettingsView: View {
             .tag(SettingsTab.archive)
 
             SettingsTabContainer(
+                title: "Clipboard",
+                summary: "Clipboard history, screenshot timeline entries, and ignored apps are configured here."
+            ) {
+                Section("History") {
+                    Toggle("Enable Clipboard History", isOn: Binding(get: {
+                        model.clipboardPreferences.isEnabled
+                    }, set: { value in
+                        model.updateClipboardHistoryEnabled(value)
+                    }))
+
+                    Stepper(value: Binding(get: {
+                        model.clipboardPreferences.maxItemCount
+                    }, set: { value in
+                        model.updateClipboardMaxItemCount(value)
+                    }), in: 10...1_000, step: 10) {
+                        Text("Maximum Items: \(model.clipboardPreferences.maxItemCount)")
+                    }
+
+                    Stepper(value: Binding(get: {
+                        model.clipboardPreferences.maxStorageMB
+                    }, set: { value in
+                        model.updateClipboardMaxStorageMB(value)
+                    }), in: 25...5_120, step: 25) {
+                        Text("Maximum Storage: \(model.clipboardPreferences.maxStorageMB) MB")
+                    }
+
+                    HStack {
+                        Text("Saved Items")
+                        Spacer(minLength: 12)
+                        Text("\(model.clipboardHistoryItems.count)")
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Button("Clear Clipboard History", role: .destructive, action: model.clearClipboardHistory)
+                        .disabled(model.clipboardHistoryItems.isEmpty)
+
+                    SettingsHelpText("Clipboard history is local to this Mac. Non-private SnipSnipSnip screenshots are added to this timeline even when Auto Copy is off. Private Capture stays out of clipboard history.")
+                }
+
+                Section("Ignored Apps") {
+                    SettingsHelpText("SnipSnipSnip skips concealed and transient clipboard types and ignores Apple Passwords plus common password managers by default.")
+
+                    HStack {
+                        TextField("Bundle ID or app name", text: $ignoredClipboardAppMatch)
+                        Button("Add") {
+                            model.addIgnoredClipboardApp(match: ignoredClipboardAppMatch)
+                            ignoredClipboardAppMatch = ""
+                        }
+                        .disabled(ignoredClipboardAppMatch.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+
+                    ForEach(model.clipboardPreferences.ignoredApps) { app in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(app.name)
+                                Text(app.match)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer(minLength: 12)
+
+                            Button("Remove") {
+                                model.removeIgnoredClipboardApp(app)
+                            }
+                        }
+                    }
+
+                    Button("Restore Default Ignored Apps", action: model.resetIgnoredClipboardApps)
+                }
+            }
+            .tabItem {
+                Label("Clipboard", systemImage: "clipboard")
+            }
+            .tag(SettingsTab.clipboard)
+
+            SettingsTabContainer(
                 title: "Privacy",
                 summary: "Private capture, permissions, and settings recovery are kept together for faster troubleshooting."
             ) {
@@ -509,6 +587,7 @@ private enum SettingsTab: Hashable {
     case general
     case recording
     case archive
+    case clipboard
     case privacy
 }
 

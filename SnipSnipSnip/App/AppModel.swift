@@ -40,6 +40,7 @@ enum AppModelPreferenceKey {
     static let archiveMaximumSizeMB = "appModel.archiveMaximumSizeMB"
     static let captureAutomationPreferences = "appModel.captureAutomationPreferences"
     static let captureDelay = "appModel.captureDelay"
+    static let clipboardPreferences = "appModel.clipboardPreferences"
     static let screenshotIncludesCursor = "appModel.screenshotIncludesCursor"
     static let completedOnboardingVersion = "appModel.completedOnboardingVersion"
     static let editorCropOutsideOverlayAlpha = "appModel.editorCropOutsideOverlayAlpha"
@@ -145,6 +146,21 @@ final class AppModel: ObservableObject {
             defaults.set(captureDelay.rawValue, forKey: AppModelPreferenceKey.captureDelay)
         }
     }
+    @Published var clipboardPreferences: ClipboardPreferences {
+        didSet {
+            let sanitizedPreferences = clipboardPreferences.sanitized()
+            if sanitizedPreferences != clipboardPreferences {
+                clipboardPreferences = sanitizedPreferences
+                return
+            }
+
+            persistClipboardPreferences()
+            clipboardMonitor.update(preferences: clipboardPreferences)
+            clipboardHistoryStore.prune(using: clipboardPreferences)
+        }
+    }
+    @Published var clipboardSearchQuery = ""
+    @Published var clipboardFilter: ClipboardItemFilter = .all
     @Published var screenshotIncludesCursor: Bool {
         didSet {
             defaults.set(screenshotIncludesCursor, forKey: AppModelPreferenceKey.screenshotIncludesCursor)
@@ -237,6 +253,8 @@ final class AppModel: ObservableObject {
     let incompatibleDocumentCoordinator: IncompatibleDocumentCoordinator
     let launchAtLoginController: LaunchAtLoginController
     let floatingReferenceCoordinator = FloatingReferenceCoordinator()
+    let clipboardHistoryStore: ClipboardHistoryStore
+    let clipboardMonitor: ClipboardMonitor
     let defaults: UserDefaults
     let textRecognitionCoordinator = CaptureTextRecognitionCoordinator()
     private var shouldPresentOnboardingWindowOnLaunch: Bool
@@ -258,6 +276,8 @@ final class AppModel: ObservableObject {
     var pendingWindowThumbnailTask: Task<Void, Never>?
     var pendingScreenRecordingPermissionVerificationTask: Task<Void, Never>?
     var pendingRecoveryRefreshTask: Task<Void, Never>?
+    var clipboardManagerWindowController: ClipboardManagerWindowController?
+    var clipboardHistoryObserver: AnyCancellable?
     var pendingCaptureHistorySearchTask: Task<Void, Never>?
     var pendingRecoveryWriteTasks: [UUID: Task<Void, Never>] = [:]
     var recoveryRefreshGeneration = 0
@@ -281,6 +301,7 @@ final class AppModel: ObservableObject {
     init(
         defaults: UserDefaults = .standard,
         recoveryStore: DocumentRecoveryStore? = nil,
+        clipboardHistoryStore: ClipboardHistoryStore? = nil,
         captureService: any ScreenCaptureServiceType = ScreenCaptureService(),
         incompatibleDocumentCoordinator: IncompatibleDocumentCoordinator = IncompatibleDocumentCoordinator(),
         launchAtLoginController: LaunchAtLoginController = LaunchAtLoginController(),
@@ -300,6 +321,10 @@ final class AppModel: ObservableObject {
         self.autoCopyEnabled = defaults.object(forKey: AppModelPreferenceKey.autoCopyEnabled) as? Bool ?? true
         self.autoRefreshWindowsEnabled = defaults.bool(forKey: AppModelPreferenceKey.autoRefreshWindowsEnabled)
         self.captureDelay = CaptureDelay(rawValue: defaults.integer(forKey: AppModelPreferenceKey.captureDelay)) ?? .immediate
+        let clipboardHistoryStore = clipboardHistoryStore ?? ClipboardHistoryStore()
+        self.clipboardHistoryStore = clipboardHistoryStore
+        self.clipboardMonitor = ClipboardMonitor(store: clipboardHistoryStore)
+        self.clipboardPreferences = Self.loadClipboardPreferences(from: defaults)
         self.screenshotIncludesCursor = defaults.object(forKey: AppModelPreferenceKey.screenshotIncludesCursor) as? Bool ?? false
         self.regionCapturePreferences = RegionCapturePreferences(
             overlayMode: (defaults.object(forKey: AppModelPreferenceKey.regionCaptureOverlayMode) as? Int)
@@ -349,9 +374,15 @@ final class AppModel: ObservableObject {
             self?.objectWillChange.send()
         }
 
+        clipboardHistoryObserver = clipboardHistoryStore.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
+
         if shouldStartArchiveMaintenance {
             self.startArchiveMaintenance()
         }
+
+        clipboardMonitor.start(preferences: clipboardPreferences)
     }
 
     nonisolated deinit {}
@@ -499,6 +530,9 @@ final class AppModel: ObservableObject {
         autoCopyEnabled = true
         autoRefreshWindowsEnabled = false
         captureDelay = .immediate
+        clipboardPreferences = .default
+        clipboardSearchQuery = ""
+        clipboardFilter = .all
         screenshotIncludesCursor = false
         regionCapturePreferences = RegionCapturePreferences()
         screenshotFilenameTemplate = ScreenshotFilenameTemplate.defaultPattern

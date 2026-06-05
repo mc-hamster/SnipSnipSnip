@@ -815,6 +815,14 @@ extension AppModel {
         )
         lastCaptureRequest = request
 
+        if !isPrivateCapture {
+            scheduleClipboardSnipRecording(
+                from: controller,
+                searchableText: cursorAwareCapture.sourceName,
+                sessionID: currentRecoverySessionID
+            )
+        }
+
         if autoCopyEnabled {
             copyCurrentEditorImageToClipboard()
         }

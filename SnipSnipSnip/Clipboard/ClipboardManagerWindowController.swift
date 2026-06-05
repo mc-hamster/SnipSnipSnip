@@ -1,0 +1,367 @@
+import AppKit
+import SwiftUI
+
+@MainActor
+final class ClipboardManagerWindowController: NSWindowController {
+    private weak var model: AppModel?
+
+    init(model: AppModel) {
+        self.model = model
+
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 620),
+            styleMask: [.titled, .closable, .resizable, .utilityWindow],
+            backing: .buffered,
+            defer: false
+        )
+        panel.title = "Clipboard History"
+        panel.isFloatingPanel = true
+        panel.level = .floating
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.hidesOnDeactivate = false
+        panel.contentView = NSHostingView(rootView: ClipboardManagerView(model: model))
+
+        super.init(window: panel)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func show() {
+        guard let window else {
+            return
+        }
+
+        if !window.isVisible {
+            window.center()
+        }
+
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
+struct ClipboardManagerView: View {
+    @ObservedObject var model: AppModel
+    @State private var selectedItemID: ClipboardItem.ID?
+    @FocusState private var isSearchFocused: Bool
+
+    private var filteredItems: [ClipboardItem] {
+        model.clipboardHistoryItems.filter { item in
+            switch model.clipboardFilter {
+            case .all:
+                break
+            case .pinned:
+                guard item.isPinned else { return false }
+            default:
+                guard item.kind.filter == model.clipboardFilter else { return false }
+            }
+
+            return item.matchesSearchQuery(model.clipboardSearchQuery)
+        }
+    }
+
+    private var selectedItem: ClipboardItem? {
+        filteredItems.first(where: { $0.id == selectedItemID }) ?? filteredItems.first
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            Divider()
+            content
+            Divider()
+            footer
+        }
+        .frame(minWidth: 460, minHeight: 420)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onAppear {
+            selectedItemID = filteredItems.first?.id
+            isSearchFocused = true
+        }
+        .onChange(of: filteredItems.map(\.id)) { _, ids in
+            if let selectedItemID, ids.contains(selectedItemID) {
+                return
+            }
+
+            selectedItemID = ids.first
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                TextField("Search clipboard history", text: $model.clipboardSearchQuery)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($isSearchFocused)
+
+                Button {
+                    model.clearUnpinnedClipboardItems()
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.borderless)
+                .help("Clear unpinned clipboard history")
+                .disabled(model.clipboardHistoryItems.allSatisfy(\.isPinned))
+            }
+
+            Picker("Filter", selection: $model.clipboardFilter) {
+                ForEach(ClipboardItemFilter.allCases) { filter in
+                    Text(filter.label).tag(filter)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+        }
+        .padding(12)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if !model.clipboardPreferences.isEnabled {
+            ContentUnavailableView(
+                "Clipboard History Disabled",
+                systemImage: "clipboard",
+                description: Text("Enable clipboard history in Settings > Clipboard.")
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if filteredItems.isEmpty {
+            ContentUnavailableView(
+                "No Clipboard Items",
+                systemImage: "clipboard",
+                description: Text("Copied text, links, images, files, and SnipSnipSnip screenshots appear here.")
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(filteredItems.enumerated()), id: \.element.id) { index, item in
+                            ClipboardItemRow(
+                                item: item,
+                                image: model.clipboardPreviewImage(for: item),
+                                shortcutNumber: index < 9 ? index + 1 : nil,
+                                isSelected: selectedItemID == item.id,
+                                onCopy: { model.copyClipboardItem(item) },
+                                onPaste: { model.pasteClipboardItem(item) },
+                                onTogglePinned: { model.togglePinnedClipboardItem(item) },
+                                onDelete: { model.deleteClipboardItem(item) },
+                                onOpenSnip: { model.openClipboardSnip(item) }
+                            )
+                            .id(item.id)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                selectedItemID = item.id
+                            }
+
+                            if item.id != filteredItems.last?.id {
+                                Divider()
+                                    .padding(.leading, 76)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                }
+                .focusable()
+                .onMoveCommand(perform: moveSelection)
+                .onChange(of: selectedItemID) { _, id in
+                    guard let id else { return }
+                    proxy.scrollTo(id, anchor: .center)
+                }
+            }
+        }
+    }
+
+    private var footer: some View {
+        HStack(spacing: 10) {
+            Text("\(filteredItems.count) shown")
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Button("Copy") {
+                if let selectedItem {
+                    model.copyClipboardItem(selectedItem)
+                }
+            }
+            .keyboardShortcut(.return, modifiers: [])
+            .disabled(selectedItem == nil)
+
+            Button("Paste") {
+                if let selectedItem {
+                    model.pasteClipboardItem(selectedItem)
+                }
+            }
+            .disabled(selectedItem == nil)
+        }
+        .padding(12)
+    }
+
+    private func moveSelection(_ direction: MoveCommandDirection) {
+        guard !filteredItems.isEmpty else {
+            selectedItemID = nil
+            return
+        }
+
+        let currentIndex = selectedItemID.flatMap { id in
+            filteredItems.firstIndex(where: { $0.id == id })
+        } ?? 0
+
+        switch direction {
+        case .up:
+            selectedItemID = filteredItems[max(currentIndex - 1, 0)].id
+        case .down:
+            selectedItemID = filteredItems[min(currentIndex + 1, filteredItems.count - 1)].id
+        default:
+            break
+        }
+    }
+}
+
+private struct ClipboardItemRow: View {
+    let item: ClipboardItem
+    let image: NSImage?
+    let shortcutNumber: Int?
+    let isSelected: Bool
+    let onCopy: () -> Void
+    let onPaste: () -> Void
+    let onTogglePinned: () -> Void
+    let onDelete: () -> Void
+    let onOpenSnip: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            preview
+                .frame(width: 52, height: 42)
+                .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(item.kind.typeLabel)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    if let shortcutNumber {
+                        Text("⌘\(shortcutNumber)")
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.tertiary)
+                    }
+
+                    if item.isPinned {
+                        Image(systemName: "pin.fill")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: 6)
+                }
+
+                Text(item.title)
+                    .lineLimit(2)
+                    .font(.callout)
+
+                HStack(spacing: 6) {
+                    Text(item.copiedAt.formatted(date: .abbreviated, time: .shortened))
+                    if let sourceApp = item.sourceApp {
+                        Text("•")
+                        Text(sourceApp.displayName)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+
+            actions
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 10)
+        .background {
+            if isSelected {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.22))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var preview: some View {
+        if let image {
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFit()
+                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+        } else {
+            Image(systemName: systemImageName)
+                .font(.title3)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var actions: some View {
+        HStack(spacing: 6) {
+            copyButton
+
+            Button(action: onPaste) {
+                Image(systemName: "arrow.turn.down.left")
+            }
+            .help("Paste")
+
+            if case .snip = item.kind {
+                Button(action: onOpenSnip) {
+                    Image(systemName: "rectangle.and.pencil.and.ellipsis")
+                }
+                .help("Open snip in editor")
+            }
+
+            Button(action: onTogglePinned) {
+                Image(systemName: item.isPinned ? "pin.slash" : "pin")
+            }
+            .help(item.isPinned ? "Unpin" : "Pin")
+
+            Button(role: .destructive, action: onDelete) {
+                Image(systemName: "trash")
+            }
+            .help("Delete")
+        }
+        .buttonStyle(.borderless)
+    }
+
+    @ViewBuilder
+    private var copyButton: some View {
+        if let shortcutNumber,
+           let character = String(shortcutNumber).first {
+            Button(action: onCopy) {
+                Image(systemName: "doc.on.doc")
+            }
+            .help("Copy")
+            .keyboardShortcut(KeyEquivalent(character), modifiers: .command)
+        } else {
+            Button(action: onCopy) {
+                Image(systemName: "doc.on.doc")
+            }
+            .help("Copy")
+        }
+    }
+
+    private var systemImageName: String {
+        switch item.kind {
+        case .text:
+            return "text.alignleft"
+        case .link:
+            return "link"
+        case .image:
+            return "photo"
+        case .fileURLs:
+            return "doc"
+        case .snip:
+            return "scissors"
+        }
+    }
+
+}

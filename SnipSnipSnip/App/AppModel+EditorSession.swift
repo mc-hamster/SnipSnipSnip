@@ -120,7 +120,10 @@ extension AppModel {
         pendingEditorAction = nil
         isShowingUnsavedChangesPrompt = false
         discardCurrentDocument()
-        continuation?()
+
+        DispatchQueue.main.async {
+            continuation?()
+        }
     }
 
     func cancelPendingEditorAction() {
@@ -203,6 +206,7 @@ extension AppModel {
 
     func copyCurrentAnnotatedImageToClipboard() {
         editorController?.copyAnnotatedImage()
+        clipboardMonitor.markCurrentPasteboardChangeAsHandled()
     }
 
     func resetEditorSessionState() {
@@ -241,6 +245,7 @@ extension AppModel {
         }
 
         try ImageExporter.copyToClipboard(image)
+        clipboardMonitor.markCurrentPasteboardChangeAsHandled()
     }
 
     func copyRenderedImageToClipboardAsync(from controller: EditorController) async {
@@ -254,6 +259,7 @@ extension AppModel {
             }
 
             try ImageExporter.copyPNGDataToClipboard(pngData)
+            clipboardMonitor.markCurrentPasteboardChangeAsHandled()
         } catch is CancellationError {
             // Cancellation is expected when a newer auto-copy task supersedes this one.
         } catch {
