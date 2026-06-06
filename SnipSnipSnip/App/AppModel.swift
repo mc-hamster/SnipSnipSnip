@@ -50,6 +50,7 @@ enum AppModelPreferenceKey {
     static let regionCaptureOverlayMode = "appModel.regionCaptureOverlayMode"
     static let regionCaptureShowsActionControls = "appModel.regionCaptureShowsActionControls"
     static let recycleBinRetentionDays = "appModel.recycleBinRetentionDays"
+    static let screenInspectorPreferences = "appModel.screenInspectorPreferences"
     static let screenRulerPreferences = "appModel.screenRulerPreferences"
     static let screenshotFilenameTemplate = "appModel.screenshotFilenameTemplate"
     static let screenshotDragOutFormat = "appModel.screenshotDragOutFormat"
@@ -202,6 +203,18 @@ final class AppModel: ObservableObject {
             screenRulerCoordinator.updatePreferences(screenRulerPreferences)
         }
     }
+    @Published var screenInspectorPreferences: ScreenInspectorPreferences {
+        didSet {
+            let sanitizedPreferences = screenInspectorPreferences.sanitized()
+            if sanitizedPreferences != screenInspectorPreferences {
+                screenInspectorPreferences = sanitizedPreferences
+                return
+            }
+
+            persistScreenInspectorPreferences()
+            screenInspectorCoordinator.updatePreferences(screenInspectorPreferences)
+        }
+    }
     @Published var automationPreferences: CaptureAutomationPreferences {
         didSet {
             persistAutomationPreferences()
@@ -267,6 +280,7 @@ final class AppModel: ObservableObject {
     let launchAtLoginController: LaunchAtLoginController
     let floatingReferenceCoordinator = FloatingReferenceCoordinator()
     let screenRulerCoordinator: ScreenRulerCoordinator
+    let screenInspectorCoordinator: ScreenInspectorCoordinator
     let clipboardHistoryStore: ClipboardHistoryStore
     let clipboardMonitor: ClipboardMonitor
     let defaults: UserDefaults
@@ -293,6 +307,7 @@ final class AppModel: ObservableObject {
     var clipboardManagerWindowController: ClipboardManagerWindowController?
     var clipboardHistoryObserver: AnyCancellable?
     var screenRulerObserver: AnyCancellable?
+    var screenInspectorObserver: AnyCancellable?
     var pendingCaptureHistorySearchTask: Task<Void, Never>?
     var pendingRecoveryWriteTasks: [UUID: Task<Void, Never>] = [:]
     var recoveryRefreshGeneration = 0
@@ -355,6 +370,9 @@ final class AppModel: ObservableObject {
         let screenRulerPreferences = Self.loadScreenRulerPreferences(from: defaults)
         self.screenRulerPreferences = screenRulerPreferences
         self.screenRulerCoordinator = ScreenRulerCoordinator(preferences: screenRulerPreferences)
+        let screenInspectorPreferences = Self.loadScreenInspectorPreferences(from: defaults)
+        self.screenInspectorPreferences = screenInspectorPreferences
+        self.screenInspectorCoordinator = ScreenInspectorCoordinator(preferences: screenInspectorPreferences)
         self.automationPreferences = Self.loadAutomationPreferences(from: defaults)
         self.videoRecordingPreferences = Self.loadVideoRecordingPreferences(from: defaults)
         self.videoExportPreferences = Self.loadVideoExportPreferences(from: defaults)
@@ -400,11 +418,25 @@ final class AppModel: ObservableObject {
             self?.objectWillChange.send()
         }
 
+        screenInspectorObserver = screenInspectorCoordinator.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
+
         if shouldStartArchiveMaintenance {
             self.startArchiveMaintenance()
         }
 
         clipboardMonitor.start(preferences: clipboardPreferences)
+        screenInspectorCoordinator.setPreferencesChangeHandler { [weak self] preferences in
+            guard let self, self.screenInspectorPreferences != preferences else {
+                return
+            }
+
+            self.screenInspectorPreferences = preferences
+        }
+        screenInspectorCoordinator.setSnipHandler { [weak self] sample in
+            self?.completeScreenInspectorSnip(sample)
+        }
     }
 
     nonisolated deinit {}
@@ -563,6 +595,7 @@ final class AppModel: ObservableObject {
         updateEditorCropOutsideOverlayAlpha(Self.defaultEditorCropOutsideOverlayAlpha)
         updateEditorOutOfCapturePatternSettings(.default)
         screenRulerPreferences = .default
+        screenInspectorPreferences = .default
         automationPreferences = CaptureAutomationPreferences()
         videoRecordingPreferences = VideoRecordingPreferences()
         videoExportPreferences = VideoExportPreferences()
@@ -620,6 +653,15 @@ final class AppModel: ObservableObject {
         return preferences.sanitized()
     }
 
+    static func loadScreenInspectorPreferences(from defaults: UserDefaults) -> ScreenInspectorPreferences {
+        guard let data = defaults.data(forKey: AppModelPreferenceKey.screenInspectorPreferences),
+              let preferences = try? JSONDecoder().decode(ScreenInspectorPreferences.self, from: data) else {
+            return .default
+        }
+
+        return preferences.sanitized()
+    }
+
     private static func clampedEditorCropOutsideOverlayAlpha(_ value: CGFloat) -> CGFloat {
         min(max(value, 0), 0.9)
     }
@@ -670,12 +712,32 @@ final class AppModel: ObservableObject {
         screenRulerCoordinator.closeAll()
     }
 
+    func presentScreenInspector() {
+        screenInspectorCoordinator.present()
+    }
+
+    func toggleScreenInspector() {
+        screenInspectorCoordinator.toggle()
+    }
+
+    func closeScreenInspector() {
+        screenInspectorCoordinator.close()
+    }
+
     private func persistScreenRulerPreferences() {
         guard let data = try? JSONEncoder().encode(screenRulerPreferences.sanitized()) else {
             return
         }
 
         defaults.set(data, forKey: AppModelPreferenceKey.screenRulerPreferences)
+    }
+
+    private func persistScreenInspectorPreferences() {
+        guard let data = try? JSONEncoder().encode(screenInspectorPreferences.sanitized()) else {
+            return
+        }
+
+        defaults.set(data, forKey: AppModelPreferenceKey.screenInspectorPreferences)
     }
 
     private func persistAutomationPreferences() {

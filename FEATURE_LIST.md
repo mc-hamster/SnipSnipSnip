@@ -1,6 +1,6 @@
 # SnipSnipSnip Feature List
 
-Last reviewed: 2026-06-05
+Last reviewed: 2026-06-06
 
 This document is the source of truth for what SnipSnipSnip currently ships, what is only partially complete, and what is still missing. It is based on the current app source, shipped Help content, public docs, and test suite, not on older roadmap text.
 
@@ -29,6 +29,7 @@ The comparison lens for the "remaining gap" column is still the premium macOS ca
 SnipSnipSnip already ships all of the following in meaningful form:
 
 - Screenshot capture for region, window, frontmost window, fullscreen, repeat, timer, live window thumbnails, on-screen window picking, multi-display desktop composition, and first-pass scrolling capture.
+- Screen Inspector as a floating live magnifier with 2x, 4x, 8x, and 16x zoom, optional pixel grid and crosshair, display-local pixel coordinates, center-pixel color readout, HEX/RGB copy shortcuts, freeze, resize, and Snip-to-editor.
 - A non-destructive screenshot editor with crop, rectangle, ellipse, line, arrow, freehand, highlight, text, callouts, ruler measurements, spotlight/dim, color sampling, OCR-backed Copy Text, image overlays, rotation, grouping, alignment, snapping, and blur/pixelate/solid redaction.
 - Floating reference screenshots that pin rendered editor or history snapshots in lightweight always-on-top windows with opacity, zoom, pan, multiple-reference, and close-all controls.
 - Editable `.sss` screenshot packages with base image, preview, JSON session state, undo/redo history, search metadata, and image overlay assets.
@@ -58,7 +59,8 @@ The biggest unfinished areas are now clear:
 | Pick-on-screen window targeting | ✓ Done | On-screen window picking flow exists in capture UI. | Better feedback for transient windows and ambiguous hits. |
 | Multi-display support | ✓ Done | Desktop composite snapshots track capture and overlay coordinate transforms; tests cover offsets and adjacent displays. | Broader manual QA for rotated displays, Stage Manager, Spaces, and hot-plug changes. |
 | Retina correctness | ✓ Done | Per-display and per-window scale handling exists, with geometry tests covering pixel mapping. | Add more visual regression coverage for mixed-scale outputs. |
-| Pixel loupe during region capture | ✓ Done | Crosshair and magnifying-glass overlay modes are configurable. | Add live color readout and keyboard movement while selecting. |
+| Pixel loupe during region capture | ✓ Done | Crosshair and magnifying-glass overlay modes are configurable. | Screen Inspector covers standalone inspection; the region-selection loupe still lacks live color readout and keyboard movement while selecting. |
+| Screen Inspector floating magnifier | ✓ Done | Menu bar, Capture menu, and customizable global hotkey open a resizable always-on-top live inspector with 2x, 4x, 8x, and 16x zoom, optional pixel grid and crosshair, display-local top-left pixel coordinates, center-pixel HEX/RGB readout, copy shortcuts, freeze, close shortcuts, and Snip-to-editor. Grid and crosshair default off. | Broaden manual QA across mixed-scale multi-monitor seams, rotated displays, Spaces, and permission edge cases. |
 | Adjustable region before commit | ~ Partial | Region capture can require explicit confirmation when action controls are enabled. | No explicit resize handles or numeric size adjustment before the shot is committed. |
 | Timer capture | ✓ Done | `CaptureDelay` supports off, 3, 5, and 10 seconds from menus. | No custom delay value or countdown overlay UI. |
 | Repeat last capture | ✓ Done | Repeats region, window, frontmost window, fullscreen, and scrolling capture when the target can still be resolved. | No saved presets or named capture targets. |
@@ -195,9 +197,9 @@ The biggest unfinished areas are now clear:
 
 | Feature | Status | Current implementation | Remaining gap or limitation |
 | --- | --- | --- | --- |
-| Menu bar app | ✓ Done | SnipSnipSnip runs as a menu bar app with capture actions and window presentation. | Could still be streamlined for power users. |
+| Menu bar app | ✓ Done | SnipSnipSnip runs as a menu bar app with capture actions, Screen Ruler, Screen Inspector, Clipboard History, and window presentation. | Could still be streamlined for power users. |
 | Main-window command menus | ✓ Done | Capture, Help, Open, Import Image, Save, Export, Share, and pasteboard commands are present. | Tool-by-tool command coverage is still incomplete. |
-| Global hotkeys | ✓ Done | Global capture hotkeys remain background-only and are now user-customizable per action from Settings > General. | Consider optional frontmost behavior toggles for power users later. |
+| Global hotkeys | ✓ Done | Global capture and Screen Inspector hotkeys remain background-only and are now user-customizable per action from Settings > General. | Consider optional frontmost behavior toggles for power users later. |
 | In-app shortcuts | ~ Partial | Capture, open, save, export, share, copy, select all, group, ungroup, layer ordering (bring forward/backward, bring to front, send to back), and help shortcuts exist. | Missing broader tool shortcuts, richer editor navigation shortcuts, and user customization. |
 | Settings window | ✓ Done | The app has General, Recording, Archive, Clipboard, and Privacy settings tabs. Clipboard settings include history enablement, item/storage limits, clear history, ignored-app management, and restore-default ignored apps. | No capture preset system or deeper workflow automation settings yet. |
 | Clipboard ignored-app workflow | ✓ Done | Clipboard settings can ignore currently running apps, choose an app bundle from Applications, or ignore recent clipboard source apps with one click. Default ignored apps include Apple Passwords and common password managers such as 1Password, Bitwarden, Dashlane, LastPass, KeePassXC, Keeper, RoboForm, Enpass, mSecure, NordPass, Proton Pass, KeeWeb, MacPass, Strongbox, Secrets, Buttercup, and SafeInCloud. | Source-app detection is best-effort because macOS pasteboard data does not reliably expose origin for every copy. |
@@ -305,7 +307,7 @@ The biggest unfinished areas are now clear:
 - Scrolling capture hardening across more apps, browsers, sticky headers, dynamic content, and virtualized lists.
 - Richer screenshot presentation/export layers: gradients, browser or device frames, social aspect ratios, and reusable templates.
 - A dedicated layer list with drag-reorder, visibility toggles, and locking.
-- Customizable hotkeys and capture presets.
+- Capture presets and richer shortcut behavior for power users.
 - Better OCR controls: QR detection, language options, confidence review.
 - Richer export destinations beyond shipped local drag-out sharing.
 - Continue strengthening `.sssvideo` docs with sample package fixtures.

@@ -79,6 +79,26 @@ private struct CaptureCommands: Commands {
                 }
             }
 
+            Menu("Screen Inspector") {
+                Button("Open Screen Inspector", action: model.presentScreenInspector)
+                    .keyboardShortcut("i", modifiers: AppShortcut.modifiers)
+
+                if model.screenInspectorCoordinator.isVisible {
+                    Button("Close Screen Inspector", action: model.closeScreenInspector)
+                }
+
+                Divider()
+
+                Picker("Zoom", selection: screenInspectorZoomBinding) {
+                    ForEach(ScreenInspectorZoomLevel.allCases) { zoomLevel in
+                        Text(zoomLevel.label).tag(zoomLevel)
+                    }
+                }
+
+                Toggle("Show Pixel Grid", isOn: screenInspectorBinding(\.showsPixelGrid))
+                Toggle("Show Crosshair", isOn: screenInspectorBinding(\.showsCrosshair))
+            }
+
             Menu("Timer") {
                 CaptureTimerMenuContent(model: model)
             }
@@ -104,6 +124,21 @@ private struct CaptureCommands: Commands {
         openWindow(id: AppSceneID.onboardingWindow)
         NSApp.activate(ignoringOtherApps: true)
         NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.onboardingWindow })?.makeKeyAndOrderFront(nil)
+    }
+
+    private func screenInspectorBinding<Value>(_ keyPath: WritableKeyPath<ScreenInspectorPreferences, Value>) -> Binding<Value> {
+        Binding(
+            get: { model.screenInspectorPreferences[keyPath: keyPath] },
+            set: { newValue in
+                var preferences = model.screenInspectorPreferences
+                preferences[keyPath: keyPath] = newValue
+                model.screenInspectorPreferences = preferences
+            }
+        )
+    }
+
+    private var screenInspectorZoomBinding: Binding<ScreenInspectorZoomLevel> {
+        screenInspectorBinding(\.zoomLevel)
     }
 }
 

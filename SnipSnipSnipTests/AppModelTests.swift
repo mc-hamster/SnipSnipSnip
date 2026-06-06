@@ -232,6 +232,64 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(model.screenRulerPreferences, .default)
     }
 
+    func testScreenInspectorPreferencesPersistAndReload() {
+        let suiteName = "AppModelTests.screenInspectorPreferencesPersistAndReload"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let model = retainForTestLifetime(
+            AppModel(
+                defaults: defaults,
+                recoveryStore: DocumentRecoveryStore(baseURL: nil),
+                shouldCheckCompatibilityOnLaunch: false,
+                shouldStartArchiveMaintenance: false
+            )
+        )
+        model.screenInspectorPreferences = ScreenInspectorPreferences(
+            zoomLevel: .sixteen,
+            showsPixelGrid: false,
+            showsCrosshair: false
+        )
+
+        let reloadedModel = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+
+        XCTAssertEqual(reloadedModel.screenInspectorPreferences.zoomLevel, .sixteen)
+        XCTAssertFalse(reloadedModel.screenInspectorPreferences.showsPixelGrid)
+        XCTAssertFalse(reloadedModel.screenInspectorPreferences.showsCrosshair)
+    }
+
+    func testResetPreferencesRestoresScreenInspectorDefaults() {
+        let suiteName = "AppModelTests.resetPreferencesRestoresScreenInspectorDefaults"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let model = retainForTestLifetime(
+            AppModel(
+                defaults: defaults,
+                recoveryStore: DocumentRecoveryStore(baseURL: nil),
+                shouldCheckCompatibilityOnLaunch: false,
+                shouldStartArchiveMaintenance: false
+            )
+        )
+        model.screenInspectorPreferences = ScreenInspectorPreferences(
+            zoomLevel: .two,
+            showsPixelGrid: true,
+            showsCrosshair: true
+        )
+
+        model.resetPreferencesToDefaults()
+
+        XCTAssertEqual(model.screenInspectorPreferences, .default)
+        XCTAssertFalse(model.screenInspectorPreferences.showsPixelGrid)
+        XCTAssertFalse(model.screenInspectorPreferences.showsCrosshair)
+    }
+
     func testRefreshPermissionsClearsReadyWhenShareableContentProbeFails() async {
         let suiteName = "AppModelTests.refreshPermissionsClearsReadyWhenShareableContentProbeFails"
         let defaults = makeDefaults(named: suiteName)
@@ -552,7 +610,8 @@ final class AppModelTests: XCTestCase {
             windowHotkey: .six,
             fullscreenHotkey: .seven,
             frontmostWindowHotkey: .eight,
-            repeatLastCaptureHotkey: .t
+            repeatLastCaptureHotkey: .t,
+            screenInspectorHotkey: .f
         )
 
         let reloadedModel = AppModel(
@@ -568,6 +627,7 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(reloadedModel.automationPreferences.fullscreenHotkey, .seven)
         XCTAssertEqual(reloadedModel.automationPreferences.frontmostWindowHotkey, .eight)
         XCTAssertEqual(reloadedModel.automationPreferences.repeatLastCaptureHotkey, .t)
+        XCTAssertEqual(reloadedModel.automationPreferences.screenInspectorHotkey, .f)
     }
 
     func testInitialCaptureHistoryIndexImageUsesFullCaptureImage() {

@@ -76,6 +76,8 @@ extension AppModel {
             captureFrontmostWindow()
         case .repeatLastCapture:
             repeatLastCapture()
+        case .screenInspector:
+            toggleScreenInspector()
         }
     }
 

@@ -195,6 +195,44 @@ struct HelpGuideView: View {
                         "Rulers are measuring overlays, not screenshot annotations. Close them when you do not want them to appear in a capture."
                     ],
                     relatedIDs: ["capture-screenshot", "keyboard-shortcuts"]
+                ),
+                HelpArticle(
+                    id: "screen-inspector",
+                    title: "Use Screen Inspector",
+                    summary: "Inspect live pixels, coordinates, colors, spacing, and alignment without taking a screenshot.",
+                    sections: [
+                        HelpArticleSection(
+                            title: "Open the inspector",
+                            bullets: [
+                                "Choose Screen Inspector from the menu bar icon or the Capture menu.",
+                                "Use Command-Shift-I by default, or change the shortcut in Settings > General > Capture Shortcuts.",
+                                "The inspector floats above other apps so you can keep working while it follows the cursor."
+                            ]
+                        ),
+                        HelpArticleSection(
+                            title: "Inspect pixels",
+                            bullets: [
+                                "Choose 2x, 4x, 8x, or 16x zoom.",
+                                "Turn the pixel grid and crosshair on or off from the inspector or Settings.",
+                                "Resize the inspector window when you need to inspect more screen area at the same zoom level.",
+                                "Read display-local pixel coordinates and center-pixel color below the magnified view."
+                            ]
+                        ),
+                        HelpArticleSection(
+                            title: "Copy, freeze, and snip",
+                            bullets: [
+                                "Use Copy HEX or Option-Command-H to copy the current center-pixel color as HEX.",
+                                "Use Copy RGB or Option-Command-R to copy the current center-pixel color as RGB.",
+                                "Use Freeze, Space, or Option-Command-F to hold a static sample while you inspect details.",
+                                "Use Snip or Option-Command-S to open the current inspector sample in the editor.",
+                                "Close the inspector from the close button, Escape, the menu command, the menu bar, or the global shortcut."
+                            ]
+                        )
+                    ],
+                    important: [
+                        "Screen Inspector samples the live screen. macOS Screen Recording permission is required before other apps' pixels can be inspected."
+                    ],
+                    relatedIDs: ["screen-ruler", "keyboard-shortcuts", "privacy"]
                 )
             ]
         ),
@@ -617,14 +655,16 @@ struct HelpGuideView: View {
                                 "Command-Shift-2 captures a window.",
                                 "Command-Shift-3 captures fullscreen.",
                                 "Command-Shift-4 captures the frontmost window.",
-                                "Command-Shift-R repeats the last capture."
+                                "Command-Shift-R repeats the last capture.",
+                                "Command-Shift-I opens or closes Screen Inspector."
                             ]
                         ),
                         HelpArticleSection(
-                            title: "Screen ruler",
+                            title: "Screen tools",
                             bullets: [
                                 "Use the menu bar icon > Screen Ruler to add horizontal and vertical rulers.",
-                                "Use Settings > General > Screen Ruler to adjust ruler appearance for all open rulers."
+                                "Use the menu bar icon > Screen Inspector to inspect live pixels, colors, and coordinates.",
+                                "Use Settings > General to adjust ruler appearance and inspector display options."
                             ]
                         ),
                         HelpArticleSection(
@@ -639,9 +679,9 @@ struct HelpGuideView: View {
                         )
                     ],
                     important: [
-                        "Global capture shortcuts can be customized in Settings > General."
+                        "Global capture and Screen Inspector shortcuts can be customized in Settings > General."
                     ],
-                    relatedIDs: ["capture-screenshot", "edit-screenshot"]
+                    relatedIDs: ["capture-screenshot", "edit-screenshot", "screen-inspector"]
                 ),
                 HelpArticle(
                     id: "troubleshoot-capture",

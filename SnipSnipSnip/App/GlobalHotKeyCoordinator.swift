@@ -17,6 +17,7 @@ enum GlobalHotKeyKey: String, CaseIterable, Codable, Identifiable {
     case t
     case w
     case f
+    case i
 
     var id: String { rawValue }
 
@@ -50,6 +51,8 @@ enum GlobalHotKeyKey: String, CaseIterable, Codable, Identifiable {
             return "W"
         case .f:
             return "F"
+        case .i:
+            return "I"
         }
     }
 
@@ -83,6 +86,8 @@ enum GlobalHotKeyKey: String, CaseIterable, Codable, Identifiable {
             return UInt32(kVK_ANSI_W)
         case .f:
             return UInt32(kVK_ANSI_F)
+        case .i:
+            return UInt32(kVK_ANSI_I)
         }
     }
 }
@@ -93,6 +98,7 @@ enum GlobalHotKeyAction: UInt32, CaseIterable {
     case fullscreen = 3
     case frontmostWindow = 4
     case repeatLastCapture = 5
+    case screenInspector = 6
 
     var label: String {
         switch self {
@@ -106,6 +112,8 @@ enum GlobalHotKeyAction: UInt32, CaseIterable {
             return "Frontmost Window"
         case .repeatLastCapture:
             return "Repeat"
+        case .screenInspector:
+            return "Screen Inspector"
         }
     }
 
@@ -114,7 +122,8 @@ enum GlobalHotKeyAction: UInt32, CaseIterable {
         .window: .two,
         .fullscreen: .three,
         .frontmostWindow: .four,
-        .repeatLastCapture: .r
+        .repeatLastCapture: .r,
+        .screenInspector: .i
     ]
 }
 

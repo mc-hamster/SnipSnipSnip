@@ -829,6 +829,41 @@ extension AppModel {
         requestMainWindowPresentation()
     }
 
+    func completeScreenInspectorSnip(_ sample: ScreenInspectorSample) {
+        let isPrivateCapture = privateCaptureEnabled
+        let capture = CapturedScreenshot(
+            image: sample.image,
+            kind: .region,
+            sourceName: "Screen Inspector",
+            sourceRect: sample.sourceRect,
+            capturedAt: Date()
+        )
+
+        shelveCurrentDocumentForRecents()
+        let controller = EditorController(capture: capture)
+        installEditorController(
+            controller,
+            documentURL: nil,
+            savedSession: nil,
+            shouldCreateRecoverySession: !isPrivateCapture,
+            initialCheckpointLabel: isPrivateCapture ? nil : "Screen Inspector"
+        )
+        lastCaptureRequest = .region(sample.sourceRect)
+
+        if !isPrivateCapture {
+            scheduleClipboardSnipRecording(
+                from: controller,
+                searchableText: capture.sourceName,
+                sessionID: currentRecoverySessionID
+            )
+        }
+
+        if autoCopyEnabled {
+            copyCurrentEditorImageToClipboard()
+        }
+        requestMainWindowPresentation()
+    }
+
     private func currentCursorOverlay(
         for capture: CapturedScreenshot,
         cursorCaptureGlobalLocation: CGPoint? = nil

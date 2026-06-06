@@ -51,7 +51,7 @@ struct CaptureAutomationSettingsView: View {
                     }
 
                     SettingsHelpText("Global hotkeys run while SnipSnipSnip is not frontmost, so the active app keeps those shortcuts when SnipSnipSnip is already focused.")
-                    SettingsHelpText("Captures open in the editor, and global hotkeys let you trigger Region, Window, Fullscreen, Frontmost Window, and Repeat without bringing SnipSnipSnip to the front first.")
+                    SettingsHelpText("Captures open in the editor, and global hotkeys let you trigger Region, Window, Fullscreen, Frontmost Window, Repeat, and Screen Inspector without bringing SnipSnipSnip to the front first.")
                 }
 
                 Section("Screenshot Capture") {
@@ -95,6 +95,26 @@ struct CaptureAutomationSettingsView: View {
                     }
 
                     SettingsHelpText("Screen rulers are floating, resizable overlays. Add multiple horizontal or vertical rulers from Settings or the menu bar; visible rulers are included in screenshots when the captured area contains them.")
+                }
+
+                Section("Screen Inspector") {
+                    Button(model.screenInspectorCoordinator.isVisible ? "Show Screen Inspector" : "Open Screen Inspector", action: model.presentScreenInspector)
+
+                    if model.screenInspectorCoordinator.isVisible {
+                        Button("Close Screen Inspector", action: model.closeScreenInspector)
+                    }
+
+                    Picker("Zoom Level", selection: screenInspectorBinding(\.zoomLevel)) {
+                        ForEach(ScreenInspectorZoomLevel.allCases) { zoomLevel in
+                            Text(zoomLevel.label).tag(zoomLevel)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Toggle("Show Pixel Grid", isOn: screenInspectorBinding(\.showsPixelGrid))
+                    Toggle("Show Crosshair", isOn: screenInspectorBinding(\.showsCrosshair))
+
+                    SettingsHelpText("Screen Inspector is a floating live magnifier that samples pixels under the cursor, shows coordinates and color values, and can stay visible while you work in other apps.")
                 }
 
                 Section("Naming") {
@@ -563,6 +583,17 @@ struct CaptureAutomationSettingsView: View {
                 var preferences = model.screenRulerPreferences
                 preferences[keyPath: keyPath] = newValue
                 model.screenRulerPreferences = preferences
+            }
+        )
+    }
+
+    private func screenInspectorBinding<Value>(_ keyPath: WritableKeyPath<ScreenInspectorPreferences, Value>) -> Binding<Value> {
+        Binding(
+            get: { model.screenInspectorPreferences[keyPath: keyPath] },
+            set: { newValue in
+                var preferences = model.screenInspectorPreferences
+                preferences[keyPath: keyPath] = newValue
+                model.screenInspectorPreferences = preferences
             }
         )
     }

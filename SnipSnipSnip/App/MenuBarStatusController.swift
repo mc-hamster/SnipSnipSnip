@@ -165,6 +165,11 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         rebuildMainMenu()
     }
 
+    @objc private func openScreenInspector() {
+        model?.presentScreenInspector()
+        rebuildMainMenu()
+    }
+
     @objc private func toggleAutoCopy() {
         guard let model else {
             return
@@ -251,6 +256,11 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
 
     @objc private func closeAllScreenRulers() {
         model?.closeAllScreenRulers()
+        rebuildMainMenu()
+    }
+
+    @objc private func toggleScreenInspector() {
+        model?.toggleScreenInspector()
         rebuildMainMenu()
     }
 
@@ -345,6 +355,15 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         screenRulerItem.image = NSImage(systemSymbolName: "ruler", accessibilityDescription: nil)
         screenRulerItem.submenu = screenRulerMenu
         menu.addItem(screenRulerItem)
+
+        menu.addItem(actionItem(
+            title: "Screen Inspector",
+            systemImage: "scope",
+            action: #selector(toggleScreenInspector),
+            keyEquivalent: "i",
+            keyModifiers: captureShortcutModifiers,
+            enabled: true
+        ))
 
         menu.addItem(.separator())
 
