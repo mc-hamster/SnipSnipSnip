@@ -2,6 +2,30 @@ import AppKit
 import CoreText
 import CoreImage
 
+nonisolated private struct ArrowHeadGeometry {
+    let tip: CGPoint
+    let left: CGPoint
+    let right: CGPoint
+
+    var base: CGPoint {
+        CGPoint(x: (left.x + right.x) / 2, y: (left.y + right.y) / 2)
+    }
+
+    var stealthNotch: CGPoint {
+        CGPoint(
+            x: base.x + (tip.x - base.x) * 0.38,
+            y: base.y + (tip.y - base.y) * 0.38
+        )
+    }
+
+    var diamondBack: CGPoint {
+        CGPoint(
+            x: base.x - (tip.x - base.x) * 0.55,
+            y: base.y - (tip.y - base.y) * 0.55
+        )
+    }
+}
+
 enum EditorRenderer {
     nonisolated private static let ciContext = CIContext(options: nil)
     nonisolated private static let croppedImageCache = RenderImageCache(totalCostLimit: 128 * 1024 * 1024)
@@ -414,18 +438,37 @@ enum EditorRenderer {
         lineWidth: CGFloat,
         scale: CGFloat
     ) -> (left: CGPoint, right: CGPoint) {
+        let geometry = arrowHeadGeometry(
+            tip: tip,
+            tail: tail,
+            curvature: curvature,
+            lineWidth: lineWidth,
+            scale: scale
+        )
+
+        return (geometry.left, geometry.right)
+    }
+
+    nonisolated private static func arrowHeadGeometry(
+        tip: CGPoint,
+        tail: CGPoint,
+        curvature: CGFloat,
+        lineWidth: CGFloat,
+        scale: CGFloat
+    ) -> ArrowHeadGeometry {
         let tangentAngle = arrowEndpointTangentAngle(tip: tip, tail: tail, curvature: curvature)
         let bodyLength = hypot(tip.x - tail.x, tip.y - tail.y)
         let arrowLength = arrowHeadLength(bodyLength: bodyLength, lineWidth: lineWidth, scale: scale)
         let spread: CGFloat = .pi / 6
 
-        return (
-            CGPoint(x: tip.x - cos(tangentAngle - spread) * arrowLength, y: tip.y - sin(tangentAngle - spread) * arrowLength),
-            CGPoint(x: tip.x - cos(tangentAngle + spread) * arrowLength, y: tip.y - sin(tangentAngle + spread) * arrowLength)
+        return ArrowHeadGeometry(
+            tip: tip,
+            left: CGPoint(x: tip.x - cos(tangentAngle - spread) * arrowLength, y: tip.y - sin(tangentAngle - spread) * arrowLength),
+            right: CGPoint(x: tip.x - cos(tangentAngle + spread) * arrowLength, y: tip.y - sin(tangentAngle + spread) * arrowLength)
         )
     }
 
-    private static func arrowPreviewPath(for shape: ArrowShape, lineWidth: CGFloat, scale: CGFloat) -> NSBezierPath {
+    private static func arrowPreviewPath(for shape: ArrowShape) -> NSBezierPath {
         let path = NSBezierPath()
         path.move(to: shape.start)
         if abs(shape.curvature) > 0.5 {
@@ -436,7 +479,7 @@ enum EditorRenderer {
         return path
     }
 
-    nonisolated private static func arrowExportPath(for shape: ArrowShape, lineWidth: CGFloat, scale: CGFloat) -> CGPath {
+    nonisolated private static func arrowExportPath(for shape: ArrowShape) -> CGPath {
         let path = CGMutablePath()
         path.move(to: shape.start)
         if abs(shape.curvature) > 0.5 {
@@ -516,35 +559,31 @@ enum EditorRenderer {
     }
 
     private static func arrowHeadPreviewPath(shape: ArrowHeadShape, tip: CGPoint, tail: CGPoint, curvature: CGFloat, lineWidth: CGFloat, scale: CGFloat) -> NSBezierPath {
-        let points = arrowHeadPoints(tip: tip, tail: tail, curvature: curvature, lineWidth: lineWidth, scale: scale)
+        let geometry = arrowHeadGeometry(tip: tip, tail: tail, curvature: curvature, lineWidth: lineWidth, scale: scale)
         let path = NSBezierPath()
 
         switch shape {
         case .open:
             path.move(to: tip)
-            path.line(to: points.left)
+            path.line(to: geometry.left)
             path.move(to: tip)
-            path.line(to: points.right)
+            path.line(to: geometry.right)
         case .triangle:
             path.move(to: tip)
-            path.line(to: points.left)
-            path.line(to: points.right)
+            path.line(to: geometry.left)
+            path.line(to: geometry.right)
             path.close()
         case .stealth:
-            let base = CGPoint(x: (points.left.x + points.right.x) / 2, y: (points.left.y + points.right.y) / 2)
-            let notch = CGPoint(x: base.x + (tip.x - base.x) * 0.38, y: base.y + (tip.y - base.y) * 0.38)
             path.move(to: tip)
-            path.line(to: points.left)
-            path.line(to: notch)
-            path.line(to: points.right)
+            path.line(to: geometry.left)
+            path.line(to: geometry.stealthNotch)
+            path.line(to: geometry.right)
             path.close()
         case .diamond:
-            let base = CGPoint(x: (points.left.x + points.right.x) / 2, y: (points.left.y + points.right.y) / 2)
-            let back = CGPoint(x: base.x - (tip.x - base.x) * 0.55, y: base.y - (tip.y - base.y) * 0.55)
             path.move(to: tip)
-            path.line(to: points.left)
-            path.line(to: back)
-            path.line(to: points.right)
+            path.line(to: geometry.left)
+            path.line(to: geometry.diamondBack)
+            path.line(to: geometry.right)
             path.close()
         }
 
@@ -552,35 +591,31 @@ enum EditorRenderer {
     }
 
     nonisolated private static func arrowHeadExportPath(shape: ArrowHeadShape, tip: CGPoint, tail: CGPoint, curvature: CGFloat, lineWidth: CGFloat, scale: CGFloat) -> CGPath {
-        let points = arrowHeadPoints(tip: tip, tail: tail, curvature: curvature, lineWidth: lineWidth, scale: scale)
+        let geometry = arrowHeadGeometry(tip: tip, tail: tail, curvature: curvature, lineWidth: lineWidth, scale: scale)
         let path = CGMutablePath()
 
         switch shape {
         case .open:
             path.move(to: tip)
-            path.addLine(to: points.left)
+            path.addLine(to: geometry.left)
             path.move(to: tip)
-            path.addLine(to: points.right)
+            path.addLine(to: geometry.right)
         case .triangle:
             path.move(to: tip)
-            path.addLine(to: points.left)
-            path.addLine(to: points.right)
+            path.addLine(to: geometry.left)
+            path.addLine(to: geometry.right)
             path.closeSubpath()
         case .stealth:
-            let base = CGPoint(x: (points.left.x + points.right.x) / 2, y: (points.left.y + points.right.y) / 2)
-            let notch = CGPoint(x: base.x + (tip.x - base.x) * 0.38, y: base.y + (tip.y - base.y) * 0.38)
             path.move(to: tip)
-            path.addLine(to: points.left)
-            path.addLine(to: notch)
-            path.addLine(to: points.right)
+            path.addLine(to: geometry.left)
+            path.addLine(to: geometry.stealthNotch)
+            path.addLine(to: geometry.right)
             path.closeSubpath()
         case .diamond:
-            let base = CGPoint(x: (points.left.x + points.right.x) / 2, y: (points.left.y + points.right.y) / 2)
-            let back = CGPoint(x: base.x - (tip.x - base.x) * 0.55, y: base.y - (tip.y - base.y) * 0.55)
             path.move(to: tip)
-            path.addLine(to: points.left)
-            path.addLine(to: back)
-            path.addLine(to: points.right)
+            path.addLine(to: geometry.left)
+            path.addLine(to: geometry.diamondBack)
+            path.addLine(to: geometry.right)
             path.closeSubpath()
         }
 
@@ -675,7 +710,7 @@ enum EditorRenderer {
     }
 
     private static func drawArrow(_ shape: ArrowShape, style: AnnotationStyle, scale: CGFloat) {
-        let path = arrowPreviewPath(for: shape, lineWidth: style.lineWidth, scale: scale)
+        let path = arrowPreviewPath(for: shape)
         style.strokeColor.nsColor.setStroke()
         path.lineWidth = style.lineWidth
         path.lineCapStyle = .round
@@ -699,7 +734,7 @@ enum EditorRenderer {
         context.setLineCap(.round)
         context.setLineJoin(.round)
         applyStrokeStyle(style, to: context)
-        context.addPath(arrowExportPath(for: shape, lineWidth: style.lineWidth, scale: scale))
+        context.addPath(arrowExportPath(for: shape))
         context.strokePath()
         context.restoreGState()
         drawArrowHeadExport(shape: shape.headShape, tip: shape.end, tail: shape.start, curvature: shape.curvature, style: style, scale: scale, context: context)
