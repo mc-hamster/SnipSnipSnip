@@ -11,37 +11,33 @@ nonisolated enum ImageExportFormat: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     var label: String {
-        switch self {
-        case .png:
-            return "PNG"
-        case .jpeg:
-            return "JPEG"
-        case .pdf:
-            return "PDF"
-        }
+        metadata.label
     }
 
     var fileExtension: String {
-        switch self {
-        case .png:
-            return "png"
-        case .jpeg:
-            return "jpg"
-        case .pdf:
-            return "pdf"
-        }
+        metadata.fileExtension
     }
 
     var contentType: UTType {
+        metadata.contentType
+    }
+
+    private var metadata: ImageExportFormatMetadata {
         switch self {
         case .png:
-            return .png
+            return ImageExportFormatMetadata(label: "PNG", fileExtension: "png", contentType: .png)
         case .jpeg:
-            return .jpeg
+            return ImageExportFormatMetadata(label: "JPEG", fileExtension: "jpg", contentType: .jpeg)
         case .pdf:
-            return .pdf
+            return ImageExportFormatMetadata(label: "PDF", fileExtension: "pdf", contentType: .pdf)
         }
     }
+}
+
+nonisolated private struct ImageExportFormatMetadata {
+    let label: String
+    let fileExtension: String
+    let contentType: UTType
 }
 
 nonisolated enum ImageExportWriteMode {
@@ -70,6 +66,11 @@ enum ImageExportError: LocalizedError {
 }
 
 enum ImageExporter {
+    nonisolated private enum EncodingPlan {
+        case imageIO(type: UTType, properties: CFDictionary?)
+        case pdf
+    }
+
     nonisolated static func dragOutFormat(
         requestedFormat: ImageExportFormat,
         requiresPNGForFaithfulExport: Bool
@@ -87,15 +88,14 @@ enum ImageExporter {
     }
 
     nonisolated static func pngData(for image: CGImage) throws -> Data {
-        try encodedData(for: image, type: .png, properties: metadataStrippingProperties())
+        try encodedData(for: image, plan: encodingPlan(for: .png))
     }
 
     nonisolated static func jpegData(for image: CGImage, compressionFactor: CGFloat = 0.9) throws -> Data {
-        try encodedData(
-            for: image,
+        try encodedData(for: image, plan: .imageIO(
             type: .jpeg,
             properties: metadataStrippingProperties([kCGImageDestinationLossyCompressionQuality: compressionFactor])
-        )
+        ))
     }
 
     nonisolated static func pdfData(for image: CGImage) throws -> Data {
@@ -116,14 +116,7 @@ enum ImageExporter {
     }
 
     nonisolated static func data(for image: CGImage, format: ImageExportFormat) throws -> Data {
-        switch format {
-        case .png:
-            return try pngData(for: image)
-        case .jpeg:
-            return try jpegData(for: image)
-        case .pdf:
-            return try pdfData(for: image)
-        }
+        try encodedData(for: image, plan: encodingPlan(for: format))
     }
 
     static func copyToClipboard(_ image: CGImage) throws {
@@ -183,19 +176,7 @@ enum ImageExporter {
                     try Task.checkCancellation()
                     try encodedData.write(to: outputURL)
                 } else {
-                    switch format {
-                    case .png:
-                        try encodedWrite(for: image, type: .png, properties: metadataStrippingProperties(), to: outputURL)
-                    case .jpeg:
-                        try encodedWrite(
-                            for: image,
-                            type: .jpeg,
-                            properties: metadataStrippingProperties([kCGImageDestinationLossyCompressionQuality: 0.9]),
-                            to: outputURL
-                        )
-                    case .pdf:
-                        try pdfWrite(image, to: outputURL)
-                    }
+                    try encodedWrite(for: image, plan: encodingPlan(for: format), to: outputURL)
                 }
 
                 try Task.checkCancellation()
@@ -235,6 +216,38 @@ enum ImageExporter {
         let baseName = (suggestedFilename as NSString).deletingPathExtension
         let normalizedBaseName = baseName.isEmpty ? suggestedFilename : baseName
         return "\(normalizedBaseName).\(format.fileExtension)"
+    }
+
+    nonisolated private static func encodingPlan(for format: ImageExportFormat) -> EncodingPlan {
+        switch format {
+        case .png:
+            return .imageIO(type: .png, properties: metadataStrippingProperties())
+        case .jpeg:
+            return .imageIO(
+                type: .jpeg,
+                properties: metadataStrippingProperties([kCGImageDestinationLossyCompressionQuality: 0.9])
+            )
+        case .pdf:
+            return .pdf
+        }
+    }
+
+    nonisolated private static func encodedData(for image: CGImage, plan: EncodingPlan) throws -> Data {
+        switch plan {
+        case let .imageIO(type, properties):
+            return try encodedData(for: image, type: type, properties: properties)
+        case .pdf:
+            return try pdfData(for: image)
+        }
+    }
+
+    nonisolated private static func encodedWrite(for image: CGImage, plan: EncodingPlan, to url: URL) throws {
+        switch plan {
+        case let .imageIO(type, properties):
+            try encodedWrite(for: image, type: type, properties: properties, to: url)
+        case .pdf:
+            try pdfWrite(image, to: url)
+        }
     }
 
     nonisolated private static func encodedData(for image: CGImage, type: UTType, properties: CFDictionary?) throws -> Data {
