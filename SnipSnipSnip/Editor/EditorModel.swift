@@ -1219,67 +1219,7 @@ nonisolated struct Annotation: Identifiable, Equatable {
     }
 
     nonisolated var boundingRect: CGRect {
-        let unrotatedRect: CGRect
-
-        switch kind {
-        case let .rectangle(shape):
-            unrotatedRect = shape.rect.standardized.integral
-        case let .ellipse(shape):
-            unrotatedRect = shape.rect.standardized.integral
-        case let .line(shape):
-            unrotatedRect = CGRect(
-                x: min(shape.start.x, shape.end.x),
-                y: min(shape.start.y, shape.end.y),
-                width: abs(shape.end.x - shape.start.x),
-                height: abs(shape.end.y - shape.start.y)
-            ).insetBy(dx: -10, dy: -10).integral
-        case let .arrow(shape):
-            let lineRect = CGRect(
-                x: min(shape.start.x, shape.end.x),
-                y: min(shape.start.y, shape.end.y),
-                width: abs(shape.end.x - shape.start.x),
-                height: abs(shape.end.y - shape.start.y)
-            ).insetBy(dx: -18, dy: -18)
-            let labelRect = arrowLabelRect(for: shape)
-            unrotatedRect = gscBoundingRect(of: [lineRect, labelRect]).integral
-        case let .measurement(shape):
-            unrotatedRect = CGRect(
-                x: min(shape.start.x, shape.end.x),
-                y: min(shape.start.y, shape.end.y),
-                width: abs(shape.end.x - shape.start.x),
-                height: abs(shape.end.y - shape.start.y)
-            ).insetBy(dx: -10, dy: -10).integral
-        case let .freehand(shape):
-            let rect = gscBoundingRect(of: shape.points.map { CGRect(origin: $0, size: .zero) })
-            unrotatedRect = rect.insetBy(dx: -(style.lineWidth + 6), dy: -(style.lineWidth + 6)).integral
-        case let .highlighter(shape):
-            let rect = gscBoundingRect(of: shape.points.map { CGRect(origin: $0, size: .zero) })
-            unrotatedRect = rect.insetBy(dx: -(style.lineWidth + 6), dy: -(style.lineWidth + 6)).integral
-        case let .highlight(shape):
-            unrotatedRect = shape.rect.standardized.integral
-        case let .text(shape):
-            unrotatedRect = shape.rect.standardized.integral
-        case let .callout(shape):
-            if let leaderPoint = shape.leaderPoint {
-                let leaderRect = CGRect(
-                    x: min(shape.rect.midX, leaderPoint.x),
-                    y: min(shape.rect.midY, leaderPoint.y),
-                    width: abs(shape.rect.midX - leaderPoint.x),
-                    height: abs(shape.rect.midY - leaderPoint.y)
-                ).insetBy(dx: -12, dy: -12)
-                unrotatedRect = gscBoundingRect(of: [shape.rect.standardized.integral, leaderRect]).integral
-            } else {
-                unrotatedRect = shape.rect.standardized.integral
-            }
-        case let .spotlight(shape):
-            unrotatedRect = shape.rect.standardized.integral
-        case let .imageOverlay(shape):
-            unrotatedRect = shape.rect.standardized.integral
-        case let .redaction(shape):
-            unrotatedRect = shape.rect.standardized.integral
-        }
-
-        return gscRotatedBoundingRect(unrotatedRect, degrees: rotationDegrees).integral
+        gscRotatedBoundingRect(unrotatedBoundingRect, degrees: rotationDegrees).integral
     }
 
     func contains(_ point: CGPoint) -> Bool {
@@ -1681,59 +1621,58 @@ nonisolated struct Annotation: Identifiable, Equatable {
     private var unrotatedBoundingRect: CGRect {
         switch kind {
         case let .rectangle(shape):
-            return shape.rect.standardized.integral
+            return standardizedRect(shape.rect)
         case let .ellipse(shape):
-            return shape.rect.standardized.integral
+            return standardizedRect(shape.rect)
         case let .line(shape):
-            return CGRect(
-                x: min(shape.start.x, shape.end.x),
-                y: min(shape.start.y, shape.end.y),
-                width: abs(shape.end.x - shape.start.x),
-                height: abs(shape.end.y - shape.start.y)
-            ).insetBy(dx: -10, dy: -10).integral
+            return lineBounds(from: shape.start, to: shape.end, padding: 10)
         case let .arrow(shape):
-            let lineRect = CGRect(
-                x: min(shape.start.x, shape.end.x),
-                y: min(shape.start.y, shape.end.y),
-                width: abs(shape.end.x - shape.start.x),
-                height: abs(shape.end.y - shape.start.y)
-            ).insetBy(dx: -18, dy: -18)
+            let lineRect = lineBounds(from: shape.start, to: shape.end, padding: 18)
             return gscBoundingRect(of: [lineRect, arrowLabelRect(for: shape)]).integral
         case let .measurement(shape):
-            return CGRect(
-                x: min(shape.start.x, shape.end.x),
-                y: min(shape.start.y, shape.end.y),
-                width: abs(shape.end.x - shape.start.x),
-                height: abs(shape.end.y - shape.start.y)
-            ).insetBy(dx: -10, dy: -10).integral
+            return lineBounds(from: shape.start, to: shape.end, padding: 10)
         case let .freehand(shape):
-            let rect = gscBoundingRect(of: shape.points.map { CGRect(origin: $0, size: .zero) })
-            return rect.insetBy(dx: -(style.lineWidth + 6), dy: -(style.lineWidth + 6)).integral
+            return polylineBounds(for: shape.points)
         case let .highlighter(shape):
-            let rect = gscBoundingRect(of: shape.points.map { CGRect(origin: $0, size: .zero) })
-            return rect.insetBy(dx: -(style.lineWidth + 6), dy: -(style.lineWidth + 6)).integral
+            return polylineBounds(for: shape.points)
         case let .highlight(shape):
-            return shape.rect.standardized.integral
+            return standardizedRect(shape.rect)
         case let .text(shape):
-            return shape.rect.standardized.integral
+            return standardizedRect(shape.rect)
         case let .callout(shape):
             if let leaderPoint = shape.leaderPoint {
-                let leaderRect = CGRect(
-                    x: min(shape.rect.midX, leaderPoint.x),
-                    y: min(shape.rect.midY, leaderPoint.y),
-                    width: abs(shape.rect.midX - leaderPoint.x),
-                    height: abs(shape.rect.midY - leaderPoint.y)
-                ).insetBy(dx: -12, dy: -12)
-                return gscBoundingRect(of: [shape.rect.standardized.integral, leaderRect]).integral
+                let leaderRect = lineBounds(from: shape.rect.center, to: leaderPoint, padding: 12)
+                return gscBoundingRect(of: [standardizedRect(shape.rect), leaderRect]).integral
             }
-            return shape.rect.standardized.integral
+            return standardizedRect(shape.rect)
         case let .spotlight(shape):
-            return shape.rect.standardized.integral
+            return standardizedRect(shape.rect)
         case let .imageOverlay(shape):
-            return shape.rect.standardized.integral
+            return standardizedRect(shape.rect)
         case let .redaction(shape):
-            return shape.rect.standardized.integral
+            return standardizedRect(shape.rect)
         }
+    }
+
+    private func standardizedRect(_ rect: CGRect) -> CGRect {
+        rect.standardized.integral
+    }
+
+    private func lineBounds(from start: CGPoint, to end: CGPoint, padding: CGFloat) -> CGRect {
+        CGRect(
+            x: min(start.x, end.x),
+            y: min(start.y, end.y),
+            width: abs(end.x - start.x),
+            height: abs(end.y - start.y)
+        )
+        .insetBy(dx: -padding, dy: -padding)
+        .integral
+    }
+
+    private func polylineBounds(for points: [CGPoint]) -> CGRect {
+        let rect = gscBoundingRect(of: points.map { CGRect(origin: $0, size: .zero) })
+        let padding = style.lineWidth + 6
+        return rect.insetBy(dx: -padding, dy: -padding).integral
     }
 }
 
@@ -1894,20 +1833,21 @@ nonisolated struct EditorSnapshot: Equatable {
 
     // MARK: - Layer Reordering
 
-    nonisolated var canReorderForward: Bool {
-        let idSet = Set(selectedAnnotationIDs)
-        let selectedIndices = annotations.enumerated().compactMap { index, annotation in
+    nonisolated func selectedAnnotationIndices(in annotationIDs: [UUID]? = nil) -> [Int] {
+        let idSet = Set(annotationIDs ?? selectedAnnotationIDs)
+        return annotations.enumerated().compactMap { index, annotation in
             idSet.contains(annotation.id) ? index : nil
         }
+    }
+
+    nonisolated var canReorderForward: Bool {
+        let selectedIndices = selectedAnnotationIndices()
         guard let maxIndex = selectedIndices.max() else { return false }
         return maxIndex < annotations.count - 1
     }
 
     nonisolated var canReorderBackward: Bool {
-        let idSet = Set(selectedAnnotationIDs)
-        let selectedIndices = annotations.enumerated().compactMap { index, annotation in
-            idSet.contains(annotation.id) ? index : nil
-        }
+        let selectedIndices = selectedAnnotationIndices()
         guard let minIndex = selectedIndices.min() else { return false }
         return minIndex > 0
     }
