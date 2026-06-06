@@ -1,6 +1,6 @@
 # SnipSnipSnip Feature List
 
-Last reviewed: 2026-06-02
+Last reviewed: 2026-06-05
 
 This document is the source of truth for what SnipSnipSnip currently ships, what is only partially complete, and what is still missing. It is based on the current app source, shipped Help content, public docs, and test suite, not on older roadmap text.
 
@@ -33,6 +33,7 @@ SnipSnipSnip already ships all of the following in meaningful form:
 - Floating reference screenshots that pin rendered editor or history snapshots in lightweight always-on-top windows with opacity, zoom, pan, multiple-reference, and close-all controls.
 - Editable `.sss` screenshot packages with base image, preview, JSON session state, undo/redo history, search metadata, and image overlay assets.
 - Local-first archive/history/recovery with autosave checkpoints, recent snips, recycle bin, archive size limits, custom archive location, OCR-backed search metadata, and Private Capture.
+- Local-first Clipboard History for copied text, links, images, files, and SnipSnipSnip screenshots, including non-private snips even when Auto Copy is off.
 - Screen recording for region, window, and fullscreen recording with current-display, selected-display, and all-displays modes, plus MP4 capture, cursor and click options, system audio, microphone narration, storage guardrails, `.sssvideo` packages, trim editing, poster frames, timeline thumbnails, and quality or size-limited MP4 export.
 
 The biggest unfinished areas are now clear:
@@ -40,7 +41,7 @@ The biggest unfinished areas are now clear:
 - Scrolling capture works, but it is still a `~ Partial` feature because compatibility and diagnostics are not hardened enough to call it fully done.
 - Screenshot presentation styling is useful and shipped: padding, solid or transparent backgrounds, rounded corners, shadows, live preview, and rendered drag-out sharing are present. Richer frames, gradients, pinned screenshots, and multi-capture composition remain open.
 - Video recording is useful, but advanced post-production is still mostly `x Not done`: GIF export, webcam, keystrokes, zooms, captions, aspect-ratio layouts, video overlays, and multi-clip editing.
-- Workflow automation is still shallow: customizable global hotkeys exist, but App Intents, URL schemes, and cloud/upload workflows are absent.
+- Workflow automation is still shallow: customizable global hotkeys and a Clipboard History opener exist, but App Intents, URL schemes, and cloud/upload workflows are absent.
 - Non-functional readiness is mixed: privacy is strong, docs are solid for screenshots, performance profiling exists, but accessibility depth, localization, diagnostics export, and crash reporting are still not done.
 
 ## Functional Feature Matrix
@@ -111,6 +112,8 @@ The biggest unfinished areas are now clear:
 | Feature | Status | Current implementation | Remaining gap or limitation |
 | --- | --- | --- | --- |
 | Clipboard-first workflow | ✓ Done | Auto Copy and explicit Copy use the current rendered screenshot result. | No copy-as-file, copy-as-markdown, or cloud-link workflow. |
+| Clipboard History manager | ✓ Done | A floating Clipboard History window opens from the menu bar, stores local history for text, links, images, file URLs, and SnipSnipSnip snips, and supports search, type filters, thumbnails, pinned items, delete, clear unpinned, Copy, and Copy & Paste back into the previously active app while keeping the history window open. | Plain-text paste for rich text and deeper metadata previews can still be expanded. |
+| Clipboard History shortcuts | ✓ Done | Return triggers Copy & Paste for the selected item, arrow keys move selection, and Option-1 through Option-9 copy the matching visible item while the Clipboard History window is focused. | These are intentionally local shortcuts; global item-number shortcuts would conflict with frontmost apps. |
 | PNG export | ✓ Done | `ImageExporter` supports PNG output. | No destination presets or export rules. |
 | JPEG export | ✓ Done | JPEG export exists with fixed compression. | No quality slider or auto format choice. |
 | PDF export | ✓ Done | Single-image PDF export exists. | No vector-preserving annotation export. |
@@ -131,6 +134,8 @@ The biggest unfinished areas are now clear:
 | Crash recovery | ✓ Done | Pending recovery sessions are surfaced on relaunch. | More edge-case tests would still help. |
 | Recent snips | ✓ Done | Shelved unsaved work remains available from the main UI and editor inspector. | No favorites, tags, or projects yet. |
 | Capture history | ✓ Done | Archive entries persist across sessions and support search. | Filtering by type, date, and source app is still missing. |
+| Clipboard screenshot timeline | ✓ Done | Every non-private completed screenshot is inserted into Clipboard History as a snip entry with preview/copy payloads and capture metadata, even when Auto Copy is disabled. Private Capture screenshots are excluded. | Reveal-in-editor depends on the backing recoverable capture still being available. |
+| Clipboard item persistence and pruning | ✓ Done | Clipboard history stores local metadata plus image/snip preview assets under Application Support, deduplicates by content hash, and prunes by configured item count and storage size while preserving pinned entries. | No iCloud sync or cross-device history by design. |
 | Search annotation text | ✓ Done | Search metadata includes annotation text. | Search is still simple and could use indexing at large scale. |
 | OCR-backed history search | ✓ Done | Background Vision OCR indexes captures for search, and Private Capture skips that indexing. | No QR detection, OCR language selection, or OCR confidence UI. |
 | Recycle bin | ✓ Done | Deleted entries move to recycle bin and can be restored, deleted, or emptied. | Could add stronger privacy/storage warnings. |
@@ -194,7 +199,8 @@ The biggest unfinished areas are now clear:
 | Main-window command menus | ✓ Done | Capture, Help, Open, Import Image, Save, Export, Share, and pasteboard commands are present. | Tool-by-tool command coverage is still incomplete. |
 | Global hotkeys | ✓ Done | Global capture hotkeys remain background-only and are now user-customizable per action from Settings > General. | Consider optional frontmost behavior toggles for power users later. |
 | In-app shortcuts | ~ Partial | Capture, open, save, export, share, copy, select all, group, ungroup, layer ordering (bring forward/backward, bring to front, send to back), and help shortcuts exist. | Missing broader tool shortcuts, richer editor navigation shortcuts, and user customization. |
-| Settings window | ✓ Done | The app has General, Recording, Archive, and Privacy settings tabs. | No capture preset system or deeper workflow automation settings yet. |
+| Settings window | ✓ Done | The app has General, Recording, Archive, Clipboard, and Privacy settings tabs. Clipboard settings include history enablement, item/storage limits, clear history, ignored-app management, and restore-default ignored apps. | No capture preset system or deeper workflow automation settings yet. |
+| Clipboard ignored-app workflow | ✓ Done | Clipboard settings can ignore currently running apps, choose an app bundle from Applications, or ignore recent clipboard source apps with one click. Default ignored apps include Apple Passwords and common password managers such as 1Password, Bitwarden, Dashlane, LastPass, KeePassXC, Keeper, RoboForm, Enpass, mSecure, NordPass, Proton Pass, KeeWeb, MacPass, Strongbox, Secrets, Buttercup, and SafeInCloud. | Source-app detection is best-effort because macOS pasteboard data does not reliably expose origin for every copy. |
 | Permission diagnostics and remediation buttons | ✓ Done | Settings and main UI expose permission diagnostics plus remediation buttons and Help guidance. | Support-oriented diagnostics export is still missing. |
 | Drag-out sharing | ✓ Done | Screenshot and video editors expose compact promised-file drag handles. Screenshot drag-out flattens current edits and presentation styling; video drag-out exports the current trimmed MP4 with the remembered preset after the drop is accepted. | Add richer destinations only if local file drag-out proves insufficient. |
 | Floating reference workflow | ✓ Done | Reference > Float Current Screenshot and the editor Float button create lightweight always-on-top views without duplicating files or modifying documents. History preview overlays can float archived snapshots for comparison or active reference work. | Add saved reference layouts only if active workspace referencing becomes a larger product area. |
@@ -217,6 +223,7 @@ The biggest unfinished areas are now clear:
 | Permission clarity | ✓ Done | Settings and Help explain Screen Recording, Accessibility, and microphone/system-audio permissions, and the app exposes remediation actions. | Support diagnostics export would still help. |
 | Redaction safety | ✓ Done | Redactions stay non-destructive in the editor and flatten only on copy, export, or share. Docs warn that editable packages retain original content. | Add a stronger pre-share warning for editable documents if needed. |
 | Archive privacy | ✓ Done | Archive and recycle-bin behavior are documented, and Private Capture suppresses checkpoints, recycle-bin retention, and background OCR indexing. | Could add clearer privacy badging in history. |
+| Clipboard privacy | ✓ Done | Clipboard History is local-only, skips concealed and transient pasteboard types, excludes Private Capture screenshots, and ignores Apple Passwords plus common password managers by default. Ignored apps can be managed through automated app-picker and recent-source flows rather than manual bundle ID entry. | Pasteboard source app attribution remains best-effort on macOS. |
 | Security-scoped archive access | ✓ Done | Custom archive locations use bookmarks. | Add repair flow for stale bookmarks over time. |
 | Sensitive logging hygiene | ~ Partial | Internal logging exists for scrolling capture, thumbnail history preview loading, and video export. | No user-facing diagnostics export or explicit sanitization workflow exists yet. |
 
@@ -271,6 +278,7 @@ The biggest unfinished areas are now clear:
 - Screenshot architecture is correctly non-destructive: base image, annotation state, crop, export, and persistence are separate concepts.
 - Editor mutations are command-driven and testable.
 - Screenshot history, autosave, recovery, recycle bin, OCR indexing, and archive management are far more complete than a simple capture tool.
+- Clipboard History is integrated as a first-class local timeline rather than a separate utility: it includes normal clipboard items and SnipSnipSnip screenshots, with privacy filters and password-manager ignores built in.
 - The `.sss` package is open, documented, and easy to inspect.
 - Privacy posture is strong for a local-first screenshot tool: metadata-stripped exports, non-destructive redaction in-editor, and Private Capture controls are already shipped.
 - Scrolling capture has a real service boundary with dedicated diagnostics logging, stitching logic, partial-result handling, and tests.
@@ -283,6 +291,7 @@ The biggest unfinished areas are now clear:
 - Screenshot presentation styling is shipped for polished static output, but richer gradients, frames, social layouts, pinned screenshots, and multi-capture composition are still absent.
 - Video editing is still a trim-and-export workflow, not a full demo-editor workflow.
 - Global hotkeys are customizable but intentionally background-only while the app is active, which may surprise power users.
+- Clipboard History source-app filtering is inherently best-effort because macOS pasteboard changes do not always include reliable origin metadata.
 - Layer ordering commands are shipped, but there is still no dedicated layer list UI for drag-reorder, visibility toggles, or locking.
 - `.sssvideo` documentation is now published; keep it current with schema updates.
 - Accessibility depth and localization infrastructure are both behind the rest of the product.

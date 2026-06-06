@@ -50,6 +50,7 @@ enum AppModelPreferenceKey {
     static let regionCaptureOverlayMode = "appModel.regionCaptureOverlayMode"
     static let regionCaptureShowsActionControls = "appModel.regionCaptureShowsActionControls"
     static let recycleBinRetentionDays = "appModel.recycleBinRetentionDays"
+    static let screenRulerPreferences = "appModel.screenRulerPreferences"
     static let screenshotFilenameTemplate = "appModel.screenshotFilenameTemplate"
     static let screenshotDragOutFormat = "appModel.screenshotDragOutFormat"
     static let privateCaptureEnabled = "appModel.privateCaptureEnabled"
@@ -189,6 +190,18 @@ final class AppModel: ObservableObject {
     }
     @Published private(set) var editorCropOutsideOverlayAlpha: CGFloat
     @Published private(set) var editorOutOfCapturePatternSettings: EditorOutOfCapturePatternSettings
+    @Published var screenRulerPreferences: ScreenRulerPreferences {
+        didSet {
+            let sanitizedPreferences = screenRulerPreferences.sanitized()
+            if sanitizedPreferences != screenRulerPreferences {
+                screenRulerPreferences = sanitizedPreferences
+                return
+            }
+
+            persistScreenRulerPreferences()
+            screenRulerCoordinator.updatePreferences(screenRulerPreferences)
+        }
+    }
     @Published var automationPreferences: CaptureAutomationPreferences {
         didSet {
             persistAutomationPreferences()
@@ -253,6 +266,7 @@ final class AppModel: ObservableObject {
     let incompatibleDocumentCoordinator: IncompatibleDocumentCoordinator
     let launchAtLoginController: LaunchAtLoginController
     let floatingReferenceCoordinator = FloatingReferenceCoordinator()
+    let screenRulerCoordinator: ScreenRulerCoordinator
     let clipboardHistoryStore: ClipboardHistoryStore
     let clipboardMonitor: ClipboardMonitor
     let defaults: UserDefaults
@@ -278,6 +292,7 @@ final class AppModel: ObservableObject {
     var pendingRecoveryRefreshTask: Task<Void, Never>?
     var clipboardManagerWindowController: ClipboardManagerWindowController?
     var clipboardHistoryObserver: AnyCancellable?
+    var screenRulerObserver: AnyCancellable?
     var pendingCaptureHistorySearchTask: Task<Void, Never>?
     var pendingRecoveryWriteTasks: [UUID: Task<Void, Never>] = [:]
     var recoveryRefreshGeneration = 0
@@ -337,6 +352,9 @@ final class AppModel: ObservableObject {
         self.privateCaptureEnabled = defaults.object(forKey: AppModelPreferenceKey.privateCaptureEnabled) as? Bool ?? false
         self.editorCropOutsideOverlayAlpha = Self.loadEditorCropOutsideOverlayAlpha(from: defaults)
         self.editorOutOfCapturePatternSettings = Self.loadEditorOutOfCapturePatternSettings(from: defaults)
+        let screenRulerPreferences = Self.loadScreenRulerPreferences(from: defaults)
+        self.screenRulerPreferences = screenRulerPreferences
+        self.screenRulerCoordinator = ScreenRulerCoordinator(preferences: screenRulerPreferences)
         self.automationPreferences = Self.loadAutomationPreferences(from: defaults)
         self.videoRecordingPreferences = Self.loadVideoRecordingPreferences(from: defaults)
         self.videoExportPreferences = Self.loadVideoExportPreferences(from: defaults)
@@ -375,6 +393,10 @@ final class AppModel: ObservableObject {
         }
 
         clipboardHistoryObserver = clipboardHistoryStore.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
+
+        screenRulerObserver = screenRulerCoordinator.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
         }
 
@@ -540,6 +562,7 @@ final class AppModel: ObservableObject {
         privateCaptureEnabled = false
         updateEditorCropOutsideOverlayAlpha(Self.defaultEditorCropOutsideOverlayAlpha)
         updateEditorOutOfCapturePatternSettings(.default)
+        screenRulerPreferences = .default
         automationPreferences = CaptureAutomationPreferences()
         videoRecordingPreferences = VideoRecordingPreferences()
         videoExportPreferences = VideoExportPreferences()
@@ -588,6 +611,15 @@ final class AppModel: ObservableObject {
         return sanitizedEditorOutOfCapturePatternSettings(settings)
     }
 
+    static func loadScreenRulerPreferences(from defaults: UserDefaults) -> ScreenRulerPreferences {
+        guard let data = defaults.data(forKey: AppModelPreferenceKey.screenRulerPreferences),
+              let preferences = try? JSONDecoder().decode(ScreenRulerPreferences.self, from: data) else {
+            return .default
+        }
+
+        return preferences.sanitized()
+    }
+
     private static func clampedEditorCropOutsideOverlayAlpha(_ value: CGFloat) -> CGFloat {
         min(max(value, 0), 0.9)
     }
@@ -628,6 +660,22 @@ final class AppModel: ObservableObject {
         }
 
         editorController?.updateOutOfCapturePatternSettings(sanitizedSettings)
+    }
+
+    func presentScreenRuler(_ kind: ScreenRulerKind) {
+        screenRulerCoordinator.present(kind)
+    }
+
+    func closeAllScreenRulers() {
+        screenRulerCoordinator.closeAll()
+    }
+
+    private func persistScreenRulerPreferences() {
+        guard let data = try? JSONEncoder().encode(screenRulerPreferences.sanitized()) else {
+            return
+        }
+
+        defaults.set(data, forKey: AppModelPreferenceKey.screenRulerPreferences)
     }
 
     private func persistAutomationPreferences() {

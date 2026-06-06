@@ -348,6 +348,13 @@ private struct ActiveEditorToolbarView: View {
                 .help("Redo")
                 .disabled(!controller.canRedo)
 
+                Button(action: controller.rotateSelectedClockwise90) {
+                    Image(systemName: "rotate.right")
+                }
+                .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
+                .help("Rotate selected annotation 90 degrees clockwise.")
+                .disabled(!controller.canRotateSelection)
+
                 toolbarDivider
 
                 Button(action: controller.zoomOut) {

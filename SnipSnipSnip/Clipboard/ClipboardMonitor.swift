@@ -4,6 +4,9 @@ import Foundation
 import UniformTypeIdentifiers
 
 enum ClipboardPasteboardReader {
+    static let remoteClipboardTypeName = "com.apple.is-remote-clipboard"
+    static let sourceTypeName = "org.nspasteboard.source"
+
     static let concealedAndTransientTypeNames: Set<String> = [
         "org.nspasteboard.ConcealedType",
         "org.nspasteboard.TransientType",
@@ -14,6 +17,30 @@ enum ClipboardPasteboardReader {
 
     static func containsSensitiveOrTransientType(_ typeNames: [String]) -> Bool {
         !Set(typeNames).isDisjoint(with: concealedAndTransientTypeNames)
+    }
+
+    static func sourceApp(
+        forPasteboardTypeNames typeNames: [String],
+        explicitSourceIdentifier: String?,
+        fallbackSourceApp: ClipboardSourceApp?
+    ) -> ClipboardSourceApp? {
+        if let explicitSourceIdentifier {
+            let sourceIdentifier = explicitSourceIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !sourceIdentifier.isEmpty else {
+                return nil
+            }
+
+            return sourceApp(forSourceIdentifier: sourceIdentifier)
+        }
+
+        if typeNames.contains(remoteClipboardTypeName) {
+            return ClipboardSourceApp(
+                name: "Universal Clipboard",
+                bundleIdentifier: remoteClipboardTypeName
+            )
+        }
+
+        return fallbackSourceApp
     }
 
     @MainActor
@@ -136,6 +163,19 @@ enum ClipboardPasteboardReader {
         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         .first { !$0.isEmpty }
     }
+
+    private static func sourceApp(forSourceIdentifier sourceIdentifier: String) -> ClipboardSourceApp {
+        let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: sourceIdentifier)
+        let bundle = appURL.flatMap(Bundle.init(url:))
+        let displayName = bundle?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+            ?? bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String
+            ?? appURL?.deletingPathExtension().lastPathComponent
+
+        return ClipboardSourceApp(
+            name: displayName ?? sourceIdentifier,
+            bundleIdentifier: sourceIdentifier
+        )
+    }
 }
 
 enum ClipboardPasteboardSnapshot: Equatable {
@@ -199,7 +239,16 @@ final class ClipboardMonitor {
         }
 
         observedChangeCount = pasteboard.changeCount
-        let sourceApp = Self.currentSourceApp()
+        let typeNames = pasteboard.types?.map(\.rawValue) ?? []
+        let hasExplicitSource = typeNames.contains(ClipboardPasteboardReader.sourceTypeName)
+        let explicitSourceIdentifier = hasExplicitSource
+            ? (pasteboard.string(forType: NSPasteboard.PasteboardType(ClipboardPasteboardReader.sourceTypeName)) ?? "")
+            : nil
+        let sourceApp = ClipboardPasteboardReader.sourceApp(
+            forPasteboardTypeNames: typeNames,
+            explicitSourceIdentifier: explicitSourceIdentifier,
+            fallbackSourceApp: Self.currentSourceApp()
+        )
         let sanitizedPreferences = preferences.sanitized()
 
         guard let snapshot = ClipboardPasteboardReader.readGeneralPasteboard(

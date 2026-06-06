@@ -59,6 +59,44 @@ struct CaptureAutomationSettingsView: View {
                     SettingsHelpText("When enabled, region, window, frontmost-window, fullscreen, and repeat screenshots add the current cursor as a movable, resizable, removable overlay. Scrolling Capture always excludes the cursor while stitching.")
                 }
 
+                Section("Screen Ruler") {
+                    HStack(spacing: 10) {
+                        Button("New Horizontal", action: { model.presentScreenRuler(.horizontal) })
+                        Button("New Vertical", action: { model.presentScreenRuler(.vertical) })
+                    }
+
+                    if model.screenRulerCoordinator.hasActiveRulers {
+                        Button("Close All Screen Rulers", action: model.closeAllScreenRulers)
+                    }
+
+                    Toggle("Show Mouse Distance", isOn: screenRulerBinding(\.showsMouseDistance))
+                    Toggle("Show Half Markers", isOn: screenRulerBinding(\.showsHalfMarkers))
+
+                    HStack {
+                        Text("Opacity")
+                        Spacer(minLength: 12)
+                        Text(model.screenRulerPreferences.opacityDescription)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Slider(value: screenRulerOpacityBinding, in: 0.35...1, step: 0.01)
+
+                    HStack {
+                        Text("Tick Spacing")
+                        Spacer(minLength: 12)
+                        Text(model.screenRulerPreferences.tickSpacingDescription)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Slider(value: screenRulerTickSpacingBinding, in: 4...50, step: 1)
+
+                    Stepper(value: screenRulerMajorTickBinding, in: 2...20, step: 1) {
+                        Text("Major Tick Every: \(model.screenRulerPreferences.majorTickEvery)")
+                    }
+
+                    SettingsHelpText("Screen rulers are floating, resizable overlays. Add multiple horizontal or vertical rulers from Settings or the menu bar; visible rulers are included in screenshots when the captured area contains them.")
+                }
+
                 Section("Naming") {
                     TextField("Filename Template", text: $model.screenshotFilenameTemplate)
 
@@ -514,6 +552,50 @@ struct CaptureAutomationSettingsView: View {
                 var preferences = model.videoRecordingPreferences
                 preferences[keyPath: keyPath] = newValue
                 model.videoRecordingPreferences = preferences
+            }
+        )
+    }
+
+    private func screenRulerBinding<Value>(_ keyPath: WritableKeyPath<ScreenRulerPreferences, Value>) -> Binding<Value> {
+        Binding(
+            get: { model.screenRulerPreferences[keyPath: keyPath] },
+            set: { newValue in
+                var preferences = model.screenRulerPreferences
+                preferences[keyPath: keyPath] = newValue
+                model.screenRulerPreferences = preferences
+            }
+        )
+    }
+
+    private var screenRulerOpacityBinding: Binding<Double> {
+        Binding(
+            get: { model.screenRulerPreferences.opacity },
+            set: { newValue in
+                var preferences = model.screenRulerPreferences
+                preferences.opacity = newValue
+                model.screenRulerPreferences = preferences
+            }
+        )
+    }
+
+    private var screenRulerTickSpacingBinding: Binding<Double> {
+        Binding(
+            get: { Double(model.screenRulerPreferences.tickSpacing) },
+            set: { newValue in
+                var preferences = model.screenRulerPreferences
+                preferences.tickSpacing = CGFloat(newValue)
+                model.screenRulerPreferences = preferences
+            }
+        )
+    }
+
+    private var screenRulerMajorTickBinding: Binding<Int> {
+        Binding(
+            get: { model.screenRulerPreferences.majorTickEvery },
+            set: { newValue in
+                var preferences = model.screenRulerPreferences
+                preferences.majorTickEvery = newValue
+                model.screenRulerPreferences = preferences
             }
         )
     }

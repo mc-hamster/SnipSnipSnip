@@ -121,6 +121,34 @@ final class ClipboardHistoryStoreTests: XCTestCase {
         }
     }
 
+    func testRemoteClipboardMarkerWinsOverFrontmostFallbackSource() throws {
+        let fallback = ClipboardSourceApp(name: "Microsoft Teams", bundleIdentifier: "com.microsoft.teams2")
+        let sourceApp = ClipboardPasteboardReader.sourceApp(
+            forPasteboardTypeNames: ["public.utf8-plain-text", ClipboardPasteboardReader.remoteClipboardTypeName],
+            explicitSourceIdentifier: nil,
+            fallbackSourceApp: fallback
+        )
+
+        XCTAssertEqual(sourceApp?.name, "Universal Clipboard")
+        XCTAssertEqual(sourceApp?.bundleIdentifier, ClipboardPasteboardReader.remoteClipboardTypeName)
+    }
+
+    func testExplicitPasteboardSourceWinsOverRemoteAndFrontmostSources() throws {
+        let fallback = ClipboardSourceApp(name: "Microsoft Teams", bundleIdentifier: "com.microsoft.teams2")
+        let sourceApp = ClipboardPasteboardReader.sourceApp(
+            forPasteboardTypeNames: [
+                "public.utf8-plain-text",
+                ClipboardPasteboardReader.remoteClipboardTypeName,
+                ClipboardPasteboardReader.sourceTypeName
+            ],
+            explicitSourceIdentifier: "com.apple.Safari",
+            fallbackSourceApp: fallback
+        )
+
+        XCTAssertEqual(sourceApp?.bundleIdentifier, "com.apple.Safari")
+        XCTAssertNotEqual(sourceApp?.name, "Microsoft Teams")
+    }
+
     func testSearchMatchesTextSourceAndType() {
         let storeName = "ClipboardHistoryStoreTests.search"
         removeStore(named: storeName)

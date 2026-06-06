@@ -320,6 +320,10 @@ final class EditorController: ObservableObject {
     }
 
     var showsRotationControls: Bool {
+        canRotateSelection
+    }
+
+    var canRotateSelection: Bool {
         selectedCount > 0 && !selectedAnnotations.contains { $0.editorTool == .arrow }
     }
 
@@ -913,11 +917,15 @@ final class EditorController: ObservableObject {
     }
 
     func rotateSelected(by delta: CGFloat) {
-        guard !selectedAnnotations.isEmpty else {
+        guard canRotateSelection else {
             return
         }
 
         updateAnnotations(selectedAnnotations.map { $0.updatingRotationDegrees($0.rotationDegrees + delta) })
+    }
+
+    func rotateSelectedClockwise90() {
+        rotateSelected(by: 90)
     }
 
     func updateSelectedImageOverlayOpacity(_ opacity: CGFloat) {

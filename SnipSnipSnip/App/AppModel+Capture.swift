@@ -1023,13 +1023,23 @@ extension AppModel {
     func hideAppWindowIfNeeded(in windows: [NSWindow] = NSApp.windows) -> NSWindow? {
         let window = windows.first(where: {
             $0.identifier?.rawValue == AppSceneID.mainWindow && $0.isVisible && !$0.isMiniaturized
-        }) ?? NSApp.keyWindow ?? NSApp.mainWindow ?? windows.first(where: { $0.isVisible && !$0.isMiniaturized })
+        }) ?? nonRulerWindow(NSApp.keyWindow) ?? nonRulerWindow(NSApp.mainWindow) ?? windows.first(where: {
+            $0.isVisible && !$0.isMiniaturized && !ScreenRulerWindowID.isScreenRulerWindow($0)
+        })
 
         guard let window, window.isVisible, !window.isMiniaturized else {
             return nil
         }
 
         window.orderOut(nil)
+        return window
+    }
+
+    private func nonRulerWindow(_ window: NSWindow?) -> NSWindow? {
+        guard let window, !ScreenRulerWindowID.isScreenRulerWindow(window) else {
+            return nil
+        }
+
         return window
     }
 

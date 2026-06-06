@@ -425,6 +425,44 @@ final class EditorControllerTests: XCTestCase {
         XCTAssertTrue(controller.canAlignSelection)
     }
 
+    func testRotateSelectedClockwise90UpdatesSelectionAndIsUndoable() {
+        let first = Annotation.makeRectangle(in: CGRect(x: 10, y: 10, width: 40, height: 30))
+            .updatingRotationDegrees(15)
+        let second = Annotation.makeEllipse(in: CGRect(x: 80, y: 20, width: 40, height: 30))
+            .updatingRotationDegrees(270)
+        let snapshot = makeEditorSnapshot(
+            annotations: [first, second],
+            selectedAnnotationIDs: [first.id, second.id]
+        )
+        let controller = makeController(snapshot: snapshot)
+
+        controller.rotateSelectedClockwise90()
+
+        XCTAssertEqual(controller.snapshot.annotations.map(\.rotationDegrees), [105, 0])
+        XCTAssertEqual(controller.snapshot.selectedAnnotationIDs, [first.id, second.id])
+
+        controller.undo()
+
+        XCTAssertEqual(controller.snapshot.annotations.map(\.rotationDegrees), [15, 270])
+        XCTAssertEqual(controller.snapshot.selectedAnnotationIDs, [first.id, second.id])
+    }
+
+    func testRotateSelectedClockwise90IgnoresArrowSelection() {
+        let arrow = Annotation.makeArrow(from: CGPoint(x: 20, y: 20), to: CGPoint(x: 80, y: 70))
+        let snapshot = makeEditorSnapshot(
+            annotations: [arrow],
+            selectedAnnotationIDs: [arrow.id]
+        )
+        let controller = makeController(snapshot: snapshot)
+
+        XCTAssertFalse(controller.canRotateSelection)
+
+        controller.rotateSelectedClockwise90()
+
+        XCTAssertEqual(controller.snapshot.annotations.first?.rotationDegrees, 0)
+        XCTAssertFalse(controller.canUndo)
+    }
+
     func testUpdateRedactionModeChangesSelectedRedactionBeforeActiveTool() {
         let redaction = Annotation.makeBlur(in: CGRect(x: 10, y: 10, width: 60, height: 40))
         let snapshot = makeEditorSnapshot(

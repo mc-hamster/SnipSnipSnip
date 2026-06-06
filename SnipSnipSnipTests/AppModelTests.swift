@@ -183,6 +183,55 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(requests.first, false)
     }
 
+    func testScreenRulerPreferencesLoadSanitizedValues() throws {
+        let suiteName = "AppModelTests.screenRulerPreferencesLoadSanitizedValues"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let preferences = ScreenRulerPreferences(
+            opacity: 3,
+            tickSpacing: 1,
+            majorTickEvery: 100,
+            showsHalfMarkers: false,
+            showsMouseDistance: false
+        )
+        defaults.set(try JSONEncoder().encode(preferences), forKey: AppModelPreferenceKey.screenRulerPreferences)
+
+        let loadedPreferences = AppModel.loadScreenRulerPreferences(from: defaults)
+
+        XCTAssertEqual(loadedPreferences.opacity, 1)
+        XCTAssertEqual(loadedPreferences.tickSpacing, 4)
+        XCTAssertEqual(loadedPreferences.majorTickEvery, 20)
+        XCTAssertFalse(loadedPreferences.showsHalfMarkers)
+        XCTAssertFalse(loadedPreferences.showsMouseDistance)
+    }
+
+    func testResetPreferencesRestoresScreenRulerDefaults() {
+        let suiteName = "AppModelTests.resetPreferencesRestoresScreenRulerDefaults"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let model = retainForTestLifetime(
+            AppModel(
+                defaults: defaults,
+                recoveryStore: DocumentRecoveryStore(baseURL: nil),
+                shouldCheckCompatibilityOnLaunch: false,
+                shouldStartArchiveMaintenance: false
+            )
+        )
+        model.screenRulerPreferences = ScreenRulerPreferences(
+            opacity: 0.42,
+            tickSpacing: 24,
+            majorTickEvery: 8,
+            showsHalfMarkers: false,
+            showsMouseDistance: false
+        )
+
+        model.resetPreferencesToDefaults()
+
+        XCTAssertEqual(model.screenRulerPreferences, .default)
+    }
+
     func testRefreshPermissionsClearsReadyWhenShareableContentProbeFails() async {
         let suiteName = "AppModelTests.refreshPermissionsClearsReadyWhenShareableContentProbeFails"
         let defaults = makeDefaults(named: suiteName)

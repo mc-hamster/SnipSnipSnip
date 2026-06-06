@@ -9,6 +9,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     private let menu = NSMenu()
     private let windowCaptureMenu = NSMenu(title: "Window Capture")
     private let videoRecordingMenu = NSMenu(title: "Video Recording")
+    private let screenRulerMenu = NSMenu(title: "Screen Ruler")
     private let timerMenu = NSMenu(title: "Timer")
     private let regionCaptureSettingsMenu = NSMenu(title: "Region Capture Settings")
     private var cancellables: Set<AnyCancellable> = []
@@ -27,6 +28,9 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
 
         videoRecordingMenu.autoenablesItems = false
         videoRecordingMenu.delegate = self
+
+        screenRulerMenu.autoenablesItems = false
+        screenRulerMenu.delegate = self
 
         timerMenu.autoenablesItems = false
         timerMenu.delegate = self
@@ -93,6 +97,8 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             rebuildWindowCaptureMenu()
         case videoRecordingMenu:
             rebuildVideoRecordingMenu()
+        case screenRulerMenu:
+            rebuildScreenRulerMenu()
         case timerMenu:
             rebuildTimerMenu()
         case regionCaptureSettingsMenu:
@@ -147,6 +153,16 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
 
     @objc private func openClipboardHistory() {
         model?.showClipboardManager()
+    }
+
+    @objc private func addHorizontalScreenRuler() {
+        model?.presentScreenRuler(.horizontal)
+        rebuildMainMenu()
+    }
+
+    @objc private func addVerticalScreenRuler() {
+        model?.presentScreenRuler(.vertical)
+        rebuildMainMenu()
     }
 
     @objc private func toggleAutoCopy() {
@@ -230,6 +246,11 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
 
     @objc private func closeAllFloatingReferences() {
         model?.floatingReferenceCoordinator.closeAll()
+        rebuildMainMenu()
+    }
+
+    @objc private func closeAllScreenRulers() {
+        model?.closeAllScreenRulers()
         rebuildMainMenu()
     }
 
@@ -320,6 +341,11 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             enabled: true
         ))
 
+        let screenRulerItem = NSMenuItem(title: "Screen Ruler", action: nil, keyEquivalent: "")
+        screenRulerItem.image = NSImage(systemSymbolName: "ruler", accessibilityDescription: nil)
+        screenRulerItem.submenu = screenRulerMenu
+        menu.addItem(screenRulerItem)
+
         menu.addItem(.separator())
 
         if model.floatingReferenceCoordinator.hasActiveReferences {
@@ -381,6 +407,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         }
 
         rebuildVideoRecordingMenu()
+        rebuildScreenRulerMenu()
         rebuildTimerMenu()
         rebuildRegionCaptureSettingsMenu()
         rebuildWindowCaptureMenu()
@@ -437,6 +464,38 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
                 title: "Stop Recording",
                 systemImage: "stop.fill",
                 action: #selector(stopVideoRecording),
+                enabled: true
+            ))
+        }
+    }
+
+    private func rebuildScreenRulerMenu() {
+        guard let model else {
+            return
+        }
+
+        screenRulerMenu.removeAllItems()
+        screenRulerMenu.addItem(actionItem(
+            title: "New Horizontal Ruler",
+            systemImage: ScreenRulerKind.horizontal.systemImage,
+            action: #selector(addHorizontalScreenRuler),
+            enabled: true
+        ))
+        let verticalRulerItem = actionItem(
+            title: "New Vertical Ruler",
+            systemImage: nil,
+            action: #selector(addVerticalScreenRuler),
+            enabled: true
+        )
+        verticalRulerItem.image = verticalRulerMenuImage()
+        screenRulerMenu.addItem(verticalRulerItem)
+
+        if model.screenRulerCoordinator.hasActiveRulers {
+            screenRulerMenu.addItem(.separator())
+            screenRulerMenu.addItem(actionItem(
+                title: "Close All Screen Rulers",
+                systemImage: "xmark.rectangle",
+                action: #selector(closeAllScreenRulers),
                 enabled: true
             ))
         }
@@ -511,6 +570,26 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         }
 
         return item
+    }
+
+    private func verticalRulerMenuImage() -> NSImage? {
+        guard let baseImage = NSImage(systemSymbolName: ScreenRulerKind.horizontal.systemImage, accessibilityDescription: nil) else {
+            return nil
+        }
+
+        let image = NSImage(size: NSSize(width: baseImage.size.height, height: baseImage.size.width))
+        image.lockFocus()
+        defer { image.unlockFocus() }
+
+        let transform = NSAffineTransform()
+        transform.translateX(by: image.size.width / 2, yBy: image.size.height / 2)
+        transform.rotate(byDegrees: 90)
+        transform.translateX(by: -baseImage.size.width / 2, yBy: -baseImage.size.height / 2)
+        transform.concat()
+
+        baseImage.draw(at: .zero, from: NSRect(origin: .zero, size: baseImage.size), operation: .sourceOver, fraction: 1)
+        image.isTemplate = true
+        return image
     }
 
     private func toggleItem(

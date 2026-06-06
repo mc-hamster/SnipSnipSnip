@@ -63,6 +63,22 @@ private struct CaptureCommands: Commands {
             Button("Open \(AppBranding.displayName)", action: showMainWindow)
                 .keyboardShortcut(AppShortcut.openWindowKey, modifiers: AppShortcut.modifiers)
 
+            Menu("Screen Ruler") {
+                Button("New Horizontal Ruler") {
+                    model.presentScreenRuler(.horizontal)
+                }
+
+                Button("New Vertical Ruler") {
+                    model.presentScreenRuler(.vertical)
+                }
+
+                if model.screenRulerCoordinator.hasActiveRulers {
+                    Divider()
+
+                    Button("Close All Screen Rulers", action: model.closeAllScreenRulers)
+                }
+            }
+
             Menu("Timer") {
                 CaptureTimerMenuContent(model: model)
             }

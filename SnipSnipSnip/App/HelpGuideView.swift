@@ -161,6 +161,40 @@ struct HelpGuideView: View {
                         "Use Private Capture for screenshots that should stay out of Clipboard History."
                     ],
                     relatedIDs: ["privacy", "copy-save-export"]
+                ),
+                HelpArticle(
+                    id: "screen-ruler",
+                    title: "Use Screen Ruler",
+                    summary: "Measure pixels on top of other apps with floating horizontal and vertical rulers.",
+                    sections: [
+                        HelpArticleSection(
+                            title: "Add rulers",
+                            bullets: [
+                                "Choose Screen Ruler from the menu bar icon, directly below Clipboard History.",
+                                "Add as many Horizontal or Vertical rulers as you need.",
+                                "Open Settings > General > Screen Ruler when you want the same creation controls beside ruler appearance options."
+                            ]
+                        ),
+                        HelpArticleSection(
+                            title: "Work with rulers",
+                            bullets: [
+                                "Drag a ruler to position it and resize it from the window edges.",
+                                "Move the pointer over a ruler to show the current pixel distance when Show Mouse Distance is enabled."
+                            ]
+                        ),
+                        HelpArticleSection(
+                            title: "Capture rulers",
+                            body: "Screen rulers are real floating overlay windows. If a visible ruler sits inside the area you capture, it is included in region and fullscreen screenshots."
+                        ),
+                        HelpArticleSection(
+                            title: "Configure rulers",
+                            body: "Settings > General > Screen Ruler controls opacity, tick spacing, major tick frequency, half markers, and mouse-distance labels for all open rulers."
+                        )
+                    ],
+                    important: [
+                        "Rulers are measuring overlays, not screenshot annotations. Close them when you do not want them to appear in a capture."
+                    ],
+                    relatedIDs: ["capture-screenshot", "keyboard-shortcuts"]
                 )
             ]
         ),
@@ -289,7 +323,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Select and arrange annotations",
-                            body: "Select one or more annotations to move, resize, group, ungroup, align, or delete them. Snap guides appear while drawing, moving, and resizing."
+                            body: "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. Snap guides appear while drawing, moving, and resizing."
                         ),
                         HelpArticleSection(
                             title: "Use the inspector",
@@ -375,7 +409,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Edit styles",
-                            body: "Use the inspector to change stroke color, fill color, line width, text size, effect strength, arrow heads, arrow labels, callout style, rectangle corners, freehand smoothing, and alignment where supported."
+                            body: "Use the inspector to change stroke color, fill color, line width, text size, effect strength, arrow heads, arrow labels, callout style, rectangle corners, freehand smoothing, and alignment where supported. Use the editor toolbar rotate button to turn selected annotations by 90 degrees."
                         ),
                         HelpArticleSection(
                             title: "Sample colors",
@@ -584,6 +618,13 @@ struct HelpGuideView: View {
                                 "Command-Shift-3 captures fullscreen.",
                                 "Command-Shift-4 captures the frontmost window.",
                                 "Command-Shift-R repeats the last capture."
+                            ]
+                        ),
+                        HelpArticleSection(
+                            title: "Screen ruler",
+                            bullets: [
+                                "Use the menu bar icon > Screen Ruler to add horizontal and vertical rulers.",
+                                "Use Settings > General > Screen Ruler to adjust ruler appearance for all open rulers."
                             ]
                         ),
                         HelpArticleSection(
