@@ -12,6 +12,7 @@ final class ScreenInspectorCoordinator: ObservableObject {
         case copyHex = 2
         case copyRGB = 3
         case snip = 4
+        case measure = 5
 
         var keyCode: UInt32 {
             switch self {
@@ -23,6 +24,8 @@ final class ScreenInspectorCoordinator: ObservableObject {
                 return UInt32(kVK_ANSI_R)
             case .snip:
                 return UInt32(kVK_ANSI_S)
+            case .measure:
+                return UInt32(kVK_ANSI_M)
             }
         }
     }
@@ -207,6 +210,8 @@ final class ScreenInspectorCoordinator: ObservableObject {
             windowController?.model.copyColorAsRGB()
         case .snip:
             windowController?.model.snipCurrentSample()
+        case .measure:
+            windowController?.model.toggleMeasurementPoint()
         }
     }
 
@@ -221,12 +226,15 @@ final class ScreenInspectorWindowModel: ObservableObject {
     @Published var preferences: ScreenInspectorPreferences
     @Published var sample: ScreenInspectorSample?
     @Published var isFrozen = false
+    @Published private(set) var measurement: ScreenInspectorMeasurement?
 
     private let sampler = ScreenInspectorSampler()
     private let onSnip: (ScreenInspectorSample) -> Void
     private var timer: Timer?
     private var pendingSampleTask: Task<Void, Never>?
     private var lensDisplaySize = CGSize(width: 256, height: 256)
+    private var measurementStart: CGPoint?
+    private var isMeasurementLocked = false
 
     init(preferences: ScreenInspectorPreferences, onSnip: @escaping (ScreenInspectorSample) -> Void = { _ in }) {
         self.preferences = preferences.sanitized()
@@ -243,6 +251,18 @@ final class ScreenInspectorWindowModel: ObservableObject {
 
     var colorDescription: String {
         sample?.color.hexString ?? "#------"
+    }
+
+    var measurementDescription: String {
+        measurement?.description ?? "distance: --"
+    }
+
+    var measurementButtonTitle: String {
+        if measurementStart == nil || isMeasurementLocked {
+            return "Measure"
+        }
+
+        return "Lock"
     }
 
     func start() {
@@ -292,6 +312,30 @@ final class ScreenInspectorWindowModel: ObservableObject {
         onSnip(sample)
     }
 
+    func toggleMeasurementPoint() {
+        guard let sample else {
+            return
+        }
+
+        if measurementStart == nil || isMeasurementLocked {
+            measurementStart = sample.cursorLocation
+            isMeasurementLocked = false
+            measurement = ScreenInspectorMeasurement(start: sample.cursorLocation, end: sample.cursorLocation)
+            return
+        }
+
+        if let measurementStart {
+            isMeasurementLocked = true
+            measurement = ScreenInspectorMeasurement(start: measurementStart, end: sample.cursorLocation)
+        }
+    }
+
+    func clearMeasurement() {
+        measurementStart = nil
+        isMeasurementLocked = false
+        measurement = nil
+    }
+
     func updateLensDisplaySize(_ size: CGSize) {
         let sanitizedSize = CGSize(
             width: max(size.width.rounded(), 1),
@@ -334,8 +378,17 @@ final class ScreenInspectorWindowModel: ObservableObject {
 
             if let sample {
                 self.sample = sample
+                self.updateMeasurement(with: sample.cursorLocation)
             }
         }
+    }
+
+    private func updateMeasurement(with point: CGPoint) {
+        guard let measurementStart, !isMeasurementLocked else {
+            return
+        }
+
+        measurement = ScreenInspectorMeasurement(start: measurementStart, end: point)
     }
 
     private func copy(_ value: String?) {
@@ -503,6 +556,12 @@ private struct ScreenInspectorWindowView: View {
                         .stroke(Color.white.opacity(0.85), lineWidth: 1)
                         .shadow(color: .black.opacity(0.8), radius: 1)
                 }
+
+                if let sample = model.sample, let measurement = model.measurement {
+                    MeasurementOverlay(sample: sample, measurement: measurement, zoomLevel: model.preferences.zoomLevel)
+                        .stroke(Color.cyan, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                        .shadow(color: .black.opacity(0.9), radius: 1)
+                }
             }
             .onAppear {
                 model.updateLensDisplaySize(proxy.size)
@@ -541,6 +600,12 @@ private struct ScreenInspectorWindowView: View {
 
             Text(model.colorDescription)
                 .fontWeight(.semibold)
+                .monospaced()
+                .lineLimit(1)
+
+            Text(model.measurementDescription)
+                .foregroundStyle(model.measurement == nil ? .secondary : .primary)
+                .fontWeight(model.measurement == nil ? .regular : .semibold)
                 .monospaced()
                 .lineLimit(1)
         }
@@ -589,6 +654,15 @@ private struct ScreenInspectorWindowView: View {
                         .disabled(model.sample == nil)
                         .keyboardShortcut("r", modifiers: [.command, .option])
                         .help("Copy the current color as RGB. Shortcut: Option-Command-R.")
+
+                    Button("\(model.measurementButtonTitle) ⌥⌘M", action: model.toggleMeasurementPoint)
+                        .disabled(model.sample == nil)
+                        .keyboardShortcut("m", modifiers: [.command, .option])
+                        .help("Set the first point, then lock the current cursor as the second point. Shortcut: Option-Command-M.")
+
+                    Button("Clear", action: model.clearMeasurement)
+                        .disabled(model.measurement == nil)
+                        .help("Clear the distance measurement.")
                 }
             }
             .font(.caption)
@@ -640,6 +714,27 @@ private struct CrosshairOverlay: Shape {
         path.move(to: CGPoint(x: rect.minX, y: rect.midY))
         path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
         return path
+    }
+}
+
+private struct MeasurementOverlay: Shape {
+    let sample: ScreenInspectorSample
+    let measurement: ScreenInspectorMeasurement
+    let zoomLevel: ScreenInspectorZoomLevel
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: lensPoint(for: measurement.start, in: rect))
+        path.addLine(to: lensPoint(for: measurement.end, in: rect))
+        return path
+    }
+
+    private func lensPoint(for point: CGPoint, in rect: CGRect) -> CGPoint {
+        let zoom = CGFloat(zoomLevel.rawValue)
+        return CGPoint(
+            x: rect.midX + (point.x - sample.cursorLocation.x) * zoom,
+            y: rect.midY + (point.y - sample.cursorLocation.y) * zoom
+        )
     }
 }
 

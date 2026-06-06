@@ -215,7 +215,7 @@ struct HelpGuideView: View {
                                 "Choose 2x, 4x, 8x, or 16x zoom.",
                                 "Turn the pixel grid and crosshair on or off from the inspector or Settings.",
                                 "Resize the inspector window when you need to inspect more screen area at the same zoom level.",
-                                "Read display-local pixel coordinates and center-pixel color below the magnified view."
+                                "Read display-local pixel coordinates, center-pixel color, and any active point-to-point distance below the magnified view."
                             ]
                         ),
                         HelpArticleSection(
@@ -224,6 +224,7 @@ struct HelpGuideView: View {
                                 "Use Copy HEX or Option-Command-H to copy the current center-pixel color as HEX.",
                                 "Use Copy RGB or Option-Command-R to copy the current center-pixel color as RGB.",
                                 "Use Freeze, Space, or Option-Command-F to hold a static sample while you inspect details.",
+                                "Use Measure or Option-Command-M to set the first point at the current cursor, move to the second point, then use Lock or Option-Command-M again to keep the one-line distance measurement.",
                                 "Use Snip or Option-Command-S to open the current inspector sample in the editor.",
                                 "Close the inspector from the close button, Escape, the menu command, the menu bar, or the global shortcut."
                             ]

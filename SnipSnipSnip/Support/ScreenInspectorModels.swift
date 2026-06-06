@@ -61,6 +61,19 @@ struct ScreenInspectorSample {
     var color: ScreenInspectorPixelColor
 }
 
+struct ScreenInspectorMeasurement: Equatable, Sendable {
+    var start: CGPoint
+    var end: CGPoint
+
+    nonisolated var distance: CGFloat {
+        hypot(end.x - start.x, end.y - start.y)
+    }
+
+    nonisolated var description: String {
+        "\(Int(round(distance))) px"
+    }
+}
+
 enum ScreenInspectorWindowID {
     static let prefix = "screen-inspector-"
 }
