@@ -193,8 +193,29 @@ extension AppModel {
         writeClipboardItemToPasteboard(item, plainTextOnly: plainTextOnly)
     }
 
+    func copyClipboardItemAsPlainText(_ item: ClipboardItem) {
+        guard item.supportsPlainTextSanitization else {
+            return
+        }
+
+        writeClipboardItemToPasteboard(item, plainTextOnly: true)
+    }
+
     func pasteClipboardItem(_ item: ClipboardItem) {
         writeClipboardItemToPasteboard(item, plainTextOnly: false)
+        clipboardManagerWindowController?.activatePreviousApplicationForPaste()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            Self.sendPasteKeystroke()
+        }
+    }
+
+    func pasteClipboardItemAsPlainText(_ item: ClipboardItem) {
+        guard item.supportsPlainTextSanitization else {
+            return
+        }
+
+        writeClipboardItemToPasteboard(item, plainTextOnly: true)
         clipboardManagerWindowController?.activatePreviousApplicationForPaste()
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
@@ -283,8 +304,18 @@ extension AppModel {
     }
 
     private func writeClipboardItemToPasteboard(_ item: ClipboardItem, plainTextOnly: Bool) {
+        if plainTextOnly, item.plainTextValue == nil {
+            return
+        }
+
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
+
+        if plainTextOnly, let text = item.plainTextValue {
+            pasteboard.setString(text, forType: .string)
+            clipboardMonitor.markCurrentPasteboardChangeAsHandled()
+            return
+        }
 
         switch item.kind {
         case let .text(text), let .link(text):

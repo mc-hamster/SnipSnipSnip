@@ -146,7 +146,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Copy and paste actions",
-                            body: "Copy writes the selected item back to the system clipboard. Copy & Paste writes the item to the clipboard, keeps Clipboard History open, returns to the app that was active before Clipboard History opened, and sends Command-V. Use Option-1 through Option-9 while the Clipboard History window is focused to copy the matching visible item."
+                            body: "Copy writes the selected item back to the system clipboard. Copy & Paste writes the item to the clipboard, keeps Clipboard History open, returns to the app that was active before Clipboard History opened, and sends Command-V. For text and links, Plain Text actions sanitize formatting by writing only the unstyled string before copying or pasting. Use Option-1 through Option-9 while the Clipboard History window is focused to copy the matching visible item."
                         ),
                         HelpArticleSection(
                             title: "Ignore apps",

@@ -168,6 +168,49 @@ final class ClipboardHistoryStoreTests: XCTestCase {
         XCTAssertFalse(item.matchesSearchQuery("missing"))
     }
 
+    func testPlainTextSanitizationAppliesOnlyToTextLikeItems() {
+        let textItem = ClipboardItem(
+            id: UUID(),
+            kind: .text("Styled text"),
+            previewText: "Styled text",
+            searchableText: "Styled text",
+            sourceApp: nil,
+            copiedAt: Date(),
+            isPinned: false,
+            contentHash: "text",
+            byteSize: 11
+        )
+        let linkItem = ClipboardItem(
+            id: UUID(),
+            kind: .link("https://example.com"),
+            previewText: "Example",
+            searchableText: "https://example.com Example",
+            sourceApp: nil,
+            copiedAt: Date(),
+            isPinned: false,
+            contentHash: "link",
+            byteSize: 19
+        )
+        let imageItem = ClipboardItem(
+            id: UUID(),
+            kind: .image(assetName: "image.png"),
+            previewText: "Image",
+            searchableText: "Image",
+            sourceApp: nil,
+            copiedAt: Date(),
+            isPinned: false,
+            contentHash: "image",
+            byteSize: 1024
+        )
+
+        XCTAssertEqual(textItem.plainTextValue, "Styled text")
+        XCTAssertEqual(linkItem.plainTextValue, "https://example.com")
+        XCTAssertTrue(textItem.supportsPlainTextSanitization)
+        XCTAssertTrue(linkItem.supportsPlainTextSanitization)
+        XCTAssertNil(imageItem.plainTextValue)
+        XCTAssertFalse(imageItem.supportsPlainTextSanitization)
+    }
+
     func testImageFileURLsAreReadAsImageSnapshotsWithFilenameMetadata() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("ClipboardHistoryStoreTests.imageFileURL", isDirectory: true)
         try? FileManager.default.removeItem(at: directory)

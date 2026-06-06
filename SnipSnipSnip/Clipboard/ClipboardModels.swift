@@ -136,6 +136,19 @@ nonisolated struct ClipboardItem: Identifiable, Codable, Equatable, Sendable {
         }
     }
 
+    var plainTextValue: String? {
+        switch kind {
+        case let .text(text), let .link(text):
+            return text
+        case .image, .fileURLs, .snip:
+            return nil
+        }
+    }
+
+    var supportsPlainTextSanitization: Bool {
+        plainTextValue != nil
+    }
+
     func matchesSearchQuery(_ query: String) -> Bool {
         let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedQuery.isEmpty else {

@@ -156,7 +156,9 @@ struct ClipboardManagerView: View {
                                 shortcutNumber: index < 9 ? index + 1 : nil,
                                 isSelected: selectedItemID == item.id,
                                 onCopy: { model.copyClipboardItem(item) },
+                                onCopyPlainText: { model.copyClipboardItemAsPlainText(item) },
                                 onPaste: { model.pasteClipboardItem(item) },
+                                onPastePlainText: { model.pasteClipboardItemAsPlainText(item) },
                                 onTogglePinned: { model.togglePinnedClipboardItem(item) },
                                 onDelete: { model.deleteClipboardItem(item) },
                                 onOpenSnip: { model.openClipboardSnip(item) }
@@ -192,6 +194,19 @@ struct ClipboardManagerView: View {
                 .foregroundStyle(.secondary)
 
             Spacer()
+
+            if let selectedItem, selectedItem.supportsPlainTextSanitization {
+                Menu("Plain Text") {
+                    Button("Copy Plain Text") {
+                        model.copyClipboardItemAsPlainText(selectedItem)
+                    }
+
+                    Button("Copy & Paste Plain Text") {
+                        model.pasteClipboardItemAsPlainText(selectedItem)
+                    }
+                }
+                .help("Sanitize formatting by writing only the plain text value.")
+            }
 
             Button("Copy") {
                 if let selectedItem {
@@ -250,7 +265,9 @@ private struct ClipboardItemRow: View {
     let shortcutNumber: Int?
     let isSelected: Bool
     let onCopy: () -> Void
+    let onCopyPlainText: () -> Void
     let onPaste: () -> Void
+    let onPastePlainText: () -> Void
     let onTogglePinned: () -> Void
     let onDelete: () -> Void
     let onOpenSnip: () -> Void
@@ -329,6 +346,16 @@ private struct ClipboardItemRow: View {
     private var actions: some View {
         HStack(spacing: 6) {
             copyButton
+
+            if item.supportsPlainTextSanitization {
+                Menu {
+                    Button("Copy Plain Text", action: onCopyPlainText)
+                    Button("Copy & Paste Plain Text", action: onPastePlainText)
+                } label: {
+                    Image(systemName: "textformat")
+                }
+                .help("Sanitize formatting")
+            }
 
             Button(action: onPaste) {
                 Image(systemName: "keyboard")
