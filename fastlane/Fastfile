@@ -388,6 +388,36 @@ private_lane :latest_pkg_path do
   pkg_path
 end
 
+def self_release_archive_app_path
+  app_path = File.join(ARCHIVE_PATH, "Products", "Applications", "#{SCHEME}.app")
+  UI.user_error!("Archived app not found at #{app_path}.") unless File.exist?(app_path)
+  app_path
+end
+
+def self_release_pkg_path
+  File.join(BUILD_ARTIFACTS_DIRECTORY, "#{SCHEME}.pkg")
+end
+
+private_lane :package_self_release_archive do
+  ensure_build_directory
+
+  pkg_path = self_release_pkg_path
+  FileUtils.rm_f(pkg_path)
+
+  Actions.sh(
+    [
+      "productbuild",
+      "--component", Shellwords.escape(self_release_archive_app_path),
+      "/Applications",
+      "--sign", Shellwords.escape("Developer ID Installer"),
+      "--timestamp",
+      Shellwords.escape(pkg_path)
+    ].join(" ")
+  )
+
+  pkg_path
+end
+
 private_lane :github_release_exists? do |options|
   tag = options[:tag]
   repo = options[:repo]
@@ -502,9 +532,14 @@ private_lane :build_release_pkg do |options|
     xcargs << "INFOPLIST_KEY_CFBundleDisplayName=#{Shellwords.escape('SnipSnipSnip Pro')}"
     xcargs << "ENABLE_RESOURCE_ACCESS_CAMERA=YES"
     xcargs << "INFOPLIST_PREPROCESSOR_DEFINITIONS=SNIP_SELF_RELEASE_INFO=1"
+    xcargs << "CODE_SIGN_STYLE=Manual"
+    xcargs << "CODE_SIGN_IDENTITY=#{Shellwords.escape('Developer ID Application')}"
+    xcargs << "DEVELOPMENT_TEAM=#{Shellwords.escape(DEVELOPER_TEAM_ID_VALUE)}"
+    xcargs << "OTHER_CODE_SIGN_FLAGS=#{Shellwords.escape('--timestamp')}"
     export_options = {
       method: "developer-id",
       teamID: DEVELOPER_TEAM_ID_VALUE,
+      signingStyle: "manual",
       signingCertificate: "Developer ID Application",
       installerSigningCertificate: "Developer ID Installer"
     }
@@ -524,6 +559,8 @@ private_lane :build_release_pkg do |options|
     export_options: export_options,
     export_xcargs: "-allowProvisioningUpdates"
   )
+
+  package_self_release_archive if build_target == "Self Release"
 end
 
 private_lane :ensure_self_release_signing_ready do
@@ -602,12 +639,15 @@ private_lane :notarize_self_release_package do |options|
     )
   end
 
+  stapled = false
+
   (1..staple_retry_count).each do |attempt|
     begin
       Actions.sh("xcrun stapler staple #{Shellwords.escape(pkg_path)}")
       Actions.sh("xcrun stapler validate #{Shellwords.escape(pkg_path)}")
       UI.success("Notarized and stapled #{pkg_path}")
-      return
+      stapled = true
+      break
     rescue StandardError => error
       raise if attempt >= staple_retry_count
 
@@ -619,45 +659,47 @@ private_lane :notarize_self_release_package do |options|
     end
   end
 
-  UI.user_error!("Notarized package could not be stapled after #{staple_retry_count} attempts: #{pkg_path}")
+  unless stapled
+    UI.user_error!("Notarized package could not be stapled after #{staple_retry_count} attempts: #{pkg_path}")
+  end
 end
 
 private_lane :ensure_release_preflight_confirmations do |options|
-  return unless release_safety_checks_enabled?(options)
-
-  release_confirmation!("RELEASE_METADATA_READY", "App Store metadata and screenshots are complete")
-  release_confirmation!("RELEASE_TESTS_CONFIRMED", "required release tests are green")
-  release_confirmation!("RELEASE_MANUAL_QA_CONFIRMED", "manual release QA was completed")
+  if release_safety_checks_enabled?(options)
+    release_confirmation!("RELEASE_METADATA_READY", "App Store metadata and screenshots are complete")
+    release_confirmation!("RELEASE_TESTS_CONFIRMED", "required release tests are green")
+    release_confirmation!("RELEASE_MANUAL_QA_CONFIRMED", "manual release QA was completed")
+  end
 end
 
 private_lane :run_release_test_gate do |options|
-  return if boolean_option(options[:skip_tests] || ENV["RELEASE_SKIP_TESTS"], default_value: false)
-
-  derived_data_path = resolve_repo_path(
-    ENV.fetch(
-      "SNIP_RELEASE_TEST_DERIVED_DATA_PATH",
-      File.join(BUILD_ARTIFACTS_DIRECTORY, "DerivedDataReleaseGate")
+  unless boolean_option(options[:skip_tests] || ENV["RELEASE_SKIP_TESTS"], default_value: false)
+    derived_data_path = resolve_repo_path(
+      ENV.fetch(
+        "SNIP_RELEASE_TEST_DERIVED_DATA_PATH",
+        File.join(BUILD_ARTIFACTS_DIRECTORY, "DerivedDataReleaseGate")
+      )
     )
-  )
 
-  UI.message("Running release test gate in #{derived_data_path}")
+    UI.message("Running release test gate in #{derived_data_path}")
 
-  only_testing_args = release_test_targets(options).flat_map do |test_target|
-    ["-only-testing", Shellwords.escape(test_target)]
+    only_testing_args = release_test_targets(options).flat_map do |test_target|
+      ["-only-testing", Shellwords.escape(test_target)]
+    end
+
+    Actions.sh(
+      [
+        "xcodebuild",
+        "test",
+        "-project", Shellwords.escape(PROJECT_PATH),
+        "-scheme", Shellwords.escape(SCHEME),
+        "-destination", Shellwords.escape("platform=macOS,arch=arm64"),
+        "-derivedDataPath", Shellwords.escape(derived_data_path),
+        *only_testing_args,
+        "CODE_SIGNING_ALLOWED=NO"
+      ].join(" ")
+    )
   end
-
-  Actions.sh(
-    [
-      "xcodebuild",
-      "test",
-      "-project", Shellwords.escape(PROJECT_PATH),
-      "-scheme", Shellwords.escape(SCHEME),
-      "-destination", Shellwords.escape("platform=macOS,arch=arm64"),
-      "-derivedDataPath", Shellwords.escape(derived_data_path),
-      *only_testing_args,
-      "CODE_SIGNING_ALLOWED=NO"
-    ].join(" ")
-  )
 end
 
 private_lane :upload_testflight_build do |options|
