@@ -452,7 +452,7 @@ final class ScreenInspectorWindowController: NSWindowController {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+        preconditionFailure("ScreenInspectorWindowController is programmatic-only; use init(model:onClose:) instead of init(coder:).")
     }
 
     override func showWindow(_ sender: Any?) {

@@ -174,7 +174,7 @@ private final class PreviewImageHostView: NSView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+        preconditionFailure("PreviewImageHostView is programmatic-only; use init(frame:) instead of init(coder:).")
     }
 
     override func layout() {

@@ -125,7 +125,7 @@ final class FloatingReferenceWindowController: NSWindowController {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+        preconditionFailure("FloatingReferenceWindowController is programmatic-only; use init(model:onClose:) instead of init(coder:).")
     }
 
     override func close() {
@@ -360,7 +360,7 @@ private final class ZoomableReferenceScrollView: NSScrollView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+        preconditionFailure("FloatingReferenceScrollView is programmatic-only; use init(image:) instead of init(coder:).")
     }
 
     override func layout() {

@@ -1,6 +1,32 @@
 import AppKit
 import Foundation
 
+struct ArchiveMaintenanceRequest {
+    let store: DocumentRecoveryStore
+    let maximumSizeBytes: Int64
+    let recycleBinRetentionDays: Int
+}
+
+struct ArchiveMaintenanceResult: Equatable {
+    let archiveSizeBytes: Int64
+    let didPrune: Bool
+}
+
+enum ArchiveMaintenanceManager {
+    static func run(_ request: ArchiveMaintenanceRequest) async -> ArchiveMaintenanceResult {
+        await Task.detached(priority: .utility) {
+            let cutoffDate = Calendar.current.date(byAdding: .day, value: -request.recycleBinRetentionDays, to: Date()) ?? .distantPast
+            let didPruneRecycleBin = (try? request.store.pruneRecycleBin(deletedBefore: cutoffDate)) ?? false
+            let didPruneArchive = (try? request.store.pruneArchiveIfNeeded(maximumSizeBytes: request.maximumSizeBytes)) ?? false
+            let archiveSizeBytes = (try? request.store.archiveSizeInBytes()) ?? 0
+            return ArchiveMaintenanceResult(
+                archiveSizeBytes: archiveSizeBytes,
+                didPrune: didPruneRecycleBin || didPruneArchive
+            )
+        }.value
+    }
+}
+
 extension AppModel {
     var archiveSizeLabel: String {
         ByteCountFormatter.string(fromByteCount: archiveSizeBytes, countStyle: .file)
@@ -154,22 +180,18 @@ extension AppModel {
     }
 
     func runArchiveMaintenanceCycle() async {
-        let store = recoveryStore
-        let maximumSizeBytes = archiveMaximumSizeBytes
-        let recycleBinRetentionDays = recycleBinRetentionDays
-        let result = await Task.detached(priority: .utility) { () -> (size: Int64, didPrune: Bool) in
-            let cutoffDate = Calendar.current.date(byAdding: .day, value: -recycleBinRetentionDays, to: Date()) ?? .distantPast
-            let didPruneRecycleBin = (try? store.pruneRecycleBin(deletedBefore: cutoffDate)) ?? false
-            let didPruneArchive = (try? store.pruneArchiveIfNeeded(maximumSizeBytes: maximumSizeBytes)) ?? false
-            let size = (try? store.archiveSizeInBytes()) ?? 0
-            return (size, didPruneRecycleBin || didPruneArchive)
-        }.value
+        let request = ArchiveMaintenanceRequest(
+            store: recoveryStore,
+            maximumSizeBytes: archiveMaximumSizeBytes,
+            recycleBinRetentionDays: recycleBinRetentionDays
+        )
+        let result = await ArchiveMaintenanceManager.run(request)
 
-        guard recoveryStore.archiveURL == store.archiveURL else {
+        guard recoveryStore.archiveURL == request.store.archiveURL else {
             return
         }
 
-        archiveSizeBytes = result.size
+        archiveSizeBytes = result.archiveSizeBytes
 
         if result.didPrune {
             refreshRecoveryPresentationState()

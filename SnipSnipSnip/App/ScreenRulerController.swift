@@ -118,7 +118,7 @@ final class ScreenRulerWindowController: NSWindowController {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+        preconditionFailure("ScreenRulerWindowController is programmatic-only; use init(model:onClose:) instead of init(coder:).")
     }
 
     override func close() {
@@ -392,7 +392,7 @@ private struct WindowInteractionOverlayView: NSViewRepresentable {
 
         @available(*, unavailable)
         required init?(coder: NSCoder) {
-            fatalError("init(coder:) has not been implemented")
+            preconditionFailure("ScreenRulerContentView is programmatic-only; use init(kind:onMouseLocationChange:) instead of init(coder:).")
         }
 
         override var acceptsFirstResponder: Bool {
@@ -566,7 +566,7 @@ private struct WindowMouseTrackingView: NSViewRepresentable {
 
         @available(*, unavailable)
         required init?(coder: NSCoder) {
-            fatalError("init(coder:) has not been implemented")
+            preconditionFailure("ScreenRulerTrackingView is programmatic-only; use init(onMouseLocationChange:) instead of init(coder:).")
         }
 
         override func updateTrackingAreas() {

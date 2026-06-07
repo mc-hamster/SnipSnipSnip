@@ -87,7 +87,7 @@ final class PromisedFileDragNSView: NSView, NSDraggingSource {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+        preconditionFailure("PromisedFileDragView is programmatic-only; use init(accessibilityLabel:payloadProvider:showsIcon:) instead of init(coder:).")
     }
 
     override var intrinsicContentSize: NSSize {
