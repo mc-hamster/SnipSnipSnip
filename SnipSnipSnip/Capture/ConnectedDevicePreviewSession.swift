@@ -13,6 +13,8 @@ nonisolated final class ConnectedDevicePreviewSession: NSObject, @unchecked Send
     private let ciContext = CIContext()
     private let videoDataOutput = AVCaptureVideoDataOutput()
     private let movieOutput = AVCaptureMovieFileOutput()
+    private var isStopped = false
+    private var isMovieOutputConfigured = false
     private var latestPixelBuffer: CVPixelBuffer?
     private var latestFrameSize = CGSize.zero
     private var recordingOutputURL: URL?
@@ -50,6 +52,7 @@ nonisolated final class ConnectedDevicePreviewSession: NSObject, @unchecked Send
                     return
                 }
 
+                self.isStopped = false
                 self.captureSession.startRunning()
                 continuation.resume()
             }
@@ -62,6 +65,13 @@ nonisolated final class ConnectedDevicePreviewSession: NSObject, @unchecked Send
                 return
             }
 
+            guard !self.isStopped else {
+                return
+            }
+
+            self.isStopped = true
+            self.videoDataOutput.setSampleBufferDelegate(nil, queue: nil)
+
             if self.movieOutput.isRecording {
                 self.movieOutput.stopRecording()
             }
@@ -69,6 +79,24 @@ nonisolated final class ConnectedDevicePreviewSession: NSObject, @unchecked Send
             if self.captureSession.isRunning {
                 self.captureSession.stopRunning()
             }
+
+            self.captureSession.beginConfiguration()
+            if self.isMovieOutputConfigured, self.captureSession.outputs.contains(self.movieOutput) {
+                self.captureSession.removeOutput(self.movieOutput)
+                self.isMovieOutputConfigured = false
+            }
+            if self.captureSession.outputs.contains(self.videoDataOutput) {
+                self.captureSession.removeOutput(self.videoDataOutput)
+            }
+            for input in self.captureSession.inputs {
+                self.captureSession.removeInput(input)
+            }
+            self.captureSession.commitConfiguration()
+
+            self.frameLock.lock()
+            self.latestPixelBuffer = nil
+            self.latestFrameSize = .zero
+            self.frameLock.unlock()
         }
     }
 
@@ -100,30 +128,62 @@ nonisolated final class ConnectedDevicePreviewSession: NSObject, @unchecked Send
         )
     }
 
-    func startRecording() throws {
-        guard !movieOutput.isRecording else {
-            return
-        }
+    func startRecording() async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            sessionQueue.async { [weak self] in
+                guard let self else {
+                    continuation.resume(throwing: ConnectedDeviceCaptureError.captureSessionFailed("The preview session was released."))
+                    return
+                }
 
-        guard captureSession.isRunning else {
-            throw ConnectedDeviceCaptureError.captureSessionFailed("The live preview is not running.")
-        }
+                guard !self.isStopped else {
+                    continuation.resume(throwing: ConnectedDeviceCaptureError.captureSessionFailed("The preview session is stopped."))
+                    return
+                }
 
-        let outputURL = TemporaryVideoMediaManager.recordingOutputURL(format: .mp4)
-        try? FileManager.default.removeItem(at: outputURL)
-        recordingOutputURL = outputURL
-        recordingStartedAt = Date()
-        movieOutput.startRecording(to: outputURL, recordingDelegate: self)
+                guard !self.movieOutput.isRecording else {
+                    continuation.resume()
+                    return
+                }
+
+                guard self.captureSession.isRunning else {
+                    continuation.resume(throwing: ConnectedDeviceCaptureError.captureSessionFailed("The live preview is not running."))
+                    return
+                }
+
+                do {
+                    try self.configureMovieOutputIfNeeded()
+                } catch {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                let outputURL = TemporaryVideoMediaManager.recordingOutputURL(format: .mp4)
+                try? FileManager.default.removeItem(at: outputURL)
+                self.recordingOutputURL = outputURL
+                self.recordingStartedAt = Date()
+                self.movieOutput.startRecording(to: outputURL, recordingDelegate: self)
+                continuation.resume()
+            }
+        }
     }
 
     func stopRecording() async throws -> CapturedVideoRecording {
-        guard movieOutput.isRecording else {
-            throw ConnectedDeviceCaptureError.recordingFinalizeFailed("No connected-device recording is active.")
-        }
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CapturedVideoRecording, Error>) in
+            sessionQueue.async { [weak self] in
+                guard let self else {
+                    continuation.resume(throwing: ConnectedDeviceCaptureError.recordingFinalizeFailed("The preview session was released."))
+                    return
+                }
 
-        return try await withCheckedThrowingContinuation { continuation in
-            stopRecordingContinuation = continuation
-            movieOutput.stopRecording()
+                guard self.movieOutput.isRecording else {
+                    continuation.resume(throwing: ConnectedDeviceCaptureError.recordingFinalizeFailed("No connected-device recording is active."))
+                    return
+                }
+
+                self.stopRecordingContinuation = continuation
+                self.movieOutput.stopRecording()
+            }
         }
     }
 
@@ -151,17 +211,29 @@ nonisolated final class ConnectedDevicePreviewSession: NSObject, @unchecked Send
         }
         captureSession.addOutput(videoDataOutput)
 
+    }
+
+    private func configureMovieOutputIfNeeded() throws {
+        guard !isMovieOutputConfigured else {
+            return
+        }
+
+        captureSession.beginConfiguration()
+        defer { captureSession.commitConfiguration() }
+
         guard captureSession.canAddOutput(movieOutput) else {
             throw ConnectedDeviceCaptureError.captureSessionFailed("The connected device could not provide recordable video.")
         }
-        captureSession.addOutput(movieOutput)
 
+        captureSession.addOutput(movieOutput)
         movieOutput.movieFragmentInterval = .invalid
+        isMovieOutputConfigured = true
     }
 
     private func finishRecording(to outputURL: URL, error: Error?) {
         let continuation = stopRecordingContinuation
         stopRecordingContinuation = nil
+        recordingOutputURL = nil
 
         if let error {
             continuation?.resume(throwing: ConnectedDeviceCaptureError.recordingFinalizeFailed(error.localizedDescription))

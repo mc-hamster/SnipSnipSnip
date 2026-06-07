@@ -50,6 +50,10 @@ extension AppModel {
         requestMainWindowPresentation()
     }
 
+    func presentConnectedDeviceSessionActiveMessage() {
+        present(ConnectedDeviceCaptureError.sessionAlreadyActive)
+    }
+
     func captureConnectedDevice(_ device: ConnectedAppleDevice) {
         presentConnectedDevicePreview(for: device, intent: .screenshot)
     }

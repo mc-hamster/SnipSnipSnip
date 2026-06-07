@@ -36,7 +36,7 @@ nonisolated enum BuildTargetFeatureMatrix {
     private static let enabledFeaturesByTarget: [BuildTarget: Set<FeatureToggle>] = [
         .dev: [
           .presentationStyling,
-//          .connectedDeviceCapture,
+          .connectedDeviceCapture,
         ],
         .internalTesting: [
           .presentationStyling,

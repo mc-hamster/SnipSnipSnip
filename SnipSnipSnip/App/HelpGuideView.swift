@@ -270,7 +270,7 @@ struct HelpGuideView: View {
                     ] + (FeatureFlags.connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(
                             title: "Connected devices",
-                            body: "Capture > Connected Device lists trusted USB iPhone and iPad sources found by the self-release connected-device capture path. Choose a device to open a live preview, then capture the latest visible frame, copy it, save it, or open it in the screenshot editor."
+                            body: "Capture > Connected Device scans for trusted USB iPhone and iPad sources when the menu opens. Choose a device to open a live preview, then capture the latest visible frame, copy it, save it, or open it in the screenshot editor. Use Refresh Devices only if the phone or tablet was just connected or unlocked and has not appeared yet."
                         )
                     ] : []) + [
                         HelpArticleSection(
@@ -344,7 +344,7 @@ struct HelpGuideView: View {
                     ] + (FeatureFlags.connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(
                             title: "Connected-device recording",
-                            body: "Choose Record Connected Device, pick a trusted USB iPhone or iPad, and use the preview window to start and stop recording. Finished MP4 recordings open in the normal video editor for poster frames, trimming, export, and archive behavior."
+                            body: "Choose Record Connected Device; the menu scans for trusted USB iPhone and iPad sources as it opens. Pick a device, then use the preview window to start and stop recording. Finished MP4 recordings open in the normal video editor for poster frames, trimming, export, and archive behavior."
                         )
                     ] : []) + [
                         HelpArticleSection(

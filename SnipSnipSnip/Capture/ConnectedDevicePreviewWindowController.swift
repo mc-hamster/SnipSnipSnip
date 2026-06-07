@@ -11,6 +11,7 @@ enum ConnectedDevicePreviewIntent {
 final class ConnectedDevicePreviewWindowController: NSWindowController, NSWindowDelegate {
     private let viewModel: ConnectedDevicePreviewViewModel
     private let onClose: () -> Void
+    private var didClose = false
 
     init(
         device: ConnectedAppleDevice,
@@ -45,6 +46,9 @@ final class ConnectedDevicePreviewWindowController: NSWindowController, NSWindow
         window.isReleasedWhenClosed = false
         super.init(window: window)
         window.delegate = self
+        viewModel.closeWindow = { [weak window] in
+            window?.performClose(nil)
+        }
     }
 
     @available(*, unavailable)
@@ -57,6 +61,11 @@ final class ConnectedDevicePreviewWindowController: NSWindowController, NSWindow
     }
 
     func windowWillClose(_ notification: Notification) {
+        guard !didClose else {
+            return
+        }
+
+        didClose = true
         viewModel.stop()
         onClose()
     }
@@ -100,6 +109,8 @@ private final class ConnectedDevicePreviewViewModel: ObservableObject {
     private let openScreenshot: (CapturedScreenshot, Bool) throws -> Void
     private let openRecording: (CapturedVideoRecording) -> Void
     private let presentError: (Error) -> Void
+    fileprivate var closeWindow: (() -> Void)?
+    private var hasStopped = false
 
     init(
         device: ConnectedAppleDevice,
@@ -140,13 +151,20 @@ private final class ConnectedDevicePreviewViewModel: ObservableObject {
     }
 
     func stop() {
+        guard !hasStopped else {
+            return
+        }
+
+        hasStopped = true
         if isRecording {
             Task {
-                await stopRecording()
+                await stopRecording(openWhenFinished: false)
+                session.stop()
             }
+        } else {
+            status = .stopped
+            session.stop()
         }
-        status = .stopped
-        session.stop()
     }
 
     func performPrimaryAction() {
@@ -190,7 +208,7 @@ private final class ConnectedDevicePreviewViewModel: ObservableObject {
 
     func openLatestScreenshot() {
         do {
-            let capture = try latestOrCapturedScreenshot()
+            let capture = try session.captureLatestScreenshot()
             latestScreenshot = capture
             try openScreenshot(capture, isPrivateCapture)
         } catch {
@@ -219,15 +237,20 @@ private final class ConnectedDevicePreviewViewModel: ObservableObject {
             return
         }
 
-        do {
-            try session.startRecording()
-            status = .recording
-        } catch {
-            present(error)
+        isBusy = true
+        Task {
+            defer { isBusy = false }
+
+            do {
+                try await session.startRecording()
+                status = .recording
+            } catch {
+                present(error)
+            }
         }
     }
 
-    func stopRecording() async {
+    func stopRecording(openWhenFinished: Bool = true) async {
         guard isRecording, !isBusy else {
             return
         }
@@ -239,7 +262,9 @@ private final class ConnectedDevicePreviewViewModel: ObservableObject {
             let recording = try await session.stopRecording()
             latestRecording = recording
             status = .live
-            openRecording(recording)
+            if openWhenFinished {
+                openRecording(recording)
+            }
         } catch {
             status = .failed(error.localizedDescription)
             present(error)
@@ -252,6 +277,10 @@ private final class ConnectedDevicePreviewViewModel: ObservableObject {
         }
 
         openRecording(latestRecording)
+    }
+
+    func cancel() {
+        closeWindow?()
     }
 
     private func present(_ error: Error) {
@@ -338,8 +367,7 @@ private struct ConnectedDevicePreviewView: View {
                     .disabled(viewModel.isBusy || viewModel.isRecording)
 
                 Button("Cancel") {
-                    viewModel.stop()
-                    NSApp.keyWindow?.close()
+                    viewModel.cancel()
                 }
                 .keyboardShortcut(.cancelAction)
             }
@@ -386,6 +414,10 @@ private struct ConnectedDeviceVideoPreviewView: NSViewRepresentable {
 
     func updateNSView(_ nsView: PreviewLayerContainerView, context: Context) {
         nsView.previewLayer.session = session
+    }
+
+    static func dismantleNSView(_ nsView: PreviewLayerContainerView, coordinator: ()) {
+        nsView.previewLayer.session = nil
     }
 }
 
