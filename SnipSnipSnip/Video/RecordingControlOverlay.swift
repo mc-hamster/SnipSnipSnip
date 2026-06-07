@@ -8,6 +8,8 @@ final class RecordingControlOverlayModel: ObservableObject {
     @Published private(set) var isPaused: Bool
 
     let title: String
+    let sourceLabel: String
+    let preferences: VideoRecordingPreferences
     let pauseResumeAction: () -> Void
     let stopAction: () -> Void
     private let startedAt = Date()
@@ -17,11 +19,15 @@ final class RecordingControlOverlayModel: ObservableObject {
 
     init(
         title: String,
+        sourceLabel: String,
+        preferences: VideoRecordingPreferences,
         isPaused: Bool,
         pauseResumeAction: @escaping () -> Void,
         stopAction: @escaping () -> Void
     ) {
         self.title = title
+        self.sourceLabel = sourceLabel
+        self.preferences = preferences
         self.isPaused = isPaused
         self.pauseResumeAction = pauseResumeAction
         self.stopAction = stopAction
@@ -53,6 +59,23 @@ final class RecordingControlOverlayModel: ObservableObject {
 
     var pauseResumeSystemImage: String {
         isPaused ? "play.fill" : "pause.fill"
+    }
+
+    var stateLabel: String {
+        isPaused ? "Paused" : "Recording"
+    }
+
+    var sourceSummaryLabel: String {
+        "\(sourceLabel) • \(preferences.frameRate.label) • \(preferences.quality.label)"
+    }
+
+    var recordingOptionsSummaryLabel: String {
+        [
+            preferences.recordsSystemAudio ? "System audio" : "No system audio",
+            preferences.recordsMicrophone ? "Mic on" : "Mic off",
+            preferences.showsCursor ? "Cursor shown" : "Cursor hidden",
+            preferences.showsMouseClicks ? "Clicks shown" : "Clicks hidden"
+        ].joined(separator: " • ")
     }
 
     func updatePausedState(_ paused: Bool) {
@@ -91,18 +114,22 @@ final class RecordingControlOverlay {
 
     init(
         title: String,
+        sourceLabel: String,
+        preferences: VideoRecordingPreferences,
         isPaused: Bool,
         pauseResumeAction: @escaping () -> Void,
         stopAction: @escaping () -> Void
     ) {
         model = RecordingControlOverlayModel(
             title: title,
+            sourceLabel: sourceLabel,
+            preferences: preferences,
             isPaused: isPaused,
             pauseResumeAction: pauseResumeAction,
             stopAction: stopAction
         )
         panel = NSPanel(
-            contentRect: CGRect(x: 0, y: 0, width: 390, height: 82),
+            contentRect: CGRect(x: 0, y: 0, width: 500, height: 94),
             styleMask: [.nonactivatingPanel, .hudWindow],
             backing: .buffered,
             defer: false
@@ -139,10 +166,10 @@ final class RecordingControlOverlay {
     private func positionPanel() {
         let screenFrame = NSScreen.main?.visibleFrame ?? NSScreen.screens.first?.visibleFrame ?? .zero
         let frame = CGRect(
-            x: screenFrame.midX - 195,
-            y: screenFrame.maxY - 104,
-            width: 390,
-            height: 82
+            x: screenFrame.midX - 250,
+            y: screenFrame.maxY - 116,
+            width: 500,
+            height: 94
         )
         panel.setFrame(frame, display: true)
     }
@@ -152,39 +179,78 @@ private struct RecordingControlOverlayView: View {
     @ObservedObject var model: RecordingControlOverlayModel
 
     var body: some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(Color.red)
-                .frame(width: 12, height: 12)
+        HStack(spacing: 14) {
+            HStack(spacing: 12) {
+                recordingBeacon
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(model.title)
-                    .font(.caption.weight(.semibold))
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(model.stateLabel)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(model.isPaused ? .yellow : .red)
 
-                Text(model.elapsedLabel)
-                    .font(.system(.title3, design: .monospaced).weight(.semibold))
+                        Text(model.title)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    Text(model.sourceSummaryLabel)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    Text(model.recordingOptionsSummaryLabel)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
             }
 
             Spacer(minLength: 8)
 
-            Button(action: model.pauseResumeAction) {
-                Label(model.pauseResumeLabel, systemImage: model.pauseResumeSystemImage)
-                    .labelStyle(.titleAndIcon)
-            }
-            .buttonStyle(.glass)
-            .controlSize(.small)
-            .help(model.isPaused ? "Resume the recording." : "Pause the recording.")
+            VStack(alignment: .trailing, spacing: 8) {
+                Text(model.elapsedLabel)
+                    .font(.system(.title2, design: .monospaced).weight(.bold))
+                    .contentTransition(.numericText())
 
-            Button(role: .destructive, action: model.stopAction) {
-                Label("Stop", systemImage: "stop.fill")
-                    .labelStyle(.titleAndIcon)
+                HStack(spacing: 8) {
+                    Button(action: model.pauseResumeAction) {
+                        Label(model.pauseResumeLabel, systemImage: model.pauseResumeSystemImage)
+                            .labelStyle(.titleAndIcon)
+                            .lineLimit(1)
+                            .frame(width: 104)
+                    }
+                    .buttonStyle(.glass)
+                    .controlSize(.small)
+                    .help(model.isPaused ? "Resume the recording." : "Pause the recording.")
+
+                    Button(role: .destructive, action: model.stopAction) {
+                        Label("Stop", systemImage: "stop.fill")
+                            .labelStyle(.titleAndIcon)
+                            .lineLimit(1)
+                            .frame(width: 72)
+                    }
+                    .buttonStyle(.glassProminent)
+                    .controlSize(.small)
+                    .help("Stop and save the recording.")
+                }
             }
-            .buttonStyle(.glassProminent)
-            .controlSize(.small)
         }
-        .padding(14)
-        .frame(width: 390, height: 82)
-        .sssGlassSurface(cornerRadius: 18)
+        .padding(16)
+        .frame(width: 500, height: 94)
+        .sssGlassSurface(cornerRadius: 20)
+    }
+
+    private var recordingBeacon: some View {
+        ZStack {
+            Circle()
+                .fill((model.isPaused ? Color.yellow : Color.red).opacity(0.18))
+                .frame(width: 28, height: 28)
+
+            Circle()
+                .fill(model.isPaused ? Color.yellow : Color.red)
+                .frame(width: 11, height: 11)
+        }
     }
 }

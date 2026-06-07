@@ -2,6 +2,7 @@ import AVFoundation
 import CoreGraphics
 import Foundation
 import ScreenCaptureKit
+import UniformTypeIdentifiers
 
 nonisolated enum VideoRecordingKind: String, Codable, Equatable {
     case region
@@ -178,6 +179,8 @@ nonisolated struct EditableVideoDocument {
 
 nonisolated enum VideoExportFormat: String, CaseIterable, Codable, Identifiable {
     case mp4
+    case gif
+    case apng
 
     var id: String { rawValue }
 
@@ -185,17 +188,70 @@ nonisolated enum VideoExportFormat: String, CaseIterable, Codable, Identifiable 
         switch self {
         case .mp4:
             return "MP4"
+        case .gif:
+            return "GIF"
+        case .apng:
+            return "APNG"
         }
     }
 
     var fileExtension: String {
-        rawValue
+        switch self {
+        case .mp4, .gif, .apng:
+            return rawValue
+        }
     }
 
-    var fileType: AVFileType {
+    var fileType: AVFileType? {
         switch self {
         case .mp4:
             return .mp4
+        case .gif, .apng:
+            return nil
+        }
+    }
+
+    var contentType: UTType {
+        switch self {
+        case .mp4:
+            return .mpeg4Movie
+        case .gif:
+            return .gif
+        case .apng:
+            return UTType(filenameExtension: "apng") ?? .png
+        }
+    }
+
+    var exportDetail: String {
+        switch self {
+        case .mp4:
+            return "Best for full-quality recordings and broad app compatibility."
+        case .gif:
+            return "Best for short documentation loops without audio."
+        case .apng:
+            return "Best for crisp short loops with better color than GIF."
+        }
+    }
+}
+
+nonisolated enum VideoExportCapability: Equatable {
+    case supported
+    case unsupported(String)
+
+    var isSupported: Bool {
+        if case .supported = self {
+            return true
+        }
+
+        return false
+    }
+
+    var unsupportedReason: String? {
+        switch self {
+        case .supported:
+            return nil
+        case .unsupported(let reason):
+            return reason
         }
     }
 }
@@ -221,11 +277,33 @@ nonisolated enum VideoExportQualityPreset: String, CaseIterable, Codable, Identi
     var detail: String {
         switch self {
         case .compact:
-            return "Favors smaller files over maximum detail."
+            return "Favors smaller files and fast animated exports over maximum detail."
         case .balanced:
             return "Balances file size, detail, and broad compatibility."
         case .high:
             return "Preserves the most detail with larger files."
+        }
+    }
+
+    var animatedFrameRate: Int {
+        switch self {
+        case .compact:
+            return 8
+        case .balanced:
+            return 12
+        case .high:
+            return 15
+        }
+    }
+
+    var animatedMaximumPixelDimension: Int {
+        switch self {
+        case .compact:
+            return 960
+        case .balanced:
+            return 1280
+        case .high:
+            return 1600
         }
     }
 }
@@ -325,10 +403,61 @@ nonisolated struct VideoExportRequest: Equatable {
     var menuLabel: String {
         target.menuLabel(format: format)
     }
+
+    func normalizedForAvailability() -> VideoExportRequest {
+        guard VideoExportSupport.capability(for: format, target: target).isSupported else {
+            return VideoExportRequest(format: .mp4, target: .quality(.balanced), updatesDefaults: updatesDefaults)
+        }
+
+        return self
+    }
 }
 
 nonisolated struct VideoExportProgress: Equatable, Sendable {
     var title: String
     var detail: String
     var fractionCompleted: Double?
+}
+
+nonisolated struct AnimatedVideoExportPlan: Equatable {
+    static let maximumFrameCount = 360
+
+    var format: VideoExportFormat
+    var preset: VideoExportQualityPreset
+    var trimStartSeconds: TimeInterval
+    var trimEndSeconds: TimeInterval
+    var frameRate: Int
+    var frameCount: Int
+    var frameDelay: TimeInterval
+    var maximumPixelDimension: Int
+
+    var duration: TimeInterval {
+        max(trimEndSeconds - trimStartSeconds, 0)
+    }
+
+    init(document: EditableVideoDocument, format: VideoExportFormat, preset: VideoExportQualityPreset) {
+        let session = document.session.normalized(for: document.recording.duration)
+        let duration = max(session.trimEndSeconds - session.trimStartSeconds, 0)
+        let frameRate = preset.animatedFrameRate
+        let uncappedFrameCount = max(Int((duration * Double(frameRate)).rounded(.up)), 1)
+
+        self.format = format
+        self.preset = preset
+        self.trimStartSeconds = session.trimStartSeconds
+        self.trimEndSeconds = session.trimEndSeconds
+        self.frameRate = frameRate
+        self.frameCount = min(uncappedFrameCount, Self.maximumFrameCount)
+        self.frameDelay = duration > 0 ? duration / Double(min(uncappedFrameCount, Self.maximumFrameCount)) : 1 / Double(frameRate)
+        self.maximumPixelDimension = preset.animatedMaximumPixelDimension
+    }
+}
+
+nonisolated enum VideoExportSupport {
+    static func capability(for format: VideoExportFormat, target: VideoExportTarget) -> VideoExportCapability {
+        guard target.supports(format) else {
+            return .unsupported("\(target.label) export is only available for MP4.")
+        }
+
+        return .supported
+    }
 }

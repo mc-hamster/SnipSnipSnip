@@ -147,7 +147,7 @@ extension AppModel {
     }
 
     func exportVideo(using request: VideoExportRequest) {
-        guard request.target.supports(request.format) else {
+        guard VideoExportSupport.capability(for: request.format, target: request.target).isSupported else {
             return
         }
 
@@ -330,6 +330,8 @@ extension AppModel {
             session: session,
             overlay: RecordingControlOverlay(
                 title: title,
+                sourceLabel: title.replacingOccurrences(of: "Recording ", with: ""),
+                preferences: videoRecordingPreferences,
                 isPaused: session.isPaused,
                 pauseResumeAction: { [weak self] in
                     self?.toggleVideoRecordingPauseResume()

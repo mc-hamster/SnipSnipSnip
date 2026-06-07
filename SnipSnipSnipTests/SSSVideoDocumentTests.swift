@@ -1,6 +1,7 @@
 import AVFoundation
 import CoreGraphics
 import Foundation
+import UniformTypeIdentifiers
 import XCTest
 @testable import SnipSnipSnip
 
@@ -109,6 +110,12 @@ final class SSSVideoDocumentTests: XCTestCase {
     func testVideoExportFormatsMapToExpectedContainers() {
         XCTAssertEqual(VideoExportFormat.mp4.fileExtension, "mp4")
         XCTAssertEqual(VideoExportFormat.mp4.fileType, .mp4)
+        XCTAssertEqual(VideoExportFormat.mp4.contentType, .mpeg4Movie)
+        XCTAssertEqual(VideoExportFormat.gif.fileExtension, "gif")
+        XCTAssertNil(VideoExportFormat.gif.fileType)
+        XCTAssertEqual(VideoExportFormat.gif.contentType, .gif)
+        XCTAssertEqual(VideoExportFormat.apng.fileExtension, "apng")
+        XCTAssertNil(VideoExportFormat.apng.fileType)
     }
 
     func testVideoExportPreferencesRoundTripAndStickyLabel() throws {
@@ -129,10 +136,90 @@ final class SSSVideoDocumentTests: XCTestCase {
         let cappedTarget = VideoExportTarget.sizeLimit(.under25MB)
 
         XCTAssertTrue(qualityTarget.supports(.mp4))
+        XCTAssertTrue(qualityTarget.supports(.gif))
+        XCTAssertTrue(qualityTarget.supports(.apng))
         XCTAssertTrue(cappedTarget.supports(.mp4))
+        XCTAssertFalse(cappedTarget.supports(.gif))
+        XCTAssertFalse(cappedTarget.supports(.apng))
         XCTAssertEqual(VideoExportSizeLimit.under25MB.maximumBytes, 25_000_000)
         XCTAssertEqual(VideoExportSizeLimit.under25MB.firstPassTargetBytes, 23_750_000)
         XCTAssertEqual(cappedTarget.menuLabel(format: .mp4), "MP4 • Under 25 MB")
+    }
+
+    func testVideoExportCapabilitiesGateUnavailableFormats() {
+        XCTAssertTrue(VideoExportSupport.capability(for: .mp4, target: .quality(.balanced)).isSupported)
+        XCTAssertTrue(VideoExportSupport.capability(for: .gif, target: .quality(.balanced)).isSupported)
+        XCTAssertTrue(VideoExportSupport.capability(for: .apng, target: .quality(.balanced)).isSupported)
+
+        let cappedGIFCapability = VideoExportSupport.capability(for: .gif, target: .sizeLimit(.under25MB))
+        XCTAssertFalse(cappedGIFCapability.isSupported)
+        XCTAssertEqual(cappedGIFCapability.unsupportedReason, "Under 25 MB export is only available for MP4.")
+    }
+
+    func testAnimatedExportPlanCapsFramesAndUsesPresetBudget() {
+        let recording = CapturedVideoRecording(
+            sourceURL: URL(fileURLWithPath: "/tmp/animated-plan.mp4"),
+            kind: .window,
+            sourceName: "Demo Window",
+            bounds: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+            recordedAt: Date(timeIntervalSince1970: 1_818_181_818),
+            duration: 44,
+            preferences: VideoRecordingPreferences()
+        )
+        let document = EditableVideoDocument(
+            recording: recording,
+            session: VideoEditorSession(trimStartSeconds: 2, trimEndSeconds: 40, posterTimeSeconds: 2)
+        )
+
+        let compactPlan = AnimatedVideoExportPlan(document: document, format: .gif, preset: .compact)
+        let highPlan = AnimatedVideoExportPlan(document: document, format: .apng, preset: .high)
+
+        XCTAssertEqual(compactPlan.frameRate, 8)
+        XCTAssertEqual(compactPlan.frameCount, 304)
+        XCTAssertEqual(compactPlan.maximumPixelDimension, 960)
+        XCTAssertEqual(highPlan.frameRate, 15)
+        XCTAssertEqual(highPlan.frameCount, AnimatedVideoExportPlan.maximumFrameCount)
+        XCTAssertEqual(highPlan.maximumPixelDimension, 1600)
+        XCTAssertEqual(highPlan.trimStartSeconds, 2)
+        XCTAssertEqual(highPlan.trimEndSeconds, 40)
+    }
+
+    func testUnsupportedExportRequestNormalizesToMP4Balanced() {
+        let request = VideoExportRequest(format: .gif, target: .sizeLimit(.under25MB), updatesDefaults: false)
+
+        XCTAssertEqual(
+            request.normalizedForAvailability(),
+            VideoExportRequest(format: .mp4, target: .quality(.balanced), updatesDefaults: false)
+        )
+    }
+
+    @MainActor
+    func testRecordingOverlayModelSummarizesStateAndIndicators() {
+        let model = RecordingControlOverlayModel(
+            title: "Recording Window",
+            sourceLabel: "Window",
+            preferences: VideoRecordingPreferences(
+                quality: .high,
+                frameRate: .sixty,
+                recordsSystemAudio: true,
+                recordsMicrophone: false,
+                showsCursor: true,
+                showsMouseClicks: true
+            ),
+            isPaused: false,
+            pauseResumeAction: {},
+            stopAction: {}
+        )
+
+        XCTAssertEqual(model.stateLabel, "Recording")
+        XCTAssertEqual(model.sourceSummaryLabel, "Window • 60 fps • High")
+        XCTAssertEqual(model.pauseResumeLabel, "Pause")
+        XCTAssertEqual(model.recordingOptionsSummaryLabel, "System audio • Mic off • Cursor shown • Clicks shown")
+
+        model.updatePausedState(true)
+
+        XCTAssertEqual(model.stateLabel, "Paused")
+        XCTAssertEqual(model.pauseResumeLabel, "Resume")
     }
 
     func testSizeConstrainedPlanStartsFivePercentUnderAndStepsDown() throws {

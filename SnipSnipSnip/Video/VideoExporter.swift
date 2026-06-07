@@ -13,6 +13,7 @@ nonisolated enum VideoExportError: LocalizedError {
     case invalidSizeConstrainedDuration
     case sizeConstraintUnsatisfied(Int64)
     case unsupportedFileType(VideoExportFormat)
+    case unsupportedExportCapability(String)
 
     var errorDescription: String? {
         switch self {
@@ -33,6 +34,8 @@ nonisolated enum VideoExportError: LocalizedError {
             return "The video could not be compressed below \(formatter.string(fromByteCount: maximumBytes))."
         case .unsupportedFileType(let format):
             return "\(format.label) export is not supported for this video."
+        case .unsupportedExportCapability(let reason):
+            return reason
         }
     }
 }
@@ -73,6 +76,29 @@ enum VideoExporter {
         progressHandler: (@MainActor (VideoExportProgress) -> Void)?,
         to url: URL
     ) async throws {
+        let capability = VideoExportSupport.capability(for: request.format, target: request.target)
+        guard capability.isSupported else {
+            throw VideoExportError.unsupportedExportCapability(capability.unsupportedReason ?? "This export is unsupported.")
+        }
+
+        switch request.format {
+        case .gif, .apng:
+            guard case .quality(let preset) = request.target else {
+                throw VideoExportError.unsupportedFileType(request.format)
+            }
+
+            try await exportAnimatedImage(
+                document,
+                as: request.format,
+                preset: preset,
+                progressHandler: progressHandler,
+                to: url
+            )
+            return
+        case .mp4:
+            break
+        }
+
         switch request.target {
         case .quality(let preset):
             try await export(document, as: request.format, preset: preset, progressHandler: progressHandler, to: url)
@@ -102,14 +128,15 @@ enum VideoExporter {
             throw VideoExportError.exportSessionUnavailable
         }
 
-        guard exportSession.supportedFileTypes.contains(format.fileType) else {
+        guard let fileType = format.fileType,
+              exportSession.supportedFileTypes.contains(fileType) else {
             throw VideoExportError.unsupportedFileType(format)
         }
 
         try? FileManager.default.removeItem(at: url)
 
         exportSession.outputURL = url
-        exportSession.outputFileType = format.fileType
+        exportSession.outputFileType = fileType
         exportSession.shouldOptimizeForNetworkUse = format == .mp4
         exportSession.timeRange = CMTimeRange(
             start: CMTime(seconds: session.trimStartSeconds, preferredTimescale: 600),
@@ -140,7 +167,7 @@ enum VideoExporter {
             progressTask.cancel()
         }
 
-        try await exportWithCancellation(exportSession, to: url, as: format.fileType)
+        try await exportWithCancellation(exportSession, to: url, as: fileType)
     }
 
     static func exportPreset(for preset: VideoExportQualityPreset) -> String {
@@ -437,7 +464,8 @@ enum VideoExporter {
         var selectedPreset: String?
         for preset in presetCandidates {
             if let candidate = AVAssetExportSession(asset: asset, presetName: preset),
-               candidate.supportedFileTypes.contains(format.fileType) {
+               let fileType = format.fileType,
+               candidate.supportedFileTypes.contains(fileType) {
                 selectedSession = candidate
                 selectedPreset = preset
                 break
@@ -480,8 +508,168 @@ enum VideoExporter {
             progressTask.cancel()
         }
 
-        try await exportWithCancellation(exportSession, to: url, as: format.fileType)
+        guard let fileType = format.fileType else {
+            throw VideoExportError.unsupportedFileType(format)
+        }
+
+        try await exportWithCancellation(exportSession, to: url, as: fileType)
         logSizeConstrained("Attempt \(attemptNumber) export session completed")
+    }
+
+    private static func exportAnimatedImage(
+        _ document: EditableVideoDocument,
+        as format: VideoExportFormat,
+        preset: VideoExportQualityPreset,
+        progressHandler: (@MainActor (VideoExportProgress) -> Void)?,
+        to url: URL
+    ) async throws {
+        guard format == .gif || format == .apng else {
+            throw VideoExportError.unsupportedFileType(format)
+        }
+
+        try VideoStorageGuardrails.ensureCanExport(
+            sourceURL: document.recording.sourceURL,
+            request: VideoExportRequest(format: format, target: .quality(preset), updatesDefaults: false),
+            destinationURL: url
+        )
+
+        try? FileManager.default.removeItem(at: url)
+
+        let plan = AnimatedVideoExportPlan(document: document, format: format, preset: preset)
+        guard plan.duration > 0 else {
+            throw VideoExportError.invalidSizeConstrainedDuration
+        }
+
+        if let progressHandler {
+            await MainActor.run {
+                progressHandler(VideoExportProgress(
+                    title: "Preparing \(format.label)",
+                    detail: "\(plan.frameCount) frames • \(preset.label)",
+                    fractionCompleted: nil
+                ))
+            }
+        }
+
+        let images = try await animatedFrames(
+            for: document.recording.sourceURL,
+            plan: plan,
+            progressHandler: progressHandler
+        )
+
+        try Task.checkCancellation()
+        try writeAnimatedImage(images, plan: plan, to: url)
+
+        if let progressHandler {
+            await MainActor.run {
+                progressHandler(VideoExportProgress(
+                    title: "Finishing \(format.label)",
+                    detail: "\(plan.frameCount) frames • \(preset.label)",
+                    fractionCompleted: 1
+                ))
+            }
+        }
+    }
+
+    private static func animatedFrames(
+        for url: URL,
+        plan: AnimatedVideoExportPlan,
+        progressHandler: (@MainActor (VideoExportProgress) -> Void)?
+    ) async throws -> [CGImage] {
+        try await Task.detached(priority: .utility) {
+            let asset = AVURLAsset(url: url)
+            let generator = AVAssetImageGenerator(asset: asset)
+            generator.appliesPreferredTrackTransform = true
+            generator.requestedTimeToleranceBefore = .positiveInfinity
+            generator.requestedTimeToleranceAfter = .positiveInfinity
+            generator.maximumSize = CGSize(width: plan.maximumPixelDimension, height: plan.maximumPixelDimension)
+
+            var frames: [CGImage] = []
+            frames.reserveCapacity(plan.frameCount)
+
+            for index in 0..<plan.frameCount {
+                try Task.checkCancellation()
+
+                let progress = Double(index) / Double(max(plan.frameCount, 1))
+                if let progressHandler {
+                    await MainActor.run {
+                        progressHandler(VideoExportProgress(
+                            title: "Rendering \(plan.format.label)",
+                            detail: "\(index + 1) of \(plan.frameCount) frames",
+                            fractionCompleted: progress
+                        ))
+                    }
+                }
+
+                let offset = (Double(index) + 0.5) / Double(max(plan.frameCount, 1))
+                let seconds = plan.trimStartSeconds + min(max(offset, 0), 1) * plan.duration
+                let requestedTime = CMTime(seconds: seconds, preferredTimescale: 600)
+
+                do {
+                    frames.append(try await generateImage(from: generator, at: requestedTime))
+                } catch {
+                    if let previousFrame = frames.last {
+                        frames.append(previousFrame)
+                    } else {
+                        throw error
+                    }
+                }
+            }
+
+            return frames
+        }.value
+    }
+
+    private static func writeAnimatedImage(_ images: [CGImage], plan: AnimatedVideoExportPlan, to url: URL) throws {
+        guard !images.isEmpty else {
+            throw VideoExportError.posterGenerationFailed
+        }
+
+        let typeIdentifier: CFString
+        let containerProperties: CFDictionary
+        let frameProperties: CFDictionary
+
+        switch plan.format {
+        case .gif:
+            typeIdentifier = UTType.gif.identifier as CFString
+            containerProperties = [
+                kCGImagePropertyGIFDictionary: [
+                    kCGImagePropertyGIFLoopCount: 0
+                ]
+            ] as CFDictionary
+            frameProperties = [
+                kCGImagePropertyGIFDictionary: [
+                    kCGImagePropertyGIFDelayTime: plan.frameDelay
+                ]
+            ] as CFDictionary
+        case .apng:
+            typeIdentifier = UTType.png.identifier as CFString
+            containerProperties = [
+                kCGImagePropertyPNGDictionary: [
+                    kCGImagePropertyAPNGLoopCount: 0
+                ]
+            ] as CFDictionary
+            frameProperties = [
+                kCGImagePropertyPNGDictionary: [
+                    kCGImagePropertyAPNGDelayTime: plan.frameDelay
+                ]
+            ] as CFDictionary
+        case .mp4:
+            throw VideoExportError.unsupportedFileType(plan.format)
+        }
+
+        guard let destination = CGImageDestinationCreateWithURL(url as CFURL, typeIdentifier, images.count, nil) else {
+            throw VideoExportError.exportSessionUnavailable
+        }
+
+        CGImageDestinationSetProperties(destination, containerProperties)
+
+        for image in images {
+            CGImageDestinationAddImage(destination, image, frameProperties)
+        }
+
+        guard CGImageDestinationFinalize(destination) else {
+            throw VideoExportError.exportFailed
+        }
     }
 
     private static func exportWithCancellation(

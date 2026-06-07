@@ -240,7 +240,7 @@ struct CaptureAutomationSettingsView: View {
                     Toggle("Show Mouse Clicks", isOn: videoPreferenceBinding(\.showsMouseClicks))
 
                     SettingsHelpText("Microphone and system audio remain optional. macOS asks for the matching privacy permission the first time those sources are used.")
-                    SettingsHelpText("Export quality and capped MP4 size targets now live in the video editor Export menu, which remembers the last used target.")
+                    SettingsHelpText("Video export targets now live in the video editor Export menu, including MP4 quality or size targets and short GIF/APNG loop export.")
                 }
             }
             .tabItem {

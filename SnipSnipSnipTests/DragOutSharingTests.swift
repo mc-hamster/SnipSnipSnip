@@ -251,5 +251,13 @@ final class DragOutSharingTests: XCTestCase {
         XCTAssertEqual(dragOutExport.document.session, session)
         XCTAssertEqual(dragOutExport.request, request)
         XCTAssertEqual(dragOutExport.suggestedFilename, "\(recording.defaultFilename).mp4")
+
+        let gifExport = VideoDragOutExport(
+            recording: recording,
+            session: session,
+            request: VideoExportRequest(format: .gif, target: .quality(.compact))
+        )
+
+        XCTAssertEqual(gifExport.suggestedFilename, "\(recording.defaultFilename).gif")
     }
 }

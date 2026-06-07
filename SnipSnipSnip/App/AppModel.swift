@@ -787,8 +787,8 @@ final class AppModel: ObservableObject {
             return VideoExportPreferences()
         }
 
-        return preferences.target.supports(.mp4)
-            ? VideoExportPreferences(format: .mp4, target: preferences.target)
+        return VideoExportSupport.capability(for: preferences.format, target: preferences.target).isSupported
+            ? preferences
             : VideoExportPreferences()
     }
 

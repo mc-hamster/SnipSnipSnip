@@ -258,6 +258,19 @@ private struct DocumentCommands: Commands {
                             }
                         }
                     }
+
+                    Menu("Animated Loops") {
+                        ForEach(VideoExportQualityPreset.allCases) { preset in
+                            Button("GIF • \(preset.label)") {
+                                model.exportVideo(using: VideoExportRequest(format: .gif, target: .quality(preset)))
+                            }
+
+                            Button("APNG • \(preset.label)") {
+                                model.exportVideo(using: VideoExportRequest(format: .apng, target: .quality(preset)))
+                            }
+                        }
+                    }
+
                 } else {
                     Button("Export PNG…") {
                         model.exportAnnotatedImage(as: .png)

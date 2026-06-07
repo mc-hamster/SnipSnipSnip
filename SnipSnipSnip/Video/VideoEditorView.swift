@@ -49,35 +49,41 @@ struct VideoEditorToolbarView: View {
                     .lineLimit(1)
 
                 Menu("Export") {
+                    let preferredRequest = VideoExportRequest(
+                        format: exportPreferences.format,
+                        target: exportPreferences.target
+                    )
                     Button("Export \(exportPreferences.menuLabel)…") {
                         onExportRequest(
-                            VideoExportRequest(
-                                format: exportPreferences.format,
-                                target: exportPreferences.target
-                            )
+                            preferredRequest
                         )
                     }
+                    .disabled(!VideoExportSupport.capability(for: preferredRequest.format, target: preferredRequest.target).isSupported)
 
                     Divider()
 
                     Section("MP4 Quality") {
                         ForEach(VideoExportQualityPreset.allCases) { preset in
-                            Button(preset.label) {
-                                onExportRequest(VideoExportRequest(format: .mp4, target: .quality(preset)))
-                            }
+                            exportButton(format: .mp4, target: .quality(preset))
                         }
                     }
 
                     Section("MP4 Size Limit") {
                         ForEach(VideoExportSizeLimit.allCases) { sizeLimit in
-                            Button(sizeLimit.label) {
-                                onExportRequest(VideoExportRequest(format: .mp4, target: .sizeLimit(sizeLimit)))
-                            }
+                            exportButton(format: .mp4, target: .sizeLimit(sizeLimit))
                         }
                     }
+
+                    Section("Animated Loops") {
+                        ForEach(VideoExportQualityPreset.allCases) { preset in
+                            exportButton(format: .gif, target: .quality(preset))
+                            exportButton(format: .apng, target: .quality(preset))
+                        }
+                    }
+
                 }
                 .buttonStyle(.glassProminent)
-                .help("Export the trimmed video using the last used preset or a size-limited target.")
+                .help("Export the trimmed video using MP4, GIF, APNG, or another available format.")
                 .disabled(controller.isExporting)
 
                 PromisedFileDragView(
@@ -85,12 +91,23 @@ struct VideoEditorToolbarView: View {
                     payloadProvider: dragOutPayloadProvider
                 )
                 .frame(width: 68, height: 30)
-                .help("Drag the current trimmed MP4 into Finder, Mail, or another app. Export starts after the drop is accepted.")
+                .help("Drag the current trimmed export into Finder, Mail, or another app. Export starts after the drop is accepted.")
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
         }
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    @ViewBuilder
+    private func exportButton(format: VideoExportFormat, target: VideoExportTarget) -> some View {
+        let request = VideoExportRequest(format: format, target: target)
+        let capability = VideoExportSupport.capability(for: format, target: target)
+        Button(request.menuLabel) {
+            onExportRequest(request)
+        }
+        .disabled(!capability.isSupported)
+        .help(capability.unsupportedReason ?? format.exportDetail)
     }
 }
 
@@ -132,30 +149,73 @@ struct VideoEditorView: View {
         } message: {
             Text(controller.errorMessage ?? "")
         }
+        .alert("Video Export", isPresented: Binding(get: {
+            controller.statusMessage != nil
+        }, set: { value in
+            if !value {
+                controller.dismissStatus()
+            }
+        })) {
+            Button("OK", role: .cancel) {
+                controller.dismissStatus()
+            }
+        } message: {
+            Text(controller.statusMessage ?? "")
+        }
     }
 
     private var videoStage: some View {
-        ZStack(alignment: .topLeading) {
-            Color.black
+        ZStack(alignment: .bottomLeading) {
+            LinearGradient(
+                colors: [Color.black, Color(red: 0.06, green: 0.07, blue: 0.09)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(Color.white.opacity(0.035))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.34), radius: 34, y: 18)
+                .padding(.horizontal, 26)
+                .padding(.vertical, 22)
 
             VideoPlayerContainerView(player: controller.player)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.horizontal, 28)
-                .padding(.vertical, 24)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
+                .padding(.horizontal, 42)
+                .padding(.vertical, 38)
 
-            HStack(spacing: 8) {
-                playbackPill(title: controller.recording.kind.label, systemImage: "video")
-                playbackPill(title: controller.recording.sourceName, systemImage: "display")
-                playbackPill(title: controller.currentTimeLabel + " / " + controller.durationLabel, systemImage: "clock")
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    playbackPill(title: controller.recording.kind.label, systemImage: "video")
+                    playbackPill(title: controller.recording.sourceName, systemImage: "display")
+                    playbackPill(title: controller.currentTimeLabel + " / " + controller.durationLabel, systemImage: "clock")
+                }
+
+                HStack(spacing: 8) {
+                    playbackPill(title: controller.exportSummaryLabel, systemImage: "waveform")
+                    playbackPill(title: "Space pauses or plays", systemImage: "keyboard")
+                }
             }
-            .glassEffect(.regular, in: .rect(cornerRadius: 16))
-            .padding(20)
+            .padding(.leading, 46)
+            .padding(.bottom, 34)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .focusable()
+        .onKeyPress(.space) {
+            controller.togglePlayback()
+            return .handled
+        }
     }
 
     private var trimPanel: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 10) {
             ViewThatFits(in: .horizontal) {
                 trimPanelHeader(compact: false)
                 trimPanelHeader(compact: true)
@@ -164,20 +224,16 @@ struct VideoEditorView: View {
             VideoTrimTimelineView(controller: controller, trimAccent: trimAccent)
                 .frame(height: 92)
                 .frame(maxWidth: .infinity)
-                .padding(.horizontal, 18)
+                .padding(.horizontal, 8)
 
-            HStack {
-                timelineLabel(title: "In", value: controller.trimStartLabel)
-                Spacer(minLength: 12)
-                timelineLabel(title: "Current", value: controller.currentTimeLabel)
-                Spacer(minLength: 12)
-                timelineLabel(title: "Out", value: controller.trimEndLabel)
-            }
+            trimMetricsBar
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
+        .layoutPriority(1)
         .padding(.horizontal, 22)
-        .padding(.top, 18)
-        .padding(.bottom, 20)
+        .padding(.top, 15)
+        .padding(.bottom, 18)
         .sssGlassSurface(cornerRadius: 0, shadowOpacity: 0.04)
     }
 
@@ -190,14 +246,30 @@ struct VideoEditorView: View {
             .glassEffect(.regular.tint(.black.opacity(0.18)), in: .capsule)
     }
 
-    private func timelineLabel(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.caption.monospacedDigit())
+    private var trimMetricsBar: some View {
+        HStack(spacing: 8) {
+            trimMetric(title: "In", value: controller.trimStartLabel)
+            trimMetric(title: "Out", value: controller.trimEndLabel)
+            trimMetric(title: "Duration", value: controller.trimmedDurationLabel)
+
+            Spacer(minLength: 12)
+
+            trimMetric(title: "Current", value: controller.currentTimeLabel)
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(Color.white.opacity(0.045), in: .rect(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        )
+    }
+
+    private func trimMetric(title: String, value: String) -> some View {
+        Text(title.uppercased() + " " + value)
+            .font(.caption2.monospacedDigit().weight(.semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
     }
 
     private func exportProgressOverlay(_ progress: VideoExportProgress) -> some View {
@@ -245,10 +317,12 @@ struct VideoEditorView: View {
                     HStack(spacing: 10) {
                         Button("Preview Trim", action: controller.playTrimmedPreview)
                             .buttonStyle(.glass)
+                            .controlSize(.small)
                             .help("Play the selected trim range from the current playhead or trim start.")
 
                         Button("Use Start Frame as Poster", action: controller.setPosterToTrimStart)
                             .buttonStyle(.glass)
+                            .controlSize(.small)
                             .help("Use the trim start frame as the package poster frame.")
                     }
                 }
@@ -260,10 +334,12 @@ struct VideoEditorView: View {
 
                     Button("Preview Trim", action: controller.playTrimmedPreview)
                         .buttonStyle(.glass)
+                        .controlSize(.small)
                         .help("Play the selected trim range from the current playhead or trim start.")
 
                     Button("Use Start Frame as Poster", action: controller.setPosterToTrimStart)
                         .buttonStyle(.glass)
+                        .controlSize(.small)
                         .help("Use the trim start frame as the package poster frame.")
                 }
             }
@@ -286,7 +362,7 @@ struct VideoEditorView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text("Trim Video")
                 .font(.headline)
-            Text("Drag the yellow handles to set the clip and preview each trim frame. Drag in the strip to scrub playback.")
+            Text("Drag the strip to scrub, or move the handles to trim.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -300,42 +376,72 @@ private struct VideoTrimTimelineView: View {
     @State private var startHandleDragOrigin: TimeInterval?
     @State private var endHandleDragOrigin: TimeInterval?
 
-    private let handleWidth: CGFloat = 12
-    private let edgeInset: CGFloat = 12
-    private var centerInset: CGFloat { edgeInset + handleWidth / 2 }
+    private let handleHitWidth: CGFloat = 24
+    private let handleVisualWidth: CGFloat = 10
+    private let trackHorizontalInset: CGFloat = 18
 
     var body: some View {
         GeometryReader { proxy in
             let width = max(proxy.size.width, 1)
             let height = proxy.size.height
+            let trackInsetY: CGFloat = 9
+            let trackHeight = min(max(height - (trackInsetY * 2), 1), 74)
             let duration = max(controller.recording.duration, 0.1)
-            let timelineWidth = max(width - (edgeInset * 2), 1)
-            let startCenter = position(for: controller.session.trimStartSeconds, width: width, duration: duration)
-            let endCenter = position(for: controller.session.trimEndSeconds, width: width, duration: duration)
-            let startLeading = startCenter - handleWidth / 2
-            let endLeading = endCenter - handleWidth / 2
-            let currentX = position(for: controller.currentTimeSeconds, width: width, duration: duration)
+            let trackLeading = max(trackHorizontalInset, handleHitWidth / 2)
+            let timelineWidth = max(width - (trackLeading * 2), 1)
+            let trackTrailing = trackLeading + timelineWidth
+            let startCenter = position(
+                for: controller.session.trimStartSeconds,
+                trackLeading: trackLeading,
+                trackWidth: timelineWidth,
+                duration: duration
+            )
+            let endCenter = position(
+                for: controller.session.trimEndSeconds,
+                trackLeading: trackLeading,
+                trackWidth: timelineWidth,
+                duration: duration
+            )
+            let startLeading = startCenter - handleHitWidth / 2
+            let endLeading = endCenter - handleHitWidth / 2
+            let currentX = position(
+                for: controller.currentTimeSeconds,
+                trackLeading: trackLeading,
+                trackWidth: timelineWidth,
+                duration: duration
+            )
             let selectionWidth = max(endCenter - startCenter, 1)
 
-            ZStack(alignment: .leading) {
-                filmstrip
-                    .frame(width: timelineWidth, height: height)
-                    .offset(x: edgeInset)
-
-                timelineMask
-                    .frame(width: max(startCenter, 0), height: height)
-
-                timelineMask
-                    .frame(width: max(width - endCenter, 0), height: height)
-                    .offset(x: endCenter)
-
+            ZStack(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(trimAccent, lineWidth: 2.5)
-                    .frame(width: selectionWidth, height: height)
-                    .offset(x: min(max(startCenter, 0), max(width - selectionWidth, 0)))
+                    .fill(Color.black.opacity(0.32))
+                    .frame(width: timelineWidth, height: trackHeight)
+                    .offset(x: trackLeading, y: trackInsetY)
 
-                handle
-                    .offset(x: min(max(startLeading, 0), max(width - handleWidth, 0)))
+                filmstrip(width: timelineWidth, height: trackHeight)
+                    .frame(width: timelineWidth, height: trackHeight)
+                    .offset(x: trackLeading, y: trackInsetY)
+
+                selectedRangeFill
+                    .frame(width: selectionWidth, height: trackHeight)
+                    .offset(x: startCenter, y: trackInsetY)
+
+                timelineMask
+                    .frame(width: max(startCenter - trackLeading, 0), height: trackHeight)
+                    .offset(x: trackLeading, y: trackInsetY)
+
+                timelineMask
+                    .frame(width: max(trackTrailing - endCenter, 0), height: trackHeight)
+                    .offset(x: endCenter, y: trackInsetY)
+
+                trimRail(width: selectionWidth)
+                    .offset(x: startCenter, y: trackInsetY + 5)
+
+                trimRail(width: selectionWidth)
+                    .offset(x: startCenter, y: trackInsetY + trackHeight - 7)
+
+                handle(height: trackHeight)
+                    .offset(x: min(max(startLeading, 0), max(width - handleHitWidth, 0)), y: trackInsetY)
                     .gesture(
                         DragGesture(minimumDistance: 0, coordinateSpace: .named("timeline"))
                             .onChanged { value in
@@ -348,7 +454,7 @@ private struct VideoTrimTimelineView: View {
                                     shiftedTime(
                                         origin: dragOrigin,
                                         deltaX: value.translation.width,
-                                        width: width,
+                                        trackWidth: timelineWidth,
                                         duration: duration
                                     )
                                 )
@@ -358,8 +464,8 @@ private struct VideoTrimTimelineView: View {
                             }
                     )
 
-                handle
-                    .offset(x: min(max(endLeading, 0), max(width - handleWidth, 0)))
+                handle(height: trackHeight)
+                    .offset(x: min(max(endLeading, 0), max(width - handleHitWidth, 0)), y: trackInsetY)
                     .gesture(
                         DragGesture(minimumDistance: 0, coordinateSpace: .named("timeline"))
                             .onChanged { value in
@@ -372,7 +478,7 @@ private struct VideoTrimTimelineView: View {
                                     shiftedTime(
                                         origin: dragOrigin,
                                         deltaX: value.translation.width,
-                                        width: width,
+                                        trackWidth: timelineWidth,
                                         duration: duration
                                     )
                                 )
@@ -384,9 +490,9 @@ private struct VideoTrimTimelineView: View {
 
                 Rectangle()
                     .fill(Color.white)
-                    .frame(width: 2, height: height + 10)
-                    .shadow(color: .black.opacity(0.35), radius: 3, y: 1)
-                    .offset(x: min(max(currentX - 1, 0), max(width - 2, 0)), y: -5)
+                    .frame(width: 2, height: trackHeight - 8)
+                    .shadow(color: .black.opacity(0.45), radius: 4, y: 1)
+                    .offset(x: min(max(currentX - 1, 0), max(width - 2, 0)), y: trackInsetY + 4)
             }
             .frame(width: width, height: height)
             .coordinateSpace(name: "timeline")
@@ -394,15 +500,27 @@ private struct VideoTrimTimelineView: View {
             .gesture(
                 DragGesture(minimumDistance: 0, coordinateSpace: .named("timeline"))
                     .onChanged { value in
-                        controller.scrub(to: time(for: value.location.x, width: width, duration: duration))
+                        controller.scrub(
+                            to: time(
+                                for: value.location.x,
+                                trackLeading: trackLeading,
+                                trackWidth: timelineWidth,
+                                duration: duration
+                            )
+                        )
                     }
             )
         }
     }
 
-    private var filmstrip: some View {
-        HStack(spacing: 1) {
-            if controller.timelineThumbnails.isEmpty {
+    private func filmstrip(width: CGFloat, height: CGFloat) -> some View {
+        let thumbnails = controller.timelineThumbnails
+        let spacing: CGFloat = 1
+        let thumbnailCount = max(thumbnails.count, 1)
+        let thumbnailWidth = max((width - (spacing * CGFloat(thumbnailCount - 1))) / CGFloat(thumbnailCount), 1)
+
+        return Group {
+            if thumbnails.isEmpty {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(
                         LinearGradient(
@@ -412,15 +530,20 @@ private struct VideoTrimTimelineView: View {
                         )
                     )
             } else {
-                ForEach(Array(controller.timelineThumbnails.enumerated()), id: \.offset) { _, thumbnail in
-                    Image(nsImage: NSImage(cgImage: thumbnail, size: CGSize(width: thumbnail.width, height: thumbnail.height)))
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .clipped()
+                HStack(spacing: spacing) {
+                    ForEach(Array(thumbnails.enumerated()), id: \.offset) { _, thumbnail in
+                        Image(nsImage: NSImage(cgImage: thumbnail, size: CGSize(width: thumbnail.width, height: thumbnail.height)))
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: thumbnailWidth, height: height)
+                            .clipped()
+                    }
                 }
+                .frame(width: width, height: height, alignment: .leading)
+                .clipped()
             }
         }
+        .frame(width: width, height: height)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -428,40 +551,70 @@ private struct VideoTrimTimelineView: View {
         )
     }
 
-    private var handle: some View {
-        RoundedRectangle(cornerRadius: 6, style: .continuous)
+    private func handle(height: CGFloat) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(trimAccent)
+                .frame(width: handleVisualWidth, height: height)
+                .shadow(color: .black.opacity(0.28), radius: 4, y: 1)
+
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(Color.black.opacity(0.2), lineWidth: 0.75)
+                .frame(width: handleVisualWidth, height: height)
+
+            VStack(spacing: 4) {
+                Capsule().fill(Color.black.opacity(0.42)).frame(width: 2, height: 13)
+                Capsule().fill(Color.black.opacity(0.42)).frame(width: 2, height: 13)
+            }
+        }
+        .frame(width: handleHitWidth, height: height)
+        .contentShape(Rectangle())
+    }
+
+    private var selectedRangeFill: some View {
+        Rectangle()
+            .fill(trimAccent.opacity(0.09))
+    }
+
+    private func trimRail(width: CGFloat) -> some View {
+        Capsule(style: .continuous)
             .fill(trimAccent)
-            .frame(width: handleWidth, height: 72)
-            .overlay(
-                VStack(spacing: 3) {
-                    Capsule().fill(Color.black.opacity(0.4)).frame(width: 2, height: 14)
-                    Capsule().fill(Color.black.opacity(0.4)).frame(width: 2, height: 14)
-                }
-            )
-            .shadow(color: .black.opacity(0.2), radius: 3, y: 1)
+            .frame(width: width, height: 2)
+            .shadow(color: trimAccent.opacity(0.24), radius: 2)
     }
 
     private var timelineMask: some View {
         Rectangle()
-            .fill(Color(nsColor: .windowBackgroundColor))
-            .opacity(0.98)
+            .fill(Color.black.opacity(0.54))
     }
 
-    private func position(for seconds: TimeInterval, width: CGFloat, duration: TimeInterval) -> CGFloat {
-        let usableWidth = max(width - (centerInset * 2), 1)
+    private func position(
+        for seconds: TimeInterval,
+        trackLeading: CGFloat,
+        trackWidth: CGFloat,
+        duration: TimeInterval
+    ) -> CGFloat {
         let progress = CGFloat(min(max(seconds, 0), duration) / duration)
-        return centerInset + (progress * usableWidth)
+        return trackLeading + (progress * trackWidth)
     }
 
-    private func shiftedTime(origin: TimeInterval, deltaX: CGFloat, width: CGFloat, duration: TimeInterval) -> TimeInterval {
-        let usableWidth = max(width - (centerInset * 2), 1)
-        let deltaSeconds = TimeInterval(deltaX / usableWidth) * duration
+    private func shiftedTime(
+        origin: TimeInterval,
+        deltaX: CGFloat,
+        trackWidth: CGFloat,
+        duration: TimeInterval
+    ) -> TimeInterval {
+        let deltaSeconds = TimeInterval(deltaX / max(trackWidth, 1)) * duration
         return origin + deltaSeconds
     }
 
-    private func time(for x: CGFloat, width: CGFloat, duration: TimeInterval) -> TimeInterval {
-        let usableWidth = max(width - (centerInset * 2), 1)
-        let clampedX = min(max(x - centerInset, 0), usableWidth)
-        return TimeInterval(clampedX / usableWidth) * duration
+    private func time(
+        for x: CGFloat,
+        trackLeading: CGFloat,
+        trackWidth: CGFloat,
+        duration: TimeInterval
+    ) -> TimeInterval {
+        let clampedX = min(max(x - trackLeading, 0), trackWidth)
+        return TimeInterval(clampedX / max(trackWidth, 1)) * duration
     }
 }

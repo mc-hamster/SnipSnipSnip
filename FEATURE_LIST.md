@@ -4,7 +4,7 @@ Last reviewed: 2026-06-06
 
 This document is the source of truth for what SnipSnipSnip and SnipSnipSnip Pro currently ship, what is only partially complete, and what is still missing. It is based on the current app source, shipped Help content, public docs, and test suite, not on older roadmap text.
 
-SnipSnipSnip is already much larger than a screenshot MVP. It is a real screenshot app with a strong non-destructive editor and archive system, plus a usable first-generation screen recording and trim workflow. SnipSnipSnip Pro is the expanded product tier for advanced capture workflows: scrolling capture and connected iPhone/iPad screenshot capture. The strongest completed areas are screenshot capture, screenshot editing, editable document persistence, archive/history/recovery, privacy defaults, screenshot presentation styling, drag-out sharing, and practical MP4 recording/export. The largest unfinished areas are richer screenshot presentation templates, Pro capture hardening, premium video polish, automation/integrations, accessibility depth, localization, and user-facing diagnostics.
+SnipSnipSnip is already much larger than a screenshot MVP. It is a real screenshot app with a strong non-destructive editor and archive system, plus a usable first-generation screen recording and trim workflow. SnipSnipSnip Pro is the expanded product tier for advanced capture workflows: scrolling capture and connected iPhone/iPad screenshot capture. The strongest completed areas are screenshot capture, screenshot editing, editable document persistence, archive/history/recovery, privacy defaults, screenshot presentation styling, drag-out sharing, and practical MP4/GIF/APNG recording export. The largest unfinished areas are richer screenshot presentation templates, Pro capture hardening, advanced video polish, automation/integrations, accessibility depth, localization, and user-facing diagnostics.
 
 ## Status Legend
 
@@ -188,7 +188,7 @@ The biggest unfinished areas are now clear:
 | Floating stop overlay | ✓ Done | Recording shows a floating control excluded from the capture, displays elapsed time, and now supports Pause, Resume, and Stop. | Add keyboard stop/pause shortcuts and optional cancel-delete flow. |
 | Pause/resume recording | ✓ Done | Active recordings support pause and resume from the floating recording control. | Add manual QA coverage for long pause/resume sessions with audio enabled. |
 | Storage guardrails | ✓ Done | Temp cleanup plus minimum free-space checks exist before recording and export. | No live in-recording low-storage monitoring yet. |
-| GIF, APNG, or WebM export | x Not done | Video export is MP4 only. | Major gap for docs, demos, and issue reporting. |
+| GIF and APNG export | ✓ Done | The video editor can export trimmed recordings as native animated GIF or APNG loops with preset-based frame sampling and ImageIO encoding. | Tuned for short documentation/demo loops; long-form video should stay MP4. |
 | Webcam or camera overlay | x Not done | No camera or PiP layer was found. | Needed for more premium async/demo use cases. |
 | Keystroke overlay | x Not done | No keystroke visualizer exists. | Useful for tutorials and product demos. |
 | Auto zoom | x Not done | No cursor-analysis or click-driven zoom system exists. | Large gap versus polished demo recorders. |
@@ -207,13 +207,13 @@ The biggest unfinished areas are now clear:
 
 | Feature | Status | Current implementation | Remaining gap or limitation |
 | --- | --- | --- | --- |
-| Playback preview | ✓ Done | `AVPlayerView`-based playback preview exists in the video editor. | Keyboard playback controls are still light. |
+| Playback preview | ✓ Done | `AVPlayerView`-based playback preview exists in a polished preview stage with status metadata and spacebar playback. | Keyboard coverage beyond playback is still light. |
 | Trim start and end | ✓ Done | Timeline handles edit normalized trim bounds non-destructively. | No split, delete-range, or ripple editing. |
 | Timeline thumbnails | ✓ Done | Timeline filmstrip thumbnails are generated from the recording duration. | More adaptive caching and long-video tuning would help. |
 | Poster frame | ✓ Done | Poster frame generation and persistence exist in `.sssvideo`. | No arbitrary export thumbnail workflow beyond current poster logic. |
 | MP4 quality export | ✓ Done | Quality-based MP4 export exists for Compact, Balanced, and High. | No HEVC or export queueing. |
 | MP4 size-limited export | ✓ Done | Deterministic size-capped MP4 export exists for 25 MB, 100 MB, and 250 MB targets. | UI-side estimates before export would help. |
-| Export progress | ✓ Done | Export progress is surfaced in the UI, including a cancel action for in-flight exports. | No background export handling. |
+| Export progress | ✓ Done | Export progress is surfaced in the UI for MP4 and animated exports, including a cancel action for in-flight exports. | No background export handling. |
 | Export cancellation | ✓ Done | The export progress overlay now allows canceling an active export operation. | Add regression coverage for repeated cancel/retry flows across quality and size-limited exports. |
 | Aspect-ratio export layouts | x Not done | Exports keep the original recording frame. | Add 16:9, 9:16, 1:1, 4:3, 3:4, Auto, and custom layouts. |
 | Speed controls | x Not done | No speed-up or slow-down segments were found. | Add time remapping for dead air and demos. |
@@ -342,7 +342,7 @@ The biggest unfinished areas are now clear:
 
 ### Tier 2: Make Video Recording Competitive
 
-- GIF, APNG, or WebM export.
+- Broader video format reach beyond MP4, GIF, and APNG.
 - Auto zoom and manual zoom timelines.
 - Cursor smoothing, replacement, idle-hide, and richer click styling.
 - Keystroke overlays.

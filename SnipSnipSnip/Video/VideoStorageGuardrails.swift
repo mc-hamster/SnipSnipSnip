@@ -55,6 +55,10 @@ nonisolated enum VideoStorageGuardrails {
 
         switch request.target {
         case .quality:
+            if request.format == .gif || request.format == .apng {
+                return max(minimumExportFreeBytes, min(max(boundedSourceSize / 2, 250_000_000), 2_000_000_000))
+            }
+
             return max(minimumExportFreeBytes, min(max(boundedSourceSize, 500_000_000), 4_000_000_000))
         case .sizeLimit(let sizeLimit):
             return max(minimumExportFreeBytes, min(max(sizeLimit.maximumBytes * 2, 500_000_000), 4_000_000_000))

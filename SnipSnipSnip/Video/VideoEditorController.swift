@@ -68,6 +68,7 @@ final class VideoEditorController: ObservableObject {
     @Published private(set) var isPlaying = false
     @Published private(set) var timelineThumbnails: [CGImage] = []
     @Published var errorMessage: String?
+    @Published private(set) var statusMessage: String?
     @Published private(set) var exportProgress: VideoExportProgress?
     @Published private(set) var persistenceRevision = 0
     private var posterRefreshTask: Task<Void, Never>?
@@ -126,6 +127,11 @@ final class VideoEditorController: ObservableObject {
 
     var trimmedDurationLabel: String {
         Self.timeLabel(for: trimmedDuration)
+    }
+
+    var exportSummaryLabel: String {
+        let source = recording.preferences.recordsSystemAudio || recording.preferences.recordsMicrophone ? "Audio on" : "Silent"
+        return "\(trimmedDurationLabel) clip • \(recording.preferences.frameRate.label) source • \(source)"
     }
 
     var currentTimeLabel: String {
@@ -200,6 +206,12 @@ final class VideoEditorController: ObservableObject {
             return
         }
 
+        let capability = VideoExportSupport.capability(for: request.format, target: request.target)
+        guard capability.isSupported else {
+            errorMessage = capability.unsupportedReason
+            return
+        }
+
         exportTask?.cancel()
         exportTask = Task {
             await exportVideoAsync(using: request)
@@ -215,10 +227,14 @@ final class VideoEditorController: ObservableObject {
         errorMessage = nil
     }
 
+    func dismissStatus() {
+        statusMessage = nil
+    }
+
     private func exportVideoAsync(using request: VideoExportRequest) async {
         let panel = NSSavePanel()
         let format = request.format
-        panel.allowedContentTypes = [.mpeg4Movie]
+        panel.allowedContentTypes = [format.contentType]
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
         panel.nameFieldStringValue = "\(recording.defaultFilename).\(format.fileExtension)"
@@ -235,6 +251,7 @@ final class VideoEditorController: ObservableObject {
                 using: request,
                 to: url
             )
+            statusMessage = "Exported \(request.menuLabel) to \(url.lastPathComponent)."
         } catch is CancellationError {
             // Cancellation is user-initiated and should quietly dismiss progress.
         } catch {
@@ -250,15 +267,23 @@ final class VideoEditorController: ObservableObject {
             return nil
         }
 
+        let resolvedRequest: VideoExportRequest
+        if VideoExportSupport.capability(for: request.format, target: request.target).isSupported {
+            resolvedRequest = request
+        } else {
+            resolvedRequest = VideoExportRequest(format: .mp4, target: .quality(.balanced), updatesDefaults: false)
+            statusMessage = "Drag-out sharing fell back to MP4 because \(request.format.label) export is unavailable."
+        }
+
         let dragOutExport = VideoDragOutExport(
             recording: recording,
             session: session,
-            request: request
+            request: resolvedRequest
         )
 
         return PromisedFilePayload(
             suggestedFilename: dragOutExport.suggestedFilename,
-            contentType: .mpeg4Movie,
+            contentType: dragOutExport.request.format.contentType,
             writer: { [weak self] destinationURL in
                 guard let self else {
                     throw CancellationError()
