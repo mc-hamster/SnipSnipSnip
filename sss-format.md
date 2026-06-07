@@ -58,12 +58,36 @@ Each image overlay asset record contains:
 - `sourceName`: human-readable capture source label.
 - `sourceRect`: original capture bounds in the coordinate space named by `coordinateContract.captureSourceRectSpace`.
 - `capturedAt`: ISO-8601 timestamp of the original capture.
+- `uiMap`: optional UI Map metadata captured with the screenshot when the build-target flag and user preference are enabled.
+
+### `capture.uiMap`
+
+UI Map metadata is additive and may be absent. Documents containing it remain valid when the UI Map feature is disabled in a future build target.
+
+- `capturedAt`: ISO-8601 timestamp for the UI Map collection.
+- `sourceRect`: capture source bounds associated with the UI Map.
+- `elements`: hierarchical accessible interface elements.
+
+Each UI Map element contains:
+
+- `id`: stable UUID within the document.
+- `name`: optional element name or title.
+- `accessibilityLabel`: optional accessibility label.
+- `accessibilityIdentifier`: optional accessibility identifier.
+- `role`: optional accessibility role such as `AXButton`.
+- `roleDescription`: optional human-readable role.
+- `valueDescription`: optional value description when available.
+- `documentRect`: element bounds in screenshot document-image space.
+- `owningApplication`: optional app name.
+- `bundleIdentifier`: optional app bundle identifier.
+- `children`: nested visible child elements.
 
 ### `metadata.search`
 
 - `annotationText`: text and callout content collected from annotations.
 - `recognizedText`: optional OCR text used for history search.
 - `searchableText`: combined search text used by archive and recent snip search.
+- UI Map text may be included in `searchableText` only when UI Map metadata is present and enabled in the running build.
 
 Private Capture sessions skip archive checkpoint creation and OCR indexing, so private captures should not create persisted search metadata unless the user explicitly saves a `.sss` package.
 
@@ -144,6 +168,7 @@ Supported `redactionMode` values:
 ## Privacy Notes
 
 - `.sss` packages are editable source documents, not privacy-flattened output. They retain the base screenshot and non-destructive annotation state.
+- UI Map metadata, when present, is local editable document metadata. It is not included in flattened PNG/JPEG/PDF exports unless the user intentionally renders visible overlays or annotations.
 - Redactions are flattened only when copying, exporting, or sharing rendered PNG/JPEG/PDF output.
 - PNG/JPEG/PDF export paths re-encode rendered output and do not preserve source EXIF, TIFF, GPS, IPTC, or user metadata.
 

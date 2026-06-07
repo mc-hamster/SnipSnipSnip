@@ -4,10 +4,17 @@ import SwiftUI
 private enum OnboardingStep: Int, CaseIterable, Identifiable {
     case welcome
     case permissions
+    case uiMap
     case startup
     case support
 
     var id: Int { rawValue }
+
+    static var visibleCases: [OnboardingStep] {
+        allCases.filter { step in
+            step != .uiMap || FeatureFlags.uiMapEnabled
+        }
+    }
 
     var title: String {
         switch self {
@@ -15,6 +22,8 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
             return "Welcome"
         case .permissions:
             return "Permissions"
+        case .uiMap:
+            return "UI Map"
         case .startup:
             return "Launch at Login"
         case .support:
@@ -32,6 +41,8 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
             }
 
             return "Unlock capture pixels, live window thumbnails, and recording with one-time macOS permissions."
+        case .uiMap:
+            return "Choose whether screenshots save visible interface metadata."
         case .startup:
             return "Keep SnipSnipSnip ready right after login if you want the easiest setup."
         case .support:
@@ -45,6 +56,8 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
             return .teal
         case .permissions:
             return .orange
+        case .uiMap:
+            return .blue
         case .startup:
             return .green
         case .support:
@@ -58,6 +71,8 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
             return "sparkles"
         case .permissions:
             return "hand.raised.fill"
+        case .uiMap:
+            return "rectangle.3.group"
         case .startup:
             return "power.circle.fill"
         case .support:
@@ -229,7 +244,7 @@ struct OnboardingView: View {
 
     private func stepRail(metrics: OnboardingLayoutMetrics) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            ForEach(OnboardingStep.allCases) { step in
+            ForEach(OnboardingStep.visibleCases) { step in
                 Button {
                     selectedStep = step
                 } label: {
@@ -330,6 +345,8 @@ struct OnboardingView: View {
             welcomeStep(metrics: metrics)
         case .permissions:
             permissionsStep(metrics: metrics)
+        case .uiMap:
+            uiMapStep(metrics: metrics)
         case .startup:
             startupStep(metrics: metrics)
         case .support:
@@ -405,6 +422,67 @@ struct OnboardingView: View {
                 .font(.footnote)
                 .foregroundStyle(.white.opacity(0.72))
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func uiMapStep(metrics: OnboardingLayoutMetrics) -> some View {
+        VStack(alignment: .leading, spacing: metrics.cardSpacing) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("UI Map can save the names, roles, and locations of visible interface elements alongside screenshots you capture. This makes screenshots easier to search, inspect, document, and review for QA and accessibility.")
+                    .font(.body)
+                    .foregroundStyle(.white.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("UI Map metadata is local to the screenshot document. It is used for inspection, search, documentation, accessibility review, and QA workflows. You can disable UI Map now or change this later in Settings.")
+                    .font(.body)
+                    .foregroundStyle(.white.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Toggle("Enable UI Map", isOn: uiMapBinding)
+                    .toggleStyle(.switch)
+                    .controlSize(.large)
+
+                if model.uiMapNeedsAccessibilityAccess {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("UI Map needs Accessibility access before metadata can be captured.", systemImage: "lock.trianglebadge.exclamationmark.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.orange)
+
+                        Button("Grant Accessibility") {
+                            model.requestAccessibilityAccess()
+                        }
+                        .buttonStyle(SSSChromeButtonStyle(tint: .orange))
+                    }
+                    .padding(14)
+                    .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(Color.orange.opacity(0.24), lineWidth: 0.75)
+                    }
+                }
+            }
+            .padding(metrics.contentPadding)
+            .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.75)
+            }
+
+            featurePair(metrics: metrics) {
+                onboardingFeatureCard(
+                    title: "Clean by Default",
+                    detail: "Screenshots do not show UI Map labels automatically. Select elements later from the floating UI Map panel.",
+                    systemImage: "rectangle.dashed",
+                    metrics: metrics
+                )
+
+                onboardingFeatureCard(
+                    title: "Document Local",
+                    detail: "Flattened PNG, JPEG, and PDF exports do not include UI Map metadata unless you intentionally render visible overlays.",
+                    systemImage: "doc.badge.gearshape",
+                    metrics: metrics
+                )
+            }
         }
     }
 
@@ -506,7 +584,7 @@ struct OnboardingView: View {
                     Button("Skip", action: skipOnboarding)
                         .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
 
-                    Button(selectedStep == .support ? "Open SnipSnipSnip" : "Continue", action: moveForward)
+                    Button(selectedStep == OnboardingStep.visibleCases.last ? "Open SnipSnipSnip" : "Continue", action: moveForward)
                         .buttonStyle(SSSChromeButtonStyle(tint: selectedStep.accent))
                 }
             }
@@ -522,7 +600,7 @@ struct OnboardingView: View {
                     Button("Skip", action: skipOnboarding)
                         .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
 
-                    Button(selectedStep == .support ? "Open SnipSnipSnip" : "Continue", action: moveForward)
+                    Button(selectedStep == OnboardingStep.visibleCases.last ? "Open SnipSnipSnip" : "Continue", action: moveForward)
                         .buttonStyle(SSSChromeButtonStyle(tint: selectedStep.accent))
                 }
             }
@@ -708,6 +786,15 @@ struct OnboardingView: View {
         )
     }
 
+    private var uiMapBinding: Binding<Bool> {
+        Binding(
+            get: { model.uiMapEnabled },
+            set: { newValue in
+                model.updateUIMapEnabled(newValue)
+            }
+        )
+    }
+
     private var launchAtLoginColor: Color {
         switch model.launchAtLoginStatus {
         case .disabled:
@@ -722,16 +809,25 @@ struct OnboardingView: View {
     }
 
     private func moveBack() {
-        guard let previous = OnboardingStep(rawValue: selectedStep.rawValue - 1) else {
+        let steps = OnboardingStep.visibleCases
+        guard let currentIndex = steps.firstIndex(of: selectedStep),
+              currentIndex > steps.startIndex else {
             return
         }
 
-        selectedStep = previous
+        selectedStep = steps[steps.index(before: currentIndex)]
     }
 
     private func moveForward() {
-        if let next = OnboardingStep(rawValue: selectedStep.rawValue + 1) {
-            selectedStep = next
+        let steps = OnboardingStep.visibleCases
+        guard let currentIndex = steps.firstIndex(of: selectedStep) else {
+            completeOnboarding()
+            return
+        }
+
+        let nextIndex = steps.index(after: currentIndex)
+        if nextIndex < steps.endIndex {
+            selectedStep = steps[nextIndex]
             return
         }
 

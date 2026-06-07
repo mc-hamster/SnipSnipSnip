@@ -7,6 +7,7 @@ SnipSnipSnip is a local-first macOS screenshot, annotation, history, OCR, and sc
 - Region, window, frontmost window, fullscreen, repeat, and scrolling screenshot capture.
 - Non-destructive screenshot editor with crop, rectangle, ellipse, line, arrow, freehand, highlight, text, callouts, ruler measurements, spotlight/dim, image overlays, rotation, layer ordering, grouping, alignment, snapping, and blur/pixelate/solid redaction.
 - Local OCR for capture-history search and selectable Copy Text from a dragged screenshot region.
+- Optional UI Map capture for saving visible interface element names, roles, identifiers, and locations in editable `.sss` documents.
 - PNG, JPEG, and PDF screenshot export with re-encoded metadata-stripped output.
 - Drag-out sharing for rendered screenshots, styled presentation previews, and trimmed video exports.
 - Floating reference screenshots for pinning rendered editor or history snapshots in lightweight always-on-top windows.
@@ -18,17 +19,17 @@ For the detailed current feature inventory, partial features, and known gaps, se
 
 ## Privacy Posture
 
-SnipSnipSnip processes screenshots, annotations, OCR, and rendering locally. Editable `.sss` packages retain the original base screenshot and annotation state, so share rendered exports when redactions must be flattened.
+SnipSnipSnip processes screenshots, annotations, OCR, UI Map metadata, and rendering locally. Editable `.sss` packages retain the original base screenshot, annotation state, and any captured UI Map metadata, so share rendered exports when redactions must be flattened or editable metadata should not travel.
 
 Private Capture skips archive checkpoints, recent-snips recovery, recycle-bin retention, and background OCR indexing for that capture session. Exported/copied PNG, JPEG, and PDF output is re-encoded and does not carry source EXIF, TIFF, GPS, IPTC, or user metadata forward.
 
 ## Permissions
 
 - Screen Recording: required for screenshot capture, window thumbnails, and screen recording pixels.
-- Accessibility: required only for Scrolling Capture, where the app must scroll the selected target.
+- Accessibility: required for Scrolling Capture, where the app must scroll the selected target, and for screenshot capture when UI Map is enabled so visible interface metadata can be read during the user-initiated capture workflow.
 - Microphone: required only when microphone narration is enabled for recording.
 
-The app Settings screen includes permission diagnostics, remediation buttons, and a local sanitized diagnostics export for support. Region and fullscreen capture do not require Accessibility.
+The app Settings screen includes permission diagnostics, remediation buttons, and a local sanitized diagnostics export for support. Region and fullscreen capture do not require Accessibility unless UI Map is enabled.
 
 ### Accessibility Permission For Xcode Builds
 

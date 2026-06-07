@@ -1,11 +1,8 @@
 import AppKit
+@preconcurrency import ApplicationServices
 import CoreGraphics
 import Foundation
 @preconcurrency import ScreenCaptureKit
-
-#if !APP_STORE_BUILD
-@preconcurrency import ApplicationServices
-#endif
 
 nonisolated enum CapturePermissionRequirement: CaseIterable, Identifiable {
     case screenRecording
@@ -116,11 +113,7 @@ enum ScreenCapturePermissions {
     }
 
     nonisolated(unsafe) static var accessibilityStatusProvider: @Sendable () -> Bool = {
-#if APP_STORE_BUILD
-        false
-#else
         AXIsProcessTrusted()
-#endif
     }
 
     nonisolated(unsafe) static var screenRecordingAccessVerifier: @Sendable () async -> Bool = {
@@ -152,12 +145,8 @@ enum ScreenCapturePermissions {
 
     @discardableResult
     static func requestAccessibilityAccess() -> Bool {
-#if APP_STORE_BUILD
-        false
-#else
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as NSString: true] as CFDictionary
         return AXIsProcessTrustedWithOptions(options)
-#endif
     }
 
     @discardableResult
@@ -166,7 +155,7 @@ enum ScreenCapturePermissions {
         case .screenRecording:
             return requestScreenRecordingAccess()
         case .accessibility:
-            guard FeatureFlags.accessibilityAutomationEnabled else {
+            guard FeatureFlags.accessibilityAutomationEnabled || FeatureFlags.uiMapEnabled else {
                 return false
             }
             return requestAccessibilityAccess()

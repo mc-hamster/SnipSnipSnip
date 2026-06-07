@@ -20,6 +20,12 @@ final class CapturePermissionStatusTests: XCTestCase {
         XCTAssertFalse(FeatureFlags.connectedDeviceCaptureEnabled(for: .externalTesting))
         XCTAssertFalse(FeatureFlags.connectedDeviceCaptureEnabled(for: .release))
         XCTAssertTrue(FeatureFlags.connectedDeviceCaptureEnabled(for: .selfRelease))
+
+        XCTAssertTrue(FeatureFlags.uiMapEnabled(for: .dev))
+        XCTAssertTrue(FeatureFlags.uiMapEnabled(for: .internalTesting))
+        XCTAssertTrue(FeatureFlags.uiMapEnabled(for: .externalTesting))
+        XCTAssertTrue(FeatureFlags.uiMapEnabled(for: .release))
+        XCTAssertTrue(FeatureFlags.uiMapEnabled(for: .selfRelease))
     }
 
     func testCaptureReadyRequiresScreenRecordingOnlyWhenScrollingFeatureDisabled() {

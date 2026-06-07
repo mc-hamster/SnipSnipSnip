@@ -786,6 +786,104 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testCompleteCaptureAttachesUIMapWhenPreferenceIsEnabled() throws {
+        let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
+        let defaults = makeTestDefaults()
+        let uiMap = makeTestUIMap()
+        let uiMapCaptureService = StubUIMapCaptureService(uiMap: uiMap)
+        let model = retainForTestLifetime(AppModel(
+            defaults: defaults,
+            recoveryStore: store,
+            uiMapCaptureService: uiMapCaptureService,
+            shouldCheckCompatibilityOnLaunch: false
+        ))
+        model.autoCopyEnabled = false
+        model.uiMapEnabled = true
+
+        try model.completeCapture(
+            makeCapturedScreenshot(image: makeCoordinateImage(width: 64, height: 48)),
+            request: .region(CGRect(x: 0, y: 0, width: 64, height: 48)),
+            isPrivateCapture: false
+        )
+
+        XCTAssertEqual(model.editorController?.capture.uiMap, uiMap)
+        XCTAssertEqual(uiMapCaptureService.captureCallCount, 1)
+
+        model.resetEditorSessionState()
+        try? FileManager.default.removeItem(at: rootURL)
+    }
+
+    @MainActor
+    func testCompleteCaptureSkipsUIMapWhenPreferenceIsDisabled() throws {
+        let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
+        let defaults = makeTestDefaults()
+        let uiMapCaptureService = StubUIMapCaptureService(uiMap: makeTestUIMap())
+        let model = retainForTestLifetime(AppModel(
+            defaults: defaults,
+            recoveryStore: store,
+            uiMapCaptureService: uiMapCaptureService,
+            shouldCheckCompatibilityOnLaunch: false
+        ))
+        model.autoCopyEnabled = false
+        model.uiMapEnabled = false
+
+        try model.completeCapture(
+            makeCapturedScreenshot(image: makeCoordinateImage(width: 64, height: 48)),
+            request: .region(CGRect(x: 0, y: 0, width: 64, height: 48)),
+            isPrivateCapture: false
+        )
+
+        XCTAssertNil(model.editorController?.capture.uiMap)
+        XCTAssertEqual(uiMapCaptureService.captureCallCount, 0)
+
+        model.resetEditorSessionState()
+        try? FileManager.default.removeItem(at: rootURL)
+    }
+
+    @MainActor
+    func testCompleteCaptureShowsNoticeWhenRequestedUIMapIsUnavailable() throws {
+        let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
+        let defaults = makeTestDefaults()
+        let uiMapCaptureService = StubUIMapCaptureService(uiMap: nil)
+        let originalScreenRecordingStatusProvider = ScreenCapturePermissions.screenRecordingStatusProvider
+        let originalAccessibilityStatusProvider = ScreenCapturePermissions.accessibilityStatusProvider
+        defer {
+            ScreenCapturePermissions.screenRecordingStatusProvider = originalScreenRecordingStatusProvider
+            ScreenCapturePermissions.accessibilityStatusProvider = originalAccessibilityStatusProvider
+            try? FileManager.default.removeItem(at: rootURL)
+        }
+        ScreenCapturePermissions.screenRecordingStatusProvider = { true }
+        ScreenCapturePermissions.accessibilityStatusProvider = { false }
+
+        let model = retainForTestLifetime(AppModel(
+            defaults: defaults,
+            recoveryStore: store,
+            uiMapCaptureService: uiMapCaptureService,
+            shouldCheckCompatibilityOnLaunch: false
+        ))
+        model.autoCopyEnabled = false
+        model.uiMapEnabled = true
+
+        try model.completeCapture(
+            makeCapturedScreenshot(image: makeCoordinateImage(width: 64, height: 48)),
+            request: .region(CGRect(x: 0, y: 0, width: 64, height: 48)),
+            isPrivateCapture: false
+        )
+
+        XCTAssertNil(model.editorController?.capture.uiMap)
+        XCTAssertEqual(uiMapCaptureService.captureCallCount, 1)
+        XCTAssertEqual(
+            model.editorController?.noticeMessage,
+            "UI Map was not captured. Grant Accessibility access, then take the screenshot again."
+        )
+
+        model.resetEditorSessionState()
+    }
+
+    @MainActor
     func testPrivateCaptureSkipsArchiveSessionAndHistoryEntries() throws {
         let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
@@ -1514,6 +1612,39 @@ nonisolated private final class StubTextRecognizer: CaptureTextRecognizing, @unc
         lock.unlock()
         return text
     }
+}
+
+@MainActor
+private final class StubUIMapCaptureService: UIMapCaptureServiceType {
+    private let uiMap: UIMapSnapshot?
+    private(set) var captureCallCount = 0
+
+    init(uiMap: UIMapSnapshot?) {
+        self.uiMap = uiMap
+    }
+
+    func captureUIMap(for capture: CapturedScreenshot) -> UIMapSnapshot? {
+        captureCallCount += 1
+        return uiMap
+    }
+}
+
+private func makeTestUIMap() -> UIMapSnapshot {
+    UIMapSnapshot(
+        capturedAt: Date(timeIntervalSince1970: 1_818_400_000),
+        sourceRect: CGRect(x: 0, y: 0, width: 64, height: 48),
+        elements: [
+            UIMapElement(
+                name: "Save",
+                accessibilityLabel: "Save Document",
+                accessibilityIdentifier: "save-button",
+                role: "AXButton",
+                roleDescription: "Button",
+                documentRect: CGRect(x: 8, y: 10, width: 24, height: 12),
+                owningApplication: "Fixture"
+            )
+        ]
+    )
 }
 
 private func makeBGRACoordinateImage(width: Int, height: Int) -> CGImage {

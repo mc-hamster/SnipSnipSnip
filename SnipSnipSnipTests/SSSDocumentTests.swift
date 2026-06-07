@@ -55,6 +55,61 @@ final class SSSDocumentTests: XCTestCase {
         try? FileManager.default.removeItem(at: packageURL)
     }
 
+    func testPackageRoundTripsUIMapMetadata() throws {
+        let baseImage = makeCoordinateImage(width: 80, height: 60, pattern: .weighted(xMultiplier: 5, yMultiplier: 7, includeBlueSum: true))
+        let uiMap = UIMapSnapshot(
+            capturedAt: Date(timeIntervalSince1970: 1_818_333_333),
+            sourceRect: CGRect(x: 200, y: 300, width: 80, height: 60),
+            elements: [
+                UIMapElement(
+                    name: "Preferences",
+                    role: "AXWindow",
+                    roleDescription: "Window",
+                    documentRect: CGRect(x: 0, y: 0, width: 80, height: 60),
+                    owningApplication: "Fixture",
+                    bundleIdentifier: "com.example.fixture",
+                    children: [
+                        UIMapElement(
+                            name: "Enable UI Map",
+                            accessibilityLabel: "Enable UI Map",
+                            accessibilityIdentifier: "enable-ui-map",
+                            role: "AXCheckBox",
+                            roleDescription: "Checkbox",
+                            documentRect: CGRect(x: 12, y: 14, width: 32, height: 18),
+                            owningApplication: "Fixture",
+                            bundleIdentifier: "com.example.fixture"
+                        )
+                    ]
+                )
+            ]
+        )
+        let capture = makeCapturedScreenshot(
+            image: baseImage,
+            sourceName: "Fixture Window",
+            bounds: CGRect(x: 200, y: 300, width: 80, height: 60),
+            capturedAt: Date(timeIntervalSince1970: 1_818_333_330),
+            uiMap: uiMap
+        )
+        let snapshot = makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 80, height: 60))
+        let document = makeEditableDocument(capture: capture, session: makeEditorDocumentSession(initialSnapshot: snapshot))
+        let previewImage = try XCTUnwrap(EditorRenderer.render(baseImage: baseImage, snapshot: snapshot))
+        let packageURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("sss")
+
+        try SSSDocumentPackage.save(document: document, previewImage: previewImage, to: packageURL)
+        let loaded = try SSSDocumentPackage.load(from: packageURL)
+        let manifestData = try Data(contentsOf: packageURL.appendingPathComponent("document.json"))
+        let manifest = try XCTUnwrap(JSONSerialization.jsonObject(with: manifestData) as? [String: Any])
+        let captureRecord = try XCTUnwrap(manifest["capture"] as? [String: Any])
+
+        XCTAssertNotNil(captureRecord["uiMap"])
+        XCTAssertEqual(loaded.capture.uiMap, uiMap)
+        XCTAssertTrue(SSSDocumentPackage.loadSearchableText(from: packageURL).contains("Enable UI Map"))
+
+        try? FileManager.default.removeItem(at: packageURL)
+    }
+
     func testPackageRoundTripsCaptureSessionAndHistory() throws {
         let baseImage = makeCoordinateImage(width: 48, height: 32, pattern: .weighted(xMultiplier: 5, yMultiplier: 7, includeBlueSum: true))
         let capture = makeCapturedScreenshot(

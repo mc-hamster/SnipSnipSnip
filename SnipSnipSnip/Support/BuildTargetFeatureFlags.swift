@@ -26,6 +26,7 @@ nonisolated enum FeatureToggle {
     case scrollingCapture
     case accessibilityAutomation
     case connectedDeviceCapture
+    case uiMap
 }
 
 /// Single source of truth for feature availability by build target.
@@ -37,20 +38,25 @@ nonisolated enum BuildTargetFeatureMatrix {
         .dev: [
           .presentationStyling,
           .connectedDeviceCapture,
+          .uiMap,
         ],
         .internalTesting: [
           .presentationStyling,
+          .uiMap,
         ],
         .externalTesting: [
           .presentationStyling,
+          .uiMap,
         ],
         .release: [
           .presentationStyling,
+          .uiMap,
         ],
         .selfRelease: [
             .scrollingCapture,
             .accessibilityAutomation,
             .connectedDeviceCapture,
+            .uiMap,
         ],
     ]
 
@@ -102,6 +108,14 @@ nonisolated enum FeatureFlags {
 
     static var connectedDeviceCaptureEnabled: Bool {
         connectedDeviceCaptureEnabled(for: .current)
+    }
+
+    static func uiMapEnabled(for target: BuildTarget = .current) -> Bool {
+        BuildTargetFeatureMatrix.isEnabled(.uiMap, for: target)
+    }
+
+    static var uiMapEnabled: Bool {
+        uiMapEnabled(for: .current)
     }
 }
 

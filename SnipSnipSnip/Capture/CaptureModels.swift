@@ -95,7 +95,7 @@ nonisolated struct RegionCapturePreferences: Equatable {
     }
 }
 
-nonisolated struct CapturedCursorOverlay {
+nonisolated struct CapturedCursorOverlay: @unchecked Sendable {
     let image: CGImage
     let rect: CGRect
 }
@@ -151,7 +151,7 @@ nonisolated enum CursorCaptureGeometry {
     }
 }
 
-nonisolated struct CapturedScreenshot: Identifiable {
+nonisolated struct CapturedScreenshot: Identifiable, @unchecked Sendable {
     let id = UUID()
     let image: CGImage
     let kind: CaptureKind
@@ -160,6 +160,7 @@ nonisolated struct CapturedScreenshot: Identifiable {
     let coordinateContract: DocumentCoordinateContract
     let capturedAt: Date
     let cursorOverlay: CapturedCursorOverlay?
+    let uiMap: UIMapSnapshot?
 
     init(
         image: CGImage,
@@ -168,7 +169,8 @@ nonisolated struct CapturedScreenshot: Identifiable {
         sourceRect: CGRect,
         coordinateContract: DocumentCoordinateContract = .current,
         capturedAt: Date,
-        cursorOverlay: CapturedCursorOverlay? = nil
+        cursorOverlay: CapturedCursorOverlay? = nil,
+        uiMap: UIMapSnapshot? = nil
     ) {
         self.image = image
         self.kind = kind
@@ -177,6 +179,7 @@ nonisolated struct CapturedScreenshot: Identifiable {
         self.coordinateContract = coordinateContract
         self.capturedAt = capturedAt
         self.cursorOverlay = cursorOverlay
+        self.uiMap = uiMap
     }
 
     func attachingCursorOverlay(_ cursorOverlay: CapturedCursorOverlay?) -> CapturedScreenshot {
@@ -187,7 +190,21 @@ nonisolated struct CapturedScreenshot: Identifiable {
             sourceRect: sourceRect,
             coordinateContract: coordinateContract,
             capturedAt: capturedAt,
-            cursorOverlay: cursorOverlay
+            cursorOverlay: cursorOverlay,
+            uiMap: uiMap
+        )
+    }
+
+    func attachingUIMap(_ uiMap: UIMapSnapshot?) -> CapturedScreenshot {
+        CapturedScreenshot(
+            image: image,
+            kind: kind,
+            sourceName: sourceName,
+            sourceRect: sourceRect,
+            coordinateContract: coordinateContract,
+            capturedAt: capturedAt,
+            cursorOverlay: cursorOverlay,
+            uiMap: uiMap
         )
     }
 

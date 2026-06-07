@@ -30,6 +30,17 @@ private enum CapturePermissionDiagnostics {
     }
 }
 
+private enum AppUIMapCaptureDiagnostics {
+    nonisolated private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.oontz.SnipSnipSnip",
+        category: "UIMapCapture"
+    )
+
+    nonisolated static func notice(_ message: String) {
+        logger.notice("\(message, privacy: .public)")
+    }
+}
+
 extension AppModel {
     func suspendEditorAutosaveForInteractiveCapture() -> InteractiveCaptureAutosaveSuspension {
         interactiveCaptureAutosaveSuspensionDepth += 1
@@ -144,7 +155,7 @@ extension AppModel {
     }
 
     func requestAccessibilityAccess() {
-        guard FeatureFlags.accessibilityAutomationEnabled else {
+        guard FeatureFlags.accessibilityAutomationEnabled || FeatureFlags.uiMapEnabled else {
             return
         }
 
@@ -162,7 +173,8 @@ extension AppModel {
     }
 
     func requestPermission(_ requirement: CapturePermissionRequirement) {
-        guard CapturePermissionRequirement.availableCases.contains(requirement) else {
+        guard CapturePermissionRequirement.availableCases.contains(requirement)
+                || (requirement == .accessibility && FeatureFlags.uiMapEnabled) else {
             permissionSetupGuide = nil
             return
         }
@@ -189,7 +201,7 @@ extension AppModel {
     }
 
     func openAccessibilitySettingsAfterPromptOpportunity() {
-        guard FeatureFlags.accessibilityAutomationEnabled else {
+        guard FeatureFlags.accessibilityAutomationEnabled || FeatureFlags.uiMapEnabled else {
             return
         }
 
@@ -217,13 +229,13 @@ extension AppModel {
     }
 
     func captureCurrentDisplay() {
-        runActionWhenPermissionsReady([.screenRecording], featureName: "Capture") { [weak self] in
+        runScreenshotCaptureWhenPermissionsReady { [weak self] in
             self?.beginFullscreenCapture()
         }
     }
 
     func captureRegion() {
-        runActionWhenPermissionsReady([.screenRecording], featureName: "Capture") { [weak self] in
+        runScreenshotCaptureWhenPermissionsReady { [weak self] in
             self?.beginRegionCapture()
         }
     }
@@ -239,13 +251,13 @@ extension AppModel {
     }
 
     func captureFrontmostWindow() {
-        runActionWhenPermissionsReady([.screenRecording], featureName: "Capture") { [weak self] in
+        runScreenshotCaptureWhenPermissionsReady { [weak self] in
             self?.beginFrontmostWindowCapture()
         }
     }
 
     func presentWindowPicker() {
-        runActionWhenPermissionsReady([.screenRecording], featureName: "Capture") { [weak self] in
+        runScreenshotCaptureWhenPermissionsReady { [weak self] in
             self?.windowPickerMode = .screenshot
             self?.beginWindowPickerPresentation()
         }
@@ -294,7 +306,7 @@ extension AppModel {
                 try? await Task.sleep(nanoseconds: 200_000_000)
             }
 
-            guard ensureScreenRecordingAccess() else {
+            guard ensureScreenshotCaptureAccess() else {
                 return
             }
 
@@ -471,7 +483,7 @@ extension AppModel {
 
     func beginRegionCapture() {
         Task {
-            guard ensureScreenRecordingAccess() else {
+            guard ensureScreenshotCaptureAccess() else {
                 return
             }
 
@@ -600,7 +612,7 @@ extension AppModel {
     }
 
     func performCapture(request: LastCaptureRequest, minimizeAppWindow: Bool = false, _ action: () async throws -> CapturedScreenshot) async {
-        guard ensureScreenRecordingAccess() else {
+        guard ensureScreenshotCaptureAccess() else {
             return
         }
 
@@ -666,7 +678,7 @@ extension AppModel {
 
     func repeatWindowCapture(_ window: CaptureWindowSummary) {
         Task {
-            guard ensureScreenRecordingAccess() else {
+            guard ensureScreenshotCaptureAccess() else {
                 return
             }
 
@@ -809,8 +821,9 @@ extension AppModel {
         cursorCaptureGlobalLocation: CGPoint? = nil
     ) throws {
         shelveCurrentDocumentForRecents()
-        let cursorAwareCapture = capture.attachingCursorOverlay(currentCursorOverlay(
-            for: capture,
+        let uiMapAwareCapture = captureWithUIMapIfNeeded(capture)
+        let cursorAwareCapture = uiMapAwareCapture.attachingCursorOverlay(currentCursorOverlay(
+            for: uiMapAwareCapture,
             cursorCaptureGlobalLocation: cursorCaptureGlobalLocation
         ))
         let controller = EditorController(capture: cursorAwareCapture)
@@ -834,6 +847,11 @@ extension AppModel {
         if autoCopyEnabled {
             scheduleAutoCopy(for: controller)
         }
+
+        if shouldCaptureUIMap, cursorAwareCapture.uiMap == nil {
+            controller.showNotice(uiMapCaptureUnavailableNotice())
+        }
+
         requestMainWindowPresentation()
     }
 
@@ -904,6 +922,30 @@ extension AppModel {
         return CapturedCursorOverlay(image: image, rect: rect)
     }
 
+    private func captureWithUIMapIfNeeded(_ capture: CapturedScreenshot) -> CapturedScreenshot {
+        AppUIMapCaptureDiagnostics.notice(
+            "[UIMap] AppModel capture decision featureFlag=\(FeatureFlags.uiMapEnabled) userEnabled=\(uiMapEnabled) shouldCapture=\(shouldCaptureUIMap) hasAccessibility=\(permissionStatus.hasAccessibility) existingUIMap=\(capture.uiMap != nil) sourceName='\(capture.sourceName)'"
+        )
+
+        guard shouldCaptureUIMap else {
+            AppUIMapCaptureDiagnostics.notice("[UIMap] AppModel skipped capture: shouldCaptureUIMap=false")
+            return capture
+        }
+
+        guard capture.uiMap == nil else {
+            AppUIMapCaptureDiagnostics.notice("[UIMap] AppModel skipped capture: screenshot already has UI Map metadata")
+            return capture
+        }
+
+        guard let uiMap = uiMapCaptureService.captureUIMap(for: capture) else {
+            AppUIMapCaptureDiagnostics.notice("[UIMap] AppModel UI Map service returned nil")
+            return capture
+        }
+
+        AppUIMapCaptureDiagnostics.notice("[UIMap] AppModel attached UI Map flattenedElements=\(uiMap.elementCount)")
+        return capture.attachingUIMap(uiMap)
+    }
+
     func performScrollingCapture(in region: CGRect, isPrivateCapture: Bool) async throws {
         let cancellation = ScrollingCaptureCancellation()
         let progressOverlay = ScrollingCaptureProgressOverlay(
@@ -943,8 +985,20 @@ extension AppModel {
         ensurePermissions([.screenRecording], for: "Capture")
     }
 
+    var screenshotCapturePermissionRequirements: [CapturePermissionRequirement] {
+        shouldCaptureUIMap ? [.screenRecording, .accessibility] : [.screenRecording]
+    }
+
+    var screenshotCaptureFeatureName: String {
+        shouldCaptureUIMap ? "Capture with UI Map" : "Capture"
+    }
+
+    func ensureScreenshotCaptureAccess() -> Bool {
+        ensurePermissions(screenshotCapturePermissionRequirements, for: screenshotCaptureFeatureName)
+    }
+
     func ensureAccessibilityAccess() -> Bool {
-        guard FeatureFlags.accessibilityAutomationEnabled else {
+        guard FeatureFlags.accessibilityAutomationEnabled || FeatureFlags.uiMapEnabled else {
             return false
         }
 
@@ -992,6 +1046,14 @@ extension AppModel {
         action()
     }
 
+    func runScreenshotCaptureWhenPermissionsReady(action: @escaping @MainActor () -> Void) {
+        runActionWhenPermissionsReady(
+            screenshotCapturePermissionRequirements,
+            featureName: screenshotCaptureFeatureName,
+            action: action
+        )
+    }
+
     func presentPermissionSetupGuide(for requirement: CapturePermissionRequirement) {
         refreshPermissions()
 
@@ -1011,9 +1073,13 @@ extension AppModel {
         for requirements: [CapturePermissionRequirement],
         featureName: String
     ) -> String {
-        let uniqueRequirements = CapturePermissionRequirement.availableCases.filter { requirements.contains($0) }
+        let uniqueRequirements = CapturePermissionRequirement.allCases.filter { requirements.contains($0) }
 
         if uniqueRequirements == [.accessibility] {
+            if featureName == "Capture with UI Map" {
+                return "UI Map needs Accessibility access so SnipSnipSnip can read visible interface element names, roles, and locations during a screenshot. If SnipSnipSnip is not listed yet, click Grant once to trigger the macOS prompt, then use the setup guide to reveal and add this exact app."
+            }
+
             return "Scrolling Capture needs Accessibility access so SnipSnipSnip can scroll the selected app while capturing. If SnipSnipSnip is not listed yet, click Grant once to trigger the macOS prompt, then use the setup guide to reveal and add this exact app."
         }
 
@@ -1021,7 +1087,17 @@ extension AppModel {
             return "\(featureName) needs Screen Recording access so SnipSnipSnip can read pixels from the screen. Click Grant Access in the main window, then enable SnipSnipSnip in System Settings > Privacy & Security > Screen Recording."
         }
 
-        return "\(featureName) needs Screen Recording access to capture pixels. Click Grant Access in the main window, then enable SnipSnipSnip in System Settings > Privacy & Security > Screen Recording."
+        return "\(featureName) needs Screen Recording access to capture pixels and Accessibility access to save visible interface element names, roles, and locations. Click Grant Access in the main window, then enable SnipSnipSnip in System Settings > Privacy & Security."
+    }
+
+    private func uiMapCaptureUnavailableNotice() -> String {
+        refreshPermissions()
+
+        guard permissionStatus.hasAccessibility else {
+            return "UI Map was not captured. Grant Accessibility access, then take the screenshot again."
+        }
+
+        return "UI Map was enabled, but no visible interface metadata was available for this screenshot."
     }
 
     func present(_ error: Error) {

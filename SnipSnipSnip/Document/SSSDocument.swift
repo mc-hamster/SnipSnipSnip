@@ -70,13 +70,15 @@ nonisolated enum SSSDocumentPackage {
     nonisolated static func searchableText(
         sourceName: String,
         session: EditorDocumentSession,
-        recognizedText: String? = nil
+        recognizedText: String? = nil,
+        uiMap: UIMapSnapshot? = nil
     ) -> String {
         let annotationText = annotationSearchText(for: session)
         return buildSearchableText(
             sourceName: sourceName,
             annotationText: annotationText,
-            recognizedText: recognizedText
+            recognizedText: recognizedText,
+            uiMapText: FeatureFlags.uiMapEnabled ? uiMap?.searchableText() : nil
         )
     }
 
@@ -87,7 +89,8 @@ nonisolated enum SSSDocumentPackage {
         searchableText(
             sourceName: document.capture.sourceName,
             session: document.session,
-            recognizedText: recognizedText
+            recognizedText: recognizedText,
+            uiMap: document.capture.uiMap
         )
     }
 
@@ -141,7 +144,8 @@ nonisolated enum SSSDocumentPackage {
                     searchableText: buildSearchableText(
                         sourceName: document.capture.sourceName,
                         annotationText: annotationSearchText(for: document.session),
-                        recognizedText: nil
+                        recognizedText: nil,
+                        uiMapText: FeatureFlags.uiMapEnabled ? document.capture.uiMap?.searchableText() : nil
                     )
                 )
             )
@@ -311,7 +315,8 @@ nonisolated enum SSSDocumentPackage {
         let searchableText = buildSearchableText(
             sourceName: manifest.capture.sourceName,
             annotationText: annotationText,
-            recognizedText: recognizedText
+            recognizedText: recognizedText,
+            uiMapText: FeatureFlags.uiMapEnabled ? manifest.capture.uiMap?.searchableText() : nil
         )
 
         manifest.metadata = DocumentMetadata(
@@ -525,11 +530,12 @@ nonisolated enum SSSDocumentPackage {
         return normalizedSearchText(textSnippets.joined(separator: " ")) ?? ""
     }
 
-    nonisolated private static func buildSearchableText(sourceName: String, annotationText: String, recognizedText: String?) -> String {
+    nonisolated private static func buildSearchableText(sourceName: String, annotationText: String, recognizedText: String?, uiMapText: String? = nil) -> String {
         let segments = [
             normalizedSearchText(sourceName),
             normalizedSearchText(annotationText),
-            normalizedSearchText(recognizedText)
+            normalizedSearchText(recognizedText),
+            normalizedSearchText(uiMapText)
         ].compactMap { $0 }
 
         return segments.joined(separator: "\n")
@@ -592,12 +598,14 @@ nonisolated private struct CaptureRecord: Codable {
     var sourceName: String
     var sourceRect: RectRecord
     var capturedAt: Date
+    var uiMap: UIMapSnapshot?
 
     nonisolated init(_ capture: CapturedScreenshot) {
         kind = capture.kind.rawValue
         sourceName = capture.sourceName
         sourceRect = RectRecord(capture.sourceRect)
         capturedAt = capture.capturedAt
+        uiMap = capture.uiMap
     }
 
     nonisolated func capturedScreenshot(with image: CGImage, coordinateContract: DocumentCoordinateContract) throws -> CapturedScreenshot {
@@ -611,7 +619,8 @@ nonisolated private struct CaptureRecord: Codable {
             sourceName: sourceName,
             sourceRect: sourceRect.cgRect,
             coordinateContract: coordinateContract,
-            capturedAt: capturedAt
+            capturedAt: capturedAt,
+            uiMap: uiMap
         )
     }
 }

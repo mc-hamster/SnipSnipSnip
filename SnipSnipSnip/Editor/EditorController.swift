@@ -117,6 +117,12 @@ final class EditorController: ObservableObject {
     @Published private(set) var persistenceRevision = 0
     @Published private(set) var cropOutsideOverlayAlpha: CGFloat = AppModel.defaultEditorCropOutsideOverlayAlpha
     @Published private(set) var outOfCapturePatternSettings: EditorOutOfCapturePatternSettings = .default
+    @Published var selectedUIMapElementID: UUID?
+    @Published var uiMapOverlayOptions = UIMapOverlayOptions() {
+        didSet {
+            invalidateCanvas()
+        }
+    }
 
     let capture: CapturedScreenshot
     private let textRecognizer: any CaptureTextRecognizing
@@ -341,6 +347,18 @@ final class EditorController: ObservableObject {
         }
 
         return shape.role
+    }
+
+    var uiMapSnapshot: UIMapSnapshot? {
+        capture.uiMap
+    }
+
+    var selectedUIMapElement: UIMapElement? {
+        guard let selectedUIMapElementID else {
+            return nil
+        }
+
+        return uiMapSnapshot?.element(matching: selectedUIMapElementID)
     }
 
     var isSamplingImageColor: Bool {
@@ -1106,6 +1124,24 @@ final class EditorController: ObservableObject {
         }
     }
 
+    func selectUIMapElement(_ elementID: UUID?) {
+        selectedUIMapElementID = elementID
+
+        guard let element = selectedUIMapElement else {
+            invalidateCanvas()
+            return
+        }
+
+        focusViewport(on: element.documentRect)
+        invalidateCanvas()
+    }
+
+    func focusViewport(on documentRect: CGRect) {
+        updateViewport {
+            $0.focused(on: documentRect.insetBy(dx: -24, dy: -24))
+        }
+    }
+
     func exportedImage() -> CGImage? {
         ScreenshotPresentationRenderer.render(baseImage: capture.image, snapshot: snapshot)
     }
@@ -1510,7 +1546,7 @@ final class EditorController: ObservableObject {
         errorMessage = nil
     }
 
-    private func showNotice(_ message: String) {
+    func showNotice(_ message: String) {
         noticeTask?.cancel()
         noticeMessage = message
         noticeTask = Task { @MainActor [weak self] in

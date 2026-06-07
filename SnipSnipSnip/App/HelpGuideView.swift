@@ -55,7 +55,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "First launch onboarding",
                             steps: [
-                                "The first launch opens a guided onboarding flow with capture basics, permissions, launch-at-login, and support links.",
+                                "The first launch opens a guided onboarding flow with capture basics, permissions, UI Map disclosure when available, launch-at-login, and support links.",
                                 "You can skip at any point and still start capturing immediately.",
                                 "Open Settings > General > Show Onboarding Again any time to replay it."
                             ]
@@ -87,8 +87,8 @@ struct HelpGuideView: View {
                     important: [
                         "Screen Recording permission is required before macOS lets SnipSnipSnip capture pixels or show live window thumbnails.",
                         "Support requests and feature requests are handled through Help > Support (Discord)."
-                    ] + (FeatureFlags.scrollingCaptureEnabled
-                        ? ["Accessibility permission is required only for Scrolling Capture."]
+                    ] + (FeatureFlags.scrollingCaptureEnabled || FeatureFlags.uiMapEnabled
+                        ? ["Accessibility permission is required for UI Map metadata capture\(FeatureFlags.scrollingCaptureEnabled ? " and Scrolling Capture" : "")."]
                         : []),
                     relatedIDs: ["capture-screenshot", "edit-screenshot", "copy-save-export"]
                 ),
@@ -110,11 +110,15 @@ struct HelpGuideView: View {
                             title: "Audio permissions",
                             body: "Microphone and system audio permissions are optional. macOS asks for them only when the matching recording source is enabled."
                         )
-                    ] + (FeatureFlags.scrollingCaptureEnabled
+                    ] + (FeatureFlags.scrollingCaptureEnabled || FeatureFlags.uiMapEnabled
                         ? [
                             HelpArticleSection(
                                 title: "Accessibility",
-                                body: "Required only for Scrolling Capture. SnipSnipSnip uses it to scroll the selected app while collecting segments.",
+                                body: FeatureFlags.scrollingCaptureEnabled && FeatureFlags.uiMapEnabled
+                                    ? "Required for Scrolling Capture and for screenshot capture when Enable UI Map is on. SnipSnipSnip uses it to scroll the selected app during Scrolling Capture and to read visible interface element names, roles, and locations during UI Map capture."
+                                    : FeatureFlags.uiMapEnabled
+                                        ? "Required for screenshot capture when Enable UI Map is on. SnipSnipSnip uses it to read visible interface element names, roles, and locations during a user-initiated screenshot."
+                                        : "Required only for Scrolling Capture. SnipSnipSnip uses it to scroll the selected app while collecting segments.",
                                 steps: [
                                     "Click the Accessibility Grant button in SnipSnipSnip.",
                                     "Allow SnipSnipSnip in System Settings > Privacy & Security > Accessibility.",
@@ -123,13 +127,58 @@ struct HelpGuideView: View {
                             )
                         ]
                         : []),
-                    important: FeatureFlags.scrollingCaptureEnabled
+                    important: FeatureFlags.scrollingCaptureEnabled || FeatureFlags.uiMapEnabled
                         ? [
-                            "Region and Fullscreen screenshot capture do not require Accessibility.",
+                            FeatureFlags.uiMapEnabled
+                                ? "Region and Fullscreen screenshot capture require Accessibility only when Enable UI Map is on."
+                                : "Region and Fullscreen screenshot capture do not require Accessibility.",
                             "Development builds launched from Xcode may need Accessibility permission for the exact app in DerivedData, not a copy in Applications."
                         ]
                         : [],
                     relatedIDs: ["troubleshoot-capture", "privacy"]
+                ),
+                HelpArticle(
+                    id: "ui-map",
+                    title: "Inspect a UI Map",
+                    summary: "Save and inspect names, roles, identifiers, and locations of visible interface elements captured with a screenshot.",
+                    sections: FeatureFlags.uiMapEnabled ? [
+                        HelpArticleSection(
+                            title: "Enable UI Map",
+                            body: "Open Settings > General > Screenshot Capture and turn on Enable UI Map. New screenshots then try to save available metadata for visible interface elements, including names, labels, identifiers, roles, positions, sizes, parent hierarchy, and owning app."
+                        ),
+                        HelpArticleSection(
+                            title: "Capture behavior",
+                            bullets: [
+                                "UI Map capture runs only during user-initiated screenshot workflows.",
+                                "The screenshot image stays visually unchanged by default.",
+                                "If macOS does not provide interface metadata for a visible element, SnipSnipSnip omits that unavailable field.",
+                                "Turning UI Map off stops new UI Map capture. Existing .sss documents that already contain UI Map metadata still open normally."
+                            ]
+                        ),
+                        HelpArticleSection(
+                            title: "Use the panel",
+                            steps: [
+                                "Open a screenshot that contains UI Map metadata.",
+                                "Choose Arrange > Show UI Map, or use the UI Map toolbar button.",
+                                "Search by name, role, label, or identifier, or filter by element type.",
+                                "Select an element to show its region on the screenshot and inspect its metadata.",
+                                "Use the display toggles to show the selected element outline, label, identifier, role, coordinates, or dimensions."
+                            ]
+                        ),
+                        HelpArticleSection(
+                            title: "Privacy",
+                            body: "UI Map does not capture keyboard input, control other apps, or monitor other apps in the background. UI Map metadata remains local to the .sss document unless you export or share that editable document. Flattened PNG, JPEG, and PDF exports do not include hidden UI Map metadata."
+                        )
+                    ] : [
+                        HelpArticleSection(
+                            title: "Unavailable in this build",
+                            body: "This build does not include UI Map. Documents containing UI Map metadata still open safely, but the UI Map panel and capture options are hidden."
+                        )
+                    ],
+                    important: FeatureFlags.uiMapEnabled
+                        ? ["Editable .sss documents can contain UI Map metadata. Share flattened image exports when you do not want editable document metadata to travel with a screenshot."]
+                        : [],
+                    relatedIDs: ["capture-screenshot", "privacy", "copy-save-export"]
                 ),
                 HelpArticle(
                     id: "clipboard-history",

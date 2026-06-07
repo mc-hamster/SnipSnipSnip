@@ -256,6 +256,8 @@ private final class AnnotationCanvasOverlayView: NSView {
             drawSnapGuides(interactionState.snapGuides, in: canvasRect)
         }
 
+        drawSelectedUIMapElement(in: canvasRect)
+
         if let draftCropRect = interactionState.draftCropRect {
             if case .recognizingText = interactionState.dragMode {
                 drawCropOutlineAndHandles(for: viewRect(for: draftCropRect, in: canvasRect), strokeColor: .systemBlue)
@@ -279,6 +281,78 @@ private final class AnnotationCanvasOverlayView: NSView {
     func refreshAfterLayout() {
         invalidateCursorRects()
         needsDisplay = true
+    }
+
+    private func drawSelectedUIMapElement(in canvasRect: CGRect) {
+        guard let element = controller.selectedUIMapElement else {
+            return
+        }
+
+        let options = controller.uiMapOverlayOptions
+        let rect = viewRect(for: element.documentRect, in: canvasRect)
+        guard rect.width > 0, rect.height > 0 else {
+            return
+        }
+
+        let color = NSColor.systemBlue
+
+        if options.showsOutline {
+            let path = NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4)
+            color.withAlphaComponent(0.16).setFill()
+            path.fill()
+            color.withAlphaComponent(0.95).setStroke()
+            path.lineWidth = 2
+            path.stroke()
+        }
+
+        let labelSegments = uiMapOverlayLabelSegments(for: element, options: options)
+        guard !labelSegments.isEmpty else {
+            return
+        }
+
+        let label = labelSegments.joined(separator: "  ")
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
+            .foregroundColor: NSColor.white
+        ]
+        let attributedLabel = NSAttributedString(string: label, attributes: attributes)
+        let labelSize = attributedLabel.size()
+        let labelRect = CGRect(
+            x: rect.minX,
+            y: max(canvasRect.minY, rect.minY - labelSize.height - 8),
+            width: min(labelSize.width + 12, max(canvasRect.width, 1)),
+            height: labelSize.height + 6
+        )
+
+        NSColor.systemBlue.withAlphaComponent(0.92).setFill()
+        NSBezierPath(roundedRect: labelRect, xRadius: 6, yRadius: 6).fill()
+        attributedLabel.draw(at: CGPoint(x: labelRect.minX + 6, y: labelRect.minY + 3))
+    }
+
+    private func uiMapOverlayLabelSegments(for element: UIMapElement, options: UIMapOverlayOptions) -> [String] {
+        var segments: [String] = []
+
+        if options.showsLabel {
+            segments.append(element.displayName)
+        }
+
+        if options.showsIdentifier, let identifier = element.accessibilityIdentifier {
+            segments.append("#\(identifier)")
+        }
+
+        if options.showsRole {
+            segments.append(element.typeLabel)
+        }
+
+        if options.showsCoordinates {
+            segments.append("x \(Int(element.documentRect.minX)), y \(Int(element.documentRect.minY))")
+        }
+
+        if options.showsDimensions {
+            segments.append("\(Int(element.documentRect.width)) x \(Int(element.documentRect.height))")
+        }
+
+        return segments
     }
 
     override func mouseDown(with event: NSEvent) {

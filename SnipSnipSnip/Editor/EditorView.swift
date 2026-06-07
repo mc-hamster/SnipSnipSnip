@@ -286,6 +286,7 @@ struct EditorToolbarView: View {
                         onExportPDF: onExportPDF,
                         onShare: onShare,
                         onShowLayers: showLayersWindow,
+                        onShowUIMap: showUIMapWindow,
                         dragOutPayloadProvider: dragOutPayloadProvider
                     )
                 } else {
@@ -299,6 +300,12 @@ struct EditorToolbarView: View {
         openWindow(id: AppSceneID.layersWindow)
         NSApp.activate(ignoringOtherApps: true)
         NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.layersWindow })?.makeKeyAndOrderFront(nil)
+    }
+
+    private func showUIMapWindow() {
+        openWindow(id: AppSceneID.uiMapWindow)
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.uiMapWindow })?.makeKeyAndOrderFront(nil)
     }
 }
 
@@ -316,6 +323,7 @@ private struct ActiveEditorToolbarView: View {
     let onExportPDF: () -> Void
     let onShare: () -> Void
     let onShowLayers: () -> Void
+    let onShowUIMap: () -> Void
     let dragOutPayloadProvider: @MainActor () -> PromisedFilePayload?
 
     var body: some View {
@@ -362,6 +370,15 @@ private struct ActiveEditorToolbarView: View {
                 }
                 .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
                 .help("Show Layers")
+
+                if FeatureFlags.uiMapEnabled {
+                    Button(action: onShowUIMap) {
+                        Image(systemName: "rectangle.3.group")
+                    }
+                    .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
+                    .help("Show UI Map")
+                    .disabled(controller.uiMapSnapshot == nil)
+                }
 
                 Button(action: controller.rotateSelectedClockwise90) {
                     Image(systemName: "rotate.right")

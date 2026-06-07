@@ -57,6 +57,24 @@ struct CaptureAutomationSettingsView: View {
                 Section("Screenshot Capture") {
                     Toggle("Include Cursor as Editable Overlay", isOn: $model.screenshotIncludesCursor)
                     SettingsHelpText("When enabled, region, window, frontmost-window, fullscreen, and repeat screenshots add the current cursor as a movable, resizable, removable overlay. Scrolling Capture always excludes the cursor while stitching.")
+
+                    if FeatureFlags.uiMapEnabled {
+                        Toggle("Enable UI Map", isOn: uiMapBinding)
+                        SettingsHelpText("Save the names, roles, and locations of visible interface elements with screenshots for search, documentation, QA, and accessibility review.")
+
+                        if model.uiMapNeedsAccessibilityAccess {
+                            HStack(alignment: .firstTextBaseline) {
+                                Label("UI Map needs Accessibility access before metadata can be captured.", systemImage: "lock.trianglebadge.exclamationmark.fill")
+                                    .foregroundStyle(.orange)
+
+                                Spacer()
+
+                                Button("Grant Accessibility") {
+                                    model.requestAccessibilityAccess()
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Section("Screen Ruler") {
@@ -537,6 +555,15 @@ struct CaptureAutomationSettingsView: View {
             get: { model.privateCaptureEnabled },
             set: { newValue in
                 model.updatePrivateCaptureEnabled(newValue)
+            }
+        )
+    }
+
+    private var uiMapBinding: Binding<Bool> {
+        Binding(
+            get: { model.uiMapEnabled },
+            set: { newValue in
+                model.updateUIMapEnabled(newValue)
             }
         )
     }

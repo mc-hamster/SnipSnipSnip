@@ -183,7 +183,8 @@ func makeCapturedScreenshot(
     sourceRect: CGRect? = nil,
     bounds: CGRect? = nil,
     coordinateContract: DocumentCoordinateContract = .current,
-    capturedAt: Date = Date(timeIntervalSince1970: 1_700_000_000)
+    capturedAt: Date = Date(timeIntervalSince1970: 1_700_000_000),
+    uiMap: UIMapSnapshot? = nil
 ) -> CapturedScreenshot {
     let resolvedImage = image ?? makeCoordinateImage(width: 64, height: 48)
 
@@ -193,7 +194,8 @@ func makeCapturedScreenshot(
         sourceName: sourceName,
         sourceRect: sourceRect ?? bounds ?? CGRect(origin: .zero, size: CGSize(width: resolvedImage.width, height: resolvedImage.height)),
         coordinateContract: coordinateContract,
-        capturedAt: capturedAt
+        capturedAt: capturedAt,
+        uiMap: uiMap
     )
 }
 

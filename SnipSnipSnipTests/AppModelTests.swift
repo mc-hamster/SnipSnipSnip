@@ -42,6 +42,28 @@ final class AppModelTests: XCTestCase {
         try updatedData.write(to: manifestURL, options: .atomic)
     }
 
+    func testScreenshotCaptureRequiresAccessibilityOnlyWhenUIMapIsEnabled() {
+        let suiteName = "AppModelTests.screenshotCaptureUIMapRequirements"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+
+        model.uiMapEnabled = true
+        XCTAssertEqual(model.screenshotCapturePermissionRequirements, [.screenRecording, .accessibility])
+        XCTAssertEqual(model.screenshotCaptureFeatureName, "Capture with UI Map")
+
+        model.uiMapEnabled = false
+        XCTAssertEqual(model.screenshotCapturePermissionRequirements, [.screenRecording])
+        XCTAssertEqual(model.screenshotCaptureFeatureName, "Capture")
+    }
+
     private func waitUntil(
         timeoutNanoseconds: UInt64 = 2_000_000_000,
         condition: @escaping @MainActor () -> Bool

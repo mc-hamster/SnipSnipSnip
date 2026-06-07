@@ -194,7 +194,7 @@ struct ContentView: View {
 
             headerPrimaryActions
 
-            if !model.permissionStatus.isCaptureReady {
+            if !headerCaptureReady {
                 headerPermissionCallout
             }
         }
@@ -238,6 +238,15 @@ struct ContentView: View {
                     tint: permissionStatusTint
                 )
 
+                if FeatureFlags.uiMapEnabled, model.uiMapEnabled {
+                    headerStatusChip(
+                        title: uiMapStatusTitle,
+                        systemImage: "rectangle.3.group",
+                        tint: uiMapStatusTint
+                    )
+                    .help(uiMapStatusHelp)
+                }
+
                 if model.isWorking || model.isRecordingVideo {
                     headerWorkingChip
                 }
@@ -249,6 +258,15 @@ struct ContentView: View {
                     systemImage: permissionStatusSystemImage,
                     tint: permissionStatusTint
                 )
+
+                if FeatureFlags.uiMapEnabled, model.uiMapEnabled {
+                    headerStatusChip(
+                        title: uiMapStatusTitle,
+                        systemImage: "rectangle.3.group",
+                        tint: uiMapStatusTint
+                    )
+                    .help(uiMapStatusHelp)
+                }
 
                 if model.isWorking || model.isRecordingVideo {
                     headerWorkingChip
@@ -345,15 +363,15 @@ struct ContentView: View {
 
                 Spacer(minLength: 8)
 
-                if model.permissionStatus.missingRequirements.count > 1 {
-                    Button("Grant Next", action: model.requestMissingCapturePermissions)
+                if headerMissingRequirements.count > 1 {
+                    Button("Grant Next", action: requestNextHeaderPermission)
                         .buttonStyle(SSSChromeButtonStyle())
                         .controlSize(.small)
                         .help("Open the next missing macOS privacy permission for SnipSnipSnip.")
                 }
             }
 
-            ForEach(model.permissionStatus.missingRequirements) { requirement in
+            ForEach(headerMissingRequirements) { requirement in
                 missingPermissionRow(requirement)
             }
 
@@ -859,7 +877,7 @@ struct ContentView: View {
     }
 
     private var permissionStatusTitle: String {
-        if model.permissionStatus.isCaptureReady {
+        if headerCaptureReady {
             return "Ready"
         }
 
@@ -867,22 +885,59 @@ struct ContentView: View {
             return "Access Needed"
         }
 
+        if model.uiMapNeedsAccessibilityAccess {
+            return "UI Map Access Needed"
+        }
+
         return FeatureFlags.scrollingCaptureEnabled ? "Scroll Access Needed" : "Access Needed"
     }
 
     private var permissionStatusSystemImage: String {
-        model.permissionStatus.isCaptureReady ? "checkmark.circle.fill" : "lock.trianglebadge.exclamationmark.fill"
+        headerCaptureReady ? "checkmark.circle.fill" : "lock.trianglebadge.exclamationmark.fill"
     }
 
     private var permissionStatusTint: Color {
-        model.permissionStatus.isCaptureReady ? .green : .orange
+        headerCaptureReady ? .green : .orange
+    }
+
+    private var headerCaptureReady: Bool {
+        model.permissionStatus.isCaptureReady && !model.uiMapNeedsAccessibilityAccess
+    }
+
+    private var uiMapStatusTitle: String {
+        model.uiMapNeedsAccessibilityAccess ? "UI Map Needs Access" : "UI Map On"
+    }
+
+    private var uiMapStatusTint: Color {
+        model.uiMapNeedsAccessibilityAccess ? .orange : .blue
+    }
+
+    private var uiMapStatusHelp: String {
+        model.uiMapNeedsAccessibilityAccess
+            ? "Grant Accessibility access before UI Map metadata can be captured."
+            : "New screenshots will include UI Map metadata when visible interface metadata is available."
+    }
+
+    private var headerMissingRequirements: [CapturePermissionRequirement] {
+        var requirements = model.permissionStatus.missingRequirements
+
+        if model.uiMapNeedsAccessibilityAccess,
+           !requirements.contains(.accessibility) {
+            requirements.append(.accessibility)
+        }
+
+        return requirements
     }
 
     private var permissionCalloutSummary: String {
-        let missingRequirements = model.permissionStatus.missingRequirements
+        let missingRequirements = headerMissingRequirements
 
         if missingRequirements == [.screenRecording] {
             return "Screen Recording is required for captures, recordings, and live window thumbnails."
+        }
+
+        if model.uiMapNeedsAccessibilityAccess, missingRequirements == [.accessibility] {
+            return "UI Map needs Accessibility access to save visible interface element names, roles, and locations with screenshots."
         }
 
         if FeatureFlags.scrollingCaptureEnabled, missingRequirements == [.accessibility] {
@@ -896,6 +951,14 @@ struct ContentView: View {
         return "Screen Recording is required for captures, recordings, and live window thumbnails."
     }
 
+    private func requestNextHeaderPermission() {
+        guard let requirement = headerMissingRequirements.first else {
+            return
+        }
+
+        model.requestPermission(requirement)
+    }
+
     private func missingPermissionRow(_ requirement: CapturePermissionRequirement) -> some View {
         HStack(alignment: .center, spacing: 10) {
             Image(systemName: requirement.systemImage)
@@ -907,7 +970,7 @@ struct ContentView: View {
                 Text(requirement.title)
                     .font(.caption.weight(.semibold))
 
-                Text(requirement.requiredFor)
+                Text(missingPermissionDescription(for: requirement))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -929,6 +992,14 @@ struct ContentView: View {
             .controlSize(.small)
             .help("Show manual setup steps below if macOS does not list SnipSnipSnip.")
         }
+    }
+
+    private func missingPermissionDescription(for requirement: CapturePermissionRequirement) -> String {
+        if requirement == .accessibility, model.uiMapNeedsAccessibilityAccess {
+            return "Required for UI Map metadata capture when Enable UI Map is on."
+        }
+
+        return requirement.requiredFor
     }
 
     private func handlePendingDocumentOpenRequests() {

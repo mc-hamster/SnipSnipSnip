@@ -4,6 +4,7 @@ enum AppSceneID {
     static let mainWindow = "main-window"
     static let helpWindow = "help-window"
     static let layersWindow = "layers-window"
+    static let uiMapWindow = "ui-map-window"
     static let onboardingWindow = "onboarding-window"
 }
 
@@ -72,6 +73,18 @@ struct ScreenshotCaptureSettingsMenuContent: View {
     var body: some View {
         Toggle("Include Cursor", isOn: $model.screenshotIncludesCursor)
             .help("Add the cursor as an editable screenshot overlay. Scrolling Capture always excludes it.")
+
+        if FeatureFlags.uiMapEnabled {
+            Toggle("Include UI Map", isOn: uiMapBinding)
+                .help("Save names, roles, and locations of visible interface elements with new screenshots.")
+        }
+    }
+
+    private var uiMapBinding: Binding<Bool> {
+        Binding(
+            get: { model.uiMapEnabled },
+            set: { model.updateUIMapEnabled($0) }
+        )
     }
 }
 
