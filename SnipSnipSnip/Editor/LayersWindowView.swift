@@ -93,7 +93,6 @@ private struct LayersListView: View {
             Divider()
                 .frame(height: 18)
 
-            // TODO(Phase 5+): Add layer visibility and lock once annotation metadata and .sss schema support it.
             Button(action: controller.groupSelected) {
                 Image(systemName: "square.stack.3d.up")
             }

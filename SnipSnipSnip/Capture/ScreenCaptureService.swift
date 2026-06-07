@@ -97,7 +97,6 @@ nonisolated enum RegionCapturePlan: Equatable {
 }
 
 struct ScreenCaptureService: ScreenCaptureServiceType {
-    // TODO(Phase 3+): Add timed capture, repeat-region capture, and richer window targeting without changing the preview/editor handoff model.
     func listWindows(excluding processID: pid_t = ProcessInfo.processInfo.processIdentifier, includeThumbnails: Bool = true) async throws -> [CaptureWindowSummary] {
         guard CapturePermissionStatus.current().hasScreenRecording else {
             throw ScreenCaptureError.permissionDenied

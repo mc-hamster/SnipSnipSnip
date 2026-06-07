@@ -35,8 +35,6 @@ enum EditorRenderer {
     nonisolated(unsafe) private static var exportParagraphStyleCache = [NSString: NSParagraphStyle]()
     nonisolated private static let exportCacheLock = NSLock()
 
-    // TODO(Phase 4+): Add measurement guides and layer reordering overlays without flattening the editable scene graph.
-
     nonisolated static func render(baseImage: CGImage, snapshot: EditorSnapshot) -> CGImage? {
         let crop = snapshot.cropRect.gscIntegralStandardized
         let width = Int(crop.width)

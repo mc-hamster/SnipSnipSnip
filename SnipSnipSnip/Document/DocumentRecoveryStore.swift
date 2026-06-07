@@ -934,7 +934,6 @@ nonisolated private struct RecoverySessionRecord: Codable {
     var createdAt: Date
     var updatedAt: Date
     var pendingRecovery: Bool
-    // TODO(Phase 5+): Remove support for older recovery sessions whose checkpoints each embed base.png.
     var baseImageName: String?
     var checkpoints: [RecoveryCheckpointRecord]
 }

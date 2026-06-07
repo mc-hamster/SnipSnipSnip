@@ -28,4 +28,3 @@ description: "Workspace instructions for implementing SnipSnipSnip as a phase-sc
 - Prefer helper extraction over repeating shape-switch logic across annotation operations.
 - Avoid maintaining parallel display/export implementations when a shared geometry or style helper can express the same behavior.
 - Consolidate shared test utilities and factories instead of copying pixel, image, or snapshot helpers across test files.
-- Mark deferred follow-up work with clear `TODO(Phase 5+)` comments instead of partial implementation.
