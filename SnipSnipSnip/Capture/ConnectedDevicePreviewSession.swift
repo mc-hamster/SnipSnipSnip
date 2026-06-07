@@ -10,11 +10,14 @@ nonisolated final class ConnectedDevicePreviewSession: NSObject, @unchecked Send
     private let sessionQueue = DispatchQueue(label: "com.oontz.Snips.connected-device.session")
     private let sampleQueue = DispatchQueue(label: "com.oontz.Snips.connected-device.samples")
     private let frameLock = NSLock()
+    private let runtimeIssueLock = NSLock()
     private let ciContext = CIContext()
     private let videoDataOutput = AVCaptureVideoDataOutput()
     private let movieOutput = AVCaptureMovieFileOutput()
     private var isStopped = false
     private var isMovieOutputConfigured = false
+    private var runtimeNotificationObservers: [NSObjectProtocol] = []
+    private var runtimeIssueHandler: (@Sendable (ConnectedDeviceCaptureError) -> Void)?
     private var latestPixelBuffer: CVPixelBuffer?
     private var latestFrameSize = CGSize.zero
     private var recordingOutputURL: URL?
@@ -37,6 +40,12 @@ nonisolated final class ConnectedDevicePreviewSession: NSObject, @unchecked Send
 
     deinit {
         stop()
+    }
+
+    func setRuntimeIssueHandler(_ handler: (@Sendable (ConnectedDeviceCaptureError) -> Void)?) {
+        runtimeIssueLock.lock()
+        runtimeIssueHandler = handler
+        runtimeIssueLock.unlock()
     }
 
     func start() async throws {
@@ -79,6 +88,8 @@ nonisolated final class ConnectedDevicePreviewSession: NSObject, @unchecked Send
             if self.captureSession.isRunning {
                 self.captureSession.stopRunning()
             }
+
+            self.removeRuntimeObservers()
 
             self.captureSession.beginConfiguration()
             if self.isMovieOutputConfigured, self.captureSession.outputs.contains(self.movieOutput) {
@@ -211,6 +222,7 @@ nonisolated final class ConnectedDevicePreviewSession: NSObject, @unchecked Send
         }
         captureSession.addOutput(videoDataOutput)
 
+        installRuntimeObservers()
     }
 
     private func configureMovieOutputIfNeeded() throws {
@@ -277,6 +289,55 @@ nonisolated final class ConnectedDevicePreviewSession: NSObject, @unchecked Send
 
         return max(Date().timeIntervalSince(fallbackStart), 0)
     }
+
+    private func installRuntimeObservers() {
+        removeRuntimeObservers()
+
+        let center = NotificationCenter.default
+        runtimeNotificationObservers = [
+            center.addObserver(
+                forName: AVCaptureSession.runtimeErrorNotification,
+                object: captureSession,
+                queue: nil
+            ) { [weak self] notification in
+                self?.handleRuntimeError(notification)
+            },
+            center.addObserver(
+                forName: AVCaptureSession.wasInterruptedNotification,
+                object: captureSession,
+                queue: nil
+            ) { [weak self] notification in
+                self?.handleSessionInterruption(notification)
+            },
+        ]
+    }
+
+    private func removeRuntimeObservers() {
+        let observers = runtimeNotificationObservers
+        runtimeNotificationObservers = []
+
+        for observer in observers {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
+
+    private func handleRuntimeError(_ notification: Notification) {
+        let error = notification.userInfo?[AVCaptureSessionErrorKey] as? AVError
+        emitRuntimeIssue(.previewRuntimeError(error?.localizedDescription ?? "The capture session failed unexpectedly."))
+    }
+
+    private func handleSessionInterruption(_ notification: Notification) {
+        emitRuntimeIssue(.previewInterrupted("macOS interrupted the connected-device stream. Keep the device awake and unlocked, then refresh devices if the preview does not recover."))
+    }
+
+    private func emitRuntimeIssue(_ issue: ConnectedDeviceCaptureError) {
+        runtimeIssueLock.lock()
+        let handler = runtimeIssueHandler
+        runtimeIssueLock.unlock()
+
+        handler?(issue)
+    }
+
 }
 
 extension ConnectedDevicePreviewSession: @preconcurrency AVCaptureVideoDataOutputSampleBufferDelegate {

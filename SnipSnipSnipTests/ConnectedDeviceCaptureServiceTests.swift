@@ -19,6 +19,17 @@ final class ConnectedDeviceCaptureServiceTests: XCTestCase {
         )
     }
 
+    func testConnectedDeviceCaptureErrorExplainsPreviewInterruptions() {
+        XCTAssertEqual(
+            ConnectedDeviceCaptureError.previewInterrupted("The connected-device video stream is in use by another app.").errorDescription,
+            "Connected-device preview was interrupted: The connected-device video stream is in use by another app."
+        )
+        XCTAssertEqual(
+            ConnectedDeviceCaptureError.noVideoFramesReceived.errorDescription,
+            "No video frames were received from the connected device. Keep the device awake and unlocked, confirm Trust This Computer if prompted, then try Refresh Devices."
+        )
+    }
+
     func testConnectedDeviceKindsUseExpectedMetadataValues() {
         XCTAssertEqual(CaptureKind.connectedDevice.rawValue, "connectedDevice")
         XCTAssertEqual(VideoRecordingKind.connectedDevice.rawValue, "connectedDevice")

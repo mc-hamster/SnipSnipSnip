@@ -8,10 +8,10 @@ SnipSnipSnip is a local-first macOS screenshot, annotation, history, OCR, and sc
 - Non-destructive screenshot editor with crop, rectangle, ellipse, line, arrow, freehand, highlight, text, callouts, ruler measurements, spotlight/dim, image overlays, rotation, layer ordering, grouping, alignment, snapping, and blur/pixelate/solid redaction.
 - Local OCR for capture-history search and selectable Copy Text from a dragged screenshot region.
 - PNG, JPEG, and PDF screenshot export with re-encoded metadata-stripped output.
-- Drag-out sharing for rendered screenshots, styled presentation previews, and trimmed MP4 recordings.
+- Drag-out sharing for rendered screenshots, styled presentation previews, and trimmed video exports.
 - Floating reference screenshots for pinning rendered editor or history snapshots in lightweight always-on-top windows.
 - Editable `.sss` screenshot packages with base image, preview, annotations, undo/redo history, search metadata, and image overlay assets.
-- Region, window, and fullscreen screen recording with current-display, selected-display, and all-displays fullscreen modes, cursor/click options, system audio, microphone narration, pause/resume controls, trim editing, `.sssvideo` packages, and MP4 export presets.
+- Region, window, and fullscreen screen recording with current-display, selected-display, and all-displays fullscreen modes, cursor/click options, system audio, microphone narration, pause/resume controls, trim editing, `.sssvideo` packages, MP4 export presets, and short-loop GIF/APNG export.
 - Autosave checkpoints, recent snips, archive search, recycle bin, archive size limits, and custom archive location.
 
 For the detailed current feature inventory, partial features, and known gaps, see [FEATURE_LIST.md](FEATURE_LIST.md).
@@ -28,7 +28,7 @@ Private Capture skips archive checkpoints, recent-snips recovery, recycle-bin re
 - Accessibility: required only for Scrolling Capture, where the app must scroll the selected target.
 - Microphone: required only when microphone narration is enabled for recording.
 
-The app Settings screen includes permission diagnostics and remediation buttons. Region and fullscreen capture do not require Accessibility.
+The app Settings screen includes permission diagnostics, remediation buttons, and a local sanitized diagnostics export for support. Region and fullscreen capture do not require Accessibility.
 
 ### Accessibility Permission For Xcode Builds
 

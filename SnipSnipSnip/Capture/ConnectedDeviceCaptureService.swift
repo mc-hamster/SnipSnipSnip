@@ -32,6 +32,8 @@ nonisolated enum ConnectedDeviceCaptureError: LocalizedError, Equatable {
     case sessionAlreadyActive
     case deviceDisconnected(String)
     case captureSessionFailed(String)
+    case previewInterrupted(String)
+    case previewRuntimeError(String)
     case noVideoFramesReceived
     case protectedContentUnavailable
     case recordingFinalizeFailed(String)
@@ -53,8 +55,12 @@ nonisolated enum ConnectedDeviceCaptureError: LocalizedError, Equatable {
             return "\(deviceName) disconnected. Preview or recording stopped safely."
         case .captureSessionFailed(let message):
             return "Connected-device capture failed: \(message)"
+        case .previewInterrupted(let message):
+            return "Connected-device preview was interrupted: \(message)"
+        case .previewRuntimeError(let message):
+            return "Connected-device preview stopped because macOS reported a runtime error: \(message)"
         case .noVideoFramesReceived:
-            return "No video frames were received from the connected device."
+            return "No video frames were received from the connected device. Keep the device awake and unlocked, confirm Trust This Computer if prompted, then try Refresh Devices."
         case .protectedContentUnavailable:
             return "Protected content cannot be captured from the connected device."
         case .recordingFinalizeFailed(let message):

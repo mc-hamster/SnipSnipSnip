@@ -130,6 +130,12 @@ private final class ConnectedDevicePreviewViewModel: ObservableObject {
         self.openScreenshot = openScreenshot
         self.openRecording = openRecording
         self.presentError = presentError
+
+        session.setRuntimeIssueHandler { [weak self] issue in
+            Task { @MainActor [weak self] in
+                self?.handleRuntimeIssue(issue)
+            }
+        }
     }
 
     var isRecording: Bool {
@@ -138,6 +144,21 @@ private final class ConnectedDevicePreviewViewModel: ObservableObject {
 
     var primaryButtonTitle: String {
         intent == .recording ? "Start Recording" : "Capture Screenshot"
+    }
+
+    var guidanceText: String {
+        switch status {
+        case .starting:
+            return "Starting the live USB preview."
+        case .live:
+            return "Keep the device awake and unlocked. If the stream disappears, choose Refresh Devices from the capture menu."
+        case .recording:
+            return "Recording the connected-device stream. Keep the cable connected until recording is stopped."
+        case .stopped:
+            return "Preview stopped."
+        case .failed:
+            return "Reconnect or unlock the device, then choose Refresh Devices before trying again."
+        }
     }
 
     func start() async throws {
@@ -156,6 +177,7 @@ private final class ConnectedDevicePreviewViewModel: ObservableObject {
         }
 
         hasStopped = true
+        session.setRuntimeIssueHandler(nil)
         if isRecording {
             Task {
                 await stopRecording(openWhenFinished: false)
@@ -283,6 +305,17 @@ private final class ConnectedDevicePreviewViewModel: ObservableObject {
         closeWindow?()
     }
 
+    private func handleRuntimeIssue(_ issue: ConnectedDeviceCaptureError) {
+        guard !hasStopped else {
+            return
+        }
+
+        isBusy = false
+        status = .failed(issue.errorDescription ?? "Connected-device preview failed.")
+        session.stop()
+        present(issue)
+    }
+
     private func present(_ error: Error) {
         presentError(error)
     }
@@ -315,6 +348,12 @@ private struct ConnectedDevicePreviewView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
+
+            Text(viewModel.guidanceText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
 
             controls
         }

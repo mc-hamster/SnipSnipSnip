@@ -270,7 +270,7 @@ struct HelpGuideView: View {
                     ] + (FeatureFlags.connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(
                             title: "Connected devices",
-                            body: "Capture > Connected Device scans for trusted USB iPhone and iPad sources when the menu opens. Choose a device to open a live preview, then capture the latest visible frame, copy it, save it, or open it in the screenshot editor. Use Refresh Devices only if the phone or tablet was just connected or unlocked and has not appeared yet."
+                            body: "Capture > Connected Device scans for trusted USB iPhone and iPad sources when the menu opens. Choose a device to open a live preview, then capture the latest visible frame, copy it, save it, or open it in the screenshot editor. Keep the device awake and unlocked. If the phone or tablet was just connected, unlocked, trusted, or reconnected, choose Refresh Devices."
                         )
                     ] : []) + [
                         HelpArticleSection(
@@ -344,7 +344,7 @@ struct HelpGuideView: View {
                     ] + (FeatureFlags.connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(
                             title: "Connected-device recording",
-                            body: "Choose Record Connected Device; the menu scans for trusted USB iPhone and iPad sources as it opens. Pick a device, then use the preview window to start and stop recording. Finished MP4 recordings open in the normal video editor for poster frames, trimming, export, and archive behavior."
+                            body: "Choose Record Connected Device; the menu scans for trusted USB iPhone and iPad sources as it opens. Pick a device, then use the preview window to start and stop recording. Keep the device awake, unlocked, and connected until recording is stopped. Finished MP4 recordings open in the normal video editor for poster frames, trimming, export, and archive behavior."
                         )
                     ] : []) + [
                         HelpArticleSection(
@@ -725,8 +725,12 @@ struct HelpGuideView: View {
                             body: "Free disk space before recording or exporting video. SnipSnipSnip blocks or stops video work early so temporary media can finalize safely."
                         ),
                         HelpArticleSection(
+                            title: "Connected iPhone or iPad does not appear",
+                            body: "Use a USB connection, unlock the device, confirm Trust This Computer if prompted, keep the device awake, then choose Refresh Devices. If SnipSnipSnip says the USB device is connected but macOS is not exposing its stream, reconnect the cable or reopen the device camera/screen source after unlocking it. App Store-safe builds cannot use private QuickTime device services."
+                        ),
+                        HelpArticleSection(
                             title: "Export diagnostics for support",
-                            body: "Use Settings > Privacy > Export Diagnostics to save a local JSON report with sanitized app, permission, display, storage, and status details. Diagnostics do not include screenshots, clipboard contents, OCR text, annotation text, document data, window titles, or raw file paths."
+                            body: "Use Settings > Privacy > Export Diagnostics to save a local JSON report with sanitized app, permission, display, storage, connected-device, and status details. Diagnostics do not include screenshots, clipboard contents, OCR text, annotation text, document data, window titles, or raw file paths."
                         )
                     ] + (FeatureFlags.scrollingCaptureEnabled
                         ? [

@@ -15,6 +15,10 @@ final class SupportDiagnosticsTests: XCTestCase {
         model.editorController = controller
         model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false)
         model.archiveSizeBytes = 42
+        model.connectedDevices = [
+            ConnectedAppleDevice(id: "redacted-device-id", name: "Jorge's iPhone", modelName: "iPhone")
+        ]
+        model.connectedDeviceEmptyStateMessage = "Unlock /Users/example/Device Log and refresh."
         model.recycleBinEntries = [
             DocumentHistoryEntry(
                 id: UUID(),
@@ -43,6 +47,9 @@ final class SupportDiagnosticsTests: XCTestCase {
         XCTAssertEqual(diagnostics.editor.annotationCount, 2)
         XCTAssertEqual(diagnostics.editor.selectedAnnotationCount, 1)
         XCTAssertEqual(diagnostics.storage.recycleBinItemCount, 1)
+        XCTAssertEqual(diagnostics.connectedDevice.listedDeviceCount, 1)
+        XCTAssertEqual(diagnostics.connectedDevice.previewSessionActive, false)
+        XCTAssertEqual(diagnostics.connectedDevice.emptyStateMessage, "Unlock [path].")
         XCTAssertEqual(diagnostics.recentStatus.launchAtLoginStatus, model.launchAtLoginStatus.stateLabel)
     }
 

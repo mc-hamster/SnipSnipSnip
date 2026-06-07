@@ -64,6 +64,14 @@ struct SupportDiagnostics: Codable, Equatable {
         let activeVideoRecordingKind: String?
     }
 
+    struct ConnectedDeviceInfo: Codable, Equatable {
+        let featureEnabled: Bool
+        let listedDeviceCount: Int
+        let previewSessionActive: Bool
+        let isLoadingDevices: Bool
+        let emptyStateMessage: String?
+    }
+
     struct RecentStatusInfo: Codable, Equatable {
         let appError: String?
         let editorError: String?
@@ -80,6 +88,7 @@ struct SupportDiagnostics: Codable, Equatable {
     let displays: DisplayInfo
     let storage: StorageInfo
     let editor: EditorInfo
+    let connectedDevice: ConnectedDeviceInfo
     let recentStatus: RecentStatusInfo
 
     func jsonData() throws -> Data {
@@ -102,6 +111,7 @@ enum SupportDiagnosticsBuilder {
             displays: displayInfo(),
             storage: storageInfo(from: model),
             editor: editorInfo(from: model),
+            connectedDevice: connectedDeviceInfo(from: model),
             recentStatus: recentStatusInfo(from: model)
         )
     }
@@ -188,6 +198,17 @@ enum SupportDiagnosticsBuilder {
     }
 
     @MainActor
+    private static func connectedDeviceInfo(from model: AppModel) -> SupportDiagnostics.ConnectedDeviceInfo {
+        SupportDiagnostics.ConnectedDeviceInfo(
+            featureEnabled: FeatureFlags.connectedDeviceCaptureEnabled,
+            listedDeviceCount: model.connectedDevices.count,
+            previewSessionActive: model.isConnectedDeviceSessionActive,
+            isLoadingDevices: model.isLoadingConnectedDevices,
+            emptyStateMessage: sanitizedStatus(model.connectedDeviceEmptyStateMessage)
+        )
+    }
+
+    @MainActor
     private static func recentStatusInfo(from model: AppModel) -> SupportDiagnostics.RecentStatusInfo {
         SupportDiagnostics.RecentStatusInfo(
             appError: sanitizedStatus(model.errorMessage),
@@ -209,7 +230,7 @@ enum SupportDiagnosticsBuilder {
         }
 
         let withoutPaths = trimmed.replacingOccurrences(
-            of: #"(/Users|/Volumes|/private|/tmp)/[^\s]+"#,
+            of: #"(/Users|/Volumes|/private|/tmp)/[^,.;\n\r]+"#,
             with: "[path]",
             options: .regularExpression
         )
