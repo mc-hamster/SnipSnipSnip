@@ -176,17 +176,21 @@ final class AppModelPerformanceTests: XCTestCase {
         wait(for: [expectation], timeout: 5)
     }
 
-    func testCaptureEntryPointPerformance() {
+    func testCaptureEntryPointPerformance() async {
         let model = makeModel()
+        Self.retainedModels.append(model)
 
-        let options = XCTMeasureOptions.default
-        options.iterationCount = 8
-
-        measure(metrics: [XCTClockMetric(), XCTCPUMetric(), XCTMemoryMetric()], options: options) {
-            waitForCapture(on: model, request: .fullscreen, minimizeAppWindow: true) {
+        let elapsed = await PerformanceBudgetTimer.measure {
+            await model.performCapture(request: .fullscreen, minimizeAppWindow: false) {
                 try await model.captureService.captureCurrentDisplay()
             }
+            await model.waitForPendingRecoveryWriteTasks()
         }
+
+        XCTAssertTrue(
+            PerformanceBudgetCatalog.captureEntryPoint.contains(elapsed),
+            "Capture entry point took \(elapsed)s, over \(PerformanceBudgetCatalog.captureEntryPoint.maximumSeconds)s"
+        )
     }
 
     func testWindowPickerPerformance() {

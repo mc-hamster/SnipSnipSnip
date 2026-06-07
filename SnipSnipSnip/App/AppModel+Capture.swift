@@ -826,7 +826,7 @@ extension AppModel {
         }
 
         if autoCopyEnabled {
-            copyCurrentEditorImageToClipboard()
+            scheduleAutoCopy(for: controller)
         }
         requestMainWindowPresentation()
     }
@@ -861,7 +861,7 @@ extension AppModel {
         }
 
         if autoCopyEnabled {
-            copyCurrentEditorImageToClipboard()
+            scheduleAutoCopy(for: controller)
         }
         requestMainWindowPresentation()
     }

@@ -1,6 +1,7 @@
 import AppKit
 import CoreGraphics
 import Foundation
+import OSLog
 @preconcurrency import ScreenCaptureKit
 
 protocol ScreenCaptureServiceType: Sendable {
@@ -14,6 +15,23 @@ protocol ScreenCaptureServiceType: Sendable {
     func captureRegionDirect(in selection: CGRect) async throws -> CapturedScreenshot
     func captureRegionWithinSingleDisplayDirect(in selection: CGRect) async throws -> CapturedScreenshot
     func captureWindow(_ window: CaptureWindowSummary) async throws -> CapturedScreenshot
+}
+
+private enum CapturePlanDiagnostics {
+    nonisolated private static let logger = Logger(
+        subsystem: "com.oontz.SnipSnipSnip",
+        category: "CapturePlan"
+    )
+
+    nonisolated static let isEnabled = false
+
+    nonisolated static func log(_ message: String) {
+        guard isEnabled else {
+            return
+        }
+
+        logger.debug("\(message, privacy: .public)")
+    }
 }
 
 extension ScreenCaptureServiceType {
@@ -545,7 +563,7 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
         let requestDescription = request.map {
             " displayID=\($0.displayID) localSourceRect=\($0.sourceRect.cgRect) outputSize=\($0.outputSize)"
         } ?? ""
-        print("[CapturePlan] strategy=\(strategy) region=\(region)\(requestDescription) displays=[\(displayInventory)]")
+        CapturePlanDiagnostics.log("[CapturePlan] strategy=\(strategy) region=\(region)\(requestDescription) displays=[\(displayInventory)]")
         #endif
     }
 

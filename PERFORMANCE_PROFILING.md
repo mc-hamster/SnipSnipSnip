@@ -66,3 +66,4 @@ The script writes:
 - If video budget checks regress: inspect `VideoStorageGuardrails` temp-file scanning and avoid walking unrelated directories.
 - If memory regresses: verify image cache behavior and intermediate image lifetimes.
 - Confirm behavior remains unchanged with existing functional tests before optimizing.
+- Prefer the concrete macOS destination used by the normal test command (`platform=macOS,arch=arm64,name=My Mac`) so Xcode does not spend profiling time probing unrelated connected devices.

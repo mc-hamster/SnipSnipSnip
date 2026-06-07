@@ -69,7 +69,7 @@ Supported tokens include `{kind}`, `{source}`, `{width}`, `{height}`, `{format}`
 Open `SnipSnipSnip.xcodeproj` in Xcode, or run:
 
 ```sh
-xcodebuild test -project SnipSnipSnip.xcodeproj -scheme SnipSnipSnip -destination platform=macOS -derivedDataPath /private/tmp/SnipSnipSnip-DerivedData
+xcodebuild test -project SnipSnipSnip.xcodeproj -scheme SnipSnipSnip -destination 'platform=macOS,arch=arm64,name=My Mac' -derivedDataPath /private/tmp/SnipSnipSnip-DerivedData
 ```
 
 The test suite uses `/private/tmp` for DerivedData so build artifacts stay out of the repo.

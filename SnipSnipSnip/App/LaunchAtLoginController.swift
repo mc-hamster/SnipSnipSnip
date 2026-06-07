@@ -161,12 +161,12 @@ final class LaunchAtLoginController: ObservableObject {
         } catch {
             let refreshedStatus = refreshStatus()
 
-            if refreshedStatus.matchesRequestedState(isEnabled) {
-                return .updated(refreshedStatus)
-            }
-
             if refreshedStatus.needsSystemSettingsApproval {
                 return .requiresApproval
+            }
+
+            if refreshedStatus.matchesRequestedState(isEnabled) {
+                return .updated(refreshedStatus)
             }
 
             return .failed(error.localizedDescription)

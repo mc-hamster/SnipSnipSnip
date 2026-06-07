@@ -314,6 +314,37 @@ final class EditorCommandsTests: XCTestCase {
         )
     }
 
+    func testSetAnnotationOrderCommandAppliesFullBackToFrontOrder() {
+        let first = Annotation.makeRectangle(in: CGRect(x: 0, y: 0, width: 40, height: 40))
+        let second = Annotation.makeEllipse(in: CGRect(x: 50, y: 0, width: 40, height: 40))
+        let third = Annotation.makeArrow(from: CGPoint(x: 100, y: 0), to: CGPoint(x: 140, y: 40))
+        let snapshot = makeEditorSnapshot(
+            annotations: [first, second, third],
+            selectedAnnotationIDs: [second.id]
+        )
+
+        let result = SetAnnotationOrderCommand(
+            annotationIDsBackToFront: [third.id, first.id, second.id]
+        ).apply(to: snapshot)
+
+        XCTAssertEqual(result.annotations.map(\.id), [third.id, first.id, second.id])
+        XCTAssertEqual(result.selectedAnnotationIDs, [second.id])
+    }
+
+    func testSetAnnotationOrderCommandRejectsPartialOrUnknownOrder() {
+        let first = Annotation.makeRectangle(in: CGRect(x: 0, y: 0, width: 40, height: 40))
+        let second = Annotation.makeEllipse(in: CGRect(x: 50, y: 0, width: 40, height: 40))
+        let snapshot = makeEditorSnapshot(annotations: [first, second])
+
+        let partial = SetAnnotationOrderCommand(annotationIDsBackToFront: [second.id])
+            .apply(to: snapshot)
+        let unknown = SetAnnotationOrderCommand(annotationIDsBackToFront: [second.id, UUID()])
+            .apply(to: snapshot)
+
+        XCTAssertEqual(partial.annotations.map(\.id), [first.id, second.id])
+        XCTAssertEqual(unknown.annotations.map(\.id), [first.id, second.id])
+    }
+
     func testSnapshotCanReorderForward() {
         let first = Annotation.makeRectangle(in: CGRect(x: 0, y: 0, width: 40, height: 40))
         let second = Annotation.makeEllipse(in: CGRect(x: 50, y: 0, width: 40, height: 40))

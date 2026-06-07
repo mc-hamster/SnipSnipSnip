@@ -454,10 +454,12 @@ struct CaptureAutomationSettingsView: View {
                         PermissionStatusRow(requirement: .accessibility, model: model)
                     }
 
+                    Button("Export Diagnostics…", action: model.exportSupportDiagnostics)
+
                     SettingsHelpText(
                         FeatureFlags.scrollingCaptureEnabled
-                            ? "Accessibility is only required for Scrolling Capture. Region, Window, Fullscreen, editor OCR, export, and annotation tools do not depend on Accessibility."
-                            : "Screen Recording is the only privacy permission required for screenshot pixels, live window thumbnails, and screen recording in this build."
+                            ? "Accessibility is only required for Scrolling Capture. Region, Window, Fullscreen, editor OCR, export, and annotation tools do not depend on Accessibility. Diagnostics export sanitized app, permission, display, storage, and status details without screenshots, clipboard contents, OCR text, annotations, or document data."
+                            : "Screen Recording is the only privacy permission required for screenshot pixels, live window thumbnails, and screen recording in this build. Diagnostics export sanitized app, permission, display, storage, and status details without screenshots, clipboard contents, OCR text, annotations, or document data."
                     )
                 }
 

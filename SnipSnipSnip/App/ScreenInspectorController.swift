@@ -435,7 +435,7 @@ final class ScreenInspectorWindowController: NSWindowController {
         panel.isReleasedWhenClosed = false
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.minSize = CGSize(width: 380, height: 390)
+        panel.minSize = CGSize(width: 420, height: 430)
         panel.contentView = NSHostingView(
             rootView: ScreenInspectorWindowView(
                 model: model,
@@ -467,7 +467,7 @@ final class ScreenInspectorWindowController: NSWindowController {
 
     private static func initialFrame() -> CGRect {
         let visibleFrame = NSScreen.main?.visibleFrame ?? CGRect(x: 160, y: 160, width: 900, height: 600)
-        let size = CGSize(width: 340, height: 500)
+        let size = CGSize(width: 420, height: 540)
 
         return CGRect(
             x: visibleFrame.maxX - size.width - 24,
@@ -523,7 +523,7 @@ private struct ScreenInspectorWindowView: View {
             controls
         }
         .padding(14)
-        .frame(minWidth: 280, minHeight: 410)
+        .frame(minWidth: 392, minHeight: 410)
         .background(.ultraThinMaterial)
     }
 
@@ -610,7 +610,7 @@ private struct ScreenInspectorWindowView: View {
                 .lineLimit(1)
         }
         .font(.caption)
-        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var controls: some View {
@@ -632,35 +632,42 @@ private struct ScreenInspectorWindowView: View {
                     Button("\(model.isFrozen ? "Unfreeze" : "Freeze") ⌥⌘F") {
                         model.toggleFrozen()
                     }
+                    .frame(minWidth: 96)
                     .keyboardShortcut(.space, modifiers: [])
                     .help("Freeze or unfreeze the inspector. Shortcut: Option-Command-F.")
 
                     Button("Snip ⌥⌘S", action: model.snipCurrentSample)
+                        .frame(minWidth: 78)
                         .disabled(model.sample == nil)
                         .keyboardShortcut("s", modifiers: [.command, .option])
                         .help("Open the current inspector sample in the editor. Shortcut: Option-Command-S.")
 
                     Button("Close Esc", action: onClose)
+                        .frame(minWidth: 78)
                         .keyboardShortcut(.escape, modifiers: [])
                 }
 
                 HStack(spacing: 8) {
                     Button("Copy HEX ⌥⌘H", action: model.copyColorAsHex)
+                        .frame(minWidth: 98)
                         .disabled(model.sample == nil)
                         .keyboardShortcut("h", modifiers: [.command, .option])
                         .help("Copy the current color as HEX. Shortcut: Option-Command-H.")
 
                     Button("Copy RGB ⌥⌘R", action: model.copyColorAsRGB)
+                        .frame(minWidth: 98)
                         .disabled(model.sample == nil)
                         .keyboardShortcut("r", modifiers: [.command, .option])
                         .help("Copy the current color as RGB. Shortcut: Option-Command-R.")
 
                     Button("\(model.measurementButtonTitle) ⌥⌘M", action: model.toggleMeasurementPoint)
+                        .frame(minWidth: 98)
                         .disabled(model.sample == nil)
                         .keyboardShortcut("m", modifiers: [.command, .option])
                         .help("Set the first point, then lock the current cursor as the second point. Shortcut: Option-Command-M.")
 
                     Button("Clear", action: model.clearMeasurement)
+                        .frame(minWidth: 54)
                         .disabled(model.measurement == nil)
                         .help("Clear the distance measurement.")
                 }

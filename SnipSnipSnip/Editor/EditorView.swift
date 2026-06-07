@@ -271,6 +271,7 @@ struct EditorToolbarView: View {
     let onExportPDF: () -> Void
     let onShare: () -> Void
     let dragOutPayloadProvider: @MainActor () -> PromisedFilePayload?
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         GlassEffectContainer(spacing: 14) {
@@ -284,6 +285,7 @@ struct EditorToolbarView: View {
                         onExportJPEG: onExportJPEG,
                         onExportPDF: onExportPDF,
                         onShare: onShare,
+                        onShowLayers: showLayersWindow,
                         dragOutPayloadProvider: dragOutPayloadProvider
                     )
                 } else {
@@ -291,6 +293,12 @@ struct EditorToolbarView: View {
                 }
             }
         }
+    }
+
+    private func showLayersWindow() {
+        openWindow(id: AppSceneID.layersWindow)
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.layersWindow })?.makeKeyAndOrderFront(nil)
     }
 }
 
@@ -307,6 +315,7 @@ private struct ActiveEditorToolbarView: View {
     let onExportJPEG: () -> Void
     let onExportPDF: () -> Void
     let onShare: () -> Void
+    let onShowLayers: () -> Void
     let dragOutPayloadProvider: @MainActor () -> PromisedFilePayload?
 
     var body: some View {
@@ -347,6 +356,12 @@ private struct ActiveEditorToolbarView: View {
                 .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
                 .help("Redo")
                 .disabled(!controller.canRedo)
+
+                Button(action: onShowLayers) {
+                    Image(systemName: "square.3.layers.3d")
+                }
+                .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
+                .help("Show Layers")
 
                 Button(action: controller.rotateSelectedClockwise90) {
                     Image(systemName: "rotate.right")

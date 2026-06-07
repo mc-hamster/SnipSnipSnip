@@ -1,9 +1,27 @@
 import AppKit
 import CoreGraphics
+import OSLog
 
 #if !APP_STORE_BUILD
 import ApplicationServices
 #endif
+
+private enum WindowPickerDiagnostics {
+    nonisolated private static let logger = Logger(
+        subsystem: "com.oontz.SnipSnipSnip",
+        category: "WindowPicker"
+    )
+
+    nonisolated static let isEnabled = false
+
+    nonisolated static func log(_ message: String) {
+        guard isEnabled else {
+            return
+        }
+
+        logger.debug("\(message, privacy: .public)")
+    }
+}
 
 @MainActor
 final class WindowSelectionSession: NSObject {
@@ -32,9 +50,9 @@ final class WindowSelectionSession: NSObject {
         let visibleBounds = visibleWindowBoundsSources(desktopFrame: snapshot.globalFrame)
 
         #if DEBUG
-        print("[WindowPicker] Diagnostics version: 2026-05-13-stale-highlight-fix-v6")
-        print("[WindowPicker] presentOverlay: \(windows.count) total windows")
-        print("[WindowPicker] Display previews: \(snapshot.displayPreviews.count)")
+        WindowPickerDiagnostics.log("[WindowPicker] Diagnostics version: 2026-05-13-stale-highlight-fix-v6")
+        WindowPickerDiagnostics.log("[WindowPicker] presentOverlay: \(windows.count) total windows")
+        WindowPickerDiagnostics.log("[WindowPicker] Display previews: \(snapshot.displayPreviews.count)")
         #endif
 
         overlayWindows = snapshot.displayPreviews.compactMap { displayPreview in
@@ -56,9 +74,9 @@ final class WindowSelectionSession: NSObject {
             }
             
             #if DEBUG
-            print("[WindowPicker] Display \(displayPreview.snapshot.displayID): capture=\(displayPreview.snapshot.frame) overlay=\(displayPreview.snapshot.overlayFrame) -> \(displayWindows.count) windows")
+            WindowPickerDiagnostics.log("[WindowPicker] Display \(displayPreview.snapshot.displayID): capture=\(displayPreview.snapshot.frame) overlay=\(displayPreview.snapshot.overlayFrame) -> \(displayWindows.count) windows")
             for w in displayWindows {
-                print("[WindowPicker]   - \(w.displayTitle)")
+                WindowPickerDiagnostics.log("[WindowPicker]   - \(w.displayTitle)")
             }
             #endif
             
@@ -193,11 +211,11 @@ private final class WindowSelectionView: NSView {
             let highlightRect = viewLocalRect(fromScreenRect: screenRect)
             
             #if DEBUG
-            print("[WindowPicker.draw] hoveredWindow: \(hoveredWindow.displayTitle)")
-            print("[WindowPicker.draw] screenRect: \(screenRect)")
-            print("[WindowPicker.draw] displayFrame: \(displayFrame)")
-            print("[WindowPicker.draw] bounds: \(bounds)")
-            print("[WindowPicker.draw] highlightRect (view-local): \(highlightRect)")
+            WindowPickerDiagnostics.log("[WindowPicker.draw] hoveredWindow: \(hoveredWindow.displayTitle)")
+            WindowPickerDiagnostics.log("[WindowPicker.draw] screenRect: \(screenRect)")
+            WindowPickerDiagnostics.log("[WindowPicker.draw] displayFrame: \(displayFrame)")
+            WindowPickerDiagnostics.log("[WindowPicker.draw] bounds: \(bounds)")
+            WindowPickerDiagnostics.log("[WindowPicker.draw] highlightRect (view-local): \(highlightRect)")
             #endif
             
             dimPath.append(NSBezierPath(roundedRect: highlightRect, xRadius: 14, yRadius: 14))
@@ -297,13 +315,13 @@ private final class WindowSelectionView: NSView {
             y: displayFrame.minY + event.locationInWindow.y
         )
         #if DEBUG
-        print("[WindowPicker.appKitScreenPoint] Event conversion:")
-        print("[WindowPicker.appKitScreenPoint]   event.locationInWindow: \(event.locationInWindow)")
-        print("[WindowPicker.appKitScreenPoint]   displayFrame: \(displayFrame)")
+        WindowPickerDiagnostics.log("[WindowPicker.appKitScreenPoint] Event conversion:")
+        WindowPickerDiagnostics.log("[WindowPicker.appKitScreenPoint]   event.locationInWindow: \(event.locationInWindow)")
+        WindowPickerDiagnostics.log("[WindowPicker.appKitScreenPoint]   displayFrame: \(displayFrame)")
         if let window {
-            print("[WindowPicker.appKitScreenPoint]   actualWindowFrame: \(window.frame)")
+            WindowPickerDiagnostics.log("[WindowPicker.appKitScreenPoint]   actualWindowFrame: \(window.frame)")
         }
-        print("[WindowPicker.appKitScreenPoint]   Result screen point: \(screenPoint)")
+        WindowPickerDiagnostics.log("[WindowPicker.appKitScreenPoint]   Result screen point: \(screenPoint)")
         #endif
         return screenPoint
     }
@@ -317,12 +335,12 @@ private final class WindowSelectionView: NSView {
             let localRect = convert(windowRect, from: nil).gscIntegralStandardized
 
             #if DEBUG
-            print("[WindowPicker.viewLocalRect] Conversion:")
-            print("[WindowPicker.viewLocalRect]   screenRect: \(screenRect)")
-            print("[WindowPicker.viewLocalRect]   displayFrame: \(displayFrame)")
-            print("[WindowPicker.viewLocalRect]   actualWindowFrame: \(window.frame)")
-            print("[WindowPicker.viewLocalRect]   windowRect: \(windowRect)")
-            print("[WindowPicker.viewLocalRect]   Result: \(localRect)")
+            WindowPickerDiagnostics.log("[WindowPicker.viewLocalRect] Conversion:")
+            WindowPickerDiagnostics.log("[WindowPicker.viewLocalRect]   screenRect: \(screenRect)")
+            WindowPickerDiagnostics.log("[WindowPicker.viewLocalRect]   displayFrame: \(displayFrame)")
+            WindowPickerDiagnostics.log("[WindowPicker.viewLocalRect]   actualWindowFrame: \(window.frame)")
+            WindowPickerDiagnostics.log("[WindowPicker.viewLocalRect]   windowRect: \(windowRect)")
+            WindowPickerDiagnostics.log("[WindowPicker.viewLocalRect]   Result: \(localRect)")
 
             return localRect
             #else
@@ -338,11 +356,11 @@ private final class WindowSelectionView: NSView {
             height: screenRect.height
         ).gscIntegralStandardized
         
-        print("[WindowPicker.viewLocalRect] Conversion:")
-        print("[WindowPicker.viewLocalRect]   screenRect.minX=\(screenRect.minX) - displayFrame.minX=\(displayFrame.minX) = localX=\(localRect.minX)")
-        print("[WindowPicker.viewLocalRect]   displayFrame.maxY=\(displayFrame.maxY) - screenRect.maxY=\(screenRect.maxY) = localY=\(localRect.minY)")
-        print("[WindowPicker.viewLocalRect]   screenRect.maxY=\(screenRect.maxY), screenRect.minY=\(screenRect.minY)")
-        print("[WindowPicker.viewLocalRect]   Result: \(localRect)")
+        WindowPickerDiagnostics.log("[WindowPicker.viewLocalRect] Conversion:")
+        WindowPickerDiagnostics.log("[WindowPicker.viewLocalRect]   screenRect.minX=\(screenRect.minX) - displayFrame.minX=\(displayFrame.minX) = localX=\(localRect.minX)")
+        WindowPickerDiagnostics.log("[WindowPicker.viewLocalRect]   displayFrame.maxY=\(displayFrame.maxY) - screenRect.maxY=\(screenRect.maxY) = localY=\(localRect.minY)")
+        WindowPickerDiagnostics.log("[WindowPicker.viewLocalRect]   screenRect.maxY=\(screenRect.maxY), screenRect.minY=\(screenRect.minY)")
+        WindowPickerDiagnostics.log("[WindowPicker.viewLocalRect]   Result: \(localRect)")
         
         return localRect
         #else
@@ -383,15 +401,15 @@ private final class WindowSelectionView: NSView {
 
         #if DEBUG
         let debugPrefix = "[WindowPicker]"
-        print("\(debugPrefix) Cursor at screen point: \(screenPoint)")
-        print("\(debugPrefix) Converted window: \(convertedWindow?.displayTitle ?? "nil")")
-        print("\(debugPrefix) Raw window: \(rawWindow?.displayTitle ?? "nil")")
+        WindowPickerDiagnostics.log("\(debugPrefix) Cursor at screen point: \(screenPoint)")
+        WindowPickerDiagnostics.log("\(debugPrefix) Converted window: \(convertedWindow?.displayTitle ?? "nil")")
+        WindowPickerDiagnostics.log("\(debugPrefix) Raw window: \(rawWindow?.displayTitle ?? "nil")")
         #endif
 
         switch (convertedWindow, rawWindow) {
         case (nil, nil):
             #if DEBUG
-            print("\(debugPrefix) No window found at cursor")
+            WindowPickerDiagnostics.log("\(debugPrefix) No window found at cursor")
             #endif
             return nil
         case let (nil, window?):
@@ -402,7 +420,7 @@ private final class WindowSelectionView: NSView {
                 displayTransform: displayTransform
             )
             #if DEBUG
-            print("\(debugPrefix) Using raw: \(window.displayTitle) at \(rect)")
+            WindowPickerDiagnostics.log("\(debugPrefix) Using raw: \(window.displayTitle) at \(rect)")
             #endif
             return (window, rect)
         case let (window?, nil):
@@ -413,10 +431,10 @@ private final class WindowSelectionView: NSView {
                 displayTransform: displayTransform
             )
             #if DEBUG
-            print("\(debugPrefix) Using converted: \(window.displayTitle) at \(rect)")
+            WindowPickerDiagnostics.log("\(debugPrefix) Using converted: \(window.displayTitle) at \(rect)")
             if let sourceRect = boundsSources.converted[window.id], sourceRect != rect {
-                print("\(debugPrefix) Converted source rect: \(sourceRect)")
-                print("\(debugPrefix) Converted mapped rect: \(rect)")
+                WindowPickerDiagnostics.log("\(debugPrefix) Converted source rect: \(sourceRect)")
+                WindowPickerDiagnostics.log("\(debugPrefix) Converted mapped rect: \(rect)")
             }
             #endif
             return (window, rect)
@@ -438,25 +456,25 @@ private final class WindowSelectionView: NSView {
             let convertedCoverage = overlayCoverage(for: convertedRect)
             #if DEBUG
             let debugPrefix = "[WindowPicker]"
-            print("\(debugPrefix) Raw: \(raw.displayTitle) at \(rawRect), coverage: \(rawCoverage)")
-            print("\(debugPrefix) Converted: \(converted.displayTitle) at \(convertedRect), coverage: \(convertedCoverage)")
+            WindowPickerDiagnostics.log("\(debugPrefix) Raw: \(raw.displayTitle) at \(rawRect), coverage: \(rawCoverage)")
+            WindowPickerDiagnostics.log("\(debugPrefix) Converted: \(converted.displayTitle) at \(convertedRect), coverage: \(convertedCoverage)")
             if let sourceRect = boundsSources.converted[converted.id], sourceRect != convertedRect {
-                print("\(debugPrefix) Converted source rect: \(sourceRect)")
-                print("\(debugPrefix) Converted mapped rect: \(convertedRect)")
+                WindowPickerDiagnostics.log("\(debugPrefix) Converted source rect: \(sourceRect)")
+                WindowPickerDiagnostics.log("\(debugPrefix) Converted mapped rect: \(convertedRect)")
             }
             #endif
 
             if raw.id == converted.id || rawCoverage > 0 {
                 let highlightRect = gscPreferredHighlightRect(primary: rawRect, alternate: convertedRect)
                 #if DEBUG
-                print("\(debugPrefix) Choosing raw bounds for \(raw.displayTitle)")
-                print("\(debugPrefix) Highlight rect: \(highlightRect)")
+                WindowPickerDiagnostics.log("\(debugPrefix) Choosing raw bounds for \(raw.displayTitle)")
+                WindowPickerDiagnostics.log("\(debugPrefix) Highlight rect: \(highlightRect)")
                 #endif
                 return (raw, highlightRect)
             }
 
             #if DEBUG
-            print("\(debugPrefix) Falling back to converted bounds for \(converted.displayTitle)")
+            WindowPickerDiagnostics.log("\(debugPrefix) Falling back to converted bounds for \(converted.displayTitle)")
             #endif
             return (converted, convertedRect)
         }
@@ -519,12 +537,12 @@ private final class WindowSelectionView: NSView {
         let highlightRect = accessibilityRect.map { gscPreferredHighlightRect(primary: $0, alternate: rawRect) } ?? rawRect
 
         #if DEBUG
-        print("[WindowPicker] Accessibility resolved: \(window.displayTitle) id=\(window.id)")
-        print("[WindowPicker] Accessibility point: \(accessibilityPoint)")
-        print("[WindowPicker] Raw rect: \(rawRect)")
+        WindowPickerDiagnostics.log("[WindowPicker] Accessibility resolved: \(window.displayTitle) id=\(window.id)")
+        WindowPickerDiagnostics.log("[WindowPicker] Accessibility point: \(accessibilityPoint)")
+        WindowPickerDiagnostics.log("[WindowPicker] Raw rect: \(rawRect)")
         if let accessibilityRect {
-            print("[WindowPicker] AX rect: \(accessibilityRect)")
-            print("[WindowPicker] AX highlight rect: \(highlightRect)")
+            WindowPickerDiagnostics.log("[WindowPicker] AX rect: \(accessibilityRect)")
+            WindowPickerDiagnostics.log("[WindowPicker] AX highlight rect: \(highlightRect)")
         }
         #endif
 

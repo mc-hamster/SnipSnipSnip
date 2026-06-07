@@ -463,6 +463,10 @@ struct HelpGuideView: View {
                             body: "Use the inspector to change stroke color, fill color, line width, text size, effect strength, arrow heads, arrow labels, callout style, rectangle corners, freehand smoothing, and alignment where supported. Use the editor toolbar rotate button to turn selected annotations by 90 degrees."
                         ),
                         HelpArticleSection(
+                            title: "Manage layers",
+                            body: "Use the Layers button in the editor toolbar or Arrange > Show Layers to open a separate Layers window. The window shows editable annotations from front to back, lets you select one or more layers, drag to reorder, group or ungroup, and delete selected layers without using the inspector."
+                        ),
+                        HelpArticleSection(
                             title: "Sample colors",
                             steps: [
                                 "In the Style section, choose Picker or Fill under Sample From Image.",
@@ -685,6 +689,7 @@ struct HelpGuideView: View {
                             bullets: [
                                 "Command-C copies the rendered screenshot.",
                                 "Shift-Command-F floats the current rendered screenshot as an always-on-top reference.",
+                                "Shift-Command-L opens the Layers window.",
                                 "Command-A selects all annotations.",
                                 "Command-G groups the current selection.",
                                 "Shift-Command-G ungroups the current selection."
@@ -718,6 +723,10 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Temporary storage is low",
                             body: "Free disk space before recording or exporting video. SnipSnipSnip blocks or stops video work early so temporary media can finalize safely."
+                        ),
+                        HelpArticleSection(
+                            title: "Export diagnostics for support",
+                            body: "Use Settings > Privacy > Export Diagnostics to save a local JSON report with sanitized app, permission, display, storage, and status details. Diagnostics do not include screenshots, clipboard contents, OCR text, annotation text, document data, window titles, or raw file paths."
                         )
                     ] + (FeatureFlags.scrollingCaptureEnabled
                         ? [

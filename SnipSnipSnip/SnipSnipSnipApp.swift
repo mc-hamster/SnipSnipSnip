@@ -335,10 +335,17 @@ private struct PasteboardCommands: Commands {
 
 private struct EditorCommands: Commands {
     @ObservedObject var model: AppModel
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
         CommandGroup(after: .pasteboard) {
             Menu("Arrange") {
+                Button("Show Layers", action: showLayersWindow)
+                    .keyboardShortcut("l", modifiers: [.command, .shift])
+                    .disabled(model.editorController == nil)
+
+                Divider()
+
                 Button("Bring Forward") {
                     model.editorController?.bringForward()
                 }
@@ -391,6 +398,12 @@ private struct EditorCommands: Commands {
 
     private func deleteSelection() {
         model.editorController?.deleteSelected()
+    }
+
+    private func showLayersWindow() {
+        openWindow(id: AppSceneID.layersWindow)
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.layersWindow })?.makeKeyAndOrderFront(nil)
     }
 }
 
@@ -458,6 +471,12 @@ struct SnipSnipSnipApp: App {
             HelpGuideView()
         }
         .defaultSize(width: 920, height: 760)
+
+        Window("Layers", id: AppSceneID.layersWindow) {
+            LayersWindowView(model: model)
+        }
+        .defaultSize(width: 360, height: 520)
+        .windowResizability(.contentSize)
         .restorationBehavior(.disabled)
 
         Settings {

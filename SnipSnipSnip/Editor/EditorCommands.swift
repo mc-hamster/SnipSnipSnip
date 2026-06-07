@@ -221,6 +221,35 @@ nonisolated struct ReorderAnnotationsCommand: DocumentCommand {
     }
 }
 
+nonisolated struct SetAnnotationOrderCommand: DocumentCommand {
+    let annotationIDsBackToFront: [UUID]
+
+    var label: String {
+        "Reorder Layers"
+    }
+
+    func apply(to snapshot: EditorSnapshot) -> EditorSnapshot {
+        guard annotationIDsBackToFront.count == snapshot.annotations.count else {
+            return snapshot
+        }
+
+        let existingIDs = snapshot.annotations.map(\.id)
+        guard Set(annotationIDsBackToFront) == Set(existingIDs) else {
+            return snapshot
+        }
+
+        let annotationsByID = Dictionary(uniqueKeysWithValues: snapshot.annotations.map { ($0.id, $0) })
+        let reordered = annotationIDsBackToFront.compactMap { annotationsByID[$0] }
+        guard reordered.count == snapshot.annotations.count, reordered.map(\.id) != existingIDs else {
+            return snapshot
+        }
+
+        var updated = snapshot
+        updated.annotations = reordered
+        return updated
+    }
+}
+
 private extension Array {
     nonisolated mutating func remove(at indices: [Index]) {
         for index in indices.sorted(by: >) {

@@ -3,6 +3,7 @@ import SwiftUI
 enum AppSceneID {
     static let mainWindow = "main-window"
     static let helpWindow = "help-window"
+    static let layersWindow = "layers-window"
     static let onboardingWindow = "onboarding-window"
 }
 

@@ -623,6 +623,10 @@ final class EditorController: ObservableObject {
         ))
     }
 
+    func reorderLayers(frontToBackAnnotationIDs: [UUID]) {
+        execute(SetAnnotationOrderCommand(annotationIDsBackToFront: Array(frontToBackAnnotationIDs.reversed())))
+    }
+
     func alignSelected(_ mode: AlignmentMode) {
         if showsTextAlignmentControls {
             switch mode {
