@@ -44,6 +44,17 @@ extension AppModel {
         }
     }
 
+    func deleteCaptureHistorySession(_ entry: DocumentHistoryEntry) {
+        do {
+            try recoveryStore.deleteSession(entry.sessionID)
+            refreshHistoryEntries()
+            refreshPendingRecoverySession()
+            triggerArchiveMaintenance()
+        } catch {
+            present(error)
+        }
+    }
+
     func deleteAllHistoryEntries() {
         guard let currentRecoverySessionID else {
             return

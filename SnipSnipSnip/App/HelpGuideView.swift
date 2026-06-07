@@ -609,8 +609,8 @@ struct HelpGuideView: View {
                             body: "Autosave checkpoints appear in the editor inspector. You can preview, restore, delete individual snapshots, or clear the current snip's history."
                         ),
                         HelpArticleSection(
-                            title: "Use Recent Snips and search",
-                            body: "Recent Snips keeps unsaved captures available when a newer capture replaces the editor. Capture History search is available from the main capture screen and the inspector, and searches labels, document names, annotation text, and recognized screenshot text."
+                            title: "Use Capture History search",
+                            body: "Capture History search is available from the main capture screen and the inspector, and searches labels, document names, annotation text, and recognized screenshot text. The main capture screen searches all capture history and shows one row per snip session with its checkpoint count, so autosave checkpoints do not repeat the same capture. Deleting a main-screen capture history row deletes that snip session and all of its checkpoints."
                         ),
                         HelpArticleSection(
                             title: "Restore deleted snips",
@@ -718,7 +718,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Work was replaced or deleted",
-                            body: "Check Recent Snips, Change History, Capture History search, or the Recycle Bin before recapturing."
+                            body: "Check Change History, Capture History search, or the Recycle Bin before recapturing."
                         ),
                         HelpArticleSection(
                             title: "Temporary storage is low",

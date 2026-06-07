@@ -403,10 +403,6 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     windowCaptureCard
 
-                    if !model.recentSnipEntries.isEmpty {
-                        recentSnipsCard
-                    }
-
                     captureHistoryCard
 
                     recycleBinCard
@@ -584,79 +580,17 @@ struct ContentView: View {
         }
     }
 
-    private var recentSnipsCard: some View {
-        CaptureModeCard(
-            title: "Recent Snips",
-            systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90",
-            detail: "Unsaved snips stay available here when a new capture takes over the editor."
-        ) {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Spacer()
-
-                    Button(role: .destructive, action: model.deleteAllRecentSnipEntries) {
-                        Label("Clear Recent Snips", systemImage: "trash")
-                    }
-                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-                    .help("Delete every recent snip except the one currently open.")
-                }
-
-                ForEach(model.recentSnipEntries) { entry in
-                    HStack(alignment: .top, spacing: 14) {
-                        DocumentPreviewThumbnailView(
-                            packageURL: entry.packageURL,
-                            thumbnailSize: CGSize(width: 112, height: 74),
-                            cornerRadius: 12
-                        )
-
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(entry.title)
-                                .font(.subheadline.weight(.semibold))
-                                .lineLimit(1)
-
-                            Text(entry.savedAt.formatted(date: .abbreviated, time: .shortened))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-
-                            Text(entry.label)
-                                .font(.caption2.weight(.medium))
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer(minLength: 8)
-
-                        VStack(spacing: 8) {
-                            Button("Restore") {
-                                model.restoreRecentSnipEntry(entry)
-                            }
-                            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-                            .help("Open this recent snip in the editor.")
-
-                            Button(role: .destructive) {
-                                model.deleteRecentSnipEntry(entry)
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-                            .help("Delete this recent snip.")
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     private var captureHistoryCard: some View {
         CaptureModeCard(
             title: "Search Capture History",
             systemImage: "text.magnifyingglass",
-            detail: "Search labels, document names, annotations, and recognized text across recent capture checkpoints."
+            detail: "Search labels, document names, annotations, and recognized text across captures, including recent unsaved snips."
         ) {
             VStack(alignment: .leading, spacing: 14) {
                 TextField("Search captures", text: $model.captureSearchQuery)
                     .textFieldStyle(.roundedBorder)
 
-                Text(model.captureHistorySearchResultsLabel)
+                Text(captureHistoryResultsLabel)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 
@@ -664,12 +598,12 @@ struct ContentView: View {
                     Text("Capture history search appears here after you have autosaves, recent snips, or saved checkpoints to search.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                } else if model.filteredCaptureHistoryEntries.isEmpty {
+                } else if visibleCaptureHistoryEntries.isEmpty {
                     Text("No captures matched the current search.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(Array(model.filteredCaptureHistoryEntries.prefix(8))) { entry in
+                    ForEach(Array(visibleCaptureHistoryEntries.prefix(8))) { entry in
                         HStack(alignment: .top, spacing: 14) {
                             DocumentPreviewThumbnailView(
                                 packageURL: entry.packageURL,
@@ -684,6 +618,10 @@ struct ContentView: View {
 
                                 Text("\(entry.label) • \(entry.savedAt.formatted(date: .abbreviated, time: .shortened))")
                                     .font(.caption)
+                                    .foregroundStyle(.secondary)
+
+                                Text(checkpointCountLabel(for: entry))
+                                    .font(.caption2.weight(.medium))
                                     .foregroundStyle(.secondary)
 
                                 if let previewText = historyPreviewText(for: entry) {
@@ -701,18 +639,48 @@ struct ContentView: View {
                                     model.restoreHistoryEntry(entry)
                                 }
                                 .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                                .help("Open this capture in the editor.")
 
                                 Button(role: .destructive) {
-                                    model.deleteHistoryEntry(entry)
+                                    model.deleteCaptureHistorySession(entry)
                                 } label: {
                                     Label("Delete", systemImage: "trash")
                                 }
                                 .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                                .help("Delete this capture and all of its checkpoints.")
                             }
                         }
                     }
                 }
             }
+        }
+    }
+
+    private var visibleCaptureHistoryEntries: [DocumentHistoryEntry] {
+        latestEntriesBySession(from: model.filteredCaptureHistoryEntries)
+    }
+
+    private var captureHistoryResultsLabel: String {
+        let query = model.captureSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let count = visibleCaptureHistoryEntries.count
+
+        guard !query.isEmpty else {
+            return "Recent captures, autosaves, and shelved snips from every session."
+        }
+
+        return count == 1 ? "1 capture for \"\(query)\"" : "\(count) captures for \"\(query)\""
+    }
+
+    private func checkpointCountLabel(for entry: DocumentHistoryEntry) -> String {
+        let count = model.allCaptureHistoryEntries.filter { $0.sessionID == entry.sessionID }.count
+        return count == 1 ? "1 checkpoint" : "\(count) checkpoints"
+    }
+
+    private func latestEntriesBySession(from entries: [DocumentHistoryEntry]) -> [DocumentHistoryEntry] {
+        var seenSessionIDs: Set<UUID> = []
+
+        return entries.filter { entry in
+            seenSessionIDs.insert(entry.sessionID).inserted
         }
     }
 
