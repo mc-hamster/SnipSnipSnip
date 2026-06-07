@@ -299,11 +299,10 @@ extension AppModel {
             }
 
             isWorking = true
-            workingMessage = captureDelay == .immediate ? "Pick Window" : captureDelay.shortLabel
+            workingMessage = "Pick Window"
             defer { isWorking = false }
 
             do {
-                try await runCaptureDelayIfNeeded(actionName: "Pick Window")
                 let windowOptions = windows.isEmpty ? try await captureService.listWindows(includeThumbnails: false) : windows
                 let snapshot = try await captureService.captureDesktopOverlaySnapshot()
                 let session = WindowSelectionSession(snapshot: snapshot, windows: windowOptions)
@@ -312,8 +311,11 @@ extension AppModel {
                     return
                 }
 
-                let capture = try await captureService.captureWindow(selectedWindow)
-                try completeCapture(capture, request: .window(selectedWindow), isPrivateCapture: isPrivateCapture)
+                try await runCaptureDelayIfNeeded(actionName: "Capturing Window")
+                let resolvedWindow = try await captureService.resolveWindowTarget(selectedWindow)
+                let capture = try await captureService.captureWindow(resolvedWindow)
+                showCapturedFeedback()
+                try completeCapture(capture, request: .window(resolvedWindow), isPrivateCapture: isPrivateCapture)
             } catch {
                 present(error)
             }
@@ -484,11 +486,10 @@ extension AppModel {
             try? await Task.sleep(nanoseconds: 200_000_000)
 
             isWorking = true
-            workingMessage = captureDelay == .immediate ? "Capture Region" : captureDelay.shortLabel
+            workingMessage = "Capture Region"
             defer { isWorking = false }
 
             do {
-                try await runCaptureDelayIfNeeded(actionName: "Capture Region")
                 let snapshot = try await captureService.captureDesktopOverlaySnapshot()
                 let session = RegionSelectionSession(snapshot: snapshot, preferences: regionCapturePreferences)
 
@@ -496,12 +497,15 @@ extension AppModel {
                     return
                 }
 
+                try await runCaptureDelayIfNeeded(actionName: "Capture Region")
                 let capture: CapturedScreenshot
                 do {
                     capture = try await captureService.captureRegionDirect(in: region)
                 } catch {
-                    capture = try await captureService.captureRegion(from: snapshot, selection: region)
+                    let fallbackSnapshot = try await captureService.captureDesktopOverlaySnapshot()
+                    capture = try await captureService.captureRegion(from: fallbackSnapshot, selection: region)
                 }
+                showCapturedFeedback()
                 try completeCapture(
                     capture,
                     request: .region(capture.sourceRect),
@@ -540,11 +544,10 @@ extension AppModel {
             try? await Task.sleep(nanoseconds: 200_000_000)
 
             isWorking = true
-            workingMessage = captureDelay == .immediate ? "Scrolling Capture" : captureDelay.shortLabel
+            workingMessage = "Scrolling Capture"
             defer { isWorking = false }
 
             do {
-                try await runCaptureDelayIfNeeded(actionName: "Scrolling Capture")
                 let snapshot = try await captureService.captureDesktopOverlaySnapshot()
                 let session = ScrollingSelectionSession(snapshot: snapshot)
 
@@ -552,6 +555,7 @@ extension AppModel {
                     return
                 }
 
+                try await runCaptureDelayIfNeeded(actionName: "Scrolling Capture")
                 try await Task.sleep(nanoseconds: 180_000_000)
                 try await performScrollingCapture(in: region, isPrivateCapture: isPrivateCapture)
                 completedCapture = true
@@ -617,6 +621,7 @@ extension AppModel {
         do {
             try await runCaptureDelayIfNeeded(actionName: "Capturing")
             let capture = try await action()
+            showCapturedFeedback()
             try completeCapture(capture, request: request, isPrivateCapture: isPrivateCapture)
         } catch {
             present(error)
@@ -676,6 +681,7 @@ extension AppModel {
                 try await runCaptureDelayIfNeeded(actionName: "Capturing Window")
                 let resolvedWindow = try await captureService.resolveWindowTarget(window)
                 let capture = try await captureService.captureWindow(resolvedWindow)
+                showCapturedFeedback()
                 try completeCapture(capture, request: .window(resolvedWindow), isPrivateCapture: isPrivateCapture)
             } catch let error as ScreenCaptureError where error == .windowImageUnavailable || error == .noWindowsAvailable {
                 requestMainWindowPresentation()
@@ -926,6 +932,7 @@ extension AppModel {
         )
 
         try completeCapture(result.capturedScreenshot, request: .scrolling(region), isPrivateCapture: isPrivateCapture)
+        showCapturedFeedback()
 
         if let warning = result.warnings.last {
             errorMessage = warning
@@ -1053,12 +1060,28 @@ extension AppModel {
             return
         }
 
+        let overlay = AppModel.isRunningUnitTests ? nil : CaptureFeedbackOverlay(title: "\(captureDelay.countdownSeconds)", detail: actionName)
+        overlay?.show()
+        defer {
+            overlay?.close()
+        }
+
         for remainingSeconds in stride(from: captureDelay.countdownSeconds, through: 1, by: -1) {
             workingMessage = "\(actionName) in \(remainingSeconds)…"
+            overlay?.update(title: "\(remainingSeconds)", detail: actionName)
             try await Task.sleep(nanoseconds: 1_000_000_000)
         }
 
         workingMessage = actionName
+        try await Task.sleep(nanoseconds: 80_000_000)
+    }
+
+    func showCapturedFeedback() {
+        guard !AppModel.isRunningUnitTests else {
+            return
+        }
+
+        CaptureFeedbackOverlay.showCapturedFeedback()
     }
 
     func hideAppWindowIfNeeded(in windows: [NSWindow] = NSApp.windows) -> NSWindow? {

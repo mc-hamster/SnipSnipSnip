@@ -275,7 +275,7 @@ struct HelpGuideView: View {
                     ] : []) + [
                         HelpArticleSection(
                             title: "Use a timer",
-                            body: "Choose a 3, 5, or 10 second timer from the Capture menu or menu bar extra when you need time to stage the screen before capture."
+                            body: "Choose a 3, 5, or 10 second timer from the Capture menu or menu bar extra when you need time to stage the screen before capture. For Region, Pick On Screen window capture, and Scrolling Capture, select the target first; SnipSnipSnip then shows the countdown and takes the snapshot when it reaches zero. Fullscreen, repeat, frontmost-window, and direct window captures count down immediately before reading pixels."
                         ),
                         HelpArticleSection(
                             title: "Include an editable cursor",
