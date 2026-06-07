@@ -1143,15 +1143,9 @@ nonisolated enum AnnotationKind: Equatable {
     case redaction(RedactionShape)
 }
 
-nonisolated struct Annotation: Identifiable, Equatable {
-    let id: UUID
-    var groupID: UUID?
-    var kind: AnnotationKind
-    var style: AnnotationStyle
-    var rotationDegrees: CGFloat = 0
-
+nonisolated extension AnnotationKind {
     var editorTool: EditorTool {
-        switch kind {
+        switch self {
         case .rectangle:
             return .rectangle
         case .ellipse:
@@ -1182,7 +1176,7 @@ nonisolated struct Annotation: Identifiable, Equatable {
     }
 
     var isTextEditable: Bool {
-        switch kind {
+        switch self {
         case .text, .callout:
             return true
         default:
@@ -1191,7 +1185,7 @@ nonisolated struct Annotation: Identifiable, Equatable {
     }
 
     var redactionMode: RedactionMode? {
-        guard case let .redaction(shape) = kind else {
+        guard case let .redaction(shape) = self else {
             return nil
         }
 
@@ -1199,7 +1193,7 @@ nonisolated struct Annotation: Identifiable, Equatable {
     }
 
     var textAlignmentMode: TextAlignmentMode? {
-        switch kind {
+        switch self {
         case let .text(shape):
             return shape.alignment
         case let .callout(shape):
@@ -1210,12 +1204,166 @@ nonisolated struct Annotation: Identifiable, Equatable {
     }
 
     var supportsFillEditing: Bool {
-        switch kind {
+        switch self {
         case .rectangle, .ellipse, .highlight, .text, .callout, .measurement, .spotlight, .imageOverlay, .redaction:
             return true
         default:
             return false
         }
+    }
+
+    var displayName: String {
+        switch self {
+        case .imageOverlay(let shape):
+            return shape.role == .capturedCursor ? "Cursor" : "Image"
+        case .redaction(let shape):
+            return shape.mode.label
+        default:
+            return editorTool.label
+        }
+    }
+
+    func transformingGeometry(
+        rect transformRect: (CGRect) -> CGRect,
+        point transformPoint: (CGPoint) -> CGPoint
+    ) -> AnnotationKind {
+        switch self {
+        case let .rectangle(shape):
+            return .rectangle(RectangleShape(rect: transformRect(shape.rect)))
+        case let .ellipse(shape):
+            return .ellipse(EllipseShape(rect: transformRect(shape.rect)))
+        case let .line(shape):
+            return .line(LineShape(
+                start: transformPoint(shape.start),
+                end: transformPoint(shape.end)
+            ))
+        case let .arrow(shape):
+            return .arrow(ArrowShape(
+                start: transformPoint(shape.start),
+                end: transformPoint(shape.end),
+                curvature: shape.curvature,
+                headStyle: shape.headStyle,
+                label: shape.label,
+                labelBoxColor: shape.labelBoxColor,
+                labelPlacement: shape.labelPlacement,
+                labelFontSize: shape.labelFontSize,
+                labelTextColor: shape.labelTextColor,
+                headShape: shape.headShape
+            ))
+        case let .freehand(shape):
+            return .freehand(FreehandShape(points: shape.points.map(transformPoint)))
+        case let .highlighter(shape):
+            return .highlighter(HighlighterShape(points: shape.points.map(transformPoint)))
+        case let .highlight(shape):
+            return .highlight(HighlightShape(rect: transformRect(shape.rect)))
+        case let .text(shape):
+            return .text(TextShape(rect: transformRect(shape.rect), text: shape.text, alignment: shape.alignment))
+        case let .callout(shape):
+            return .callout(CalloutShape(
+                rect: transformRect(shape.rect),
+                number: shape.number,
+                text: shape.text,
+                alignment: shape.alignment,
+                style: shape.style,
+                leaderPoint: shape.leaderPoint.map(transformPoint)
+            ))
+        case let .measurement(shape):
+            return .measurement(MeasurementShape(
+                start: transformPoint(shape.start),
+                end: transformPoint(shape.end)
+            ))
+        case let .spotlight(shape):
+            return .spotlight(SpotlightShape(rect: transformRect(shape.rect), isEllipse: shape.isEllipse))
+        case let .imageOverlay(shape):
+            return .imageOverlay(ImageOverlayShape(assetID: shape.assetID, rect: transformRect(shape.rect), image: shape.image, opacity: shape.opacity, role: shape.role))
+        case let .redaction(shape):
+            return .redaction(RedactionShape(rect: transformRect(shape.rect), mode: shape.mode))
+        }
+    }
+
+    func unrotatedBoundingRect(style: AnnotationStyle) -> CGRect {
+        switch self {
+        case let .rectangle(shape):
+            return standardizedRect(shape.rect)
+        case let .ellipse(shape):
+            return standardizedRect(shape.rect)
+        case let .line(shape):
+            return lineBounds(from: shape.start, to: shape.end, padding: 10)
+        case let .arrow(shape):
+            let lineRect = lineBounds(from: shape.start, to: shape.end, padding: 18)
+            return gscBoundingRect(of: [lineRect, arrowLabelRect(for: shape)]).integral
+        case let .measurement(shape):
+            return lineBounds(from: shape.start, to: shape.end, padding: 10)
+        case let .freehand(shape):
+            return polylineBounds(for: shape.points, style: style)
+        case let .highlighter(shape):
+            return polylineBounds(for: shape.points, style: style)
+        case let .highlight(shape):
+            return standardizedRect(shape.rect)
+        case let .text(shape):
+            return standardizedRect(shape.rect)
+        case let .callout(shape):
+            if let leaderPoint = shape.leaderPoint {
+                let leaderRect = lineBounds(from: shape.rect.center, to: leaderPoint, padding: 12)
+                return gscBoundingRect(of: [standardizedRect(shape.rect), leaderRect]).integral
+            }
+            return standardizedRect(shape.rect)
+        case let .spotlight(shape):
+            return standardizedRect(shape.rect)
+        case let .imageOverlay(shape):
+            return standardizedRect(shape.rect)
+        case let .redaction(shape):
+            return standardizedRect(shape.rect)
+        }
+    }
+
+    private func standardizedRect(_ rect: CGRect) -> CGRect {
+        rect.standardized.integral
+    }
+
+    private func lineBounds(from start: CGPoint, to end: CGPoint, padding: CGFloat) -> CGRect {
+        CGRect(
+            x: min(start.x, end.x),
+            y: min(start.y, end.y),
+            width: abs(end.x - start.x),
+            height: abs(end.y - start.y)
+        )
+        .insetBy(dx: -padding, dy: -padding)
+        .integral
+    }
+
+    private func polylineBounds(for points: [CGPoint], style: AnnotationStyle) -> CGRect {
+        let rect = gscBoundingRect(of: points.map { CGRect(origin: $0, size: .zero) })
+        let padding = style.lineWidth + 6
+        return rect.insetBy(dx: -padding, dy: -padding).integral
+    }
+}
+
+nonisolated struct Annotation: Identifiable, Equatable {
+    let id: UUID
+    var groupID: UUID?
+    var kind: AnnotationKind
+    var style: AnnotationStyle
+    var rotationDegrees: CGFloat = 0
+
+    var editorTool: EditorTool {
+        kind.editorTool
+    }
+
+    var isTextEditable: Bool {
+        kind.isTextEditable
+    }
+
+    var redactionMode: RedactionMode? {
+        kind.redactionMode
+    }
+
+    var textAlignmentMode: TextAlignmentMode? {
+        kind.textAlignmentMode
+    }
+
+    var supportsFillEditing: Bool {
+        kind.supportsFillEditing
     }
 
     nonisolated var boundingRect: CGRect {
@@ -1486,60 +1634,7 @@ nonisolated struct Annotation: Identifiable, Equatable {
         point transformPoint: (CGPoint) -> CGPoint
     ) -> Annotation {
         var copy = self
-
-        switch kind {
-        case let .rectangle(shape):
-            copy.kind = .rectangle(RectangleShape(rect: transformRect(shape.rect)))
-        case let .ellipse(shape):
-            copy.kind = .ellipse(EllipseShape(rect: transformRect(shape.rect)))
-        case let .line(shape):
-            copy.kind = .line(LineShape(
-                start: transformPoint(shape.start),
-                end: transformPoint(shape.end)
-            ))
-        case let .arrow(shape):
-            copy.kind = .arrow(ArrowShape(
-                start: transformPoint(shape.start),
-                end: transformPoint(shape.end),
-                curvature: shape.curvature,
-                headStyle: shape.headStyle,
-                label: shape.label,
-                labelBoxColor: shape.labelBoxColor,
-                labelPlacement: shape.labelPlacement,
-                labelFontSize: shape.labelFontSize,
-                labelTextColor: shape.labelTextColor,
-                headShape: shape.headShape
-            ))
-        case let .freehand(shape):
-            copy.kind = .freehand(FreehandShape(points: shape.points.map(transformPoint)))
-        case let .highlighter(shape):
-            copy.kind = .highlighter(HighlighterShape(points: shape.points.map(transformPoint)))
-        case let .highlight(shape):
-            copy.kind = .highlight(HighlightShape(rect: transformRect(shape.rect)))
-        case let .text(shape):
-            copy.kind = .text(TextShape(rect: transformRect(shape.rect), text: shape.text, alignment: shape.alignment))
-        case let .callout(shape):
-            copy.kind = .callout(CalloutShape(
-                rect: transformRect(shape.rect),
-                number: shape.number,
-                text: shape.text,
-                alignment: shape.alignment,
-                style: shape.style,
-                leaderPoint: shape.leaderPoint.map(transformPoint)
-            ))
-        case let .measurement(shape):
-            copy.kind = .measurement(MeasurementShape(
-                start: transformPoint(shape.start),
-                end: transformPoint(shape.end)
-            ))
-        case let .spotlight(shape):
-            copy.kind = .spotlight(SpotlightShape(rect: transformRect(shape.rect), isEllipse: shape.isEllipse))
-        case let .imageOverlay(shape):
-            copy.kind = .imageOverlay(ImageOverlayShape(assetID: shape.assetID, rect: transformRect(shape.rect), image: shape.image, opacity: shape.opacity, role: shape.role))
-        case let .redaction(shape):
-            copy.kind = .redaction(RedactionShape(rect: transformRect(shape.rect), mode: shape.mode))
-        }
-
+        copy.kind = kind.transformingGeometry(rect: transformRect, point: transformPoint)
         return copy
     }
 
@@ -1619,60 +1714,7 @@ nonisolated struct Annotation: Identifiable, Equatable {
     }
 
     private var unrotatedBoundingRect: CGRect {
-        switch kind {
-        case let .rectangle(shape):
-            return standardizedRect(shape.rect)
-        case let .ellipse(shape):
-            return standardizedRect(shape.rect)
-        case let .line(shape):
-            return lineBounds(from: shape.start, to: shape.end, padding: 10)
-        case let .arrow(shape):
-            let lineRect = lineBounds(from: shape.start, to: shape.end, padding: 18)
-            return gscBoundingRect(of: [lineRect, arrowLabelRect(for: shape)]).integral
-        case let .measurement(shape):
-            return lineBounds(from: shape.start, to: shape.end, padding: 10)
-        case let .freehand(shape):
-            return polylineBounds(for: shape.points)
-        case let .highlighter(shape):
-            return polylineBounds(for: shape.points)
-        case let .highlight(shape):
-            return standardizedRect(shape.rect)
-        case let .text(shape):
-            return standardizedRect(shape.rect)
-        case let .callout(shape):
-            if let leaderPoint = shape.leaderPoint {
-                let leaderRect = lineBounds(from: shape.rect.center, to: leaderPoint, padding: 12)
-                return gscBoundingRect(of: [standardizedRect(shape.rect), leaderRect]).integral
-            }
-            return standardizedRect(shape.rect)
-        case let .spotlight(shape):
-            return standardizedRect(shape.rect)
-        case let .imageOverlay(shape):
-            return standardizedRect(shape.rect)
-        case let .redaction(shape):
-            return standardizedRect(shape.rect)
-        }
-    }
-
-    private func standardizedRect(_ rect: CGRect) -> CGRect {
-        rect.standardized.integral
-    }
-
-    private func lineBounds(from start: CGPoint, to end: CGPoint, padding: CGFloat) -> CGRect {
-        CGRect(
-            x: min(start.x, end.x),
-            y: min(start.y, end.y),
-            width: abs(end.x - start.x),
-            height: abs(end.y - start.y)
-        )
-        .insetBy(dx: -padding, dy: -padding)
-        .integral
-    }
-
-    private func polylineBounds(for points: [CGPoint]) -> CGRect {
-        let rect = gscBoundingRect(of: points.map { CGRect(origin: $0, size: .zero) })
-        let padding = style.lineWidth + 6
-        return rect.insetBy(dx: -padding, dy: -padding).integral
+        kind.unrotatedBoundingRect(style: style)
     }
 }
 

@@ -1102,34 +1102,7 @@ nonisolated private enum RecoveryCheckpointSummary {
     }
 
     private static func annotationKindName(for annotation: Annotation) -> String {
-        switch annotation.kind {
-        case .rectangle:
-            return "Rectangle"
-        case .ellipse:
-            return "Ellipse"
-        case .line:
-            return "Line"
-        case .arrow:
-            return "Arrow"
-        case .freehand:
-            return "Freehand"
-        case .highlighter:
-            return "Highlighter"
-        case .highlight:
-            return "Highlight Box"
-        case .text:
-            return "Text"
-        case .callout:
-            return "Callout"
-        case .measurement:
-            return "Ruler"
-        case .spotlight:
-            return "Spotlight"
-        case let .imageOverlay(shape):
-            return shape.role == .capturedCursor ? "Cursor" : "Image"
-        case let .redaction(shape):
-            return shape.mode.label
-        }
+        annotation.kind.displayName
     }
 
     private static func pluralized(_ noun: String, count: Int) -> String {

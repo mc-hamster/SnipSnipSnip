@@ -26,6 +26,52 @@ nonisolated private struct ArrowHeadGeometry {
     }
 }
 
+nonisolated private struct RenderedAnnotation {
+    let kind: AnnotationKind
+    let style: AnnotationStyle
+    let localRect: CGRect
+    let displayRect: CGRect
+}
+
+private extension NSBezierPath {
+    convenience init(cgPath: CGPath) {
+        self.init()
+
+        cgPath.applyWithBlock { elementPointer in
+            let element = elementPointer.pointee
+            let points = element.points
+
+            switch element.type {
+            case .moveToPoint:
+                move(to: points[0])
+            case .addLineToPoint:
+                line(to: points[0])
+            case .addQuadCurveToPoint:
+                let currentPoint = currentPoint
+                let controlPoint = points[0]
+                let endPoint = points[1]
+                curve(
+                    to: endPoint,
+                    controlPoint1: CGPoint(
+                        x: currentPoint.x + (controlPoint.x - currentPoint.x) * 2 / 3,
+                        y: currentPoint.y + (controlPoint.y - currentPoint.y) * 2 / 3
+                    ),
+                    controlPoint2: CGPoint(
+                        x: endPoint.x + (controlPoint.x - endPoint.x) * 2 / 3,
+                        y: endPoint.y + (controlPoint.y - endPoint.y) * 2 / 3
+                    )
+                )
+            case .addCurveToPoint:
+                curve(to: points[2], controlPoint1: points[0], controlPoint2: points[1])
+            case .closeSubpath:
+                close()
+            @unknown default:
+                break
+            }
+        }
+    }
+}
+
 enum EditorRenderer {
     nonisolated private static let ciContext = CIContext(options: nil)
     nonisolated private static let croppedImageCache = RenderImageCache(totalCostLimit: 128 * 1024 * 1024)
@@ -120,178 +166,157 @@ enum EditorRenderer {
     }
 
     private static func draw(annotation: Annotation, sourceImage: CGImage, projection: DocumentProjection, renderScale: CGFloat) {
-        let displayStyle = annotation.style.scaledForDisplay(by: renderScale)
-        let localRect = projection.sourceLocalRect(fromDocumentRect: annotation.boundingRect)
-        let displayRect = mapRect(annotation.boundingRect, using: projection)
+        let rendered = renderedAnnotation(
+            annotation,
+            projection: projection,
+            renderScale: renderScale,
+            mapRect: { mapRect($0, using: projection) },
+            mapPoint: { mapPoint($0, using: projection) }
+        )
 
-        if case let .spotlight(shape) = annotation.kind {
+        if case let .spotlight(shape) = rendered.kind {
             drawSpotlight(
                 shape,
-                in: mapRect(shape.rect, using: projection),
+                in: shape.rect,
                 canvasRect: projection.destinationBounds,
-                style: displayStyle,
+                style: rendered.style,
                 scale: renderScale,
                 rotationDegrees: annotation.rotationDegrees,
-                rotationCenter: displayRect.center
+                rotationCenter: rendered.displayRect.center
             )
             return
         }
 
         NSGraphicsContext.saveGraphicsState()
-        rotatePreviewIfNeeded(degrees: annotation.rotationDegrees, around: displayRect.center)
+        rotatePreviewIfNeeded(degrees: annotation.rotationDegrees, around: rendered.displayRect.center)
         defer {
             NSGraphicsContext.restoreGraphicsState()
         }
 
-        switch annotation.kind {
+        switch rendered.kind {
         case let .rectangle(shape):
-            let path = rectanglePreviewPath(in: mapRect(shape.rect, using: projection), style: displayStyle)
-            strokeAndFill(path: path, style: displayStyle)
+            let path = rectanglePath(in: shape.rect, style: rendered.style)
+            strokeAndFill(path: path, style: rendered.style)
         case let .ellipse(shape):
-            let path = NSBezierPath(ovalIn: mapRect(shape.rect, using: projection))
-            strokeAndFill(path: path, style: displayStyle)
+            let path = CGPath(ellipseIn: shape.rect, transform: nil)
+            strokeAndFill(path: path, style: rendered.style)
         case let .line(shape):
             drawLine(
-                from: mapPoint(shape.start, using: projection),
-                to: mapPoint(shape.end, using: projection),
-                style: displayStyle
+                from: shape.start,
+                to: shape.end,
+                style: rendered.style
             )
         case let .arrow(shape):
             drawArrow(
-                ArrowShape(
-                    start: mapPoint(shape.start, using: projection),
-                    end: mapPoint(shape.end, using: projection),
-                    curvature: shape.curvature * renderScale,
-                    headStyle: shape.headStyle,
-                    label: shape.label,
-                    labelBoxColor: shape.labelBoxColor,
-                    labelPlacement: shape.labelPlacement,
-                    labelFontSize: shape.labelFontSize * renderScale,
-                    labelTextColor: shape.labelTextColor,
-                    headShape: shape.headShape
-                ),
-                style: displayStyle,
+                shape,
+                style: rendered.style,
                 scale: renderScale
             )
         case let .freehand(shape):
-            drawFreehand(points: shape.points.map { mapPoint($0, using: projection) }, style: displayStyle)
+            drawFreehand(points: shape.points, style: rendered.style)
         case let .highlighter(shape):
-            drawHighlighter(points: shape.points.map { mapPoint($0, using: projection) }, style: displayStyle)
+            drawHighlighter(points: shape.points, style: rendered.style)
         case let .highlight(shape):
-            drawHighlight(in: mapRect(shape.rect, using: projection), style: displayStyle, scale: renderScale)
+            drawHighlight(in: shape.rect, style: rendered.style, scale: renderScale)
         case let .text(shape):
-            drawText(shape.text, alignment: shape.alignment, in: mapRect(shape.rect, using: projection), style: displayStyle, scale: renderScale)
+            drawText(shape.text, alignment: shape.alignment, in: shape.rect, style: rendered.style, scale: renderScale)
         case let .callout(shape):
             drawCallout(
-                CalloutShape(
-                    rect: mapRect(shape.rect, using: projection),
-                    number: shape.number,
-                    text: shape.text,
-                    alignment: shape.alignment,
-                    style: shape.style,
-                    leaderPoint: shape.leaderPoint.map { mapPoint($0, using: projection) }
-                ),
-                in: mapRect(shape.rect, using: projection),
-                style: displayStyle,
+                shape,
+                in: shape.rect,
+                style: rendered.style,
                 scale: renderScale
             )
         case let .measurement(shape):
             drawMeasurement(
                 shape,
-                from: mapPoint(shape.start, using: projection),
-                to: mapPoint(shape.end, using: projection),
-                style: displayStyle,
+                from: shape.start,
+                to: shape.end,
+                style: rendered.style,
                 scale: renderScale
             )
         case .spotlight:
             assertionFailure("Spotlight annotations should return before generic rotation rendering")
         case let .imageOverlay(shape):
-            drawImageOverlay(shape, in: mapRect(shape.rect, using: projection))
+            drawImageOverlay(shape, in: shape.rect)
         case let .redaction(shape):
-            drawRedaction(shape.mode, in: localRect, displayRect: displayRect, croppedBase: sourceImage, style: displayStyle, scale: renderScale)
+            drawRedaction(shape.mode, in: rendered.localRect, displayRect: rendered.displayRect, croppedBase: sourceImage, style: rendered.style, scale: renderScale)
         }
     }
 
     nonisolated private static func drawExport(annotation: Annotation, croppedBase: CGImage, projection: DocumentProjection, context: CGContext) {
         let renderScale: CGFloat = 1
-        let displayStyle = annotation.style.scaledForDisplay(by: renderScale)
-        let localRect = projection.sourceLocalRect(fromDocumentRect: annotation.boundingRect)
-        let displayRect = exportRect(for: annotation.boundingRect, using: projection)
+        let rendered = renderedAnnotation(
+            annotation,
+            projection: projection,
+            renderScale: renderScale,
+            mapRect: { exportRect(for: $0, using: projection) },
+            mapPoint: { exportPoint(for: $0, using: projection) }
+        )
 
-        if case let .spotlight(shape) = annotation.kind {
+        if case let .spotlight(shape) = rendered.kind {
             drawSpotlightExport(
                 shape,
-                in: exportRect(for: shape.rect, using: projection),
+                in: shape.rect,
                 canvasRect: projection.destinationBounds,
-                style: displayStyle,
+                style: rendered.style,
                 scale: renderScale,
                 rotationDegrees: annotation.rotationDegrees,
-                rotationCenter: displayRect.center,
+                rotationCenter: rendered.displayRect.center,
                 context: context
             )
             return
         }
 
         context.saveGState()
-        rotateExportIfNeeded(degrees: annotation.rotationDegrees, around: displayRect.center, context: context)
+        rotateExportIfNeeded(degrees: annotation.rotationDegrees, around: rendered.displayRect.center, context: context)
         defer {
             context.restoreGState()
         }
 
-        switch annotation.kind {
+        switch rendered.kind {
         case let .rectangle(shape):
             strokeAndFillExport(
-                path: rectangleExportPath(in: exportRect(for: shape.rect, using: projection), style: displayStyle),
-                style: displayStyle,
+                path: rectanglePath(in: shape.rect, style: rendered.style),
+                style: rendered.style,
                 context: context
             )
         case let .ellipse(shape):
             strokeAndFillExport(
-                path: CGPath(ellipseIn: exportRect(for: shape.rect, using: projection), transform: nil),
-                style: displayStyle,
+                path: CGPath(ellipseIn: shape.rect, transform: nil),
+                style: rendered.style,
                 context: context
             )
         case let .line(shape):
             drawLineExport(
-                from: exportPoint(for: shape.start, using: projection),
-                to: exportPoint(for: shape.end, using: projection),
-                style: displayStyle,
+                from: shape.start,
+                to: shape.end,
+                style: rendered.style,
                 context: context
             )
         case let .arrow(shape):
             drawArrowExport(
-                ArrowShape(
-                    start: exportPoint(for: shape.start, using: projection),
-                    end: exportPoint(for: shape.end, using: projection),
-                    curvature: shape.curvature,
-                    headStyle: shape.headStyle,
-                    label: shape.label,
-                    labelBoxColor: shape.labelBoxColor,
-                    labelPlacement: shape.labelPlacement,
-                    labelFontSize: shape.labelFontSize,
-                    labelTextColor: shape.labelTextColor,
-                    headShape: shape.headShape
-                ),
-                style: displayStyle,
+                shape,
+                style: rendered.style,
                 scale: renderScale,
                 context: context
             )
         case let .freehand(shape):
             drawFreehandExport(
-                points: shape.points.map { exportPoint(for: $0, using: projection) },
-                style: displayStyle,
+                points: shape.points,
+                style: rendered.style,
                 context: context
             )
         case let .highlighter(shape):
             drawHighlighterExport(
-                points: shape.points.map { exportPoint(for: $0, using: projection) },
-                style: displayStyle,
+                points: shape.points,
+                style: rendered.style,
                 context: context
             )
         case let .highlight(shape):
             drawHighlightExport(
-                in: exportRect(for: shape.rect, using: projection),
-                style: displayStyle,
+                in: shape.rect,
+                style: rendered.style,
                 scale: renderScale,
                 context: context
             )
@@ -299,32 +324,25 @@ enum EditorRenderer {
             drawTextExport(
                 shape.text,
                 alignment: shape.alignment,
-                in: exportRect(for: shape.rect, using: projection),
-                style: displayStyle,
+                in: shape.rect,
+                style: rendered.style,
                 scale: renderScale,
                 context: context
             )
         case let .callout(shape):
             drawCalloutExport(
-                CalloutShape(
-                    rect: exportRect(for: shape.rect, using: projection),
-                    number: shape.number,
-                    text: shape.text,
-                    alignment: shape.alignment,
-                    style: shape.style,
-                    leaderPoint: shape.leaderPoint.map { exportPoint(for: $0, using: projection) }
-                ),
-                in: exportRect(for: shape.rect, using: projection),
-                style: displayStyle,
+                shape,
+                in: shape.rect,
+                style: rendered.style,
                 scale: renderScale,
                 context: context
             )
         case let .measurement(shape):
             drawMeasurementExport(
                 shape,
-                from: exportPoint(for: shape.start, using: projection),
-                to: exportPoint(for: shape.end, using: projection),
-                style: displayStyle,
+                from: shape.start,
+                to: shape.end,
+                style: rendered.style,
                 scale: renderScale,
                 context: context
             )
@@ -333,7 +351,7 @@ enum EditorRenderer {
         case let .imageOverlay(shape):
             drawImageOverlayExport(
                 shape,
-                in: exportRect(for: shape.rect, using: projection),
+                in: shape.rect,
                 context: context
             )
         case let .redaction(shape):
@@ -348,17 +366,59 @@ enum EditorRenderer {
 
             drawRedactionExport(
                 shape.mode,
-                in: localRect,
-                displayRect: displayRect,
+                in: rendered.localRect,
+                displayRect: rendered.displayRect,
                 croppedBase: compositedImage,
-                style: displayStyle,
+                style: rendered.style,
                 scale: renderScale,
                 context: context
             )
         }
     }
 
-    private static func strokeAndFill(path: NSBezierPath, style: AnnotationStyle) {
+    nonisolated private static func renderedAnnotation(
+        _ annotation: Annotation,
+        projection: DocumentProjection,
+        renderScale: CGFloat,
+        mapRect: (CGRect) -> CGRect,
+        mapPoint: (CGPoint) -> CGPoint
+    ) -> RenderedAnnotation {
+        let style = annotation.style.scaledForDisplay(by: renderScale)
+        let kind = annotation.kind.transformingGeometry(
+            rect: mapRect,
+            point: mapPoint
+        )
+
+        let scaledKind: AnnotationKind
+        switch kind {
+        case let .arrow(shape):
+            scaledKind = .arrow(ArrowShape(
+                start: shape.start,
+                end: shape.end,
+                curvature: shape.curvature * renderScale,
+                headStyle: shape.headStyle,
+                label: shape.label,
+                labelBoxColor: shape.labelBoxColor,
+                labelPlacement: shape.labelPlacement,
+                labelFontSize: shape.labelFontSize * renderScale,
+                labelTextColor: shape.labelTextColor,
+                headShape: shape.headShape
+            ))
+        default:
+            scaledKind = kind
+        }
+
+        return RenderedAnnotation(
+            kind: scaledKind,
+            style: style,
+            localRect: projection.sourceLocalRect(fromDocumentRect: annotation.boundingRect),
+            displayRect: mapRect(annotation.boundingRect)
+        )
+    }
+
+    private static func strokeAndFill(path: CGPath, style: AnnotationStyle) {
+        let path = NSBezierPath(cgPath: path)
+
         if style.fillColor.alpha > 0 {
             style.fillColor.nsColor.setFill()
             path.fill()
@@ -393,29 +453,43 @@ enum EditorRenderer {
     }
 
     private static func drawLine(from start: CGPoint, to end: CGPoint, style: AnnotationStyle) {
+        let path = linePath(from: start, to: end)
+        stroke(path: path, style: style)
+    }
+
+    nonisolated private static func drawLineExport(from start: CGPoint, to end: CGPoint, style: AnnotationStyle, context: CGContext) {
+        let path = linePath(from: start, to: end)
+        strokeExport(path: path, style: style, context: context)
+    }
+
+    private static func stroke(path: CGPath, style: AnnotationStyle) {
         style.strokeColor.nsColor.setStroke()
 
-        let path = NSBezierPath()
+        let path = NSBezierPath(cgPath: path)
         path.lineWidth = style.lineWidth
         path.lineCapStyle = .round
         path.lineJoinStyle = .round
         applyStrokeStyle(style, to: path)
-        path.move(to: start)
-        path.line(to: end)
         path.stroke()
     }
 
-    nonisolated private static func drawLineExport(from start: CGPoint, to end: CGPoint, style: AnnotationStyle, context: CGContext) {
+    nonisolated private static func strokeExport(path: CGPath, style: AnnotationStyle, context: CGContext) {
         context.saveGState()
         context.setStrokeColor(style.strokeColor.cgColor)
         context.setLineWidth(style.lineWidth)
         context.setLineCap(.round)
         context.setLineJoin(.round)
         applyStrokeStyle(style, to: context)
-        context.move(to: start)
-        context.addLine(to: end)
+        context.addPath(path)
         context.strokePath()
         context.restoreGState()
+    }
+
+    nonisolated private static func linePath(from start: CGPoint, to end: CGPoint) -> CGPath {
+        let path = CGMutablePath()
+        path.move(to: start)
+        path.addLine(to: end)
+        return path
     }
 
     nonisolated static func arrowHeadLength(bodyLength: CGFloat, lineWidth: CGFloat, scale: CGFloat) -> CGFloat {
@@ -466,18 +540,7 @@ enum EditorRenderer {
         )
     }
 
-    private static func arrowPreviewPath(for shape: ArrowShape) -> NSBezierPath {
-        let path = NSBezierPath()
-        path.move(to: shape.start)
-        if abs(shape.curvature) > 0.5 {
-            path.curve(to: shape.end, controlPoint1: arrowControlPoint(for: shape), controlPoint2: arrowControlPoint(for: shape))
-        } else {
-            path.line(to: shape.end)
-        }
-        return path
-    }
-
-    nonisolated private static func arrowExportPath(for shape: ArrowShape) -> CGPath {
+    nonisolated private static func arrowBodyPath(for shape: ArrowShape) -> CGPath {
         let path = CGMutablePath()
         path.move(to: shape.start)
         if abs(shape.curvature) > 0.5 {
@@ -556,39 +619,7 @@ enum EditorRenderer {
         return atan2(tangent.y, tangent.x)
     }
 
-    private static func arrowHeadPreviewPath(shape: ArrowHeadShape, tip: CGPoint, tail: CGPoint, curvature: CGFloat, lineWidth: CGFloat, scale: CGFloat) -> NSBezierPath {
-        let geometry = arrowHeadGeometry(tip: tip, tail: tail, curvature: curvature, lineWidth: lineWidth, scale: scale)
-        let path = NSBezierPath()
-
-        switch shape {
-        case .open:
-            path.move(to: tip)
-            path.line(to: geometry.left)
-            path.move(to: tip)
-            path.line(to: geometry.right)
-        case .triangle:
-            path.move(to: tip)
-            path.line(to: geometry.left)
-            path.line(to: geometry.right)
-            path.close()
-        case .stealth:
-            path.move(to: tip)
-            path.line(to: geometry.left)
-            path.line(to: geometry.stealthNotch)
-            path.line(to: geometry.right)
-            path.close()
-        case .diamond:
-            path.move(to: tip)
-            path.line(to: geometry.left)
-            path.line(to: geometry.diamondBack)
-            path.line(to: geometry.right)
-            path.close()
-        }
-
-        return path
-    }
-
-    nonisolated private static func arrowHeadExportPath(shape: ArrowHeadShape, tip: CGPoint, tail: CGPoint, curvature: CGFloat, lineWidth: CGFloat, scale: CGFloat) -> CGPath {
+    nonisolated private static func arrowHeadPath(shape: ArrowHeadShape, tip: CGPoint, tail: CGPoint, curvature: CGFloat, lineWidth: CGFloat, scale: CGFloat) -> CGPath {
         let geometry = arrowHeadGeometry(tip: tip, tail: tail, curvature: curvature, lineWidth: lineWidth, scale: scale)
         let path = CGMutablePath()
 
@@ -621,24 +652,25 @@ enum EditorRenderer {
     }
 
     private static func drawArrowHeadPreview(shape: ArrowHeadShape, tip: CGPoint, tail: CGPoint, curvature: CGFloat, style: AnnotationStyle, scale: CGFloat) {
-        let path = arrowHeadPreviewPath(shape: shape, tip: tip, tail: tail, curvature: curvature, lineWidth: style.lineWidth, scale: scale)
+        let path = arrowHeadPath(shape: shape, tip: tip, tail: tail, curvature: curvature, lineWidth: style.lineWidth, scale: scale)
         style.strokeColor.nsColor.setStroke()
         style.strokeColor.nsColor.setFill()
-        path.lineWidth = style.lineWidth
-        path.lineCapStyle = .round
-        path.lineJoinStyle = .round
-        applyStrokeStyle(style, to: path)
+        let bezierPath = NSBezierPath(cgPath: path)
+        bezierPath.lineWidth = style.lineWidth
+        bezierPath.lineCapStyle = .round
+        bezierPath.lineJoinStyle = .round
+        applyStrokeStyle(style, to: bezierPath)
 
         if shape == .open {
-            path.stroke()
+            bezierPath.stroke()
         } else {
-            path.fill()
-            path.stroke()
+            bezierPath.fill()
+            bezierPath.stroke()
         }
     }
 
     nonisolated private static func drawArrowHeadExport(shape: ArrowHeadShape, tip: CGPoint, tail: CGPoint, curvature: CGFloat, style: AnnotationStyle, scale: CGFloat, context: CGContext) {
-        let path = arrowHeadExportPath(shape: shape, tip: tip, tail: tail, curvature: curvature, lineWidth: style.lineWidth, scale: scale)
+        let path = arrowHeadPath(shape: shape, tip: tip, tail: tail, curvature: curvature, lineWidth: style.lineWidth, scale: scale)
         context.saveGState()
         context.setStrokeColor(style.strokeColor.cgColor)
         context.setFillColor(style.strokeColor.cgColor)
@@ -708,13 +740,7 @@ enum EditorRenderer {
     }
 
     private static func drawArrow(_ shape: ArrowShape, style: AnnotationStyle, scale: CGFloat) {
-        let path = arrowPreviewPath(for: shape)
-        style.strokeColor.nsColor.setStroke()
-        path.lineWidth = style.lineWidth
-        path.lineCapStyle = .round
-        path.lineJoinStyle = .round
-        applyStrokeStyle(style, to: path)
-        path.stroke()
+        stroke(path: arrowBodyPath(for: shape), style: style)
         drawArrowHeadPreview(shape: shape.headShape, tip: shape.end, tail: shape.start, curvature: shape.curvature, style: style, scale: scale)
         if shape.headStyle == .double {
             drawArrowHeadPreview(shape: shape.headShape, tip: shape.start, tail: shape.end, curvature: -shape.curvature, style: style, scale: scale)
@@ -726,15 +752,7 @@ enum EditorRenderer {
     }
 
     nonisolated private static func drawArrowExport(_ shape: ArrowShape, style: AnnotationStyle, scale: CGFloat, context: CGContext) {
-        context.saveGState()
-        context.setStrokeColor(style.strokeColor.cgColor)
-        context.setLineWidth(style.lineWidth)
-        context.setLineCap(.round)
-        context.setLineJoin(.round)
-        applyStrokeStyle(style, to: context)
-        context.addPath(arrowExportPath(for: shape))
-        context.strokePath()
-        context.restoreGState()
+        strokeExport(path: arrowBodyPath(for: shape), style: style, context: context)
         drawArrowHeadExport(shape: shape.headShape, tip: shape.end, tail: shape.start, curvature: shape.curvature, style: style, scale: scale, context: context)
         if shape.headStyle == .double {
             drawArrowHeadExport(shape: shape.headShape, tip: shape.start, tail: shape.end, curvature: -shape.curvature, style: style, scale: scale, context: context)
@@ -746,93 +764,58 @@ enum EditorRenderer {
     }
 
     private static func drawFreehand(points: [CGPoint], style: AnnotationStyle) {
-        guard let first = points.first else {
+        let path = freehandPath(points: points, style: style)
+        guard !path.isEmpty else {
             return
         }
 
-        style.strokeColor.nsColor.setStroke()
-        let path = smoothedFreehandPath(
-            simplifiedFreehandPoints(points, tolerance: style.freehandSimplification),
-            smoothing: style.freehandSmoothing,
-            fallbackStart: first
-        )
-        path.lineWidth = style.lineWidth
-        path.lineCapStyle = NSBezierPath.LineCapStyle.round
-        path.lineJoinStyle = NSBezierPath.LineJoinStyle.round
-        applyStrokeStyle(style, to: path)
-        path.stroke()
+        stroke(path: path, style: style)
     }
 
     nonisolated private static func drawFreehandExport(points: [CGPoint], style: AnnotationStyle, context: CGContext) {
-        let simplified = simplifiedFreehandPoints(points, tolerance: style.freehandSimplification)
-        guard let first = simplified.first else {
+        let path = freehandPath(points: points, style: style)
+        guard !path.isEmpty else {
             return
         }
 
-        context.saveGState()
-        context.setStrokeColor(style.strokeColor.cgColor)
-        context.setLineWidth(style.lineWidth)
-        context.setLineCap(.round)
-        context.setLineJoin(.round)
-        applyStrokeStyle(style, to: context)
-        context.move(to: first)
-        addSmoothedFreehandSegments(simplified, smoothing: style.freehandSmoothing, to: context)
-
-        context.strokePath()
-        context.restoreGState()
+        strokeExport(path: path, style: style, context: context)
     }
 
     private static func drawHighlighter(points: [CGPoint], style: AnnotationStyle) {
-        guard let first = points.first else {
+        let path = freehandPath(points: points, style: style)
+        guard !path.isEmpty else {
             return
         }
 
-        let simplified = simplifiedFreehandPoints(points, tolerance: style.freehandSimplification)
-        let path = smoothedFreehandPath(simplified, smoothing: style.freehandSmoothing, fallbackStart: first)
         NSGraphicsContext.current?.cgContext.saveGState()
         NSGraphicsContext.current?.cgContext.setBlendMode(.multiply)
-        style.strokeColor.nsColor.setStroke()
-        path.lineWidth = style.lineWidth
-        path.lineCapStyle = .round
-        path.lineJoinStyle = .round
-        path.stroke()
+        stroke(path: path, style: style)
         NSGraphicsContext.current?.cgContext.restoreGState()
     }
 
     nonisolated private static func drawHighlighterExport(points: [CGPoint], style: AnnotationStyle, context: CGContext) {
-        let simplified = simplifiedFreehandPoints(points, tolerance: style.freehandSimplification)
-        guard let first = simplified.first else {
+        let path = freehandPath(points: points, style: style)
+        guard !path.isEmpty else {
             return
         }
 
         context.saveGState()
         context.setBlendMode(.multiply)
-        context.setStrokeColor(style.strokeColor.cgColor)
-        context.setLineWidth(style.lineWidth)
-        context.setLineCap(.round)
-        context.setLineJoin(.round)
-        context.move(to: first)
-        addSmoothedFreehandSegments(simplified, smoothing: style.freehandSmoothing, to: context)
-        context.strokePath()
+        strokeExport(path: path, style: style, context: context)
         context.restoreGState()
     }
 
-    private static func rectanglePreviewPath(in rect: CGRect, style: AnnotationStyle) -> NSBezierPath {
-        let radius = min(style.cornerRadius, min(rect.width, rect.height) / 2)
-        guard radius > 0 else {
-            return NSBezierPath(rect: rect)
-        }
-
-        return NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
-    }
-
-    nonisolated private static func rectangleExportPath(in rect: CGRect, style: AnnotationStyle) -> CGPath {
+    nonisolated private static func rectanglePath(in rect: CGRect, style: AnnotationStyle) -> CGPath {
         let radius = min(style.cornerRadius, min(rect.width, rect.height) / 2)
         guard radius > 0 else {
             return CGPath(rect: rect, transform: nil)
         }
 
         return CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
+    }
+
+    nonisolated private static func roundedRectPath(in rect: CGRect, radius: CGFloat) -> CGPath {
+        CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
     }
 
     private static func applyStrokeStyle(_ style: AnnotationStyle, to path: NSBezierPath) {
@@ -866,10 +849,14 @@ enum EditorRenderer {
         return simplified
     }
 
-    private static func smoothedFreehandPath(_ points: [CGPoint], smoothing: CGFloat, fallbackStart: CGPoint) -> NSBezierPath {
-        let path = NSBezierPath()
+    nonisolated private static func freehandPath(points: [CGPoint], style: AnnotationStyle) -> CGPath {
+        let simplified = simplifiedFreehandPoints(points, tolerance: style.freehandSimplification)
+        return smoothedFreehandPath(simplified, smoothing: style.freehandSmoothing)
+    }
+
+    nonisolated private static func smoothedFreehandPath(_ points: [CGPoint], smoothing: CGFloat) -> CGPath {
+        let path = CGMutablePath()
         guard let first = points.first else {
-            path.move(to: fallbackStart)
             return path
         }
 
@@ -877,7 +864,7 @@ enum EditorRenderer {
         let clampedSmoothing = max(0, min(smoothing, 1))
         guard points.count > 2, clampedSmoothing > 0.01 else {
             for point in points.dropFirst() {
-                path.line(to: point)
+                path.addLine(to: point)
             }
             return path
         }
@@ -892,50 +879,24 @@ enum EditorRenderer {
                 x: currentPoint.x + (targetMidpoint.x - currentPoint.x) * clampedSmoothing,
                 y: currentPoint.y + (targetMidpoint.y - currentPoint.y) * clampedSmoothing
             )
-            path.curve(to: midpoint, controlPoint1: currentPoint, controlPoint2: currentPoint)
+            path.addCurve(to: midpoint, control1: currentPoint, control2: currentPoint)
         }
         if let last = points.last {
-            path.line(to: last)
+            path.addLine(to: last)
         }
         return path
     }
 
-    nonisolated private static func addSmoothedFreehandSegments(_ points: [CGPoint], smoothing: CGFloat, to context: CGContext) {
-        let clampedSmoothing = max(0, min(smoothing, 1))
-        guard points.count > 2, clampedSmoothing > 0.01 else {
-            for point in points.dropFirst() {
-                context.addLine(to: point)
-            }
-            return
-        }
-
-        for index in 1..<(points.count - 1) {
-            let targetMidpoint = CGPoint(
-                x: (points[index].x + points[index + 1].x) / 2,
-                y: (points[index].y + points[index + 1].y) / 2
-            )
-            let currentPoint = points[index]
-            let midpoint = CGPoint(
-                x: currentPoint.x + (targetMidpoint.x - currentPoint.x) * clampedSmoothing,
-                y: currentPoint.y + (targetMidpoint.y - currentPoint.y) * clampedSmoothing
-            )
-            context.addCurve(to: midpoint, control1: currentPoint, control2: currentPoint)
-        }
-        if let last = points.last {
-            context.addLine(to: last)
-        }
-    }
-
     private static func drawHighlight(in rect: CGRect, style: AnnotationStyle, scale: CGFloat) {
         let radius = scaled(10, by: scale)
-        let path = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
+        let path = roundedRectPath(in: rect, radius: radius)
         strokeAndFill(path: path, style: style)
     }
 
     nonisolated private static func drawHighlightExport(in rect: CGRect, style: AnnotationStyle, scale: CGFloat, context: CGContext) {
         let radius = scaled(10, by: scale)
         strokeAndFillExport(
-            path: CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil),
+            path: roundedRectPath(in: rect, radius: radius),
             style: style,
             context: context
         )
