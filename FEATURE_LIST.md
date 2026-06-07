@@ -2,9 +2,9 @@
 
 Last reviewed: 2026-06-06
 
-This document is the source of truth for what SnipSnipSnip currently ships, what is only partially complete, and what is still missing. It is based on the current app source, shipped Help content, public docs, and test suite, not on older roadmap text.
+This document is the source of truth for what SnipSnipSnip and SnipSnipSnip Pro currently ship, what is only partially complete, and what is still missing. It is based on the current app source, shipped Help content, public docs, and test suite, not on older roadmap text.
 
-SnipSnipSnip is already much larger than a screenshot MVP. It is a real screenshot app with a strong non-destructive editor and archive system, plus a usable first-generation screen recording and trim workflow. The strongest completed areas are screenshot capture, screenshot editing, editable document persistence, archive/history/recovery, privacy defaults, screenshot presentation styling, drag-out sharing, and practical MP4 recording/export. The largest unfinished areas are richer screenshot presentation templates, scrolling-capture hardening, premium video polish, automation/integrations, accessibility depth, localization, and user-facing diagnostics.
+SnipSnipSnip is already much larger than a screenshot MVP. It is a real screenshot app with a strong non-destructive editor and archive system, plus a usable first-generation screen recording and trim workflow. SnipSnipSnip Pro is the expanded product tier for advanced capture workflows: scrolling capture and connected iPhone/iPad screenshot capture. The strongest completed areas are screenshot capture, screenshot editing, editable document persistence, archive/history/recovery, privacy defaults, screenshot presentation styling, drag-out sharing, and practical MP4 recording/export. The largest unfinished areas are richer screenshot presentation templates, Pro capture hardening, premium video polish, automation/integrations, accessibility depth, localization, and user-facing diagnostics.
 
 ## Status Legend
 
@@ -22,24 +22,41 @@ This revision was checked against:
 - User-facing Help in `SnipSnipSnip/App/HelpGuideView.swift`.
 - Public docs in `README.md`, `sss-format.md`, `PERFORMANCE_PROFILING.md`, and `FASTLANE.md`.
 
-The comparison lens for the "remaining gap" column is still the premium macOS capture market: CleanShot X, Shottr, Snagit, Loom, Kap, and Screen Studio. The status markers themselves are about SnipSnipSnip only.
+The comparison lens for the "remaining gap" column is still the premium macOS capture market: CleanShot X, Shottr, Snagit, Loom, Kap, and Screen Studio. The status markers themselves are about the SnipSnipSnip product family only.
+
+## Product Editions
+
+This repo currently represents two related products:
+
+- **SnipSnipSnip**: the standard local-first screenshot and screen recording app. It includes region, window, frontmost-window, fullscreen, repeat, and timer screenshot capture; the screenshot editor; archive/history/recovery; Clipboard History; Screen Inspector; floating references; local export and sharing; and region, window, and fullscreen screen recording.
+- **SnipSnipSnip Pro**: the advanced capture tier. It includes everything in SnipSnipSnip, plus scrolling capture and connected iPhone/iPad screenshot capture.
+
+The current source also contains partial Pro connected-device recording plumbing. This is tracked separately from the standard recording product because the named Pro capture additions are scrolling capture and connected iPhone/iPad screenshot capture.
+
+When a feature is Pro-only, this document calls that out explicitly. Shared features apply to both products.
 
 ## Executive Summary
 
 SnipSnipSnip already ships all of the following in meaningful form:
 
-- Screenshot capture for region, window, frontmost window, fullscreen, repeat, timer, live window thumbnails, on-screen window picking, multi-display desktop composition, and first-pass scrolling capture.
+- Screenshot capture for region, window, frontmost window, fullscreen, repeat, timer, live window thumbnails, on-screen window picking, and multi-display desktop composition.
 - Screen Inspector as a floating live magnifier with 2x, 4x, 8x, and 16x zoom, optional pixel grid and crosshair, display-local pixel coordinates, center-pixel color readout, one-line point-to-point distance measurement, HEX/RGB copy shortcuts, freeze, resize, and Snip-to-editor.
 - A non-destructive screenshot editor with crop, rectangle, ellipse, line, arrow, freehand, highlight, text, callouts, ruler measurements, spotlight/dim, color sampling, OCR-backed Copy Text, image overlays, rotation, grouping, alignment, snapping, and blur/pixelate/solid redaction.
 - Floating reference screenshots that pin rendered editor or history snapshots in lightweight always-on-top windows with opacity, zoom, pan, multiple-reference, and close-all controls.
 - Editable `.sss` screenshot packages with base image, preview, JSON session state, undo/redo history, search metadata, and image overlay assets.
 - Local-first archive/history/recovery with autosave checkpoints, recent snips, recycle bin, archive size limits, custom archive location, OCR-backed search metadata, and Private Capture.
 - Local-first Clipboard History for copied text, links, images, files, and SnipSnipSnip screenshots, including non-private snips even when Auto Copy is off.
-- Screen recording for region, window, and fullscreen recording with current-display, selected-display, and all-displays modes, plus MP4 capture, cursor and click options, system audio, microphone narration, storage guardrails, `.sssvideo` packages, trim editing, poster frames, timeline thumbnails, and quality or size-limited MP4 export.
+- Screen recording for region, window, and fullscreen, with current-display, selected-display, and all-displays modes for fullscreen, plus MP4 capture, cursor and click options, system audio, microphone narration, storage guardrails, `.sssvideo` packages, trim editing, poster frames, timeline thumbnails, and quality or size-limited MP4 export.
+
+SnipSnipSnip Pro adds the following advanced capture workflows:
+
+- Scrolling capture with a dedicated scrolling overlay, Accessibility-driven target resolution, image stitching, cancel/done controls, partial-result handling, repeat support, and `.sss` scrolling metadata.
+- Connected iPhone/iPad screenshot capture for trusted USB devices, with a live AVFoundation preview and normal screenshot editor, copy, save, history/archive, and Private Capture behavior through the existing screenshot pipeline.
 
 The biggest unfinished areas are now clear:
 
-- Scrolling capture works, but it is still a `~ Partial` feature because compatibility and diagnostics are not hardened enough to call it fully done.
+- Pro scrolling capture works, but it is still a `~ Partial` feature because compatibility and diagnostics are not hardened enough to call it fully done.
+- Pro connected iPhone/iPad screenshot capture works in the feature-gated build, but it remains `~ Partial` because it uses self-release capture plumbing and needs broader device, orientation, and disconnect QA.
 - Screenshot presentation styling is useful and shipped: padding, solid or transparent backgrounds, rounded corners, shadows, live preview, and rendered drag-out sharing are present. Richer frames, gradients, pinned screenshots, and multi-capture composition remain open.
 - Video recording is useful, but advanced post-production is still mostly `x Not done`: GIF export, webcam, keystrokes, zooms, captions, aspect-ratio layouts, video overlays, and multi-clip editing.
 - Workflow automation is still shallow: customizable global hotkeys and a Clipboard History opener exist, but App Intents, URL schemes, and cloud/upload workflows are absent.
@@ -63,12 +80,18 @@ The biggest unfinished areas are now clear:
 | Screen Inspector floating magnifier | ✓ Done | Menu bar, Capture menu, and customizable global hotkey open a resizable always-on-top live inspector with 2x, 4x, 8x, and 16x zoom, optional pixel grid and crosshair, display-local top-left pixel coordinates, center-pixel HEX/RGB readout, copy shortcuts, freeze, close shortcuts, one-line point-to-point distance measurement with Option-Command-M, and Snip-to-editor. Grid and crosshair default off. | Broaden manual QA across mixed-scale multi-monitor seams, rotated displays, Spaces, and permission edge cases. |
 | Adjustable region before commit | ~ Partial | Region capture can require explicit confirmation when action controls are enabled. | No explicit resize handles or numeric size adjustment before the shot is committed. |
 | Timer capture | ✓ Done | `CaptureDelay` supports off, 3, 5, and 10 seconds from menus. | No custom delay value or countdown overlay UI. |
-| Repeat last capture | ✓ Done | Repeats region, window, frontmost window, fullscreen, and scrolling capture when the target can still be resolved. | No saved presets or named capture targets. |
-| Scrolling capture | ~ Partial | Dedicated scrolling overlay, Accessibility-driven target resolution, image stitching, cancel/done controls, partial-result handling, repeat support, and `.sss` scrolling metadata are implemented, with stitcher tests. | Needs app/browser compatibility hardening, clearer user diagnostics, better fallback paths, and a broader manual QA matrix. |
+| Repeat last capture | ✓ Done | Repeats region, window, frontmost window, and fullscreen capture when the target can still be resolved. SnipSnipSnip Pro also repeats scrolling capture when the target can still be resolved. | No saved presets or named capture targets. |
 | Explicit per-display screenshot selection | x Not done | Fullscreen screenshots capture the desktop composite rather than a user-selected display mode. | Add selected display/current display/all displays options. |
 | Cursor capture in screenshots | ✓ Done | Optional cursor capture adds the current pointer as a non-destructive image overlay for region, window, frontmost-window, fullscreen, and repeat screenshots. The overlay can be moved, resized, faded, or deleted; Scrolling Capture excludes it while stitching. | Consider cursor-style replacement presets and click indicators. |
 | Desktop clutter hiding | x Not done | No desktop icon or window-clutter hiding workflow was found. | Needed for polished demo-style capture. |
 | Capture presets | x Not done | Capture actions are fixed menu commands plus settings values. | Add saved mode/timer/destination/audio/cursor presets. |
+
+### Pro Capture
+
+| Feature | Status | Current implementation | Remaining gap or limitation |
+| --- | --- | --- | --- |
+| Scrolling capture | ~ Partial | SnipSnipSnip Pro includes a dedicated scrolling overlay, Accessibility-driven target resolution, image stitching, cancel/done controls, partial-result handling, repeat support, and `.sss` scrolling metadata, with stitcher tests. | Needs app/browser compatibility hardening, clearer user diagnostics, better fallback paths, and a broader manual QA matrix. |
+| Connected iPhone/iPad screenshot capture | ~ Partial | SnipSnipSnip Pro lists trusted USB iPhone/iPad sources, opens a live AVFoundation preview, captures the latest frame into the normal screenshot editor, and supports copy, save, editor opening, history/archive behavior, and Private Capture rules through the existing screenshot pipeline. | Uses self-release capture plumbing, supports one active connected-device session, depends on macOS exposing the trusted/unlocked device stream, and needs broader device/orientation/disconnect QA. |
 
 ### Screenshot Editor And Annotation
 
@@ -173,7 +196,12 @@ The biggest unfinished areas are now clear:
 | Cursor smoothing and motion polish | x Not done | Recording relies on raw ScreenCaptureKit cursor output. | Add post-processing or overlay-based cursor rendering. |
 | Captions or transcription | x Not done | No transcription or caption editor was found. | Needed for accessibility and sharing polish. |
 | Background studio and device frames | x Not done | Video export preserves the recording frame directly. | Add aspect-ratio canvas, background, rounded device frame, and shadow systems. |
-| iPhone or iPad recording | x Not done | No external-device capture workflow was found. | Optional, but outside current scope. |
+
+### Pro Recording
+
+| Feature | Status | Current implementation | Remaining gap or limitation |
+| --- | --- | --- | --- |
+| Connected iPhone/iPad recording | ~ Partial | SnipSnipSnip Pro currently has feature-gated connected-device recording plumbing that opens the same live USB device preview, starts and stops MP4 recording from the device stream, then opens the result in the normal video editor for trimming, poster frames, timeline thumbnails, `.sssvideo` packaging, and export. | This is not part of the core SnipSnipSnip product, and it is separate from the named Pro screenshot capture additions. It uses self-release capture plumbing, supports one active connected-device session, does not forward touch input, does not guarantee protected-content capture, and needs more manual QA for disconnects, orientation, and device availability edge cases. |
 
 ### Video Editor And Export
 
@@ -283,13 +311,14 @@ The biggest unfinished areas are now clear:
 - Clipboard History is integrated as a first-class local timeline rather than a separate utility: it includes normal clipboard items and SnipSnipSnip screenshots, with privacy filters and password-manager ignores built in.
 - The `.sss` package is open, documented, and easy to inspect.
 - Privacy posture is strong for a local-first screenshot tool: metadata-stripped exports, non-destructive redaction in-editor, and Private Capture controls are already shipped.
-- Scrolling capture has a real service boundary with dedicated diagnostics logging, stitching logic, partial-result handling, and tests.
+- Pro scrolling capture has a real service boundary with dedicated diagnostics logging, stitching logic, partial-result handling, and tests.
 - The video stack is real, not placeholder: native ScreenCaptureKit recording, editable packages, trim state, poster frames, and size-constrained MP4 exports are all present.
 - In-app Help is unusually complete and appears to move with the product rather than lag behind it.
 
 ## Implementation Risks And Clear Gaps
 
-- Scrolling capture is implemented, but still not hardened enough to treat as fully complete across the app landscape.
+- Pro scrolling capture is implemented, but still not hardened enough to treat as fully complete across the app landscape.
+- Pro connected iPhone/iPad screenshot capture is implemented in the self-release capture path, but still needs broader device compatibility validation.
 - Screenshot presentation styling is shipped for polished static output, but richer gradients, frames, social layouts, pinned screenshots, and multi-capture composition are still absent.
 - Video editing is still a trim-and-export workflow, not a full demo-editor workflow.
 - Global hotkeys are customizable but intentionally background-only while the app is active, which may surprise power users.
@@ -304,7 +333,6 @@ The biggest unfinished areas are now clear:
 
 ### Tier 1: Close The Screenshot Product Gap
 
-- Scrolling capture hardening across more apps, browsers, sticky headers, dynamic content, and virtualized lists.
 - Richer screenshot presentation/export layers: gradients, browser or device frames, social aspect ratios, and reusable templates.
 - A dedicated layer list with drag-reorder, visibility toggles, and locking.
 - Capture presets and richer shortcut behavior for power users.
@@ -331,13 +359,19 @@ The biggest unfinished areas are now clear:
 - Diagnostics bundles and stronger support workflows.
 - More polished preset and template workflows for screenshots and videos.
 
+### Tier 4: Harden SnipSnipSnip Pro
+
+- Scrolling capture hardening across more apps, browsers, sticky headers, dynamic content, and virtualized lists.
+- Connected iPhone/iPad screenshot capture QA across device families, orientations, trust/unlock state, disconnects, and no-device empty states.
+- Clearer Pro diagnostics and fallback messaging when Accessibility scrolling or connected-device streams are unavailable.
+
 ## Suggested Engineering Priorities
 
 1. Treat `FEATURE_LIST.md` as the truth source and archive or rewrite the obsolete phase roadmap.
 2. Keep screenshot and video format docs versioned and in sync with schema changes.
 3. Extend the shipped screenshot presentation/export model with gradients, frames, reusable templates, and aspect ratios.
 4. Add a dedicated layer list UI (drag reorder, visibility toggle, lock state) to complement existing z-order commands.
-5. Harden scrolling capture with diagnostics, compatibility coverage, and fallback flows.
+5. Harden SnipSnipSnip Pro capture with diagnostics, compatibility coverage, and fallback flows.
 6. Add conflict detection and keyboard-capture UX polish for customizable global hotkeys.
 7. Introduce a richer video timeline model before attempting zooms, captions, overlays, or multi-clip work.
 8. Add support diagnostics export and stronger privacy-oriented share warnings for editable redaction documents.
@@ -345,6 +379,6 @@ The biggest unfinished areas are now clear:
 
 ## Current Product Position
 
-SnipSnipSnip is already a strong local-first screenshot product with a meaningful editor, archive system, presentation styling, and local drag-out sharing. It also has a real, useful first-generation recording stack. It is not yet an ultra-premium capture suite because richer screenshot templates, advanced video polish, automation depth, and support readiness are still behind the rest of the app.
+SnipSnipSnip is already a strong local-first screenshot product with a meaningful editor, archive system, presentation styling, and local drag-out sharing. It also has a real, useful first-generation recording stack. SnipSnipSnip Pro extends that product with advanced capture workflows: scrolling capture and connected iPhone/iPad screenshot capture. The overall product family is not yet an ultra-premium capture suite because richer screenshot templates, advanced video polish, automation depth, Pro capture hardening, and support readiness are still behind the rest of the app.
 
-That is now the accurate state of the product: screenshot capture, editing, presentation styling, and drag-out sharing are largely real and shipped; scrolling capture and workflow polish are still partial; richer presentation templates, advanced video editing, automation, diagnostics, localization, and accessibility depth are still not done.
+That is now the accurate state of the product family: standard screenshot capture, editing, presentation styling, and drag-out sharing are largely real and shipped; Pro scrolling capture and connected iPhone/iPad screenshot capture are still partial; richer presentation templates, advanced video editing, automation, diagnostics, localization, and accessibility depth are still not done.

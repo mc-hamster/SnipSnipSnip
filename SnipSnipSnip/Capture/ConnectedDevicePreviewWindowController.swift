@@ -355,14 +355,6 @@ private struct ConnectedDevicePreviewView: View {
             }
 
             HStack(spacing: 10) {
-                Button("Start Recording", action: viewModel.startRecording)
-                    .disabled(viewModel.isBusy || viewModel.isRecording)
-
-                Button("Open Recording in Video Editor", action: viewModel.openLatestRecording)
-                    .disabled(viewModel.latestRecording == nil || viewModel.isBusy)
-            }
-
-            HStack(spacing: 10) {
                 Button("Save", action: viewModel.saveScreenshot)
                     .disabled(viewModel.isBusy || viewModel.isRecording)
 
