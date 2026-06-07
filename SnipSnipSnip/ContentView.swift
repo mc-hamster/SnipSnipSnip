@@ -835,13 +835,19 @@ struct ContentView: View {
             Button("Record Region", action: model.recordRegion)
             Button("Record Window", action: model.presentVideoWindowPicker)
             Button("Record Fullscreen", action: model.recordCurrentDisplay)
+            if FeatureFlags.connectedDeviceCaptureEnabled {
+                Menu("Record Connected Device") {
+                    ConnectedDeviceCaptureMenuContent(model: model, mode: .recording)
+                }
+                .disabled(model.isConnectedDeviceSessionActive)
+            }
         } label: {
             headerActionLabel(title: "Record", systemImage: "record.circle", accent: .red, showsChevron: true)
         }
         .buttonStyle(SSSChromeButtonStyle(tint: .red))
         .controlSize(.small)
         .tint(.red)
-        .disabled(model.isWorking || model.isRecordingVideo)
+        .disabled(model.isWorking || model.isRecordingVideo || model.isConnectedDeviceSessionActive)
         .help("Start a screen video recording.")
     }
 

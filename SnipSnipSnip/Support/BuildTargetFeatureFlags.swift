@@ -25,6 +25,7 @@ nonisolated enum FeatureToggle {
     case presentationStyling
     case scrollingCapture
     case accessibilityAutomation
+    case connectedDeviceCapture
 }
 
 /// Single source of truth for feature availability by build target.
@@ -35,6 +36,7 @@ nonisolated enum BuildTargetFeatureMatrix {
     private static let enabledFeaturesByTarget: [BuildTarget: Set<FeatureToggle>] = [
         .dev: [
           .presentationStyling,
+//          .connectedDeviceCapture,
         ],
         .internalTesting: [
           .presentationStyling,
@@ -48,6 +50,7 @@ nonisolated enum BuildTargetFeatureMatrix {
         .selfRelease: [
             .scrollingCapture,
             .accessibilityAutomation,
+            .connectedDeviceCapture,
         ],
     ]
 
@@ -87,6 +90,18 @@ nonisolated enum FeatureFlags {
 
     static var accessibilityAutomationEnabled: Bool {
         accessibilityAutomationEnabled(for: .current)
+    }
+
+    static func connectedDeviceCaptureEnabled(for target: BuildTarget = .current) -> Bool {
+#if APP_STORE_BUILD
+        false
+#else
+        BuildTargetFeatureMatrix.isEnabled(.connectedDeviceCapture, for: target)
+#endif
+    }
+
+    static var connectedDeviceCaptureEnabled: Bool {
+        connectedDeviceCaptureEnabled(for: .current)
     }
 }
 

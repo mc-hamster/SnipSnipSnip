@@ -500,6 +500,8 @@ private_lane :build_release_pkg do |options|
   ]
   if build_target == "Self Release"
     xcargs << "INFOPLIST_KEY_CFBundleDisplayName=#{Shellwords.escape('SnipSnipSnip Pro')}"
+    xcargs << "ENABLE_RESOURCE_ACCESS_CAMERA=YES"
+    xcargs << "INFOPLIST_PREPROCESSOR_DEFINITIONS=SNIP_SELF_RELEASE_INFO=1"
     export_options = {
       method: "developer-id",
       teamID: DEVELOPER_TEAM_ID_VALUE,
@@ -537,17 +539,17 @@ private_lane :ensure_self_release_signing_ready do
   has_developer_id_application = code_sign_identities.include?("Developer ID Application")
   has_developer_id_installer = installer_identities.include?("Developer ID Installer")
 
-  return if has_developer_id_application && has_developer_id_installer
+  unless has_developer_id_application && has_developer_id_installer
+    missing = []
+    missing << "Developer ID Application" unless has_developer_id_application
+    missing << "Developer ID Installer" unless has_developer_id_installer
 
-  missing = []
-  missing << "Developer ID Application" unless has_developer_id_application
-  missing << "Developer ID Installer" unless has_developer_id_installer
-
-  UI.user_error!(
-    "Self Release signing prerequisites missing: #{missing.join(', ')}. " \
-    "Install these certificates in Keychain Access for team #{DEVELOPER_TEAM_ID_VALUE}, " \
-    "then rerun self_release."
-  )
+    UI.user_error!(
+      "Self Release signing prerequisites missing: #{missing.join(', ')}. " \
+      "Install these certificates in Keychain Access for team #{DEVELOPER_TEAM_ID_VALUE}, " \
+      "then rerun self_release."
+    )
+  end
 end
 
 private_lane :notarize_self_release_package do |options|

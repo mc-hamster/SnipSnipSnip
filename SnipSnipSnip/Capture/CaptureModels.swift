@@ -7,6 +7,7 @@ nonisolated enum CaptureKind: String {
     case window
     case fullscreen
     case scrolling
+    case connectedDevice
 }
 
 nonisolated enum CaptureDelay: Int, CaseIterable, Identifiable {

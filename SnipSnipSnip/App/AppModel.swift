@@ -9,6 +9,7 @@ enum LastCaptureRequest {
     case window(CaptureWindowSummary)
     case frontmostWindow
     case fullscreen
+    case connectedDevice(ConnectedAppleDevice)
 }
 
 enum WindowPickerMode {
@@ -125,6 +126,7 @@ final class AppModel: ObservableObject {
     @Published var isShowingWindowPicker = false
     @Published var isWorking = false
     @Published var isCapturePrivacyLocked = false
+    @Published var isConnectedDeviceSessionActive = false
     @Published var windowPickerMode: WindowPickerMode = .screenshot
     @Published var autoCopyEnabled: Bool {
         didSet {
@@ -272,8 +274,12 @@ final class AppModel: ObservableObject {
     @Published var workingMessage = "Capturing"
     @Published var isShowingUnsavedChangesPrompt = false
     @Published var permissionSetupGuide: PermissionSetupGuide?
+    @Published var connectedDevices: [ConnectedAppleDevice] = []
+    @Published var isLoadingConnectedDevices = false
+    @Published var connectedDeviceEmptyStateMessage = ConnectedDeviceCaptureMenu.emptyStateMessage
 
     var captureService: any ScreenCaptureServiceType
+    let connectedDeviceCaptureService: any ConnectedDeviceCaptureServiceType
     let screenRecordingService = ScreenRecordingService()
     var recoveryStore: DocumentRecoveryStore
     let incompatibleDocumentCoordinator: IncompatibleDocumentCoordinator
@@ -325,6 +331,7 @@ final class AppModel: ObservableObject {
     var capturePrivacyLockDepth = 0
     var interactiveCaptureAutosaveSuspensionDepth = 0
     @Published var activeVideoRecording: ActiveVideoRecording?
+    var connectedDevicePreviewController: ConnectedDevicePreviewWindowController?
     let shouldCheckCompatibilityOnLaunch: Bool
     let shouldStartArchiveMaintenance: Bool
 
@@ -333,6 +340,7 @@ final class AppModel: ObservableObject {
         recoveryStore: DocumentRecoveryStore? = nil,
         clipboardHistoryStore: ClipboardHistoryStore? = nil,
         captureService: any ScreenCaptureServiceType = ScreenCaptureService(),
+        connectedDeviceCaptureService: any ConnectedDeviceCaptureServiceType = ConnectedDeviceCaptureService(),
         incompatibleDocumentCoordinator: IncompatibleDocumentCoordinator = IncompatibleDocumentCoordinator(),
         launchAtLoginController: LaunchAtLoginController = LaunchAtLoginController(),
         shouldCheckCompatibilityOnLaunch: Bool = !AppModel.isRunningUnitTests,
@@ -348,6 +356,7 @@ final class AppModel: ObservableObject {
         self.launchAtLoginController = launchAtLoginController
         self.configuredArchiveLocationURL = configuredArchiveLocationURL
         self.captureService = captureService
+        self.connectedDeviceCaptureService = connectedDeviceCaptureService
         self.autoCopyEnabled = defaults.object(forKey: AppModelPreferenceKey.autoCopyEnabled) as? Bool ?? true
         self.autoRefreshWindowsEnabled = defaults.bool(forKey: AppModelPreferenceKey.autoRefreshWindowsEnabled)
         self.captureDelay = CaptureDelay(rawValue: defaults.integer(forKey: AppModelPreferenceKey.captureDelay)) ?? .immediate
@@ -426,6 +435,9 @@ final class AppModel: ObservableObject {
             self.startArchiveMaintenance()
         }
 
+        if FeatureFlags.connectedDeviceCaptureEnabled, !Self.isRunningUnitTests {
+            refreshConnectedDevices()
+        }
         clipboardMonitor.start(preferences: clipboardPreferences)
         screenInspectorCoordinator.setPreferencesChangeHandler { [weak self] preferences in
             guard let self, self.screenInspectorPreferences != preferences else {
@@ -457,19 +469,23 @@ final class AppModel: ObservableObject {
             return FeatureFlags.scrollingCaptureEnabled
         }
 
+        if case .connectedDevice = lastCaptureRequest {
+            return FeatureFlags.connectedDeviceCaptureEnabled
+        }
+
         return true
     }
 
     var canOpenDocument: Bool {
-        !isWorking && activeVideoRecording == nil
+        !isWorking && activeVideoRecording == nil && !isConnectedDeviceSessionActive
     }
 
     var canChangePrivateCapture: Bool {
-        !isCapturePrivacyLocked && !isWorking && !isShowingWindowPicker && activeVideoRecording == nil
+        !isCapturePrivacyLocked && !isWorking && !isShowingWindowPicker && activeVideoRecording == nil && !isConnectedDeviceSessionActive
     }
 
     var canResetPreferencesToDefaults: Bool {
-        !isWorking && !isShowingWindowPicker && activeVideoRecording == nil
+        !isWorking && !isShowingWindowPicker && activeVideoRecording == nil && !isConnectedDeviceSessionActive
     }
 
     var isInteractiveCaptureActive: Bool {

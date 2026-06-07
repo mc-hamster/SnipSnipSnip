@@ -1,0 +1,406 @@
+import AVFoundation
+import AppKit
+import Combine
+import SwiftUI
+
+enum ConnectedDevicePreviewIntent {
+    case screenshot
+    case recording
+}
+
+final class ConnectedDevicePreviewWindowController: NSWindowController, NSWindowDelegate {
+    private let viewModel: ConnectedDevicePreviewViewModel
+    private let onClose: () -> Void
+
+    init(
+        device: ConnectedAppleDevice,
+        session: ConnectedDevicePreviewSession,
+        intent: ConnectedDevicePreviewIntent,
+        isPrivateCapture: Bool,
+        screenshotFilenameTemplate: ScreenshotFilenameTemplate,
+        openScreenshot: @escaping (CapturedScreenshot, Bool) throws -> Void,
+        openRecording: @escaping (CapturedVideoRecording) -> Void,
+        presentError: @escaping (Error) -> Void,
+        onClose: @escaping () -> Void
+    ) {
+        self.onClose = onClose
+        self.viewModel = ConnectedDevicePreviewViewModel(
+            device: device,
+            session: session,
+            intent: intent,
+            isPrivateCapture: isPrivateCapture,
+            screenshotFilenameTemplate: screenshotFilenameTemplate,
+            openScreenshot: openScreenshot,
+            openRecording: openRecording,
+            presentError: presentError
+        )
+
+        let view = ConnectedDevicePreviewView(viewModel: viewModel)
+        let hostingController = NSHostingController(rootView: view)
+        let window = NSWindow(contentViewController: hostingController)
+        window.title = "\(device.displayName) Preview"
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.setContentSize(NSSize(width: 440, height: 700))
+        window.minSize = NSSize(width: 360, height: 480)
+        window.isReleasedWhenClosed = false
+        super.init(window: window)
+        window.delegate = self
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    func start() async throws {
+        try await viewModel.start()
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        viewModel.stop()
+        onClose()
+    }
+}
+
+@MainActor
+private final class ConnectedDevicePreviewViewModel: ObservableObject {
+    enum Status: Equatable {
+        case starting
+        case live
+        case recording
+        case stopped
+        case failed(String)
+
+        var label: String {
+            switch self {
+            case .starting:
+                return "Starting preview"
+            case .live:
+                return "Live"
+            case .recording:
+                return "Recording"
+            case .stopped:
+                return "Stopped"
+            case .failed(let message):
+                return message
+            }
+        }
+    }
+
+    let device: ConnectedAppleDevice
+    let session: ConnectedDevicePreviewSession
+    @Published var status: Status = .starting
+    @Published var isBusy = false
+    @Published var latestScreenshot: CapturedScreenshot?
+    @Published var latestRecording: CapturedVideoRecording?
+
+    private let intent: ConnectedDevicePreviewIntent
+    private let isPrivateCapture: Bool
+    private let screenshotFilenameTemplate: ScreenshotFilenameTemplate
+    private let openScreenshot: (CapturedScreenshot, Bool) throws -> Void
+    private let openRecording: (CapturedVideoRecording) -> Void
+    private let presentError: (Error) -> Void
+
+    init(
+        device: ConnectedAppleDevice,
+        session: ConnectedDevicePreviewSession,
+        intent: ConnectedDevicePreviewIntent,
+        isPrivateCapture: Bool,
+        screenshotFilenameTemplate: ScreenshotFilenameTemplate,
+        openScreenshot: @escaping (CapturedScreenshot, Bool) throws -> Void,
+        openRecording: @escaping (CapturedVideoRecording) -> Void,
+        presentError: @escaping (Error) -> Void
+    ) {
+        self.device = device
+        self.session = session
+        self.intent = intent
+        self.isPrivateCapture = isPrivateCapture
+        self.screenshotFilenameTemplate = screenshotFilenameTemplate
+        self.openScreenshot = openScreenshot
+        self.openRecording = openRecording
+        self.presentError = presentError
+    }
+
+    var isRecording: Bool {
+        status == .recording
+    }
+
+    var primaryButtonTitle: String {
+        intent == .recording ? "Start Recording" : "Capture Screenshot"
+    }
+
+    func start() async throws {
+        do {
+            try await session.start()
+            status = .live
+        } catch {
+            status = .failed(error.localizedDescription)
+            throw error
+        }
+    }
+
+    func stop() {
+        if isRecording {
+            Task {
+                await stopRecording()
+            }
+        }
+        status = .stopped
+        session.stop()
+    }
+
+    func performPrimaryAction() {
+        switch intent {
+        case .screenshot:
+            captureScreenshot(openInEditor: true)
+        case .recording:
+            startRecording()
+        }
+    }
+
+    func captureScreenshot(openInEditor: Bool) {
+        guard !isBusy, !isRecording else {
+            return
+        }
+
+        isBusy = true
+        defer { isBusy = false }
+
+        do {
+            let capture = try session.captureLatestScreenshot()
+            latestScreenshot = capture
+
+            if openInEditor {
+                try openScreenshot(capture, isPrivateCapture)
+            }
+        } catch {
+            present(error)
+        }
+    }
+
+    func copyScreenshot() {
+        do {
+            let capture = try latestOrCapturedScreenshot()
+            latestScreenshot = capture
+            try ImageExporter.copyToClipboard(capture.image)
+        } catch {
+            present(error)
+        }
+    }
+
+    func openLatestScreenshot() {
+        do {
+            let capture = try latestOrCapturedScreenshot()
+            latestScreenshot = capture
+            try openScreenshot(capture, isPrivateCapture)
+        } catch {
+            present(error)
+        }
+    }
+
+    func saveScreenshot() {
+        Task {
+            do {
+                let capture = try latestOrCapturedScreenshot()
+                latestScreenshot = capture
+                try await ImageExporter.save(
+                    capture.image,
+                    suggestedFilename: screenshotFilenameTemplate.resolvedFilename(for: capture, formatExtension: "png"),
+                    format: .png
+                )
+            } catch {
+                present(error)
+            }
+        }
+    }
+
+    func startRecording() {
+        guard !isBusy, !isRecording else {
+            return
+        }
+
+        do {
+            try session.startRecording()
+            status = .recording
+        } catch {
+            present(error)
+        }
+    }
+
+    func stopRecording() async {
+        guard isRecording, !isBusy else {
+            return
+        }
+
+        isBusy = true
+        defer { isBusy = false }
+
+        do {
+            let recording = try await session.stopRecording()
+            latestRecording = recording
+            status = .live
+            openRecording(recording)
+        } catch {
+            status = .failed(error.localizedDescription)
+            present(error)
+        }
+    }
+
+    func openLatestRecording() {
+        guard let latestRecording else {
+            return
+        }
+
+        openRecording(latestRecording)
+    }
+
+    private func present(_ error: Error) {
+        presentError(error)
+    }
+
+    private func latestOrCapturedScreenshot() throws -> CapturedScreenshot {
+        if let latestScreenshot {
+            return latestScreenshot
+        }
+
+        return try session.captureLatestScreenshot()
+    }
+}
+
+private struct ConnectedDevicePreviewView: View {
+    @ObservedObject var viewModel: ConnectedDevicePreviewViewModel
+
+    var body: some View {
+        VStack(spacing: 14) {
+            ConnectedDeviceVideoPreviewView(session: viewModel.session.captureSession)
+                .aspectRatio(9.0 / 16.0, contentMode: .fit)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.black)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            HStack {
+                statusBadge
+                Spacer()
+                Text(viewModel.device.displayName)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            controls
+        }
+        .padding(16)
+        .frame(minWidth: 360, minHeight: 480)
+    }
+
+    private var statusBadge: some View {
+        Label(viewModel.status.label, systemImage: statusIconName)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(statusTint)
+            .lineLimit(1)
+    }
+
+    private var controls: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                Button(viewModel.primaryButtonTitle) {
+                    viewModel.performPrimaryAction()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(viewModel.isBusy || viewModel.isRecording)
+
+                Button("Stop Recording") {
+                    Task {
+                        await viewModel.stopRecording()
+                    }
+                }
+                .disabled(!viewModel.isRecording || viewModel.isBusy)
+            }
+
+            HStack(spacing: 10) {
+                Button("Copy Screenshot", action: viewModel.copyScreenshot)
+                    .disabled(viewModel.isBusy || viewModel.isRecording)
+
+                Button("Open Screenshot in Editor", action: viewModel.openLatestScreenshot)
+                    .disabled(viewModel.isBusy || viewModel.isRecording)
+            }
+
+            HStack(spacing: 10) {
+                Button("Start Recording", action: viewModel.startRecording)
+                    .disabled(viewModel.isBusy || viewModel.isRecording)
+
+                Button("Open Recording in Video Editor", action: viewModel.openLatestRecording)
+                    .disabled(viewModel.latestRecording == nil || viewModel.isBusy)
+            }
+
+            HStack(spacing: 10) {
+                Button("Save", action: viewModel.saveScreenshot)
+                    .disabled(viewModel.isBusy || viewModel.isRecording)
+
+                Button("Cancel") {
+                    viewModel.stop()
+                    NSApp.keyWindow?.close()
+                }
+                .keyboardShortcut(.cancelAction)
+            }
+        }
+    }
+
+    private var statusIconName: String {
+        switch viewModel.status {
+        case .starting:
+            return "circle.dotted"
+        case .live:
+            return "dot.radiowaves.left.and.right"
+        case .recording:
+            return "record.circle.fill"
+        case .stopped:
+            return "pause.circle"
+        case .failed:
+            return "exclamationmark.triangle.fill"
+        }
+    }
+
+    private var statusTint: Color {
+        switch viewModel.status {
+        case .starting, .stopped:
+            return .secondary
+        case .live:
+            return .green
+        case .recording:
+            return .red
+        case .failed:
+            return .orange
+        }
+    }
+}
+
+private struct ConnectedDeviceVideoPreviewView: NSViewRepresentable {
+    let session: AVCaptureSession
+
+    func makeNSView(context: Context) -> PreviewLayerContainerView {
+        let view = PreviewLayerContainerView()
+        view.previewLayer.session = session
+        return view
+    }
+
+    func updateNSView(_ nsView: PreviewLayerContainerView, context: Context) {
+        nsView.previewLayer.session = session
+    }
+}
+
+private final class PreviewLayerContainerView: NSView {
+    let previewLayer = AVCaptureVideoPreviewLayer()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        previewLayer.videoGravity = .resizeAspect
+        layer = previewLayer
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        nil
+    }
+}

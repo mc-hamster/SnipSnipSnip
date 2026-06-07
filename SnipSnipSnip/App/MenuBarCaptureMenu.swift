@@ -73,3 +73,40 @@ struct ScreenshotCaptureSettingsMenuContent: View {
             .help("Add the cursor as an editable screenshot overlay. Scrolling Capture always excludes it.")
     }
 }
+
+enum ConnectedDeviceCaptureMenuMode {
+    case screenshot
+    case recording
+}
+
+struct ConnectedDeviceCaptureMenuContent: View {
+    @ObservedObject var model: AppModel
+    let mode: ConnectedDeviceCaptureMenuMode
+
+    var body: some View {
+        if model.isLoadingConnectedDevices {
+            Text("Looking for Devices...")
+                .foregroundStyle(.secondary)
+        } else if model.connectedDevices.isEmpty {
+            Button(ConnectedDeviceCaptureMenu.emptyStateTitle, action: model.presentConnectedDeviceEmptyState)
+                .help(model.connectedDeviceEmptyStateMessage)
+        } else {
+            ForEach(model.connectedDevices) { device in
+                Button(device.displayName) {
+                    switch mode {
+                    case .screenshot:
+                        model.captureConnectedDevice(device)
+                    case .recording:
+                        model.recordConnectedDevice(device)
+                    }
+                }
+                .disabled(model.isConnectedDeviceSessionActive)
+            }
+        }
+
+        Divider()
+
+        Button("Refresh Devices", action: model.refreshConnectedDevices)
+            .disabled(model.isLoadingConnectedDevices || model.isConnectedDeviceSessionActive)
+    }
+}

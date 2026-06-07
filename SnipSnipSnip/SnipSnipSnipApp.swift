@@ -33,6 +33,13 @@ private struct CaptureCommands: Commands {
                     .disabled(model.isWorking || model.isRecordingVideo)
             }
 
+            if FeatureFlags.connectedDeviceCaptureEnabled {
+                Menu("Connected Device") {
+                    ConnectedDeviceCaptureMenuContent(model: model, mode: .screenshot)
+                }
+                .disabled(model.isWorking || model.isRecordingVideo || model.isConnectedDeviceSessionActive)
+            }
+
             Divider()
 
             Menu("Video Recording") {
@@ -44,6 +51,13 @@ private struct CaptureCommands: Commands {
 
                 Button("Record Full Screen", action: model.recordCurrentDisplay)
                     .disabled(model.isWorking || model.isRecordingVideo)
+
+                if FeatureFlags.connectedDeviceCaptureEnabled {
+                    Menu("Record Connected Device") {
+                        ConnectedDeviceCaptureMenuContent(model: model, mode: .recording)
+                    }
+                    .disabled(model.isWorking || model.isRecordingVideo || model.isConnectedDeviceSessionActive)
+                }
 
                 if model.isRecordingVideo {
                     Divider()

@@ -86,6 +86,14 @@
 	<string>SnipSnipSnip can include microphone narration in screen recordings when you enable microphone audio.</string>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>SnipSnipSnip can include system audio in screen recordings when you enable system audio.</string>
+#if SNIP_SELF_RELEASE_INFO
+	<key>NSCameraUsageDescription</key>
+	<string>SnipSnipSnip can preview, capture, and record connected iPhone or iPad screens in self-release builds.</string>
+	<key>NSCameraUseContinuityCameraDeviceType</key>
+	<true/>
+	<key>NSCameraUseExternalDeviceType</key>
+	<true/>
+#endif
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>UTExportedTypeDeclarations</key>

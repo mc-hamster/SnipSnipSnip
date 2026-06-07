@@ -590,6 +590,8 @@ extension AppModel {
             captureFrontmostWindow()
         case .fullscreen:
             captureCurrentDisplay()
+        case .connectedDevice(let device):
+            captureConnectedDevice(device)
         }
     }
 
@@ -869,6 +871,10 @@ extension AppModel {
         cursorCaptureGlobalLocation: CGPoint? = nil
     ) -> CapturedCursorOverlay? {
         guard screenshotIncludesCursor, capture.kind != .scrolling else {
+            return nil
+        }
+
+        guard capture.kind != .connectedDevice else {
             return nil
         }
 

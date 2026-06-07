@@ -7,6 +7,7 @@ nonisolated enum VideoRecordingKind: String, Codable, Equatable {
     case region
     case window
     case fullscreen
+    case connectedDevice
 
     var label: String {
         switch self {
@@ -16,6 +17,8 @@ nonisolated enum VideoRecordingKind: String, Codable, Equatable {
             return "Window"
         case .fullscreen:
             return "Fullscreen"
+        case .connectedDevice:
+            return "Connected Device"
         }
     }
 }

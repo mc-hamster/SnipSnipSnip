@@ -267,6 +267,12 @@ struct HelpGuideView: View {
                             title: "Capture the screen",
                             body: "Choose Fullscreen to capture the desktop composite across connected displays. Choose Repeat Last Capture to rerun the previous capture when the target can still be found."
                         ),
+                    ] + (FeatureFlags.connectedDeviceCaptureEnabled ? [
+                        HelpArticleSection(
+                            title: "Connected devices",
+                            body: "Capture > Connected Device lists trusted USB iPhone and iPad sources found by the self-release connected-device capture path. Choose a device to open a live preview, then capture the latest visible frame, copy it, save it, or open it in the screenshot editor."
+                        )
+                    ] : []) + [
                         HelpArticleSection(
                             title: "Use a timer",
                             body: "Choose a 3, 5, or 10 second timer from the Capture menu or menu bar extra when you need time to stage the screen before capture."
@@ -335,6 +341,12 @@ struct HelpGuideView: View {
                             title: "Choose recording options",
                             body: "Open Settings > Recording to set quality, frame rate, fullscreen display mode, cursor visibility, click rings, system audio, and microphone narration."
                         ),
+                    ] + (FeatureFlags.connectedDeviceCaptureEnabled ? [
+                        HelpArticleSection(
+                            title: "Connected-device recording",
+                            body: "Choose Record Connected Device, pick a trusted USB iPhone or iPad, and use the preview window to start and stop recording. Finished MP4 recordings open in the normal video editor for poster frames, trimming, export, and archive behavior."
+                        )
+                    ] : []) + [
                         HelpArticleSection(
                             title: "Export video",
                             body: "Use the video editor Export menu to export MP4 using a quality preset or a size-limited target. Size-limited exports retry at a lower bitrate if the result exceeds the selected cap. Drag the file icon beside Export to send the current trimmed MP4 to Finder, Mail, or another app. Click the icon without dragging to see a short reminder. The editor window temporarily hides during the drag and returns when the drag finishes. Encoding begins after the destination accepts the drop."

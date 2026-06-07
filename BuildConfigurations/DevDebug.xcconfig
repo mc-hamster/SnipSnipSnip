@@ -1,0 +1,7 @@
+// Local Dev Debug configuration.
+//
+// Connected-device capture is enabled in the Dev feature matrix for local
+// iteration, so Debug builds also need the camera entitlement and Info.plist
+// preprocessing keys that let macOS expose external/continuity camera sources.
+ENABLE_RESOURCE_ACCESS_CAMERA = YES
+INFOPLIST_PREPROCESSOR_DEFINITIONS = SNIP_SELF_RELEASE_INFO=1

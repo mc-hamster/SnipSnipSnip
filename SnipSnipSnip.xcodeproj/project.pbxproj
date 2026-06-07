@@ -45,6 +45,7 @@
 /* Begin PBXFileReference section */
 		3EEB1E7A2F83676F00A95020 /* SnipSnipSnip.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnipSnipSnip.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4A0C01012F83700100A95020 /* SnipSnipSnipTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SnipSnipSnipTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B20000012F86000000A95020 /* DevDebug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = DevDebug.xcconfig; sourceTree = "<group>"; };
 		A10000012F84000000A95020 /* SnipSnipSnipShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SnipSnipSnipShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A100000E2F84000000A95020 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		A100000F2F84000000A95020 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -91,6 +92,7 @@
 		3EEB1E712F83676F00A95020 = {
 			isa = PBXGroup;
 			children = (
+				B20000022F86000000A95020 /* BuildConfigurations */,
 				3EEB1E7C2F83676F00A95020 /* SnipSnipSnip */,
 				A10000022F84000000A95020 /* SnipSnipSnipShareExtension */,
 				4A0C01022F83700100A95020 /* SnipSnipSnipTests */,
@@ -106,6 +108,14 @@
 				4A0C01012F83700100A95020 /* SnipSnipSnipTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		B20000022F86000000A95020 /* BuildConfigurations */ = {
+			isa = PBXGroup;
+			children = (
+				B20000012F86000000A95020 /* DevDebug.xcconfig */,
+			);
+			path = BuildConfigurations;
 			sourceTree = "<group>";
 		};
 		A10000022F84000000A95020 /* SnipSnipSnipShareExtension */ = {
@@ -414,6 +424,7 @@
 		};
 		3EEB1E882F83677000A95020 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = B20000012F86000000A95020 /* DevDebug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -430,6 +441,8 @@
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "SnipSnipSnip-Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_PREPROCESS = YES;
+				INFOPLIST_PREPROCESSOR_DEFINITIONS = "$(inherited)";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -467,6 +480,8 @@
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "SnipSnipSnip-Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_PREPROCESS = YES;
+				INFOPLIST_PREPROCESSOR_DEFINITIONS = "SNIP_SELF_RELEASE_INFO=0";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
