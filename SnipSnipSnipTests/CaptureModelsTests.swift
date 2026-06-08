@@ -87,6 +87,36 @@ final class CaptureModelsTests: XCTestCase {
         XCTAssertEqual(capture.coordinateContract, .current)
     }
 
+    func testCapturedScreenshotPreservesSourceWindowIdentityWhenAttachingMetadata() {
+        let identity = CaptureSourceWindowIdentity(
+            windowID: 42,
+            ownerName: "System Settings",
+            ownerPID: 1234,
+            bundleIdentifier: "com.apple.systempreferences",
+            title: "Privacy & Security",
+            frame: CGRect(x: 40, y: 120, width: 600, height: 540)
+        )
+        let capture = makeCapturedScreenshot(
+            kind: .window,
+            sourceWindowIdentity: identity
+        )
+
+        let uiMap = UIMapSnapshot(
+            capturedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            sourceRect: CGRect(x: 40, y: 120, width: 600, height: 540),
+            elements: [
+                UIMapElement(
+                    name: "Privacy & Security",
+                    role: "AXWindow",
+                    documentRect: CGRect(x: 0, y: 0, width: 600, height: 540)
+                )
+            ]
+        )
+
+        XCTAssertEqual(capture.attachingUIMap(uiMap).sourceWindowIdentity, identity)
+        XCTAssertEqual(capture.attachingCursorOverlay(nil).sourceWindowIdentity, identity)
+    }
+
     func testCursorCaptureGeometryMapsScreenHotspotIntoDocumentPixels() {
         let rect = CursorCaptureGeometry.overlayRect(
             cursorCaptureGlobalLocation: CGPoint(x: 150, y: 260),

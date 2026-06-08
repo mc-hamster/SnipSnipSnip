@@ -3,5 +3,7 @@
 // Connected-device capture is enabled in the Dev feature matrix for local
 // iteration, so Debug builds also need the camera entitlement and Info.plist
 // preprocessing keys that let macOS expose external/continuity camera sources.
+// The app target also disables App Sandbox in Debug so UI Map can exercise
+// cross-app Accessibility trees after the user grants Accessibility access.
 ENABLE_RESOURCE_ACCESS_CAMERA = YES
 INFOPLIST_PREPROCESSOR_DEFINITIONS = SNIP_SELF_RELEASE_INFO=1

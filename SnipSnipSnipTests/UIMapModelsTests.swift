@@ -43,4 +43,36 @@ final class UIMapModelsTests: XCTestCase {
         XCTAssertEqual(snapshot.parentHierarchy(for: textField.id).map(\.displayName), ["Document"])
         XCTAssertTrue(snapshot.searchableText().contains("Save Document"))
     }
+
+    func testShowAllOverlayCandidatesSkipStructuralContainers() {
+        let text = UIMapElement(
+            name: "Privacy & Security",
+            role: "AXStaticText",
+            roleDescription: "text",
+            documentRect: CGRect(x: 80, y: 20, width: 180, height: 24)
+        )
+        let button = UIMapElement(
+            role: "AXButton",
+            roleDescription: "close button",
+            documentRect: CGRect(x: 12, y: 12, width: 14, height: 14)
+        )
+        let anonymousGroup = UIMapElement(
+            role: "AXGroup",
+            roleDescription: "group",
+            documentRect: CGRect(x: 0, y: 0, width: 300, height: 200),
+            children: [text]
+        )
+        let row = UIMapElement(
+            name: "Blocked Contacts",
+            role: "AXRow",
+            roleDescription: "row",
+            documentRect: CGRect(x: 40, y: 80, width: 260, height: 44),
+            children: [button]
+        )
+
+        XCTAssertTrue(text.isShowAllOverlayCandidate)
+        XCTAssertTrue(button.isShowAllOverlayCandidate)
+        XCTAssertFalse(anonymousGroup.isShowAllOverlayCandidate)
+        XCTAssertFalse(row.isShowAllOverlayCandidate)
+    }
 }

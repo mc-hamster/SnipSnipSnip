@@ -843,6 +843,39 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testCompleteCaptureDoesNotRecaptureExistingUIMap() throws {
+        let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
+        let defaults = makeTestDefaults()
+        let existingUIMap = makeTestUIMap()
+        let uiMapCaptureService = StubUIMapCaptureService(uiMap: UIMapSnapshot(
+            capturedAt: Date(timeIntervalSince1970: 1_818_400_100),
+            sourceRect: CGRect(x: 0, y: 0, width: 64, height: 48),
+            elements: []
+        ))
+        let model = retainForTestLifetime(AppModel(
+            defaults: defaults,
+            recoveryStore: store,
+            uiMapCaptureService: uiMapCaptureService,
+            shouldCheckCompatibilityOnLaunch: false
+        ))
+        model.autoCopyEnabled = false
+        model.uiMapEnabled = true
+
+        try model.completeCapture(
+            makeCapturedScreenshot(image: makeCoordinateImage(width: 64, height: 48), uiMap: existingUIMap),
+            request: .region(CGRect(x: 0, y: 0, width: 64, height: 48)),
+            isPrivateCapture: false
+        )
+
+        XCTAssertEqual(model.editorController?.capture.uiMap, existingUIMap)
+        XCTAssertEqual(uiMapCaptureService.captureCallCount, 0)
+
+        model.resetEditorSessionState()
+        try? FileManager.default.removeItem(at: rootURL)
+    }
+
+    @MainActor
     func testCompleteCaptureShowsNoticeWhenRequestedUIMapIsUnavailable() throws {
         let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))

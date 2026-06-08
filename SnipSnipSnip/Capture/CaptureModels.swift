@@ -151,12 +151,49 @@ nonisolated enum CursorCaptureGeometry {
     }
 }
 
+nonisolated struct CaptureSourceWindowIdentity: Equatable, Hashable, @unchecked Sendable {
+    let windowID: CGWindowID
+    let ownerName: String
+    let ownerPID: pid_t
+    let bundleIdentifier: String?
+    let title: String
+    let frame: CGRect
+
+    init(
+        windowID: CGWindowID,
+        ownerName: String,
+        ownerPID: pid_t,
+        bundleIdentifier: String?,
+        title: String,
+        frame: CGRect
+    ) {
+        self.windowID = windowID
+        self.ownerName = ownerName
+        self.ownerPID = ownerPID
+        self.bundleIdentifier = bundleIdentifier
+        self.title = title
+        self.frame = frame.gscIntegralStandardized
+    }
+
+    init(window: CaptureWindowSummary, bundleIdentifier: String? = nil, frame: CGRect? = nil) {
+        self.init(
+            windowID: window.id,
+            ownerName: window.ownerName,
+            ownerPID: window.ownerPID,
+            bundleIdentifier: bundleIdentifier,
+            title: window.title,
+            frame: frame ?? window.frame
+        )
+    }
+}
+
 nonisolated struct CapturedScreenshot: Identifiable, @unchecked Sendable {
     let id = UUID()
     let image: CGImage
     let kind: CaptureKind
     let sourceName: String
     let sourceRect: CGRect
+    let sourceWindowIdentity: CaptureSourceWindowIdentity?
     let coordinateContract: DocumentCoordinateContract
     let capturedAt: Date
     let cursorOverlay: CapturedCursorOverlay?
@@ -167,6 +204,7 @@ nonisolated struct CapturedScreenshot: Identifiable, @unchecked Sendable {
         kind: CaptureKind,
         sourceName: String,
         sourceRect: CGRect,
+        sourceWindowIdentity: CaptureSourceWindowIdentity? = nil,
         coordinateContract: DocumentCoordinateContract = .current,
         capturedAt: Date,
         cursorOverlay: CapturedCursorOverlay? = nil,
@@ -176,6 +214,7 @@ nonisolated struct CapturedScreenshot: Identifiable, @unchecked Sendable {
         self.kind = kind
         self.sourceName = sourceName
         self.sourceRect = sourceRect.gscIntegralStandardized
+        self.sourceWindowIdentity = sourceWindowIdentity
         self.coordinateContract = coordinateContract
         self.capturedAt = capturedAt
         self.cursorOverlay = cursorOverlay
@@ -188,6 +227,7 @@ nonisolated struct CapturedScreenshot: Identifiable, @unchecked Sendable {
             kind: kind,
             sourceName: sourceName,
             sourceRect: sourceRect,
+            sourceWindowIdentity: sourceWindowIdentity,
             coordinateContract: coordinateContract,
             capturedAt: capturedAt,
             cursorOverlay: cursorOverlay,
@@ -201,6 +241,7 @@ nonisolated struct CapturedScreenshot: Identifiable, @unchecked Sendable {
             kind: kind,
             sourceName: sourceName,
             sourceRect: sourceRect,
+            sourceWindowIdentity: sourceWindowIdentity,
             coordinateContract: coordinateContract,
             capturedAt: capturedAt,
             cursorOverlay: cursorOverlay,

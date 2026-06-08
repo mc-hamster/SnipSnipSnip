@@ -118,6 +118,11 @@ final class EditorController: ObservableObject {
     @Published private(set) var cropOutsideOverlayAlpha: CGFloat = AppModel.defaultEditorCropOutsideOverlayAlpha
     @Published private(set) var outOfCapturePatternSettings: EditorOutOfCapturePatternSettings = .default
     @Published var selectedUIMapElementID: UUID?
+    @Published var showsAllUIMapElements = false {
+        didSet {
+            invalidateCanvas()
+        }
+    }
     @Published var uiMapOverlayOptions = UIMapOverlayOptions() {
         didSet {
             invalidateCanvas()
@@ -1126,13 +1131,6 @@ final class EditorController: ObservableObject {
 
     func selectUIMapElement(_ elementID: UUID?) {
         selectedUIMapElementID = elementID
-
-        guard let element = selectedUIMapElement else {
-            invalidateCanvas()
-            return
-        }
-
-        focusViewport(on: element.documentRect)
         invalidateCanvas()
     }
 

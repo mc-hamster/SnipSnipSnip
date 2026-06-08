@@ -889,7 +889,12 @@ nonisolated private final class WindowRefreshCaptureService: ScreenCaptureServic
     }
 
     func captureWindow(_ window: CaptureWindowSummary) async throws -> CapturedScreenshot {
-        makeCapturedScreenshot(kind: .window, sourceName: window.displayTitle, sourceRect: window.frame)
+        makeCapturedScreenshot(
+            kind: .window,
+            sourceName: window.displayTitle,
+            sourceRect: window.frame,
+            sourceWindowIdentity: CaptureSourceWindowIdentity(window: window)
+        )
     }
 }
 

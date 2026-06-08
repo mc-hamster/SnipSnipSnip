@@ -326,8 +326,9 @@ extension AppModel {
                 try await runCaptureDelayIfNeeded(actionName: "Capturing Window")
                 let resolvedWindow = try await captureService.resolveWindowTarget(selectedWindow)
                 let capture = try await captureService.captureWindow(resolvedWindow)
+                let uiMapAwareCapture = captureWithUIMapIfNeeded(capture)
                 showCapturedFeedback()
-                try completeCapture(capture, request: .window(resolvedWindow), isPrivateCapture: isPrivateCapture)
+                try completeCapture(uiMapAwareCapture, request: .window(resolvedWindow), isPrivateCapture: isPrivateCapture, shouldAttemptUIMapCapture: false)
             } catch {
                 present(error)
             }
@@ -338,7 +339,7 @@ extension AppModel {
         isShowingWindowPicker = false
 
         Task {
-            await performCapture(request: .window(window)) {
+            await performCapture(request: .window(window), minimizeAppWindow: true) {
                 try await captureService.captureWindow(window)
             }
         }
@@ -474,7 +475,7 @@ extension AppModel {
 
     func beginFrontmostWindowCapture() {
         Task {
-            await performCapture(request: .frontmostWindow) {
+            await performCapture(request: .frontmostWindow, minimizeAppWindow: true) {
                 let window = try await captureService.frontmostWindow()
                 return try await captureService.captureWindow(window)
             }
@@ -517,12 +518,14 @@ extension AppModel {
                     let fallbackSnapshot = try await captureService.captureDesktopOverlaySnapshot()
                     capture = try await captureService.captureRegion(from: fallbackSnapshot, selection: region)
                 }
+                let uiMapAwareCapture = captureWithUIMapIfNeeded(capture)
                 showCapturedFeedback()
                 try completeCapture(
-                    capture,
+                    uiMapAwareCapture,
                     request: .region(capture.sourceRect),
                     isPrivateCapture: isPrivateCapture,
-                    cursorCaptureGlobalLocation: cursorCaptureGlobalLocation
+                    cursorCaptureGlobalLocation: cursorCaptureGlobalLocation,
+                    shouldAttemptUIMapCapture: false
                 )
             } catch {
                 present(error)
@@ -633,8 +636,9 @@ extension AppModel {
         do {
             try await runCaptureDelayIfNeeded(actionName: "Capturing")
             let capture = try await action()
+            let uiMapAwareCapture = captureWithUIMapIfNeeded(capture)
             showCapturedFeedback()
-            try completeCapture(capture, request: request, isPrivateCapture: isPrivateCapture)
+            try completeCapture(uiMapAwareCapture, request: request, isPrivateCapture: isPrivateCapture, shouldAttemptUIMapCapture: false)
         } catch {
             present(error)
         }
@@ -685,6 +689,13 @@ extension AppModel {
             let isPrivateCapture = beginCapturePrivacyLock()
             defer { endCapturePrivacyLock() }
 
+            let hiddenWindow = hideAppWindowIfNeeded()
+            defer { restoreAppWindowIfNeeded(hiddenWindow) }
+
+            if hiddenWindow != nil {
+                try? await Task.sleep(nanoseconds: 200_000_000)
+            }
+
             isWorking = true
             workingMessage = captureDelay == .immediate ? "Capturing Window" : captureDelay.shortLabel
             defer { isWorking = false }
@@ -693,8 +704,9 @@ extension AppModel {
                 try await runCaptureDelayIfNeeded(actionName: "Capturing Window")
                 let resolvedWindow = try await captureService.resolveWindowTarget(window)
                 let capture = try await captureService.captureWindow(resolvedWindow)
+                let uiMapAwareCapture = captureWithUIMapIfNeeded(capture)
                 showCapturedFeedback()
-                try completeCapture(capture, request: .window(resolvedWindow), isPrivateCapture: isPrivateCapture)
+                try completeCapture(uiMapAwareCapture, request: .window(resolvedWindow), isPrivateCapture: isPrivateCapture, shouldAttemptUIMapCapture: false)
             } catch let error as ScreenCaptureError where error == .windowImageUnavailable || error == .noWindowsAvailable {
                 requestMainWindowPresentation()
                 await loadAvailableWindows(requestAccessIfNeeded: false, presentPicker: true, showErrors: true, includeThumbnails: true)
@@ -818,10 +830,11 @@ extension AppModel {
         _ capture: CapturedScreenshot,
         request: LastCaptureRequest,
         isPrivateCapture: Bool,
-        cursorCaptureGlobalLocation: CGPoint? = nil
+        cursorCaptureGlobalLocation: CGPoint? = nil,
+        shouldAttemptUIMapCapture: Bool = true
     ) throws {
+        let uiMapAwareCapture = shouldAttemptUIMapCapture ? captureWithUIMapIfNeeded(capture) : capture
         shelveCurrentDocumentForRecents()
-        let uiMapAwareCapture = captureWithUIMapIfNeeded(capture)
         let cursorAwareCapture = uiMapAwareCapture.attachingCursorOverlay(currentCursorOverlay(
             for: uiMapAwareCapture,
             cursorCaptureGlobalLocation: cursorCaptureGlobalLocation

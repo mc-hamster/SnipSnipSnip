@@ -182,6 +182,7 @@ func makeCapturedScreenshot(
     sourceName: String = "Display",
     sourceRect: CGRect? = nil,
     bounds: CGRect? = nil,
+    sourceWindowIdentity: CaptureSourceWindowIdentity? = nil,
     coordinateContract: DocumentCoordinateContract = .current,
     capturedAt: Date = Date(timeIntervalSince1970: 1_700_000_000),
     uiMap: UIMapSnapshot? = nil
@@ -193,6 +194,7 @@ func makeCapturedScreenshot(
         kind: kind,
         sourceName: sourceName,
         sourceRect: sourceRect ?? bounds ?? CGRect(origin: .zero, size: CGSize(width: resolvedImage.width, height: resolvedImage.height)),
+        sourceWindowIdentity: sourceWindowIdentity,
         coordinateContract: coordinateContract,
         capturedAt: capturedAt,
         uiMap: uiMap

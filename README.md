@@ -26,14 +26,14 @@ Private Capture skips archive checkpoints, recent-snips recovery, recycle-bin re
 ## Permissions
 
 - Screen Recording: required for screenshot capture, window thumbnails, and screen recording pixels.
-- Accessibility: required for Scrolling Capture, where the app must scroll the selected target, and for screenshot capture when UI Map is enabled so visible interface metadata can be read during the user-initiated capture workflow.
+- Accessibility: required for Scrolling Capture, where the app must scroll the selected target, and for screenshot capture when UI Map is enabled so visible interface metadata can be read during the user-initiated capture workflow. Cross-app Accessibility UI Map capture is intended for unsandboxed Dev and Self Release builds; App Store-compatible sandboxed builds may fall back to local screenshot text recognition when macOS refuses the interface tree.
 - Microphone: required only when microphone narration is enabled for recording.
 
 The app Settings screen includes permission diagnostics, remediation buttons, and a local sanitized diagnostics export for support. Region and fullscreen capture do not require Accessibility unless UI Map is enabled.
 
 ### Accessibility Permission For Xcode Builds
 
-When testing Scrolling Capture from Xcode, macOS grants Accessibility access to the exact `.app` bundle that Xcode launched. Development builds usually run from DerivedData, so granting access to a copied app in `/Applications` will not grant access to the debug build.
+When testing Scrolling Capture or UI Map from Xcode, macOS grants Accessibility access to the exact `.app` bundle that Xcode launched. Development builds usually run from DerivedData, so granting access to a copied app in `/Applications` will not grant access to the debug build.
 
 If SnipSnipSnip is not listed in **System Settings > Privacy & Security > Accessibility**:
 

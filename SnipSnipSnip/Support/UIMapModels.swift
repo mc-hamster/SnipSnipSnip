@@ -121,6 +121,20 @@ nonisolated struct UIMapElement: Codable, Equatable, Identifiable, Sendable {
         ].compactMap { $0 }
     }
 
+    var isShowAllOverlayCandidate: Bool {
+        if isStructuralAccessibilityRole {
+            return false
+        }
+
+        if isControlAccessibilityRole {
+            return true
+        }
+
+        return children.isEmpty && searchTokens.contains {
+            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
     func matches(searchQuery: String, roleFilter: String?) -> Bool {
         let roleMatches: Bool
         if let roleFilter, !roleFilter.isEmpty {
@@ -174,6 +188,72 @@ nonisolated struct UIMapElement: Codable, Equatable, Identifiable, Sendable {
         }
 
         return nil
+    }
+
+    private var normalizedRole: String {
+        role?.lowercased() ?? ""
+    }
+
+    private var normalizedRoleDescription: String {
+        roleDescription?.lowercased() ?? ""
+    }
+
+    private var isStructuralAccessibilityRole: Bool {
+        let structuralRoles = [
+            "axapplication",
+            "axbrowser",
+            "axcell",
+            "axcolumn",
+            "axgroup",
+            "axlayoutarea",
+            "axlayoutitem",
+            "axlist",
+            "axoutline",
+            "axrow",
+            "axscrollarea",
+            "axsplitgroup",
+            "axtable",
+            "axtabgroup",
+            "axtoolbar",
+            "axwindow"
+        ]
+
+        return structuralRoles.contains(normalizedRole)
+            || normalizedRoleDescription == "group"
+            || normalizedRoleDescription == "window"
+    }
+
+    private var isControlAccessibilityRole: Bool {
+        let controlRoles = [
+            "axbutton",
+            "axcheckbox",
+            "axcombobox",
+            "aximage",
+            "axlink",
+            "axmenu",
+            "axmenubaritem",
+            "axmenuitem",
+            "axpopbutton",
+            "axpopover",
+            "axradiobutton",
+            "axsearchfield",
+            "axslider",
+            "axstatictext",
+            "axswitch",
+            "axtextarea",
+            "axtextfield"
+        ]
+
+        return controlRoles.contains(normalizedRole)
+            || normalizedRoleDescription.contains("button")
+            || normalizedRoleDescription.contains("checkbox")
+            || normalizedRoleDescription.contains("image")
+            || normalizedRoleDescription.contains("link")
+            || normalizedRoleDescription.contains("menu")
+            || normalizedRoleDescription.contains("radio")
+            || normalizedRoleDescription.contains("search")
+            || normalizedRoleDescription.contains("slider")
+            || normalizedRoleDescription.contains("text")
     }
 }
 

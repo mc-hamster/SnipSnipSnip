@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct UIMapWindowView: View {
     @ObservedObject var model: AppModel
@@ -98,6 +100,21 @@ private struct UIMapPanelView: View {
 
                 Spacer()
 
+                Button("Export JSON...") {
+                    exportUIMap()
+                }
+                .controlSize(.small)
+                .help("Export structured UI Map metadata for debugging or review.")
+
+                Button(controller.showsAllUIMapElements ? "Hide All" : "Show All") {
+                    controller.showsAllUIMapElements.toggle()
+                }
+                .controlSize(.small)
+                .help(controller.showsAllUIMapElements
+                    ? "Hide UI Map outlines for unselected elements."
+                    : "Show outlines for captured UI controls and leaf elements on the screenshot."
+                )
+
                 if controller.selectedUIMapElement != nil {
                     Button("Clear Selection") {
                         controller.selectUIMapElement(nil)
@@ -142,6 +159,7 @@ private struct UIMapPanelView: View {
             UIMapMetadataRow(label: "Accessibility Label", value: element.accessibilityLabel)
             UIMapMetadataRow(label: "Accessibility Identifier", value: element.accessibilityIdentifier)
             UIMapMetadataRow(label: "Role", value: element.roleDescription ?? element.role)
+            UIMapMetadataRow(label: "Value", value: element.valueDescription)
             UIMapMetadataRow(label: "Position", value: "\(Int(element.documentRect.minX)), \(Int(element.documentRect.minY))")
             UIMapMetadataRow(label: "Size", value: "\(Int(element.documentRect.width)) x \(Int(element.documentRect.height))")
             UIMapMetadataRow(label: "Owning Application", value: element.owningApplication)
@@ -180,6 +198,42 @@ private struct UIMapPanelView: View {
                 controller.uiMapOverlayOptions = options
             }
         )
+    }
+
+    private func exportUIMap() {
+        let export = UIMapExportDocument(
+            capture: controller.capture,
+            uiMap: uiMap,
+            selectedElementID: controller.selectedUIMapElementID
+        )
+        let panel = NSSavePanel()
+        panel.title = "Export UI Map"
+        panel.allowedContentTypes = [.json]
+        panel.canCreateDirectories = true
+        panel.isExtensionHidden = false
+        panel.nameFieldStringValue = "\(sanitizedFilenameStem(controller.capture.sourceName))-UI-Map.json"
+
+        guard panel.runModal() == .OK,
+              let url = panel.url else {
+            return
+        }
+
+        do {
+            try export.jsonData().write(to: url, options: .atomic)
+        } catch {
+            NSAlert(error: error).runModal()
+        }
+    }
+
+    private func sanitizedFilenameStem(_ value: String) -> String {
+        let invalidCharacters = CharacterSet(charactersIn: "/\\:?%*|\"<>")
+            .union(.newlines)
+            .union(.controlCharacters)
+        let sanitized = value
+            .components(separatedBy: invalidCharacters)
+            .joined(separator: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return sanitized.isEmpty ? "UI-Map" : sanitized
     }
 
     private func filteredElement(_ element: UIMapElement, searchQuery: String, roleFilter: String?) -> UIMapElement? {

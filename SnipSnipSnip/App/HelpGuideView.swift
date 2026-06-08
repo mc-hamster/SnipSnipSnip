@@ -151,7 +151,10 @@ struct HelpGuideView: View {
                             bullets: [
                                 "UI Map capture runs only during user-initiated screenshot workflows.",
                                 "The screenshot image stays visually unchanged by default.",
-                                "If macOS does not provide interface metadata for a visible element, SnipSnipSnip omits that unavailable field.",
+                                "If macOS provides interface metadata, SnipSnipSnip saves available names, labels, identifiers, roles, positions, sizes, parent hierarchy, and owning app.",
+                                "Cross-app interface trees are available in Dev and Self Release builds after Accessibility consent. App Store-compatible sandboxed builds may fall back to local text recognition when macOS refuses interface metadata.",
+                                "If macOS refuses the interface tree for the target app, SnipSnipSnip may fall back to local text recognition and save visible text labels with screenshot-space locations.",
+                                "Unavailable metadata fields are omitted.",
                                 "Turning UI Map off stops new UI Map capture. Existing .sss documents that already contain UI Map metadata still open normally."
                             ]
                         ),
@@ -162,6 +165,8 @@ struct HelpGuideView: View {
                                 "Choose Arrange > Show UI Map, or use the UI Map toolbar button.",
                                 "Search by name, role, label, or identifier, or filter by element type.",
                                 "Select an element to show its region on the screenshot and inspect its metadata.",
+                                "Use Show All to outline captured controls and leaf elements without permanently annotating the screenshot.",
+                                "Use Export JSON to save the structured UI Map metadata for debugging, review, or support.",
                                 "Use the display toggles to show the selected element outline, label, identifier, role, coordinates, or dimensions."
                             ]
                         ),

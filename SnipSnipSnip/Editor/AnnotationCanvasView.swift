@@ -284,10 +284,31 @@ private final class AnnotationCanvasOverlayView: NSView {
     }
 
     private func drawSelectedUIMapElement(in canvasRect: CGRect) {
+        if controller.showsAllUIMapElements,
+           let uiMap = controller.uiMapSnapshot {
+            for element in uiMap.allElements {
+                let isSelected = element.id == controller.selectedUIMapElementID
+                guard isSelected || element.isShowAllOverlayCandidate else {
+                    continue
+                }
+
+                drawUIMapElement(
+                    element,
+                    in: canvasRect,
+                    isSelected: isSelected
+                )
+            }
+            return
+        }
+
         guard let element = controller.selectedUIMapElement else {
             return
         }
 
+        drawUIMapElement(element, in: canvasRect, isSelected: true)
+    }
+
+    private func drawUIMapElement(_ element: UIMapElement, in canvasRect: CGRect, isSelected: Bool) {
         let options = controller.uiMapOverlayOptions
         let rect = viewRect(for: element.documentRect, in: canvasRect)
         guard rect.width > 0, rect.height > 0 else {
@@ -298,11 +319,17 @@ private final class AnnotationCanvasOverlayView: NSView {
 
         if options.showsOutline {
             let path = NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4)
-            color.withAlphaComponent(0.16).setFill()
-            path.fill()
-            color.withAlphaComponent(0.95).setStroke()
-            path.lineWidth = 2
+            if isSelected {
+                color.withAlphaComponent(0.18).setFill()
+                path.fill()
+            }
+            color.withAlphaComponent(isSelected ? 0.95 : 0.48).setStroke()
+            path.lineWidth = isSelected ? 2 : 1
             path.stroke()
+        }
+
+        guard !controller.showsAllUIMapElements || isSelected else {
+            return
         }
 
         let labelSegments = uiMapOverlayLabelSegments(for: element, options: options)
