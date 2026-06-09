@@ -71,6 +71,7 @@ final class CaptureTextRecognitionCoordinator {
     func recognizeText(
         for entry: DocumentHistoryEntry,
         image: CGImage,
+        includeUIMapSearchText: Bool = FeatureFlags.uiMapEnabled,
         didUpdate: @escaping @MainActor (String) -> Void
     ) {
         guard activeTasks[entry.packageURL] == nil else {
@@ -97,7 +98,11 @@ final class CaptureTextRecognitionCoordinator {
                     return nil as String?
                 }
 
-                return try? SSSDocumentPackage.updateRecognizedText(recognizedText, in: packageURL)
+                return try? SSSDocumentPackage.updateRecognizedText(
+                    recognizedText,
+                    in: packageURL,
+                    includeUIMapSearchText: includeUIMapSearchText
+                )
             }
 
             let searchableText = await withTaskCancellationHandler {

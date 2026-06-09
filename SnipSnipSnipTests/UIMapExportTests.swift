@@ -28,7 +28,14 @@ final class UIMapExportTests: XCTestCase {
         let uiMap = UIMapSnapshot(
             capturedAt: Date(timeIntervalSince1970: 1_800_000_000),
             sourceRect: CGRect(x: 40, y: 120, width: 600, height: 540),
-            elements: [window]
+            elements: [window],
+            diagnostics: UIMapCaptureDiagnosticsSummary(
+                axWindowMatchConfidence: 0.92,
+                accessibilityElementCount: 2,
+                ocrSupplementElementCount: 0,
+                didHitBudgetLimit: false,
+                didHitTimeLimit: false
+            )
         )
         let capture = makeCapturedScreenshot(
             image: makeCoordinateImage(width: 1200, height: 1080),
@@ -64,11 +71,16 @@ final class UIMapExportTests: XCTestCase {
         XCTAssertEqual(export.sourceWindowIdentity?.frame, UIMapExportRect(CGRect(x: 40, y: 120, width: 600, height: 540)))
         XCTAssertEqual(export.documentRect, UIMapExportRect(CGRect(x: 0, y: 0, width: 1200, height: 1080)))
         XCTAssertEqual(export.pixelSize, UIMapExportSize(CGSize(width: 1200, height: 1080)))
+        XCTAssertEqual(export.diagnostics?.axWindowMatchConfidence, 0.92)
+        XCTAssertEqual(export.diagnostics?.accessibilityElementCount, 2)
         XCTAssertEqual(export.elementCount, 2)
         XCTAssertEqual(export.selectedElementID, buttonID)
         XCTAssertEqual(export.elements.first?.children.first?.id, buttonID)
+        XCTAssertEqual(export.elements.first?.source, .accessibility)
+        XCTAssertEqual(export.elements.first?.children.first?.source, .accessibility)
         XCTAssertEqual(export.flattenedElements.map(\.id), [windowID, buttonID])
         XCTAssertEqual(export.flattenedElements[1].parentIDs, [windowID])
+        XCTAssertEqual(export.flattenedElements.map(\.source), [.accessibility, .accessibility])
         XCTAssertFalse(export.flattenedElements[0].showAllOverlayCandidate)
         XCTAssertTrue(export.flattenedElements[1].showAllOverlayCandidate)
 

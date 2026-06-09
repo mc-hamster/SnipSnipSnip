@@ -1,13 +1,14 @@
 # SnipSnipSnip
 
-SnipSnipSnip is a local-first macOS screenshot, annotation, history, OCR, and screen recording app.
+SnipSnipSnip is a local-first macOS screenshot, annotation, history, OCR, and screen recording app. SnipSnipSnip Pro adds advanced capture workflows, including scrolling capture, connected iPhone/iPad capture, and UI Map.
 
 ## Features
 
-- Region, window, frontmost window, fullscreen, repeat, and scrolling screenshot capture.
+- Region, window, frontmost window, fullscreen, repeat, and timer screenshot capture.
+- SnipSnipSnip Pro scrolling screenshot capture and connected iPhone/iPad capture.
 - Non-destructive screenshot editor with crop, rectangle, ellipse, line, arrow, freehand, highlight, text, callouts, ruler measurements, spotlight/dim, image overlays, rotation, layer ordering, grouping, alignment, snapping, and blur/pixelate/solid redaction.
 - Local OCR for capture-history search and selectable Copy Text from a dragged screenshot region.
-- Optional UI Map capture for saving visible interface element names, roles, identifiers, and locations in editable `.sss` documents.
+- SnipSnipSnip Pro UI Map capture for saving visible interface element names, roles, identifiers, hierarchy, and geometry in editable `.sss` documents. UI Map turns a Window screenshot into a searchable, inspectable structured capture instead of pixels only.
 - PNG, JPEG, and PDF screenshot export with re-encoded metadata-stripped output.
 - Drag-out sharing for rendered screenshots, styled presentation previews, and trimmed video exports.
 - Floating reference screenshots for pinning rendered editor or history snapshots in lightweight always-on-top windows.
@@ -19,21 +20,21 @@ For the detailed current feature inventory, partial features, and known gaps, se
 
 ## Privacy Posture
 
-SnipSnipSnip processes screenshots, annotations, OCR, UI Map metadata, and rendering locally. Editable `.sss` packages retain the original base screenshot, annotation state, and any captured UI Map metadata, so share rendered exports when redactions must be flattened or editable metadata should not travel.
+SnipSnipSnip processes screenshots, annotations, OCR, rendering, and any SnipSnipSnip Pro UI Map metadata locally. Editable `.sss` packages retain the original base screenshot, annotation state, and any captured UI Map metadata, so share rendered exports when redactions must be flattened or editable metadata should not travel.
 
 Private Capture skips archive checkpoints, recent-snips recovery, recycle-bin retention, and background OCR indexing for that capture session. Exported/copied PNG, JPEG, and PDF output is re-encoded and does not carry source EXIF, TIFF, GPS, IPTC, or user metadata forward.
 
 ## Permissions
 
 - Screen Recording: required for screenshot capture, window thumbnails, and screen recording pixels.
-- Accessibility: required for Scrolling Capture, where the app must scroll the selected target, and for screenshot capture when UI Map is enabled so visible interface metadata can be read during the user-initiated capture workflow. Cross-app Accessibility UI Map capture is intended for unsandboxed Dev and Self Release builds; App Store-compatible sandboxed builds may fall back to local screenshot text recognition when macOS refuses the interface tree.
+- Accessibility: required in SnipSnipSnip Pro for Scrolling Capture, where the app must scroll the selected target, and for UI Map Window capture, where visible interface metadata can be read during the user-initiated capture workflow.
 - Microphone: required only when microphone narration is enabled for recording.
 
-The app Settings screen includes permission diagnostics, remediation buttons, and a local sanitized diagnostics export for support. Region and fullscreen capture do not require Accessibility unless UI Map is enabled.
+The app Settings screen includes permission diagnostics, remediation buttons, and a local sanitized diagnostics export for support. Standard region, window, and fullscreen capture do not require Accessibility.
 
 ### Accessibility Permission For Xcode Builds
 
-When testing Scrolling Capture or UI Map from Xcode, macOS grants Accessibility access to the exact `.app` bundle that Xcode launched. Development builds usually run from DerivedData, so granting access to a copied app in `/Applications` will not grant access to the debug build.
+When testing Pro Scrolling Capture or UI Map from Xcode, macOS grants Accessibility access to the exact `.app` bundle that Xcode launched. Development builds usually run from DerivedData, so granting access to a copied app in `/Applications` will not grant access to the debug build.
 
 If SnipSnipSnip is not listed in **System Settings > Privacy & Security > Accessibility**:
 

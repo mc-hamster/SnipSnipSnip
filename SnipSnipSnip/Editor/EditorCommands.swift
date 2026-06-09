@@ -130,6 +130,24 @@ nonisolated struct SetSelectionCommand: DocumentCommand {
     }
 }
 
+nonisolated struct SetPinnedUIMapElementsCommand: DocumentCommand {
+    let elementIDs: [UUID]
+
+    var label: String { "Pin UI Map Elements" }
+
+    func apply(to snapshot: EditorSnapshot) -> EditorSnapshot {
+        var updated = snapshot
+        var unique: [UUID] = []
+
+        for id in elementIDs where !unique.contains(id) {
+            unique.append(id)
+        }
+
+        updated.pinnedUIMapElementIDs = unique
+        return updated
+    }
+}
+
 nonisolated struct SetPresentationCommand: DocumentCommand {
     let presentation: ScreenshotPresentation
 

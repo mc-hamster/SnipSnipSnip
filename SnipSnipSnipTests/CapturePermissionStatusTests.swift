@@ -22,9 +22,9 @@ final class CapturePermissionStatusTests: XCTestCase {
         XCTAssertTrue(FeatureFlags.connectedDeviceCaptureEnabled(for: .selfRelease))
 
         XCTAssertTrue(FeatureFlags.uiMapEnabled(for: .dev))
-        XCTAssertTrue(FeatureFlags.uiMapEnabled(for: .internalTesting))
-        XCTAssertTrue(FeatureFlags.uiMapEnabled(for: .externalTesting))
-        XCTAssertTrue(FeatureFlags.uiMapEnabled(for: .release))
+        XCTAssertFalse(FeatureFlags.uiMapEnabled(for: .internalTesting))
+        XCTAssertFalse(FeatureFlags.uiMapEnabled(for: .externalTesting))
+        XCTAssertFalse(FeatureFlags.uiMapEnabled(for: .release))
         XCTAssertTrue(FeatureFlags.uiMapEnabled(for: .selfRelease))
     }
 

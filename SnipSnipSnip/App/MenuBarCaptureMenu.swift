@@ -75,8 +75,8 @@ struct ScreenshotCaptureSettingsMenuContent: View {
             .help("Add the cursor as an editable screenshot overlay. Scrolling Capture always excludes it.")
 
         if FeatureFlags.uiMapEnabled {
-            Toggle("Include UI Map", isOn: uiMapBinding)
-                .help("Save names, roles, and locations of visible interface elements with new screenshots.")
+            Toggle("Include UI Map for Window Captures", isOn: uiMapBinding)
+                .help("Save available names, roles, identifiers, and locations of visible interface elements when capturing a window.")
         }
     }
 

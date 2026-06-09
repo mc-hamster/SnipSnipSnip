@@ -20,14 +20,26 @@ private enum UIMapCaptureDiagnostics {
     }
 }
 
-@MainActor
-protocol UIMapCaptureServiceType {
-    func captureUIMap(for capture: CapturedScreenshot) -> UIMapSnapshot?
+protocol UIMapCaptureServiceType: Sendable {
+    nonisolated func captureUIMap(for capture: CapturedScreenshot) -> UIMapSnapshot?
 }
 
 nonisolated struct UIMapWindowRelativeMapping: Equatable {
     let rootAccessibilityRect: CGRect
     let candidateDocumentRect: CGRect
+    let visibleDocumentRects: [CGRect]
+
+    init(
+        rootAccessibilityRect: CGRect,
+        candidateDocumentRect: CGRect,
+        visibleDocumentRects: [CGRect] = []
+    ) {
+        self.rootAccessibilityRect = rootAccessibilityRect.gscIntegralStandardized
+        self.candidateDocumentRect = candidateDocumentRect.gscIntegralStandardized
+        self.visibleDocumentRects = visibleDocumentRects
+            .map(\.gscIntegralStandardized)
+            .filter { $0.width > 0 && $0.height > 0 }
+    }
 
     func documentRect(fromAccessibilityRect rect: CGRect) -> CGRect? {
         guard rootAccessibilityRect.width > 0,
@@ -51,6 +63,17 @@ nonisolated struct UIMapWindowRelativeMapping: Equatable {
         }
 
         return documentRect
+    }
+
+    func visibleDocumentRect(fromDocumentRect rect: CGRect) -> CGRect? {
+        let visibilityRects = visibleDocumentRects.isEmpty ? [candidateDocumentRect] : visibleDocumentRects
+        let intersections = visibilityRects
+            .map { rect.intersection($0).gscIntegralStandardized }
+            .filter { $0.width > 0 && $0.height > 0 }
+
+        return intersections.max {
+            ($0.width * $0.height) < ($1.width * $1.height)
+        }
     }
 }
 
@@ -117,16 +140,31 @@ nonisolated enum UIMapTextRecognitionGeometry {
     }
 }
 
-@MainActor
-struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
+nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
     private struct WindowCandidate {
         let windowID: CGWindowID?
         let ownerPID: pid_t
         let ownerName: String
         let bundleIdentifier: String?
         let frame: CGRect
+        let visibleCaptureRects: [CGRect]
         let layer: Int
         let focusRank: Int
+
+        func withVisibleCaptureRects(_ rects: [CGRect]) -> WindowCandidate {
+            WindowCandidate(
+                windowID: windowID,
+                ownerPID: ownerPID,
+                ownerName: ownerName,
+                bundleIdentifier: bundleIdentifier,
+                frame: frame,
+                visibleCaptureRects: rects
+                    .map(\.gscIntegralStandardized)
+                    .filter { $0.width > 0 && $0.height > 0 },
+                layer: layer,
+                focusRank: focusRank
+            )
+        }
     }
 
     private struct CaptureMapping {
@@ -159,14 +197,27 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
 
     private let maxDepth = 12
     private let maxElementCount = 900
+    private let maxVisitedElementCount = 1_800
+    private let captureDeadlineSeconds: TimeInterval = 2.5
+    private let minimumAXWindowMatchScore: CGFloat = 0.35
 
-    func captureUIMap(for capture: CapturedScreenshot) -> UIMapSnapshot? {
+    nonisolated func captureUIMap(for capture: CapturedScreenshot) -> UIMapSnapshot? {
         UIMapCaptureDiagnostics.notice(
             "[UIMap] capture requested sourceName='\(capture.sourceName)' kind='\(capture.kind.rawValue)' sourceRect=\(Self.describe(capture.sourceRect)) documentRect=\(Self.describe(capture.documentRect)) pixelSize=\(Int(capture.pixelSize.width))x\(Int(capture.pixelSize.height)) featureFlag=\(FeatureFlags.uiMapEnabled) axTrusted=\(AXIsProcessTrusted())"
         )
 
         guard FeatureFlags.uiMapEnabled else {
             UIMapCaptureDiagnostics.failure("[UIMap] capture skipped: feature flag disabled")
+            return nil
+        }
+
+        guard capture.kind == .window else {
+            UIMapCaptureDiagnostics.notice("[UIMap] capture skipped: UI Map is limited to Window captures kind='\(capture.kind.rawValue)'")
+            return nil
+        }
+
+        guard capture.sourceWindowIdentity != nil else {
+            UIMapCaptureDiagnostics.failure("[UIMap] capture skipped: window capture has no selected source window identity")
             return nil
         }
 
@@ -181,7 +232,11 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
             accessibilityMappings: Self.currentCoordinateMappings()
         )
         var remainingElementBudget = maxElementCount
+        var remainingVisitBudget = maxVisitedElementCount
         var visited = Set<CFHashCode>()
+        var didHitTimeLimit = false
+        var bestAXWindowMatchScore: CGFloat?
+        let deadline = Date().addingTimeInterval(captureDeadlineSeconds)
         let candidates = windowCandidates(for: capture)
         UIMapCaptureDiagnostics.notice(
             "[UIMap] window candidate count=\(candidates.count) captureSourceRect=\(Self.describe(capture.sourceRect)) displayMappings=\(mapping.accessibilityMappings.count)"
@@ -201,41 +256,122 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
                 return captureWindowElement(
                     for: candidate,
                     mapping: mapping,
-                    allowsHitTestPIDMismatch: capture.kind == .window,
                     visited: &visited,
-                    remainingElementBudget: &remainingElementBudget
+                    remainingVisitBudget: &remainingVisitBudget,
+                    remainingElementBudget: &remainingElementBudget,
+                    bestAXWindowMatchScore: &bestAXWindowMatchScore,
+                    deadline: deadline,
+                    didHitTimeLimit: &didHitTimeLimit
                 )
             }
 
         guard !elements.isEmpty else {
-            if let textFallbackSnapshot = textRecognitionFallbackSnapshot(
-                for: capture,
-                candidates: candidates
-            ) {
-                return textFallbackSnapshot
-            }
-
             UIMapCaptureDiagnostics.failure(
-                "[UIMap] capture produced no elements candidates=\(candidates.count) visitedAXElements=\(visited.count) remainingBudget=\(remainingElementBudget)"
+                "[UIMap] capture produced no elements candidates=\(candidates.count) visitedAXElements=\(visited.count) remainingBudget=\(remainingElementBudget) timedOut=\(didHitTimeLimit)"
             )
             return nil
         }
 
-        let snapshot = UIMapSnapshot(capturedAt: Date(), sourceRect: capture.sourceRect, elements: elements)
+        let supplementedElements: [UIMapElement]
+        if Date() < deadline {
+            supplementedElements = elementsWithTextRecognitionSupplement(
+                for: capture,
+                candidates: candidates,
+                elements: elements
+            )
+        } else {
+            UIMapCaptureDiagnostics.notice("[UIMap] text-recognition supplement skipped: AX traversal reached time budget")
+            supplementedElements = elements
+            didHitTimeLimit = true
+        }
+        let accessibilityElementCount = elements.reduce(0) { $0 + $1.flattenedCount }
+        let ocrSupplementElementCount = supplementedElements
+            .flatMap(\.flattened)
+            .filter(\.isRecognizedTextSupplement)
+            .count
+        let didHitBudgetLimit = remainingElementBudget <= 0 || remainingVisitBudget <= 0
+        let snapshot = UIMapSnapshot(
+            capturedAt: Date(),
+            sourceRect: capture.sourceRect,
+            elements: supplementedElements,
+            diagnostics: UIMapCaptureDiagnosticsSummary(
+                axWindowMatchConfidence: bestAXWindowMatchScore,
+                accessibilityElementCount: accessibilityElementCount,
+                ocrSupplementElementCount: ocrSupplementElementCount,
+                didHitBudgetLimit: didHitBudgetLimit,
+                didHitTimeLimit: didHitTimeLimit
+            )
+        )
         UIMapCaptureDiagnostics.notice(
-            "[UIMap] capture succeeded rootElements=\(elements.count) flattenedElements=\(snapshot.elementCount) visitedAXElements=\(visited.count) remainingBudget=\(remainingElementBudget)"
+            "[UIMap] capture succeeded rootElements=\(supplementedElements.count) axRootElements=\(elements.count) flattenedElements=\(snapshot.elementCount) visitedAXElements=\(visited.count) remainingBudget=\(remainingElementBudget) remainingVisitBudget=\(remainingVisitBudget) bestAXWindowMatchScore=\(Self.rounded(bestAXWindowMatchScore ?? 0)) timedOut=\(didHitTimeLimit)"
         )
         return snapshot
     }
 
-    private func textRecognitionFallbackSnapshot(
+    private func elementsWithTextRecognitionSupplement(
         for capture: CapturedScreenshot,
-        candidates: [WindowCandidate]
-    ) -> UIMapSnapshot? {
-        UIMapCaptureDiagnostics.notice(
-            "[UIMap] AX capture produced no elements; attempting text-recognition fallback imageSize=\(Int(capture.pixelSize.width))x\(Int(capture.pixelSize.height))"
-        )
+        candidates: [WindowCandidate],
+        elements: [UIMapElement]
+    ) -> [UIMapElement] {
+        guard let recognizedElements = recognizedTextElements(
+            for: capture,
+            candidates: candidates,
+            valueDescription: "Generated from screenshot text recognition because Accessibility metadata was incomplete."
+        ) else {
+            return elements
+        }
 
+        guard !recognizedElements.isEmpty else {
+            UIMapCaptureDiagnostics.notice("[UIMap] text-recognition supplement skipped: no recognized text")
+            return elements
+        }
+
+        let documentArea = area(of: capture.documentRect)
+        let existingOverlayRects = elements
+            .flatMap(\.flattened)
+            .filter {
+                $0.isShowAllOverlayCandidate
+                    && area(of: $0.documentRect) < documentArea * 0.25
+            }
+            .map(\.documentRect)
+        let supplementalTextElements = recognizedElements.filter { recognizedElement in
+            !existingOverlayRects.contains { existingRect in
+                existingRect.coversRecognizedTextRect(recognizedElement.documentRect)
+            }
+        }
+
+        guard !supplementalTextElements.isEmpty else {
+            UIMapCaptureDiagnostics.notice(
+                "[UIMap] text-recognition supplement skipped: all recognized text overlapped AX elements recognized=\(recognizedElements.count)"
+            )
+            return elements
+        }
+
+        let ownerName = candidates.first?.ownerName ?? capture.sourceName
+        let bundleIdentifier = candidates.first?.bundleIdentifier
+        let supplementalRoot = UIMapElement(
+            name: "Recognized Text",
+            accessibilityLabel: "Text recognition supplement",
+            role: "AXGroup",
+            roleDescription: "recognized text group",
+            valueDescription: "Visible text recognized from screenshot pixels where Accessibility metadata was incomplete.",
+            source: .ocrSupplement,
+            documentRect: capture.documentRect,
+            owningApplication: ownerName,
+            bundleIdentifier: bundleIdentifier,
+            children: supplementalTextElements
+        )
+        UIMapCaptureDiagnostics.notice(
+            "[UIMap] text-recognition supplement added elements=\(supplementalTextElements.count) recognized=\(recognizedElements.count) existingOverlayRects=\(existingOverlayRects.count)"
+        )
+        return elements + [supplementalRoot]
+    }
+
+    private func recognizedTextElements(
+        for capture: CapturedScreenshot,
+        candidates: [WindowCandidate],
+        valueDescription: String
+    ) -> [UIMapElement]? {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
@@ -246,7 +382,7 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
             try handler.perform([request])
         } catch {
             UIMapCaptureDiagnostics.failure(
-                "[UIMap] text-recognition fallback failed error='\(error.localizedDescription)'"
+                "[UIMap] text recognition failed error='\(error.localizedDescription)'"
             )
             return nil
         }
@@ -254,13 +390,13 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         let ownerName = candidates.first?.ownerName ?? capture.sourceName
         let bundleIdentifier = candidates.first?.bundleIdentifier
         let imageSize = CGSize(width: capture.image.width, height: capture.image.height)
-        let textElements = (request.results ?? []).compactMap { observation -> UIMapElement? in
+        return (request.results ?? []).compactMap { observation -> UIMapElement? in
             guard let candidate = observation.topCandidates(1).first else {
                 return nil
             }
 
             let text = CaptureTextRecognizer.normalizedRecognizedText(candidate.string)
-            guard !text.isEmpty,
+            guard text.isUsefulUIMapRecognizedText,
                   let documentRect = UIMapTextRecognitionGeometry.documentRect(
                     fromNormalizedBoundingBox: observation.boundingBox,
                     imageSize: imageSize,
@@ -274,46 +410,24 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
                 accessibilityLabel: text,
                 role: "AXStaticText",
                 roleDescription: "recognized text",
-                valueDescription: "Generated from screenshot text recognition because Accessibility metadata was unavailable.",
+                valueDescription: valueDescription,
+                source: .ocrSupplement,
                 documentRect: documentRect,
                 owningApplication: ownerName,
                 bundleIdentifier: bundleIdentifier
             )
         }
-
-        guard !textElements.isEmpty else {
-            UIMapCaptureDiagnostics.failure("[UIMap] text-recognition fallback produced no elements")
-            return nil
-        }
-
-        let rootElement = UIMapElement(
-            name: capture.sourceName,
-            accessibilityLabel: "Text recognition fallback",
-            role: "AXWindow",
-            roleDescription: "window",
-            valueDescription: "Accessibility metadata was unavailable; visible text was recognized from the screenshot pixels.",
-            documentRect: capture.documentRect,
-            owningApplication: ownerName,
-            bundleIdentifier: bundleIdentifier,
-            children: textElements
-        )
-        let snapshot = UIMapSnapshot(
-            capturedAt: Date(),
-            sourceRect: capture.sourceRect,
-            elements: [rootElement]
-        )
-        UIMapCaptureDiagnostics.notice(
-            "[UIMap] text-recognition fallback succeeded elements=\(textElements.count) flattenedElements=\(snapshot.elementCount)"
-        )
-        return snapshot
     }
 
     private func captureWindowElement(
         for candidate: WindowCandidate,
         mapping: CaptureMapping,
-        allowsHitTestPIDMismatch: Bool,
         visited: inout Set<CFHashCode>,
-        remainingElementBudget: inout Int
+        remainingVisitBudget: inout Int,
+        remainingElementBudget: inout Int,
+        bestAXWindowMatchScore: inout CGFloat?,
+        deadline: Date,
+        didHitTimeLimit: inout Bool
     ) -> UIMapElement? {
         let appElement = AXUIElementCreateApplication(candidate.ownerPID)
         AXUIElementSetMessagingTimeout(appElement, 2.0)
@@ -328,16 +442,23 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
                 "[UIMap] AX app owner='\(candidate.ownerName)' attributeNamesStatus=\(attributeNamesResult.status.rawValue) attributeNames=\(attributeNamesResult.names.count)"
             )
         }
-        let matchingWindows = windows
-            .filter { windowElement($0, matches: candidate, mapping: mapping) }
+        let scoredWindows = windows
+            .map { (element: $0, score: axWindowMatchScore($0, candidate: candidate, mapping: mapping)) }
+            .filter { $0.score >= minimumAXWindowMatchScore }
+            .sorted { $0.score > $1.score }
+        let matchingWindows = scoredWindows.map(\.element)
+        if let score = scoredWindows.first?.score {
+            bestAXWindowMatchScore = max(bestAXWindowMatchScore ?? 0, score)
+        }
         UIMapCaptureDiagnostics.notice(
-            "[UIMap] AX app owner='\(candidate.ownerName)' matchingWindows=\(matchingWindows.count)"
+            "[UIMap] AX app owner='\(candidate.ownerName)' matchingWindows=\(matchingWindows.count) bestScore=\(Self.rounded(scoredWindows.first?.score ?? 0)) threshold=\(Self.rounded(minimumAXWindowMatchScore))"
         )
 
         let fallbackRoots = applicationWindowRoots(
             from: appElement,
             candidate: candidate,
-            mapping: mapping
+            mapping: mapping,
+            bestAXWindowMatchScore: &bestAXWindowMatchScore
         )
         let roots = deduplicatedAXElements(matchingWindows + fallbackRoots)
         UIMapCaptureDiagnostics.notice(
@@ -358,34 +479,17 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
                 windowRelativeMapping: windowRelativeMapping,
                 depth: 0,
                 visited: &visited,
-                remainingElementBudget: &remainingElementBudget
+                remainingVisitBudget: &remainingVisitBudget,
+                remainingElementBudget: &remainingElementBudget,
+                deadline: deadline,
+                didHitTimeLimit: &didHitTimeLimit
             )
         }
 
         if children.isEmpty {
-            let hitTestChildren = captureHitTestElements(
-                for: candidate,
-                mapping: mapping,
-                allowsPIDMismatch: allowsHitTestPIDMismatch,
-                visited: &visited,
-                remainingElementBudget: &remainingElementBudget
+            UIMapCaptureDiagnostics.notice(
+                "[UIMap] AX root traversal produced no children owner='\(candidate.ownerName)'; skipping hit-test fallback for background capture"
             )
-
-            if !hitTestChildren.isEmpty {
-                guard let documentRect = mapping.documentRect(fromAccessibilityRect: accessibilityRect(fromCaptureRect: candidate.frame, using: mapping)) else {
-                    return nil
-                }
-
-                return UIMapElement(
-                    name: candidate.ownerName,
-                    role: "AXApplication",
-                    roleDescription: "Application",
-                    documentRect: documentRect,
-                    owningApplication: candidate.ownerName,
-                    bundleIdentifier: candidate.bundleIdentifier,
-                    children: hitTestChildren
-                )
-            }
         }
 
         if children.count == 1 {
@@ -411,100 +515,11 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         )
     }
 
-    private func captureHitTestElements(
-        for candidate: WindowCandidate,
-        mapping: CaptureMapping,
-        allowsPIDMismatch: Bool,
-        visited: inout Set<CFHashCode>,
-        remainingElementBudget: inout Int
-    ) -> [UIMapElement] {
-        let systemElement = AXUIElementCreateSystemWide()
-        let appElement = AXUIElementCreateApplication(candidate.ownerPID)
-        AXUIElementSetMessagingTimeout(systemElement, 2.0)
-        AXUIElementSetMessagingTimeout(appElement, 2.0)
-        var roots = [AXUIElement]()
-        var rootHashes = Set<CFHashCode>()
-        let points = candidatePoints(in: candidate.frame.intersection(mapping.captureSourceRect))
-
-        UIMapCaptureDiagnostics.notice(
-            "[UIMap] hit-test fallback owner='\(candidate.ownerName)' samplePoints=\(points.count)"
-        )
-
-        for point in points {
-            for hitTestPoint in axHitTestPoints(forCapturePoint: point, mapping: mapping) {
-                let hitResults = hitTestElements(
-                    at: hitTestPoint.accessibilityPoint,
-                    appElement: appElement,
-                    systemElement: systemElement
-                )
-
-                if hitResults.isEmpty {
-                    UIMapCaptureDiagnostics.notice(
-                        "[UIMap] hit-test failed owner='\(candidate.ownerName)' mode=\(hitTestPoint.mode) capturePoint=\(Self.describePoint(point)) axPoint=\(Self.describePoint(hitTestPoint.accessibilityPoint))"
-                    )
-                    continue
-                }
-
-                for hitResult in hitResults {
-                    let root = accessibilityWindowElement(startingAt: hitResult.element) ?? hitResult.element
-                    let rootPID = elementPID(root)
-                    let acceptsPIDMismatch = allowsPIDMismatch
-                        && helperRootOwnerMatchesCapture(rootPID: rootPID, candidate: candidate)
-                        && helperRootFrameMatchesCapture(root, candidate: candidate)
-                    guard rootPID == candidate.ownerPID || acceptsPIDMismatch else {
-                        UIMapCaptureDiagnostics.notice(
-                            "[UIMap] hit-test root rejected owner='\(candidate.ownerName)' source=\(hitResult.source) expectedPID=\(candidate.ownerPID) actualPID=\(rootPID ?? -1) mode=\(hitTestPoint.mode) rootRole='\(stringAttribute("AXRole", from: root) ?? "unknown")'"
-                        )
-                        continue
-                    }
-
-                    if rootPID != candidate.ownerPID {
-                        UIMapCaptureDiagnostics.notice(
-                            "[UIMap] hit-test root accepted helper PID owner='\(candidate.ownerName)' source=\(hitResult.source) expectedPID=\(candidate.ownerPID) actualPID=\(rootPID ?? -1) mode=\(hitTestPoint.mode) rootRole='\(stringAttribute("AXRole", from: root) ?? "unknown")'"
-                        )
-                    }
-
-                    let rootHash = CFHash(root)
-                    guard rootHashes.insert(rootHash).inserted else {
-                        continue
-                    }
-
-                    UIMapCaptureDiagnostics.notice(
-                        "[UIMap] hit-test root owner='\(candidate.ownerName)' source=\(hitResult.source) mode=\(hitTestPoint.mode) capturePoint=\(Self.describePoint(point)) axPoint=\(Self.describePoint(hitTestPoint.accessibilityPoint)) rootRole='\(stringAttribute("AXRole", from: root) ?? "unknown")'"
-                    )
-                    roots.append(root)
-                }
-            }
-        }
-
-        let elements = roots.compactMap {
-            let windowRelativeMapping = windowRelativeMapping(
-                forRoot: $0,
-                candidate: candidate,
-                mapping: mapping
-            )
-            return captureElement(
-                $0,
-                ownerName: candidate.ownerName,
-                bundleIdentifier: candidate.bundleIdentifier,
-                mapping: mapping,
-                windowRelativeMapping: windowRelativeMapping,
-                depth: 0,
-                visited: &visited,
-                remainingElementBudget: &remainingElementBudget
-            )
-        }
-
-        UIMapCaptureDiagnostics.notice(
-            "[UIMap] hit-test fallback owner='\(candidate.ownerName)' roots=\(roots.count) capturedElements=\(elements.count)"
-        )
-        return elements
-    }
-
     private func applicationWindowRoots(
         from appElement: AXUIElement,
         candidate: WindowCandidate,
-        mapping: CaptureMapping
+        mapping: CaptureMapping,
+        bestAXWindowMatchScore: inout CGFloat?
     ) -> [AXUIElement] {
         var roots = [AXUIElement]()
 
@@ -524,21 +539,31 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
                 continue
             }
 
-            if windowElement(root, matches: candidate, mapping: mapping) {
+            let score = axWindowMatchScore(root, candidate: candidate, mapping: mapping)
+            if score >= minimumAXWindowMatchScore {
+                bestAXWindowMatchScore = max(bestAXWindowMatchScore ?? 0, score)
                 UIMapCaptureDiagnostics.notice(
-                    "[UIMap] AX app owner='\(candidate.ownerName)' \(attributeName) accepted role='\(stringAttribute("AXRole", from: root) ?? "unknown")' frame=\(Self.describe(accessibilityFrame(of: root) ?? .zero))"
+                    "[UIMap] AX app owner='\(candidate.ownerName)' \(attributeName) accepted score=\(Self.rounded(score)) role='\(stringAttribute("AXRole", from: root) ?? "unknown")' frame=\(Self.describe(accessibilityFrame(of: root) ?? .zero))"
                 )
                 roots.append(root)
             } else {
                 UIMapCaptureDiagnostics.notice(
-                    "[UIMap] AX app owner='\(candidate.ownerName)' \(attributeName) rejected role='\(stringAttribute("AXRole", from: root) ?? "unknown")' frame=\(Self.describe(accessibilityFrame(of: root) ?? .zero))"
+                    "[UIMap] AX app owner='\(candidate.ownerName)' \(attributeName) rejected score=\(Self.rounded(score)) role='\(stringAttribute("AXRole", from: root) ?? "unknown")' frame=\(Self.describe(accessibilityFrame(of: root) ?? .zero))"
                 )
             }
         }
 
         let childrenResult = attributeResult("AXChildren", from: appElement)
         let childRoots = (childrenResult.value as? [AXUIElement]) ?? []
-        let matchingChildRoots = childRoots.filter { windowElement($0, matches: candidate, mapping: mapping) }
+        let matchingChildRoots = childRoots.filter { childRoot in
+            let score = axWindowMatchScore(childRoot, candidate: candidate, mapping: mapping)
+            if score >= minimumAXWindowMatchScore {
+                bestAXWindowMatchScore = max(bestAXWindowMatchScore ?? 0, score)
+                return true
+            }
+
+            return false
+        }
         UIMapCaptureDiagnostics.notice(
             "[UIMap] AX app owner='\(candidate.ownerName)' AXChildrenStatus=\(childrenResult.status.rawValue) childRoots=\(childRoots.count) matchingChildRoots=\(matchingChildRoots.count)"
         )
@@ -547,14 +572,19 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         return deduplicatedAXElements(roots)
     }
 
-    private func windowElement(
+    private func axWindowMatchScore(
         _ element: AXUIElement,
-        matches candidate: WindowCandidate,
+        candidate: WindowCandidate,
         mapping: CaptureMapping
-    ) -> Bool {
+    ) -> CGFloat {
+        if let pid = elementPID(element),
+           pid != candidate.ownerPID {
+            return 0
+        }
+
         guard let frame = accessibilityFrame(of: element),
               let documentRect = mapping.documentRect(fromAccessibilityRect: frame) else {
-            return false
+            return 0
         }
 
         let candidateDocumentRect = TopLeftRectTransform(
@@ -564,7 +594,19 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
             .targetRect(fromSourceRect: candidate.frame.intersection(mapping.captureSourceRect))
             .gscIntegralStandardized
         let overlap = gscIntersectionArea(documentRect, candidateDocumentRect)
-        return overlap > 0 || documentRect.intersects(candidateDocumentRect)
+        let overlapDenominator = min(area(of: documentRect), area(of: candidateDocumentRect))
+        guard overlapDenominator > 0 else {
+            return 0
+        }
+
+        let overlapRatio = overlap / overlapDenominator
+        let frameDelta = abs(documentRect.minX - candidateDocumentRect.minX)
+            + abs(documentRect.minY - candidateDocumentRect.minY)
+            + abs(documentRect.width - candidateDocumentRect.width)
+            + abs(documentRect.height - candidateDocumentRect.height)
+        let framePenalty = min(frameDelta / max(mapping.documentRect.width + mapping.documentRect.height, 1), 0.35)
+        let roleBonus: CGFloat = (stringAttribute("AXRole", from: element) == "AXWindow") ? 0.1 : 0
+        return max(0, overlapRatio + roleBonus - framePenalty)
     }
 
     private func deduplicatedAXElements(_ elements: [AXUIElement]) -> [AXUIElement] {
@@ -582,75 +624,6 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         return deduplicated
     }
 
-    private struct HitTestElement {
-        let source: String
-        let element: AXUIElement
-    }
-
-    private func hitTestElements(
-        at point: CGPoint,
-        appElement: AXUIElement,
-        systemElement: AXUIElement
-    ) -> [HitTestElement] {
-        var results = [HitTestElement]()
-
-        if let appHitElement = hitTestElement(in: appElement, at: point, source: "app") {
-            results.append(appHitElement)
-        }
-
-        if let systemHitElement = hitTestElement(in: systemElement, at: point, source: "system") {
-            let systemHash = CFHash(systemHitElement.element)
-            if !results.contains(where: { CFHash($0.element) == systemHash }) {
-                results.append(systemHitElement)
-            }
-        }
-
-        return results
-    }
-
-    private func hitTestElement(in root: AXUIElement, at point: CGPoint, source: String) -> HitTestElement? {
-        let (hitError, hitElement) = hitTestResult(in: root, at: point)
-
-        guard hitError == .success, let hitElement else {
-            UIMapCaptureDiagnostics.notice(
-                "[UIMap] hit-test source=\(source) failed axPoint=\(Self.describePoint(point)) error=\(hitError.rawValue)"
-            )
-            return nil
-        }
-
-        return HitTestElement(source: source, element: hitElement)
-    }
-
-    private func hitTestResult(in root: AXUIElement, at point: CGPoint) -> (status: AXError, element: AXUIElement?) {
-        var lastStatus = AXError.failure
-        var lastElement: AXUIElement?
-
-        for attempt in 0..<3 {
-            var hitElement: AXUIElement?
-            let status = AXUIElementCopyElementAtPosition(
-                root,
-                Float(point.x),
-                Float(point.y),
-                &hitElement
-            )
-            if status == .success {
-                return (status, hitElement)
-            }
-
-            lastStatus = status
-            lastElement = hitElement
-
-            guard status == .cannotComplete,
-                  attempt < 2 else {
-                break
-            }
-
-            Thread.sleep(forTimeInterval: 0.08)
-        }
-
-        return (lastStatus, lastElement)
-    }
-
     private func captureElement(
         _ element: AXUIElement,
         ownerName: String,
@@ -659,9 +632,18 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         windowRelativeMapping: UIMapWindowRelativeMapping?,
         depth: Int,
         visited: inout Set<CFHashCode>,
-        remainingElementBudget: inout Int
+        remainingVisitBudget: inout Int,
+        remainingElementBudget: inout Int,
+        deadline: Date,
+        didHitTimeLimit: inout Bool
     ) -> UIMapElement? {
+        guard Date() <= deadline else {
+            didHitTimeLimit = true
+            return nil
+        }
+
         guard remainingElementBudget > 0,
+              remainingVisitBudget > 0,
               depth <= maxDepth else {
             return nil
         }
@@ -670,6 +652,7 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         guard visited.insert(hash).inserted else {
             return nil
         }
+        remainingVisitBudget -= 1
 
         let capturedChildren = elementChildren(of: element).compactMap {
             captureElement(
@@ -680,7 +663,10 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
                 windowRelativeMapping: windowRelativeMapping,
                 depth: depth + 1,
                 visited: &visited,
-                remainingElementBudget: &remainingElementBudget
+                remainingVisitBudget: &remainingVisitBudget,
+                remainingElementBudget: &remainingElementBudget,
+                deadline: deadline,
+                didHitTimeLimit: &didHitTimeLimit
             )
         }
 
@@ -763,6 +749,10 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
             return nil
         }
 
+        if let windowRelativeMapping {
+            return windowRelativeMapping.visibleDocumentRect(fromDocumentRect: clipped)
+        }
+
         return clipped
     }
 
@@ -789,14 +779,32 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         )
             .targetRect(fromSourceRect: candidateCaptureRect)
             .gscIntegralStandardized
+        let visibleDocumentRects = candidate.visibleCaptureRects.compactMap { visibleCaptureRect -> CGRect? in
+            let rect = TopLeftRectTransform(
+                sourceBounds: mapping.captureSourceRect,
+                targetBounds: mapping.documentRect
+            )
+                .targetRect(fromSourceRect: visibleCaptureRect)
+                .intersection(candidateDocumentRect)
+                .intersection(mapping.documentRect)
+                .gscIntegralStandardized
+
+            guard rect.width > 0,
+                  rect.height > 0 else {
+                return nil
+            }
+
+            return rect
+        }
 
         UIMapCaptureDiagnostics.notice(
-            "[UIMap] window-relative mapping owner='\(candidate.ownerName)' rootRole='\(stringAttribute("AXRole", from: root) ?? "unknown")' rootAXRect=\(Self.describe(rootAccessibilityRect)) candidateDocRect=\(Self.describe(candidateDocumentRect))"
+            "[UIMap] window-relative mapping owner='\(candidate.ownerName)' rootRole='\(stringAttribute("AXRole", from: root) ?? "unknown")' rootAXRect=\(Self.describe(rootAccessibilityRect)) candidateDocRect=\(Self.describe(candidateDocumentRect)) visibleDocFragments=\(visibleDocumentRects.count)"
         )
 
         return UIMapWindowRelativeMapping(
             rootAccessibilityRect: rootAccessibilityRect,
-            candidateDocumentRect: candidateDocumentRect
+            candidateDocumentRect: candidateDocumentRect,
+            visibleDocumentRects: visibleDocumentRects
         )
     }
 
@@ -809,14 +817,14 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
                 bundleIdentifier: identity.bundleIdentifier
                     ?? NSRunningApplication(processIdentifier: identity.ownerPID)?.bundleIdentifier,
                 frame: identity.frame,
+                visibleCaptureRects: [identity.frame.intersection(capture.sourceRect).gscIntegralStandardized],
                 layer: 0,
                 focusRank: -1
             )
-            let relatedCandidates = relatedWindowCandidates(for: identity, captureSourceRect: capture.sourceRect)
             UIMapCaptureDiagnostics.notice(
-                "[UIMap] window capture using source identity windowID=\(identity.windowID) owner='\(identity.ownerName)' pid=\(identity.ownerPID) frame=\(Self.describe(identity.frame)) sourceName='\(capture.sourceName)' relatedCandidates=\(relatedCandidates.count)"
+                "[UIMap] window capture using source identity windowID=\(identity.windowID) owner='\(identity.ownerName)' pid=\(identity.ownerPID) frame=\(Self.describe(identity.frame)) sourceName='\(capture.sourceName)'"
             )
-            return [candidate] + relatedCandidates
+            return [candidate]
         }
 
         let visibleCandidates = windowCandidates(intersecting: capture.sourceRect)
@@ -909,6 +917,7 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
                 ownerName: ownerName,
                 bundleIdentifier: app?.bundleIdentifier,
                 frame: frame.gscIntegralStandardized,
+                visibleCaptureRects: [frame.intersection(captureRect).gscIntegralStandardized],
                 layer: layer,
                 focusRank: index
             )
@@ -916,170 +925,6 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         .sorted { $0.focusRank < $1.focusRank }
 
         return visibleWindowCandidates(candidates, in: captureRect)
-    }
-
-    private func relatedWindowCandidates(
-        for identity: CaptureSourceWindowIdentity,
-        captureSourceRect: CGRect
-    ) -> [WindowCandidate] {
-        guard let windowInfo = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
-            UIMapCaptureDiagnostics.failure("[UIMap] related window probe failed: CGWindowListCopyWindowInfo returned nil")
-            return []
-        }
-
-        let currentProcessID = ProcessInfo.processInfo.processIdentifier
-        let targetFrame = identity.frame.intersection(captureSourceRect).gscIntegralStandardized
-        let targetArea = area(of: targetFrame)
-
-        guard targetArea > 0 else {
-            return []
-        }
-
-        let candidates = windowInfo.enumerated().compactMap { index, info -> (candidate: WindowCandidate, sharedCoverage: CGFloat, targetCoverage: CGFloat)? in
-            guard let ownerPIDNumber = info[kCGWindowOwnerPID as String] as? NSNumber,
-                  ownerPIDNumber.int32Value != currentProcessID,
-                  let windowNumber = info[kCGWindowNumber as String] as? NSNumber,
-                  CGWindowID(windowNumber.uint32Value) != identity.windowID,
-                  let boundsDictionary = info[kCGWindowBounds as String] as? [String: Any],
-                  let frame = CGRect(dictionaryRepresentation: boundsDictionary as CFDictionary)?.gscIntegralStandardized,
-                  frame.width >= 2,
-                  frame.height >= 2 else {
-                return nil
-            }
-
-            let intersection = frame.intersection(targetFrame).gscIntegralStandardized
-            let intersectionArea = area(of: intersection)
-            let candidateArea = area(of: frame)
-            guard intersectionArea >= 16,
-                  candidateArea > 0 else {
-                return nil
-            }
-
-            let sharedCoverage = intersectionArea / min(candidateArea, targetArea)
-            let targetCoverage = intersectionArea / targetArea
-            let candidateCoverage = intersectionArea / candidateArea
-            let originDelta = hypot(frame.minX - targetFrame.minX, frame.minY - targetFrame.minY)
-            let sizeDelta = abs(frame.width - targetFrame.width) + abs(frame.height - targetFrame.height)
-            let isTightSibling = targetCoverage >= 0.65
-                && candidateCoverage >= 0.65
-                && originDelta <= 80
-                && sizeDelta <= 220
-            guard isTightSibling else {
-                return nil
-            }
-
-            let ownerPID = ownerPIDNumber.int32Value
-            let app = NSRunningApplication(processIdentifier: ownerPID)
-            let ownerName = (info[kCGWindowOwnerName as String] as? String)
-                ?? app?.localizedName
-                ?? "Application"
-            let layer = (info[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
-            let candidate = WindowCandidate(
-                windowID: CGWindowID(windowNumber.uint32Value),
-                ownerPID: ownerPID,
-                ownerName: ownerName,
-                bundleIdentifier: app?.bundleIdentifier,
-                frame: frame,
-                layer: layer,
-                focusRank: index
-            )
-            return (candidate, sharedCoverage, targetCoverage)
-        }
-        .sorted {
-            if $0.candidate.layer != $1.candidate.layer {
-                return abs($0.candidate.layer) < abs($1.candidate.layer)
-            }
-            if $0.sharedCoverage != $1.sharedCoverage {
-                return $0.sharedCoverage > $1.sharedCoverage
-            }
-            return $0.candidate.focusRank < $1.candidate.focusRank
-        }
-
-        for related in candidates.prefix(12) {
-            UIMapCaptureDiagnostics.notice(
-                "[UIMap] related window candidate windowID=\(related.candidate.windowID.map(String.init) ?? "nil") owner='\(related.candidate.ownerName)' pid=\(related.candidate.ownerPID) bundle='\(related.candidate.bundleIdentifier ?? "nil")' layer=\(related.candidate.layer) sharedCoverage=\(Self.rounded(related.sharedCoverage)) targetCoverage=\(Self.rounded(related.targetCoverage)) frame=\(Self.describe(related.candidate.frame))"
-            )
-        }
-
-        var seen = Set<String>()
-        return candidates.compactMap { related -> WindowCandidate? in
-            let candidate = related.candidate
-            let key = "\(candidate.ownerPID)-\(candidate.windowID.map(String.init) ?? "nil")-\(Int(candidate.frame.minX))-\(Int(candidate.frame.minY))-\(Int(candidate.frame.width))-\(Int(candidate.frame.height))"
-            guard seen.insert(key).inserted else {
-                return nil
-            }
-            return candidate
-        }
-        .prefix(8)
-        .map { $0 }
-    }
-
-    private func helperRootFrameMatchesCapture(_ root: AXUIElement, candidate: WindowCandidate) -> Bool {
-        guard let rootFrame = accessibilityFrame(of: root) else {
-            UIMapCaptureDiagnostics.notice(
-                "[UIMap] helper PID candidate rejected: missing root frame owner='\(candidate.ownerName)'"
-            )
-            return false
-        }
-
-        let candidateFrame = candidate.frame.gscIntegralStandardized
-        let rootArea = area(of: rootFrame)
-        let candidateArea = area(of: candidateFrame)
-        let intersectionArea = area(of: rootFrame.intersection(candidateFrame))
-        guard rootArea > 0,
-              candidateArea > 0,
-              intersectionArea > 0 else {
-            UIMapCaptureDiagnostics.notice(
-                "[UIMap] helper PID candidate rejected: no frame overlap owner='\(candidate.ownerName)' rootFrame=\(Self.describe(rootFrame)) candidateFrame=\(Self.describe(candidateFrame))"
-            )
-            return false
-        }
-
-        let rootToCandidateAreaRatio = rootArea / candidateArea
-        let candidateCoverage = intersectionArea / candidateArea
-        let sharedCoverage = intersectionArea / min(rootArea, candidateArea)
-        let originDelta = hypot(rootFrame.minX - candidateFrame.minX, rootFrame.minY - candidateFrame.minY)
-        let sizeDelta = abs(rootFrame.width - candidateFrame.width) + abs(rootFrame.height - candidateFrame.height)
-        let matches = (candidateCoverage >= 0.45 || sharedCoverage >= 0.45)
-            && rootToCandidateAreaRatio >= 0.5
-            && rootToCandidateAreaRatio <= 2.0
-            && originDelta <= 350
-            && sizeDelta <= 350
-
-        UIMapCaptureDiagnostics.notice(
-            "[UIMap] helper PID candidate frame check owner='\(candidate.ownerName)' matches=\(matches) coverage=\(Self.rounded(candidateCoverage)) sharedCoverage=\(Self.rounded(sharedCoverage)) areaRatio=\(Self.rounded(rootToCandidateAreaRatio)) originDelta=\(Self.rounded(originDelta)) sizeDelta=\(Self.rounded(sizeDelta)) rootFrame=\(Self.describe(rootFrame)) candidateFrame=\(Self.describe(candidateFrame))"
-        )
-        return matches
-    }
-
-    private func helperRootOwnerMatchesCapture(rootPID: pid_t?, candidate: WindowCandidate) -> Bool {
-        guard let rootPID else {
-            UIMapCaptureDiagnostics.notice(
-                "[UIMap] helper PID candidate rejected: missing root PID owner='\(candidate.ownerName)'"
-            )
-            return false
-        }
-
-        guard let rootApplication = NSRunningApplication(processIdentifier: rootPID) else {
-            UIMapCaptureDiagnostics.notice(
-                "[UIMap] helper PID candidate rejected: missing running app owner='\(candidate.ownerName)' actualPID=\(rootPID)"
-            )
-            return false
-        }
-
-        let rootBundleIdentifier = rootApplication.bundleIdentifier
-        let rootName = rootApplication.localizedName
-        let bundleMatches = candidate.bundleIdentifier != nil && candidate.bundleIdentifier == rootBundleIdentifier
-        let nameMatches = rootName?.localizedCaseInsensitiveCompare(candidate.ownerName) == .orderedSame
-
-        guard bundleMatches || nameMatches else {
-            UIMapCaptureDiagnostics.notice(
-                "[UIMap] helper PID candidate rejected: owner mismatch expectedOwner='\(candidate.ownerName)' expectedBundle='\(candidate.bundleIdentifier ?? "nil")' actualName='\(rootName ?? "nil")' actualBundle='\(rootBundleIdentifier ?? "nil")' actualPID=\(rootPID)"
-            )
-            return false
-        }
-
-        return true
     }
 
     private func visibleWindowCandidates(_ candidates: [WindowCandidate], in captureRect: CGRect) -> [WindowCandidate] {
@@ -1093,14 +938,15 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
                 continue
             }
 
-            let visibleArea = visibleArea(of: candidateCaptureRect, coveredBy: coveredRects)
+            let visibleFragments = visibleFragments(of: candidateCaptureRect, coveredBy: coveredRects)
+            let visibleArea = visibleFragments.reduce(0) { $0 + area(of: $1) }
             let visibilityRatio = visibleArea / candidateArea
             UIMapCaptureDiagnostics.notice(
-                "[UIMap] candidate visibility owner='\(candidate.ownerName)' visibleArea=\(Self.rounded(visibleArea)) candidateArea=\(Self.rounded(candidateArea)) ratio=\(Self.rounded(visibilityRatio)) frame=\(Self.describe(candidate.frame))"
+                "[UIMap] candidate visibility owner='\(candidate.ownerName)' visibleArea=\(Self.rounded(visibleArea)) candidateArea=\(Self.rounded(candidateArea)) ratio=\(Self.rounded(visibilityRatio)) fragments=\(visibleFragments.count) frame=\(Self.describe(candidate.frame))"
             )
 
-            if visibleArea >= 16, visibilityRatio >= 0.01 {
-                visibleCandidates.append(candidate)
+            if UIMapWindowVisibilityPolicy.shouldCaptureWindow(visibleArea: visibleArea) {
+                visibleCandidates.append(candidate.withVisibleCaptureRects(visibleFragments))
             }
 
             coveredRects.append(candidateCaptureRect)
@@ -1109,7 +955,7 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         return visibleCandidates
     }
 
-    private func visibleArea(of rect: CGRect, coveredBy coveredRects: [CGRect]) -> CGFloat {
+    private func visibleFragments(of rect: CGRect, coveredBy coveredRects: [CGRect]) -> [CGRect] {
         var visibleFragments = [rect.gscIntegralStandardized]
 
         for coveredRect in coveredRects {
@@ -1118,11 +964,11 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
             }
 
             if visibleFragments.isEmpty {
-                return 0
+                return []
             }
         }
 
-        return visibleFragments.reduce(0) { $0 + area(of: $1) }
+        return visibleFragments
     }
 
     private func subtract(_ coveredRect: CGRect, from rect: CGRect) -> [CGRect] {
@@ -1162,70 +1008,6 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         }
 
         return rect.gscIntegralStandardized
-    }
-
-    private struct AXHitTestPoint {
-        let mode: String
-        let accessibilityPoint: CGPoint
-    }
-
-    private func axHitTestPoints(forCapturePoint capturePoint: CGPoint, mapping: CaptureMapping) -> [AXHitTestPoint] {
-        let accessibilityPoint = accessibilityPoint(fromCapturePoint: capturePoint, mapping: mapping)
-        var points = [AXHitTestPoint(mode: "mapped", accessibilityPoint: accessibilityPoint)]
-
-        if hypot(accessibilityPoint.x - capturePoint.x, accessibilityPoint.y - capturePoint.y) > 0.5 {
-            points.append(AXHitTestPoint(mode: "capture", accessibilityPoint: capturePoint))
-        }
-
-        return points
-    }
-
-    private func accessibilityPoint(fromCapturePoint capturePoint: CGPoint, mapping: CaptureMapping) -> CGPoint {
-        if let displayMapping = mapping.accessibilityMappings.first(where: { $0.captureFrame.insetBy(dx: -1, dy: -1).contains(capturePoint) }) {
-            return displayMapping.accessibilityPoint(fromCapturePoint: capturePoint)
-        }
-
-        return capturePoint
-    }
-
-    private func candidatePoints(in rect: CGRect) -> [CGPoint] {
-        let rect = rect.gscIntegralStandardized
-        guard rect.width > 0, rect.height > 0 else {
-            return []
-        }
-
-        let insetX = min(max(rect.width * 0.2, 12), max(rect.width / 2 - 1, 1))
-        let insetY = min(max(rect.height * 0.2, 12), max(rect.height / 2 - 1, 1))
-        let xs = [rect.minX + insetX, rect.midX, rect.maxX - insetX]
-        let ys = [rect.minY + insetY, rect.midY, rect.maxY - insetY]
-
-        return ys.flatMap { y in
-            xs.map { x in CGPoint(x: x, y: y) }
-        }
-    }
-
-    private func accessibilityWindowElement(startingAt element: AXUIElement) -> AXUIElement? {
-        var current: AXUIElement? = element
-        var visited = Set<CFHashCode>()
-
-        while let candidate = current {
-            let identifier = CFHash(candidate)
-            guard visited.insert(identifier).inserted else {
-                return nil
-            }
-
-            if let window = elementAttribute("AXWindow", from: candidate) {
-                return window
-            }
-
-            if stringAttribute("AXRole", from: candidate) == "AXWindow" {
-                return candidate
-            }
-
-            current = elementAttribute("AXParent", from: candidate)
-        }
-
-        return nil
     }
 
     private func accessibilityFrame(of element: AXUIElement) -> CGRect? {
@@ -1381,13 +1163,48 @@ struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
     }
 }
 
-private func gscIntersectionArea(_ lhs: CGRect, _ rhs: CGRect) -> CGFloat {
+nonisolated enum UIMapWindowVisibilityPolicy {
+    static let minimumVisibleArea: CGFloat = 16
+
+    static func shouldCaptureWindow(visibleArea: CGFloat) -> Bool {
+        visibleArea >= minimumVisibleArea
+    }
+}
+
+nonisolated private func gscIntersectionArea(_ lhs: CGRect, _ rhs: CGRect) -> CGFloat {
     let intersection = lhs.intersection(rhs)
     return max(intersection.width, 0) * max(intersection.height, 0)
 }
 
+private extension CGRect {
+    nonisolated func coversRecognizedTextRect(_ recognizedRect: CGRect) -> Bool {
+        let recognizedArea = max(recognizedRect.width, 0) * max(recognizedRect.height, 0)
+        guard recognizedArea > 0 else {
+            return true
+        }
+
+        let intersection = intersection(recognizedRect)
+        let intersectionArea = max(intersection.width, 0) * max(intersection.height, 0)
+        if intersectionArea / recognizedArea >= 0.65 {
+            return true
+        }
+
+        return insetBy(dx: -3, dy: -3).contains(
+            CGPoint(x: recognizedRect.midX, y: recognizedRect.midY)
+        )
+    }
+}
+
+private extension String {
+    nonisolated var isUsefulUIMapRecognizedText: Bool {
+        let value = trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.count > 1
+            && value.rangeOfCharacter(from: .alphanumerics) != nil
+    }
+}
+
 private extension CaptureAccessibilityTransform {
-    func intersectsAccessibilityRect(_ rect: CGRect) -> Bool {
+    nonisolated func intersectsAccessibilityRect(_ rect: CGRect) -> Bool {
         accessibilityFrame.intersects(rect.standardized)
     }
 }

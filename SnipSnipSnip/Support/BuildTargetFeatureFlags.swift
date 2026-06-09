@@ -42,15 +42,12 @@ nonisolated enum BuildTargetFeatureMatrix {
         ],
         .internalTesting: [
           .presentationStyling,
-          .uiMap,
         ],
         .externalTesting: [
           .presentationStyling,
-          .uiMap,
         ],
         .release: [
           .presentationStyling,
-          .uiMap,
         ],
         .selfRelease: [
             .scrollingCapture,
@@ -111,7 +108,11 @@ nonisolated enum FeatureFlags {
     }
 
     static func uiMapEnabled(for target: BuildTarget = .current) -> Bool {
+#if APP_STORE_BUILD
+        false
+#else
         BuildTargetFeatureMatrix.isEnabled(.uiMap, for: target)
+#endif
     }
 
     static var uiMapEnabled: Bool {

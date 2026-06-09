@@ -428,23 +428,23 @@ struct OnboardingView: View {
     private func uiMapStep(metrics: OnboardingLayoutMetrics) -> some View {
         VStack(alignment: .leading, spacing: metrics.cardSpacing) {
             VStack(alignment: .leading, spacing: 14) {
-                Text("UI Map can save the names, roles, and locations of visible interface elements alongside screenshots you capture. This makes screenshots easier to search, inspect, document, and review for QA and accessibility.")
+                Text("UI Map works with Window capture. It can save available names, roles, identifiers, and locations from the selected window alongside the screenshot.")
                     .font(.body)
                     .foregroundStyle(.white.opacity(0.82))
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("UI Map metadata is local to the screenshot document. It is used for inspection, search, documentation, accessibility review, and QA workflows. You can disable UI Map now or change this later in Settings.")
+                Text("UI Map metadata stays local to the screenshot document and is used for inspection, search, documentation, accessibility review, and QA workflows. You can disable it now or change this later in Settings.")
                     .font(.body)
                     .foregroundStyle(.white.opacity(0.82))
                     .fixedSize(horizontal: false, vertical: true)
 
-                Toggle("Enable UI Map", isOn: uiMapBinding)
+                Toggle("Enable UI Map for Window captures", isOn: uiMapBinding)
                     .toggleStyle(.switch)
                     .controlSize(.large)
 
-                if model.uiMapNeedsAccessibilityAccess {
+                if model.windowUIMapNeedsAccessibilityAccess {
                     VStack(alignment: .leading, spacing: 10) {
-                        Label("UI Map needs Accessibility access before metadata can be captured.", systemImage: "lock.trianglebadge.exclamationmark.fill")
+                        Label("Window UI Map needs Accessibility access before metadata can be captured.", systemImage: "lock.trianglebadge.exclamationmark.fill")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.orange)
 
@@ -732,11 +732,27 @@ struct OnboardingView: View {
         case .screenRecording:
             return "Required for capture pixels, live window thumbnails, fullscreen capture, and video recording."
         case .accessibility:
+            if FeatureFlags.scrollingCaptureEnabled && FeatureFlags.uiMapEnabled {
+                return "Required only for Scrolling Capture and Window UI Map. Region and Fullscreen captures do not require Accessibility because of UI Map."
+            }
+
+            if FeatureFlags.uiMapEnabled {
+                return "Required only for Window UI Map. Region and Fullscreen captures do not require Accessibility because of UI Map."
+            }
+
             return "Required only for Scrolling Capture so SnipSnipSnip can scroll the selected app while collecting segments."
         }
     }
 
     private var permissionsSummaryText: String {
+        if FeatureFlags.scrollingCaptureEnabled && FeatureFlags.uiMapEnabled {
+            return "Screen Recording is required for pixels and live window thumbnails. Accessibility is only required for Scrolling Capture and Window UI Map."
+        }
+
+        if FeatureFlags.uiMapEnabled {
+            return "Screen Recording is required for pixels and live window thumbnails. Accessibility is only required for Window UI Map."
+        }
+
         if FeatureFlags.scrollingCaptureEnabled {
             return "Screen Recording is required for pixels and live window thumbnails. Accessibility is only required for Scrolling Capture."
         }

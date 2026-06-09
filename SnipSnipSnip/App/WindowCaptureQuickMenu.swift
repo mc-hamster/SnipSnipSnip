@@ -45,7 +45,8 @@ enum WindowCaptureMenuBuilder {
             systemImage: "cursorarrow.click.2",
             action: pickOnScreenAction,
             target: target,
-            enabled: isEnabled
+            enabled: isEnabled,
+            toolTip: windowUIMapHelpText(for: model)
         ))
 
         let windows = Array(model.availableWindows.prefix(suggestedWindowLimit))
@@ -60,7 +61,12 @@ enum WindowCaptureMenuBuilder {
                 )
                 item.target = target
                 item.representedObject = window
-                item.toolTip = window.displayTitle
+                item.toolTip = [
+                    window.displayTitle,
+                    windowUIMapHelpText(for: model)
+                ]
+                    .compactMap { $0 }
+                    .joined(separator: "\n")
                 item.image = resizedThumbnailImage(for: window, size: thumbnailSize)
                 item.isEnabled = isEnabled
                 menu.addItem(item)
@@ -73,7 +79,8 @@ enum WindowCaptureMenuBuilder {
             systemImage: "list.bullet.rectangle",
             action: presentWindowPickerAction,
             target: target,
-            enabled: isEnabled
+            enabled: isEnabled,
+            toolTip: windowUIMapHelpText(for: model)
         ))
     }
 
@@ -82,13 +89,23 @@ enum WindowCaptureMenuBuilder {
         systemImage: String,
         action: Selector,
         target: AnyObject,
-        enabled: Bool
+        enabled: Bool,
+        toolTip: String? = nil
     ) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
         item.target = target
         item.image = NSImage(systemSymbolName: systemImage, accessibilityDescription: nil)
         item.isEnabled = enabled
+        item.toolTip = toolTip
         return item
+    }
+
+    private static func windowUIMapHelpText(for model: AppModel) -> String? {
+        guard FeatureFlags.uiMapEnabled, model.uiMapEnabled else {
+            return nil
+        }
+
+        return "UI Map enabled for Window captures."
     }
 
     private static func resizedThumbnailImage(for window: CaptureWindowSummary, size targetSize: NSSize) -> NSImage? {

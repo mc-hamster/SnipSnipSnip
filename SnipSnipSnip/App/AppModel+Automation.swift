@@ -88,7 +88,11 @@ extension AppModel {
         }
 
         let capturedImage = initialCaptureHistoryIndexImage(for: controller)
-        textRecognitionCoordinator.recognizeText(for: entry, image: capturedImage) { [weak self] searchableText in
+        textRecognitionCoordinator.recognizeText(
+            for: entry,
+            image: capturedImage,
+            includeUIMapSearchText: windowUIMapEnabled
+        ) { [weak self] searchableText in
             self?.applyRecognizedSearchText(searchableText, to: entry)
         }
     }

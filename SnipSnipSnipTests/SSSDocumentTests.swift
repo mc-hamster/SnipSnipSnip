@@ -57,6 +57,7 @@ final class SSSDocumentTests: XCTestCase {
 
     func testPackageRoundTripsUIMapMetadata() throws {
         let baseImage = makeCoordinateImage(width: 80, height: 60, pattern: .weighted(xMultiplier: 5, yMultiplier: 7, includeBlueSum: true))
+        let pinnedElementID = UUID()
         let uiMap = UIMapSnapshot(
             capturedAt: Date(timeIntervalSince1970: 1_818_333_333),
             sourceRect: CGRect(x: 200, y: 300, width: 80, height: 60),
@@ -70,6 +71,7 @@ final class SSSDocumentTests: XCTestCase {
                     bundleIdentifier: "com.example.fixture",
                     children: [
                         UIMapElement(
+                            id: pinnedElementID,
                             name: "Enable UI Map",
                             accessibilityLabel: "Enable UI Map",
                             accessibilityIdentifier: "enable-ui-map",
@@ -90,7 +92,10 @@ final class SSSDocumentTests: XCTestCase {
             capturedAt: Date(timeIntervalSince1970: 1_818_333_330),
             uiMap: uiMap
         )
-        let snapshot = makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 80, height: 60))
+        let snapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 80, height: 60),
+            pinnedUIMapElementIDs: [pinnedElementID]
+        )
         let document = makeEditableDocument(capture: capture, session: makeEditorDocumentSession(initialSnapshot: snapshot))
         let previewImage = try XCTUnwrap(EditorRenderer.render(baseImage: baseImage, snapshot: snapshot))
         let packageURL = FileManager.default.temporaryDirectory
@@ -105,7 +110,52 @@ final class SSSDocumentTests: XCTestCase {
 
         XCTAssertNotNil(captureRecord["uiMap"])
         XCTAssertEqual(loaded.capture.uiMap, uiMap)
+        XCTAssertEqual(loaded.session.currentSnapshot.pinnedUIMapElementIDs, [pinnedElementID])
         XCTAssertTrue(SSSDocumentPackage.loadSearchableText(from: packageURL).contains("Enable UI Map"))
+
+        try? FileManager.default.removeItem(at: packageURL)
+    }
+
+    func testPackagePreservesUIMapMetadataWithoutIndexingWhenDisabled() throws {
+        let baseImage = makeCoordinateImage(width: 80, height: 60, pattern: .weighted(xMultiplier: 5, yMultiplier: 7, includeBlueSum: true))
+        let uiMap = UIMapSnapshot(
+            capturedAt: Date(timeIntervalSince1970: 1_818_333_333),
+            sourceRect: CGRect(x: 200, y: 300, width: 80, height: 60),
+            elements: [
+                UIMapElement(
+                    name: "Sensitive Toggle",
+                    role: "AXCheckBox",
+                    roleDescription: "Checkbox",
+                    documentRect: CGRect(x: 12, y: 14, width: 32, height: 18),
+                    owningApplication: "Fixture",
+                    bundleIdentifier: "com.example.fixture"
+                )
+            ]
+        )
+        let capture = makeCapturedScreenshot(
+            image: baseImage,
+            sourceName: "Fixture Window",
+            bounds: CGRect(x: 200, y: 300, width: 80, height: 60),
+            capturedAt: Date(timeIntervalSince1970: 1_818_333_330),
+            uiMap: uiMap
+        )
+        let snapshot = makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 80, height: 60))
+        let document = makeEditableDocument(capture: capture, session: makeEditorDocumentSession(initialSnapshot: snapshot))
+        let previewImage = try XCTUnwrap(EditorRenderer.render(baseImage: baseImage, snapshot: snapshot))
+        let packageURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("sss")
+
+        try SSSDocumentPackage.save(
+            document: document,
+            previewImage: previewImage,
+            to: packageURL,
+            includeUIMapSearchText: false
+        )
+        let loaded = try SSSDocumentPackage.load(from: packageURL)
+
+        XCTAssertEqual(loaded.capture.uiMap, uiMap)
+        XCTAssertFalse(SSSDocumentPackage.loadSearchableText(from: packageURL).contains("Sensitive Toggle"))
 
         try? FileManager.default.removeItem(at: packageURL)
     }

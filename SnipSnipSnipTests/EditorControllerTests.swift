@@ -786,7 +786,7 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
-    func testCompleteCaptureAttachesUIMapWhenPreferenceIsEnabled() throws {
+    func testCompleteCaptureAttachesUIMapWhenPreferenceIsEnabled() async throws {
         let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
         let defaults = makeTestDefaults()
@@ -800,6 +800,46 @@ final class EditorControllerTests: XCTestCase {
         ))
         model.autoCopyEnabled = false
         model.uiMapEnabled = true
+        model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
+
+        try model.completeCapture(
+            makeCapturedScreenshot(
+                image: makeCoordinateImage(width: 64, height: 48),
+                kind: .window,
+                sourceWindowIdentity: makeTestWindowIdentity()
+            ),
+            request: .window(makeTestWindowSummary()),
+            isPrivateCapture: false
+        )
+
+        XCTAssertTrue(model.editorController?.isProcessingUIMap == true)
+        XCTAssertNil(model.editorController?.capture.uiMap)
+
+        await waitForUIMap(model.editorController)
+
+        XCTAssertEqual(model.editorController?.capture.uiMap, uiMap)
+        XCTAssertFalse(model.editorController?.isProcessingUIMap == true)
+        XCTAssertEqual(uiMapCaptureService.captureCallCount, 1)
+
+        model.resetEditorSessionState()
+        try? FileManager.default.removeItem(at: rootURL)
+    }
+
+    @MainActor
+    func testCompleteCaptureSkipsUIMapForRegionWhenPreferenceIsEnabled() throws {
+        let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
+        let defaults = makeTestDefaults()
+        let uiMapCaptureService = StubUIMapCaptureService(uiMap: makeTestUIMap())
+        let model = retainForTestLifetime(AppModel(
+            defaults: defaults,
+            recoveryStore: store,
+            uiMapCaptureService: uiMapCaptureService,
+            shouldCheckCompatibilityOnLaunch: false
+        ))
+        model.autoCopyEnabled = false
+        model.uiMapEnabled = true
+        model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
 
         try model.completeCapture(
             makeCapturedScreenshot(image: makeCoordinateImage(width: 64, height: 48)),
@@ -807,8 +847,9 @@ final class EditorControllerTests: XCTestCase {
             isPrivateCapture: false
         )
 
-        XCTAssertEqual(model.editorController?.capture.uiMap, uiMap)
-        XCTAssertEqual(uiMapCaptureService.captureCallCount, 1)
+        XCTAssertNil(model.editorController?.capture.uiMap)
+        XCTAssertFalse(model.editorController?.isProcessingUIMap == true)
+        XCTAssertEqual(uiMapCaptureService.captureCallCount, 0)
 
         model.resetEditorSessionState()
         try? FileManager.default.removeItem(at: rootURL)
@@ -861,10 +902,16 @@ final class EditorControllerTests: XCTestCase {
         ))
         model.autoCopyEnabled = false
         model.uiMapEnabled = true
+        model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
 
         try model.completeCapture(
-            makeCapturedScreenshot(image: makeCoordinateImage(width: 64, height: 48), uiMap: existingUIMap),
-            request: .region(CGRect(x: 0, y: 0, width: 64, height: 48)),
+            makeCapturedScreenshot(
+                image: makeCoordinateImage(width: 64, height: 48),
+                kind: .window,
+                sourceWindowIdentity: makeTestWindowIdentity(),
+                uiMap: existingUIMap
+            ),
+            request: .window(makeTestWindowSummary()),
             isPrivateCapture: false
         )
 
@@ -876,7 +923,7 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
-    func testCompleteCaptureShowsNoticeWhenRequestedUIMapIsUnavailable() throws {
+    func testCompleteCaptureShowsNoticeWhenRequestedUIMapIsUnavailable() async throws {
         let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
         let defaults = makeTestDefaults()
@@ -889,7 +936,7 @@ final class EditorControllerTests: XCTestCase {
             try? FileManager.default.removeItem(at: rootURL)
         }
         ScreenCapturePermissions.screenRecordingStatusProvider = { true }
-        ScreenCapturePermissions.accessibilityStatusProvider = { false }
+        ScreenCapturePermissions.accessibilityStatusProvider = { true }
 
         let model = retainForTestLifetime(AppModel(
             defaults: defaults,
@@ -899,21 +946,108 @@ final class EditorControllerTests: XCTestCase {
         ))
         model.autoCopyEnabled = false
         model.uiMapEnabled = true
+        model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
 
         try model.completeCapture(
-            makeCapturedScreenshot(image: makeCoordinateImage(width: 64, height: 48)),
-            request: .region(CGRect(x: 0, y: 0, width: 64, height: 48)),
+            makeCapturedScreenshot(
+                image: makeCoordinateImage(width: 64, height: 48),
+                kind: .window,
+                sourceWindowIdentity: makeTestWindowIdentity()
+            ),
+            request: .window(makeTestWindowSummary()),
             isPrivateCapture: false
         )
 
+        await waitForUIMap(model.editorController)
+
         XCTAssertNil(model.editorController?.capture.uiMap)
+        XCTAssertFalse(model.editorController?.isProcessingUIMap == true)
         XCTAssertEqual(uiMapCaptureService.captureCallCount, 1)
         XCTAssertEqual(
             model.editorController?.noticeMessage,
-            "UI Map was not captured. Grant Accessibility access, then take the screenshot again."
+            "No UI Map metadata was available for this window."
         )
 
         model.resetEditorSessionState()
+    }
+
+    @MainActor
+    func testTogglingPinnedUIMapElementUpdatesSnapshotAndUndo() {
+        let uiMap = makeTestUIMap()
+        let elementID = uiMap.elements[0].id
+        let controller = makeController(
+            capture: makeCapturedScreenshot(
+                image: makeCoordinateImage(width: 64, height: 48),
+                uiMap: uiMap
+            )
+        )
+        let originalRevision = controller.persistenceRevision
+
+        controller.togglePinnedUIMapElement(elementID)
+
+        XCTAssertTrue(controller.isUIMapElementPinned(elementID))
+        XCTAssertEqual(controller.pinnedUIMapElements.map(\.id), [elementID])
+        XCTAssertEqual(controller.persistenceRevision, originalRevision + 1)
+
+        controller.undo()
+
+        XCTAssertFalse(controller.isUIMapElementPinned(elementID))
+        XCTAssertTrue(controller.pinnedUIMapElements.isEmpty)
+    }
+
+    @MainActor
+    func testUIMapInspectSelectionTogglesPinState() {
+        let uiMap = makeTestUIMap()
+        let elementID = uiMap.elements[0].id
+        let controller = makeController(
+            capture: makeCapturedScreenshot(
+                image: makeCoordinateImage(width: 64, height: 48),
+                uiMap: uiMap
+            )
+        )
+
+        controller.selectAndTogglePinnedUIMapElement(elementID)
+
+        XCTAssertEqual(controller.selectedUIMapElementID, elementID)
+        XCTAssertTrue(controller.isUIMapElementPinned(elementID))
+        XCTAssertEqual(controller.pinnedUIMapElements.map(\.id), [elementID])
+
+        controller.selectAndTogglePinnedUIMapElement(elementID)
+
+        XCTAssertEqual(controller.selectedUIMapElementID, elementID)
+        XCTAssertFalse(controller.isUIMapElementPinned(elementID))
+        XCTAssertTrue(controller.pinnedUIMapElements.isEmpty)
+    }
+
+    @MainActor
+    func testTypingAfterPinningUIMapElementCreatesTextAnnotationNearElement() {
+        let uiMap = makeTestUIMap()
+        let element = uiMap.elements[0]
+        let controller = makeController(
+            capture: makeCapturedScreenshot(
+                image: makeCoordinateImage(width: 320, height: 240),
+                uiMap: uiMap
+            )
+        )
+        let (_, overlay, window) = makeCanvasHarness(
+            controller: controller,
+            frame: CGRect(x: 0, y: 0, width: 640, height: 480)
+        )
+        controller.activeTool = .uiMapInspect
+        controller.selectAndTogglePinnedUIMapElement(element.id)
+
+        sendKeyEvent(.keyDown, keyCode: 0, characters: "A", to: overlay, in: window)
+
+        guard let text = controller.selectedAnnotation,
+              case let .text(shape) = text.kind
+        else {
+            return XCTFail("Expected new text annotation")
+        }
+
+        XCTAssertEqual(shape.text, "A")
+        XCTAssertNil(controller.selectedUIMapElementID)
+        XCTAssertTrue(controller.isUIMapElementPinned(element.id), "Typing should leave the UI Map element pinned.")
+        XCTAssertNotEqual(shape.rect.origin, element.documentRect.origin)
     }
 
     @MainActor
@@ -1436,6 +1570,22 @@ final class EditorControllerTests: XCTestCase {
         }
     }
 
+    @MainActor
+    private func waitForUIMap(_ controller: EditorController?, file: StaticString = #filePath, line: UInt = #line) async {
+        guard let controller else {
+            XCTFail("Expected editor controller", file: file, line: line)
+            return
+        }
+
+        for _ in 0..<100 where controller.isProcessingUIMap {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        if controller.isProcessingUIMap {
+            XCTFail("Timed out waiting for UI Map capture", file: file, line: line)
+        }
+    }
+
     private func makeTestDefaults() -> UserDefaults {
         let suiteName = "EditorControllerTests.\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suiteName) else {
@@ -1647,17 +1797,25 @@ nonisolated private final class StubTextRecognizer: CaptureTextRecognizing, @unc
     }
 }
 
-@MainActor
-private final class StubUIMapCaptureService: UIMapCaptureServiceType {
+private final class StubUIMapCaptureService: UIMapCaptureServiceType, @unchecked Sendable {
+    private let lock = NSLock()
     private let uiMap: UIMapSnapshot?
-    private(set) var captureCallCount = 0
+    private var _captureCallCount = 0
+
+    var captureCallCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _captureCallCount
+    }
 
     init(uiMap: UIMapSnapshot?) {
         self.uiMap = uiMap
     }
 
-    func captureUIMap(for capture: CapturedScreenshot) -> UIMapSnapshot? {
-        captureCallCount += 1
+    nonisolated func captureUIMap(for capture: CapturedScreenshot) -> UIMapSnapshot? {
+        lock.lock()
+        _captureCallCount += 1
+        lock.unlock()
         return uiMap
     }
 }
@@ -1677,6 +1835,30 @@ private func makeTestUIMap() -> UIMapSnapshot {
                 owningApplication: "Fixture"
             )
         ]
+    )
+}
+
+private func makeTestWindowSummary() -> CaptureWindowSummary {
+    CaptureWindowSummary(
+        id: 42,
+        ownerName: "Fixture",
+        ownerPID: 1234,
+        title: "Fixture Window",
+        frame: CGRect(x: 0, y: 0, width: 64, height: 48),
+        layer: 0,
+        focusRank: 0,
+        thumbnail: nil
+    )
+}
+
+private func makeTestWindowIdentity() -> CaptureSourceWindowIdentity {
+    CaptureSourceWindowIdentity(
+        windowID: 42,
+        ownerName: "Fixture",
+        ownerPID: 1234,
+        bundleIdentifier: "com.example.Fixture",
+        title: "Fixture Window",
+        frame: CGRect(x: 0, y: 0, width: 64, height: 48)
     )
 }
 

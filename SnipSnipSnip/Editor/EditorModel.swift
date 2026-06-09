@@ -13,6 +13,7 @@ private struct EditorToolMetadata {
 
 nonisolated enum EditorTool: String, CaseIterable, Identifiable {
     case select
+    case uiMapInspect
     case rectangle
     case ellipse
     case line
@@ -73,7 +74,7 @@ nonisolated enum EditorTool: String, CaseIterable, Identifiable {
             return Annotation.makeSolidRedaction(in: rect, style: style)
         case .spotlight:
             return Annotation.makeSpotlight(in: rect, style: style)
-        case .select, .line, .arrow, .freehand, .highlighter, .text, .callout, .measure, .colorPicker, .ocrText, .crop:
+        case .select, .uiMapInspect, .line, .arrow, .freehand, .highlighter, .text, .callout, .measure, .colorPicker, .ocrText, .crop:
             return nil
         }
     }
@@ -84,6 +85,15 @@ nonisolated enum EditorTool: String, CaseIterable, Identifiable {
             return EditorToolMetadata(
                 label: "Select",
                 systemImage: "cursorarrow",
+                supportsStyleEditing: false,
+                supportsFillEditing: false,
+                defaultRedactionMode: nil,
+                defaultStyle: AnnotationStyle(strokeColor: .rectangleStroke, fillColor: .clear, lineWidth: 4, fontSize: 0, effectRadius: 0)
+            )
+        case .uiMapInspect:
+            return EditorToolMetadata(
+                label: "UI Map Inspect",
+                systemImage: "cursorarrow.rays",
                 supportsStyleEditing: false,
                 supportsFillEditing: false,
                 defaultRedactionMode: nil,
@@ -1872,6 +1882,7 @@ nonisolated struct EditorSnapshot: Equatable {
     var selectedAnnotationIDs: [UUID]
     var nextCalloutNumber: Int
     var presentation: ScreenshotPresentation = .plain
+    var pinnedUIMapElementIDs: [UUID] = []
 
     // MARK: - Layer Reordering
 

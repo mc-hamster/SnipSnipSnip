@@ -1,10 +1,10 @@
 # SnipSnipSnip Feature List
 
-Last reviewed: 2026-06-07
+Last reviewed: 2026-06-09
 
 This document is the source of truth for what SnipSnipSnip and SnipSnipSnip Pro currently ship, what is only partially complete, and what is still missing. It is based on the current app source, shipped Help content, public docs, and test suite, not on older roadmap text.
 
-SnipSnipSnip is already much larger than a screenshot MVP. It is a real screenshot app with a strong non-destructive editor and archive system, plus a usable first-generation screen recording and trim workflow. SnipSnipSnip Pro is the expanded product tier for advanced capture workflows: scrolling capture and connected iPhone/iPad screenshot capture. The strongest completed areas are screenshot capture, screenshot editing, editable document persistence, archive/history/recovery, privacy defaults, screenshot presentation styling, drag-out sharing, practical MP4/GIF/APNG recording export, and user-triggered support diagnostics export. The largest unfinished areas are richer screenshot presentation templates, Pro capture hardening, advanced video polish, automation/integrations, accessibility depth, and localization.
+SnipSnipSnip is already much larger than a screenshot MVP. It is a real screenshot app with a strong non-destructive editor and archive system, plus a usable first-generation screen recording and trim workflow. SnipSnipSnip Pro is the expanded product tier for advanced capture workflows: scrolling capture, connected iPhone/iPad screenshot capture, and UI Map capture. The strongest completed areas are screenshot capture, screenshot editing, editable document persistence, archive/history/recovery, privacy defaults, screenshot presentation styling, drag-out sharing, practical MP4/GIF/APNG recording export, and user-triggered support diagnostics export. The largest unfinished areas are richer screenshot presentation templates, Pro capture hardening, advanced video polish, automation/integrations, accessibility depth, and localization.
 
 ## Status Legend
 
@@ -29,7 +29,7 @@ The comparison lens for the "remaining gap" column is still the premium macOS ca
 This repo currently represents two related products:
 
 - **SnipSnipSnip**: the standard local-first screenshot and screen recording app. It includes region, window, frontmost-window, fullscreen, repeat, and timer screenshot capture; the screenshot editor; archive/history/recovery; Clipboard History; Screen Inspector; floating references; local export and sharing; and region, window, and fullscreen screen recording.
-- **SnipSnipSnip Pro**: the advanced capture tier. It includes everything in SnipSnipSnip, plus scrolling capture and connected iPhone/iPad screenshot capture.
+- **SnipSnipSnip Pro**: the advanced capture tier. It includes everything in SnipSnipSnip, plus scrolling capture, connected iPhone/iPad screenshot capture, and UI Map capture.
 
 The current source also contains partial Pro connected-device recording plumbing. This is tracked separately from the standard recording product because the named Pro capture additions are scrolling capture and connected iPhone/iPad screenshot capture.
 
@@ -52,11 +52,13 @@ SnipSnipSnip Pro adds the following advanced capture workflows:
 
 - Scrolling capture with a dedicated scrolling overlay, Accessibility-driven target resolution, image stitching, cancel/done controls, partial-result handling, repeat support, and `.sss` scrolling metadata.
 - Connected iPhone/iPad screenshot capture for trusted USB devices, with a live AVFoundation preview and normal screenshot editor, copy, save, history/archive, and Private Capture behavior through the existing screenshot pipeline.
+- UI Map capture, a Pro-only structured screenshot workflow that saves available Accessibility metadata and local OCR supplement text into editable `.sss` documents for selected Window captures. Instead of treating a screenshot as pixels only, UI Map records visible interface element names, roles, identifiers, hierarchy, and geometry so the user can search the captured UI, inspect controls, export JSON, pin element overlays, and render those pinned overlays during copy, share, and export. This is a unique differentiator versus conventional screenshot tools.
 
 The biggest unfinished areas are now clear:
 
 - Pro scrolling capture works, but it is still a `~ Partial` feature because compatibility and diagnostics are not hardened enough to call it fully done.
 - Pro connected iPhone/iPad screenshot capture works in the feature-gated build, but it remains `~ Partial` because it uses self-release capture plumbing and needs broader device, orientation, stream-interruption, and disconnect QA.
+- Pro UI Map capture is implemented and intentionally Pro-only. It is still dependent on Accessibility availability and target-app AX quality, but the workflow is already user-reachable and materially different from pixel-only capture tools.
 - Screenshot presentation styling is useful and shipped: padding, solid or transparent backgrounds, rounded corners, shadows, live preview, and rendered drag-out sharing are present. Richer frames, gradients, pinned screenshots, and multi-capture composition remain open.
 - Video recording is useful, but advanced post-production is still mostly `x Not done`: webcam, keystrokes, zooms, captions, aspect-ratio layouts, video overlays, speed controls, volume editing, and multi-clip editing.
 - Workflow automation is still shallow: customizable global hotkeys and a Clipboard History opener exist, but App Intents, URL schemes, and cloud/upload workflows are absent.
@@ -92,6 +94,7 @@ The biggest unfinished areas are now clear:
 | --- | --- | --- | --- |
 | Scrolling capture | ~ Partial | SnipSnipSnip Pro includes a dedicated scrolling overlay, Accessibility-driven target resolution, image stitching, cancel/done controls, partial-result handling, repeat support, and `.sss` scrolling metadata, with stitcher tests. | Needs app/browser compatibility hardening, clearer user diagnostics, better fallback paths, and a broader manual QA matrix. |
 | Connected iPhone/iPad screenshot capture | ~ Partial | SnipSnipSnip Pro lists trusted USB iPhone/iPad sources, distinguishes USB-connected devices that macOS is not exposing as streams, opens a live AVFoundation preview, captures the latest frame into the normal screenshot editor, and supports copy, save, editor opening, history/archive behavior, Private Capture rules, runtime interruption reporting, and support diagnostics summaries through the existing screenshot pipeline. | Uses self-release capture plumbing, supports one active connected-device session, depends on macOS exposing the trusted/unlocked device stream, does not use private device services, and still needs broader device/orientation/disconnect/manual QA. |
+| UI Map window capture | ✓ Done | SnipSnipSnip Pro Window captures can asynchronously save available names, labels, identifiers, roles, positions, sizes, parent hierarchy, owning app, and OCR supplement text into `.sss` documents when the UI Map user setting is enabled. Capture is intentionally limited to selected Window captures and uses the captured window identity rather than scanning region or fullscreen captures. | Accessibility availability and target-app AX quality still determine how complete the element hierarchy is; broader manual QA across app frameworks is still needed. |
 
 ### Screenshot Editor And Annotation
 
@@ -112,6 +115,7 @@ The biggest unfinished areas are now clear:
 | Ruler measurement | ✓ Done | Measurement annotations support endpoint handles and rendered pixel labels. | No calibrated real-world units yet. |
 | Spotlight/dim tool | ✓ Done | Spotlight annotation dims outside a focused oval or rectangle. | No presentation presets beyond the current effect controls. |
 | Copy Text OCR tool | ✓ Done | OCR-backed Copy Text lets the user drag a screenshot region, review normalized text, and copy it. | No QR detection, language controls, or confidence review. |
+| UI Map inspection and pinning | ✓ Done | SnipSnipSnip Pro UI Map documents expose a floating UI Map panel with hierarchy tree, search, type and Pinned Only filters, keyboard navigation, metadata details, JSON export, Show All, and pin/unpin controls. The UI Map Inspect toolbar tool shows selectable outlines on the screenshot; clicking pins or unpins an element, pinned overlays render in copy, share, and export, and typing after a pinned element starts a text annotation near it. AX elements render blue and OCR supplement text renders orange. | UI Map quality depends on the captured window's Accessibility exposure; non-window captures intentionally do not create new UI Map metadata. |
 | Redaction: blur | ✓ Done | Non-destructive blur redaction is rendered and tested. | Add stronger user warnings around sharing editable documents with redactions. |
 | Redaction: pixelate | ✓ Done | Non-destructive pixelate redaction is rendered and tested. | No separate block-size control beyond current effect settings. |
 | Redaction: solid | ✓ Done | Solid redaction mode is implemented. | Could add stronger privacy affordances before sharing editable docs. |
@@ -153,6 +157,7 @@ The biggest unfinished areas are now clear:
 | Feature | Status | Current implementation | Remaining gap or limitation |
 | --- | --- | --- | --- |
 | Editable screenshot package | ✓ Done | `.sss` stores base image, preview, editable state, undo/redo, search metadata, and overlay assets. | More migration fixtures would further harden the format. |
+| UI Map metadata persistence | ✓ Done | `.sss` documents preserve UI Map snapshots, element source (`accessibility` or `ocrSupplement`), capture diagnostics, and pinned UI Map element IDs. Documents with UI Map metadata continue to open safely when UI Map UI is unavailable or disabled. | Additional migration fixtures and large-hierarchy package tests would further harden long-term compatibility. |
 | Public `.sss` format documentation | ✓ Done | `sss-format.md` documents format version 3, schema, overlay assets, privacy semantics, and compatibility rules. | Could still use sample package trees and more examples. |
 | Undo/redo persistence | ✓ Done | `.sss` round-trips undo and redo history. | Watch package size growth for very large histories. |
 | Autosave checkpoints | ✓ Done | `DocumentRecoveryStore` keeps per-session checkpoints. | No richer checkpoint reason/diff labeling yet. |
@@ -229,7 +234,7 @@ The biggest unfinished areas are now clear:
 | Main-window command menus | ✓ Done | Capture, Help, Open, Import Image, Save, Export, Share, and pasteboard commands are present. | Tool-by-tool command coverage is still incomplete. |
 | Global hotkeys | ✓ Done | Global capture and Screen Inspector hotkeys remain background-only and are now user-customizable per action from Settings > General. | Consider optional frontmost behavior toggles for power users later. |
 | In-app shortcuts | ~ Partial | Capture, open, save, export, share, copy, select all, group, ungroup, layer ordering (bring forward/backward, bring to front, send to back), and help shortcuts exist. | Missing broader tool shortcuts, richer editor navigation shortcuts, and user customization. |
-| Settings window | ✓ Done | The app has General, Recording, Archive, Clipboard, and Privacy settings tabs. Clipboard settings include history enablement, item/storage limits, clear history, ignored-app management, and restore-default ignored apps. | No capture preset system or deeper workflow automation settings yet. |
+| Settings window | ✓ Done | The app has General, Recording, Archive, Clipboard, and Privacy settings tabs. In SnipSnipSnip Pro, General settings include Window UI Map enablement and default pinned UI Map overlay options; Clipboard settings include history enablement, item/storage limits, clear history, ignored-app management, and restore-default ignored apps. | No capture preset system or deeper workflow automation settings yet. |
 | Clipboard ignored-app workflow | ✓ Done | Clipboard settings can ignore currently running apps, choose an app bundle from Applications, or ignore recent clipboard source apps with one click. Default ignored apps include Apple Passwords and common password managers such as 1Password, Bitwarden, Dashlane, LastPass, KeePassXC, Keeper, RoboForm, Enpass, mSecure, NordPass, Proton Pass, KeeWeb, MacPass, Strongbox, Secrets, Buttercup, and SafeInCloud. | Source-app detection is best-effort because macOS pasteboard data does not reliably expose origin for every copy. |
 | Permission diagnostics and remediation buttons | ✓ Done | Settings and main UI expose permission diagnostics plus remediation buttons, Help guidance, and a local Export Diagnostics flow for support. | Keep the diagnostics schema current as more support-relevant subsystems are added. |
 | Drag-out sharing | ✓ Done | Screenshot and video editors expose compact promised-file drag handles. Screenshot drag-out flattens current edits and presentation styling; video drag-out exports the current trimmed MP4 with the remembered preset after the drop is accepted. | Add richer destinations only if local file drag-out proves insufficient. |
@@ -254,6 +259,7 @@ The biggest unfinished areas are now clear:
 | Redaction safety | ✓ Done | Redactions stay non-destructive in the editor and flatten only on copy, export, or share. Docs warn that editable packages retain original content. | Add a stronger pre-share warning for editable documents if needed. |
 | Archive privacy | ✓ Done | Archive and recycle-bin behavior are documented, and Private Capture suppresses checkpoints, recycle-bin retention, and background OCR indexing. | Could add clearer privacy badging in history. |
 | Clipboard privacy | ✓ Done | Clipboard History is local-only, skips concealed and transient pasteboard types, excludes Private Capture screenshots, and ignores Apple Passwords plus common password managers by default. Ignored apps can be managed through automated app-picker and recent-source flows rather than manual bundle ID entry. | Pasteboard source app attribution remains best-effort on macOS. |
+| UI Map privacy | ✓ Done | SnipSnipSnip Pro UI Map capture is build-flagged, user-controlled, Window-only, and user-initiated. Region, fullscreen, scrolling, recording, connected-device, and Screen Inspector captures do not request Accessibility because of UI Map. Hidden UI Map metadata stays local to `.sss`; flattened image exports exclude hidden metadata, while pinned UI Map overlays are visible pixels by design. | Future editable-document sharing flows could add explicit strip-UI-Map export choices. |
 | Security-scoped archive access | ✓ Done | Custom archive locations use bookmarks. | Add repair flow for stale bookmarks over time. |
 | Sensitive logging hygiene | ✓ Done | Internal logging exists for scrolling capture, thumbnail history preview loading, and video export. The user-triggered diagnostics export includes sanitized app, permission, display, storage, editor, connected-device, launch-at-login, and status summaries without screenshots, OCR text, clipboard contents, annotation text, document data, window titles, or raw paths. | Keep new diagnostics fields summary-only and redacted by default. |
 
@@ -311,6 +317,7 @@ The biggest unfinished areas are now clear:
 - Clipboard History is integrated as a first-class local timeline rather than a separate utility: it includes normal clipboard items and SnipSnipSnip screenshots, with privacy filters and password-manager ignores built in.
 - The `.sss` package is open, documented, and easy to inspect.
 - Privacy posture is strong for a local-first screenshot tool: metadata-stripped exports, non-destructive redaction in-editor, and Private Capture controls are already shipped.
+- Pro UI Map is a distinctive structured screenshot workflow: it can preserve searchable interface metadata and element geometry beside the screenshot, then let users inspect, pin, export, and render those elements without flattening them into the base image.
 - Pro scrolling capture has a real service boundary with dedicated diagnostics logging, stitching logic, partial-result handling, and tests.
 - The video stack is real, not placeholder: native ScreenCaptureKit recording, editable packages, trim state, poster frames, and size-constrained MP4 exports are all present.
 - In-app Help is unusually complete and appears to move with the product rather than lag behind it.
@@ -379,6 +386,6 @@ The biggest unfinished areas are now clear:
 
 ## Current Product Position
 
-SnipSnipSnip is already a strong local-first screenshot product with a meaningful editor, archive system, presentation styling, and local drag-out sharing. It also has a real, useful first-generation recording stack. SnipSnipSnip Pro extends that product with advanced capture workflows: scrolling capture and connected iPhone/iPad screenshot capture. The overall product family is not yet an ultra-premium capture suite because richer screenshot templates, advanced video polish, automation depth, Pro capture hardening, and support readiness are still behind the rest of the app.
+SnipSnipSnip is already a strong local-first screenshot product with a meaningful editor, archive system, presentation styling, and local drag-out sharing. It also has a real, useful first-generation recording stack. SnipSnipSnip Pro extends that product with advanced capture workflows: scrolling capture, connected iPhone/iPad screenshot capture, and UI Map capture. The overall product family is not yet an ultra-premium capture suite because richer screenshot templates, advanced video polish, automation depth, Pro capture hardening, and support readiness are still behind the rest of the app.
 
-That is now the accurate state of the product family: standard screenshot capture, editing, presentation styling, local diagnostics export, and drag-out sharing are largely real and shipped; Pro scrolling capture and connected iPhone/iPad screenshot capture are still partial; richer presentation templates, advanced video editing, automation, localization, and accessibility depth are still not done.
+That is now the accurate state of the product family: standard screenshot capture, editing, presentation styling, local diagnostics export, and drag-out sharing are largely real and shipped; Pro UI Map is implemented as a unique structured screenshot workflow; Pro scrolling capture and connected iPhone/iPad screenshot capture are still partial; richer presentation templates, advanced video editing, automation, localization, and accessibility depth are still not done.

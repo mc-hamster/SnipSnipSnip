@@ -11,8 +11,10 @@ nonisolated struct UIMapExportDocument: Codable, Equatable, Sendable {
     var sourceWindowIdentity: UIMapExportSourceWindowIdentity?
     var documentRect: UIMapExportRect
     var pixelSize: UIMapExportSize
+    var diagnostics: UIMapCaptureDiagnosticsSummary?
     var elementCount: Int
     var selectedElementID: UUID?
+    var pinnedElementIDs: [UUID]
     var elements: [UIMapExportElement]
     var flattenedElements: [UIMapExportElementSummary]
 
@@ -20,7 +22,8 @@ nonisolated struct UIMapExportDocument: Codable, Equatable, Sendable {
         exportedAt: Date = Date(),
         capture: CapturedScreenshot,
         uiMap: UIMapSnapshot,
-        selectedElementID: UUID?
+        selectedElementID: UUID?,
+        pinnedElementIDs: [UUID] = []
     ) {
         schemaVersion = 1
         self.exportedAt = exportedAt
@@ -31,8 +34,10 @@ nonisolated struct UIMapExportDocument: Codable, Equatable, Sendable {
         sourceWindowIdentity = capture.sourceWindowIdentity.map(UIMapExportSourceWindowIdentity.init)
         documentRect = UIMapExportRect(capture.documentRect)
         pixelSize = UIMapExportSize(capture.pixelSize)
+        diagnostics = uiMap.diagnostics
         elementCount = uiMap.elementCount
         self.selectedElementID = selectedElementID
+        self.pinnedElementIDs = pinnedElementIDs
         elements = uiMap.elements.map {
             UIMapExportElement(element: $0, depth: 0, parentIDs: [])
         }
@@ -75,6 +80,7 @@ nonisolated struct UIMapExportElement: Codable, Equatable, Sendable {
     var role: String?
     var roleDescription: String?
     var valueDescription: String?
+    var source: UIMapElementSource
     var documentRect: UIMapExportRect
     var owningApplication: String?
     var bundleIdentifier: String?
@@ -93,6 +99,7 @@ nonisolated struct UIMapExportElement: Codable, Equatable, Sendable {
         role = element.role
         roleDescription = element.roleDescription
         valueDescription = element.valueDescription
+        source = element.source
         documentRect = UIMapExportRect(element.documentRect)
         owningApplication = element.owningApplication
         bundleIdentifier = element.bundleIdentifier
@@ -115,6 +122,7 @@ nonisolated struct UIMapExportElementSummary: Codable, Equatable, Sendable {
     var typeLabel: String
     var role: String?
     var roleDescription: String?
+    var source: UIMapElementSource
     var documentRect: UIMapExportRect
     var showAllOverlayCandidate: Bool
     var owningApplication: String?
@@ -129,6 +137,7 @@ nonisolated struct UIMapExportElementSummary: Codable, Equatable, Sendable {
             typeLabel: element.typeLabel,
             role: element.role,
             roleDescription: element.roleDescription,
+            source: element.source,
             documentRect: UIMapExportRect(element.documentRect),
             showAllOverlayCandidate: element.isShowAllOverlayCandidate,
             owningApplication: element.owningApplication,

@@ -95,7 +95,11 @@ extension AppModel {
     func restoreHistoryEntryImmediately(_ entry: DocumentHistoryEntry, clearPendingRecovery: Bool = true) {
         do {
             let document = try recoveryStore.restoreDocument(from: entry)
-            let controller = EditorController(capture: document.capture, session: document.session)
+            let controller = EditorController(
+                capture: document.capture,
+                session: document.session,
+                uiMapOverlayOptions: uiMapPinnedOverlayDefaults
+            )
             installEditorController(
                 controller,
                 documentURL: entry.sourceDocumentURL,
@@ -231,9 +235,15 @@ extension AppModel {
             sourceDocumentURL: currentDocumentURL,
             label: label,
             document: EditableScreenshotDocument(capture: controller.capture, session: controller.documentSession),
-            renderInput: ExportRenderInput(baseImage: controller.capture.image, snapshot: controller.snapshot),
+            renderInput: ExportRenderInput(
+                baseImage: controller.capture.image,
+                snapshot: controller.snapshot,
+                pinnedUIMapElements: controller.pinnedUIMapElements,
+                uiMapOverlayOptions: controller.uiMapOverlayOptions
+            ),
             pendingRecovery: pendingRecovery,
-            hasUnsavedChanges: hasUnsavedChanges
+            hasUnsavedChanges: hasUnsavedChanges,
+            includeUIMapSearchText: windowUIMapEnabled
         )
 
         pendingRecoveryWriteTasks[taskID] = Task { @MainActor [weak self, weak controller] in
@@ -359,6 +369,7 @@ nonisolated private struct RecoveryCheckpointWritePayload: @unchecked Sendable {
     let renderInput: ExportRenderInput
     let pendingRecovery: Bool
     let hasUnsavedChanges: Bool
+    let includeUIMapSearchText: Bool
 }
 
 nonisolated private struct RecoveryPresentationRefreshRequest: @unchecked Sendable {
@@ -405,7 +416,9 @@ nonisolated private enum RecoveryCheckpointWriter {
 
             guard let previewImage = EditorRenderer.render(
                 baseImage: payload.renderInput.baseImage,
-                snapshot: payload.renderInput.snapshot
+                snapshot: payload.renderInput.snapshot,
+                pinnedUIMapElements: payload.renderInput.pinnedUIMapElements,
+                uiMapOverlayOptions: payload.renderInput.uiMapOverlayOptions
             ) else {
                 throw ImageExportError.encodingFailed
             }
@@ -420,7 +433,8 @@ nonisolated private enum RecoveryCheckpointWriter {
                 document: payload.document,
                 previewImage: previewImage,
                 pendingRecovery: payload.pendingRecovery,
-                hasUnsavedChanges: payload.hasUnsavedChanges
+                hasUnsavedChanges: payload.hasUnsavedChanges,
+                includeUIMapSearchText: payload.includeUIMapSearchText
             )
         }
 

@@ -5,6 +5,7 @@ nonisolated struct UIMapSnapshot: Codable, Equatable, Sendable {
     var capturedAt: Date
     var sourceRect: CGRect
     var elements: [UIMapElement]
+    var diagnostics: UIMapCaptureDiagnosticsSummary? = nil
 
     var isEmpty: Bool {
         elements.isEmpty
@@ -53,6 +54,33 @@ nonisolated struct UIMapSnapshot: Codable, Equatable, Sendable {
     }
 }
 
+nonisolated enum UIMapElementSource: String, Codable, Equatable, Sendable {
+    case accessibility
+    case ocrSupplement
+}
+
+nonisolated struct UIMapCaptureDiagnosticsSummary: Codable, Equatable, Sendable {
+    var axWindowMatchConfidence: CGFloat?
+    var accessibilityElementCount: Int
+    var ocrSupplementElementCount: Int
+    var didHitBudgetLimit: Bool
+    var didHitTimeLimit: Bool
+
+    init(
+        axWindowMatchConfidence: CGFloat? = nil,
+        accessibilityElementCount: Int,
+        ocrSupplementElementCount: Int,
+        didHitBudgetLimit: Bool,
+        didHitTimeLimit: Bool
+    ) {
+        self.axWindowMatchConfidence = axWindowMatchConfidence
+        self.accessibilityElementCount = accessibilityElementCount
+        self.ocrSupplementElementCount = ocrSupplementElementCount
+        self.didHitBudgetLimit = didHitBudgetLimit
+        self.didHitTimeLimit = didHitTimeLimit
+    }
+}
+
 nonisolated struct UIMapElement: Codable, Equatable, Identifiable, Sendable {
     var id: UUID
     var name: String?
@@ -61,10 +89,26 @@ nonisolated struct UIMapElement: Codable, Equatable, Identifiable, Sendable {
     var role: String?
     var roleDescription: String?
     var valueDescription: String?
+    var source: UIMapElementSource
     var documentRect: CGRect
     var owningApplication: String?
     var bundleIdentifier: String?
     var children: [UIMapElement]
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case accessibilityLabel
+        case accessibilityIdentifier
+        case role
+        case roleDescription
+        case valueDescription
+        case source
+        case documentRect
+        case owningApplication
+        case bundleIdentifier
+        case children
+    }
 
     init(
         id: UUID = UUID(),
@@ -74,6 +118,7 @@ nonisolated struct UIMapElement: Codable, Equatable, Identifiable, Sendable {
         role: String? = nil,
         roleDescription: String? = nil,
         valueDescription: String? = nil,
+        source: UIMapElementSource? = nil,
         documentRect: CGRect,
         owningApplication: String? = nil,
         bundleIdentifier: String? = nil,
@@ -86,10 +131,44 @@ nonisolated struct UIMapElement: Codable, Equatable, Identifiable, Sendable {
         self.role = role.normalizedUIMapText
         self.roleDescription = roleDescription.normalizedUIMapText
         self.valueDescription = valueDescription.normalizedUIMapText
+        self.source = source ?? Self.inferredSource(roleDescription: self.roleDescription)
         self.documentRect = documentRect.gscIntegralStandardized
         self.owningApplication = owningApplication.normalizedUIMapText
         self.bundleIdentifier = bundleIdentifier.normalizedUIMapText
         self.children = children
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try container.decodeIfPresent(String.self, forKey: .name).normalizedUIMapText
+        accessibilityLabel = try container.decodeIfPresent(String.self, forKey: .accessibilityLabel).normalizedUIMapText
+        accessibilityIdentifier = try container.decodeIfPresent(String.self, forKey: .accessibilityIdentifier).normalizedUIMapText
+        role = try container.decodeIfPresent(String.self, forKey: .role).normalizedUIMapText
+        roleDescription = try container.decodeIfPresent(String.self, forKey: .roleDescription).normalizedUIMapText
+        valueDescription = try container.decodeIfPresent(String.self, forKey: .valueDescription).normalizedUIMapText
+        source = try container.decodeIfPresent(UIMapElementSource.self, forKey: .source)
+            ?? Self.inferredSource(roleDescription: roleDescription)
+        documentRect = try container.decode(CGRect.self, forKey: .documentRect).gscIntegralStandardized
+        owningApplication = try container.decodeIfPresent(String.self, forKey: .owningApplication).normalizedUIMapText
+        bundleIdentifier = try container.decodeIfPresent(String.self, forKey: .bundleIdentifier).normalizedUIMapText
+        children = try container.decodeIfPresent([UIMapElement].self, forKey: .children) ?? []
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encodeIfPresent(name, forKey: .name)
+        try container.encodeIfPresent(accessibilityLabel, forKey: .accessibilityLabel)
+        try container.encodeIfPresent(accessibilityIdentifier, forKey: .accessibilityIdentifier)
+        try container.encodeIfPresent(role, forKey: .role)
+        try container.encodeIfPresent(roleDescription, forKey: .roleDescription)
+        try container.encodeIfPresent(valueDescription, forKey: .valueDescription)
+        try container.encode(source, forKey: .source)
+        try container.encode(documentRect, forKey: .documentRect)
+        try container.encodeIfPresent(owningApplication, forKey: .owningApplication)
+        try container.encodeIfPresent(bundleIdentifier, forKey: .bundleIdentifier)
+        try container.encode(children, forKey: .children)
     }
 
     var displayName: String {
@@ -122,17 +201,23 @@ nonisolated struct UIMapElement: Codable, Equatable, Identifiable, Sendable {
     }
 
     var isShowAllOverlayCandidate: Bool {
-        if isStructuralAccessibilityRole {
+        if isStructuralAccessibilityRole || isShowAllOverlayDecoration {
             return false
+        }
+
+        if isTextAccessibilityRole {
+            return hasMeaningfulOverlayText
         }
 
         if isControlAccessibilityRole {
             return true
         }
 
-        return children.isEmpty && searchTokens.contains {
-            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
+        return children.isEmpty && hasMeaningfulOverlayText
+    }
+
+    var isRecognizedTextSupplement: Bool {
+        source == .ocrSupplement
     }
 
     func matches(searchQuery: String, roleFilter: String?) -> Bool {
@@ -198,6 +283,16 @@ nonisolated struct UIMapElement: Codable, Equatable, Identifiable, Sendable {
         roleDescription?.lowercased() ?? ""
     }
 
+    private static func inferredSource(roleDescription: String?) -> UIMapElementSource {
+        let normalizedRoleDescription = roleDescription?.lowercased() ?? ""
+        if normalizedRoleDescription == "recognized text"
+            || normalizedRoleDescription == "recognized text group" {
+            return .ocrSupplement
+        }
+
+        return .accessibility
+    }
+
     private var isStructuralAccessibilityRole: Bool {
         let structuralRoles = [
             "axapplication",
@@ -221,6 +316,30 @@ nonisolated struct UIMapElement: Codable, Equatable, Identifiable, Sendable {
         return structuralRoles.contains(normalizedRole)
             || normalizedRoleDescription == "group"
             || normalizedRoleDescription == "window"
+    }
+
+    private var isTextAccessibilityRole: Bool {
+        normalizedRole == "axstatictext"
+            || normalizedRole == "axtext"
+            || normalizedRoleDescription == "text"
+            || normalizedRoleDescription == "recognized text"
+    }
+
+    private var isShowAllOverlayDecoration: Bool {
+        normalizedRole == "axvalueindicator"
+            || normalizedRoleDescription.contains("value indicator")
+            || normalizedRoleDescription.contains("scroll bar")
+            || normalizedRoleDescription.contains("increment page")
+            || normalizedRoleDescription.contains("decrement page")
+    }
+
+    private var hasMeaningfulOverlayText: Bool {
+        [
+            name,
+            accessibilityLabel,
+            accessibilityIdentifier,
+            valueDescription
+        ].compactMap { $0 }.contains { $0.isMeaningfulUIMapOverlayText }
     }
 
     private var isControlAccessibilityRole: Bool {
@@ -257,9 +376,43 @@ nonisolated struct UIMapElement: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
+private extension String {
+    nonisolated var isMeaningfulUIMapOverlayText: Bool {
+        let value = trimmingCharacters(in: .whitespacesAndNewlines)
+        guard value.count > 1,
+              value.rangeOfCharacter(from: .alphanumerics) != nil,
+              !value.looksLikeInternalBundleIdentifier else {
+            return false
+        }
+
+        return true
+    }
+
+    nonisolated private var looksLikeInternalBundleIdentifier: Bool {
+        let lowercasedValue = lowercased()
+        if lowercasedValue.contains("*") {
+            return true
+        }
+
+        if lowercasedValue.hasPrefix("com.")
+            || lowercasedValue.hasPrefix("org.")
+            || lowercasedValue.hasPrefix("net.") {
+            return true
+        }
+
+        let dotParts = lowercasedValue.split(separator: ".")
+        return dotParts.count >= 3
+            && dotParts.prefix(2).allSatisfy {
+                $0.allSatisfy { character in
+                    character.isLetter || character.isNumber || character == "-"
+                }
+            }
+    }
+}
+
 nonisolated struct UIMapOverlayOptions: Codable, Equatable, Sendable {
     var showsOutline = true
-    var showsLabel = true
+    var showsLabel = false
     var showsIdentifier = false
     var showsRole = false
     var showsCoordinates = false

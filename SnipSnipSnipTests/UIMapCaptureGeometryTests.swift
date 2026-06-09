@@ -3,6 +3,21 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class UIMapCaptureGeometryTests: XCTestCase {
+    func testCaptureServiceSkipsNonWindowCapturesBeforeAccessibilityWork() {
+        let service = AccessibilityUIMapCaptureService()
+
+        XCTAssertNil(service.captureUIMap(for: makeCapturedScreenshot(kind: .region)))
+        XCTAssertNil(service.captureUIMap(for: makeCapturedScreenshot(kind: .fullscreen)))
+        XCTAssertNil(service.captureUIMap(for: makeCapturedScreenshot(kind: .scrolling)))
+        XCTAssertNil(service.captureUIMap(for: makeCapturedScreenshot(kind: .connectedDevice)))
+    }
+
+    func testCaptureServiceSkipsWindowCaptureWithoutSourceIdentity() {
+        let service = AccessibilityUIMapCaptureService()
+
+        XCTAssertNil(service.captureUIMap(for: makeCapturedScreenshot(kind: .window)))
+    }
+
     func testWindowRelativeMappingPreservesTopLeftYIntoDocumentSpace() {
         let mapping = UIMapWindowRelativeMapping(
             rootAccessibilityRect: CGRect(x: 100, y: 100, width: 400, height: 300),
@@ -41,6 +56,36 @@ final class UIMapCaptureGeometryTests: XCTestCase {
             mapping.documentRect(fromAccessibilityRect: CGRect(x: 80, y: 80, width: 80, height: 40)),
             CGRect(x: 10, y: 20, width: 120, height: 40)
         )
+    }
+
+    func testWindowRelativeMappingClipsToVisibleDocumentFragments() {
+        let mapping = UIMapWindowRelativeMapping(
+            rootAccessibilityRect: CGRect(x: 0, y: 0, width: 400, height: 300),
+            candidateDocumentRect: CGRect(x: 0, y: 0, width: 800, height: 600),
+            visibleDocumentRects: [
+                CGRect(x: 0, y: 0, width: 200, height: 200),
+                CGRect(x: 500, y: 300, width: 200, height: 200)
+            ]
+        )
+
+        XCTAssertEqual(
+            mapping.visibleDocumentRect(fromDocumentRect: CGRect(x: 100, y: 100, width: 100, height: 100)),
+            CGRect(x: 100, y: 100, width: 100, height: 100)
+        )
+        XCTAssertEqual(
+            mapping.visibleDocumentRect(fromDocumentRect: CGRect(x: 300, y: 100, width: 100, height: 100)),
+            nil
+        )
+        XCTAssertEqual(
+            mapping.visibleDocumentRect(fromDocumentRect: CGRect(x: 450, y: 250, width: 200, height: 200)),
+            CGRect(x: 500, y: 300, width: 150, height: 150)
+        )
+    }
+
+    func testWindowVisibilityPolicyKeepsSmallVisibleFragments() {
+        XCTAssertTrue(UIMapWindowVisibilityPolicy.shouldCaptureWindow(visibleArea: 16))
+        XCTAssertTrue(UIMapWindowVisibilityPolicy.shouldCaptureWindow(visibleArea: 24))
+        XCTAssertFalse(UIMapWindowVisibilityPolicy.shouldCaptureWindow(visibleArea: 15.9))
     }
 
     func testTextRecognitionGeometryMapsVisionBoundingBoxToDocumentSpace() {

@@ -88,7 +88,7 @@ struct HelpGuideView: View {
                         "Screen Recording permission is required before macOS lets SnipSnipSnip capture pixels or show live window thumbnails.",
                         "Support requests and feature requests are handled through Help > Support (Discord)."
                     ] + (FeatureFlags.scrollingCaptureEnabled || FeatureFlags.uiMapEnabled
-                        ? ["Accessibility permission is required for UI Map metadata capture\(FeatureFlags.scrollingCaptureEnabled ? " and Scrolling Capture" : "")."]
+                        ? ["Accessibility permission is required for Window UI Map metadata capture\(FeatureFlags.scrollingCaptureEnabled ? " and Scrolling Capture" : ""). Region and Fullscreen captures do not require Accessibility because of UI Map."]
                         : []),
                     relatedIDs: ["capture-screenshot", "edit-screenshot", "copy-save-export"]
                 ),
@@ -115,9 +115,9 @@ struct HelpGuideView: View {
                             HelpArticleSection(
                                 title: "Accessibility",
                                 body: FeatureFlags.scrollingCaptureEnabled && FeatureFlags.uiMapEnabled
-                                    ? "Required for Scrolling Capture and for screenshot capture when Enable UI Map is on. SnipSnipSnip uses it to scroll the selected app during Scrolling Capture and to read visible interface element names, roles, and locations during UI Map capture."
+                                    ? "Required for Scrolling Capture and for Window capture when Enable UI Map for Window captures is on. SnipSnipSnip uses it to scroll the selected app during Scrolling Capture and to read visible interface element names, roles, identifiers, and locations from the selected window during UI Map capture."
                                     : FeatureFlags.uiMapEnabled
-                                        ? "Required for screenshot capture when Enable UI Map is on. SnipSnipSnip uses it to read visible interface element names, roles, and locations during a user-initiated screenshot."
+                                        ? "Required for Window capture when Enable UI Map for Window captures is on. SnipSnipSnip uses it to read visible interface element names, roles, identifiers, and locations from the selected window during a user-initiated Window capture."
                                         : "Required only for Scrolling Capture. SnipSnipSnip uses it to scroll the selected app while collecting segments.",
                                 steps: [
                                     "Click the Accessibility Grant button in SnipSnipSnip.",
@@ -130,7 +130,7 @@ struct HelpGuideView: View {
                     important: FeatureFlags.scrollingCaptureEnabled || FeatureFlags.uiMapEnabled
                         ? [
                             FeatureFlags.uiMapEnabled
-                                ? "Region and Fullscreen screenshot capture require Accessibility only when Enable UI Map is on."
+                                ? "Region and Fullscreen screenshot capture do not include UI Map metadata and do not require Accessibility because of UI Map."
                                 : "Region and Fullscreen screenshot capture do not require Accessibility.",
                             "Development builds launched from Xcode may need Accessibility permission for the exact app in DerivedData, not a copy in Applications."
                         ]
@@ -140,20 +140,22 @@ struct HelpGuideView: View {
                 HelpArticle(
                     id: "ui-map",
                     title: "Inspect a UI Map",
-                    summary: "Save and inspect names, roles, identifiers, and locations of visible interface elements captured with a screenshot.",
+                    summary: "SnipSnipSnip Pro can save and inspect structured names, roles, identifiers, hierarchy, and locations of visible interface elements captured with a Window screenshot.",
                     sections: FeatureFlags.uiMapEnabled ? [
                         HelpArticleSection(
-                            title: "Enable UI Map",
-                            body: "Open Settings > General > Screenshot Capture and turn on Enable UI Map. New screenshots then try to save available metadata for visible interface elements, including names, labels, identifiers, roles, positions, sizes, parent hierarchy, and owning app."
+                            title: "Enable UI Map for Window captures",
+                            body: "UI Map is a SnipSnipSnip Pro feature. Open Settings > General > Screenshot Capture and turn on Enable UI Map for Window captures. Window screenshots then try to save available metadata for visible interface elements in the selected window, including names, labels, identifiers, roles, positions, sizes, parent hierarchy, and owning app. This makes a Window screenshot searchable and inspectable as structured interface data, not just pixels. Settings also controls the default visible details for pinned UI Map overlays; only Show outline is enabled by default."
                         ),
                         HelpArticleSection(
                             title: "Capture behavior",
                             bullets: [
-                                "UI Map capture runs only during user-initiated screenshot workflows.",
+                                "UI Map capture runs only during user-initiated Window capture workflows.",
+                                "Region, Fullscreen, Scrolling, Recording, Connected Device, and Screen Inspector captures are visual-only and do not request Accessibility because of UI Map.",
+                                "After a Window screenshot opens, the header may show UI Map Processing while metadata is captured in the background, then UI Map Captured when metadata was saved with the screenshot.",
                                 "The screenshot image stays visually unchanged by default.",
                                 "If macOS provides interface metadata, SnipSnipSnip saves available names, labels, identifiers, roles, positions, sizes, parent hierarchy, and owning app.",
-                                "Cross-app interface trees are available in Dev and Self Release builds after Accessibility consent. App Store-compatible sandboxed builds may fall back to local text recognition when macOS refuses interface metadata.",
-                                "If macOS refuses the interface tree for the target app, SnipSnipSnip may fall back to local text recognition and save visible text labels with screenshot-space locations.",
+                                "Cross-app interface trees are available in Pro and development builds after Accessibility consent.",
+                                "OCR supplement text is local text recognition used only to add missing visible text to a Window UI Map. It is not treated as a true Accessibility hierarchy.",
                                 "Unavailable metadata fields are omitted.",
                                 "Turning UI Map off stops new UI Map capture. Existing .sss documents that already contain UI Map metadata still open normally."
                             ]
@@ -163,16 +165,18 @@ struct HelpGuideView: View {
                             steps: [
                                 "Open a screenshot that contains UI Map metadata.",
                                 "Choose Arrange > Show UI Map, or use the UI Map toolbar button.",
-                                "Search by name, role, label, or identifier, or filter by element type.",
-                                "Select an element to show its region on the screenshot and inspect its metadata.",
-                                "Use Show All to outline captured controls and leaf elements without permanently annotating the screenshot.",
+                                "Search by name, role, label, or identifier, filter by element type, or turn on Pinned Only to show just pinned UI Map overlays.",
+                                "Select an element to show its region on the screenshot and inspect its metadata. With a row selected, use the arrow keys to move through the visible tree, expand, or collapse branches.",
+                                "Use Show All to outline captured controls and leaf elements without permanently annotating the screenshot. Accessibility elements use blue outlines; OCR supplement text uses orange outlines.",
+                                "For Window captures with UI Map available, use the lower toolbar UI Map group to open the UI Map panel or switch to UI Map Inspect. UI Map Inspect shows selectable UI Map outlines directly on the screenshot. Click an outline to select and pin it; click it again to unpin it.",
+                                "Pinned UI Map overlays stay visible in copied, shared, or exported screenshots. You can also pin or unpin the selected element from the inspector or UI Map panel.",
                                 "Use Export JSON to save the structured UI Map metadata for debugging, review, or support.",
-                                "Use the display toggles to show the selected element outline, label, identifier, role, coordinates, or dimensions."
+                                "Use the UI Map panel or inspector display toggles to show the selected element outline, label, identifier, role, coordinates, or dimensions."
                             ]
                         ),
                         HelpArticleSection(
                             title: "Privacy",
-                            body: "UI Map does not capture keyboard input, control other apps, or monitor other apps in the background. UI Map metadata remains local to the .sss document unless you export or share that editable document. Flattened PNG, JPEG, and PDF exports do not include hidden UI Map metadata."
+                            body: "UI Map does not capture keyboard input, control other apps, or monitor other apps in the background. UI Map metadata remains local to the .sss document unless you export or share that editable document. Flattened PNG, JPEG, and PDF exports do not include hidden UI Map metadata; pinned UI Map overlays are visible pixels in flattened exports."
                         )
                     ] : [
                         HelpArticleSection(
@@ -424,7 +428,7 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Choose a tool",
-                            body: "The toolbar includes Select, Rectangle, Ellipse, Line, Arrow, Freehand, Highlighter, Highlight Box, Text, Callout, Ruler, Spotlight, Copy Text, Redaction, and Import Image."
+                            body: "The toolbar includes Select, Rectangle, Ellipse, Line, Arrow, Freehand, Highlighter, Highlight Box, Text, Callout, Ruler, Spotlight, Copy Text, Redaction, and Import Image. For Window captures with UI Map metadata, the lower toolbar also includes Show UI Map and UI Map Inspect."
                         ),
                         HelpArticleSection(
                             title: "Select and arrange annotations",
@@ -432,7 +436,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Use the inspector",
-                            body: "The right inspector changes with the active tool or selection. Use it to adjust style, colors, text size, effect strength, image overlay opacity, crop values, callout step guides, Change History, Recent Snips, search, and the Recycle Bin."
+                            body: "The right inspector changes with the active tool or selection. Use it to adjust style, colors, text size, effect strength, image overlay opacity, UI Map display and pin options when available, crop values, callout step guides, Change History, Recent Snips, search, and the Recycle Bin."
                         )
                     ],
                     important: [

@@ -402,13 +402,13 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
 
         if FeatureFlags.uiMapEnabled {
             menu.addItem(toggleItem(
-                title: "Include UI Map",
+                title: "Include UI Map for Window Captures",
                 action: #selector(toggleUIMap),
                 isOn: model.uiMapEnabled,
                 enabled: true,
-                toolTip: model.uiMapNeedsAccessibilityAccess
-                    ? "Grant Accessibility access before UI Map metadata can be captured."
-                    : "Save names, roles, and locations of visible interface elements with new screenshots."
+                toolTip: model.windowUIMapNeedsAccessibilityAccess
+                    ? "Grant Accessibility access before Window UI Map metadata can be captured."
+                    : "Save available names, roles, identifiers, and locations of visible interface elements when capturing a window."
             ))
         }
 

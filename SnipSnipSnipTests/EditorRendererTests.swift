@@ -24,6 +24,30 @@ final class EditorRendererTests: XCTestCase {
         )
     }
 
+    func testRenderIncludesPinnedUIMapOverlay() {
+        let image = makeSolidImage(width: 80, height: 60, color: PixelSample(red: 255, green: 255, blue: 255, alpha: 255))
+        let element = UIMapElement(
+            name: "Details",
+            role: "AXButton",
+            roleDescription: "Button",
+            documentRect: CGRect(x: 20, y: 15, width: 30, height: 20),
+            owningApplication: "Fixture"
+        )
+
+        guard let rendered = EditorRenderer.render(
+            baseImage: image,
+            snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 80, height: 60)),
+            pinnedUIMapElements: [element],
+            uiMapOverlayOptions: UIMapOverlayOptions(showsOutline: true, showsLabel: false)
+        ) else {
+            return XCTFail("Expected a rendered image")
+        }
+
+        let overlayPixel = samplePixel(in: rendered, topLeftX: 25, topLeftY: 20)
+        XCTAssertGreaterThan(Int(overlayPixel.blue), Int(overlayPixel.red))
+        XCTAssertLessThan(Int(overlayPixel.red), 255)
+    }
+
     func testRenderCropUsesTopLeftDocumentCoordinatesWithoutVerticalMirroring() {
         let image = makeCoordinateImage(
             width: 120,

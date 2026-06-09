@@ -146,14 +146,16 @@ func makeEditorSnapshot(
     annotations: [Annotation] = [],
     selectedAnnotationIDs: [UUID] = [],
     nextCalloutNumber: Int = 1,
-    presentation: ScreenshotPresentation = .plain
+    presentation: ScreenshotPresentation = .plain,
+    pinnedUIMapElementIDs: [UUID] = []
 ) -> EditorSnapshot {
     EditorSnapshot(
         cropRect: cropRect,
         annotations: annotations,
         selectedAnnotationIDs: selectedAnnotationIDs,
         nextCalloutNumber: nextCalloutNumber,
-        presentation: presentation
+        presentation: presentation,
+        pinnedUIMapElementIDs: pinnedUIMapElementIDs
     )
 }
 
