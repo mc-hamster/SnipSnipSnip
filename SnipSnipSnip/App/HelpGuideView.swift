@@ -237,6 +237,7 @@ struct HelpGuideView: View {
                             title: "Work with rulers",
                             bullets: [
                                 "Drag a ruler to position it and resize it from the window edges.",
+                                "Click a ruler once to cycle through tick-edge and zero-origin positions.",
                                 "Move the pointer over a ruler to show the current pixel distance when Show Mouse Distance is enabled."
                             ]
                         ),
@@ -246,7 +247,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Configure rulers",
-                            body: "Settings > General > Screen Ruler controls opacity, tick spacing, major tick frequency, half markers, and mouse-distance labels for all open rulers."
+                            body: "Settings > General > Screen Ruler controls opacity, tick spacing, major tick frequency, horizontal and vertical tick edges, zero-origin positions, half markers, and mouse-distance labels for all open rulers."
                         )
                     ],
                     important: [

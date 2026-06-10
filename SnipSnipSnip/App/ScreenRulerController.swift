@@ -8,6 +8,7 @@ final class ScreenRulerCoordinator: ObservableObject {
 
     private var windowControllers: [UUID: ScreenRulerWindowController] = [:]
     private var preferences: ScreenRulerPreferences
+    private var preferencesChangeHandler: ((ScreenRulerPreferences) -> Void)?
 
     init(preferences: ScreenRulerPreferences = .default) {
         self.preferences = preferences.sanitized()
@@ -24,8 +25,18 @@ final class ScreenRulerCoordinator: ObservableObject {
         }
     }
 
+    func setPreferencesChangeHandler(_ handler: @escaping (ScreenRulerPreferences) -> Void) {
+        preferencesChangeHandler = handler
+    }
+
     func present(_ kind: ScreenRulerKind) {
-        let model = ScreenRulerWindowModel(kind: kind, preferences: preferences)
+        let model = ScreenRulerWindowModel(
+            kind: kind,
+            preferences: preferences,
+            onTickEdgeToggle: { [weak self] kind in
+                self?.toggleTickEdge(for: kind)
+            }
+        )
         let controller = ScreenRulerWindowController(
             model: model,
             onClose: { [weak self] id in
@@ -52,23 +63,53 @@ final class ScreenRulerCoordinator: ObservableObject {
     private func refreshCount() {
         activeRulerCount = windowControllers.count
     }
+
+    private func toggleTickEdge(for kind: ScreenRulerKind) {
+        var nextPreferences = preferences
+
+        switch kind {
+        case .horizontal:
+            nextPreferences.horizontalTickEdge = nextPreferences.horizontalTickEdge.toggled
+            if nextPreferences.horizontalTickEdge == .bottom {
+                nextPreferences.horizontalOrigin = nextPreferences.horizontalOrigin.toggled
+            }
+        case .vertical:
+            nextPreferences.verticalTickEdge = nextPreferences.verticalTickEdge.toggled
+            if nextPreferences.verticalTickEdge == .left {
+                nextPreferences.verticalOrigin = nextPreferences.verticalOrigin.toggled
+            }
+        }
+
+        updatePreferences(nextPreferences)
+        preferencesChangeHandler?(preferences)
+    }
 }
 
 @MainActor
 final class ScreenRulerWindowModel: ObservableObject, Identifiable {
     let id = UUID()
     let kind: ScreenRulerKind
+    private let onTickEdgeToggle: (ScreenRulerKind) -> Void
 
     @Published var preferences: ScreenRulerPreferences
     @Published var mouseLocation: CGPoint?
 
-    init(kind: ScreenRulerKind, preferences: ScreenRulerPreferences) {
+    init(
+        kind: ScreenRulerKind,
+        preferences: ScreenRulerPreferences,
+        onTickEdgeToggle: @escaping (ScreenRulerKind) -> Void
+    ) {
         self.kind = kind
+        self.onTickEdgeToggle = onTickEdgeToggle
         self.preferences = preferences.sanitized()
     }
 
     var title: String {
         kind.label
+    }
+
+    func toggleTickEdge() {
+        onTickEdgeToggle(kind)
     }
 }
 
@@ -189,6 +230,8 @@ private struct ScreenRulerWindowView: View {
 
             WindowInteractionOverlayView(kind: model.kind) { point in
                 model.mouseLocation = point
+            } onClick: {
+                model.toggleTickEdge()
             }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -268,24 +311,37 @@ private struct LinearScreenRulerView: View {
         let tickCount = max(1, Int(length / preferences.tickSpacing))
 
         for index in 0...tickCount {
-            let position = CGFloat(index) * preferences.tickSpacing
+            let value = CGFloat(index) * preferences.tickSpacing
+            let position = displayPosition(for: value, length: length, preferences: preferences)
             let isMajor = index % preferences.majorTickEvery == 0
             let isHalf = preferences.showsHalfMarkers && index % max(1, preferences.majorTickEvery / 2) == 0
             let tickLength = isMajor ? thickness * 0.78 : (isHalf ? thickness * 0.52 : thickness * 0.34)
             var path = Path()
 
             if axis == .horizontal {
-                path.move(to: CGPoint(x: position, y: thickness))
-                path.addLine(to: CGPoint(x: position, y: thickness - tickLength))
+                switch preferences.horizontalTickEdge {
+                case .top:
+                    path.move(to: CGPoint(x: position, y: 0))
+                    path.addLine(to: CGPoint(x: position, y: tickLength))
+                case .bottom:
+                    path.move(to: CGPoint(x: position, y: thickness))
+                    path.addLine(to: CGPoint(x: position, y: thickness - tickLength))
+                }
             } else {
-                path.move(to: CGPoint(x: 0, y: position))
-                path.addLine(to: CGPoint(x: tickLength, y: position))
+                switch preferences.verticalTickEdge {
+                case .left:
+                    path.move(to: CGPoint(x: 0, y: position))
+                    path.addLine(to: CGPoint(x: tickLength, y: position))
+                case .right:
+                    path.move(to: CGPoint(x: thickness, y: position))
+                    path.addLine(to: CGPoint(x: thickness - tickLength, y: position))
+                }
             }
 
             context.stroke(path, with: .color(Color.primary.opacity(isMajor ? 0.82 : 0.48)), lineWidth: isMajor ? 1.25 : 0.75)
 
             if isMajor {
-                drawLabel("\(Int(round(position)))", at: labelPoint(for: position, thickness: thickness), in: &context)
+                drawLabel("\(Int(round(value)))", at: labelPoint(for: position, length: length, thickness: thickness), in: &context)
             }
         }
     }
@@ -303,7 +359,7 @@ private struct LinearScreenRulerView: View {
         let canvasMouseLocation = axis == .horizontal
             ? mouseLocation
             : CGPoint(x: mouseLocation.x, y: size.height - mouseLocation.y)
-        let value = axis == .horizontal ? canvasMouseLocation.x : canvasMouseLocation.y
+        let value = measurementValue(for: canvasMouseLocation, size: size, preferences: model.preferences.sanitized())
         let label = "\(Int(round(value))) px"
         let point = axis == .horizontal
             ? CGPoint(x: min(max(canvasMouseLocation.x + 26, 42), size.width - 42), y: 18)
@@ -321,13 +377,71 @@ private struct LinearScreenRulerView: View {
         drawBadge(label, at: point, in: &context)
     }
 
-    private func labelPoint(for position: CGFloat, thickness: CGFloat) -> CGPoint {
+    private func displayPosition(for value: CGFloat, length: CGFloat, preferences: ScreenRulerPreferences) -> CGFloat {
         switch axis {
         case .horizontal:
-            return CGPoint(x: position + 18, y: thickness - 18)
+            switch preferences.horizontalOrigin {
+            case .left:
+                return value
+            case .right:
+                return length - value
+            }
         case .vertical:
-            return CGPoint(x: 26, y: position + 12)
+            switch preferences.verticalOrigin {
+            case .top:
+                return value
+            case .bottom:
+                return length - value
+            }
         }
+    }
+
+    private func measurementValue(for point: CGPoint, size: CGSize, preferences: ScreenRulerPreferences) -> CGFloat {
+        switch axis {
+        case .horizontal:
+            switch preferences.horizontalOrigin {
+            case .left:
+                return point.x
+            case .right:
+                return size.width - point.x
+            }
+        case .vertical:
+            switch preferences.verticalOrigin {
+            case .top:
+                return point.y
+            case .bottom:
+                return size.height - point.y
+            }
+        }
+    }
+
+    private func labelPoint(for position: CGFloat, length: CGFloat, thickness: CGFloat) -> CGPoint {
+        switch axis {
+        case .horizontal:
+            let x = min(max(position + horizontalLabelOffset(for: position, length: length), 18), max(18, length - 18))
+            switch model.preferences.sanitized().horizontalTickEdge {
+            case .top:
+                return CGPoint(x: x, y: 18)
+            case .bottom:
+                return CGPoint(x: x, y: thickness - 18)
+            }
+        case .vertical:
+            let y = min(max(position + verticalLabelOffset(for: position, length: length), 12), max(12, length - 12))
+            switch model.preferences.sanitized().verticalTickEdge {
+            case .left:
+                return CGPoint(x: 26, y: y)
+            case .right:
+                return CGPoint(x: thickness - 26, y: y)
+            }
+        }
+    }
+
+    private func horizontalLabelOffset(for position: CGFloat, length: CGFloat) -> CGFloat {
+        position > length / 2 ? -18 : 18
+    }
+
+    private func verticalLabelOffset(for position: CGFloat, length: CGFloat) -> CGFloat {
+        position > length / 2 ? -12 : 12
     }
 
     private func drawLabel(_ text: String, at point: CGPoint, in context: inout GraphicsContext) {
@@ -348,14 +462,16 @@ private struct LinearScreenRulerView: View {
 private struct WindowInteractionOverlayView: NSViewRepresentable {
     let kind: ScreenRulerKind
     let onMouseLocationChange: (CGPoint?) -> Void
+    let onClick: () -> Void
 
     func makeNSView(context: Context) -> InteractionOverlayView {
-        InteractionOverlayView(kind: kind, onMouseLocationChange: onMouseLocationChange)
+        InteractionOverlayView(kind: kind, onMouseLocationChange: onMouseLocationChange, onClick: onClick)
     }
 
     func updateNSView(_ nsView: InteractionOverlayView, context: Context) {
         nsView.kind = kind
         nsView.onMouseLocationChange = onMouseLocationChange
+        nsView.onClick = onClick
     }
 
     final class InteractionOverlayView: NSView {
@@ -369,22 +485,30 @@ private struct WindowInteractionOverlayView: NSViewRepresentable {
         private let cornerHitSize: CGFloat = 56
         private let controlExclusionWidth: CGFloat = 52
         private let controlExclusionHeight: CGFloat = 40
+        private let clickMovementThreshold: CGFloat = 3
         var kind: ScreenRulerKind {
             didSet {
                 needsDisplay = true
             }
         }
         var onMouseLocationChange: (CGPoint?) -> Void
+        var onClick: () -> Void
         private var dragStartPoint: CGPoint?
         private var dragStartFrame: CGRect?
         private var dragStartTopY: CGFloat?
         private var dragStartBottomInset: CGFloat?
         private var activeInteraction: Interaction?
+        private var didDrag = false
         private var trackingArea: NSTrackingArea?
 
-        init(kind: ScreenRulerKind, onMouseLocationChange: @escaping (CGPoint?) -> Void) {
+        init(
+            kind: ScreenRulerKind,
+            onMouseLocationChange: @escaping (CGPoint?) -> Void,
+            onClick: @escaping () -> Void
+        ) {
             self.kind = kind
             self.onMouseLocationChange = onMouseLocationChange
+            self.onClick = onClick
             super.init(frame: .zero)
             wantsLayer = true
             layer?.backgroundColor = NSColor.clear.cgColor
@@ -437,6 +561,7 @@ private struct WindowInteractionOverlayView: NSViewRepresentable {
             dragStartFrame = window?.frame
             dragStartTopY = window?.frame.maxY
             dragStartBottomInset = window.map { NSEvent.mouseLocation.y - $0.frame.minY }
+            didDrag = false
         }
 
         override func mouseDragged(with event: NSEvent) {
@@ -450,6 +575,9 @@ private struct WindowInteractionOverlayView: NSViewRepresentable {
             let currentPoint = NSEvent.mouseLocation
             let deltaX = currentPoint.x - dragStartPoint.x
             let deltaY = currentPoint.y - dragStartPoint.y
+            if abs(deltaX) > clickMovementThreshold || abs(deltaY) > clickMovementThreshold {
+                didDrag = true
+            }
             var nextFrame = dragStartFrame
 
             switch activeInteraction {
@@ -470,11 +598,17 @@ private struct WindowInteractionOverlayView: NSViewRepresentable {
         }
 
         override func mouseUp(with event: NSEvent) {
+            let shouldToggleTickEdge = activeInteraction != nil && !didDrag
             dragStartPoint = nil
             dragStartFrame = nil
             dragStartTopY = nil
             dragStartBottomInset = nil
             activeInteraction = nil
+            didDrag = false
+
+            if shouldToggleTickEdge {
+                onClick()
+            }
         }
 
         override func resetCursorRects() {

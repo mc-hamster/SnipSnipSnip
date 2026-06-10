@@ -504,6 +504,14 @@ final class AppModel: ObservableObject {
             self?.objectWillChange.send()
         }
 
+        screenRulerCoordinator.setPreferencesChangeHandler { [weak self] preferences in
+            guard let self, self.screenRulerPreferences != preferences else {
+                return
+            }
+
+            self.screenRulerPreferences = preferences
+        }
+
         screenInspectorObserver = screenInspectorCoordinator.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
         }

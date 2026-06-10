@@ -258,7 +258,11 @@ final class AppModelTests: XCTestCase {
             tickSpacing: 1,
             majorTickEvery: 100,
             showsHalfMarkers: false,
-            showsMouseDistance: false
+            showsMouseDistance: false,
+            horizontalTickEdge: .top,
+            verticalTickEdge: .right,
+            horizontalOrigin: .right,
+            verticalOrigin: .bottom
         )
         defaults.set(try JSONEncoder().encode(preferences), forKey: AppModelPreferenceKey.screenRulerPreferences)
 
@@ -269,6 +273,37 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(loadedPreferences.majorTickEvery, 20)
         XCTAssertFalse(loadedPreferences.showsHalfMarkers)
         XCTAssertFalse(loadedPreferences.showsMouseDistance)
+        XCTAssertEqual(loadedPreferences.horizontalTickEdge, .top)
+        XCTAssertEqual(loadedPreferences.verticalTickEdge, .right)
+        XCTAssertEqual(loadedPreferences.horizontalOrigin, .right)
+        XCTAssertEqual(loadedPreferences.verticalOrigin, .bottom)
+    }
+
+    func testScreenRulerPreferencesLoadDefaultsForOlderPayloads() throws {
+        let suiteName = "AppModelTests.screenRulerPreferencesLoadDefaultsForOlderPayloads"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let legacyPayload: [String: Any] = [
+            "opacity": 0.74,
+            "tickSpacing": 18,
+            "majorTickEvery": 4,
+            "showsHalfMarkers": true,
+            "showsMouseDistance": false
+        ]
+        defaults.set(try JSONSerialization.data(withJSONObject: legacyPayload), forKey: AppModelPreferenceKey.screenRulerPreferences)
+
+        let loadedPreferences = AppModel.loadScreenRulerPreferences(from: defaults)
+
+        XCTAssertEqual(loadedPreferences.opacity, 0.74)
+        XCTAssertEqual(loadedPreferences.tickSpacing, 18)
+        XCTAssertEqual(loadedPreferences.majorTickEvery, 4)
+        XCTAssertTrue(loadedPreferences.showsHalfMarkers)
+        XCTAssertFalse(loadedPreferences.showsMouseDistance)
+        XCTAssertEqual(loadedPreferences.horizontalTickEdge, .bottom)
+        XCTAssertEqual(loadedPreferences.verticalTickEdge, .left)
+        XCTAssertEqual(loadedPreferences.horizontalOrigin, .left)
+        XCTAssertEqual(loadedPreferences.verticalOrigin, .top)
     }
 
     func testResetPreferencesRestoresScreenRulerDefaults() {
@@ -289,7 +324,11 @@ final class AppModelTests: XCTestCase {
             tickSpacing: 24,
             majorTickEvery: 8,
             showsHalfMarkers: false,
-            showsMouseDistance: false
+            showsMouseDistance: false,
+            horizontalTickEdge: .top,
+            verticalTickEdge: .right,
+            horizontalOrigin: .right,
+            verticalOrigin: .bottom
         )
 
         model.resetPreferencesToDefaults()

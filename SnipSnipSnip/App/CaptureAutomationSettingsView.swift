@@ -104,6 +104,34 @@ struct CaptureAutomationSettingsView: View {
                     Toggle("Show Mouse Distance", isOn: screenRulerBinding(\.showsMouseDistance))
                     Toggle("Show Half Markers", isOn: screenRulerBinding(\.showsHalfMarkers))
 
+                    Picker("Horizontal Tick Edge", selection: screenRulerBinding(\.horizontalTickEdge)) {
+                        ForEach(ScreenRulerHorizontalTickEdge.allCases) { edge in
+                            Text(edge.label).tag(edge)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Picker("Vertical Tick Edge", selection: screenRulerBinding(\.verticalTickEdge)) {
+                        ForEach(ScreenRulerVerticalTickEdge.allCases) { edge in
+                            Text(edge.label).tag(edge)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Picker("Horizontal 0 Origin", selection: screenRulerBinding(\.horizontalOrigin)) {
+                        ForEach(ScreenRulerHorizontalOrigin.allCases) { origin in
+                            Text(origin.label).tag(origin)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Picker("Vertical 0 Origin", selection: screenRulerBinding(\.verticalOrigin)) {
+                        ForEach(ScreenRulerVerticalOrigin.allCases) { origin in
+                            Text(origin.label).tag(origin)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
                     HStack {
                         Text("Opacity")
                         Spacer(minLength: 12)
@@ -126,7 +154,7 @@ struct CaptureAutomationSettingsView: View {
                         Text("Major Tick Every: \(model.screenRulerPreferences.majorTickEvery)")
                     }
 
-                    SettingsHelpText("Screen rulers are floating, resizable overlays. Add multiple horizontal or vertical rulers from Settings or the menu bar; visible rulers are included in screenshots when the captured area contains them.")
+                    SettingsHelpText("Screen rulers are floating, resizable overlays. Click a ruler once to cycle through tick edge and zero-origin combinations, or set the default horizontal and vertical ruler positions here. Visible rulers are included in screenshots when the captured area contains them.")
                 }
 
                 Section("Screen Inspector") {
