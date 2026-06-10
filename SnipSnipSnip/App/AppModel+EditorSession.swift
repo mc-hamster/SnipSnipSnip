@@ -259,7 +259,12 @@ extension AppModel {
     }
 
     func copyRenderedImageToClipboardAsync(from controller: EditorController) async {
-        let renderInput = ExportRenderInput(baseImage: controller.capture.image, snapshot: controller.snapshot)
+        let renderInput = ExportRenderInput(
+            baseImage: controller.capture.image,
+            snapshot: controller.snapshot,
+            pinnedUIMapElements: controller.pinnedUIMapElements,
+            uiMapOverlayOptions: controller.uiMapOverlayOptions
+        )
 
         do {
             let pngData = try await AutoCopyRenderer.renderPNGData(from: renderInput)
@@ -418,8 +423,14 @@ extension AppModel {
         let document = EditableScreenshotDocument(capture: controller.capture, session: controller.documentSession)
         let payload = ScreenshotDocumentWritePayload(
             document: document,
-            renderInput: ExportRenderInput(baseImage: controller.capture.image, snapshot: controller.snapshot),
-            url: url
+            renderInput: ExportRenderInput(
+                baseImage: controller.capture.image,
+                snapshot: controller.snapshot,
+                pinnedUIMapElements: controller.pinnedUIMapElements,
+                uiMapOverlayOptions: controller.uiMapOverlayOptions
+            ),
+            url: url,
+            includeUIMapSearchText: windowUIMapEnabled
         )
 
         do {
@@ -572,7 +583,11 @@ extension AppModel {
                 let document = try withSecurityScopedAccess(to: url) {
                     try SSSDocumentPackage.load(from: url)
                 }
-                let controller = EditorController(capture: document.capture, session: document.session)
+                let controller = EditorController(
+                    capture: document.capture,
+                    session: document.session,
+                    uiMapOverlayOptions: uiMapPinnedOverlayDefaults
+                )
                 installEditorController(controller, documentURL: url, savedSession: controller.documentSession)
             }
             requestMainWindowPresentation()
@@ -633,7 +648,10 @@ extension AppModel {
             sourceRect: CGRect(origin: .zero, size: CGSize(width: image.width, height: image.height)),
             capturedAt: Date()
         )
-        let controller = EditorController(capture: capture)
+        let controller = EditorController(
+            capture: capture,
+            uiMapOverlayOptions: uiMapPinnedOverlayDefaults
+        )
         installEditorController(controller, documentURL: nil, savedSession: nil)
         requestMainWindowPresentation()
     }
@@ -818,12 +836,27 @@ extension AppModel {
 nonisolated struct ExportRenderInput: @unchecked Sendable {
     let baseImage: CGImage
     let snapshot: EditorSnapshot
+    let pinnedUIMapElements: [UIMapElement]
+    let uiMapOverlayOptions: UIMapOverlayOptions
+
+    init(
+        baseImage: CGImage,
+        snapshot: EditorSnapshot,
+        pinnedUIMapElements: [UIMapElement] = [],
+        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions()
+    ) {
+        self.baseImage = baseImage
+        self.snapshot = snapshot
+        self.pinnedUIMapElements = pinnedUIMapElements
+        self.uiMapOverlayOptions = uiMapOverlayOptions
+    }
 }
 
 nonisolated private struct ScreenshotDocumentWritePayload: @unchecked Sendable {
     let document: EditableScreenshotDocument
     let renderInput: ExportRenderInput
     let url: URL
+    let includeUIMapSearchText: Bool
 }
 
 nonisolated private struct VideoDocumentWritePayload: @unchecked Sendable {
@@ -839,7 +872,9 @@ nonisolated private enum DocumentPackageWriter {
 
             guard let previewImage = EditorRenderer.render(
                 baseImage: payload.renderInput.baseImage,
-                snapshot: payload.renderInput.snapshot
+                snapshot: payload.renderInput.snapshot,
+                pinnedUIMapElements: payload.renderInput.pinnedUIMapElements,
+                uiMapOverlayOptions: payload.renderInput.uiMapOverlayOptions
             ) else {
                 throw ImageExportError.encodingFailed
             }
@@ -852,7 +887,12 @@ nonisolated private enum DocumentPackageWriter {
             }
 
             try Task.checkCancellation()
-            try SSSDocumentPackage.save(document: payload.document, previewImage: presentedPreviewImage, to: payload.url)
+            try SSSDocumentPackage.save(
+                document: payload.document,
+                previewImage: presentedPreviewImage,
+                to: payload.url,
+                includeUIMapSearchText: payload.includeUIMapSearchText
+            )
         }
 
         try await withTaskCancellationHandler {
@@ -885,7 +925,12 @@ nonisolated private enum AutoCopyRenderer {
         let task = Task.detached(priority: .utility) {
             try Task.checkCancellation()
 
-            guard let image = EditorRenderer.render(baseImage: input.baseImage, snapshot: input.snapshot) else {
+            guard let image = EditorRenderer.render(
+                baseImage: input.baseImage,
+                snapshot: input.snapshot,
+                pinnedUIMapElements: input.pinnedUIMapElements,
+                uiMapOverlayOptions: input.uiMapOverlayOptions
+            ) else {
                 throw ImageExportError.encodingFailed
             }
 

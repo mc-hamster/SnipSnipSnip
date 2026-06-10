@@ -52,7 +52,7 @@ nonisolated struct SignedScaleBounds: Equatable {
 }
 
 extension NSScreen {
-    var gscDisplayID: CGDirectDisplayID? {
+    nonisolated var gscDisplayID: CGDirectDisplayID? {
         guard let number = deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
             return nil
         }

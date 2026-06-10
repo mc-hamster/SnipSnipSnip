@@ -530,6 +530,7 @@ private_lane :build_release_pkg do |options|
   ]
   if build_target == "Self Release"
     xcargs << "INFOPLIST_KEY_CFBundleDisplayName=#{Shellwords.escape('SnipSnipSnip Pro')}"
+    xcargs << "ENABLE_APP_SANDBOX=NO"
     xcargs << "ENABLE_RESOURCE_ACCESS_CAMERA=YES"
     xcargs << "INFOPLIST_PREPROCESSOR_DEFINITIONS=SNIP_SELF_RELEASE_INFO=1"
     xcargs << "CODE_SIGN_STYLE=Manual"

@@ -194,7 +194,7 @@ struct ContentView: View {
 
             headerPrimaryActions
 
-            if !model.permissionStatus.isCaptureReady {
+            if !headerCaptureReady {
                 headerPermissionCallout
             }
         }
@@ -238,6 +238,10 @@ struct ContentView: View {
                     tint: permissionStatusTint
                 )
 
+                if FeatureFlags.uiMapEnabled, shouldShowHeaderUIMapStatus {
+                    headerUIMapStatusChip
+                }
+
                 if model.isWorking || model.isRecordingVideo {
                     headerWorkingChip
                 }
@@ -249,6 +253,10 @@ struct ContentView: View {
                     systemImage: permissionStatusSystemImage,
                     tint: permissionStatusTint
                 )
+
+                if FeatureFlags.uiMapEnabled, shouldShowHeaderUIMapStatus {
+                    headerUIMapStatusChip
+                }
 
                 if model.isWorking || model.isRecordingVideo {
                     headerWorkingChip
@@ -345,15 +353,15 @@ struct ContentView: View {
 
                 Spacer(minLength: 8)
 
-                if model.permissionStatus.missingRequirements.count > 1 {
-                    Button("Grant Next", action: model.requestMissingCapturePermissions)
+                if headerMissingRequirements.count > 1 {
+                    Button("Grant Next", action: requestNextHeaderPermission)
                         .buttonStyle(SSSChromeButtonStyle())
                         .controlSize(.small)
                         .help("Open the next missing macOS privacy permission for SnipSnipSnip.")
                 }
             }
 
-            ForEach(model.permissionStatus.missingRequirements) { requirement in
+            ForEach(headerMissingRequirements) { requirement in
                 missingPermissionRow(requirement)
             }
 
@@ -386,6 +394,32 @@ struct ContentView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .glassEffect(.regular.tint(model.isRecordingVideo ? .red : nil), in: .capsule)
+    }
+
+    private var headerUIMapStatusChip: some View {
+        Group {
+            if model.editorController?.isProcessingUIMap == true {
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .controlSize(.mini)
+
+                    Text(uiMapStatusTitle)
+                        .lineLimit(1)
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .glassEffect(.regular.tint(uiMapStatusTint), in: .capsule)
+            } else {
+                headerStatusChip(
+                    title: uiMapStatusTitle,
+                    systemImage: "rectangle.3.group",
+                    tint: uiMapStatusTint
+                )
+            }
+        }
+        .help(uiMapStatusHelp)
     }
 
     private func headerStatusChip(title: String, systemImage: String, tint: Color) -> some View {
@@ -421,9 +455,9 @@ struct ContentView: View {
         ) {
             VStack(alignment: .leading, spacing: 16) {
                 quickStartStep(
-                    systemImage: model.permissionStatus.isCaptureReady ? "checkmark.shield" : "hand.raised.fill",
+                    systemImage: model.permissionStatus.hasScreenRecording ? "checkmark.shield" : "hand.raised.fill",
                     title: "Grant Capture Permissions",
-                    detail: model.permissionStatus.isCaptureReady
+                    detail: model.permissionStatus.hasScreenRecording
                         ? grantedPermissionsDetail
                         : permissionCalloutSummary
                 )
@@ -441,10 +475,10 @@ struct ContentView: View {
                 )
 
                 HStack(spacing: 10) {
-                    if !model.permissionStatus.isCaptureReady {
-                        Button("Grant Missing Access", action: model.requestMissingCapturePermissions)
+                    if !model.permissionStatus.hasScreenRecording {
+                        Button("Grant Screen Recording", action: model.requestScreenRecordingAccess)
                             .buttonStyle(SSSChromeButtonStyle())
-                            .help("Open the next missing macOS privacy permission for SnipSnipSnip.")
+                            .help("Ask macOS to grant Screen Recording permission for SnipSnipSnip.")
                     }
 
                     Button("Dismiss", action: model.dismissWelcomeCard)
@@ -848,6 +882,10 @@ struct ContentView: View {
         case "Full", "Fullscreen":
             return "Capture the full desktop across connected displays."
         case "Window":
+            if FeatureFlags.uiMapEnabled, model.uiMapEnabled {
+                return "Open quick window capture choices. UI Map enabled for Window captures."
+            }
+
             return "Open quick window capture choices."
         case "Scroll":
             return "Capture a scrolling page, document, or list from a selected viewport."
@@ -859,7 +897,7 @@ struct ContentView: View {
     }
 
     private var permissionStatusTitle: String {
-        if model.permissionStatus.isCaptureReady {
+        if headerCaptureReady {
             return "Ready"
         }
 
@@ -871,15 +909,55 @@ struct ContentView: View {
     }
 
     private var permissionStatusSystemImage: String {
-        model.permissionStatus.isCaptureReady ? "checkmark.circle.fill" : "lock.trianglebadge.exclamationmark.fill"
+        headerCaptureReady ? "checkmark.circle.fill" : "lock.trianglebadge.exclamationmark.fill"
     }
 
     private var permissionStatusTint: Color {
-        model.permissionStatus.isCaptureReady ? .green : .orange
+        headerCaptureReady ? .green : .orange
+    }
+
+    private var headerCaptureReady: Bool {
+        model.permissionStatus.hasScreenRecording
+    }
+
+    private var shouldShowHeaderUIMapStatus: Bool {
+        guard let controller = model.editorController else {
+            return false
+        }
+
+        if controller.isProcessingUIMap {
+            return true
+        }
+
+        return controller.capture.kind == .window && controller.uiMapSnapshot != nil
+    }
+
+    private var uiMapStatusTitle: String {
+        if model.editorController?.isProcessingUIMap == true {
+            return "UI Map Processing"
+        }
+
+        return "UI Map Captured"
+    }
+
+    private var uiMapStatusTint: Color {
+        model.editorController?.isProcessingUIMap == true ? .orange : .blue
+    }
+
+    private var uiMapStatusHelp: String {
+        if model.editorController?.isProcessingUIMap == true {
+            return "Window UI Map metadata is being captured in the background."
+        }
+
+        return "This Window capture contains UI Map metadata."
+    }
+
+    private var headerMissingRequirements: [CapturePermissionRequirement] {
+        model.permissionStatus.hasScreenRecording ? [] : [.screenRecording]
     }
 
     private var permissionCalloutSummary: String {
-        let missingRequirements = model.permissionStatus.missingRequirements
+        let missingRequirements = headerMissingRequirements
 
         if missingRequirements == [.screenRecording] {
             return "Screen Recording is required for captures, recordings, and live window thumbnails."
@@ -896,6 +974,14 @@ struct ContentView: View {
         return "Screen Recording is required for captures, recordings, and live window thumbnails."
     }
 
+    private func requestNextHeaderPermission() {
+        guard let requirement = headerMissingRequirements.first else {
+            return
+        }
+
+        model.requestPermission(requirement)
+    }
+
     private func missingPermissionRow(_ requirement: CapturePermissionRequirement) -> some View {
         HStack(alignment: .center, spacing: 10) {
             Image(systemName: requirement.systemImage)
@@ -907,7 +993,7 @@ struct ContentView: View {
                 Text(requirement.title)
                     .font(.caption.weight(.semibold))
 
-                Text(requirement.requiredFor)
+                Text(missingPermissionDescription(for: requirement))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -929,6 +1015,10 @@ struct ContentView: View {
             .controlSize(.small)
             .help("Show manual setup steps below if macOS does not list SnipSnipSnip.")
         }
+    }
+
+    private func missingPermissionDescription(for requirement: CapturePermissionRequirement) -> String {
+        return requirement.requiredFor
     }
 
     private func handlePendingDocumentOpenRequests() {
@@ -963,16 +1053,32 @@ struct ContentView: View {
     }
 
     private var quickStartDetail: String {
+        if FeatureFlags.scrollingCaptureEnabled && FeatureFlags.uiMapEnabled {
+            return "SnipSnipSnip lives in the menu bar. Grant Screen Recording for capture pixels. Accessibility is only needed for Scrolling Capture and Window UI Map."
+        }
+
+        if FeatureFlags.uiMapEnabled {
+            return "SnipSnipSnip lives in the menu bar. Grant Screen Recording for capture pixels. Accessibility is only needed for Window UI Map."
+        }
+
         if FeatureFlags.scrollingCaptureEnabled {
-            return "SnipSnipSnip lives in the menu bar. Grant Screen Recording for capture pixels and Accessibility for Scrolling Capture."
+            return "SnipSnipSnip lives in the menu bar. Grant Screen Recording for capture pixels. Accessibility is only needed for Scrolling Capture."
         }
 
         return "SnipSnipSnip lives in the menu bar. Grant Screen Recording for capture pixels, live window thumbnails, and recording."
     }
 
     private var grantedPermissionsDetail: String {
+        if FeatureFlags.scrollingCaptureEnabled && FeatureFlags.uiMapEnabled {
+            return "Screen Recording is enabled. Accessibility can be granted later for Scrolling Capture and Window UI Map."
+        }
+
+        if FeatureFlags.uiMapEnabled {
+            return "Screen Recording is enabled. Accessibility can be granted later for Window UI Map."
+        }
+
         if FeatureFlags.scrollingCaptureEnabled {
-            return "Screen Recording and Accessibility are enabled for this Mac session."
+            return "Screen Recording is enabled. Accessibility can be granted later for Scrolling Capture."
         }
 
         return "Screen Recording is enabled for this Mac session."

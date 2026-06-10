@@ -193,7 +193,15 @@ private final class AnnotationCanvasOverlayView: NSView {
     override func resetCursorRects() {
         discardCursorRects()
 
-        if let selectionBounds = controller.selectionBoundingRect {
+        if controller.activeTool == .uiMapInspect, let uiMap = controller.uiMapSnapshot {
+            let canvasRect = controller.viewport.imageRect
+            for element in uiMap.allElements where element.isShowAllOverlayCandidate {
+                let rect = viewRect(for: element.documentRect, in: canvasRect)
+                if rect.width > 0, rect.height > 0 {
+                    addCursorRect(rect, cursor: .pointingHand)
+                }
+            }
+        } else if let selectionBounds = controller.selectionBoundingRect {
             let selectionRect = viewRect(for: selectionBounds, in: controller.viewport.imageRect)
 
             if selectionRect.width > 0, selectionRect.height > 0 {
@@ -205,7 +213,8 @@ private final class AnnotationCanvasOverlayView: NSView {
 
         let ib = imageBounds
         let vr = controller.viewport.imageRect
-        if ib.width > 0, ib.height > 0, vr.width > 0, vr.height > 0 {
+        if controller.activeTool != .uiMapInspect,
+           ib.width > 0, ib.height > 0, vr.width > 0, vr.height > 0 {
             for handle in ResizeHandle.allCases {
                 let handleRect = cropHandleRect(for: handle)
                 if handleRect.origin.x.isFinite, handleRect.origin.y.isFinite {
@@ -240,7 +249,14 @@ private final class AnnotationCanvasOverlayView: NSView {
 
         drawOutOfCapturePattern(excluding: canvasRect)
 
-        EditorRenderer.drawAnnotations(baseImage: controller.capture.image, snapshot: controller.snapshot, canvasRect: canvasRect, draftAnnotations: interactionState.draftAnnotations)
+        EditorRenderer.drawAnnotations(
+            baseImage: controller.capture.image,
+            snapshot: controller.snapshot,
+            canvasRect: canvasRect,
+            draftAnnotations: interactionState.draftAnnotations,
+            pinnedUIMapElements: controller.pinnedUIMapElements,
+            uiMapOverlayOptions: controller.uiMapOverlayOptions
+        )
 
         let displayedSelection = interactionState.draftAnnotations.isEmpty ? controller.selectedAnnotations : interactionState.draftAnnotations
 
@@ -255,6 +271,8 @@ private final class AnnotationCanvasOverlayView: NSView {
         if !interactionState.snapGuides.isEmpty {
             drawSnapGuides(interactionState.snapGuides, in: canvasRect)
         }
+
+        drawSelectedUIMapElement(in: canvasRect)
 
         if let draftCropRect = interactionState.draftCropRect {
             if case .recognizingText = interactionState.dragMode {
@@ -281,11 +299,115 @@ private final class AnnotationCanvasOverlayView: NSView {
         needsDisplay = true
     }
 
+    private func drawSelectedUIMapElement(in canvasRect: CGRect) {
+        if (controller.showsAllUIMapElements || controller.activeTool == .uiMapInspect),
+           let uiMap = controller.uiMapSnapshot {
+            for element in uiMap.allElements {
+                let isSelected = element.id == controller.selectedUIMapElementID
+                guard isSelected || element.isShowAllOverlayCandidate else {
+                    continue
+                }
+
+                drawUIMapElement(
+                    element,
+                    in: canvasRect,
+                    isSelected: isSelected
+                )
+            }
+            return
+        }
+
+        guard let element = controller.selectedUIMapElement else {
+            return
+        }
+
+        drawUIMapElement(element, in: canvasRect, isSelected: true)
+    }
+
+    private func drawUIMapElement(_ element: UIMapElement, in canvasRect: CGRect, isSelected: Bool) {
+        let options = controller.uiMapOverlayOptions
+        let rect = viewRect(for: element.documentRect, in: canvasRect)
+        guard rect.width > 0, rect.height > 0 else {
+            return
+        }
+
+        let color = uiMapOverlayColor(for: element)
+
+        if options.showsOutline {
+            let path = NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4)
+            if isSelected {
+                color.withAlphaComponent(0.18).setFill()
+                path.fill()
+            }
+            color.withAlphaComponent(isSelected ? 0.95 : 0.48).setStroke()
+            path.lineWidth = isSelected ? 2 : 1
+            path.stroke()
+        }
+
+        guard !(controller.showsAllUIMapElements || controller.activeTool == .uiMapInspect) || isSelected else {
+            return
+        }
+
+        let labelSegments = uiMapOverlayLabelSegments(for: element, options: options)
+        guard !labelSegments.isEmpty else {
+            return
+        }
+
+        let label = labelSegments.joined(separator: "  ")
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
+            .foregroundColor: NSColor.white
+        ]
+        let attributedLabel = NSAttributedString(string: label, attributes: attributes)
+        let labelSize = attributedLabel.size()
+        let labelRect = CGRect(
+            x: rect.minX,
+            y: max(canvasRect.minY, rect.minY - labelSize.height - 8),
+            width: min(labelSize.width + 12, max(canvasRect.width, 1)),
+            height: labelSize.height + 6
+        )
+
+        color.withAlphaComponent(0.92).setFill()
+        NSBezierPath(roundedRect: labelRect, xRadius: 6, yRadius: 6).fill()
+        attributedLabel.draw(at: CGPoint(x: labelRect.minX + 6, y: labelRect.minY + 3))
+    }
+
+    private func uiMapOverlayColor(for element: UIMapElement) -> NSColor {
+        element.isRecognizedTextSupplement ? .systemOrange : .systemBlue
+    }
+
+    private func uiMapOverlayLabelSegments(for element: UIMapElement, options: UIMapOverlayOptions) -> [String] {
+        var segments: [String] = []
+
+        if options.showsLabel {
+            segments.append(element.displayName)
+        }
+
+        if options.showsIdentifier, let identifier = element.accessibilityIdentifier {
+            segments.append("#\(identifier)")
+        }
+
+        if options.showsRole {
+            segments.append(element.typeLabel)
+        }
+
+        if options.showsCoordinates {
+            segments.append("x \(Int(element.documentRect.minX)), y \(Int(element.documentRect.minY))")
+        }
+
+        if options.showsDimensions {
+            segments.append("\(Int(element.documentRect.width)) x \(Int(element.documentRect.height))")
+        }
+
+        return segments
+    }
+
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
         let viewPoint = convert(event.locationInWindow, from: nil)
 
-        if let handle = cropHandle(at: viewPoint) {
+        if controller.activeTool != .uiMapInspect,
+           let handle = cropHandle(at: viewPoint) {
             interactionState.beginCropResize(
                 originalBounds: controller.snapshot.cropRect.gscIntegralStandardized,
                 handle: handle
@@ -300,6 +422,7 @@ private final class AnnotationCanvasOverlayView: NSView {
         }
 
         if controller.activeTool != .crop,
+           controller.activeTool != .uiMapInspect,
            let selectionBounds = controller.selectionBoundingRect,
            let handle = selectionHandle(at: viewPoint) {
             interactionState.beginResize(annotations: controller.selectedAnnotations, originalBounds: selectionBounds, handle: handle)
@@ -309,6 +432,7 @@ private final class AnnotationCanvasOverlayView: NSView {
 
         if controller.activeTool != .select,
            controller.activeTool != .crop,
+           controller.activeTool != .uiMapInspect,
            let selectionBounds = controller.selectionBoundingRect,
            controller.selectedAnnotations.contains(where: { $0.contains(point) }) {
             interactionState.beginMove(annotations: controller.selectedAnnotations, anchor: point, originalBounds: selectionBounds)
@@ -319,6 +443,8 @@ private final class AnnotationCanvasOverlayView: NSView {
         switch controller.activeTool {
         case .select:
             handleSelectMouseDown(point, viewPoint: viewPoint, with: event)
+        case .uiMapInspect:
+            handleUIMapInspectMouseDown(point)
         case .rectangle:
             interactionState.beginRectDrawing(tool: .rectangle, anchor: point)
         case .ellipse:
@@ -610,6 +736,28 @@ private final class AnnotationCanvasOverlayView: NSView {
 
         interactionState.beginMarquee(at: point, additive: additive || toggle)
         needsDisplay = true
+    }
+
+    private func handleUIMapInspectMouseDown(_ point: CGPoint) {
+        guard let uiMap = controller.uiMapSnapshot else {
+            controller.selectUIMapElement(nil)
+            needsDisplay = true
+            return
+        }
+
+        let matchingElement = uiMap.allElements
+            .filter(\.isShowAllOverlayCandidate)
+            .filter { $0.documentRect.contains(point) }
+            .min { first, second in
+                uiMapHitTestArea(first.documentRect) < uiMapHitTestArea(second.documentRect)
+            }
+
+        controller.selectAndTogglePinnedUIMapElement(matchingElement?.id)
+        needsDisplay = true
+    }
+
+    private func uiMapHitTestArea(_ rect: CGRect) -> CGFloat {
+        max(rect.width, 0) * max(rect.height, 0)
     }
 
     private func selectionHandleRect(for handle: ResizeHandle, bounds: CGRect) -> CGRect {
@@ -1106,7 +1254,7 @@ private final class AnnotationCanvasOverlayView: NSView {
 
         if selected?.isTextEditable == true {
             controller.applyTextInput(text)
-        } else if !controller.selectedAnnotations.isEmpty {
+        } else if !controller.selectedAnnotations.isEmpty || controller.canBeginTextAnnotationFromUIMapSelection {
             controller.beginTextAnnotation(with: text)
         } else {
             return false

@@ -5,8 +5,18 @@ import CoreImage
 enum ScreenshotPresentationRenderer {
     nonisolated private static let ciContext = CIContext(options: nil)
 
-    nonisolated static func render(baseImage: CGImage, snapshot: EditorSnapshot) -> CGImage? {
-        guard let contentImage = EditorRenderer.render(baseImage: baseImage, snapshot: snapshot) else {
+    nonisolated static func render(
+        baseImage: CGImage,
+        snapshot: EditorSnapshot,
+        pinnedUIMapElements: [UIMapElement] = [],
+        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions()
+    ) -> CGImage? {
+        guard let contentImage = EditorRenderer.render(
+            baseImage: baseImage,
+            snapshot: snapshot,
+            pinnedUIMapElements: pinnedUIMapElements,
+            uiMapOverlayOptions: uiMapOverlayOptions
+        ) else {
             return nil
         }
 

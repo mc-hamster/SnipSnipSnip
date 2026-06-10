@@ -117,8 +117,20 @@ final class EditorController: ObservableObject {
     @Published private(set) var persistenceRevision = 0
     @Published private(set) var cropOutsideOverlayAlpha: CGFloat = AppModel.defaultEditorCropOutsideOverlayAlpha
     @Published private(set) var outOfCapturePatternSettings: EditorOutOfCapturePatternSettings = .default
+    @Published var selectedUIMapElementID: UUID?
+    @Published var showsAllUIMapElements = false {
+        didSet {
+            invalidateCanvas()
+        }
+    }
+    @Published var uiMapOverlayOptions = UIMapOverlayOptions() {
+        didSet {
+            invalidateCanvas()
+        }
+    }
+    @Published private(set) var isProcessingUIMap = false
+    @Published private(set) var capture: CapturedScreenshot
 
-    let capture: CapturedScreenshot
     private let textRecognizer: any CaptureTextRecognizing
     private let initialSnapshot: EditorSnapshot
     private let defaults: UserDefaults
@@ -148,13 +160,15 @@ final class EditorController: ObservableObject {
     init(
         capture: CapturedScreenshot,
         defaults: UserDefaults = .standard,
-        textRecognizer: any CaptureTextRecognizing = VisionCaptureTextRecognizer()
+        textRecognizer: any CaptureTextRecognizing = VisionCaptureTextRecognizer(),
+        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions()
     ) {
         self.defaults = defaults
         self.preferredRedactionMode = defaults.string(forKey: EditorPreferenceKey.lastRedactionMode)
             .flatMap(RedactionMode.init(rawValue:)) ?? .blur
         self.capture = capture
         self.textRecognizer = textRecognizer
+        self.uiMapOverlayOptions = uiMapOverlayOptions
         let capturedCursorAnnotation = capture.cursorOverlay.map {
             Annotation.makeImageOverlay(image: $0.image, in: $0.rect, role: .capturedCursor)
         }
@@ -187,13 +201,15 @@ final class EditorController: ObservableObject {
         capture: CapturedScreenshot,
         session: EditorDocumentSession,
         defaults: UserDefaults = .standard,
-        textRecognizer: any CaptureTextRecognizing = VisionCaptureTextRecognizer()
+        textRecognizer: any CaptureTextRecognizing = VisionCaptureTextRecognizer(),
+        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions()
     ) {
         self.defaults = defaults
         self.preferredRedactionMode = defaults.string(forKey: EditorPreferenceKey.lastRedactionMode)
             .flatMap(RedactionMode.init(rawValue:)) ?? .blur
         self.capture = capture
         self.textRecognizer = textRecognizer
+        self.uiMapOverlayOptions = uiMapOverlayOptions
         self.initialSnapshot = session.initialSnapshot
         self.snapshot = session.currentSnapshot
         self.undoStack = session.undoStack
@@ -341,6 +357,39 @@ final class EditorController: ObservableObject {
         }
 
         return shape.role
+    }
+
+    var uiMapSnapshot: UIMapSnapshot? {
+        capture.uiMap
+    }
+
+    var selectedUIMapElement: UIMapElement? {
+        guard let selectedUIMapElementID else {
+            return nil
+        }
+
+        return uiMapSnapshot?.element(matching: selectedUIMapElementID)
+    }
+
+    var pinnedUIMapElements: [UIMapElement] {
+        guard let uiMapSnapshot else {
+            return []
+        }
+
+        return snapshot.pinnedUIMapElementIDs.compactMap { uiMapSnapshot.element(matching: $0) }
+    }
+
+    var isInspectingUIMap: Bool {
+        FeatureFlags.uiMapEnabled
+            && (activeTool == .uiMapInspect || selectedUIMapElement != nil)
+    }
+
+    var canBeginTextAnnotationFromUIMapSelection: Bool {
+        guard let selectedUIMapElementID else {
+            return false
+        }
+
+        return isUIMapElementPinned(selectedUIMapElementID)
     }
 
     var isSamplingImageColor: Bool {
@@ -522,11 +571,19 @@ final class EditorController: ObservableObject {
     func select(annotationIDs: [UUID], additive: Bool = false, toggle: Bool = false) {
         let expanded = normalizedSelection(for: annotationIDs)
         let updatedSelection = updatedSelection(from: expanded, additive: additive, toggle: toggle)
+        if selectedUIMapElementID != nil {
+            selectedUIMapElementID = nil
+        }
         execute(SetSelectionCommand(annotationIDs: updatedSelection), undoable: false)
+        invalidateCanvas()
     }
 
     func selectAll() {
+        if selectedUIMapElementID != nil {
+            selectedUIMapElementID = nil
+        }
         execute(SetSelectionCommand(annotationIDs: snapshot.annotations.map(\.id)), undoable: false)
+        invalidateCanvas()
     }
 
     func deleteSelected() {
@@ -768,6 +825,9 @@ final class EditorController: ObservableObject {
             .updatingText(seedText)
 
         addAnnotation(annotation)
+        if selectedUIMapElementID != nil {
+            selectedUIMapElementID = nil
+        }
     }
 
     func deleteBackwardInTextSelection() {
@@ -954,14 +1014,33 @@ final class EditorController: ObservableObject {
 
     func activateToolbarTool(_ tool: EditorTool) {
         if tool == .blur {
+            selectedUIMapElementID = nil
             activeTool = preferredRedactionMode.editorTool
+            invalidateCanvas()
             return
         }
 
         imageColorSamplingTarget = nil
         imageColorSamplingSourceTool = nil
         previewedImageSampleColor = nil
+
+        if tool == .uiMapInspect {
+            guard FeatureFlags.uiMapEnabled, uiMapSnapshot != nil else {
+                activeTool = .select
+                selectedUIMapElementID = nil
+                invalidateCanvas()
+                return
+            }
+
+            if !snapshot.selectedAnnotationIDs.isEmpty {
+                execute(SetSelectionCommand(annotationIDs: []), undoable: false)
+            }
+        } else if selectedUIMapElementID != nil {
+            selectedUIMapElementID = nil
+        }
+
         activeTool = tool
+        invalidateCanvas()
     }
 
     func beginImageColorSampling(_ target: ImageColorSamplingTarget) {
@@ -1106,8 +1185,86 @@ final class EditorController: ObservableObject {
         }
     }
 
+    func selectUIMapElement(_ elementID: UUID?) {
+        if elementID != nil, !snapshot.selectedAnnotationIDs.isEmpty {
+            execute(SetSelectionCommand(annotationIDs: []), undoable: false)
+        }
+
+        selectedUIMapElementID = elementID
+        invalidateCanvas()
+    }
+
+    func selectAndTogglePinnedUIMapElement(_ elementID: UUID?) {
+        guard let elementID else {
+            selectUIMapElement(nil)
+            return
+        }
+
+        selectUIMapElement(elementID)
+        togglePinnedUIMapElement(elementID)
+    }
+
+    func beginUIMapProcessing() {
+        guard !isProcessingUIMap else {
+            return
+        }
+
+        isProcessingUIMap = true
+    }
+
+    func finishUIMapProcessing(with uiMap: UIMapSnapshot?) {
+        isProcessingUIMap = false
+
+        guard let uiMap else {
+            return
+        }
+
+        attachUIMap(uiMap)
+    }
+
+    func attachUIMap(_ uiMap: UIMapSnapshot) {
+        guard capture.uiMap != uiMap else {
+            return
+        }
+
+        capture = capture.attachingUIMap(uiMap)
+        persistenceRevision += 1
+        invalidateCanvas()
+    }
+
+    func isUIMapElementPinned(_ elementID: UUID) -> Bool {
+        snapshot.pinnedUIMapElementIDs.contains(elementID)
+    }
+
+    func togglePinnedUIMapElement(_ elementID: UUID) {
+        guard uiMapSnapshot?.element(matching: elementID) != nil else {
+            return
+        }
+
+        var pinnedElementIDs = snapshot.pinnedUIMapElementIDs
+        if let existingIndex = pinnedElementIDs.firstIndex(of: elementID) {
+            pinnedElementIDs.remove(at: existingIndex)
+        } else {
+            pinnedElementIDs.append(elementID)
+        }
+
+        execute(SetPinnedUIMapElementsCommand(elementIDs: pinnedElementIDs))
+        invalidateCanvas()
+    }
+
+    func focusViewport(on documentRect: CGRect) {
+        updateViewport {
+            $0.focused(on: documentRect.insetBy(dx: -24, dy: -24))
+        }
+    }
+
     func exportedImage() -> CGImage? {
-        ScreenshotPresentationRenderer.render(baseImage: capture.image, snapshot: snapshot)
+        ScreenshotPresentationRenderer.render(
+            baseImage: capture.image,
+            snapshot: snapshot,
+            pinnedUIMapElements: pinnedUIMapElements,
+            uiMapOverlayOptions: uiMapOverlayOptions
+        )
     }
 
     func applyPresentationPreset(_ preset: ScreenshotPresentationPreset) {
@@ -1419,7 +1576,12 @@ final class EditorController: ObservableObject {
     }
 
     func copyAnnotatedImage() {
-        let input = EditorExportRenderInput(baseImage: capture.image, snapshot: snapshot)
+        let input = EditorExportRenderInput(
+            baseImage: capture.image,
+            snapshot: snapshot,
+            pinnedUIMapElements: pinnedUIMapElements,
+            uiMapOverlayOptions: uiMapOverlayOptions
+        )
 
         Task { @MainActor [weak self] in
             do {
@@ -1432,7 +1594,12 @@ final class EditorController: ObservableObject {
     }
 
     func saveAnnotatedImage(format: ImageExportFormat = .png, filenameTemplate: ScreenshotFilenameTemplate = ScreenshotFilenameTemplate.default) {
-        let input = EditorExportRenderInput(baseImage: capture.image, snapshot: snapshot)
+        let input = EditorExportRenderInput(
+            baseImage: capture.image,
+            snapshot: snapshot,
+            pinnedUIMapElements: pinnedUIMapElements,
+            uiMapOverlayOptions: uiMapOverlayOptions
+        )
         let suggestedFilename = ImageExporter.editedFilename(
             suggestedFilename: filenameTemplate.resolvedFilename(for: capture, formatExtension: format.fileExtension),
             format: format
@@ -1457,7 +1624,12 @@ final class EditorController: ObservableObject {
     }
 
     func shareAnnotatedImage() {
-        let input = EditorExportRenderInput(baseImage: capture.image, snapshot: snapshot)
+        let input = EditorExportRenderInput(
+            baseImage: capture.image,
+            snapshot: snapshot,
+            pinnedUIMapElements: pinnedUIMapElements,
+            uiMapOverlayOptions: uiMapOverlayOptions
+        )
 
         Task { @MainActor [weak self] in
             do {
@@ -1473,7 +1645,12 @@ final class EditorController: ObservableObject {
         requestedFormat: ImageExportFormat,
         filenameTemplate: ScreenshotFilenameTemplate
     ) -> PromisedFilePayload {
-        let input = EditorExportRenderInput(baseImage: capture.image, snapshot: snapshot)
+        let input = EditorExportRenderInput(
+            baseImage: capture.image,
+            snapshot: snapshot,
+            pinnedUIMapElements: pinnedUIMapElements,
+            uiMapOverlayOptions: uiMapOverlayOptions
+        )
         let format = ImageExporter.dragOutFormat(
             requestedFormat: requestedFormat,
             requiresPNGForFaithfulExport: input.snapshot.presentation.requiresPNGForFaithfulExport
@@ -1510,7 +1687,7 @@ final class EditorController: ObservableObject {
         errorMessage = nil
     }
 
-    private func showNotice(_ message: String) {
+    func showNotice(_ message: String) {
         noticeTask?.cancel()
         noticeMessage = message
         noticeTask = Task { @MainActor [weak self] in
@@ -1886,6 +2063,11 @@ final class EditorController: ObservableObject {
     }
 
     private func suggestedTextRectForNewAnnotation() -> CGRect {
+        if let selectedUIMapElement,
+           isUIMapElementPinned(selectedUIMapElement.id) {
+            return gscSuggestedTextRect(adjacentTo: selectedUIMapElement.documentRect, within: snapshot.cropRect)
+        }
+
         guard selectedAnnotations.count == 1, let annotation = selectedAnnotation else {
             return defaultSuggestedTextRect()
         }
@@ -2071,6 +2253,20 @@ final class EditorController: ObservableObject {
 nonisolated private struct EditorExportRenderInput: @unchecked Sendable {
     let baseImage: CGImage
     let snapshot: EditorSnapshot
+    let pinnedUIMapElements: [UIMapElement]
+    let uiMapOverlayOptions: UIMapOverlayOptions
+
+    init(
+        baseImage: CGImage,
+        snapshot: EditorSnapshot,
+        pinnedUIMapElements: [UIMapElement] = [],
+        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions()
+    ) {
+        self.baseImage = baseImage
+        self.snapshot = snapshot
+        self.pinnedUIMapElements = pinnedUIMapElements
+        self.uiMapOverlayOptions = uiMapOverlayOptions
+    }
 }
 
 nonisolated private enum EditorExportRenderer {
@@ -2078,7 +2274,12 @@ nonisolated private enum EditorExportRenderer {
         let task = Task.detached(priority: .userInitiated) {
             try Task.checkCancellation()
 
-            guard let image = ScreenshotPresentationRenderer.render(baseImage: input.baseImage, snapshot: input.snapshot) else {
+            guard let image = ScreenshotPresentationRenderer.render(
+                baseImage: input.baseImage,
+                snapshot: input.snapshot,
+                pinnedUIMapElements: input.pinnedUIMapElements,
+                uiMapOverlayOptions: input.uiMapOverlayOptions
+            ) else {
                 throw ImageExportError.encodingFailed
             }
 
@@ -2097,7 +2298,12 @@ nonisolated private enum EditorExportRenderer {
         let task = Task.detached(priority: .userInitiated) {
             try Task.checkCancellation()
 
-            guard let image = ScreenshotPresentationRenderer.render(baseImage: input.baseImage, snapshot: input.snapshot) else {
+            guard let image = ScreenshotPresentationRenderer.render(
+                baseImage: input.baseImage,
+                snapshot: input.snapshot,
+                pinnedUIMapElements: input.pinnedUIMapElements,
+                uiMapOverlayOptions: input.uiMapOverlayOptions
+            ) else {
                 throw ImageExportError.encodingFailed
             }
 

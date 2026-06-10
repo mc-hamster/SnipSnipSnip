@@ -199,6 +199,15 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         rebuildMainMenu()
     }
 
+    @objc private func toggleUIMap() {
+        guard let model else {
+            return
+        }
+
+        model.updateUIMapEnabled(!model.uiMapEnabled)
+        rebuildMainMenu()
+    }
+
     @objc private func setTimerOff() {
         model?.captureDelay = .immediate
     }
@@ -390,6 +399,18 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             enabled: true,
             toolTip: "Add the cursor as an editable overlay in screenshots. Scrolling Capture always excludes it."
         ))
+
+        if FeatureFlags.uiMapEnabled {
+            menu.addItem(toggleItem(
+                title: "Include UI Map for Window Captures",
+                action: #selector(toggleUIMap),
+                isOn: model.uiMapEnabled,
+                enabled: true,
+                toolTip: model.windowUIMapNeedsAccessibilityAccess
+                    ? "Grant Accessibility access before Window UI Map metadata can be captured."
+                    : "Save available names, roles, identifiers, and locations of visible interface elements when capturing a window."
+            ))
+        }
 
         let regionSettingsItem = NSMenuItem(title: "Region Capture Settings", action: nil, keyEquivalent: "")
         regionSettingsItem.submenu = regionCaptureSettingsMenu

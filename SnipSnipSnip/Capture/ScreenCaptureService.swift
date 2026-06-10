@@ -447,12 +447,34 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
         configuration.showsCursor = false
         configuration.dynamicRange = .sdr
         let image = try await captureScreenshot(filter: filter, configuration: configuration)
+        let sourceFrame = sourceWindow.frame.gscIntegralStandardized
+        let sourceOwnerPID = sourceWindow.owningApplication?.processID ?? window.ownerPID
+        let sourceOwnerName = sourceWindow.owningApplication?.applicationName ?? window.ownerName
+        let sourceTitle = sourceWindow.title ?? window.title
+        let sourceWindowIdentity = CaptureSourceWindowIdentity(
+            windowID: sourceWindow.windowID,
+            ownerName: sourceOwnerName,
+            ownerPID: sourceOwnerPID,
+            bundleIdentifier: NSRunningApplication(processIdentifier: sourceOwnerPID)?.bundleIdentifier,
+            title: sourceTitle,
+            frame: sourceFrame
+        )
 
         return CapturedScreenshot(
             image: image,
             kind: .window,
-            sourceName: window.displayTitle,
-            sourceRect: window.frame,
+            sourceName: CaptureWindowSummary(
+                id: sourceWindow.windowID,
+                ownerName: sourceOwnerName,
+                ownerPID: sourceOwnerPID,
+                title: sourceTitle,
+                frame: sourceFrame,
+                layer: sourceWindow.windowLayer,
+                focusRank: window.focusRank,
+                thumbnail: nil
+            ).displayTitle,
+            sourceRect: sourceFrame,
+            sourceWindowIdentity: sourceWindowIdentity,
             capturedAt: Date()
         )
     }

@@ -237,7 +237,8 @@ Current gated features:
 - Presentation export styling is currently enabled for `Dev` and disabled for `Internal`, `External`, `Release`, and `Self Release`.
 - Scrolling Capture and Accessibility automation are enabled only for `Self Release`.
 - Scrolling Capture and Accessibility automation are disabled for `Dev`, `Internal`, `External`, and `Release`.
-- Fastlane `Internal`, `External`, and App Store `Release` builds all keep `APP_STORE_BUILD`, so the Accessibility-backed scrolling implementation is compiled out of those binaries.
+- Local Xcode `Debug` / `Dev` builds and Fastlane `Self Release` builds run without App Sandbox so Accessibility-backed UI Map and self-distributed Pro automation can read cross-app accessibility trees after user consent.
+- Fastlane `Internal`, `External`, and App Store `Release` builds all keep App Sandbox and `APP_STORE_BUILD`, so the Accessibility-backed scrolling implementation is compiled out of those binaries and extra self-distribution capabilities do not ship to App Store builds.
 
 Before relying on `release`, verify all of the following manually in App Store Connect and Xcode:
 

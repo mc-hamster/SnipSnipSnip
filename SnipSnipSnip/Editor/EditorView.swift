@@ -286,6 +286,7 @@ struct EditorToolbarView: View {
                         onExportPDF: onExportPDF,
                         onShare: onShare,
                         onShowLayers: showLayersWindow,
+                        onShowUIMap: showUIMapWindow,
                         dragOutPayloadProvider: dragOutPayloadProvider
                     )
                 } else {
@@ -300,10 +301,15 @@ struct EditorToolbarView: View {
         NSApp.activate(ignoringOtherApps: true)
         NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.layersWindow })?.makeKeyAndOrderFront(nil)
     }
+
+    private func showUIMapWindow() {
+        openWindow(id: AppSceneID.uiMapWindow)
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.uiMapWindow })?.makeKeyAndOrderFront(nil)
+    }
 }
 
 private struct ActiveEditorToolbarView: View {
-    private static let primaryTools: [EditorTool] = [.select]
     private static let drawingTools: [EditorTool] = [.rectangle, .ellipse, .line, .arrow, .measure, .freehand, .highlighter, .highlight, .spotlight]
     private static let textTools: [EditorTool] = [.text, .callout]
     private static let utilityTools: [EditorTool] = [.ocrText]
@@ -316,6 +322,7 @@ private struct ActiveEditorToolbarView: View {
     let onExportPDF: () -> Void
     let onShare: () -> Void
     let onShowLayers: () -> Void
+    let onShowUIMap: () -> Void
     let dragOutPayloadProvider: @MainActor () -> PromisedFilePayload?
 
     var body: some View {
@@ -329,7 +336,7 @@ private struct ActiveEditorToolbarView: View {
 
                 toolbarDivider
 
-                toolGroup(Self.primaryTools)
+                toolGroup(primaryTools)
                 toolbarDivider
                 toolGroup(Self.drawingTools)
                 toolbarDivider
@@ -362,6 +369,10 @@ private struct ActiveEditorToolbarView: View {
                 }
                 .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
                 .help("Show Layers")
+
+                if showsUIMapToolbarControls {
+                    uiMapToolGroup
+                }
 
                 Button(action: controller.rotateSelectedClockwise90) {
                     Image(systemName: "rotate.right")
@@ -447,6 +458,7 @@ private struct ActiveEditorToolbarView: View {
                 }
                 .help(tool.label)
                 .buttonStyle(EditorToolButtonStyle(isSelected: controller.activeTool == tool))
+                .disabled(!isToolEnabled(tool))
             }
 
             Button {
@@ -462,6 +474,38 @@ private struct ActiveEditorToolbarView: View {
         .glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 12))
     }
 
+    private var primaryTools: [EditorTool] {
+        return [.select]
+    }
+
+    private var showsUIMapToolbarControls: Bool {
+        FeatureFlags.uiMapEnabled && controller.capture.kind == .window
+    }
+
+    private var uiMapToolGroup: some View {
+        HStack(spacing: 6) {
+            Button(action: onShowUIMap) {
+                Image(systemName: "rectangle.3.group")
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
+            .help(uiMapButtonHelpText)
+            .disabled(controller.uiMapSnapshot == nil && !controller.isProcessingUIMap)
+
+            Button {
+                controller.activateToolbarTool(.uiMapInspect)
+            } label: {
+                Image(systemName: EditorTool.uiMapInspect.systemImage)
+                    .frame(width: 32, height: 32)
+            }
+            .help(helpText(for: .uiMapInspect))
+            .buttonStyle(EditorToolButtonStyle(isSelected: controller.activeTool == .uiMapInspect))
+            .disabled(!isToolEnabled(.uiMapInspect))
+        }
+        .padding(3)
+        .glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 12))
+    }
+
     private func toolGroup(_ tools: [EditorTool]) -> some View {
         HStack(spacing: 6) {
             ForEach(tools) { tool in
@@ -471,12 +515,49 @@ private struct ActiveEditorToolbarView: View {
                     Image(systemName: tool.systemImage)
                         .frame(width: 32, height: 32)
                 }
-                .help(tool.label)
+                .help(helpText(for: tool))
                 .buttonStyle(EditorToolButtonStyle(isSelected: controller.activeTool == tool))
+                .disabled(!isToolEnabled(tool))
             }
         }
         .padding(3)
         .glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 12))
+    }
+
+    private func isToolEnabled(_ tool: EditorTool) -> Bool {
+        tool != .uiMapInspect || controller.uiMapSnapshot != nil
+    }
+
+    private var uiMapButtonHelpText: String {
+        if controller.isProcessingUIMap {
+            return "Window UI Map metadata is still processing."
+        }
+
+        guard controller.uiMapSnapshot == nil else {
+            return "Show UI Map"
+        }
+
+        return controller.capture.kind == .window
+            ? "No UI Map metadata was available for this window."
+            : "UI Map is available for Window captures only."
+    }
+
+    private func helpText(for tool: EditorTool) -> String {
+        if tool == .uiMapInspect, controller.isProcessingUIMap {
+            return "UI Map Inspect will be available after Window UI Map processing finishes."
+        }
+
+        if tool == .uiMapInspect, controller.uiMapSnapshot == nil {
+            return controller.capture.kind == .window
+                ? "UI Map Inspect is available when Window capture contains UI Map metadata."
+                : "UI Map is available for Window captures only."
+        }
+
+        if tool == .uiMapInspect {
+            return "Show UI Map element outlines on the screenshot. Click an element to pin it; click it again to unpin it."
+        }
+
+        return tool.label
     }
 
     private var redactionToolButton: some View {

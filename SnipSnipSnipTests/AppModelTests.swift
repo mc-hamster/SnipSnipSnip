@@ -42,6 +42,71 @@ final class AppModelTests: XCTestCase {
         try updatedData.write(to: manifestURL, options: .atomic)
     }
 
+    func testScreenshotCaptureRequiresAccessibilityOnlyForWindowUIMapRequests() {
+        let suiteName = "AppModelTests.screenshotCaptureUIMapRequirements"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+
+        model.uiMapEnabled = true
+        XCTAssertEqual(model.screenshotCapturePermissionRequirements, [.screenRecording])
+        XCTAssertEqual(model.screenshotCapturePermissionRequirements(for: .region(.zero)), [.screenRecording])
+        XCTAssertEqual(model.screenshotCapturePermissionRequirements(for: .fullscreen), [.screenRecording])
+        XCTAssertEqual(model.screenshotCapturePermissionRequirements(for: .scrolling(.zero)), [.screenRecording])
+        XCTAssertEqual(model.screenshotCapturePermissionRequirements(for: .connectedDevice(ConnectedAppleDevice(id: "fixture", name: "iPhone", modelName: nil))), [.screenRecording])
+        XCTAssertEqual(model.screenshotCapturePermissionRequirements(for: .frontmostWindow), [.screenRecording, .accessibility])
+        XCTAssertEqual(model.screenshotCapturePermissionRequirements(for: .window(makeCaptureWindow(id: 1))), [.screenRecording, .accessibility])
+        XCTAssertEqual(model.screenshotCaptureFeatureName(for: .window(makeCaptureWindow(id: 1))), "Window Capture with UI Map")
+
+        model.uiMapEnabled = false
+        XCTAssertEqual(model.screenshotCapturePermissionRequirements, [.screenRecording])
+        XCTAssertEqual(model.screenshotCaptureFeatureName, "Capture")
+        XCTAssertEqual(model.screenshotCapturePermissionRequirements(for: .window(makeCaptureWindow(id: 1))), [.screenRecording])
+    }
+
+    func testUIMapCaptureEligibilityRequiresWindowIdentityAndAccessibility() {
+        let suiteName = "AppModelTests.uiMapEligibility"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        model.uiMapEnabled = true
+        model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
+
+        let window = makeCaptureWindow(id: 5)
+        let eligibleWindowCapture = makeCapturedScreenshot(
+            kind: .window,
+            sourceWindowIdentity: CaptureSourceWindowIdentity(window: window)
+        )
+        XCTAssertTrue(model.uiMapCaptureEligibility(for: eligibleWindowCapture).shouldCapture)
+
+        let windowWithoutIdentity = makeCapturedScreenshot(kind: .window)
+        XCTAssertFalse(model.uiMapCaptureEligibility(for: windowWithoutIdentity).shouldCapture)
+        XCTAssertEqual(model.uiMapCaptureEligibility(for: windowWithoutIdentity).skipReason, "window capture has no source window identity")
+
+        let regionCapture = makeCapturedScreenshot(kind: .region)
+        XCTAssertFalse(model.uiMapCaptureEligibility(for: regionCapture).shouldCapture)
+        XCTAssertEqual(model.uiMapCaptureEligibility(for: regionCapture).skipReason, "UI Map is limited to Window captures")
+
+        model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false)
+        let missingAccessibilityEligibility = model.uiMapCaptureEligibility(for: eligibleWindowCapture)
+        XCTAssertFalse(missingAccessibilityEligibility.shouldCapture)
+        XCTAssertTrue(missingAccessibilityEligibility.needsAccessibilityAccess)
+    }
+
     private func waitUntil(
         timeoutNanoseconds: UInt64 = 2_000_000_000,
         condition: @escaping @MainActor () -> Bool
@@ -460,6 +525,53 @@ final class AppModelTests: XCTestCase {
         XCTAssertFalse(model.screenshotIncludesCursor)
     }
 
+    func testUIMapPinnedOverlayDefaultsPersistAndApplyToNewEditorControllers() throws {
+        let suiteName = "AppModelTests.uiMapPinnedOverlayDefaults"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let configuredOptions = UIMapOverlayOptions(
+            showsOutline: true,
+            showsLabel: true,
+            showsIdentifier: true,
+            showsRole: false,
+            showsCoordinates: true,
+            showsDimensions: false
+        )
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+
+        model.uiMapPinnedOverlayDefaults = configuredOptions
+
+        let reloaded = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+
+        XCTAssertEqual(reloaded.uiMapPinnedOverlayDefaults, configuredOptions)
+
+        try reloaded.completeCapture(
+            makeCapturedScreenshot(),
+            request: .region(.zero),
+            isPrivateCapture: true,
+            shouldAttemptUIMapCapture: false
+        )
+
+        XCTAssertEqual(reloaded.editorController?.uiMapOverlayOptions, configuredOptions)
+
+        reloaded.resetPreferencesToDefaults()
+
+        XCTAssertEqual(reloaded.uiMapPinnedOverlayDefaults, UIMapOverlayOptions())
+    }
+
     func testFreshInstallRequestsOnboardingPresentationOnce() {
         let suiteName = "AppModelTests.freshInstallOnboarding"
         let defaults = makeDefaults(named: suiteName)
@@ -867,7 +979,12 @@ nonisolated private final class WindowRefreshCaptureService: ScreenCaptureServic
     }
 
     func captureWindow(_ window: CaptureWindowSummary) async throws -> CapturedScreenshot {
-        makeCapturedScreenshot(kind: .window, sourceName: window.displayTitle, sourceRect: window.frame)
+        makeCapturedScreenshot(
+            kind: .window,
+            sourceName: window.displayTitle,
+            sourceRect: window.frame,
+            sourceWindowIdentity: CaptureSourceWindowIdentity(window: window)
+        )
     }
 }
 

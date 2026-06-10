@@ -357,6 +357,12 @@ private struct EditorCommands: Commands {
                     .keyboardShortcut("l", modifiers: [.command, .shift])
                     .disabled(model.editorController == nil)
 
+                if FeatureFlags.uiMapEnabled {
+                    Button("Show UI Map", action: showUIMapWindow)
+                        .keyboardShortcut("u", modifiers: [.command, .shift])
+                        .disabled(model.editorController?.uiMapSnapshot == nil)
+                }
+
                 Divider()
 
                 Button("Bring Forward") {
@@ -417,6 +423,12 @@ private struct EditorCommands: Commands {
         openWindow(id: AppSceneID.layersWindow)
         NSApp.activate(ignoringOtherApps: true)
         NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.layersWindow })?.makeKeyAndOrderFront(nil)
+    }
+
+    private func showUIMapWindow() {
+        openWindow(id: AppSceneID.uiMapWindow)
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.uiMapWindow })?.makeKeyAndOrderFront(nil)
     }
 }
 
@@ -489,6 +501,13 @@ struct SnipSnipSnipApp: App {
             LayersWindowView(model: model)
         }
         .defaultSize(width: 360, height: 520)
+        .windowResizability(.contentSize)
+        .restorationBehavior(.disabled)
+
+        Window("UI Map", id: AppSceneID.uiMapWindow) {
+            UIMapWindowView(model: model)
+        }
+        .defaultSize(width: 640, height: 560)
         .windowResizability(.contentSize)
         .restorationBehavior(.disabled)
 

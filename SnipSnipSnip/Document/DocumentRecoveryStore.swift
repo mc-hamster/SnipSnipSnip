@@ -226,7 +226,8 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
         document: EditableScreenshotDocument,
         previewImage: CGImage,
         pendingRecovery: Bool,
-        hasUnsavedChanges: Bool
+        hasUnsavedChanges: Bool,
+        includeUIMapSearchText: Bool = FeatureFlags.uiMapEnabled
     ) throws {
         try withLockedAccess {
             try ensureRootDirectories()
@@ -246,7 +247,10 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
             let packageName = "checkpoint-\(checkpointID.uuidString).sss"
             let packageURL = checkpointsDirectory(for: sessionID).appendingPathComponent(packageName, isDirectory: true)
             let sharedBaseImageURL = sessionBaseImageURL(for: sessionID)
-            let searchableText = SSSDocumentPackage.searchableText(for: document)
+            let searchableText = SSSDocumentPackage.searchableText(
+                for: document,
+                includeUIMapSearchText: includeUIMapSearchText
+            )
             let changeSummary = RecoveryCheckpointSummary.summary(for: document.session, fallbackLabel: label)
             try fileManager.createDirectory(at: checkpointsDirectory(for: sessionID), withIntermediateDirectories: true)
             try SSSDocumentPackage.save(
@@ -256,7 +260,8 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
                 baseImageStorage: .shared(
                     assetName: Self.sharedBaseImageRelativePath,
                     fileURL: sharedBaseImageURL
-                )
+                ),
+                includeUIMapSearchText: includeUIMapSearchText
             )
             let packageSizeBytes = try directorySize(at: packageURL)
 

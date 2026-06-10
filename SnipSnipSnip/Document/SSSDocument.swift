@@ -70,24 +70,30 @@ nonisolated enum SSSDocumentPackage {
     nonisolated static func searchableText(
         sourceName: String,
         session: EditorDocumentSession,
-        recognizedText: String? = nil
+        recognizedText: String? = nil,
+        uiMap: UIMapSnapshot? = nil,
+        includeUIMapSearchText: Bool = FeatureFlags.uiMapEnabled
     ) -> String {
         let annotationText = annotationSearchText(for: session)
         return buildSearchableText(
             sourceName: sourceName,
             annotationText: annotationText,
-            recognizedText: recognizedText
+            recognizedText: recognizedText,
+            uiMapText: includeUIMapSearchText ? uiMap?.searchableText() : nil
         )
     }
 
     nonisolated static func searchableText(
         for document: EditableScreenshotDocument,
-        recognizedText: String? = nil
+        recognizedText: String? = nil,
+        includeUIMapSearchText: Bool = FeatureFlags.uiMapEnabled
     ) -> String {
         searchableText(
             sourceName: document.capture.sourceName,
             session: document.session,
-            recognizedText: recognizedText
+            recognizedText: recognizedText,
+            uiMap: document.capture.uiMap,
+            includeUIMapSearchText: includeUIMapSearchText
         )
     }
 
@@ -95,7 +101,8 @@ nonisolated enum SSSDocumentPackage {
         document: EditableScreenshotDocument,
         previewImage: CGImage,
         to url: URL,
-        baseImageStorage: BaseImageStorage = .embedded
+        baseImageStorage: BaseImageStorage = .embedded,
+        includeUIMapSearchText: Bool = FeatureFlags.uiMapEnabled
     ) throws {
         let fileManager = FileManager.default
         let temporaryDirectoryURL = fileManager.temporaryDirectory
@@ -141,7 +148,8 @@ nonisolated enum SSSDocumentPackage {
                     searchableText: buildSearchableText(
                         sourceName: document.capture.sourceName,
                         annotationText: annotationSearchText(for: document.session),
-                        recognizedText: nil
+                        recognizedText: nil,
+                        uiMapText: includeUIMapSearchText ? document.capture.uiMap?.searchableText() : nil
                     )
                 )
             )
@@ -268,7 +276,14 @@ nonisolated enum SSSDocumentPackage {
 
         let document = try load(from: url)
 
-        if let renderedPreview = ScreenshotPresentationRenderer.render(baseImage: document.capture.image, snapshot: document.session.currentSnapshot) {
+        let pinnedUIMapElements = document.session.currentSnapshot.pinnedUIMapElementIDs.compactMap {
+            document.capture.uiMap?.element(matching: $0)
+        }
+        if let renderedPreview = ScreenshotPresentationRenderer.render(
+            baseImage: document.capture.image,
+            snapshot: document.session.currentSnapshot,
+            pinnedUIMapElements: pinnedUIMapElements
+        ) {
             return DisplayPreview(image: renderedPreview, source: "rerendered-package")
         }
 
@@ -304,14 +319,19 @@ nonisolated enum SSSDocumentPackage {
         return manifest.metadata?.search?.searchableText ?? ""
     }
 
-    nonisolated static func updateRecognizedText(_ recognizedText: String?, in packageURL: URL) throws -> String {
+    nonisolated static func updateRecognizedText(
+        _ recognizedText: String?,
+        in packageURL: URL,
+        includeUIMapSearchText: Bool = FeatureFlags.uiMapEnabled
+    ) throws -> String {
         let manifestURL = packageURL.appendingPathComponent(manifestFilename)
         var manifest = try loadManifest(from: manifestURL)
         let annotationText = manifest.metadata?.search?.annotationText ?? ""
         let searchableText = buildSearchableText(
             sourceName: manifest.capture.sourceName,
             annotationText: annotationText,
-            recognizedText: recognizedText
+            recognizedText: recognizedText,
+            uiMapText: includeUIMapSearchText ? manifest.capture.uiMap?.searchableText() : nil
         )
 
         manifest.metadata = DocumentMetadata(
@@ -525,11 +545,12 @@ nonisolated enum SSSDocumentPackage {
         return normalizedSearchText(textSnippets.joined(separator: " ")) ?? ""
     }
 
-    nonisolated private static func buildSearchableText(sourceName: String, annotationText: String, recognizedText: String?) -> String {
+    nonisolated private static func buildSearchableText(sourceName: String, annotationText: String, recognizedText: String?, uiMapText: String? = nil) -> String {
         let segments = [
             normalizedSearchText(sourceName),
             normalizedSearchText(annotationText),
-            normalizedSearchText(recognizedText)
+            normalizedSearchText(recognizedText),
+            normalizedSearchText(uiMapText)
         ].compactMap { $0 }
 
         return segments.joined(separator: "\n")
@@ -592,12 +613,14 @@ nonisolated private struct CaptureRecord: Codable {
     var sourceName: String
     var sourceRect: RectRecord
     var capturedAt: Date
+    var uiMap: UIMapSnapshot?
 
     nonisolated init(_ capture: CapturedScreenshot) {
         kind = capture.kind.rawValue
         sourceName = capture.sourceName
         sourceRect = RectRecord(capture.sourceRect)
         capturedAt = capture.capturedAt
+        uiMap = capture.uiMap
     }
 
     nonisolated func capturedScreenshot(with image: CGImage, coordinateContract: DocumentCoordinateContract) throws -> CapturedScreenshot {
@@ -611,7 +634,8 @@ nonisolated private struct CaptureRecord: Codable {
             sourceName: sourceName,
             sourceRect: sourceRect.cgRect,
             coordinateContract: coordinateContract,
-            capturedAt: capturedAt
+            capturedAt: capturedAt,
+            uiMap: uiMap
         )
     }
 }
@@ -667,6 +691,7 @@ nonisolated private struct SnapshotRecord: Codable {
     var selectedAnnotationIDs: [UUID]
     var nextCalloutNumber: Int
     var presentation: ScreenshotPresentationRecord?
+    var pinnedUIMapElementIDs: [UUID]?
 
     nonisolated init(_ snapshot: EditorSnapshot) {
         cropRect = RectRecord(snapshot.cropRect)
@@ -674,6 +699,7 @@ nonisolated private struct SnapshotRecord: Codable {
         selectedAnnotationIDs = snapshot.selectedAnnotationIDs
         nextCalloutNumber = snapshot.nextCalloutNumber
         presentation = ScreenshotPresentationRecord(snapshot.presentation)
+        pinnedUIMapElementIDs = snapshot.pinnedUIMapElementIDs.isEmpty ? nil : snapshot.pinnedUIMapElementIDs
     }
 
     nonisolated func editorSnapshot(imageOverlays: [UUID: CGImage] = [:]) throws -> EditorSnapshot {
@@ -682,7 +708,8 @@ nonisolated private struct SnapshotRecord: Codable {
             annotations: try annotations.map { try $0.annotation(imageOverlays: imageOverlays) },
             selectedAnnotationIDs: selectedAnnotationIDs,
             nextCalloutNumber: nextCalloutNumber,
-            presentation: presentation?.screenshotPresentation ?? .plain
+            presentation: presentation?.screenshotPresentation ?? .plain,
+            pinnedUIMapElementIDs: pinnedUIMapElementIDs ?? []
         )
     }
 }

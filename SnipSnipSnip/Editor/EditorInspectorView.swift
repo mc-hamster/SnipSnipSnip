@@ -42,6 +42,41 @@ private struct InspectorGlassGroupBoxStyle: GroupBoxStyle {
     }
 }
 
+private struct UIMapInspectorLegendItem: View {
+    let color: Color
+    let label: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .stroke(color, lineWidth: 2)
+                .background(color.opacity(0.16))
+                .frame(width: 18, height: 14)
+
+            Text(label)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct UIMapInspectorMetadataRow: View {
+    let label: String
+    let value: String?
+
+    var body: some View {
+        if let value, !value.isEmpty {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(value)
+                    .font(.callout)
+                    .textSelection(.enabled)
+            }
+        }
+    }
+}
+
 struct EditorHistoryActions {
     let onRestoreHistoryEntry: (DocumentHistoryEntry) -> Void
     let onRestoreRecentSnipEntry: (DocumentHistoryEntry) -> Void
@@ -75,10 +110,14 @@ struct EditorInspectorView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    styleSection
+                    if showsUIMapInspectionSection {
+                        uiMapInspectionSection
+                    } else {
+                        styleSection
 
-                    if controller.showsTextAlignmentControls || controller.canAlignSelection {
-                        alignmentSection
+                        if controller.showsTextAlignmentControls || controller.canAlignSelection {
+                            alignmentSection
+                        }
                     }
 
                     if controller.showsCropControls {
@@ -118,8 +157,134 @@ struct EditorInspectorView: View {
                 controller: controller,
                 dragOutPayloadProvider: dragOutPayloadProvider
             )
-                .frame(minWidth: 720, minHeight: 620)
+            .frame(minWidth: 720, minHeight: 620)
         }
+    }
+
+    private var showsUIMapInspectionSection: Bool {
+        FeatureFlags.uiMapEnabled && controller.isInspectingUIMap
+    }
+
+    private var uiMapInspectionSection: some View {
+        GroupBox("UI Map") {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    UIMapInspectorLegendItem(color: .blue, label: "AX element")
+                    UIMapInspectorLegendItem(color: .orange, label: "OCR text")
+                }
+                .font(.caption)
+
+                if controller.activeTool == .uiMapInspect {
+                    Label("UI Map Inspect is showing selectable outlines. Click an element to pin it; click it again to unpin it.", systemImage: "cursorarrow.rays")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Toggle("Show all captured elements", isOn: Binding(get: {
+                        controller.showsAllUIMapElements
+                    }, set: { value in
+                        deferPublish { controller.showsAllUIMapElements = value }
+                    }))
+                    .toggleStyle(.checkbox)
+                    .help("Show UI Map outlines for captured controls and leaf elements without changing the screenshot.")
+                }
+
+                if let element = controller.selectedUIMapElement {
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Selected Element")
+                            .font(.subheadline.weight(.semibold))
+
+                        Button(controller.isUIMapElementPinned(element.id) ? "Unpin" : "Pin") {
+                            controller.togglePinnedUIMapElement(element.id)
+                        }
+                        .buttonStyle(SSSChromeButtonStyle(tint: controller.isUIMapElementPinned(element.id) ? .orange : .accentColor))
+                        .help(controller.isUIMapElementPinned(element.id)
+                            ? "Remove this UI Map overlay from copied, shared, and exported screenshots."
+                            : "Keep this UI Map overlay visible in copied, shared, and exported screenshots."
+                        )
+
+                        if controller.isUIMapElementPinned(element.id) {
+                            Label("Pinned overlays are included when you copy, share, or export the screenshot.", systemImage: "pin.fill")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        uiMapMetadataRows(for: element)
+                    }
+
+                    Divider()
+
+                    uiMapOverlayOptions
+
+                    Button("Clear Selection") {
+                        controller.selectUIMapElement(nil)
+                    }
+                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                } else {
+                    Text(controller.activeTool == .uiMapInspect
+                        ? "Click an outlined UI element in the screenshot to pin it, or select one in the UI Map panel."
+                        : "Select a UI Map element in the panel, or switch to UI Map Inspect to pin elements directly from the screenshot."
+                    )
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func uiMapMetadataRows(for element: UIMapElement) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            UIMapInspectorMetadataRow(
+                label: "Source",
+                value: element.isRecognizedTextSupplement ? "OCR supplement text" : "Accessibility element"
+            )
+            UIMapInspectorMetadataRow(label: "Name", value: element.name)
+            UIMapInspectorMetadataRow(label: "Accessibility Label", value: element.accessibilityLabel)
+            UIMapInspectorMetadataRow(label: "Accessibility Identifier", value: element.accessibilityIdentifier)
+            UIMapInspectorMetadataRow(label: "Role", value: element.roleDescription ?? element.role)
+            UIMapInspectorMetadataRow(label: "Value", value: element.valueDescription)
+            UIMapInspectorMetadataRow(label: "Position", value: "\(Int(element.documentRect.minX)), \(Int(element.documentRect.minY))")
+            UIMapInspectorMetadataRow(label: "Size", value: "\(Int(element.documentRect.width)) x \(Int(element.documentRect.height))")
+            UIMapInspectorMetadataRow(label: "Owning Application", value: element.owningApplication)
+            UIMapInspectorMetadataRow(label: "Bundle Identifier", value: element.bundleIdentifier)
+
+            if let hierarchy = controller.uiMapSnapshot?.parentHierarchy(for: element.id),
+               !hierarchy.isEmpty {
+                UIMapInspectorMetadataRow(
+                    label: "Parent Hierarchy",
+                    value: hierarchy.map(\.displayName).joined(separator: " > ")
+                )
+            }
+        }
+    }
+
+    private var uiMapOverlayOptions: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Display")
+                .font(.subheadline.weight(.semibold))
+
+            Toggle("Show outline", isOn: uiMapOverlayBinding(\.showsOutline))
+            Toggle("Show label", isOn: uiMapOverlayBinding(\.showsLabel))
+            Toggle("Show identifier", isOn: uiMapOverlayBinding(\.showsIdentifier))
+            Toggle("Show role", isOn: uiMapOverlayBinding(\.showsRole))
+            Toggle("Show coordinates", isOn: uiMapOverlayBinding(\.showsCoordinates))
+            Toggle("Show dimensions", isOn: uiMapOverlayBinding(\.showsDimensions))
+        }
+    }
+
+    private func uiMapOverlayBinding(_ keyPath: WritableKeyPath<UIMapOverlayOptions, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { controller.uiMapOverlayOptions[keyPath: keyPath] },
+            set: { newValue in
+                deferPublish {
+                    var options = controller.uiMapOverlayOptions
+                    options[keyPath: keyPath] = newValue
+                    controller.uiMapOverlayOptions = options
+                }
+            }
+        )
     }
 
     private var presentationSection: some View {

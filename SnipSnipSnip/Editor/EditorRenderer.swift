@@ -81,7 +81,12 @@ enum EditorRenderer {
     nonisolated(unsafe) private static var exportParagraphStyleCache = [NSString: NSParagraphStyle]()
     nonisolated private static let exportCacheLock = NSLock()
 
-    nonisolated static func render(baseImage: CGImage, snapshot: EditorSnapshot) -> CGImage? {
+    nonisolated static func render(
+        baseImage: CGImage,
+        snapshot: EditorSnapshot,
+        pinnedUIMapElements: [UIMapElement] = [],
+        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions()
+    ) -> CGImage? {
         let crop = snapshot.cropRect.gscIntegralStandardized
         let width = Int(crop.width)
         let height = Int(crop.height)
@@ -117,6 +122,13 @@ enum EditorRenderer {
             )
         }
 
+        drawPinnedUIMapElementsExport(
+            pinnedUIMapElements,
+            options: uiMapOverlayOptions,
+            projection: projection,
+            context: context
+        )
+
         return context.makeImage()
     }
 
@@ -130,15 +142,53 @@ enum EditorRenderer {
         return croppedBaseImage(for: baseImage, crop: crop)
     }
 
-    static func draw(baseImage: CGImage, snapshot: EditorSnapshot, canvasRect: CGRect, draftAnnotations: [Annotation]) {
-        drawContent(baseImage: baseImage, snapshot: snapshot, canvasRect: canvasRect, draftAnnotations: draftAnnotations, drawBaseImage: true)
+    static func draw(
+        baseImage: CGImage,
+        snapshot: EditorSnapshot,
+        canvasRect: CGRect,
+        draftAnnotations: [Annotation],
+        pinnedUIMapElements: [UIMapElement] = [],
+        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions()
+    ) {
+        drawContent(
+            baseImage: baseImage,
+            snapshot: snapshot,
+            canvasRect: canvasRect,
+            draftAnnotations: draftAnnotations,
+            pinnedUIMapElements: pinnedUIMapElements,
+            uiMapOverlayOptions: uiMapOverlayOptions,
+            drawBaseImage: true
+        )
     }
 
-    static func drawAnnotations(baseImage: CGImage, snapshot: EditorSnapshot, canvasRect: CGRect, draftAnnotations: [Annotation]) {
-        drawContent(baseImage: baseImage, snapshot: snapshot, canvasRect: canvasRect, draftAnnotations: draftAnnotations, drawBaseImage: false)
+    static func drawAnnotations(
+        baseImage: CGImage,
+        snapshot: EditorSnapshot,
+        canvasRect: CGRect,
+        draftAnnotations: [Annotation],
+        pinnedUIMapElements: [UIMapElement] = [],
+        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions()
+    ) {
+        drawContent(
+            baseImage: baseImage,
+            snapshot: snapshot,
+            canvasRect: canvasRect,
+            draftAnnotations: draftAnnotations,
+            pinnedUIMapElements: pinnedUIMapElements,
+            uiMapOverlayOptions: uiMapOverlayOptions,
+            drawBaseImage: false
+        )
     }
 
-    private static func drawContent(baseImage: CGImage, snapshot: EditorSnapshot, canvasRect: CGRect, draftAnnotations: [Annotation], drawBaseImage: Bool) {
+    private static func drawContent(
+        baseImage: CGImage,
+        snapshot: EditorSnapshot,
+        canvasRect: CGRect,
+        draftAnnotations: [Annotation],
+        pinnedUIMapElements: [UIMapElement],
+        uiMapOverlayOptions: UIMapOverlayOptions,
+        drawBaseImage: Bool
+    ) {
         guard let projection = previewProjection(for: baseImage, canvasRect: canvasRect) else {
             return
         }
@@ -163,6 +213,12 @@ enum EditorRenderer {
         for annotation in draftAnnotations {
             draw(annotation: annotation, sourceImage: baseImage, projection: projection, renderScale: renderScale)
         }
+
+        drawPinnedUIMapElementsPreview(
+            pinnedUIMapElements,
+            options: uiMapOverlayOptions,
+            projection: projection
+        )
     }
 
     private static func draw(annotation: Annotation, sourceImage: CGImage, projection: DocumentProjection, renderScale: CGFloat) {
@@ -414,6 +470,211 @@ enum EditorRenderer {
             localRect: projection.sourceLocalRect(fromDocumentRect: annotation.boundingRect),
             displayRect: mapRect(annotation.boundingRect)
         )
+    }
+
+    private static func drawPinnedUIMapElementsPreview(
+        _ elements: [UIMapElement],
+        options: UIMapOverlayOptions,
+        projection: DocumentProjection
+    ) {
+        guard !elements.isEmpty else {
+            return
+        }
+
+        for element in elements {
+            let rect = mapRect(element.documentRect, using: projection).integral
+            guard rect.width > 0, rect.height > 0 else {
+                continue
+            }
+
+            let color = uiMapOverlayColor(for: element)
+            if options.showsOutline {
+                let path = NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4)
+                color.withAlphaComponent(0.18).setFill()
+                path.fill()
+                color.withAlphaComponent(0.95).setStroke()
+                path.lineWidth = 2
+                path.stroke()
+            }
+
+            drawUIMapOverlayLabelPreview(
+                for: element,
+                rect: rect,
+                canvasRect: projection.destinationBounds,
+                color: color,
+                options: options
+            )
+        }
+    }
+
+    nonisolated private static func drawPinnedUIMapElementsExport(
+        _ elements: [UIMapElement],
+        options: UIMapOverlayOptions,
+        projection: DocumentProjection,
+        context: CGContext
+    ) {
+        guard !elements.isEmpty else {
+            return
+        }
+
+        for element in elements {
+            let rect = exportRect(for: element.documentRect, using: projection).integral
+            guard rect.width > 0, rect.height > 0 else {
+                continue
+            }
+
+            let color = uiMapOverlayColor(for: element)
+            if options.showsOutline {
+                let path = CGPath(roundedRect: rect, cornerWidth: 4, cornerHeight: 4, transform: nil)
+                context.saveGState()
+                context.setFillColor(color.withAlphaComponent(0.18).cgColor)
+                context.addPath(path)
+                context.fillPath()
+                context.setStrokeColor(color.withAlphaComponent(0.95).cgColor)
+                context.setLineWidth(2)
+                context.addPath(path)
+                context.strokePath()
+                context.restoreGState()
+            }
+
+            drawUIMapOverlayLabelExport(
+                for: element,
+                rect: rect,
+                canvasRect: projection.destinationBounds,
+                color: color,
+                options: options,
+                context: context
+            )
+        }
+    }
+
+    private static func drawUIMapOverlayLabelPreview(
+        for element: UIMapElement,
+        rect: CGRect,
+        canvasRect: CGRect,
+        color: NSColor,
+        options: UIMapOverlayOptions
+    ) {
+        let label = uiMapOverlayLabel(for: element, options: options)
+        guard !label.isEmpty else {
+            return
+        }
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
+            .foregroundColor: NSColor.white
+        ]
+        let attributedLabel = NSAttributedString(string: label, attributes: attributes)
+        let labelSize = attributedLabel.size()
+        let labelRect = uiMapOverlayLabelRect(
+            for: rect,
+            labelSize: labelSize,
+            canvasRect: canvasRect,
+            padding: CGSize(width: 12, height: 6)
+        )
+
+        color.withAlphaComponent(0.92).setFill()
+        NSBezierPath(roundedRect: labelRect, xRadius: 6, yRadius: 6).fill()
+        attributedLabel.draw(at: CGPoint(x: labelRect.minX + 6, y: labelRect.minY + 3))
+    }
+
+    nonisolated private static func drawUIMapOverlayLabelExport(
+        for element: UIMapElement,
+        rect: CGRect,
+        canvasRect: CGRect,
+        color: NSColor,
+        options: UIMapOverlayOptions,
+        context: CGContext
+    ) {
+        let label = uiMapOverlayLabel(for: element, options: options)
+        guard !label.isEmpty else {
+            return
+        }
+
+        let font = exportFont(size: 12, bold: true)
+        let labelSize = textSize(label, font: font)
+        let labelRect = uiMapOverlayLabelRect(
+            for: rect,
+            labelSize: labelSize,
+            canvasRect: canvasRect,
+            padding: CGSize(width: 12, height: 6)
+        )
+
+        context.saveGState()
+        context.setFillColor(color.withAlphaComponent(0.92).cgColor)
+        context.addPath(CGPath(roundedRect: labelRect, cornerWidth: 6, cornerHeight: 6, transform: nil))
+        context.fillPath()
+        context.restoreGState()
+
+        drawAttributedTextExport(
+            label,
+            in: labelRect.insetBy(dx: 6, dy: 3),
+            font: font,
+            color: NSColor.white.cgColor,
+            alignment: .left,
+            context: context
+        )
+    }
+
+    nonisolated private static func uiMapOverlayColor(for element: UIMapElement) -> NSColor {
+        element.isRecognizedTextSupplement ? .systemOrange : .systemBlue
+    }
+
+    nonisolated private static func uiMapOverlayLabel(for element: UIMapElement, options: UIMapOverlayOptions) -> String {
+        var segments: [String] = []
+
+        if options.showsLabel {
+            segments.append(element.displayName)
+        }
+
+        if options.showsIdentifier, let identifier = element.accessibilityIdentifier {
+            segments.append("#\(identifier)")
+        }
+
+        if options.showsRole {
+            segments.append(element.typeLabel)
+        }
+
+        if options.showsCoordinates {
+            segments.append("x \(Int(element.documentRect.minX)), y \(Int(element.documentRect.minY))")
+        }
+
+        if options.showsDimensions {
+            segments.append("\(Int(element.documentRect.width)) x \(Int(element.documentRect.height))")
+        }
+
+        return segments.joined(separator: "  ")
+    }
+
+    nonisolated private static func uiMapOverlayLabelRect(
+        for rect: CGRect,
+        labelSize: CGSize,
+        canvasRect: CGRect,
+        padding: CGSize
+    ) -> CGRect {
+        let width = min(labelSize.width + padding.width, max(canvasRect.width, 1))
+        let height = labelSize.height + padding.height
+        let y = rect.minY - height - 8 >= canvasRect.minY
+            ? rect.minY - height - 8
+            : min(rect.maxY + 8, canvasRect.maxY - height)
+        let x = min(max(rect.minX, canvasRect.minX), canvasRect.maxX - width)
+
+        return CGRect(
+            x: x,
+            y: max(canvasRect.minY, min(y, canvasRect.maxY - height)),
+            width: max(width, 1),
+            height: max(height, 1)
+        ).integral
+    }
+
+    nonisolated private static func textSize(_ text: String, font: CTFont) -> CGSize {
+        let attributed = NSAttributedString(
+            string: text,
+            attributes: [NSAttributedString.Key(kCTFontAttributeName as String): font]
+        )
+        let line = CTLineCreateWithAttributedString(attributed)
+        let bounds = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
+        return CGSize(width: ceil(bounds.width), height: ceil(bounds.height))
     }
 
     private static func strokeAndFill(path: CGPath, style: AnnotationStyle) {

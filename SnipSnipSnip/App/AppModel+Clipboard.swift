@@ -280,7 +280,12 @@ extension AppModel {
         let searchText = [title, searchableText, controller.capture.sourceName]
             .filter { !$0.isEmpty }
             .joined(separator: " ")
-        let renderInput = ExportRenderInput(baseImage: controller.capture.image, snapshot: controller.snapshot)
+        let renderInput = ExportRenderInput(
+            baseImage: controller.capture.image,
+            snapshot: controller.snapshot,
+            pinnedUIMapElements: controller.pinnedUIMapElements,
+            uiMapOverlayOptions: controller.uiMapOverlayOptions
+        )
 
         Task { @MainActor [weak self] in
             do {
@@ -351,7 +356,12 @@ nonisolated private enum ClipboardSnipRenderer {
         let task = Task.detached(priority: .utility) {
             try Task.checkCancellation()
 
-            guard let image = EditorRenderer.render(baseImage: input.baseImage, snapshot: input.snapshot),
+            guard let image = EditorRenderer.render(
+                baseImage: input.baseImage,
+                snapshot: input.snapshot,
+                pinnedUIMapElements: input.pinnedUIMapElements,
+                uiMapOverlayOptions: input.uiMapOverlayOptions
+            ),
                   let presentedImage = ScreenshotPresentationRenderer.render(contentImage: image, presentation: input.snapshot.presentation) else {
                 throw ImageExportError.encodingFailed
             }

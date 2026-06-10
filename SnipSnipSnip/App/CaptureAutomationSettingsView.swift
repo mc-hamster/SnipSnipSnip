@@ -57,6 +57,38 @@ struct CaptureAutomationSettingsView: View {
                 Section("Screenshot Capture") {
                     Toggle("Include Cursor as Editable Overlay", isOn: $model.screenshotIncludesCursor)
                     SettingsHelpText("When enabled, region, window, frontmost-window, fullscreen, and repeat screenshots add the current cursor as a movable, resizable, removable overlay. Scrolling Capture always excludes the cursor while stitching.")
+
+                    if FeatureFlags.uiMapEnabled {
+                        Toggle("Enable UI Map for Window captures", isOn: uiMapBinding)
+                        SettingsHelpText("Save available names, roles, identifiers, and locations of visible interface elements when capturing a window. Region, fullscreen, scrolling, recording, and connected-device captures do not include UI Map metadata.")
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Pinned UI Map Overlay Defaults")
+                                .font(.subheadline.weight(.semibold))
+
+                            Toggle("Show outline", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsOutline))
+                            Toggle("Show label", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsLabel))
+                            Toggle("Show identifier", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsIdentifier))
+                            Toggle("Show role", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsRole))
+                            Toggle("Show coordinates", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsCoordinates))
+                            Toggle("Show dimensions", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsDimensions))
+                        }
+
+                        SettingsHelpText("Choose which details are shown by default when pinned UI Map elements are rendered on copied, shared, or exported screenshots.")
+
+                        if model.windowUIMapNeedsAccessibilityAccess {
+                            HStack(alignment: .firstTextBaseline) {
+                                Label("Window UI Map needs Accessibility access before metadata can be captured.", systemImage: "lock.trianglebadge.exclamationmark.fill")
+                                    .foregroundStyle(.orange)
+
+                                Spacer()
+
+                                Button("Grant Accessibility") {
+                                    model.requestAccessibilityAccess()
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Section("Screen Ruler") {
@@ -537,6 +569,26 @@ struct CaptureAutomationSettingsView: View {
             get: { model.privateCaptureEnabled },
             set: { newValue in
                 model.updatePrivateCaptureEnabled(newValue)
+            }
+        )
+    }
+
+    private var uiMapBinding: Binding<Bool> {
+        Binding(
+            get: { model.uiMapEnabled },
+            set: { newValue in
+                model.updateUIMapEnabled(newValue)
+            }
+        )
+    }
+
+    private func uiMapPinnedOverlayDefaultsBinding(_ keyPath: WritableKeyPath<UIMapOverlayOptions, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { model.uiMapPinnedOverlayDefaults[keyPath: keyPath] },
+            set: { newValue in
+                var options = model.uiMapPinnedOverlayDefaults
+                options[keyPath: keyPath] = newValue
+                model.uiMapPinnedOverlayDefaults = options
             }
         )
     }

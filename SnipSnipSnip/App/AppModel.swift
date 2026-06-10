@@ -10,6 +10,66 @@ enum LastCaptureRequest {
     case frontmostWindow
     case fullscreen
     case connectedDevice(ConnectedAppleDevice)
+
+    var canIncludeWindowUIMap: Bool {
+        switch self {
+        case .window, .frontmostWindow:
+            return true
+        case .region, .scrolling, .fullscreen, .connectedDevice:
+            return false
+        }
+    }
+}
+
+nonisolated struct UIMapCaptureEligibility: Equatable, Sendable {
+    var featureFlagEnabled: Bool
+    var userEnabled: Bool
+    var captureKind: CaptureKind
+    var hasSourceWindowIdentity: Bool
+    var hasAccessibility: Bool
+
+    var isWindowCapture: Bool {
+        captureKind == .window
+    }
+
+    var canAttemptCapture: Bool {
+        featureFlagEnabled
+            && userEnabled
+            && isWindowCapture
+            && hasSourceWindowIdentity
+    }
+
+    var shouldCapture: Bool {
+        canAttemptCapture && hasAccessibility
+    }
+
+    var needsAccessibilityAccess: Bool {
+        canAttemptCapture && !hasAccessibility
+    }
+
+    var skipReason: String? {
+        if !featureFlagEnabled {
+            return "feature flag disabled"
+        }
+
+        if !userEnabled {
+            return "user preference disabled"
+        }
+
+        if !isWindowCapture {
+            return "UI Map is limited to Window captures"
+        }
+
+        if !hasSourceWindowIdentity {
+            return "window capture has no source window identity"
+        }
+
+        if !hasAccessibility {
+            return "Accessibility access missing"
+        }
+
+        return nil
+    }
 }
 
 enum WindowPickerMode {
@@ -46,6 +106,7 @@ enum AppModelPreferenceKey {
     static let completedOnboardingVersion = "appModel.completedOnboardingVersion"
     static let editorCropOutsideOverlayAlpha = "appModel.editorCropOutsideOverlayAlpha"
     static let editorOutOfCapturePatternSettings = "appModel.editorOutOfCapturePatternSettings"
+    static let uiMapPinnedOverlayDefaults = "appModel.uiMapPinnedOverlayDefaults"
     static let hasDismissedWelcomeCard = "appModel.hasDismissedWelcomeCard"
     static let hasPresentedWelcomeWindow = "appModel.hasPresentedWelcomeWindow"
     static let regionCaptureOverlayMode = "appModel.regionCaptureOverlayMode"
@@ -56,6 +117,7 @@ enum AppModelPreferenceKey {
     static let screenshotFilenameTemplate = "appModel.screenshotFilenameTemplate"
     static let screenshotDragOutFormat = "appModel.screenshotDragOutFormat"
     static let privateCaptureEnabled = "appModel.privateCaptureEnabled"
+    static let uiMapEnabled = "appModel.uiMapEnabled"
     static let videoExportPreferences = "appModel.videoExportPreferences"
     static let videoRecordingPreferences = "appModel.videoRecordingPreferences"
 }
@@ -191,8 +253,18 @@ final class AppModel: ObservableObject {
             defaults.set(privateCaptureEnabled, forKey: AppModelPreferenceKey.privateCaptureEnabled)
         }
     }
+    @Published var uiMapEnabled: Bool {
+        didSet {
+            defaults.set(uiMapEnabled, forKey: AppModelPreferenceKey.uiMapEnabled)
+        }
+    }
     @Published private(set) var editorCropOutsideOverlayAlpha: CGFloat
     @Published private(set) var editorOutOfCapturePatternSettings: EditorOutOfCapturePatternSettings
+    @Published var uiMapPinnedOverlayDefaults: UIMapOverlayOptions {
+        didSet {
+            persistUIMapPinnedOverlayDefaults()
+        }
+    }
     @Published var screenRulerPreferences: ScreenRulerPreferences {
         didSet {
             let sanitizedPreferences = screenRulerPreferences.sanitized()
@@ -279,6 +351,7 @@ final class AppModel: ObservableObject {
     @Published var connectedDeviceEmptyStateMessage = ConnectedDeviceCaptureMenu.emptyStateMessage
 
     var captureService: any ScreenCaptureServiceType
+    let uiMapCaptureService: any UIMapCaptureServiceType
     let connectedDeviceCaptureService: any ConnectedDeviceCaptureServiceType
     let screenRecordingService = ScreenRecordingService()
     var recoveryStore: DocumentRecoveryStore
@@ -340,6 +413,7 @@ final class AppModel: ObservableObject {
         recoveryStore: DocumentRecoveryStore? = nil,
         clipboardHistoryStore: ClipboardHistoryStore? = nil,
         captureService: any ScreenCaptureServiceType = ScreenCaptureService(),
+        uiMapCaptureService: any UIMapCaptureServiceType = AccessibilityUIMapCaptureService(),
         connectedDeviceCaptureService: any ConnectedDeviceCaptureServiceType = ConnectedDeviceCaptureService(),
         incompatibleDocumentCoordinator: IncompatibleDocumentCoordinator = IncompatibleDocumentCoordinator(),
         launchAtLoginController: LaunchAtLoginController = LaunchAtLoginController(),
@@ -356,6 +430,7 @@ final class AppModel: ObservableObject {
         self.launchAtLoginController = launchAtLoginController
         self.configuredArchiveLocationURL = configuredArchiveLocationURL
         self.captureService = captureService
+        self.uiMapCaptureService = uiMapCaptureService
         self.connectedDeviceCaptureService = connectedDeviceCaptureService
         self.autoCopyEnabled = defaults.object(forKey: AppModelPreferenceKey.autoCopyEnabled) as? Bool ?? true
         self.autoRefreshWindowsEnabled = defaults.bool(forKey: AppModelPreferenceKey.autoRefreshWindowsEnabled)
@@ -374,8 +449,10 @@ final class AppModel: ObservableObject {
         self.screenshotDragOutFormat = defaults.string(forKey: AppModelPreferenceKey.screenshotDragOutFormat)
             .flatMap(ImageExportFormat.init(rawValue:)) ?? .png
         self.privateCaptureEnabled = defaults.object(forKey: AppModelPreferenceKey.privateCaptureEnabled) as? Bool ?? false
+        self.uiMapEnabled = defaults.object(forKey: AppModelPreferenceKey.uiMapEnabled) as? Bool ?? FeatureFlags.uiMapEnabled
         self.editorCropOutsideOverlayAlpha = Self.loadEditorCropOutsideOverlayAlpha(from: defaults)
         self.editorOutOfCapturePatternSettings = Self.loadEditorOutOfCapturePatternSettings(from: defaults)
+        self.uiMapPinnedOverlayDefaults = Self.loadUIMapPinnedOverlayDefaults(from: defaults)
         let screenRulerPreferences = Self.loadScreenRulerPreferences(from: defaults)
         self.screenRulerPreferences = screenRulerPreferences
         self.screenRulerCoordinator = ScreenRulerCoordinator(preferences: screenRulerPreferences)
@@ -484,6 +561,28 @@ final class AppModel: ObservableObject {
         !isCapturePrivacyLocked && !isWorking && !isShowingWindowPicker && activeVideoRecording == nil && !isConnectedDeviceSessionActive
     }
 
+    var windowUIMapEnabled: Bool {
+        FeatureFlags.uiMapEnabled && uiMapEnabled
+    }
+
+    var windowUIMapNeedsAccessibilityAccess: Bool {
+        windowUIMapEnabled && !permissionStatus.hasAccessibility
+    }
+
+    func uiMapCaptureEligibility(for capture: CapturedScreenshot) -> UIMapCaptureEligibility {
+        UIMapCaptureEligibility(
+            featureFlagEnabled: FeatureFlags.uiMapEnabled,
+            userEnabled: uiMapEnabled,
+            captureKind: capture.kind,
+            hasSourceWindowIdentity: capture.sourceWindowIdentity != nil,
+            hasAccessibility: permissionStatus.hasAccessibility
+        )
+    }
+
+    func shouldCaptureUIMap(for capture: CapturedScreenshot) -> Bool {
+        uiMapCaptureEligibility(for: capture).shouldCapture
+    }
+
     var canResetPreferencesToDefaults: Bool {
         !isWorking && !isShowingWindowPicker && activeVideoRecording == nil && !isConnectedDeviceSessionActive
     }
@@ -570,6 +669,23 @@ final class AppModel: ObservableObject {
         completeOnboarding()
     }
 
+    func updateUIMapEnabled(_ enabled: Bool) {
+        guard FeatureFlags.uiMapEnabled else {
+            uiMapEnabled = false
+            return
+        }
+
+        uiMapEnabled = enabled
+
+        if enabled {
+            refreshPermissions()
+
+            if !permissionStatus.hasAccessibility {
+                requestPermission(.accessibility)
+            }
+        }
+    }
+
     func refreshLaunchAtLoginStatus() {
         launchAtLoginController.refreshStatus()
     }
@@ -608,8 +724,10 @@ final class AppModel: ObservableObject {
         screenshotFilenameTemplate = ScreenshotFilenameTemplate.defaultPattern
         screenshotDragOutFormat = .png
         privateCaptureEnabled = false
+        uiMapEnabled = FeatureFlags.uiMapEnabled
         updateEditorCropOutsideOverlayAlpha(Self.defaultEditorCropOutsideOverlayAlpha)
         updateEditorOutOfCapturePatternSettings(.default)
+        uiMapPinnedOverlayDefaults = UIMapOverlayOptions()
         screenRulerPreferences = .default
         screenInspectorPreferences = .default
         automationPreferences = CaptureAutomationPreferences()
@@ -658,6 +776,15 @@ final class AppModel: ObservableObject {
         }
 
         return sanitizedEditorOutOfCapturePatternSettings(settings)
+    }
+
+    private static func loadUIMapPinnedOverlayDefaults(from defaults: UserDefaults) -> UIMapOverlayOptions {
+        guard let data = defaults.data(forKey: AppModelPreferenceKey.uiMapPinnedOverlayDefaults),
+              let options = try? JSONDecoder().decode(UIMapOverlayOptions.self, from: data) else {
+            return UIMapOverlayOptions()
+        }
+
+        return options
     }
 
     static func loadScreenRulerPreferences(from defaults: UserDefaults) -> ScreenRulerPreferences {
@@ -718,6 +845,14 @@ final class AppModel: ObservableObject {
         }
 
         editorController?.updateOutOfCapturePatternSettings(sanitizedSettings)
+    }
+
+    private func persistUIMapPinnedOverlayDefaults() {
+        guard let data = try? JSONEncoder().encode(uiMapPinnedOverlayDefaults) else {
+            return
+        }
+
+        defaults.set(data, forKey: AppModelPreferenceKey.uiMapPinnedOverlayDefaults)
     }
 
     func presentScreenRuler(_ kind: ScreenRulerKind) {

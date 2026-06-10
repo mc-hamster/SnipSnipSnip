@@ -146,14 +146,16 @@ func makeEditorSnapshot(
     annotations: [Annotation] = [],
     selectedAnnotationIDs: [UUID] = [],
     nextCalloutNumber: Int = 1,
-    presentation: ScreenshotPresentation = .plain
+    presentation: ScreenshotPresentation = .plain,
+    pinnedUIMapElementIDs: [UUID] = []
 ) -> EditorSnapshot {
     EditorSnapshot(
         cropRect: cropRect,
         annotations: annotations,
         selectedAnnotationIDs: selectedAnnotationIDs,
         nextCalloutNumber: nextCalloutNumber,
-        presentation: presentation
+        presentation: presentation,
+        pinnedUIMapElementIDs: pinnedUIMapElementIDs
     )
 }
 
@@ -182,8 +184,10 @@ func makeCapturedScreenshot(
     sourceName: String = "Display",
     sourceRect: CGRect? = nil,
     bounds: CGRect? = nil,
+    sourceWindowIdentity: CaptureSourceWindowIdentity? = nil,
     coordinateContract: DocumentCoordinateContract = .current,
-    capturedAt: Date = Date(timeIntervalSince1970: 1_700_000_000)
+    capturedAt: Date = Date(timeIntervalSince1970: 1_700_000_000),
+    uiMap: UIMapSnapshot? = nil
 ) -> CapturedScreenshot {
     let resolvedImage = image ?? makeCoordinateImage(width: 64, height: 48)
 
@@ -192,8 +196,10 @@ func makeCapturedScreenshot(
         kind: kind,
         sourceName: sourceName,
         sourceRect: sourceRect ?? bounds ?? CGRect(origin: .zero, size: CGSize(width: resolvedImage.width, height: resolvedImage.height)),
+        sourceWindowIdentity: sourceWindowIdentity,
         coordinateContract: coordinateContract,
-        capturedAt: capturedAt
+        capturedAt: capturedAt,
+        uiMap: uiMap
     )
 }
 
