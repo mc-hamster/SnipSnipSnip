@@ -502,29 +502,47 @@ extension AppModel {
             defer { isWorking = false }
 
             do {
+                let windowOptions = try await captureService.listWindows(includeThumbnails: false)
                 let snapshot = try await captureService.captureDesktopOverlaySnapshot()
-                let session = RegionSelectionSession(snapshot: snapshot, preferences: regionCapturePreferences)
+                let session = RegionSelectionSession(
+                    snapshot: snapshot,
+                    windows: windowOptions,
+                    preferences: regionCapturePreferences
+                )
 
-                guard case let .region(region, cursorCaptureGlobalLocation) = await session.begin() else {
+                guard let selection = await session.begin() else {
                     return
                 }
 
-                try await runCaptureDelayIfNeeded(actionName: "Capture Region")
-                let capture: CapturedScreenshot
-                do {
-                    capture = try await captureService.captureRegionDirect(in: region)
-                } catch {
-                    let fallbackSnapshot = try await captureService.captureDesktopOverlaySnapshot()
-                    capture = try await captureService.captureRegion(from: fallbackSnapshot, selection: region)
+                switch selection {
+                case let .region(region, cursorCaptureGlobalLocation):
+                    try await runCaptureDelayIfNeeded(actionName: "Capture Region")
+                    let capture: CapturedScreenshot
+                    do {
+                        capture = try await captureService.captureRegionDirect(in: region)
+                    } catch {
+                        let fallbackSnapshot = try await captureService.captureDesktopOverlaySnapshot()
+                        capture = try await captureService.captureRegion(from: fallbackSnapshot, selection: region)
+                    }
+                    showCapturedFeedback()
+                    try completeCapture(
+                        capture,
+                        request: .region(capture.sourceRect),
+                        isPrivateCapture: isPrivateCapture,
+                        cursorCaptureGlobalLocation: cursorCaptureGlobalLocation,
+                        shouldAttemptUIMapCapture: true
+                    )
+                case .window(let window):
+                    try await runCaptureDelayIfNeeded(actionName: "Capturing Window")
+                    let resolvedWindow = try await captureService.resolveWindowTarget(window)
+                    let capture = try await captureService.captureWindow(resolvedWindow)
+                    showCapturedFeedback()
+                    try completeCapture(
+                        capture,
+                        request: .window(resolvedWindow),
+                        isPrivateCapture: isPrivateCapture
+                    )
                 }
-                showCapturedFeedback()
-                try completeCapture(
-                    capture,
-                    request: .region(capture.sourceRect),
-                    isPrivateCapture: isPrivateCapture,
-                    cursorCaptureGlobalLocation: cursorCaptureGlobalLocation,
-                    shouldAttemptUIMapCapture: true
-                )
             } catch {
                 present(error)
             }

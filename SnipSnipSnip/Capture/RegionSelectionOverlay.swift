@@ -4,6 +4,7 @@ import CoreGraphics
 @MainActor
 final class RegionSelectionSession: NSObject {
     private let snapshot: DesktopCompositeSnapshot
+    private let windows: [CaptureWindowSummary]
     private let preferences: RegionCapturePreferences
     private var continuation: CheckedContinuation<RegionCaptureSelection?, Never>?
     private var coordinator: RegionSelectionCoordinator?
@@ -12,8 +13,9 @@ final class RegionSelectionSession: NSObject {
     private var cursorHidden = false
     private var localEventMonitor: Any?
 
-    init(snapshot: DesktopCompositeSnapshot, preferences: RegionCapturePreferences) {
+    init(snapshot: DesktopCompositeSnapshot, windows: [CaptureWindowSummary] = [], preferences: RegionCapturePreferences) {
         self.snapshot = snapshot
+        self.windows = windows
         self.preferences = preferences
     }
 
@@ -35,7 +37,7 @@ final class RegionSelectionSession: NSObject {
     private func presentOverlay() {
         NSApp.activate(ignoringOtherApps: true)
 
-        let coordinator = RegionSelectionCoordinator(snapshot: snapshot, preferences: preferences) { [weak self] selection in
+        let coordinator = RegionSelectionCoordinator(snapshot: snapshot, windows: windows, preferences: preferences) { [weak self] selection in
             self?.finish(with: selection)
         }
         self.coordinator = coordinator
@@ -190,6 +192,7 @@ private final class RegionSelectionCoordinator {
     }
 
     private let snapshot: DesktopCompositeSnapshot
+    private let windows: [CaptureWindowSummary]
     let preferences: RegionCapturePreferences
     private let onComplete: (RegionCaptureSelection?) -> Void
     private let clickToDragThreshold: CGFloat = 4
@@ -210,8 +213,14 @@ private final class RegionSelectionCoordinator {
         let timestamp: TimeInterval
     }
 
-    init(snapshot: DesktopCompositeSnapshot, preferences: RegionCapturePreferences, onComplete: @escaping (RegionCaptureSelection?) -> Void) {
+    init(
+        snapshot: DesktopCompositeSnapshot,
+        windows: [CaptureWindowSummary],
+        preferences: RegionCapturePreferences,
+        onComplete: @escaping (RegionCaptureSelection?) -> Void
+    ) {
         self.snapshot = snapshot
+        self.windows = windows
         self.preferences = preferences
         self.onComplete = onComplete
     }
@@ -354,6 +363,10 @@ private final class RegionSelectionCoordinator {
         case .none:
             actionControlsDisplayID = nil
             actionControlsGlobalPoint = nil
+            if let clickedWindow = gscTopmostWindow(at: point, in: windows) {
+                onComplete(.window(clickedWindow))
+                return
+            }
         }
 
         notifyViews()

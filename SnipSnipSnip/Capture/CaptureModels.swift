@@ -386,6 +386,7 @@ nonisolated struct CaptureWindowSummary: Identifiable, Hashable {
 
 nonisolated enum RegionCaptureSelection {
     case region(CGRect, cursorCaptureGlobalLocation: CGPoint?)
+    case window(CaptureWindowSummary)
 }
 
 nonisolated struct DisplaySnapshot {

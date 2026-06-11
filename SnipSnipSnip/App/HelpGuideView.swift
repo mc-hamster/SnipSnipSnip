@@ -309,6 +309,7 @@ struct HelpGuideView: View {
                             steps: [
                                 "Choose Region from the main window, menu bar icon, Capture menu, or global hotkey.",
                                 "Drag the area you want to capture over the live desktop. The loupe stays live while you aim.",
+                                "Single-click a visible window instead of dragging to capture that window.",
                                 "A screenshot region may span connected displays.",
                                 "If Always Capture on Mouse Up is off, click Capture in the floating controls."
                             ]
