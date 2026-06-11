@@ -544,17 +544,17 @@ private struct ActiveEditorToolbarView: View {
 
     private func helpText(for tool: EditorTool) -> String {
         if tool == .uiMapInspect, controller.isProcessingUIMap {
-            return "UI Map Inspect will be available after Window UI Map processing finishes."
+            return "Pin UI Map will be available after Window UI Map processing finishes."
         }
 
         if tool == .uiMapInspect, controller.uiMapSnapshot == nil {
             return controller.capture.kind == .window
-                ? "UI Map Inspect is available when Window capture contains UI Map metadata."
+                ? "Pin UI Map is available when Window capture contains UI Map metadata."
                 : "UI Map is available for Window captures only."
         }
 
         if tool == .uiMapInspect {
-            return "Show UI Map element outlines on the screenshot. Click an element to pin it; click it again to unpin it."
+            return "Pin UI Map. Move over the screenshot to preview an available element, then click to pin or unpin it."
         }
 
         return tool.label

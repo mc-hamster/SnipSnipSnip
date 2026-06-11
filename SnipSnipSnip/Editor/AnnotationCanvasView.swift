@@ -172,6 +172,7 @@ private final class AnnotationCanvasOverlayView: NSView {
 
     private var interactionState = AnnotationCanvasInteractionState()
     private var cropHUDDocumentPoint: CGPoint?
+    private var pointerTrackingArea: NSTrackingArea?
 
     init(controller: EditorController) {
         self.controller = controller
@@ -188,6 +189,23 @@ private final class AnnotationCanvasOverlayView: NSView {
 
     override var isFlipped: Bool {
         true
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+
+        if let pointerTrackingArea {
+            removeTrackingArea(pointerTrackingArea)
+        }
+
+        let trackingArea = NSTrackingArea(
+            rect: .zero,
+            options: [.activeInKeyWindow, .inVisibleRect, .mouseMoved, .mouseEnteredAndExited],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(trackingArea)
+        pointerTrackingArea = trackingArea
     }
 
     override func resetCursorRects() {
@@ -300,8 +318,7 @@ private final class AnnotationCanvasOverlayView: NSView {
     }
 
     private func drawSelectedUIMapElement(in canvasRect: CGRect) {
-        if (controller.showsAllUIMapElements || controller.activeTool == .uiMapInspect),
-           let uiMap = controller.uiMapSnapshot {
+        if controller.showsAllUIMapElements, let uiMap = controller.uiMapSnapshot {
             for element in uiMap.allElements {
                 let isSelected = element.id == controller.selectedUIMapElementID
                 guard isSelected || element.isShowAllOverlayCandidate else {
@@ -315,6 +332,12 @@ private final class AnnotationCanvasOverlayView: NSView {
                 )
             }
             return
+        }
+
+        if let hoveredElementID = controller.hoveredUIMapElementID,
+           hoveredElementID != controller.selectedUIMapElementID,
+           let hoveredElement = controller.uiMapSnapshot?.element(matching: hoveredElementID) {
+            drawUIMapElement(hoveredElement, in: canvasRect, isSelected: false)
         }
 
         guard let element = controller.selectedUIMapElement else {
@@ -484,6 +507,25 @@ private final class AnnotationCanvasOverlayView: NSView {
             interactionState.beginCrop(at: point)
             cropHUDDocumentPoint = point
         }
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        guard controller.activeTool == .uiMapInspect else {
+            controller.hoverUIMapElement(nil)
+            return
+        }
+
+        let viewPoint = convert(event.locationInWindow, from: nil)
+        guard let point = documentPoint(from: viewPoint) else {
+            controller.hoverUIMapElement(nil)
+            return
+        }
+
+        controller.hoverUIMapElement(uiMapElement(at: point)?.id)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        controller.hoverUIMapElement(nil)
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -739,21 +781,17 @@ private final class AnnotationCanvasOverlayView: NSView {
     }
 
     private func handleUIMapInspectMouseDown(_ point: CGPoint) {
-        guard let uiMap = controller.uiMapSnapshot else {
-            controller.selectUIMapElement(nil)
-            needsDisplay = true
-            return
-        }
+        controller.selectAndTogglePinnedUIMapElement(uiMapElement(at: point)?.id)
+        needsDisplay = true
+    }
 
-        let matchingElement = uiMap.allElements
+    private func uiMapElement(at point: CGPoint) -> UIMapElement? {
+        controller.uiMapSnapshot?.allElements
             .filter(\.isShowAllOverlayCandidate)
             .filter { $0.documentRect.contains(point) }
             .min { first, second in
                 uiMapHitTestArea(first.documentRect) < uiMapHitTestArea(second.documentRect)
             }
-
-        controller.selectAndTogglePinnedUIMapElement(matchingElement?.id)
-        needsDisplay = true
     }
 
     private func uiMapHitTestArea(_ rect: CGRect) -> CGFloat {

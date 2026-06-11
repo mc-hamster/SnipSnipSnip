@@ -118,6 +118,7 @@ final class EditorController: ObservableObject {
     @Published private(set) var cropOutsideOverlayAlpha: CGFloat = AppModel.defaultEditorCropOutsideOverlayAlpha
     @Published private(set) var outOfCapturePatternSettings: EditorOutOfCapturePatternSettings = .default
     @Published var selectedUIMapElementID: UUID?
+    @Published private(set) var hoveredUIMapElementID: UUID?
     @Published var showsAllUIMapElements = false {
         didSet {
             invalidateCanvas()
@@ -1015,6 +1016,7 @@ final class EditorController: ObservableObject {
     func activateToolbarTool(_ tool: EditorTool) {
         if tool == .blur {
             selectedUIMapElementID = nil
+            hoveredUIMapElementID = nil
             activeTool = preferredRedactionMode.editorTool
             invalidateCanvas()
             return
@@ -1028,6 +1030,7 @@ final class EditorController: ObservableObject {
             guard FeatureFlags.uiMapEnabled, uiMapSnapshot != nil else {
                 activeTool = .select
                 selectedUIMapElementID = nil
+                hoveredUIMapElementID = nil
                 invalidateCanvas()
                 return
             }
@@ -1037,6 +1040,9 @@ final class EditorController: ObservableObject {
             }
         } else if selectedUIMapElementID != nil {
             selectedUIMapElementID = nil
+            hoveredUIMapElementID = nil
+        } else if hoveredUIMapElementID != nil {
+            hoveredUIMapElementID = nil
         }
 
         activeTool = tool
@@ -1191,6 +1197,15 @@ final class EditorController: ObservableObject {
         }
 
         selectedUIMapElementID = elementID
+        invalidateCanvas()
+    }
+
+    func hoverUIMapElement(_ elementID: UUID?) {
+        guard hoveredUIMapElementID != elementID else {
+            return
+        }
+
+        hoveredUIMapElementID = elementID
         invalidateCanvas()
     }
 

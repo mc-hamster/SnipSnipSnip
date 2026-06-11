@@ -175,7 +175,7 @@ struct EditorInspectorView: View {
                 .font(.caption)
 
                 if controller.activeTool == .uiMapInspect {
-                    Label("UI Map Inspect is showing selectable outlines. Click an element to pin it; click it again to unpin it.", systemImage: "cursorarrow.rays")
+                    Label("Pin UI Map previews the element under the pointer. Click an element to pin it; click it again to unpin it.", systemImage: "cursorarrow.rays")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 } else {
@@ -223,8 +223,8 @@ struct EditorInspectorView: View {
                     .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
                 } else {
                     Text(controller.activeTool == .uiMapInspect
-                        ? "Click an outlined UI element in the screenshot to pin it, or select one in the UI Map panel."
-                        : "Select a UI Map element in the panel, or switch to UI Map Inspect to pin elements directly from the screenshot."
+                        ? "Move over a UI element in the screenshot to preview it, then click to pin it."
+                        : "Select a UI Map element in the panel, or switch to Pin UI Map to pin elements directly from the screenshot."
                     )
                         .font(.footnote)
                         .foregroundStyle(.secondary)

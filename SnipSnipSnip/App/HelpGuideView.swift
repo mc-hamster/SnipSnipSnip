@@ -168,7 +168,7 @@ struct HelpGuideView: View {
                                 "Search by name, role, label, or identifier, filter by element type, or turn on Pinned Only to show just pinned UI Map overlays.",
                                 "Select an element to show its region on the screenshot and inspect its metadata. With a row selected, use the arrow keys to move through the visible tree, expand, or collapse branches.",
                                 "Use Show All to outline captured controls and leaf elements without permanently annotating the screenshot. Accessibility elements use blue outlines; OCR supplement text uses orange outlines.",
-                                "For Window captures with UI Map available, use the lower toolbar UI Map group to open the UI Map panel or switch to UI Map Inspect. UI Map Inspect shows selectable UI Map outlines directly on the screenshot. Click an outline to select and pin it; click it again to unpin it.",
+                                "For Window captures with UI Map available, use the lower toolbar UI Map group to open the UI Map panel or switch to Pin UI Map. Pin UI Map starts with captured element outlines hidden unless Show All is enabled in the UI Map panel. Move over the screenshot to preview an available element, then click to select and pin it; click it again to unpin it.",
                                 "Pinned UI Map overlays stay visible in copied, shared, or exported screenshots. You can also pin or unpin the selected element from the inspector or UI Map panel.",
                                 "Use Export JSON to save the structured UI Map metadata for debugging, review, or support.",
                                 "Use the UI Map panel or inspector display toggles to show the selected element outline, label, identifier, role, coordinates, or dimensions."
@@ -430,7 +430,7 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Choose a tool",
-                            body: "The toolbar includes Select, Rectangle, Ellipse, Line, Arrow, Freehand, Highlighter, Highlight Box, Text, Callout, Ruler, Spotlight, Copy Text, Redaction, and Import Image. For Window captures with UI Map metadata, the lower toolbar also includes Show UI Map and UI Map Inspect."
+                            body: "The toolbar includes Select, Rectangle, Ellipse, Line, Arrow, Freehand, Highlighter, Highlight Box, Text, Callout, Ruler, Spotlight, Copy Text, Redaction, and Import Image. For Window captures with UI Map metadata, the lower toolbar also includes Show UI Map and Pin UI Map."
                         ),
                         HelpArticleSection(
                             title: "Select and arrange annotations",

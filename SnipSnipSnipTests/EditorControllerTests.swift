@@ -1020,6 +1020,45 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testPinUIMapHoverTracksElementWithoutSelectingOrPinning() {
+        let uiMap = makeTestUIMap()
+        let element = uiMap.elements[0]
+        let controller = makeController(
+            capture: makeCapturedScreenshot(
+                image: makeCoordinateImage(width: 64, height: 48),
+                uiMap: uiMap
+            )
+        )
+        let (_, overlay, window) = makeCanvasHarness(
+            controller: controller,
+            frame: CGRect(x: 0, y: 0, width: 320, height: 240)
+        )
+        controller.activateToolbarTool(.uiMapInspect)
+
+        sendMouseEvent(
+            .mouseMoved,
+            at: viewPoint(for: CGPoint(x: element.documentRect.midX, y: element.documentRect.midY), controller: controller),
+            to: overlay,
+            in: window,
+            eventNumber: 1
+        )
+
+        XCTAssertEqual(controller.hoveredUIMapElementID, element.id)
+        XCTAssertNil(controller.selectedUIMapElementID)
+        XCTAssertFalse(controller.isUIMapElementPinned(element.id))
+
+        sendMouseEvent(
+            .mouseMoved,
+            at: viewPoint(for: CGPoint(x: 1, y: 1), controller: controller),
+            to: overlay,
+            in: window,
+            eventNumber: 2
+        )
+
+        XCTAssertNil(controller.hoveredUIMapElementID)
+    }
+
+    @MainActor
     func testTypingAfterPinningUIMapElementCreatesTextAnnotationNearElement() {
         let uiMap = makeTestUIMap()
         let element = uiMap.elements[0]
@@ -1692,6 +1731,8 @@ final class EditorControllerTests: XCTestCase {
         }
 
         switch type {
+        case .mouseMoved:
+            view.mouseMoved(with: event)
         case .leftMouseDown:
             view.mouseDown(with: event)
         case .leftMouseDragged:

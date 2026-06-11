@@ -92,7 +92,7 @@ nonisolated enum EditorTool: String, CaseIterable, Identifiable {
             )
         case .uiMapInspect:
             return EditorToolMetadata(
-                label: "UI Map Inspect",
+                label: "Pin UI Map",
                 systemImage: "cursorarrow.rays",
                 supportsStyleEditing: false,
                 supportsFillEditing: false,
