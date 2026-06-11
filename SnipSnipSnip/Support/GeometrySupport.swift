@@ -324,6 +324,205 @@ nonisolated func gscCropPixelDimensionText(for rect: CGRect) -> String {
     return "\(Int(dimensions.width)) × \(Int(dimensions.height)) px"
 }
 
+nonisolated struct AutoCropOptions: Equatable {
+    static let paddedCropPadding: CGFloat = 8
+
+    var padding: CGFloat = 0
+    var edgeSampleThickness: Int = 2
+    var colorDistanceThreshold: Int = 30
+    var alphaDifferenceThreshold: Int = 10
+    var minimumCropSize: CGSize = CGSize(width: 4, height: 4)
+}
+
+nonisolated enum AutoCropAnalyzer {
+    fileprivate struct Pixel {
+        let red: Int
+        let green: Int
+        let blue: Int
+        let alpha: Int
+    }
+
+    static func tightenedCropRect(
+        baseImage: CGImage,
+        currentCrop: CGRect,
+        requiredBounds: CGRect? = nil,
+        options: AutoCropOptions = AutoCropOptions()
+    ) -> CGRect? {
+        let imageBounds = CGRect(x: 0, y: 0, width: baseImage.width, height: baseImage.height)
+        let crop = currentCrop.gscIntegralStandardized.gscClamped(to: imageBounds)
+
+        guard crop.width >= options.minimumCropSize.width,
+              crop.height >= options.minimumCropSize.height,
+              let pixels = pixelBuffer(for: baseImage, crop: crop) else {
+            return nil
+        }
+
+        let background = estimatedBackground(in: pixels, edgeSampleThickness: options.edgeSampleThickness)
+        let detectedBounds = contentBounds(in: pixels, background: background, options: options).map { localBounds in
+            localBounds.offsetBy(dx: crop.minX, dy: crop.minY)
+        }
+        let clippedRequiredBounds = requiredBounds?
+            .gscIntegralStandardized
+            .intersection(crop)
+            .gscIntegralStandardized
+        let meaningfulRequiredBounds = clippedRequiredBounds.flatMap { rect in
+            rect.isNull || rect.isEmpty ? nil : rect
+        }
+
+        let contentRects = [detectedBounds, meaningfulRequiredBounds].compactMap { $0 }
+        guard !contentRects.isEmpty else {
+            return nil
+        }
+
+        let padded = gscBoundingRect(of: contentRects)
+            .insetBy(dx: -max(options.padding, 0), dy: -max(options.padding, 0))
+            .gscIntegralStandardized
+            .gscClamped(to: crop)
+
+        guard !padded.isNull,
+              padded.width >= options.minimumCropSize.width,
+              padded.height >= options.minimumCropSize.height,
+              padded != crop else {
+            return nil
+        }
+
+        return padded
+    }
+
+    private static func pixelBuffer(for image: CGImage, crop: CGRect) -> AutoCropPixelBuffer? {
+        guard let croppedImage = image.gscCropped(topLeftPixelRect: crop) else {
+            return nil
+        }
+
+        let width = croppedImage.width
+        let height = croppedImage.height
+        let bytesPerPixel = 4
+        let bytesPerRow = width * bytesPerPixel
+        var data = [UInt8](repeating: 0, count: height * bytesPerRow)
+
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else {
+            return nil
+        }
+
+        let drewImage = data.withUnsafeMutableBytes { rawBuffer -> Bool in
+            guard let context = CGContext(
+                data: rawBuffer.baseAddress,
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: bytesPerRow,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else {
+                return false
+            }
+
+            context.interpolationQuality = .none
+            context.draw(croppedImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+
+        guard drewImage else {
+            return nil
+        }
+
+        return AutoCropPixelBuffer(width: width, height: height, bytesPerRow: bytesPerRow, bytes: data)
+    }
+
+    private static func estimatedBackground(in pixels: AutoCropPixelBuffer, edgeSampleThickness: Int) -> Pixel {
+        let thickness = min(max(edgeSampleThickness, 1), max(1, min(pixels.width, pixels.height) / 2))
+        var red: [Int] = []
+        var green: [Int] = []
+        var blue: [Int] = []
+        var alpha: [Int] = []
+
+        for y in 0..<pixels.height {
+            for x in 0..<pixels.width where x < thickness || x >= pixels.width - thickness || y < thickness || y >= pixels.height - thickness {
+                let pixel = pixels.pixel(x: x, y: y)
+                red.append(pixel.red)
+                green.append(pixel.green)
+                blue.append(pixel.blue)
+                alpha.append(pixel.alpha)
+            }
+        }
+
+        guard !red.isEmpty else {
+            return Pixel(red: 0, green: 0, blue: 0, alpha: 0)
+        }
+
+        return Pixel(
+            red: median(red),
+            green: median(green),
+            blue: median(blue),
+            alpha: median(alpha)
+        )
+    }
+
+    private static func median(_ values: [Int]) -> Int {
+        let sortedValues = values.sorted()
+        return sortedValues[sortedValues.count / 2]
+    }
+
+    private static func contentBounds(
+        in pixels: AutoCropPixelBuffer,
+        background: Pixel,
+        options: AutoCropOptions
+    ) -> CGRect? {
+        var minX = pixels.width
+        var minY = pixels.height
+        var maxX = -1
+        var maxY = -1
+
+        for y in 0..<pixels.height {
+            for x in 0..<pixels.width {
+                guard isContentPixel(pixels.pixel(x: x, y: y), background: background, options: options) else {
+                    continue
+                }
+
+                minX = min(minX, x)
+                minY = min(minY, y)
+                maxX = max(maxX, x)
+                maxY = max(maxY, y)
+            }
+        }
+
+        guard maxX >= minX, maxY >= minY else {
+            return nil
+        }
+
+        return CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1).integral
+    }
+
+    private static func isContentPixel(_ pixel: Pixel, background: Pixel, options: AutoCropOptions) -> Bool {
+        if abs(pixel.alpha - background.alpha) > options.alphaDifferenceThreshold {
+            return true
+        }
+
+        let colorDistance = abs(pixel.red - background.red)
+            + abs(pixel.green - background.green)
+            + abs(pixel.blue - background.blue)
+
+        return colorDistance > options.colorDistanceThreshold
+    }
+}
+
+nonisolated private struct AutoCropPixelBuffer {
+    let width: Int
+    let height: Int
+    let bytesPerRow: Int
+    let bytes: [UInt8]
+
+    nonisolated func pixel(x: Int, y: Int) -> AutoCropAnalyzer.Pixel {
+        let offset = y * bytesPerRow + x * 4
+        return AutoCropAnalyzer.Pixel(
+            red: Int(bytes[offset]),
+            green: Int(bytes[offset + 1]),
+            blue: Int(bytes[offset + 2]),
+            alpha: Int(bytes[offset + 3])
+        )
+    }
+}
+
 nonisolated func gscUprightTextRotationDegrees(for degrees: CGFloat) -> CGFloat {
     var normalized = degrees.truncatingRemainder(dividingBy: 360)
 

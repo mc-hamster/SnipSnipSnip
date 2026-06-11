@@ -82,7 +82,8 @@ extension AppModel {
         floatingReferenceCoordinator.present(FloatingReferenceRequest(
             title: "Floating Reference",
             subtitle: currentDocumentFilename,
-            image: image
+            image: image,
+            outOfCapturePatternSettings: editorOutOfCapturePatternSettings
         ))
     }
 
@@ -97,7 +98,8 @@ extension AppModel {
                 self?.floatingReferenceCoordinator.present(FloatingReferenceRequest(
                     title: entry.label,
                     subtitle: entry.savedAt.formatted(date: .abbreviated, time: .shortened),
-                    image: image
+                    image: image,
+                    outOfCapturePatternSettings: self?.editorOutOfCapturePatternSettings ?? .default
                 ))
             } catch {
                 self?.errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription

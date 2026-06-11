@@ -499,9 +499,12 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Work with the floating window",
                             bullets: [
-                                "Drag the handle at the left of the control bar to move the reference and resize it from the window edges.",
-                                "Scroll to pan around a zoomed image, pinch to zoom with a trackpad, or use the zoom buttons to zoom in, zoom out, and fit.",
-                                "Click or drag the opacity track when the reference should stay visible but less distracting. Click the opacity icon to return to 100%."
+                                "Drag the handle at the left of the top bar to move the reference and resize it from the window edges.",
+                                "Scroll to pan around a zoomed image, pinch to zoom with a trackpad, or use the Zoom menu to zoom in, zoom out, and Fit to View.",
+                                "Resizing a floating reference uses the same fit-relative zoom behavior as the editor canvas.",
+                                "When the reference image leaves empty space, the same editor line-and-dot background marks the area outside the image.",
+                                "Click or drag the opacity track when the reference should stay visible but less distracting. Click the opacity icon to return to 100%.",
+                                "SnipSnipSnip keeps up to eight floating references open at once. Opening another reference closes the oldest one."
                             ]
                         ),
                         HelpArticleSection(
@@ -527,6 +530,7 @@ struct HelpGuideView: View {
                                 "Use the loupe and live pixel size to refine the crop.",
                                 "Use the inspector fields for exact X, Y, Width, and Height values.",
                                 "Choose Freeform or a fixed aspect ratio in the inspector before drawing or resizing the crop.",
+                                "Click Auto Crop to tighten the current crop around screenshot content and visible annotations, or click Padded to keep a small margin.",
                                 "Click Reset Crop to return to the full captured image."
                             ]
                         ),

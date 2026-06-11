@@ -755,6 +755,35 @@ final class EditorController: ObservableObject {
         execute(SetCropCommand(rect: fullImageRect))
     }
 
+    func autoCropCurrentCrop() {
+        autoCropCurrentCrop(padding: 0)
+    }
+
+    func autoCropCurrentCropWithPadding() {
+        autoCropCurrentCrop(padding: AutoCropOptions.paddedCropPadding)
+    }
+
+    private func autoCropCurrentCrop(padding: CGFloat) {
+        let currentCrop = snapshot.cropRect.gscIntegralStandardized
+        let requiredBounds = gscBoundingRect(of: snapshot.annotations.compactMap { annotation in
+            let bounds = annotation.boundingRect.gscIntegralStandardized
+            return bounds.intersects(currentCrop) ? bounds : nil
+        })
+        let resolvedRequiredBounds = requiredBounds.isNull || requiredBounds.isEmpty ? nil : requiredBounds
+
+        guard let tightenedCrop = AutoCropAnalyzer.tightenedCropRect(
+            baseImage: capture.image,
+            currentCrop: currentCrop,
+            requiredBounds: resolvedRequiredBounds,
+            options: AutoCropOptions(padding: padding)
+        ) else {
+            showNotice("Auto Crop couldn't find anything to tighten.")
+            return
+        }
+
+        execute(SetCropCommand(rect: tightenedCrop))
+    }
+
     var canResetCrop: Bool {
         snapshot.cropRect.gscIntegralStandardized != fullImageRect
     }

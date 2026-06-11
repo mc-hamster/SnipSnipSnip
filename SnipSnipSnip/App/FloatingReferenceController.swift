@@ -6,6 +6,7 @@ struct FloatingReferenceRequest {
     let title: String
     let subtitle: String?
     let image: CGImage
+    let outOfCapturePatternSettings: EditorOutOfCapturePatternSettings
 }
 
 @MainActor
@@ -13,22 +14,31 @@ final class FloatingReferenceCoordinator: ObservableObject {
     @Published private(set) var activeReferenceCount = 0
 
     private var windowControllers: [UUID: FloatingReferenceWindowController] = [:]
+    private var referenceOrder: [UUID] = []
 
     var hasActiveReferences: Bool {
         activeReferenceCount > 0
     }
 
     func present(_ request: FloatingReferenceRequest) {
+        closeOldestReferencesIfNeeded()
+
         let model = FloatingReferenceWindowModel(request: request)
+        let windowFrame = FloatingReferenceWindowPlacementPolicy.initialFrame(
+            forPixelSize: model.pixelSize,
+            visibleFrame: FloatingReferenceWindowPlacementPolicy.preferredVisibleFrame(),
+            referenceIndex: referenceOrder.count
+        )
         let windowController = FloatingReferenceWindowController(
             model: model,
+            initialFrame: windowFrame,
             onClose: { [weak self] id in
-                self?.windowControllers[id] = nil
-                self?.refreshCounts()
+                self?.referenceDidClose(id)
             }
         )
 
         windowControllers[model.id] = windowController
+        referenceOrder.append(model.id)
         refreshCounts()
         windowController.showWindow(nil)
         windowController.window?.makeKeyAndOrderFront(nil)
@@ -40,11 +50,181 @@ final class FloatingReferenceCoordinator: ObservableObject {
         }
 
         windowControllers.removeAll()
+        referenceOrder.removeAll()
+        refreshCounts()
+    }
+
+    private func closeOldestReferencesIfNeeded() {
+        let referencesToClose = FloatingReferenceRetentionPolicy.referencesToCloseBeforeAddingReference(
+            currentOrder: referenceOrder
+        )
+
+        for id in referencesToClose {
+            windowControllers[id]?.close()
+        }
+    }
+
+    private func referenceDidClose(_ id: UUID) {
+        windowControllers[id] = nil
+        referenceOrder.removeAll { $0 == id }
         refreshCounts()
     }
 
     private func refreshCounts() {
         activeReferenceCount = windowControllers.count
+    }
+}
+
+nonisolated enum FloatingReferenceRetentionPolicy {
+    static let maximumActiveReferences = 8
+
+    static func referencesToCloseBeforeAddingReference(
+        currentOrder: [UUID],
+        maximumActiveReferences: Int = Self.maximumActiveReferences
+    ) -> [UUID] {
+        guard maximumActiveReferences > 0 else {
+            return currentOrder
+        }
+
+        let maximumExistingReferences = maximumActiveReferences - 1
+        let overflowCount = max(currentOrder.count - maximumExistingReferences, 0)
+        return Array(currentOrder.prefix(overflowCount))
+    }
+}
+
+nonisolated enum FloatingReferenceWindowPlacementPolicy {
+    private static let edgePadding: CGFloat = 28
+    private static let cascadeStep: CGFloat = 26
+    private static let maximumCascadeSteps = 8
+
+    @MainActor
+    static func preferredVisibleFrame() -> CGRect {
+        let mouseLocation = NSEvent.mouseLocation
+
+        if let screen = NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) }) {
+            return screen.visibleFrame
+        }
+
+        if let screen = NSApp.keyWindow?.screen ?? NSApp.mainWindow?.screen ?? NSScreen.main {
+            return screen.visibleFrame
+        }
+
+        return NSScreen.screens.first?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1024, height: 768)
+    }
+
+    static func initialFrame(
+        forPixelSize pixelSize: CGSize,
+        visibleFrame: CGRect,
+        referenceIndex: Int
+    ) -> CGRect {
+        let size = FloatingReferenceWindowSizing.initialWindowSize(
+            for: pixelSize,
+            fittingWithin: visibleFrame.size
+        )
+        return initialFrame(forWindowSize: size, visibleFrame: visibleFrame, referenceIndex: referenceIndex)
+    }
+
+    static func initialFrame(
+        forWindowSize windowSize: CGSize,
+        visibleFrame: CGRect,
+        referenceIndex: Int
+    ) -> CGRect {
+        let usableWidth = max(visibleFrame.width - edgePadding * 2, 1)
+        let usableHeight = max(visibleFrame.height - edgePadding * 2, 1)
+        let minimumWidth = min(FloatingReferenceWindowSizing.minimumWindowSize.width, usableWidth)
+        let minimumHeight = min(FloatingReferenceWindowSizing.minimumWindowSize.height, usableHeight)
+        let clampedSize = CGSize(
+            width: min(max(windowSize.width, minimumWidth), usableWidth),
+            height: min(max(windowSize.height, minimumHeight), usableHeight)
+        )
+        let cascadeOffset = CGFloat(referenceIndex % maximumCascadeSteps) * cascadeStep
+        let proposedOrigin = CGPoint(
+            x: visibleFrame.maxX - clampedSize.width - edgePadding - cascadeOffset,
+            y: visibleFrame.maxY - clampedSize.height - edgePadding - cascadeOffset
+        )
+        let minX = visibleFrame.minX + edgePadding
+        let maxX = visibleFrame.maxX - edgePadding - clampedSize.width
+        let minY = visibleFrame.minY + edgePadding
+        let maxY = visibleFrame.maxY - edgePadding - clampedSize.height
+
+        return CGRect(
+            x: min(max(proposedOrigin.x, minX), max(minX, maxX)),
+            y: min(max(proposedOrigin.y, minY), max(minY, maxY)),
+            width: clampedSize.width,
+            height: clampedSize.height
+        ).integral
+    }
+}
+
+nonisolated enum FloatingReferenceWindowSizing {
+    static let defaultWindowSize = CGSize(width: 520, height: 340)
+    static let minimumWindowSize = CGSize(width: 360, height: 220)
+    static let maximumWindowSize = CGSize(width: 720, height: 520)
+
+    static func initialWindowSize(for pixelSize: CGSize, fittingWithin availableSize: CGSize? = nil) -> CGSize {
+        guard pixelSize.width > 0, pixelSize.height > 0 else {
+            return clampedForAvailableDisplay(defaultWindowSize, availableSize: availableSize)
+        }
+
+        let aspectRatio = pixelSize.width / pixelSize.height
+        var size = pixelSize
+
+        if size.width > maximumWindowSize.width {
+            size.width = maximumWindowSize.width
+            size.height = size.width / aspectRatio
+        }
+
+        if size.height > maximumWindowSize.height {
+            size.height = maximumWindowSize.height
+            size.width = size.height * aspectRatio
+        }
+
+        if size.width < minimumWindowSize.width {
+            size.width = minimumWindowSize.width
+            size.height = size.width / aspectRatio
+        }
+
+        if size.height < minimumWindowSize.height {
+            size.height = minimumWindowSize.height
+            size.width = size.height * aspectRatio
+        }
+
+        return clampedForAvailableDisplay(CGSize(
+            width: min(max(size.width, minimumWindowSize.width), maximumWindowSize.width),
+            height: min(max(size.height, minimumWindowSize.height), maximumWindowSize.height)
+        ), availableSize: availableSize)
+    }
+
+    private static func clampedForAvailableDisplay(_ size: CGSize, availableSize: CGSize?) -> CGSize {
+        guard let availableSize else {
+            return size
+        }
+
+        return CGSize(
+            width: min(size.width, max(availableSize.width, 1)),
+            height: min(size.height, max(availableSize.height, 1))
+        )
+    }
+}
+
+@MainActor
+final class FloatingReferenceCloseNotifier {
+    private(set) var didNotifyClose = false
+    private let id: UUID
+    private let onClose: (UUID) -> Void
+
+    init(id: UUID, onClose: @escaping (UUID) -> Void) {
+        self.id = id
+        self.onClose = onClose
+    }
+
+    func notifyIfNeeded() {
+        guard !didNotifyClose else {
+            return
+        }
+
+        didNotifyClose = true
+        onClose(id)
     }
 }
 
@@ -66,6 +246,7 @@ final class FloatingReferenceWindowModel: ObservableObject, Identifiable {
     let subtitle: String?
     let image: CGImage
     let pixelSize: CGSize
+    let outOfCapturePatternSettings: EditorOutOfCapturePatternSettings
 
     @Published var opacity: Double = 1
     @Published var zoomRequest: FloatingReferenceZoomRequest?
@@ -75,6 +256,7 @@ final class FloatingReferenceWindowModel: ObservableObject, Identifiable {
         subtitle = request.subtitle
         image = request.image
         pixelSize = CGSize(width: request.image.width, height: request.image.height)
+        outOfCapturePatternSettings = request.outOfCapturePatternSettings
     }
 }
 
@@ -83,19 +265,19 @@ final class FloatingReferenceWindowController: NSWindowController {
     let model: FloatingReferenceWindowModel
 
     private var cancellables: Set<AnyCancellable> = []
-    private let onClose: (UUID) -> Void
+    private let closeNotifier: FloatingReferenceCloseNotifier
 
     init(
         model: FloatingReferenceWindowModel,
+        initialFrame: CGRect,
         onClose: @escaping (UUID) -> Void
     ) {
         self.model = model
-        self.onClose = onClose
+        closeNotifier = FloatingReferenceCloseNotifier(id: model.id, onClose: onClose)
 
-        let initialSize = Self.initialWindowSize(for: model.pixelSize)
         let panel = NSPanel(
-            contentRect: NSRect(origin: .zero, size: initialSize),
-            styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
+            contentRect: initialFrame,
+            styleMask: [.titled, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -108,12 +290,15 @@ final class FloatingReferenceWindowController: NSWindowController {
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.isMovableByWindowBackground = false
-        panel.minSize = NSSize(width: 240, height: 180)
+        panel.minSize = FloatingReferenceWindowSizing.minimumWindowSize
+        panel.standardWindowButton(.closeButton)?.isHidden = true
+        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        panel.standardWindowButton(.zoomButton)?.isHidden = true
         panel.contentView = NSHostingView(
             rootView: FloatingReferenceWindowView(
                 model: model,
                 onClose: { [weak panel] in
-                    panel?.performClose(nil)
+                    panel?.close()
                 }
             )
         )
@@ -130,43 +315,7 @@ final class FloatingReferenceWindowController: NSWindowController {
 
     override func close() {
         super.close()
-        onClose(model.id)
-    }
-
-    private static func initialWindowSize(for pixelSize: CGSize) -> CGSize {
-        guard pixelSize.width > 0, pixelSize.height > 0 else {
-            return CGSize(width: 520, height: 340)
-        }
-
-        let aspectRatio = pixelSize.width / pixelSize.height
-        let maxSize = CGSize(width: 720, height: 520)
-        let minSize = CGSize(width: 300, height: 220)
-        var size = pixelSize
-
-        if size.width > maxSize.width {
-            size.width = maxSize.width
-            size.height = size.width / aspectRatio
-        }
-
-        if size.height > maxSize.height {
-            size.height = maxSize.height
-            size.width = size.height * aspectRatio
-        }
-
-        if size.width < minSize.width {
-            size.width = minSize.width
-            size.height = size.width / aspectRatio
-        }
-
-        if size.height < minSize.height {
-            size.height = minSize.height
-            size.width = size.height * aspectRatio
-        }
-
-        return CGSize(
-            width: min(max(size.width, minSize.width), maxSize.width),
-            height: min(max(size.height, minSize.height), maxSize.height)
-        )
+        closeNotifier.notifyIfNeeded()
     }
 
     private func observeModel() {
@@ -180,7 +329,7 @@ final class FloatingReferenceWindowController: NSWindowController {
 
 extension FloatingReferenceWindowController: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
-        onClose(model.id)
+        closeNotifier.notifyIfNeeded()
     }
 }
 
@@ -189,83 +338,100 @@ private struct FloatingReferenceWindowView: View {
     let onClose: () -> Void
 
     var body: some View {
-        ZStack(alignment: .top) {
-            Color.black.opacity(0.16)
-                .ignoresSafeArea()
+        VStack(spacing: 0) {
+            menuBar
 
             ZoomableReferenceImageView(model: model)
-                .padding(.top, 38)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .help("Floating reference image. Scroll to pan, pinch to zoom, or use the zoom buttons.")
-
-            controls
-                .padding(8)
+                .background(Color.black.opacity(0.16))
+                .help("Floating reference image. Scroll to pan, pinch to zoom, or use the zoom controls.")
         }
         .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
-    private var controls: some View {
+    private var menuBar: some View {
         HStack(spacing: 8) {
-            ZStack {
-                Image(systemName: "line.horizontal.3")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 22, height: 22)
+            dragHandle
 
-                WindowDragHandleView()
-                    .frame(width: 30, height: 30)
-            }
-            .help("Drag to move this floating reference.")
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(model.title)
-                    .font(.caption.weight(.semibold))
-                    .lineLimit(1)
-
-                if let subtitle = model.subtitle {
-                    Text(subtitle)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-            .layoutPriority(1)
-            .help(referenceTitleHelp)
+            titleBlock
 
             Spacer(minLength: 8)
 
-            Button {
-                model.zoomRequest = FloatingReferenceZoomRequest(action: .zoomOut)
-            } label: {
-                Image(systemName: "minus.magnifyingglass")
-                    .frame(width: 20, height: 20)
-            }
-            .buttonStyle(.borderless)
-            .help("Zoom out.")
-
-            Button {
-                model.zoomRequest = FloatingReferenceZoomRequest(action: .fit)
-            } label: {
-                Image(systemName: "arrow.up.left.and.down.right.magnifyingglass")
-                    .frame(width: 20, height: 20)
-            }
-            .buttonStyle(.borderless)
-            .help("Fit image to the reference window.")
-
-            Button {
-                model.zoomRequest = FloatingReferenceZoomRequest(action: .zoomIn)
-            } label: {
-                Image(systemName: "plus.magnifyingglass")
-                    .frame(width: 20, height: 20)
-            }
-            .buttonStyle(.borderless)
-            .help("Zoom in.")
+            zoomMenu
 
             Divider()
                 .frame(height: 18)
                 .opacity(0.28)
 
+            opacityControls
+
+            closeButton
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 38)
+        .background(.bar)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.primary.opacity(0.12))
+                .frame(height: 1)
+        }
+    }
+
+    private var dragHandle: some View {
+        ZStack {
+            Image(systemName: "line.horizontal.3")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 22, height: 22)
+
+            WindowDragHandleView()
+                .frame(width: 30, height: 30)
+        }
+        .help("Drag to move this floating reference.")
+    }
+
+    private var titleBlock: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(model.title)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+
+            if let subtitle = model.subtitle {
+                Text(subtitle)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .layoutPriority(1)
+        .help(referenceTitleHelp)
+    }
+
+    private var zoomMenu: some View {
+        Menu {
+            Button("Zoom In") {
+                model.zoomRequest = FloatingReferenceZoomRequest(action: .zoomIn)
+            }
+
+            Button("Zoom Out") {
+                model.zoomRequest = FloatingReferenceZoomRequest(action: .zoomOut)
+            }
+
+            Divider()
+
+            Button("Fit to View") {
+                model.zoomRequest = FloatingReferenceZoomRequest(action: .fit)
+            }
+        } label: {
+            Label("Zoom", systemImage: "magnifyingglass")
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Zoom in, zoom out, or fit the reference image to the view.")
+    }
+
+    private var opacityControls: some View {
+        HStack(spacing: 8) {
             Button {
                 model.opacity = 1
             } label: {
@@ -280,21 +446,16 @@ private struct FloatingReferenceWindowView: View {
             ClickToSlideOpacityControl(value: $model.opacity, range: 0.35...1)
                 .frame(width: 96, height: 20)
                 .help("Set reference opacity. Click anywhere on the track or drag the knob.")
+        }
+    }
 
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .frame(width: 20, height: 20)
-            }
-            .buttonStyle(.borderless)
-            .help("Close this floating reference.")
+    private var closeButton: some View {
+        Button(action: onClose) {
+            Image(systemName: "xmark")
+                .frame(width: 20, height: 20)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .glassEffect(.regular, in: .rect(cornerRadius: 12))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.75)
-        }
+        .buttonStyle(.borderless)
+        .help("Close this floating reference.")
     }
 
     private var referenceTitleHelp: String {
@@ -313,14 +474,20 @@ private struct ZoomableReferenceImageView: NSViewRepresentable {
         Coordinator()
     }
 
-    func makeNSView(context: Context) -> ZoomableReferenceScrollView {
-        let scrollView = ZoomableReferenceScrollView()
-        scrollView.configure(image: model.image)
-        return scrollView
+    func makeNSView(context: Context) -> ZoomableReferenceCanvasView {
+        let canvasView = ZoomableReferenceCanvasView()
+        canvasView.configure(
+            image: model.image,
+            outOfCapturePatternSettings: model.outOfCapturePatternSettings
+        )
+        return canvasView
     }
 
-    func updateNSView(_ nsView: ZoomableReferenceScrollView, context: Context) {
-        nsView.configure(image: model.image)
+    func updateNSView(_ nsView: ZoomableReferenceCanvasView, context: Context) {
+        nsView.configure(
+            image: model.image,
+            outOfCapturePatternSettings: model.outOfCapturePatternSettings
+        )
 
         if let request = model.zoomRequest,
            request.id != context.coordinator.lastZoomRequestID {
@@ -334,85 +501,145 @@ private struct ZoomableReferenceImageView: NSViewRepresentable {
     }
 }
 
-private final class ZoomableReferenceScrollView: NSScrollView {
-    private let imageView = NSImageView()
+private final class ZoomableReferenceCanvasView: NSView {
     private var currentImage: CGImage?
-    private var didFitInitialImage = false
+    private var imageSize: CGSize = .zero
+    private var image: NSImage?
+    private var outOfCapturePatternSettings: EditorOutOfCapturePatternSettings = .default
+    private var viewport = EditorViewport()
+    private var followsFitToViewport = true
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        drawsBackground = false
-        borderType = .noBorder
-        hasHorizontalScroller = true
-        hasVerticalScroller = true
-        autohidesScrollers = true
-        allowsMagnification = true
-        minMagnification = 0.15
-        maxMagnification = 8
-        usesPredominantAxisScrolling = false
-        documentView = imageView
-
-        imageView.imageAlignment = .alignCenter
-        imageView.imageScaling = .scaleNone
-        imageView.wantsLayer = true
-        imageView.layer?.backgroundColor = NSColor.clear.cgColor
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
-        preconditionFailure("FloatingReferenceScrollView is programmatic-only; use init(image:) instead of init(coder:).")
+        preconditionFailure("ZoomableReferenceCanvasView is programmatic-only; use init(frame:) instead of init(coder:).")
+    }
+
+    override var acceptsFirstResponder: Bool {
+        true
+    }
+
+    override var isFlipped: Bool {
+        true
     }
 
     override func layout() {
         super.layout()
+        synchronizeViewportToBounds()
 
-        if !didFitInitialImage {
-            fitImageToViewport()
-            didFitInitialImage = true
+        if followsFitToViewport {
+            viewport = viewport.zoomedToFit()
         }
+
+        needsDisplay = true
     }
 
-    func configure(image: CGImage) {
-        guard currentImage !== image else {
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.windowBackgroundColor.setFill()
+        bounds.fill()
+
+        guard let image else {
             return
         }
 
-        currentImage = image
-        imageView.image = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
-        imageView.frame = NSRect(x: 0, y: 0, width: image.width, height: image.height)
-        didFitInitialImage = false
-        needsLayout = true
+        let imageRect = viewport.imageRect.integral
+        OutOfCapturePatternRenderer.draw(
+            bounds: bounds,
+            excluding: imageRect,
+            settings: outOfCapturePatternSettings,
+            appearance: effectiveAppearance
+        )
+
+        NSGraphicsContext.saveGraphicsState()
+        NSBezierPath(rect: bounds).addClip()
+        image.draw(
+            in: imageRect,
+            from: .zero,
+            operation: .sourceOver,
+            fraction: 1,
+            respectFlipped: true,
+            hints: nil
+        )
+        NSGraphicsContext.restoreGraphicsState()
+    }
+
+    func configure(
+        image: CGImage,
+        outOfCapturePatternSettings: EditorOutOfCapturePatternSettings
+    ) {
+        let imageDidChange = currentImage !== image
+        let patternDidChange = self.outOfCapturePatternSettings != outOfCapturePatternSettings
+
+        guard imageDidChange || patternDidChange else {
+            return
+        }
+
+        self.outOfCapturePatternSettings = outOfCapturePatternSettings
+
+        if imageDidChange {
+            currentImage = image
+            imageSize = CGSize(width: image.width, height: image.height)
+            self.image = NSImage(cgImage: image, size: imageSize)
+            viewport = viewport.updatingContentSize(imageSize, fitToWindow: true)
+            followsFitToViewport = true
+            needsLayout = true
+        }
+
+        needsDisplay = true
     }
 
     func applyZoomAction(_ action: FloatingReferenceZoomAction) {
+        synchronizeViewportToBounds()
+
         switch action {
         case .zoomOut:
-            setMagnification(max(minMagnification, magnification / 1.25), centeredAt: viewportCenter)
+            followsFitToViewport = false
+            viewport = viewport.zoomed(to: viewport.zoomScale / 1.25)
         case .zoomIn:
-            setMagnification(min(maxMagnification, magnification * 1.25), centeredAt: viewportCenter)
+            followsFitToViewport = false
+            viewport = viewport.zoomed(to: viewport.zoomScale * 1.25)
         case .fit:
-            fitImageToViewport()
+            followsFitToViewport = true
+            viewport = viewport.zoomedToFit()
         }
+
+        needsDisplay = true
     }
 
-    private var viewportCenter: NSPoint {
-        NSPoint(x: contentView.bounds.midX, y: contentView.bounds.midY)
+    override func magnify(with event: NSEvent) {
+        followsFitToViewport = false
+        synchronizeViewportToBounds()
+        let factor = max(0.05, 1 + event.magnification)
+        viewport = viewport.zoomed(to: viewport.zoomScale * factor, anchoredAt: convert(event.locationInWindow, from: nil))
+        needsDisplay = true
     }
 
-    private func fitImageToViewport() {
-        guard let image = currentImage else {
-            return
+    override func scrollWheel(with event: NSEvent) {
+        synchronizeViewportToBounds()
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+
+        if modifiers.contains(.command) || modifiers.contains(.option) {
+            guard event.scrollingDeltaY != 0 else {
+                return
+            }
+
+            followsFitToViewport = false
+            let factor = pow(1.0018, event.scrollingDeltaY)
+            viewport = viewport.zoomed(to: viewport.zoomScale * factor, anchoredAt: convert(event.locationInWindow, from: nil))
+        } else {
+            viewport = viewport.panned(by: CGSize(width: event.scrollingDeltaX, height: event.scrollingDeltaY))
         }
 
-        let viewportSize = contentView.bounds.size
-        guard viewportSize.width > 1, viewportSize.height > 1 else {
-            return
-        }
+        needsDisplay = true
+    }
 
-        let widthScale = viewportSize.width / CGFloat(image.width)
-        let heightScale = viewportSize.height / CGFloat(image.height)
-        let fitScale = min(max(min(widthScale, heightScale), minMagnification), maxMagnification)
-        setMagnification(fitScale, centeredAt: NSPoint(x: CGFloat(image.width) / 2, y: CGFloat(image.height) / 2))
+    private func synchronizeViewportToBounds() {
+        viewport = viewport.updatingCanvasSize(bounds.size)
     }
 }
 

@@ -141,6 +141,120 @@ final class GeometrySupportTests: XCTestCase {
         XCTAssertEqual(text, "120 × 80 px")
     }
 
+    func testAutoCropTrimsUniformBorderAroundContent() {
+        let image = makeAutoCropFixtureImage(
+            width: 100,
+            height: 80,
+            background: PixelSample(red: 255, green: 255, blue: 255, alpha: 255),
+            contentRects: [CGRect(x: 30, y: 20, width: 40, height: 30)]
+        )
+
+        let crop = AutoCropAnalyzer.tightenedCropRect(
+            baseImage: image,
+            currentCrop: CGRect(x: 0, y: 0, width: 100, height: 80)
+        )
+
+        XCTAssertEqual(crop, CGRect(x: 30, y: 20, width: 40, height: 30))
+    }
+
+    func testAutoCropAppliesConfiguredPadding() {
+        let image = makeAutoCropFixtureImage(
+            width: 100,
+            height: 80,
+            background: PixelSample(red: 255, green: 255, blue: 255, alpha: 255),
+            contentRects: [CGRect(x: 30, y: 20, width: 40, height: 30)]
+        )
+
+        let crop = AutoCropAnalyzer.tightenedCropRect(
+            baseImage: image,
+            currentCrop: CGRect(x: 0, y: 0, width: 100, height: 80),
+            options: AutoCropOptions(padding: AutoCropOptions.paddedCropPadding)
+        )
+
+        XCTAssertEqual(crop, CGRect(x: 22, y: 12, width: 56, height: 46))
+    }
+
+    func testAutoCropNeverExpandsOutsideCurrentCrop() throws {
+        let image = makeAutoCropFixtureImage(
+            width: 80,
+            height: 70,
+            background: PixelSample(red: 255, green: 255, blue: 255, alpha: 255),
+            contentRects: [CGRect(x: 20, y: 20, width: 8, height: 8)]
+        )
+        let currentCrop = CGRect(x: 20, y: 20, width: 40, height: 40)
+
+        let crop = try XCTUnwrap(AutoCropAnalyzer.tightenedCropRect(baseImage: image, currentCrop: currentCrop))
+
+        XCTAssertGreaterThanOrEqual(crop.minX, currentCrop.minX)
+        XCTAssertGreaterThanOrEqual(crop.minY, currentCrop.minY)
+        XCTAssertLessThanOrEqual(crop.maxX, currentCrop.maxX)
+        XCTAssertLessThanOrEqual(crop.maxY, currentCrop.maxY)
+    }
+
+    func testAutoCropIncludesRequiredAnnotationBounds() {
+        let image = makeAutoCropFixtureImage(
+            width: 80,
+            height: 70,
+            background: PixelSample(red: 255, green: 255, blue: 255, alpha: 255),
+            contentRects: [CGRect(x: 30, y: 30, width: 20, height: 20)]
+        )
+
+        let crop = AutoCropAnalyzer.tightenedCropRect(
+            baseImage: image,
+            currentCrop: CGRect(x: 0, y: 0, width: 80, height: 70),
+            requiredBounds: CGRect(x: 10, y: 12, width: 12, height: 10)
+        )
+
+        XCTAssertEqual(crop, CGRect(x: 10, y: 12, width: 40, height: 38))
+    }
+
+    func testAutoCropCanCropAroundAnnotationOnly() {
+        let image = makeSolidImage(
+            width: 80,
+            height: 60,
+            color: PixelSample(red: 255, green: 255, blue: 255, alpha: 255)
+        )
+
+        let crop = AutoCropAnalyzer.tightenedCropRect(
+            baseImage: image,
+            currentCrop: CGRect(x: 0, y: 0, width: 80, height: 60),
+            requiredBounds: CGRect(x: 30, y: 20, width: 10, height: 8)
+        )
+
+        XCTAssertEqual(crop, CGRect(x: 30, y: 20, width: 10, height: 8))
+    }
+
+    func testAutoCropReturnsNilWhenUniformImageHasNoRequiredBounds() {
+        let image = makeSolidImage(
+            width: 80,
+            height: 60,
+            color: PixelSample(red: 255, green: 255, blue: 255, alpha: 255)
+        )
+
+        let crop = AutoCropAnalyzer.tightenedCropRect(
+            baseImage: image,
+            currentCrop: CGRect(x: 0, y: 0, width: 80, height: 60)
+        )
+
+        XCTAssertNil(crop)
+    }
+
+    func testAutoCropClampsAtImageEdges() {
+        let image = makeAutoCropFixtureImage(
+            width: 50,
+            height: 40,
+            background: PixelSample(red: 255, green: 255, blue: 255, alpha: 255),
+            contentRects: [CGRect(x: 0, y: 0, width: 10, height: 10)]
+        )
+
+        let crop = AutoCropAnalyzer.tightenedCropRect(
+            baseImage: image,
+            currentCrop: CGRect(x: 0, y: 0, width: 50, height: 40)
+        )
+
+        XCTAssertEqual(crop, CGRect(x: 0, y: 0, width: 10, height: 10))
+    }
+
     func testCroppingPreviewImageMatchesCursorPixelInTopLeftCoordinates() {
         let image = makeCoordinateImage(width: 160, height: 100)
         let bounds = CGRect(x: 0, y: 0, width: 80, height: 50)
@@ -545,4 +659,42 @@ final class GeometrySupportTests: XCTestCase {
 
         XCTAssertGreaterThan(rect.height, 119)
     }
+}
+
+private func makeAutoCropFixtureImage(
+    width: Int,
+    height: Int,
+    background: PixelSample,
+    contentRects: [CGRect],
+    content: PixelSample = PixelSample(red: 0, green: 0, blue: 0, alpha: 255)
+) -> CGImage {
+    let bytesPerPixel = 4
+    let bytesPerRow = width * bytesPerPixel
+    var pixels = [UInt8](repeating: 0, count: height * bytesPerRow)
+
+    for y in 0..<height {
+        for x in 0..<width {
+            let point = CGPoint(x: x, y: y)
+            let sample = contentRects.contains { $0.contains(point) } ? content : background
+            let offset = y * bytesPerRow + x * bytesPerPixel
+            pixels[offset] = sample.red
+            pixels[offset + 1] = sample.green
+            pixels[offset + 2] = sample.blue
+            pixels[offset + 3] = sample.alpha
+        }
+    }
+
+    return CGImage(
+        width: width,
+        height: height,
+        bitsPerComponent: 8,
+        bitsPerPixel: 32,
+        bytesPerRow: bytesPerRow,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
+        provider: CGDataProvider(data: Data(pixels) as CFData)!,
+        decode: nil,
+        shouldInterpolate: false,
+        intent: .defaultIntent
+    )!
 }

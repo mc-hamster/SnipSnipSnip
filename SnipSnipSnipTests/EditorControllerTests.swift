@@ -755,6 +755,77 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testAutoCropUpdatesCropRectThroughUndoableCommand() {
+        let annotation = Annotation.makeRectangle(in: CGRect(x: 40, y: 30, width: 20, height: 10))
+        let snapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 100, height: 80),
+            annotations: [annotation]
+        )
+        let capture = makeCapturedScreenshot(
+            image: makeSolidImage(width: 100, height: 80, color: PixelSample(red: 255, green: 255, blue: 255, alpha: 255))
+        )
+        let controller = makeController(snapshot: snapshot, capture: capture)
+
+        controller.autoCropCurrentCrop()
+
+        XCTAssertEqual(controller.snapshot.cropRect, CGRect(x: 40, y: 30, width: 20, height: 10))
+
+        controller.undo()
+
+        XCTAssertEqual(controller.snapshot.cropRect, CGRect(x: 0, y: 0, width: 100, height: 80))
+    }
+
+    @MainActor
+    func testPaddedAutoCropKeepsSmallMargin() {
+        let annotation = Annotation.makeRectangle(in: CGRect(x: 40, y: 30, width: 20, height: 10))
+        let snapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 100, height: 80),
+            annotations: [annotation]
+        )
+        let capture = makeCapturedScreenshot(
+            image: makeSolidImage(width: 100, height: 80, color: PixelSample(red: 255, green: 255, blue: 255, alpha: 255))
+        )
+        let controller = makeController(snapshot: snapshot, capture: capture)
+
+        controller.autoCropCurrentCropWithPadding()
+
+        XCTAssertEqual(controller.snapshot.cropRect, CGRect(x: 32, y: 22, width: 36, height: 26))
+    }
+
+    @MainActor
+    func testAutoCropFailureShowsNotice() {
+        let snapshot = makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 100, height: 80))
+        let capture = makeCapturedScreenshot(
+            image: makeSolidImage(width: 100, height: 80, color: PixelSample(red: 255, green: 255, blue: 255, alpha: 255))
+        )
+        let controller = makeController(snapshot: snapshot, capture: capture)
+
+        controller.autoCropCurrentCrop()
+
+        XCTAssertEqual(controller.snapshot.cropRect, CGRect(x: 0, y: 0, width: 100, height: 80))
+        XCTAssertEqual(controller.noticeMessage, "Auto Crop couldn't find anything to tighten.")
+    }
+
+    @MainActor
+    func testAutoCropIgnoresFixedAspectRatioPreset() {
+        let annotation = Annotation.makeRectangle(in: CGRect(x: 30, y: 30, width: 40, height: 10))
+        let snapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 100, height: 80),
+            annotations: [annotation]
+        )
+        let capture = makeCapturedScreenshot(
+            image: makeSolidImage(width: 100, height: 80, color: PixelSample(red: 255, green: 255, blue: 255, alpha: 255))
+        )
+        let controller = makeController(snapshot: snapshot, capture: capture)
+        controller.cropAspectRatioPreset = .square
+
+        controller.autoCropCurrentCrop()
+
+        XCTAssertEqual(controller.cropAspectRatioPreset, .square)
+        XCTAssertEqual(controller.snapshot.cropRect, CGRect(x: 30, y: 30, width: 40, height: 10))
+    }
+
+    @MainActor
     func testSelectedArrowControlsUpdateCurvatureHeadAndLabel() {
         let arrow = Annotation.makeArrow(from: CGPoint(x: 20, y: 20), to: CGPoint(x: 120, y: 60))
         let snapshot = makeEditorSnapshot(

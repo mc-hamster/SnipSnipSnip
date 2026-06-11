@@ -920,6 +920,18 @@ struct EditorInspectorView: View {
                 }
 
                 HStack {
+                    Button("Auto Crop") {
+                        controller.autoCropCurrentCrop()
+                    }
+                    .buttonStyle(SSSChromeButtonStyle())
+                    .help("Tighten the current crop around screenshot content and visible annotations.")
+
+                    Button("Padded") {
+                        controller.autoCropCurrentCropWithPadding()
+                    }
+                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                    .help("Tighten the current crop while keeping a small margin around screenshot content and visible annotations.")
+
                     Button("Reset Crop") {
                         controller.resetCrop()
                     }
