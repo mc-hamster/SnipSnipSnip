@@ -9,6 +9,7 @@ protocol ScreenCaptureServiceType: Sendable {
     func frontmostWindow(excluding processID: pid_t) async throws -> CaptureWindowSummary
     func resolveWindowTarget(_ window: CaptureWindowSummary, excluding processID: pid_t) async throws -> CaptureWindowSummary
     func captureCurrentDisplay() async throws -> CapturedScreenshot
+    func captureFullscreen(mode: ScreenshotFullscreenDisplayMode, selectedDisplayID: CGDirectDisplayID?) async throws -> CapturedScreenshot
     func captureDesktopOverlaySnapshot() async throws -> DesktopCompositeSnapshot
     func captureRegion(from snapshot: DesktopCompositeSnapshot, selection: CGRect) async throws -> CapturedScreenshot
     func captureRegion(in selection: CGRect) async throws -> CapturedScreenshot
@@ -49,6 +50,13 @@ extension ScreenCaptureServiceType {
 
     func captureRegionWithinSingleDisplayDirect(in selection: CGRect) async throws -> CapturedScreenshot {
         try await captureRegionDirect(in: selection)
+    }
+
+    func captureFullscreen(
+        mode: ScreenshotFullscreenDisplayMode,
+        selectedDisplayID: CGDirectDisplayID?
+    ) async throws -> CapturedScreenshot {
+        try await captureCurrentDisplay()
     }
 }
 
@@ -230,6 +238,34 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
             throw ScreenCaptureError.currentDisplayUnavailable
         }
 
+        return try await captureDisplay(display)
+    }
+
+    func captureFullscreen(
+        mode: ScreenshotFullscreenDisplayMode,
+        selectedDisplayID: CGDirectDisplayID?
+    ) async throws -> CapturedScreenshot {
+        switch mode {
+        case .currentDisplay:
+            return try await captureCurrentDisplay()
+        case .selectedDisplay:
+            let displays = try await captureDisplaySnapshots()
+            guard let display = fullscreenDisplay(
+                mode: mode,
+                selectedDisplayID: selectedDisplayID,
+                displays: displays,
+                preferredDisplayID: nil,
+                preferredPoint: nil
+            ) else {
+                throw ScreenCaptureError.currentDisplayUnavailable
+            }
+            return try await captureDisplay(display)
+        case .allDisplays:
+            return makeFullscreenCapture(from: try await captureDesktopComposite())
+        }
+    }
+
+    private func captureDisplay(_ display: DisplaySnapshot) async throws -> CapturedScreenshot {
         let image = try await captureScreenshot(in: display.frame, scale: display.scale)
 
         return CapturedScreenshot(
@@ -957,6 +993,30 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
         }
 
         return displays.first
+    }
+
+    nonisolated func fullscreenDisplay(
+        mode: ScreenshotFullscreenDisplayMode,
+        selectedDisplayID: CGDirectDisplayID?,
+        displays: [DisplaySnapshot],
+        preferredDisplayID: CGDirectDisplayID?,
+        preferredPoint: CGPoint?
+    ) -> DisplaySnapshot? {
+        switch mode {
+        case .currentDisplay, .allDisplays:
+            return currentDisplay(
+                from: displays,
+                preferredDisplayID: preferredDisplayID,
+                preferredPoint: preferredPoint
+            )
+        case .selectedDisplay:
+            return displays.first { $0.displayID == selectedDisplayID }
+                ?? currentDisplay(
+                    from: displays,
+                    preferredDisplayID: preferredDisplayID,
+                    preferredPoint: preferredPoint
+                )
+        }
     }
 
     private func desktopFrame(for displays: [DisplaySnapshot]) -> CGRect {

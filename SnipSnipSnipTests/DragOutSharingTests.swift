@@ -149,6 +149,19 @@ final class DragOutSharingTests: XCTestCase {
         )
     }
 
+    func testImageExportDestinationPanelPreservesNativePanelChrome() {
+        let nativePanel = NSSavePanel()
+        let panel = ImageExporter.destinationPanel(
+            suggestedFilename: "Screenshot.jpg",
+            format: .jpeg
+        )
+
+        XCTAssertEqual(panel.styleMask, nativePanel.styleMask)
+        XCTAssertEqual(panel.minSize, nativePanel.minSize)
+        XCTAssertEqual(panel.nameFieldStringValue, "Screenshot.jpg")
+        XCTAssertEqual(panel.allowedContentTypes, [.jpeg])
+    }
+
     func testTransparentPresentationDragOutFallsBackToPNG() {
         XCTAssertEqual(
             ImageExporter.dragOutFormat(requestedFormat: .jpeg, requiresPNGForFaithfulExport: true),
@@ -162,6 +175,81 @@ final class DragOutSharingTests: XCTestCase {
             ImageExporter.dragOutFormat(requestedFormat: .jpeg, requiresPNGForFaithfulExport: false),
             .jpeg
         )
+    }
+
+    func testImageExportOptionsClampJPEGQuality() {
+        XCTAssertEqual(ImageExportOptions.sanitizedJPEGQuality(-1), ImageExportOptions.minimumJPEGQuality)
+        XCTAssertEqual(ImageExportOptions.sanitizedJPEGQuality(2), ImageExportOptions.maximumJPEGQuality)
+        XCTAssertEqual(ImageExportOptions.sanitizedJPEGQuality(.nan), ImageExportOptions.default.jpegQuality)
+    }
+
+    func testJPEGExportUsesConfiguredQualityAndStripsMetadata() throws {
+        let image = makeCoordinateImage(
+            width: 240,
+            height: 160,
+            pattern: .weighted(xMultiplier: 17, yMultiplier: 23, includeBlueSum: true)
+        )
+
+        let lowQualityData = try ImageExporter.data(
+            for: image,
+            format: .jpeg,
+            options: ImageExportOptions(jpegQuality: 0.2)
+        )
+        let highQualityData = try ImageExporter.data(
+            for: image,
+            format: .jpeg,
+            options: ImageExportOptions(jpegQuality: 1)
+        )
+
+        XCTAssertLessThan(lowQualityData.count, highQualityData.count)
+
+        let encodingProperties = ImageExporter.metadataStrippingPropertiesForTests([
+            kCGImageDestinationLossyCompressionQuality: ImageExportOptions(jpegQuality: 0.2).sanitized.jpegQuality
+        ])
+        let encodedQuality = try XCTUnwrap(encodingProperties[kCGImageDestinationLossyCompressionQuality as String] as? CGFloat)
+        XCTAssertEqual(encodedQuality, 0.2, accuracy: 0.001)
+        XCTAssertTrue(isMissingOrEmptyMetadataDictionary(encodingProperties[kCGImagePropertyGPSDictionary as String]))
+        XCTAssertTrue(isMissingOrEmptyMetadataDictionary(encodingProperties[kCGImagePropertyExifDictionary as String]))
+        XCTAssertTrue(isMissingOrEmptyMetadataDictionary(encodingProperties[kCGImagePropertyTIFFDictionary as String]))
+        XCTAssertTrue(isMissingOrEmptyMetadataDictionary(encodingProperties[kCGImagePropertyIPTCDictionary as String]))
+    }
+
+    func testJPEGDragOutWriteUsesConfiguredQuality() async throws {
+        let capture = makeCapturedScreenshot(
+            image: makeCoordinateImage(
+                width: 240,
+                height: 160,
+                pattern: .weighted(xMultiplier: 17, yMultiplier: 23, includeBlueSum: true)
+            )
+        )
+        let controller = EditorController(capture: capture)
+        let lowQualityPayload = controller.promisedImagePayload(
+            requestedFormat: .jpeg,
+            filenameTemplate: ScreenshotFilenameTemplate(pattern: "Shared"),
+            exportOptions: ImageExportOptions(jpegQuality: 0.2)
+        )
+        let highQualityPayload = controller.promisedImagePayload(
+            requestedFormat: .jpeg,
+            filenameTemplate: ScreenshotFilenameTemplate(pattern: "Shared"),
+            exportOptions: ImageExportOptions(jpegQuality: 1)
+        )
+        let lowQualityURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("jpg")
+        let highQualityURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("jpg")
+        defer {
+            try? FileManager.default.removeItem(at: lowQualityURL)
+            try? FileManager.default.removeItem(at: highQualityURL)
+        }
+
+        try await lowQualityPayload.write(to: lowQualityURL)
+        try await highQualityPayload.write(to: highQualityURL)
+
+        let lowQualitySize = try FileManager.default.attributesOfItem(atPath: lowQualityURL.path)[.size] as? Int
+        let highQualitySize = try FileManager.default.attributesOfItem(atPath: highQualityURL.path)[.size] as? Int
+        XCTAssertLessThan(try XCTUnwrap(lowQualitySize), try XCTUnwrap(highQualitySize))
     }
 
     func testPromisedScreenshotPayloadUsesPresentationRendererAndPNGFallback() async throws {
@@ -224,6 +312,36 @@ final class DragOutSharingTests: XCTestCase {
         XCTAssertEqual(reloaded.screenshotDragOutFormat, .png)
     }
 
+    func testScreenshotJPEGQualityPreferenceDefaultsPersistsAndResets() {
+        let suiteName = "DragOutSharingTests.jpegQualityPreference"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        XCTAssertEqual(model.screenshotJPEGQuality, ImageExportOptions.default.jpegQuality)
+
+        model.screenshotJPEGQuality = 0.77
+        let reloaded = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        XCTAssertEqual(reloaded.screenshotJPEGQuality, 0.77, accuracy: 0.001)
+
+        reloaded.screenshotJPEGQuality = -1
+        XCTAssertEqual(reloaded.screenshotJPEGQuality, ImageExportOptions.minimumJPEGQuality)
+
+        reloaded.resetPreferencesToDefaults()
+        XCTAssertEqual(reloaded.screenshotJPEGQuality, ImageExportOptions.default.jpegQuality)
+    }
+
     func testVideoDragOutExportFreezesTrimRangeAndPreset() {
         let recording = CapturedVideoRecording(
             sourceURL: URL(fileURLWithPath: "/tmp/frozen-recording.mp4"),
@@ -259,5 +377,13 @@ final class DragOutSharingTests: XCTestCase {
         )
 
         XCTAssertEqual(gifExport.suggestedFilename, "\(recording.defaultFilename).gif")
+    }
+
+    private func isMissingOrEmptyMetadataDictionary(_ value: Any?) -> Bool {
+        guard let dictionary = value as? [String: Any] else {
+            return true
+        }
+
+        return dictionary.isEmpty
     }
 }

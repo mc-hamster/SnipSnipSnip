@@ -93,6 +93,12 @@ struct PendingPermissionAction {
     let action: @MainActor () -> Void
 }
 
+enum EditableRedactionSaveDecision {
+    case saveEditable
+    case exportFlattenedPNG
+    case cancel
+}
+
 enum AppModelPreferenceKey {
     static let autoCopyEnabled = "appModel.autoCopyEnabled"
     static let autoRefreshWindowsEnabled = "appModel.autoRefreshWindowsEnabled"
@@ -103,6 +109,10 @@ enum AppModelPreferenceKey {
     static let captureDelay = "appModel.captureDelay"
     static let clipboardPreferences = "appModel.clipboardPreferences"
     static let screenshotIncludesCursor = "appModel.screenshotIncludesCursor"
+    static let screenshotFullscreenDisplayMode = "appModel.screenshotFullscreenDisplayMode"
+    static let selectedScreenshotFullscreenDisplayID = "appModel.selectedScreenshotFullscreenDisplayID"
+    static let screenshotJPEGQuality = "appModel.screenshotJPEGQuality"
+    static let editorSingleKeyToolShortcutsEnabled = "appModel.editorSingleKeyToolShortcutsEnabled"
     static let completedOnboardingVersion = "appModel.completedOnboardingVersion"
     static let editorCropOutsideOverlayAlpha = "appModel.editorCropOutsideOverlayAlpha"
     static let editorOutOfCapturePatternSettings = "appModel.editorOutOfCapturePatternSettings"
@@ -111,6 +121,7 @@ enum AppModelPreferenceKey {
     static let hasPresentedWelcomeWindow = "appModel.hasPresentedWelcomeWindow"
     static let regionCaptureOverlayMode = "appModel.regionCaptureOverlayMode"
     static let regionCaptureShowsActionControls = "appModel.regionCaptureShowsActionControls"
+    static let regionCaptureAdvancedControlsEnabled = "appModel.regionCaptureAdvancedControlsEnabled"
     static let recycleBinRetentionDays = "appModel.recycleBinRetentionDays"
     static let screenInspectorPreferences = "appModel.screenInspectorPreferences"
     static let screenRulerPreferences = "appModel.screenRulerPreferences"
@@ -232,10 +243,42 @@ final class AppModel: ObservableObject {
             defaults.set(screenshotIncludesCursor, forKey: AppModelPreferenceKey.screenshotIncludesCursor)
         }
     }
+    @Published var screenshotFullscreenDisplayMode: ScreenshotFullscreenDisplayMode {
+        didSet {
+            defaults.set(screenshotFullscreenDisplayMode.rawValue, forKey: AppModelPreferenceKey.screenshotFullscreenDisplayMode)
+        }
+    }
+    @Published var selectedScreenshotFullscreenDisplayID: CGDirectDisplayID? {
+        didSet {
+            if let selectedScreenshotFullscreenDisplayID {
+                defaults.set(selectedScreenshotFullscreenDisplayID, forKey: AppModelPreferenceKey.selectedScreenshotFullscreenDisplayID)
+            } else {
+                defaults.removeObject(forKey: AppModelPreferenceKey.selectedScreenshotFullscreenDisplayID)
+            }
+        }
+    }
+    @Published var screenshotJPEGQuality: CGFloat {
+        didSet {
+            let sanitizedQuality = ImageExportOptions.sanitizedJPEGQuality(screenshotJPEGQuality)
+            guard sanitizedQuality == screenshotJPEGQuality else {
+                screenshotJPEGQuality = sanitizedQuality
+                return
+            }
+
+            defaults.set(Double(screenshotJPEGQuality), forKey: AppModelPreferenceKey.screenshotJPEGQuality)
+        }
+    }
+    @Published var editorSingleKeyToolShortcutsEnabled: Bool {
+        didSet {
+            defaults.set(editorSingleKeyToolShortcutsEnabled, forKey: AppModelPreferenceKey.editorSingleKeyToolShortcutsEnabled)
+            editorController?.editorSingleKeyToolShortcutsEnabled = editorSingleKeyToolShortcutsEnabled
+        }
+    }
     @Published var regionCapturePreferences: RegionCapturePreferences {
         didSet {
             defaults.set(regionCapturePreferences.overlayMode.rawValue, forKey: AppModelPreferenceKey.regionCaptureOverlayMode)
             defaults.set(regionCapturePreferences.showsActionControls, forKey: AppModelPreferenceKey.regionCaptureShowsActionControls)
+            defaults.set(regionCapturePreferences.advancedControlsEnabled, forKey: AppModelPreferenceKey.regionCaptureAdvancedControlsEnabled)
         }
     }
     @Published var screenshotFilenameTemplate: String {
@@ -400,6 +443,8 @@ final class AppModel: ObservableObject {
     var savedVideoSession: VideoEditorSession?
     var pendingEditorAction: (() -> Void)?
     var pendingPermissionAction: PendingPermissionAction?
+    var editableRedactionSaveConfirmationHandler: @MainActor () -> EditableRedactionSaveDecision = AppModel.presentEditableRedactionSaveConfirmation
+    var editableRedactionSaveWarningAcknowledgedEditorIDs: Set<ObjectIdentifier> = []
     var lastAutosavedState: AutosaveState?
     var capturePrivacyLockDepth = 0
     var interactiveCaptureAutosaveSuspensionDepth = 0
@@ -440,10 +485,20 @@ final class AppModel: ObservableObject {
         self.clipboardMonitor = ClipboardMonitor(store: clipboardHistoryStore)
         self.clipboardPreferences = Self.loadClipboardPreferences(from: defaults)
         self.screenshotIncludesCursor = defaults.object(forKey: AppModelPreferenceKey.screenshotIncludesCursor) as? Bool ?? false
+        self.screenshotFullscreenDisplayMode = defaults.string(forKey: AppModelPreferenceKey.screenshotFullscreenDisplayMode)
+            .flatMap(ScreenshotFullscreenDisplayMode.init(rawValue:)) ?? .currentDisplay
+        if let selectedDisplayNumber = defaults.object(forKey: AppModelPreferenceKey.selectedScreenshotFullscreenDisplayID) as? NSNumber {
+            self.selectedScreenshotFullscreenDisplayID = CGDirectDisplayID(selectedDisplayNumber.uint32Value)
+        } else {
+            self.selectedScreenshotFullscreenDisplayID = nil
+        }
+        self.screenshotJPEGQuality = Self.loadScreenshotJPEGQuality(from: defaults)
+        self.editorSingleKeyToolShortcutsEnabled = defaults.object(forKey: AppModelPreferenceKey.editorSingleKeyToolShortcutsEnabled) as? Bool ?? true
         self.regionCapturePreferences = RegionCapturePreferences(
             overlayMode: (defaults.object(forKey: AppModelPreferenceKey.regionCaptureOverlayMode) as? Int)
                 .flatMap(RegionCaptureOverlayMode.init(rawValue:)) ?? .crosshairAndMagnifyingGlass,
-            showsActionControls: defaults.object(forKey: AppModelPreferenceKey.regionCaptureShowsActionControls) as? Bool ?? false
+            showsActionControls: defaults.object(forKey: AppModelPreferenceKey.regionCaptureShowsActionControls) as? Bool ?? false,
+            advancedControlsEnabled: defaults.object(forKey: AppModelPreferenceKey.regionCaptureAdvancedControlsEnabled) as? Bool ?? false
         )
         self.screenshotFilenameTemplate = defaults.string(forKey: AppModelPreferenceKey.screenshotFilenameTemplate) ?? ScreenshotFilenameTemplate.defaultPattern
         self.screenshotDragOutFormat = defaults.string(forKey: AppModelPreferenceKey.screenshotDragOutFormat)
@@ -728,6 +783,10 @@ final class AppModel: ObservableObject {
         clipboardSearchQuery = ""
         clipboardFilter = .all
         screenshotIncludesCursor = false
+        screenshotFullscreenDisplayMode = .currentDisplay
+        selectedScreenshotFullscreenDisplayID = nil
+        screenshotJPEGQuality = ImageExportOptions.default.jpegQuality
+        editorSingleKeyToolShortcutsEnabled = true
         regionCapturePreferences = RegionCapturePreferences()
         screenshotFilenameTemplate = ScreenshotFilenameTemplate.defaultPattern
         screenshotDragOutFormat = .png
@@ -775,6 +834,14 @@ final class AppModel: ObservableObject {
         }
 
         return clampedEditorCropOutsideOverlayAlpha(CGFloat(configuredValue))
+    }
+
+    private static func loadScreenshotJPEGQuality(from defaults: UserDefaults) -> CGFloat {
+        guard let configuredValue = defaults.object(forKey: AppModelPreferenceKey.screenshotJPEGQuality) as? Double else {
+            return ImageExportOptions.default.jpegQuality
+        }
+
+        return ImageExportOptions.sanitizedJPEGQuality(CGFloat(configuredValue))
     }
 
     private static func loadEditorOutOfCapturePatternSettings(from defaults: UserDefaults) -> EditorOutOfCapturePatternSettings {
@@ -825,6 +892,25 @@ final class AppModel: ObservableObject {
             dotOpacity: min(max(settings.dotOpacity, 0.05), 1),
             dotDiameter: min(max(settings.dotDiameter, 2), 12)
         )
+    }
+
+    private static func presentEditableRedactionSaveConfirmation() -> EditableRedactionSaveDecision {
+        let alert = NSAlert()
+        alert.messageText = "Save editable document with redactions?"
+        alert.informativeText = ".sss keeps original unredacted pixels. Use Copy, Share, or Export for flattened redactions."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Save Editable Anyway")
+        alert.addButton(withTitle: "Export Flattened PNG")
+        alert.addButton(withTitle: "Cancel")
+
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            return .saveEditable
+        case .alertSecondButtonReturn:
+            return .exportFlattenedPNG
+        default:
+            return .cancel
+        }
     }
 
     func updateEditorCropOutsideOverlayAlpha(_ value: CGFloat) {

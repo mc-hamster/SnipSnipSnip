@@ -45,6 +45,28 @@ nonisolated enum ImageExportWriteMode {
     case direct
 }
 
+nonisolated struct ImageExportOptions: Equatable {
+    static let `default` = ImageExportOptions()
+    static let minimumJPEGQuality: CGFloat = 0.1
+    static let maximumJPEGQuality: CGFloat = 1
+
+    var jpegQuality: CGFloat = 0.9
+
+    var sanitized: ImageExportOptions {
+        var copy = self
+        copy.jpegQuality = Self.sanitizedJPEGQuality(copy.jpegQuality)
+        return copy
+    }
+
+    static func sanitizedJPEGQuality(_ value: CGFloat) -> CGFloat {
+        guard value.isFinite else {
+            return ImageExportOptions.default.jpegQuality
+        }
+
+        return min(max(value, minimumJPEGQuality), maximumJPEGQuality)
+    }
+}
+
 enum ImageExportError: LocalizedError {
     case encodingFailed
     case pdfEncodingFailed
@@ -91,10 +113,12 @@ enum ImageExporter {
         try encodedData(for: image, plan: encodingPlan(for: .png))
     }
 
-    nonisolated static func jpegData(for image: CGImage, compressionFactor: CGFloat = 0.9) throws -> Data {
+    nonisolated static func jpegData(for image: CGImage, compressionFactor: CGFloat = ImageExportOptions.default.jpegQuality) throws -> Data {
         try encodedData(for: image, plan: .imageIO(
             type: .jpeg,
-            properties: metadataStrippingProperties([kCGImageDestinationLossyCompressionQuality: compressionFactor])
+            properties: metadataStrippingProperties([
+                kCGImageDestinationLossyCompressionQuality: ImageExportOptions.sanitizedJPEGQuality(compressionFactor)
+            ])
         ))
     }
 
@@ -115,8 +139,18 @@ enum ImageExporter {
         return data as Data
     }
 
-    nonisolated static func data(for image: CGImage, format: ImageExportFormat) throws -> Data {
-        try encodedData(for: image, plan: encodingPlan(for: format))
+    #if DEBUG
+    nonisolated static func metadataStrippingPropertiesForTests(_ extra: [CFString: Any] = [:]) -> [String: Any] {
+        metadataStrippingProperties(extra) as NSDictionary as? [String: Any] ?? [:]
+    }
+    #endif
+
+    nonisolated static func data(
+        for image: CGImage,
+        format: ImageExportFormat,
+        options: ImageExportOptions = .default
+    ) throws -> Data {
+        try encodedData(for: image, plan: encodingPlan(for: format, options: options.sanitized))
     }
 
     static func copyToClipboard(_ image: CGImage) throws {
@@ -130,35 +164,52 @@ enum ImageExporter {
     }
 
     @MainActor
-    static func save(_ image: CGImage, suggestedFilename: String, format: ImageExportFormat) async throws {
-        guard let url = destinationURL(suggestedFilename: suggestedFilename, format: format) else {
+    static func save(
+        _ image: CGImage,
+        suggestedFilename: String,
+        format: ImageExportFormat,
+        options: ImageExportOptions = .default
+    ) async throws {
+        guard let url = await destinationURL(suggestedFilename: suggestedFilename, format: format) else {
             return
         }
 
-        try await write(image, format: format, to: url)
+        try await write(image, format: format, to: url, options: options)
     }
 
     @MainActor
-    static func destinationURL(suggestedFilename: String, format: ImageExportFormat) -> URL? {
+    static func destinationURL(suggestedFilename: String, format: ImageExportFormat) async -> URL? {
+        let panel = destinationPanel(suggestedFilename: suggestedFilename, format: format)
+        return await presentSavePanel(panel)
+    }
+
+    @MainActor
+    static func presentSavePanel(_ panel: NSSavePanel) async -> URL? {
+        await withCheckedContinuation { continuation in
+            panel.begin { response in
+                continuation.resume(returning: response == .OK ? panel.url : nil)
+            }
+        }
+    }
+
+    @MainActor
+    static func destinationPanel(suggestedFilename: String, format: ImageExportFormat) -> NSSavePanel {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [format.contentType]
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
         panel.nameFieldStringValue = suggestedFilenameForPanel(from: suggestedFilename, format: format)
-
-        guard panel.runModal() == .OK else {
-            return nil
-        }
-
-        return panel.url
+        return panel
     }
 
     nonisolated static func write(
         _ image: CGImage,
         format: ImageExportFormat,
         to url: URL,
-        mode: ImageExportWriteMode = .stagedReplacement
+        mode: ImageExportWriteMode = .stagedReplacement,
+        options: ImageExportOptions = .default
     ) async throws {
+        let sanitizedOptions = options.sanitized
         let task = Task.detached(priority: .userInitiated) {
             try Task.checkCancellation()
             let outputURL = mode == .direct ? url : stagingURL(for: url)
@@ -172,11 +223,11 @@ enum ImageExporter {
 
             do {
                 if mode == .direct {
-                    let encodedData = try data(for: image, format: format)
+                    let encodedData = try data(for: image, format: format, options: sanitizedOptions)
                     try Task.checkCancellation()
                     try encodedData.write(to: outputURL)
                 } else {
-                    try encodedWrite(for: image, plan: encodingPlan(for: format), to: outputURL)
+                    try encodedWrite(for: image, plan: encodingPlan(for: format, options: sanitizedOptions), to: outputURL)
                 }
 
                 try Task.checkCancellation()
@@ -218,14 +269,19 @@ enum ImageExporter {
         return "\(normalizedBaseName).\(format.fileExtension)"
     }
 
-    nonisolated private static func encodingPlan(for format: ImageExportFormat) -> EncodingPlan {
+    nonisolated private static func encodingPlan(
+        for format: ImageExportFormat,
+        options: ImageExportOptions = .default
+    ) -> EncodingPlan {
         switch format {
         case .png:
             return .imageIO(type: .png, properties: metadataStrippingProperties())
         case .jpeg:
             return .imageIO(
                 type: .jpeg,
-                properties: metadataStrippingProperties([kCGImageDestinationLossyCompressionQuality: 0.9])
+                properties: metadataStrippingProperties([
+                    kCGImageDestinationLossyCompressionQuality: options.sanitized.jpegQuality
+                ])
             )
         case .pdf:
             return .pdf

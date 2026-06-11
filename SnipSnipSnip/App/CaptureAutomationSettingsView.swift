@@ -39,24 +39,28 @@ struct CaptureAutomationSettingsView: View {
                     SettingsHelpText("Replay onboarding whenever you want a guided walkthrough. Support requests and feature requests go through Discord.")
                 }
 
-                Section("Capture Shortcuts") {
-                    Toggle("Enable Global Capture Hotkeys", isOn: automationBinding(\.globalHotkeysEnabled))
+                Section("Screenshot Capture") {
+                    Toggle("Include Cursor as Editable Overlay", isOn: $model.screenshotIncludesCursor)
+                    SettingsHelpText("When enabled, region, window, frontmost-window, fullscreen, and repeat screenshots add the current cursor as a movable, resizable, removable overlay. Scrolling Capture always excludes the cursor while stitching.")
 
-                    ForEach(GlobalHotKeyAction.allCases, id: \.rawValue) { action in
-                        Picker(action.label + " Hotkey", selection: automationHotKeyBinding(for: action)) {
-                            ForEach(GlobalHotKeyKey.allCases) { key in
-                                Text("Command-Shift-" + key.label).tag(key)
+                    Toggle("Enable Precision Region Controls", isOn: regionCaptureBinding(\.advancedControlsEnabled))
+                    SettingsHelpText("Keep this off for the fastest drag-to-capture workflow. When enabled, region capture pauses after dragging so you can resize, type dimensions, lock aspect ratio, nudge with arrow keys, then press Return to capture.")
+
+                    Picker("Fullscreen Screenshot", selection: $model.screenshotFullscreenDisplayMode) {
+                        ForEach(ScreenshotFullscreenDisplayMode.allCases) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+
+                    if model.screenshotFullscreenDisplayMode == .selectedDisplay {
+                        Picker("Selected Display", selection: selectedScreenshotDisplayIDBinding) {
+                            ForEach(availableDisplayOptions(preferredID: model.selectedScreenshotFullscreenDisplayID)) { option in
+                                Text(option.name).tag(Optional(option.id))
                             }
                         }
                     }
 
-                    SettingsHelpText("Global hotkeys run while SnipSnipSnip is not frontmost, so the active app keeps those shortcuts when SnipSnipSnip is already focused.")
-                    SettingsHelpText("Captures open in the editor, and global hotkeys let you trigger Region, Window, Fullscreen, Frontmost Window, Repeat, and Screen Inspector without bringing SnipSnipSnip to the front first.")
-                }
-
-                Section("Screenshot Capture") {
-                    Toggle("Include Cursor as Editable Overlay", isOn: $model.screenshotIncludesCursor)
-                    SettingsHelpText("When enabled, region, window, frontmost-window, fullscreen, and repeat screenshots add the current cursor as a movable, resizable, removable overlay. Scrolling Capture always excludes the cursor while stitching.")
+                    SettingsHelpText(model.screenshotFullscreenDisplayMode.detail)
 
                     if FeatureFlags.uiMapEnabled {
                         Toggle("Enable UI Map for Window captures", isOn: uiMapBinding)
@@ -92,11 +96,6 @@ struct CaptureAutomationSettingsView: View {
                 }
 
                 Section("Screen Ruler") {
-                    HStack(spacing: 10) {
-                        Button("New Horizontal", action: { model.presentScreenRuler(.horizontal) })
-                        Button("New Vertical", action: { model.presentScreenRuler(.vertical) })
-                    }
-
                     if model.screenRulerCoordinator.hasActiveRulers {
                         Button("Close All Screen Rulers", action: model.closeAllScreenRulers)
                     }
@@ -183,14 +182,25 @@ struct CaptureAutomationSettingsView: View {
                     SettingsHelpText("Filename tokens: {kind}, {source}, {width}, {height}, {format}, and date patterns such as {yyyy-MM-dd-HH-mm-ss}.")
                 }
 
-                Section("Drag-Out Sharing") {
+                Section("Export & Sharing") {
                     Picker("Screenshot Format", selection: $model.screenshotDragOutFormat) {
                         ForEach(ImageExportFormat.allCases) { format in
                             Text(format.label).tag(format)
                         }
                     }
 
-                    SettingsHelpText("Drag the file icon from the screenshot editor to share a rendered image. Transparent presentation shadows automatically use PNG so the styled result stays faithful.")
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("JPEG Quality")
+                            Spacer(minLength: 12)
+                            Text("\(Int(round(model.screenshotJPEGQuality * 100)))%")
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Slider(value: screenshotJPEGQualityBinding, in: ImageExportOptions.minimumJPEGQuality...ImageExportOptions.maximumJPEGQuality, step: 0.01)
+                    }
+
+                    SettingsHelpText("Drag the file icon from the screenshot editor to share a rendered image. JPEG quality applies to Export JPEG and JPEG drag-out sharing. Transparent presentation shadows automatically use PNG so the styled result stays faithful.")
                 }
 
                 Section("Editor") {
@@ -260,6 +270,39 @@ struct CaptureAutomationSettingsView: View {
             .tag(SettingsTab.general)
 
             SettingsTabContainer(
+                title: "Shortcuts",
+                summary: "Global capture hotkeys and built-in keyboard shortcuts are centralized here."
+            ) {
+                Section("Global Capture Hotkeys") {
+                    Toggle("Enable Global Capture Hotkeys", isOn: automationBinding(\.globalHotkeysEnabled))
+
+                    ForEach(GlobalHotKeyAction.allCases, id: \.rawValue) { action in
+                        Picker(action.label + " Hotkey", selection: automationHotKeyBinding(for: action)) {
+                            ForEach(GlobalHotKeyKey.allCases) { key in
+                                Text("Command-Shift-" + key.label).tag(key)
+                            }
+                        }
+                    }
+
+                    SettingsHelpText("Global hotkeys run while SnipSnipSnip is not frontmost, so the active app keeps those shortcuts when SnipSnipSnip is already focused.")
+                }
+
+                Section("Editor Shortcuts") {
+                    Toggle("Enable Single-Key Tool Shortcuts", isOn: $model.editorSingleKeyToolShortcutsEnabled)
+                    SettingsHelpText("Single-key tool shortcuts work only when the screenshot canvas has focus and text entry is not active.")
+                }
+
+                Section("Shortcut Reference") {
+                    ShortcutCatalogListView(sections: AppShortcut.catalogSections)
+                    SettingsHelpText("Default global capture hotkeys can be changed above. Built-in app and editor shortcuts are fixed in this version.")
+                }
+            }
+            .tabItem {
+                Label("Shortcuts", systemImage: "keyboard")
+            }
+            .tag(SettingsTab.shortcuts)
+
+            SettingsTabContainer(
                 title: "Recording",
                 summary: "Video quality, frame rate, and optional capture sources are grouped here."
             ) {
@@ -287,8 +330,8 @@ struct CaptureAutomationSettingsView: View {
                     }
 
                     if model.videoRecordingPreferences.fullscreenDisplayMode == .selectedDisplay {
-                        Picker("Selected Display", selection: selectedDisplayIDBinding) {
-                            ForEach(availableDisplayOptions) { option in
+                        Picker("Selected Display", selection: selectedRecordingDisplayIDBinding) {
+                            ForEach(availableDisplayOptions(preferredID: model.videoRecordingPreferences.selectedFullscreenDisplayID)) { option in
                                 Text(option.name).tag(Optional(option.id))
                             }
                         }
@@ -529,7 +572,7 @@ struct CaptureAutomationSettingsView: View {
                     }
                     .disabled(!model.canResetPreferencesToDefaults)
 
-                    SettingsHelpText("This restores capture, recording, drag-out sharing, archive, recycle-bin, naming, and privacy settings to their default values. It does not delete archived captures or recycle-bin items.")
+                    SettingsHelpText("This restores capture, shortcuts, recording, export and sharing, archive, recycle-bin, naming, and privacy settings to their default values. It does not delete archived captures or recycle-bin items.")
                 }
             }
             .tabItem {
@@ -588,6 +631,17 @@ struct CaptureAutomationSettingsView: View {
                 var preferences = model.automationPreferences
                 preferences.setKey(newKey, for: action)
                 model.automationPreferences = preferences
+            }
+        )
+    }
+
+    private func regionCaptureBinding<Value>(_ keyPath: WritableKeyPath<RegionCapturePreferences, Value>) -> Binding<Value> {
+        Binding(
+            get: { model.regionCapturePreferences[keyPath: keyPath] },
+            set: { newValue in
+                var preferences = model.regionCapturePreferences
+                preferences[keyPath: keyPath] = newValue
+                model.regionCapturePreferences = preferences
             }
         )
     }
@@ -777,16 +831,42 @@ struct CaptureAutomationSettingsView: View {
         )
     }
 
-    private var selectedDisplayIDBinding: Binding<UInt32?> {
+    private var screenshotJPEGQualityBinding: Binding<Double> {
+        Binding(
+            get: { Double(model.screenshotJPEGQuality) },
+            set: { model.screenshotJPEGQuality = CGFloat($0) }
+        )
+    }
+
+    private var selectedScreenshotDisplayIDBinding: Binding<UInt32?> {
         Binding(
             get: {
-                let selectedID = model.videoRecordingPreferences.selectedFullscreenDisplayID
+                let selectedID = model.selectedScreenshotFullscreenDisplayID
+                let options = availableDisplayOptions(preferredID: selectedID)
                 if let selectedID,
-                   availableDisplayOptions.contains(where: { $0.id == selectedID }) {
+                   options.contains(where: { $0.id == selectedID }) {
                     return selectedID
                 }
 
-                return availableDisplayOptions.first?.id
+                return options.first?.id
+            },
+            set: { newValue in
+                model.selectedScreenshotFullscreenDisplayID = newValue
+            }
+        )
+    }
+
+    private var selectedRecordingDisplayIDBinding: Binding<UInt32?> {
+        Binding(
+            get: {
+                let selectedID = model.videoRecordingPreferences.selectedFullscreenDisplayID
+                let options = availableDisplayOptions(preferredID: selectedID)
+                if let selectedID,
+                   options.contains(where: { $0.id == selectedID }) {
+                    return selectedID
+                }
+
+                return options.first?.id
             },
             set: { newValue in
                 var preferences = model.videoRecordingPreferences
@@ -796,9 +876,8 @@ struct CaptureAutomationSettingsView: View {
         )
     }
 
-    private var availableDisplayOptions: [DisplayOption] {
+    private func availableDisplayOptions(preferredID: UInt32?) -> [DisplayOption] {
         let screens = NSScreen.screens
-        let preferredID = model.videoRecordingPreferences.selectedFullscreenDisplayID
         let options = screens.enumerated().compactMap { entry -> DisplayOption? in
             let (index, screen) = entry
             guard let displayID = screen.gscDisplayID else {
@@ -819,6 +898,7 @@ struct CaptureAutomationSettingsView: View {
 
 private enum SettingsTab: Hashable {
     case general
+    case shortcuts
     case recording
     case archive
     case clipboard
@@ -828,6 +908,35 @@ private enum SettingsTab: Hashable {
 private struct DisplayOption: Identifiable {
     let id: UInt32
     let name: String
+}
+
+private struct ShortcutCatalogListView: View {
+    let sections: [ShortcutCatalogSection]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(sections) { section in
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(section.title)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    ForEach(section.entries) { entry in
+                        HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            Text(entry.keys)
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.primary)
+                                .frame(minWidth: 148, alignment: .leading)
+
+                            Text(entry.action)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 private struct SettingsTabContainer<Content: View>: View {

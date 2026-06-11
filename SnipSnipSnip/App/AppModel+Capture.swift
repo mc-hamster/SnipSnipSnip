@@ -467,7 +467,10 @@ extension AppModel {
     func beginFullscreenCapture() {
         Task {
             await performCapture(request: .fullscreen, minimizeAppWindow: true) {
-                try await captureService.captureCurrentDisplay()
+                try await captureService.captureFullscreen(
+                    mode: screenshotFullscreenDisplayMode,
+                    selectedDisplayID: selectedScreenshotFullscreenDisplayID
+                )
             }
         }
     }

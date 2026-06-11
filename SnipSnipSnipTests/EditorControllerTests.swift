@@ -478,6 +478,39 @@ final class EditorControllerTests: XCTestCase {
         XCTAssertEqual(controller.activeTool, .rectangle)
     }
 
+    func testContainsRedactionsReflectsEditableRedactionAnnotations() {
+        let rectangle = Annotation.makeRectangle(in: CGRect(x: 10, y: 10, width: 60, height: 40))
+        let redaction = Annotation.makeSolidRedaction(in: CGRect(x: 80, y: 10, width: 60, height: 40))
+
+        XCTAssertFalse(makeController(snapshot: makeEditorSnapshot(annotations: [rectangle])).containsRedactions)
+        XCTAssertTrue(makeController(snapshot: makeEditorSnapshot(annotations: [rectangle, redaction])).containsRedactions)
+    }
+
+    func testNudgeSelectedAnnotationsMovesSelectionThroughUndoableCommand() {
+        let selected = Annotation.makeRectangle(in: CGRect(x: 10, y: 20, width: 60, height: 40))
+        let unselected = Annotation.makeEllipse(in: CGRect(x: 100, y: 20, width: 60, height: 40))
+        let snapshot = makeEditorSnapshot(
+            annotations: [selected, unselected],
+            selectedAnnotationIDs: [selected.id]
+        )
+        let controller = makeController(snapshot: snapshot)
+
+        controller.nudgeSelectedAnnotations(by: CGSize(width: 3, height: -2))
+
+        XCTAssertEqual(controller.snapshot.annotations[0].boundingRect, CGRect(x: 13, y: 18, width: 60, height: 40))
+        XCTAssertEqual(controller.snapshot.annotations[1].boundingRect, unselected.boundingRect)
+        XCTAssertTrue(controller.canUndo)
+
+        controller.undo()
+
+        XCTAssertEqual(controller.snapshot.annotations[0].boundingRect, selected.boundingRect)
+        XCTAssertEqual(controller.snapshot.annotations[1].boundingRect, unselected.boundingRect)
+
+        controller.redo()
+
+        XCTAssertEqual(controller.snapshot.annotations[0].boundingRect, CGRect(x: 13, y: 18, width: 60, height: 40))
+    }
+
     func testUpdateRedactionModeFallsBackToMatchingActiveToolWithoutSelection() {
         let controller = makeController()
 

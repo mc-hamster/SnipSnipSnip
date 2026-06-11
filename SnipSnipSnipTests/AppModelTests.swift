@@ -71,6 +71,162 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(model.screenshotCapturePermissionRequirements(for: .window(makeCaptureWindow(id: 1))), [.screenRecording])
     }
 
+    func testEverydayWorkflowPreferencesDefaultPersistAndReset() {
+        let suiteName = "AppModelTests.everydayWorkflowPreferences"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+
+        XCTAssertEqual(model.screenshotFullscreenDisplayMode, .currentDisplay)
+        XCTAssertNil(model.selectedScreenshotFullscreenDisplayID)
+        XCTAssertEqual(model.screenshotJPEGQuality, ImageExportOptions.default.jpegQuality)
+        XCTAssertTrue(model.editorSingleKeyToolShortcutsEnabled)
+        XCTAssertFalse(model.regionCapturePreferences.advancedControlsEnabled)
+
+        model.screenshotFullscreenDisplayMode = .selectedDisplay
+        model.selectedScreenshotFullscreenDisplayID = 42
+        model.screenshotJPEGQuality = 0.66
+        model.editorSingleKeyToolShortcutsEnabled = false
+        var regionPreferences = model.regionCapturePreferences
+        regionPreferences.advancedControlsEnabled = true
+        model.regionCapturePreferences = regionPreferences
+
+        let reloaded = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+
+        XCTAssertEqual(reloaded.screenshotFullscreenDisplayMode, .selectedDisplay)
+        XCTAssertEqual(reloaded.selectedScreenshotFullscreenDisplayID, 42)
+        XCTAssertEqual(reloaded.screenshotJPEGQuality, 0.66, accuracy: 0.001)
+        XCTAssertFalse(reloaded.editorSingleKeyToolShortcutsEnabled)
+        XCTAssertTrue(reloaded.regionCapturePreferences.advancedControlsEnabled)
+
+        reloaded.resetPreferencesToDefaults()
+
+        XCTAssertEqual(reloaded.screenshotFullscreenDisplayMode, .currentDisplay)
+        XCTAssertNil(reloaded.selectedScreenshotFullscreenDisplayID)
+        XCTAssertEqual(reloaded.screenshotJPEGQuality, ImageExportOptions.default.jpegQuality)
+        XCTAssertTrue(reloaded.editorSingleKeyToolShortcutsEnabled)
+        XCTAssertFalse(reloaded.regionCapturePreferences.advancedControlsEnabled)
+    }
+
+    func testEditableRedactionSaveGateSkipsPromptWithoutRedactions() {
+        let suiteName = "AppModelTests.editableRedactionSaveGateNoRedactions"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        let controller = EditorController(capture: makeCapturedScreenshot())
+        var promptCount = 0
+        model.editableRedactionSaveConfirmationHandler = {
+            promptCount += 1
+            return .cancel
+        }
+
+        XCTAssertTrue(model.handleEditableRedactionSaveIfNeeded(for: controller))
+        XCTAssertEqual(promptCount, 0)
+    }
+
+    func testEditableRedactionSaveGatePromptsOnceWhenEditableSaveIsAllowed() {
+        let suiteName = "AppModelTests.editableRedactionSaveGatePromptsOnce"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        let redaction = Annotation.makeSolidRedaction(in: CGRect(x: 10, y: 10, width: 40, height: 30))
+        let snapshot = makeEditorSnapshot(annotations: [redaction])
+        let controller = EditorController(
+            capture: makeCapturedScreenshot(),
+            session: makeEditorDocumentSession(initialSnapshot: snapshot, currentSnapshot: snapshot)
+        )
+        var promptCount = 0
+        model.editableRedactionSaveConfirmationHandler = {
+            promptCount += 1
+            return .saveEditable
+        }
+
+        XCTAssertTrue(model.handleEditableRedactionSaveIfNeeded(for: controller))
+        XCTAssertTrue(model.handleEditableRedactionSaveIfNeeded(for: controller))
+        XCTAssertEqual(promptCount, 1)
+    }
+
+    func testEditableRedactionSaveGateCancelsOrExportsWithoutAllowingEditableSave() {
+        let suiteName = "AppModelTests.editableRedactionSaveGateCancelExport"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        let redaction = Annotation.makeSolidRedaction(in: CGRect(x: 10, y: 10, width: 40, height: 30))
+        let snapshot = makeEditorSnapshot(annotations: [redaction])
+        let controller = EditorController(
+            capture: makeCapturedScreenshot(),
+            session: makeEditorDocumentSession(initialSnapshot: snapshot, currentSnapshot: snapshot)
+        )
+        var decisions: [EditableRedactionSaveDecision] = [.cancel, .exportFlattenedPNG]
+        model.editableRedactionSaveConfirmationHandler = {
+            decisions.removeFirst()
+        }
+
+        XCTAssertFalse(model.handleEditableRedactionSaveIfNeeded(for: controller))
+        XCTAssertFalse(model.handleEditableRedactionSaveIfNeeded(for: controller))
+        XCTAssertTrue(decisions.isEmpty)
+    }
+
+    func testAutosaveStyleEditableDocumentWriteDoesNotPromptForRedactions() async {
+        let suiteName = "AppModelTests.autosaveStyleRedactionWrite"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            .appendingPathExtension("sss")
+        defer { try? FileManager.default.removeItem(at: outputURL) }
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        let redaction = Annotation.makeSolidRedaction(in: CGRect(x: 10, y: 10, width: 40, height: 30))
+        let snapshot = makeEditorSnapshot(annotations: [redaction])
+        let controller = EditorController(
+            capture: makeCapturedScreenshot(),
+            session: makeEditorDocumentSession(initialSnapshot: snapshot, currentSnapshot: snapshot)
+        )
+        var promptCount = 0
+        model.editableRedactionSaveConfirmationHandler = {
+            promptCount += 1
+            return .cancel
+        }
+
+        let didSave = await model.saveDocument(controller, to: outputURL)
+
+        XCTAssertTrue(didSave)
+        XCTAssertEqual(promptCount, 0)
+    }
+
     func testUIMapCaptureEligibilityRequiresWindowIdentityAndAccessibility() {
         let suiteName = "AppModelTests.uiMapEligibility"
         let defaults = makeDefaults(named: suiteName)

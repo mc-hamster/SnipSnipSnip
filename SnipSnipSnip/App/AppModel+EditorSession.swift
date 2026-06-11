@@ -58,7 +58,8 @@ extension AppModel {
     func exportAnnotatedImage(as format: ImageExportFormat) {
         editorController?.saveAnnotatedImage(
             format: format,
-            filenameTemplate: ScreenshotFilenameTemplate(pattern: screenshotFilenameTemplate)
+            filenameTemplate: ScreenshotFilenameTemplate(pattern: screenshotFilenameTemplate),
+            exportOptions: screenshotImageExportOptions
         )
     }
 
@@ -107,8 +108,13 @@ extension AppModel {
     func promisedAnnotatedImagePayload() -> PromisedFilePayload? {
         editorController?.promisedImagePayload(
             requestedFormat: screenshotDragOutFormat,
-            filenameTemplate: ScreenshotFilenameTemplate(pattern: screenshotFilenameTemplate)
+            filenameTemplate: ScreenshotFilenameTemplate(pattern: screenshotFilenameTemplate),
+            exportOptions: screenshotImageExportOptions
         )
+    }
+
+    var screenshotImageExportOptions: ImageExportOptions {
+        ImageExportOptions(jpegQuality: screenshotJPEGQuality)
     }
 
     func confirmSaveBeforeContinuing() {
@@ -319,6 +325,7 @@ extension AppModel {
             AutosaveState(controller: controller, documentURL: documentURL)
         }
         lastAutosavedState = nil
+        controller.editorSingleKeyToolShortcutsEnabled = editorSingleKeyToolShortcutsEnabled
         controller.updateCropOutsideOverlayAlpha(editorCropOutsideOverlayAlpha)
         controller.updateOutOfCapturePatternSettings(editorOutOfCapturePatternSettings)
         editorController = controller
@@ -381,12 +388,16 @@ extension AppModel {
             return false
         }
 
+        guard handleEditableRedactionSaveIfNeeded(for: controller) else {
+            return false
+        }
+
         let targetURL: URL
 
         if let currentDocumentURL {
             targetURL = currentDocumentURL
         } else {
-            guard let selectedURL = presentSaveDocumentPanel(suggestedFilename: ScreenshotFilenameTemplate(pattern: screenshotFilenameTemplate).resolvedFilename(for: controller.capture, formatExtension: "sss")) else {
+            guard let selectedURL = await presentSaveDocumentPanel(suggestedFilename: ScreenshotFilenameTemplate(pattern: screenshotFilenameTemplate).resolvedFilename(for: controller.capture, formatExtension: "sss")) else {
                 return false
             }
 
@@ -406,14 +417,41 @@ extension AppModel {
             return false
         }
 
+        guard handleEditableRedactionSaveIfNeeded(for: controller) else {
+            return false
+        }
+
         let suggestedFilename = currentDocumentURL?.deletingPathExtension().lastPathComponent
             ?? ScreenshotFilenameTemplate(pattern: screenshotFilenameTemplate).resolvedFilename(for: controller.capture, formatExtension: "sss")
 
-        guard let selectedURL = presentSaveDocumentPanel(suggestedFilename: suggestedFilename) else {
+        guard let selectedURL = await presentSaveDocumentPanel(suggestedFilename: suggestedFilename) else {
             return false
         }
 
         return await saveDocument(controller, to: selectedURL)
+    }
+
+    @discardableResult
+    func handleEditableRedactionSaveIfNeeded(for controller: EditorController) -> Bool {
+        guard controller.containsRedactions else {
+            return true
+        }
+
+        let controllerID = ObjectIdentifier(controller)
+        guard !editableRedactionSaveWarningAcknowledgedEditorIDs.contains(controllerID) else {
+            return true
+        }
+
+        switch editableRedactionSaveConfirmationHandler() {
+        case .saveEditable:
+            editableRedactionSaveWarningAcknowledgedEditorIDs.insert(controllerID)
+            return true
+        case .exportFlattenedPNG:
+            exportAnnotatedImage(as: .png)
+            return false
+        case .cancel:
+            return false
+        }
     }
 
     @discardableResult
@@ -460,7 +498,7 @@ extension AppModel {
         if let currentDocumentURL {
             targetURL = currentDocumentURL
         } else {
-            guard let selectedURL = presentSaveDocumentPanel(
+            guard let selectedURL = await presentSaveDocumentPanel(
                 suggestedFilename: controller.recording.defaultFilename,
                 contentType: .snipSnipVideoDocument
             ) else {
@@ -477,7 +515,7 @@ extension AppModel {
     func saveCurrentVideoDocumentAs(_ controller: VideoEditorController) async -> Bool {
         let suggestedFilename = currentDocumentURL?.deletingPathExtension().lastPathComponent ?? controller.recording.defaultFilename
 
-        guard let selectedURL = presentSaveDocumentPanel(
+        guard let selectedURL = await presentSaveDocumentPanel(
             suggestedFilename: suggestedFilename,
             contentType: .snipSnipVideoDocument
         ) else {
@@ -548,18 +586,14 @@ extension AppModel {
         importImage(from: url)
     }
 
-    func presentSaveDocumentPanel(suggestedFilename: String, contentType: UTType = .snipSnipDocument) -> URL? {
+    func presentSaveDocumentPanel(suggestedFilename: String, contentType: UTType = .snipSnipDocument) async -> URL? {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [contentType]
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
         panel.nameFieldStringValue = suggestedFilename
 
-        guard panel.runModal() == .OK else {
-            return nil
-        }
-
-        return panel.url
+        return await ImageExporter.presentSavePanel(panel)
     }
 
     func loadDocument(from url: URL) {

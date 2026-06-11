@@ -391,13 +391,17 @@ struct OnboardingView: View {
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(.white)
 
-                shortcutRow(key: "Command-Shift-1", action: "Capture a region")
-                shortcutRow(key: "Command-Shift-2", action: "Capture a window")
-                shortcutRow(key: "Command-Shift-3", action: "Capture fullscreen")
-                shortcutRow(key: "Command-Shift-4", action: "Capture the frontmost window")
-                shortcutRow(key: "Command-Shift-R", action: "Repeat the last capture")
+                ForEach(defaultCaptureShortcutEntries) { entry in
+                    shortcutRow(key: entry.keys, action: entry.action)
+                }
             }
         }
+    }
+
+    private var defaultCaptureShortcutEntries: [ShortcutCatalogEntry] {
+        AppShortcut.catalogSections
+            .first { $0.title == "Default Global Capture" }
+            .map { Array($0.entries.prefix(5)) } ?? []
     }
 
     private func permissionsStep(metrics: OnboardingLayoutMetrics) -> some View {

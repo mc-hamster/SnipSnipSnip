@@ -4,13 +4,14 @@ SnipSnipSnip is a local-first macOS screenshot, annotation, history, OCR, and sc
 
 ## Features
 
-- Region, window, frontmost window, fullscreen, repeat, and timer screenshot capture.
+- Region, window, frontmost window, fullscreen, repeat, and timer screenshot capture, with optional precision controls for region sizing and current/selected/all-display fullscreen modes.
 - SnipSnipSnip Pro scrolling screenshot capture and connected iPhone/iPad capture.
 - Non-destructive screenshot editor with crop, rectangle, ellipse, line, arrow, freehand, highlight, text, callouts, ruler measurements, spotlight/dim, image overlays, rotation, layer ordering, grouping, alignment, snapping, and blur/pixelate/solid redaction.
 - Local OCR for capture-history search and selectable Copy Text from a dragged screenshot region.
 - SnipSnipSnip Pro UI Map capture for saving visible interface element names, roles, identifiers, hierarchy, and geometry in editable `.sss` documents. UI Map turns a Window screenshot into a searchable, inspectable structured capture instead of pixels only.
-- PNG, JPEG, and PDF screenshot export with re-encoded metadata-stripped output.
+- PNG, JPEG, and PDF screenshot export with re-encoded metadata-stripped output and a lightweight JPEG quality setting.
 - Drag-out sharing for rendered screenshots, styled presentation previews, and trimmed video exports.
+- Centralized Settings > Shortcuts reference for global capture hotkeys, app commands, editor shortcuts, layers, Screen Inspector, and Clipboard History.
 - Floating reference screenshots for pinning rendered editor or history snapshots in lightweight always-on-top windows.
 - Editable `.sss` screenshot packages with base image, preview, annotations, undo/redo history, search metadata, and image overlay assets.
 - Region, window, and fullscreen screen recording with current-display, selected-display, and all-displays fullscreen modes, cursor/click options, system audio, microphone narration, pause/resume controls, trim editing, `.sssvideo` packages, MP4 export presets, and short-loop GIF/APNG export.
@@ -20,7 +21,7 @@ For the detailed current feature inventory, partial features, and known gaps, se
 
 ## Privacy Posture
 
-SnipSnipSnip processes screenshots, annotations, OCR, rendering, and any SnipSnipSnip Pro UI Map metadata locally. Editable `.sss` packages retain the original base screenshot, annotation state, and any captured UI Map metadata, so share rendered exports when redactions must be flattened or editable metadata should not travel.
+SnipSnipSnip processes screenshots, annotations, OCR, rendering, and any SnipSnipSnip Pro UI Map metadata locally. Editable `.sss` packages retain the original base screenshot, annotation state, and any captured UI Map metadata, so share rendered exports when redactions must be flattened or editable metadata should not travel. When saving an editable `.sss` that contains redactions, SnipSnipSnip warns that the original pixels remain in the editable package and offers flattened PNG export instead.
 
 Private Capture skips archive checkpoints, recent-snips recovery, recycle-bin retention, and background OCR indexing for that capture session. Exported/copied PNG, JPEG, and PDF output is re-encoded and does not carry source EXIF, TIFF, GPS, IPTC, or user metadata forward.
 

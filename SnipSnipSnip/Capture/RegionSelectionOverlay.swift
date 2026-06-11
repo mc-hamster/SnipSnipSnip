@@ -37,9 +37,17 @@ final class RegionSelectionSession: NSObject {
     private func presentOverlay() {
         NSApp.activate(ignoringOtherApps: true)
 
-        let coordinator = RegionSelectionCoordinator(snapshot: snapshot, windows: windows, preferences: preferences) { [weak self] selection in
-            self?.finish(with: selection)
-        }
+        let coordinator = RegionSelectionCoordinator(
+            snapshot: snapshot,
+            windows: windows,
+            preferences: preferences,
+            onCaptureCursorHiddenChange: { [weak self] shouldHideCursor in
+                self?.setCaptureCursorHidden(shouldHideCursor)
+            },
+            onComplete: { [weak self] selection in
+                self?.finish(with: selection)
+            }
+        )
         self.coordinator = coordinator
 
         overlayWindows = snapshot.displayPreviews.map { displayPreview in
@@ -55,21 +63,29 @@ final class RegionSelectionSession: NSObject {
         overlayWindows.first?.makeKeyAndOrderFront(nil)
         installEventMonitor(for: coordinator)
 
-        if !cursorHidden {
-            NSCursor.hide()
-            cursorHidden = true
-        }
+        setCaptureCursorHidden(true)
 
         coordinator.mouseMoved(to: NSEvent.mouseLocation, eventTimestamp: nil)
+    }
+
+    private func setCaptureCursorHidden(_ hidden: Bool) {
+        guard cursorHidden != hidden else {
+            return
+        }
+
+        if hidden {
+            NSCursor.hide()
+        } else {
+            NSCursor.unhide()
+        }
+
+        cursorHidden = hidden
     }
 
     private func finish(with selection: RegionCaptureSelection?) {
         let continuation = continuation
         self.continuation = nil
-        if cursorHidden {
-            NSCursor.unhide()
-            cursorHidden = false
-        }
+        setCaptureCursorHidden(false)
         if let localEventMonitor {
             NSEvent.removeMonitor(localEventMonitor)
             self.localEventMonitor = nil
@@ -98,6 +114,13 @@ final class RegionSelectionSession: NSObject {
 
             switch event.type {
             case .keyDown:
+                if event.window?.firstResponder is NSTextView {
+                    if event.keyCode == 53 {
+                        coordinator.keyDown(with: event)
+                        return nil
+                    }
+                    return event
+                }
                 // Handle key events directly in the monitor so Esc/Enter work even when
                 // focus hasn't settled on the overlay window's first responder yet.
                 coordinator.keyDown(with: event)
@@ -194,6 +217,7 @@ private final class RegionSelectionCoordinator {
     private let snapshot: DesktopCompositeSnapshot
     private let windows: [CaptureWindowSummary]
     let preferences: RegionCapturePreferences
+    private let onCaptureCursorHiddenChange: (Bool) -> Void
     private let onComplete: (RegionCaptureSelection?) -> Void
     private let clickToDragThreshold: CGFloat = 4
     private var views: [WeakView] = []
@@ -203,6 +227,7 @@ private final class RegionSelectionCoordinator {
     private var actionControlsGlobalPoint: CGPoint?
     private var lastCursorGlobalPointInSelection: CGPoint?
     private var lastProcessedEventSignature: ProcessedEventSignature?
+    private var lockedAspectRatio: CGFloat?
 
     private(set) var selectionRect: CGRect?
     private(set) var cursorGlobalPoint: CGPoint?
@@ -217,11 +242,13 @@ private final class RegionSelectionCoordinator {
         snapshot: DesktopCompositeSnapshot,
         windows: [CaptureWindowSummary],
         preferences: RegionCapturePreferences,
+        onCaptureCursorHiddenChange: @escaping (Bool) -> Void,
         onComplete: @escaping (RegionCaptureSelection?) -> Void
     ) {
         self.snapshot = snapshot
         self.windows = windows
         self.preferences = preferences
+        self.onCaptureCursorHiddenChange = onCaptureCursorHiddenChange
         self.onComplete = onComplete
     }
 
@@ -234,11 +261,31 @@ private final class RegionSelectionCoordinator {
     }
 
     func shouldShowActionControls(on displayID: CGDirectDisplayID) -> Bool {
-        preferences.showsActionControls && actionControlsDisplayID == displayID && selectionRect != nil
+        preferences.showsRegionConfirmationControls && actionControlsDisplayID == displayID && selectionRect != nil
     }
 
     var isActivelyDraggingSelection: Bool {
         dragMode != nil
+    }
+
+    var showsCaptureAimingUI: Bool {
+        !isAdjustingPrecisionSelection
+    }
+
+    var isAspectRatioLocked: Bool {
+        lockedAspectRatio != nil
+    }
+
+    private var isAdjustingPrecisionSelection: Bool {
+        guard preferences.advancedControlsEnabled, selectionRect != nil else {
+            return false
+        }
+
+        if case .creating = dragMode {
+            return false
+        }
+
+        return true
     }
 
     func actionControlsPoint(for display: DisplaySnapshot) -> CGPoint? {
@@ -285,6 +332,7 @@ private final class RegionSelectionCoordinator {
 
         selectionRect = nil
         lastCursorGlobalPointInSelection = nil
+        lockedAspectRatio = nil
         dragMode = nil
         notifyViews()
     }
@@ -319,7 +367,13 @@ private final class RegionSelectionCoordinator {
             let delta = CGSize(width: point.x - anchor.x, height: point.y - anchor.y)
             selectionRect = original.offsetBy(dx: delta.width, dy: delta.height).gscClamped(to: snapshot.globalFrame)
         case let .resizing(handle, original):
-            selectionRect = gscResizedRect(original, handle: handle, point: point).gscClamped(to: snapshot.globalFrame)
+            selectionRect = RegionPrecisionGeometry.resizedRect(
+                original,
+                handle: handle,
+                point: point,
+                aspectRatio: lockedAspectRatio,
+                within: snapshot.globalFrame
+            )
         case .none:
             break
         }
@@ -344,6 +398,7 @@ private final class RegionSelectionCoordinator {
                 actionControlsDisplayID = nil
                 actionControlsGlobalPoint = nil
                 lastCursorGlobalPointInSelection = nil
+                lockedAspectRatio = nil
                 notifyViews()
                 return
             }
@@ -373,6 +428,10 @@ private final class RegionSelectionCoordinator {
     }
 
     func keyDown(with event: NSEvent) {
+        if preferences.advancedControlsEnabled, handlePrecisionKeyDown(event) {
+            return
+        }
+
         switch event.keyCode {
         case 36, 76:
             confirmRegionCapture()
@@ -404,6 +463,39 @@ private final class RegionSelectionCoordinator {
         actionControlsDisplayID = nil
         actionControlsGlobalPoint = nil
         lastCursorGlobalPointInSelection = nil
+        lockedAspectRatio = nil
+        notifyViews()
+    }
+
+    func setSelectionSize(width: CGFloat?, height: CGFloat?) {
+        guard let selectionRect else {
+            NSSound.beep()
+            return
+        }
+
+        self.selectionRect = RegionPrecisionGeometry.rectBySettingSize(
+            selectionRect,
+            width: width,
+            height: height,
+            lockedAspectRatio: lockedAspectRatio,
+            within: snapshot.globalFrame
+        )
+        if lockedAspectRatio != nil, let updatedRect = self.selectionRect, updatedRect.height > 0 {
+            lockedAspectRatio = updatedRect.width / updatedRect.height
+        }
+        notifyViews()
+    }
+
+    func setAspectRatioLocked(_ isLocked: Bool) {
+        if isLocked,
+           let selectionRect,
+           selectionRect.width > 0,
+           selectionRect.height > 0 {
+            lockedAspectRatio = selectionRect.width / selectionRect.height
+        } else {
+            lockedAspectRatio = nil
+        }
+
         notifyViews()
     }
 
@@ -413,6 +505,33 @@ private final class RegionSelectionCoordinator {
         }
 
         lastCursorGlobalPointInSelection = point
+    }
+
+    private func handlePrecisionKeyDown(_ event: NSEvent) -> Bool {
+        guard selectionRect != nil else {
+            return false
+        }
+
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let step: CGFloat = modifiers.contains(.shift) ? 10 : 1
+        let delta: CGSize
+
+        switch event.keyCode {
+        case 123:
+            delta = CGSize(width: -step, height: 0)
+        case 124:
+            delta = CGSize(width: step, height: 0)
+        case 125:
+            delta = CGSize(width: 0, height: step)
+        case 126:
+            delta = CGSize(width: 0, height: -step)
+        default:
+            return false
+        }
+
+        selectionRect = RegionPrecisionGeometry.nudgedRect(selectionRect ?? .null, by: delta, within: snapshot.globalFrame)
+        notifyViews()
+        return true
     }
 
     private func handle(at point: CGPoint, in rect: CGRect) -> ResizeHandle? {
@@ -450,6 +569,7 @@ private final class RegionSelectionCoordinator {
     }
 
     private func notifyViews() {
+        onCaptureCursorHiddenChange(showsCaptureAimingUI)
         views.removeAll { $0.view == nil }
         views.forEach { $0.view?.refreshSelectionState() }
     }
@@ -469,18 +589,23 @@ private final class RegionSelectionCoordinator {
     }
 }
 
-private final class RegionSelectionView: NSView {
+private final class RegionSelectionView: NSView, NSTextFieldDelegate {
     private let displayPreview: DisplayPreview
     private let coordinator: RegionSelectionCoordinator
     private let canvasView: RegionSelectionCanvasView
     private let crosshairOverlayView: RegionSelectionCrosshairOverlayView?
     private let cursorOverlayView: RegionSelectionCursorOverlayView
     private var trackingAreaRef: NSTrackingArea?
+    private let widthField = NSTextField()
+    private let dimensionSeparatorLabel = NSTextField(labelWithString: "x")
+    private let heightField = NSTextField()
+    private let aspectLockButton = NSButton(checkboxWithTitle: "Lock Ratio", target: nil, action: nil)
     private let captureButton = NSButton(title: "Capture", target: nil, action: nil)
     private let cancelButton = NSButton(title: "Cancel", target: nil, action: nil)
     private var lastSelectionRect: CGRect?
     private var lastShowsActionControls = false
     private var lastActionControlsVisible = false
+    private var lastAspectRatioLocked = false
 
     init(displayPreview: DisplayPreview, coordinator: RegionSelectionCoordinator, livePreviewSource: LiveDesktopPreviewSource?) {
         self.displayPreview = displayPreview
@@ -561,7 +686,8 @@ private final class RegionSelectionView: NSView {
         let isActivelyDraggingSelection = coordinator.isActivelyDraggingSelection
 
         if selectionRect != lastSelectionRect ||
-            showsActionControls != lastShowsActionControls {
+            showsActionControls != lastShowsActionControls ||
+            coordinator.isAspectRatioLocked != lastAspectRatioLocked {
             updateActionButtons()
             let actionControlsVisible = showsActionControls && !captureButton.isHidden
             canvasView.refresh(
@@ -574,20 +700,39 @@ private final class RegionSelectionView: NSView {
             lastSelectionRect = selectionRect
             lastShowsActionControls = showsActionControls
             lastActionControlsVisible = actionControlsVisible
+            lastAspectRatioLocked = coordinator.isAspectRatioLocked
         }
 
+        let captureAimingCursorPoint = coordinator.showsCaptureAimingUI
+            ? coordinator.cursorGlobalPoint
+            : nil
         crosshairOverlayView?.refresh(
-            cursorGlobalPoint: coordinator.cursorGlobalPoint,
+            cursorGlobalPoint: captureAimingCursorPoint,
             isActivelyDraggingSelection: isActivelyDraggingSelection
         )
         cursorOverlayView.refresh(
-            cursorGlobalPoint: coordinator.cursorGlobalPoint,
+            cursorGlobalPoint: captureAimingCursorPoint,
             selectionRect: selectionRect,
             isActivelyDraggingSelection: isActivelyDraggingSelection
         )
     }
 
     private func configureButtons() {
+        configureDimensionField(widthField)
+        configureDimensionField(heightField)
+        dimensionSeparatorLabel.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+        dimensionSeparatorLabel.textColor = .white
+        dimensionSeparatorLabel.alignment = .center
+        dimensionSeparatorLabel.isHidden = true
+        addSubview(dimensionSeparatorLabel)
+
+        aspectLockButton.target = self
+        aspectLockButton.action = #selector(toggleAspectRatioLock)
+        aspectLockButton.controlSize = .small
+        aspectLockButton.font = NSFont.systemFont(ofSize: 12, weight: .medium)
+        aspectLockButton.isHidden = true
+        addSubview(aspectLockButton)
+
         captureButton.target = self
         captureButton.action = #selector(confirmRegionCapture)
         captureButton.bezelStyle = .rounded
@@ -603,6 +748,19 @@ private final class RegionSelectionView: NSView {
         cancelButton.font = NSFont.systemFont(ofSize: 13, weight: .medium)
         cancelButton.isHidden = true
         addSubview(cancelButton)
+    }
+
+    private func configureDimensionField(_ field: NSTextField) {
+        field.delegate = self
+        field.target = self
+        field.action = #selector(applyPrecisionSizeFromFields)
+        field.alignment = .right
+        field.bezelStyle = .roundedBezel
+        field.controlSize = .small
+        field.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+        field.placeholderString = "px"
+        field.isHidden = true
+        addSubview(field)
     }
 
     private func configureDynamicViews() {
@@ -622,15 +780,20 @@ private final class RegionSelectionView: NSView {
     }
 
     private func updateActionButtons() {
-        guard coordinator.preferences.showsActionControls,
+        guard coordinator.preferences.showsRegionConfirmationControls,
               coordinator.shouldShowActionControls(on: displayPreview.snapshot.displayID),
               let localPoint = coordinator.actionControlsPoint(for: displayPreview.snapshot) else {
+            widthField.isHidden = true
+            dimensionSeparatorLabel.isHidden = true
+            heightField.isHidden = true
+            aspectLockButton.isHidden = true
             captureButton.isHidden = true
             cancelButton.isHidden = true
             return
         }
 
         placeActionButtons(below: localPoint)
+        updatePrecisionControls(above: captureButton.frame.minY)
     }
 
     private func placeActionButtons(below localPoint: CGPoint) {
@@ -648,6 +811,44 @@ private final class RegionSelectionView: NSView {
         cancelButton.isHidden = false
     }
 
+    private func updatePrecisionControls(above buttonY: CGFloat) {
+        guard coordinator.preferences.advancedControlsEnabled,
+              let selectionRect = coordinator.selectionRect else {
+            widthField.isHidden = true
+            dimensionSeparatorLabel.isHidden = true
+            heightField.isHidden = true
+            aspectLockButton.isHidden = true
+            return
+        }
+
+        if widthField.currentEditor() == nil {
+            widthField.stringValue = "\(Int(selectionRect.width.rounded()))"
+        }
+        if heightField.currentEditor() == nil {
+            heightField.stringValue = "\(Int(selectionRect.height.rounded()))"
+        }
+
+        aspectLockButton.state = coordinator.isAspectRatioLocked ? .on : .off
+
+        let fieldWidth: CGFloat = 72
+        let fieldHeight: CGFloat = 24
+        let spacerWidth: CGFloat = 18
+        let lockSize = aspectLockButton.sizeThatFits(CGSize(width: 120, height: fieldHeight))
+        let totalWidth = fieldWidth + spacerWidth + fieldWidth + 10 + lockSize.width
+        let x = min(max(captureButton.frame.minX, 12), bounds.width - totalWidth - 12)
+        let y = max(buttonY - fieldHeight - 8, 12)
+
+        widthField.frame = CGRect(x: x, y: y, width: fieldWidth, height: fieldHeight)
+        dimensionSeparatorLabel.frame = CGRect(x: widthField.frame.maxX, y: y + 3, width: spacerWidth, height: fieldHeight - 6)
+        heightField.frame = CGRect(x: widthField.frame.maxX + spacerWidth, y: y, width: fieldWidth, height: fieldHeight)
+        aspectLockButton.frame = CGRect(x: heightField.frame.maxX + 10, y: y + 1, width: lockSize.width, height: fieldHeight)
+
+        widthField.isHidden = false
+        dimensionSeparatorLabel.isHidden = false
+        heightField.isHidden = false
+        aspectLockButton.isHidden = false
+    }
+
     private func globalPoint(for event: NSEvent) -> CGPoint {
         let localPoint = convert(event.locationInWindow, from: nil)
         return displayPreview.snapshot.captureDisplayTransform.captureGlobalPoint(fromOverlayLocalPoint: localPoint)
@@ -661,6 +862,39 @@ private final class RegionSelectionView: NSView {
     @objc
     private func cancelSelection() {
         coordinator.cancelSelection()
+    }
+
+    @objc
+    private func applyPrecisionSizeFromFields() {
+        applyPrecisionSizeFromFieldsChanged(changedField: nil)
+    }
+
+    private func applyPrecisionSizeFromFieldsChanged(changedField: NSTextField?) {
+        let width = Double(widthField.stringValue).map { CGFloat($0) }
+        let height = Double(heightField.stringValue).map { CGFloat($0) }
+
+        if coordinator.isAspectRatioLocked {
+            if changedField === widthField {
+                coordinator.setSelectionSize(width: width, height: nil)
+                return
+            }
+
+            if changedField === heightField {
+                coordinator.setSelectionSize(width: nil, height: height)
+                return
+            }
+        }
+
+        coordinator.setSelectionSize(width: width, height: height)
+    }
+
+    @objc
+    private func toggleAspectRatioLock() {
+        coordinator.setAspectRatioLocked(aspectLockButton.state == .on)
+    }
+
+    func controlTextDidEndEditing(_ obj: Notification) {
+        applyPrecisionSizeFromFieldsChanged(changedField: obj.object as? NSTextField)
     }
 }
 

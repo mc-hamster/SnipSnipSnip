@@ -49,6 +49,36 @@ nonisolated enum CaptureDelay: Int, CaseIterable, Identifiable {
     }
 }
 
+nonisolated enum ScreenshotFullscreenDisplayMode: String, CaseIterable, Codable, Identifiable {
+    case currentDisplay
+    case selectedDisplay
+    case allDisplays
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .currentDisplay:
+            return "Current Display"
+        case .selectedDisplay:
+            return "Selected Display"
+        case .allDisplays:
+            return "All Displays"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .currentDisplay:
+            return "Capture the display under the pointer."
+        case .selectedDisplay:
+            return "Always capture the display chosen below."
+        case .allDisplays:
+            return "Capture the full desktop across connected displays."
+        }
+    }
+}
+
 nonisolated enum RegionCaptureOverlayMode: Int, CaseIterable, Identifiable {
     case crosshair = 0
     case magnifyingGlass = 1
@@ -89,9 +119,159 @@ nonisolated enum RegionCaptureOverlayMode: Int, CaseIterable, Identifiable {
 nonisolated struct RegionCapturePreferences: Equatable {
     var overlayMode: RegionCaptureOverlayMode = .crosshairAndMagnifyingGlass
     var showsActionControls = false
+    var advancedControlsEnabled = false
 
     var autoCapturesOnMouseUp: Bool {
-        !showsActionControls
+        !showsActionControls && !advancedControlsEnabled
+    }
+
+    var showsRegionConfirmationControls: Bool {
+        showsActionControls || advancedControlsEnabled
+    }
+}
+
+nonisolated enum RegionPrecisionGeometry {
+    static let minimumDimension: CGFloat = 3
+
+    static func nudgedRect(_ rect: CGRect, by delta: CGSize, within bounds: CGRect) -> CGRect {
+        let standardized = rect.gscIntegralStandardized
+        guard !standardized.isNull, !bounds.isNull else {
+            return .null
+        }
+
+        let width = min(standardized.width, bounds.width)
+        let height = min(standardized.height, bounds.height)
+        let x = min(max(standardized.minX + delta.width, bounds.minX), bounds.maxX - width)
+        let y = min(max(standardized.minY + delta.height, bounds.minY), bounds.maxY - height)
+        return CGRect(x: x, y: y, width: width, height: height).gscIntegralStandardized
+    }
+
+    static func resizedRect(
+        _ rect: CGRect,
+        handle: ResizeHandle,
+        point: CGPoint,
+        aspectRatio: CGFloat?,
+        within bounds: CGRect
+    ) -> CGRect {
+        let original = rect.gscIntegralStandardized
+        let rawRect = minimumSizedRect(
+            gscResizedRect(original, handle: handle, point: point)
+            .gscClamped(to: bounds)
+            .gscIntegralStandardized,
+            handle: handle,
+            original: original
+        )
+        .gscClamped(to: bounds)
+        .gscIntegralStandardized
+
+        guard let aspectRatio, aspectRatio.isFinite, aspectRatio > 0 else {
+            return rawRect
+        }
+
+        return aspectLockedRect(rawRect, handle: handle, aspectRatio: aspectRatio, original: original)
+            .gscClamped(to: bounds)
+            .gscIntegralStandardized
+    }
+
+    static func rectBySettingSize(
+        _ rect: CGRect,
+        width proposedWidth: CGFloat?,
+        height proposedHeight: CGFloat?,
+        lockedAspectRatio: CGFloat?,
+        within bounds: CGRect
+    ) -> CGRect {
+        let standardized = rect.gscIntegralStandardized
+        let maxWidth = max(bounds.maxX - standardized.minX, minimumDimension)
+        let maxHeight = max(bounds.maxY - standardized.minY, minimumDimension)
+        var width = sanitizedDimension(proposedWidth, fallback: standardized.width, maximum: maxWidth)
+        var height = sanitizedDimension(proposedHeight, fallback: standardized.height, maximum: maxHeight)
+
+        if let lockedAspectRatio, lockedAspectRatio.isFinite, lockedAspectRatio > 0 {
+            if proposedWidth != nil, proposedHeight == nil {
+                height = sanitizedDimension(width / lockedAspectRatio, fallback: height, maximum: maxHeight)
+            } else if proposedHeight != nil, proposedWidth == nil {
+                width = sanitizedDimension(height * lockedAspectRatio, fallback: width, maximum: maxWidth)
+            }
+        }
+
+        return CGRect(x: standardized.minX, y: standardized.minY, width: width, height: height)
+            .gscClamped(to: bounds)
+            .gscIntegralStandardized
+    }
+
+    static func sanitizedDimension(_ value: CGFloat?, fallback: CGFloat, maximum: CGFloat) -> CGFloat {
+        guard let value, value.isFinite else {
+            return max(min(fallback, maximum), minimumDimension)
+        }
+
+        return max(min(value.rounded(), maximum), minimumDimension)
+    }
+
+    private static func aspectLockedRect(
+        _ rect: CGRect,
+        handle: ResizeHandle,
+        aspectRatio: CGFloat,
+        original: CGRect
+    ) -> CGRect {
+        var width = max(rect.width, minimumDimension)
+        var height = max(rect.height, minimumDimension)
+
+        if width / height > aspectRatio {
+            width = height * aspectRatio
+        } else {
+            height = width / aspectRatio
+        }
+
+        switch handle {
+        case .topLeft:
+            return CGRect(x: original.maxX - width, y: original.maxY - height, width: width, height: height)
+        case .top:
+            return CGRect(x: original.midX - width / 2, y: original.maxY - height, width: width, height: height)
+        case .topRight:
+            return CGRect(x: original.minX, y: original.maxY - height, width: width, height: height)
+        case .right:
+            return CGRect(x: original.minX, y: original.midY - height / 2, width: width, height: height)
+        case .bottomRight:
+            return CGRect(x: original.minX, y: original.minY, width: width, height: height)
+        case .bottom:
+            return CGRect(x: original.midX - width / 2, y: original.minY, width: width, height: height)
+        case .bottomLeft:
+            return CGRect(x: original.maxX - width, y: original.minY, width: width, height: height)
+        case .left:
+            return CGRect(x: original.maxX - width, y: original.midY - height / 2, width: width, height: height)
+        }
+    }
+
+    private static func minimumSizedRect(
+        _ rect: CGRect,
+        handle: ResizeHandle,
+        original: CGRect
+    ) -> CGRect {
+        guard !rect.isNull else {
+            return .null
+        }
+
+        let width = max(rect.width, minimumDimension)
+        let height = max(rect.height, minimumDimension)
+
+        switch handle {
+        case .topLeft:
+            return CGRect(x: original.maxX - width, y: original.maxY - height, width: width, height: height)
+        case .top:
+            return CGRect(x: original.midX - width / 2, y: original.maxY - height, width: width, height: height)
+        case .topRight:
+            return CGRect(x: original.minX, y: original.maxY - height, width: width, height: height)
+        case .right:
+            return CGRect(x: original.minX, y: original.midY - height / 2, width: width, height: height)
+        case .bottomRight:
+            return CGRect(x: original.minX, y: original.minY, width: width, height: height)
+        case .bottom:
+            return CGRect(x: original.midX - width / 2, y: original.minY, width: width, height: height)
+        case .bottomLeft:
+            return CGRect(x: original.maxX - width, y: original.minY, width: width, height: height)
+        case .left:
+            return CGRect(x: original.maxX - width, y: original.midY - height / 2, width: width, height: height)
+        }
     }
 }
 

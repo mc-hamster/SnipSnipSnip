@@ -94,7 +94,7 @@ final class AppOpenBridge: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         localEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            self?.handleMinimizeShortcut(event) ?? event
+            self?.handleWindowShortcut(event) ?? event
         }
     }
 
@@ -131,18 +131,24 @@ final class AppOpenBridge: NSObject, NSApplicationDelegate {
         PendingDocumentOpenRequests.enqueue(fileURLs)
     }
 
-    private func handleMinimizeShortcut(_ event: NSEvent) -> NSEvent? {
-        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-
-        guard modifiers == [.command], event.charactersIgnoringModifiers?.lowercased() == "w" else {
-            return event
-        }
-
+    static func minimizeActiveWindow() {
         guard let window = NSApp.keyWindow ?? NSApp.mainWindow else {
-            return event
+            return
         }
 
         window.performMiniaturize(nil)
+    }
+
+    private func handleWindowShortcut(_ event: NSEvent) -> NSEvent? {
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+
+        guard modifiers == [.command],
+              let shortcut = event.charactersIgnoringModifiers?.lowercased(),
+              shortcut == "w" || shortcut == "q" else {
+            return event
+        }
+
+        Self.minimizeActiveWindow()
         return nil
     }
 }

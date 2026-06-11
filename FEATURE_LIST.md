@@ -1,6 +1,6 @@
 # SnipSnipSnip Feature List
 
-Last reviewed: 2026-06-09
+Last reviewed: 2026-06-11
 
 This document is the source of truth for what SnipSnipSnip and SnipSnipSnip Pro currently ship, what is only partially complete, and what is still missing. It is based on the current app source, shipped Help content, public docs, and test suite, not on older roadmap text.
 
@@ -39,7 +39,7 @@ When a feature is Pro-only, this document calls that out explicitly. Shared feat
 
 SnipSnipSnip already ships all of the following in meaningful form:
 
-- Screenshot capture for region, window, frontmost window, fullscreen, repeat, timer, live window thumbnails, on-screen window picking, and multi-display desktop composition.
+- Screenshot capture for region, window, frontmost window, fullscreen, repeat, timer, live window thumbnails, on-screen window picking, optional precision region controls, and multi-display desktop composition.
 - Screen Inspector as a floating live magnifier with 2x, 4x, 8x, and 16x zoom, optional pixel grid and crosshair, display-local pixel coordinates, center-pixel color readout, one-line point-to-point distance measurement, HEX/RGB copy shortcuts, freeze, resize, and Snip-to-editor.
 - A non-destructive screenshot editor with crop, rectangle, ellipse, line, arrow, freehand, highlight, text, callouts, ruler measurements, spotlight/dim, color sampling, OCR-backed Copy Text, image overlays, rotation, grouping, alignment, snapping, and blur/pixelate/solid redaction.
 - Floating reference screenshots that pin rendered editor or history snapshots in lightweight always-on-top windows with opacity, zoom, pan, multiple-reference, and close-all controls.
@@ -61,7 +61,7 @@ The biggest unfinished areas are now clear:
 - Pro UI Map capture is implemented and intentionally Pro-only. It is still dependent on Accessibility availability and target-app AX quality, but the workflow is already user-reachable and materially different from pixel-only capture tools.
 - Screenshot presentation styling is useful and shipped: padding, solid or transparent backgrounds, rounded corners, shadows, live preview, and rendered drag-out sharing are present. Richer frames, gradients, pinned screenshots, and multi-capture composition remain open.
 - Video recording is useful, but advanced post-production is still mostly `x Not done`: webcam, keystrokes, zooms, captions, aspect-ratio layouts, video overlays, speed controls, volume editing, and multi-clip editing.
-- Workflow automation is still shallow: customizable global hotkeys and a Clipboard History opener exist, but App Intents, URL schemes, and cloud/upload workflows are absent.
+- Workflow automation is still shallow: customizable global hotkeys, a centralized shortcuts settings tab, editor tool shortcuts, and a Clipboard History opener exist, but App Intents, URL schemes, and cloud/upload workflows are absent.
 - Non-functional readiness is mixed: privacy is strong, docs are solid for screenshots, performance profiling and local diagnostics export exist, but accessibility depth, localization, and crash reporting are still not done.
 
 ## Functional Feature Matrix
@@ -70,20 +70,20 @@ The biggest unfinished areas are now clear:
 
 | Feature | Status | Current implementation | Remaining gap or limitation |
 | --- | --- | --- | --- |
-| Region screenshot capture | ✓ Done | `ScreenCaptureService.captureRegion`, `RegionSelectionOverlay`, desktop composite snapshots, and drag selection are implemented. | Add aspect-ratio lock, saved regions, keyboard nudging, and explicit dimension entry. |
+| Region screenshot capture | ✓ Done | `ScreenCaptureService.captureRegion`, `RegionSelectionOverlay`, desktop composite snapshots, and drag selection are implemented. The default remains basic drag-to-capture. Optional Settings > General > Screenshot Capture precision controls pause after drag with resize handles, width and height fields, aspect-ratio lock, arrow-key nudging, Return to capture, and Escape to cancel. | No saved regions, named presets, or region library. |
 | Window screenshot capture | ✓ Done | Window listing, live thumbnails, picker UI, and direct window capture are implemented. | Better handling for sheets, transient popovers, transparent windows, and unusual shadow cases. |
 | Frontmost window capture | ✓ Done | Dedicated frontmost-window capture flow exists in menus and hotkeys. | Improve user feedback when the frontmost app has no eligible window. |
-| Fullscreen screenshot capture | ✓ Done | Captures a desktop composite across connected displays. | Add explicit current-display vs selected-display vs all-displays choices. |
+| Fullscreen screenshot capture | ✓ Done | Fullscreen screenshots support Current Display, Selected Display, and All Displays modes from Screenshot Capture settings. Missing selected displays fall back to current display. | Broader manual QA for hot-plugged displays, rotated displays, Spaces, and mixed scaling. |
 | Live window picker and thumbnails | ✓ Done | Main window picker supports refresh and auto-refresh; menu bar quick menu shows top windows with thumbnails. | Expand richer window grouping and edge-case targeting. |
 | Pick-on-screen window targeting | ✓ Done | On-screen window picking flow exists in capture UI. | Better feedback for transient windows and ambiguous hits. |
 | Multi-display support | ✓ Done | Desktop composite snapshots track capture and overlay coordinate transforms; tests cover offsets and adjacent displays. | Broader manual QA for rotated displays, Stage Manager, Spaces, and hot-plug changes. |
 | Retina correctness | ✓ Done | Per-display and per-window scale handling exists, with geometry tests covering pixel mapping. | Add more visual regression coverage for mixed-scale outputs. |
 | Pixel loupe during region capture | ✓ Done | Crosshair and magnifying-glass overlay modes are configurable. | Screen Inspector covers standalone inspection; the region-selection loupe still lacks live color readout and keyboard movement while selecting. |
 | Screen Inspector floating magnifier | ✓ Done | Menu bar, Capture menu, and customizable global hotkey open a resizable always-on-top live inspector with 2x, 4x, 8x, and 16x zoom, optional pixel grid and crosshair, display-local top-left pixel coordinates, center-pixel HEX/RGB readout, copy shortcuts, freeze, close shortcuts, one-line point-to-point distance measurement with Option-Command-M, and Snip-to-editor. Grid and crosshair default off. | Broaden manual QA across mixed-scale multi-monitor seams, rotated displays, Spaces, and permission edge cases. |
-| Adjustable region before commit | ~ Partial | Region capture can require explicit confirmation when action controls are enabled. | No explicit resize handles or numeric size adjustment before the shot is committed. |
+| Adjustable region before commit | ✓ Done | Optional precision region controls can pause after drag for handle resizing, numeric width/height entry, aspect-ratio lock, arrow-key nudging, Return to capture, and Escape to cancel. The default capture flow still captures on mouse-up. | No saved regions or reusable capture presets. |
 | Timer capture | ✓ Done | `CaptureDelay` supports off, 3, 5, and 10 seconds from menus. | No custom delay value or countdown overlay UI. |
-| Repeat last capture | ✓ Done | Repeats region, window, frontmost window, and fullscreen capture when the target can still be resolved. SnipSnipSnip Pro also repeats scrolling capture when the target can still be resolved. | No saved presets or named capture targets. |
-| Explicit per-display screenshot selection | x Not done | Fullscreen screenshots capture the desktop composite rather than a user-selected display mode. | Add selected display/current display/all displays options. |
+| Repeat last capture | ✓ Done | Repeats region, window, frontmost window, and fullscreen capture when the target can still be resolved. Fullscreen repeat uses the configured Current Display, Selected Display, or All Displays screenshot mode. SnipSnipSnip Pro also repeats scrolling capture when the target can still be resolved. | No saved presets or named capture targets. |
+| Explicit per-display screenshot selection | ✓ Done | Screenshot Capture settings expose Current Display, Selected Display, and All Displays fullscreen modes with a selected-display picker only when needed. | More manual QA for display hot-plug and unusual arrangements. |
 | Cursor capture in screenshots | ✓ Done | Optional cursor capture adds the current pointer as a non-destructive image overlay for region, window, frontmost-window, fullscreen, and repeat screenshots. The overlay can be moved, resized, faded, or deleted; Scrolling Capture excludes it while stitching. | Consider cursor-style replacement presets and click indicators. |
 | Desktop clutter hiding | x Not done | No desktop icon or window-clutter hiding workflow was found. | Needed for polished demo-style capture. |
 | Capture presets | x Not done | Capture actions are fixed menu commands plus settings values. | Add saved mode/timer/destination/audio/cursor presets. |
@@ -116,10 +116,10 @@ The biggest unfinished areas are now clear:
 | Spotlight/dim tool | ✓ Done | Spotlight annotation dims outside a focused oval or rectangle. | No presentation presets beyond the current effect controls. |
 | Copy Text OCR tool | ✓ Done | OCR-backed Copy Text lets the user drag a screenshot region, review normalized text, and copy it. | No QR detection, language controls, or confidence review. |
 | UI Map inspection and pinning | ✓ Done | SnipSnipSnip Pro UI Map documents expose a floating UI Map panel with hierarchy tree, search, type and Pinned Only filters, keyboard navigation, metadata details, JSON export, Show All, and pin/unpin controls. The UI Map Inspect toolbar tool shows selectable outlines on the screenshot; clicking pins or unpins an element, pinned overlays render in copy, share, and export, and typing after a pinned element starts a text annotation near it. AX elements render blue and OCR supplement text renders orange. | UI Map quality depends on the captured window's Accessibility exposure; non-window captures intentionally do not create new UI Map metadata. |
-| Redaction: blur | ✓ Done | Non-destructive blur redaction is rendered and tested. | Add stronger user warnings around sharing editable documents with redactions. |
+| Redaction: blur | ✓ Done | Non-destructive blur redaction is rendered and tested. Explicit editable `.sss` save/save-as warns once per editor session that original pixels remain and offers flattened PNG export. | No strip-redactions-from-editable-package workflow. |
 | Redaction: pixelate | ✓ Done | Non-destructive pixelate redaction is rendered and tested. | No separate block-size control beyond current effect settings. |
-| Redaction: solid | ✓ Done | Solid redaction mode is implemented. | Could add stronger privacy affordances before sharing editable docs. |
-| Multi-select | ✓ Done | Marquee selection and additive or toggle selection are supported. | More keyboard-first selection control would help. |
+| Redaction: solid | ✓ Done | Solid redaction mode is implemented, with the same editable `.sss` save warning as other redaction modes. | No strip-redactions-from-editable-package workflow. |
+| Multi-select | ✓ Done | Marquee selection and additive or toggle selection are supported. Arrow keys nudge selected annotations by 1 px and Shift-arrow nudges by 10 px through undoable editor commands. | More keyboard-first selection expansion would help. |
 | Group/ungroup | ✓ Done | Group IDs and group-aware selection behavior exist. | No visible layer tree or nested group UI. |
 | Alignment | ✓ Done | Geometric alignment and text alignment are supported in the inspector. | No distribute-spacing, match-size, or align-to-canvas actions. |
 | Distribution and equal-size layout tools | x Not done | Only core alignment commands are present. | Add distribute, match-size, and align-to-canvas actions. |
@@ -144,10 +144,10 @@ The biggest unfinished areas are now clear:
 | Clipboard History manager | ✓ Done | A floating Clipboard History window opens from the menu bar, stores local history for text, links, images, file URLs, and SnipSnipSnip snips, and supports search, type filters, thumbnails, pinned items, delete, clear unpinned, Copy, and Copy & Paste back into the previously active app while keeping the history window open. | Plain-text paste for rich text and deeper metadata previews can still be expanded. |
 | Clipboard History shortcuts | ✓ Done | Return triggers Copy & Paste for the selected item, arrow keys move selection, and Option-1 through Option-9 copy the matching visible item while the Clipboard History window is focused. | These are intentionally local shortcuts; global item-number shortcuts would conflict with frontmost apps. |
 | PNG export | ✓ Done | `ImageExporter` supports PNG output. | No destination presets or export rules. |
-| JPEG export | ✓ Done | JPEG export exists with fixed compression. | No quality slider or auto format choice. |
+| JPEG export | ✓ Done | JPEG export uses the Settings > General > Export & Sharing JPEG quality control, defaulting to 90%, while PNG and PDF behavior stays unchanged. | No auto format choice, destination rules, or reusable export presets. |
 | PDF export | ✓ Done | Single-image PDF export exists. | No vector-preserving annotation export. |
 | Native share sheet | ✓ Done | Uses `NSSharingServicePicker` for rendered screenshot sharing. | No upload destinations. |
-| Drag-and-drop export affordance | ✓ Done | Screenshot and video editors expose compact promised-file drag handles, and the large presentation preview is draggable. | Validate compatibility with more third-party destinations over time. |
+| Drag-and-drop export affordance | ✓ Done | Screenshot and video editors expose compact promised-file drag handles, and the large presentation preview is draggable. JPEG screenshot drag-out uses the same JPEG quality setting as Export JPEG. | Validate compatibility with more third-party destinations over time. |
 | Metadata stripping and privacy-safe export | ✓ Done | PNG, JPEG, and PDF outputs are re-encoded and tests confirm source EXIF, TIFF, GPS, IPTC, and user metadata are not preserved. | Future upload flows should add destination-aware privacy confirmations. |
 | Filename templates | ✓ Done | Save As and export suggestions use `ScreenshotFilenameTemplate` tokens for kind, source, time, width, height, and format. | No per-destination rules or reusable template presets. |
 | Cloud upload and share links | x Not done | No cloud backend or upload destination exists in the current app. | Add optional privacy-preserving upload workflows only if needed. |
@@ -181,7 +181,7 @@ The biggest unfinished areas are now clear:
 | --- | --- | --- | --- |
 | Region recording | ✓ Done | ScreenCaptureKit region recording is implemented, with a single-display constraint for region bounds. | No saved regions, presets, or resize-before-record workflow. |
 | Window recording | ✓ Done | Desktop-independent window recording is implemented. | No robust retargeting when a window moves, relaunches, or changes identity. |
-| Fullscreen recording | ✓ Done | Current-display fullscreen recording is implemented. | No selected-display or all-displays mode selection. |
+| Fullscreen recording | ✓ Done | Fullscreen recording uses the configured Current Display, Selected Display, or All Displays recording mode. | Broader manual QA for hot-plugged displays, rotated displays, Spaces, and mixed scaling. |
 | Explicit display selection for recording | ✓ Done | Fullscreen recording now supports Current Display, Selected Display, and All Displays modes from Recording settings. | Broaden manual QA coverage for mixed scaling, rotated displays, and Spaces arrangements. |
 | MP4 H.264 recording | ✓ Done | Recording writes MP4 through native ScreenCaptureKit recording output. | No HEVC or ProRes choice. |
 | Quality presets | ✓ Done | Compact, Balanced, and High presets are implemented. | No user-facing bitrate estimator or custom preset editor. |
@@ -232,9 +232,9 @@ The biggest unfinished areas are now clear:
 | --- | --- | --- | --- |
 | Menu bar app | ✓ Done | SnipSnipSnip runs as a menu bar app with capture actions, Screen Ruler, Screen Inspector, Clipboard History, and window presentation. | Could still be streamlined for power users. |
 | Main-window command menus | ✓ Done | Capture, Help, Open, Import Image, Save, Export, Share, and pasteboard commands are present. | Tool-by-tool command coverage is still incomplete. |
-| Global hotkeys | ✓ Done | Global capture and Screen Inspector hotkeys remain background-only and are now user-customizable per action from Settings > General. | Consider optional frontmost behavior toggles for power users later. |
-| In-app shortcuts | ~ Partial | Capture, open, save, export, share, copy, select all, group, ungroup, layer ordering (bring forward/backward, bring to front, send to back), and help shortcuts exist. | Missing broader tool shortcuts, richer editor navigation shortcuts, and user customization. |
-| Settings window | ✓ Done | The app has General, Recording, Archive, Clipboard, and Privacy settings tabs. In SnipSnipSnip Pro, General settings include Window UI Map enablement and default pinned UI Map overlay options; Clipboard settings include history enablement, item/storage limits, clear history, ignored-app management, and restore-default ignored apps. | No capture preset system or deeper workflow automation settings yet. |
+| Global hotkeys | ✓ Done | Global capture and Screen Inspector hotkeys remain background-only and are user-customizable per action from Settings > Shortcuts. | Consider optional frontmost behavior toggles for power users later. |
+| In-app shortcuts | ~ Partial | Capture, open, save, export, share, copy, select all, group, ungroup, layer ordering, help shortcuts, single-key editor tool shortcuts, and arrow-key annotation nudging exist. Settings and Help share a centralized shortcut catalog covering capture, app, editor, layers, Screen Inspector, and Clipboard History shortcuts. | Fully customizable in-app editor/app shortcuts remain intentionally out of scope. |
+| Settings window | ✓ Done | The app has General, Shortcuts, Recording, Archive, Clipboard, and Privacy settings tabs. General includes Screenshot Capture, Export & Sharing, and other everyday preferences. Shortcuts centralizes global capture hotkey customization, the single-key editor shortcut toggle, and the shortcut reference. In SnipSnipSnip Pro, General settings include Window UI Map enablement and default pinned UI Map overlay options; Clipboard settings include history enablement, item/storage limits, clear history, ignored-app management, and restore-default ignored apps. | No capture preset system or deeper workflow automation settings yet. |
 | Clipboard ignored-app workflow | ✓ Done | Clipboard settings can ignore currently running apps, choose an app bundle from Applications, or ignore recent clipboard source apps with one click. Default ignored apps include Apple Passwords and common password managers such as 1Password, Bitwarden, Dashlane, LastPass, KeePassXC, Keeper, RoboForm, Enpass, mSecure, NordPass, Proton Pass, KeeWeb, MacPass, Strongbox, Secrets, Buttercup, and SafeInCloud. | Source-app detection is best-effort because macOS pasteboard data does not reliably expose origin for every copy. |
 | Permission diagnostics and remediation buttons | ✓ Done | Settings and main UI expose permission diagnostics plus remediation buttons, Help guidance, and a local Export Diagnostics flow for support. | Keep the diagnostics schema current as more support-relevant subsystems are added. |
 | Drag-out sharing | ✓ Done | Screenshot and video editors expose compact promised-file drag handles. Screenshot drag-out flattens current edits and presentation styling; video drag-out exports the current trimmed MP4 with the remembered preset after the drop is accepted. | Add richer destinations only if local file drag-out proves insufficient. |
@@ -256,7 +256,7 @@ The biggest unfinished areas are now clear:
 | --- | --- | --- | --- |
 | Local-first processing | ✓ Done | README and current architecture explicitly position capture, OCR, rendering, export, history, and document handling as local-first; there is no cloud dependency in the current app. | If cloud is ever added, keep it strictly opt-in. |
 | Permission clarity | ✓ Done | Settings and Help explain Screen Recording, Accessibility, and microphone/system-audio permissions, and the app exposes remediation actions plus support diagnostics export. | Keep troubleshooting copy aligned with macOS permission UI changes. |
-| Redaction safety | ✓ Done | Redactions stay non-destructive in the editor and flatten only on copy, export, or share. Docs warn that editable packages retain original content. | Add a stronger pre-share warning for editable documents if needed. |
+| Redaction safety | ✓ Done | Redactions stay non-destructive in the editor and flatten only on copy, export, or share. Docs warn that editable packages retain original content, and explicit editable `.sss` save/save-as prompts once per editor session when redactions are present. | No strip-redactions-from-editable-package workflow. |
 | Archive privacy | ✓ Done | Archive and recycle-bin behavior are documented, and Private Capture suppresses checkpoints, recycle-bin retention, and background OCR indexing. | Could add clearer privacy badging in history. |
 | Clipboard privacy | ✓ Done | Clipboard History is local-only, skips concealed and transient pasteboard types, excludes Private Capture screenshots, and ignores Apple Passwords plus common password managers by default. Ignored apps can be managed through automated app-picker and recent-source flows rather than manual bundle ID entry. | Pasteboard source app attribution remains best-effort on macOS. |
 | UI Map privacy | ✓ Done | SnipSnipSnip Pro UI Map capture is build-flagged, user-controlled, Window-only, and user-initiated. Region, fullscreen, scrolling, recording, connected-device, and Screen Inspector captures do not request Accessibility because of UI Map. Hidden UI Map metadata stays local to `.sss`; flattened image exports exclude hidden metadata, while pinned UI Map overlays are visible pixels by design. | Future editable-document sharing flows could add explicit strip-UI-Map export choices. |
@@ -342,7 +342,7 @@ The biggest unfinished areas are now clear:
 
 - Richer screenshot presentation/export layers: gradients, browser or device frames, social aspect ratios, and reusable templates.
 - Layer visibility toggles and locking, building on the shipped standalone Layers window.
-- Capture presets and richer shortcut behavior for power users.
+- Capture presets and fully customizable shortcut behavior for power users.
 - Better OCR controls: QR detection, language options, confidence review.
 - Richer export destinations beyond shipped local drag-out sharing.
 - Continue strengthening `.sssvideo` docs with sample package fixtures.
@@ -381,7 +381,7 @@ The biggest unfinished areas are now clear:
 5. Harden SnipSnipSnip Pro capture with diagnostics, compatibility coverage, and fallback flows.
 6. Add conflict detection and keyboard-capture UX polish for customizable global hotkeys.
 7. Introduce a richer video timeline model before attempting zooms, captions, overlays, or multi-clip work.
-8. Add stronger privacy-oriented share warnings for editable redaction documents and keep support diagnostics fields current.
+8. Keep privacy-oriented redaction warnings and support diagnostics fields current.
 9. Build accessibility and localization foundations before broader distribution.
 
 ## Current Product Position

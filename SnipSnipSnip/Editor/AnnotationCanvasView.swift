@@ -168,6 +168,22 @@ final class AnnotationCanvasView: NSView {
 }
 
 private final class AnnotationCanvasOverlayView: NSView {
+    private static let singleKeyToolShortcuts: [String: EditorTool] = [
+        "v": .select,
+        "r": .rectangle,
+        "o": .ellipse,
+        "l": .line,
+        "a": .arrow,
+        "p": .freehand,
+        "h": .highlighter,
+        "b": .highlight,
+        "t": .text,
+        "c": .callout,
+        "m": .measure,
+        "s": .spotlight,
+        "x": .redact
+    ]
+
     var controller: EditorController
 
     private var interactionState = AnnotationCanvasInteractionState()
@@ -630,6 +646,12 @@ private final class AnnotationCanvasOverlayView: NSView {
             controller.groupSelected()
         case ([.command, .shift], "g"):
             controller.ungroupSelected()
+        case ([], _) where handleArrowNudge(event, step: 1):
+            break
+        case ([.shift], _) where handleArrowNudge(event, step: 10):
+            break
+        case ([], _) where handleSingleKeyToolShortcut(event):
+            break
         case (_, String(UnicodeScalar(NSDeleteCharacter)!)), (_, String(UnicodeScalar(NSBackspaceCharacter)!)):
             controller.deleteSelected()
         default:
@@ -637,6 +659,37 @@ private final class AnnotationCanvasOverlayView: NSView {
         }
 
         needsDisplay = true
+    }
+
+    private func handleArrowNudge(_ event: NSEvent, step: CGFloat) -> Bool {
+        let delta: CGSize
+
+        switch event.keyCode {
+        case 123:
+            delta = CGSize(width: -step, height: 0)
+        case 124:
+            delta = CGSize(width: step, height: 0)
+        case 125:
+            delta = CGSize(width: 0, height: step)
+        case 126:
+            delta = CGSize(width: 0, height: -step)
+        default:
+            return false
+        }
+
+        controller.nudgeSelectedAnnotations(by: delta)
+        return true
+    }
+
+    private func handleSingleKeyToolShortcut(_ event: NSEvent) -> Bool {
+        guard controller.editorSingleKeyToolShortcutsEnabled,
+              let characters = event.charactersIgnoringModifiers?.lowercased(),
+              let tool = Self.singleKeyToolShortcuts[characters] else {
+            return false
+        }
+
+        controller.activateToolbarTool(tool)
+        return true
     }
 
     override func magnify(with event: NSEvent) {

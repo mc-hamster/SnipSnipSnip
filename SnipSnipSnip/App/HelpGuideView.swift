@@ -229,8 +229,7 @@ struct HelpGuideView: View {
                             title: "Add rulers",
                             bullets: [
                                 "Choose Screen Ruler from the menu bar icon, directly below Clipboard History.",
-                                "Add as many Horizontal or Vertical rulers as you need.",
-                                "Open Settings > General > Screen Ruler when you want the same creation controls beside ruler appearance options."
+                                "Add as many Horizontal or Vertical rulers as you need."
                             ]
                         ),
                         HelpArticleSection(
@@ -264,7 +263,7 @@ struct HelpGuideView: View {
                             title: "Open the inspector",
                             bullets: [
                                 "Choose Screen Inspector from the menu bar icon or the Capture menu.",
-                                "Use Command-Shift-I by default, or change the shortcut in Settings > General > Capture Shortcuts.",
+                                "Use Command-Shift-I by default, or change the shortcut in Settings > Shortcuts.",
                                 "The inspector floats above other apps so you can keep working while it follows the cursor."
                             ]
                         ),
@@ -311,8 +310,12 @@ struct HelpGuideView: View {
                                 "Drag the area you want to capture over the live desktop. The loupe stays live while you aim.",
                                 "Single-click a visible window instead of dragging to capture that window.",
                                 "A screenshot region may span connected displays.",
-                                "If Always Capture on Mouse Up is off, click Capture in the floating controls."
+                                "By default, releasing the mouse captures immediately. If Always Capture on Mouse Up is off, click Capture in the floating controls."
                             ]
+                        ),
+                        HelpArticleSection(
+                            title: "Use precision region controls",
+                            body: "Settings > General > Screenshot Capture includes Enable Precision Region Controls. Leave it off for basic drag-to-capture. Turn it on when you want region capture to pause after dragging so you can resize with handles, type width and height, lock the aspect ratio, nudge with arrow keys, press Return to capture, or press Esc to cancel."
                         ),
                         HelpArticleSection(
                             title: "Capture a window",
@@ -325,7 +328,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Capture the screen",
-                            body: "Choose Fullscreen to capture the desktop composite across connected displays. Choose Repeat Last Capture to rerun the previous capture when the target can still be found."
+                            body: "Choose Fullscreen to capture the current display by default. Settings > General > Screenshot Capture can switch fullscreen screenshots to a selected display or all displays. Choose Repeat Last Capture to rerun the previous capture when the target can still be found."
                         ),
                     ] + (FeatureFlags.connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(
@@ -339,7 +342,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Include an editable cursor",
-                            body: "Turn on Include Cursor from the Capture menu, menu bar extra, or Settings > General > Screenshot Capture. Region, window, frontmost-window, fullscreen, and repeat screenshots add the cursor as an editable overlay that you can move, resize, fade, or delete. Region capture keeps your configured release-to-capture or confirmation-controls workflow. Scrolling Capture always excludes the cursor while stitching."
+                            body: "Turn on Include Cursor from the Capture menu, menu bar extra, or Settings > General > Screenshot Capture. Region, window, frontmost-window, fullscreen, and repeat screenshots add the cursor as an editable overlay that you can move, resize, fade, or delete. Region capture keeps the fast drag-to-capture default unless you enable Precision Region Controls in Settings. Scrolling Capture always excludes the cursor while stitching."
                         )
                     ],
                     important: [],
@@ -558,7 +561,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Share redacted output",
-                            body: "Use Copy, Share, or Export when redactions need to be flattened. Editable .sss documents retain the original screenshot and the redaction annotations."
+                            body: "Use Copy, Share, or Export when redactions need to be flattened. Editable .sss documents retain the original screenshot and the redaction annotations. When you explicitly save an editable .sss that contains redactions, SnipSnipSnip warns once for that editor session and offers to export a flattened PNG instead."
                         ),
                         HelpArticleSection(
                             title: "Use Private Capture",
@@ -616,7 +619,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Drag output into another app",
-                            body: "Drag the file icon beside Share to send the current rendered screenshot to Finder, Mail, or another app. You can also drag the large Presentation Preview. If you click without dragging, SnipSnipSnip shows a short reminder explaining how to use drag-out sharing. During the drag, the editor window temporarily hides so you can reach the destination, then returns when the drag finishes. Settings > General > Drag-Out Sharing controls whether screenshot drag-out normally uses PNG, JPEG, or PDF. Transparent presentation shadows automatically use PNG so the result stays faithful."
+                            body: "Drag the file icon beside Share to send the current rendered screenshot to Finder, Mail, or another app. You can also drag the large Presentation Preview. If you click without dragging, SnipSnipSnip shows a short reminder explaining how to use drag-out sharing. During the drag, the editor window temporarily hides so you can reach the destination, then returns when the drag finishes. Settings > General > Export & Sharing controls whether screenshot drag-out normally uses PNG, JPEG, or PDF and sets JPEG quality. Transparent presentation shadows automatically use PNG so the result stays faithful."
                         ),
                         HelpArticleSection(
                             title: "Save editable work",
@@ -713,29 +716,13 @@ struct HelpGuideView: View {
                 HelpArticle(
                     id: "keyboard-shortcuts",
                     title: "Keyboard shortcuts",
-                    summary: "Use default shortcuts for help, capture, save, and editor commands.",
-                    sections: [
+                    summary: "Use centralized shortcuts for help, capture, save, editor tools, layers, and screen utilities.",
+                    sections: AppShortcut.catalogSections.map { section in
                         HelpArticleSection(
-                            title: "App shortcuts",
-                            bullets: [
-                                "Command-Shift-/ opens SnipSnipSnip Help.",
-                                "Command-Shift-O opens SnipSnipSnip.",
-                                "Command-W minimizes the current SnipSnipSnip window.",
-                                "Command-S saves the current .sss or .sssvideo document.",
-                                "Shift-Command-S opens Save As."
-                            ]
-                        ),
-                        HelpArticleSection(
-                            title: "Default global capture shortcuts",
-                            bullets: [
-                                "Command-Shift-1 captures a region.",
-                                "Command-Shift-2 captures a window.",
-                                "Command-Shift-3 captures fullscreen.",
-                                "Command-Shift-4 captures the frontmost window.",
-                                "Command-Shift-R repeats the last capture.",
-                                "Command-Shift-I opens or closes Screen Inspector."
-                            ]
-                        ),
+                            title: section.title,
+                            bullets: section.entries.map { "\($0.keys): \($0.action)." }
+                        )
+                    } + [
                         HelpArticleSection(
                             title: "Screen tools",
                             bullets: [
@@ -743,21 +730,11 @@ struct HelpGuideView: View {
                                 "Use the menu bar icon > Screen Inspector to inspect live pixels, colors, and coordinates.",
                                 "Use Settings > General to adjust ruler appearance and inspector display options."
                             ]
-                        ),
-                        HelpArticleSection(
-                            title: "Editor shortcuts",
-                            bullets: [
-                                "Command-C copies the rendered screenshot.",
-                                "Shift-Command-F floats the current rendered screenshot as an always-on-top reference.",
-                                "Shift-Command-L opens the Layers window.",
-                                "Command-A selects all annotations.",
-                                "Command-G groups the current selection.",
-                                "Shift-Command-G ungroups the current selection."
-                            ]
                         )
                     ],
                     important: [
-                        "Global capture and Screen Inspector shortcuts can be customized in Settings > General."
+                        "Global capture and Screen Inspector shortcuts can be customized in Settings > Shortcuts.",
+                        "Single-key editor tool shortcuts can be turned off in Settings > Shortcuts."
                     ],
                     relatedIDs: ["capture-screenshot", "edit-screenshot", "screen-inspector"]
                 ),

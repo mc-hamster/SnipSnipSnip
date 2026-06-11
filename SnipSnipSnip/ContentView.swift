@@ -495,15 +495,24 @@ struct ContentView: View {
                 Divider()
 
                 VStack(alignment: .leading, spacing: 8) {
-                    shortcutRow(key: "Command-Shift-O", action: "Open SnipSnipSnip")
-                    shortcutRow(key: "Command-Shift-1", action: "Region")
-                    shortcutRow(key: "Command-Shift-2", action: "Window")
-                    shortcutRow(key: "Command-Shift-3", action: "Full Screen")
-                    shortcutRow(key: "Command-Shift-4", action: "Frontmost Window")
-                    shortcutRow(key: "Command-Shift-R", action: "Repeat Last Capture")
+                    ForEach(quickStartShortcutEntries) { entry in
+                        shortcutRow(key: entry.keys, action: entry.action)
+                    }
                 }
             }
         }
+    }
+
+    private var quickStartShortcutEntries: [ShortcutCatalogEntry] {
+        let appOpen = AppShortcut.catalogSections
+            .first { $0.title == "App" }?
+            .entries
+            .first { $0.action == "Open SnipSnipSnip" }
+        let captures = AppShortcut.catalogSections
+            .first { $0.title == "Default Global Capture" }
+            .map { Array($0.entries.prefix(5)) } ?? []
+
+        return [appOpen].compactMap { $0 } + captures
     }
 
     private var windowCaptureCard: some View {

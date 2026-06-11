@@ -106,6 +106,7 @@ final class EditorController: ObservableObject {
     }
     @Published var errorMessage: String?
     @Published private(set) var noticeMessage: String?
+    var editorSingleKeyToolShortcutsEnabled = true
     @Published private(set) var toolStyles: [EditorTool: AnnotationStyle]
     @Published private(set) var canvasRevision = 0
     @Published var ocrReviewText: String?
@@ -231,6 +232,10 @@ final class EditorController: ObservableObject {
     var selectedAnnotations: [Annotation] {
         let idSet = Set(snapshot.selectedAnnotationIDs)
         return snapshot.annotations.filter { idSet.contains($0.id) }
+    }
+
+    var containsRedactions: Bool {
+        snapshot.annotations.contains { $0.redactionMode != nil }
     }
 
     var selectedAnnotation: Annotation? {
@@ -563,6 +568,14 @@ final class EditorController: ObservableObject {
         }
 
         execute(UpdateAnnotationsCommand(annotations: annotations))
+    }
+
+    func nudgeSelectedAnnotations(by delta: CGSize) {
+        guard !selectedAnnotations.isEmpty else {
+            return
+        }
+
+        updateAnnotations(selectedAnnotations.map { $0.translated(by: delta) })
     }
 
     func select(_ annotationID: UUID?, additive: Bool = false, toggle: Bool = false) {
@@ -1608,7 +1621,11 @@ final class EditorController: ObservableObject {
         }
     }
 
-    func saveAnnotatedImage(format: ImageExportFormat = .png, filenameTemplate: ScreenshotFilenameTemplate = ScreenshotFilenameTemplate.default) {
+    func saveAnnotatedImage(
+        format: ImageExportFormat = .png,
+        filenameTemplate: ScreenshotFilenameTemplate = ScreenshotFilenameTemplate.default,
+        exportOptions: ImageExportOptions = .default
+    ) {
         let input = EditorExportRenderInput(
             baseImage: capture.image,
             snapshot: snapshot,
@@ -1626,12 +1643,12 @@ final class EditorController: ObservableObject {
                     throw ImageExportError.transparentPresentationRequiresPNG
                 }
 
-                guard let url = ImageExporter.destinationURL(suggestedFilename: suggestedFilename, format: format) else {
+                guard let url = await ImageExporter.destinationURL(suggestedFilename: suggestedFilename, format: format) else {
                     return
                 }
 
                 let image = try await EditorExportRenderer.renderImage(from: input)
-                try await ImageExporter.write(image, format: format, to: url)
+                try await ImageExporter.write(image, format: format, to: url, options: exportOptions)
             } catch {
                 self?.errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             }
@@ -1658,7 +1675,8 @@ final class EditorController: ObservableObject {
 
     func promisedImagePayload(
         requestedFormat: ImageExportFormat,
-        filenameTemplate: ScreenshotFilenameTemplate
+        filenameTemplate: ScreenshotFilenameTemplate,
+        exportOptions: ImageExportOptions = .default
     ) -> PromisedFilePayload {
         let input = EditorExportRenderInput(
             baseImage: capture.image,
@@ -1684,7 +1702,7 @@ final class EditorController: ObservableObject {
             contentType: format.contentType,
             writer: { destinationURL in
                 let image = try await EditorExportRenderer.renderImage(from: input)
-                try await ImageExporter.write(image, format: format, to: destinationURL, mode: .direct)
+                try await ImageExporter.write(image, format: format, to: destinationURL, mode: .direct, options: exportOptions)
             },
             completion: { [weak self] result in
                 guard case .failure(let error) = result else {

@@ -173,6 +173,15 @@ private struct AppInfoCommands: Commands {
     }
 }
 
+private struct AppLifecycleCommands: Commands {
+    var body: some Commands {
+        CommandGroup(replacing: .appTermination) {
+            Button("Minimize \(AppBranding.displayName)", action: AppOpenBridge.minimizeActiveWindow)
+                .keyboardShortcut("q", modifiers: [.command])
+        }
+    }
+}
+
 private struct HelpCommands: Commands {
     @ObservedObject var model: AppModel
     @Environment(\.openWindow) private var openWindow
@@ -476,6 +485,7 @@ struct SnipSnipSnipApp: App {
         .restorationBehavior(.disabled)
         .commands {
             AppInfoCommands()
+            AppLifecycleCommands()
             HelpCommands(model: model)
             DocumentCommands(model: model)
             PasteboardCommands(model: model)

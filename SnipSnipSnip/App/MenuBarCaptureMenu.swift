@@ -40,6 +40,9 @@ struct RegionCaptureSettingsMenuContent: View {
             set: { newValue in
                 var preferences = model.regionCapturePreferences
                 preferences.showsActionControls = !newValue
+                if newValue {
+                    preferences.advancedControlsEnabled = false
+                }
                 model.regionCapturePreferences = preferences
             }
         )

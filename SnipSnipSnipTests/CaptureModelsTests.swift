@@ -9,7 +9,18 @@ final class CaptureModelsTests: XCTestCase {
 
         XCTAssertEqual(preferences.overlayMode, .crosshairAndMagnifyingGlass)
         XCTAssertFalse(preferences.showsActionControls)
+        XCTAssertFalse(preferences.advancedControlsEnabled)
         XCTAssertTrue(preferences.autoCapturesOnMouseUp)
+        XCTAssertFalse(preferences.showsRegionConfirmationControls)
+    }
+
+    func testRegionCaptureAdvancedControlsPauseAfterDragWithoutActionControls() {
+        var preferences = RegionCapturePreferences()
+        preferences.advancedControlsEnabled = true
+
+        XCTAssertFalse(preferences.showsActionControls)
+        XCTAssertFalse(preferences.autoCapturesOnMouseUp)
+        XCTAssertTrue(preferences.showsRegionConfirmationControls)
     }
 
     func testRegionCaptureOverlayModeFlagsMatchVisibleOverlays() {
@@ -45,6 +56,133 @@ final class CaptureModelsTests: XCTestCase {
         let snapshot = DisplaySnapshot(displayID: 1, name: "Display", frame: captureFrame, scale: 1)
 
         XCTAssertEqual(snapshot.overlayFrame, captureFrame)
+    }
+
+    func testFullscreenDisplayResolverUsesCurrentDisplayForCurrentMode() {
+        let service = ScreenCaptureService()
+        let displays = [
+            DisplaySnapshot(displayID: 1, name: "Built-in", frame: CGRect(x: 0, y: 0, width: 800, height: 600), scale: 2),
+            DisplaySnapshot(displayID: 2, name: "External", frame: CGRect(x: 800, y: 0, width: 1024, height: 768), scale: 1)
+        ]
+
+        let resolved = service.fullscreenDisplay(
+            mode: .currentDisplay,
+            selectedDisplayID: nil,
+            displays: displays,
+            preferredDisplayID: nil,
+            preferredPoint: CGPoint(x: 900, y: 100)
+        )
+
+        XCTAssertEqual(resolved?.displayID, 2)
+    }
+
+    func testFullscreenDisplayResolverUsesSelectedDisplayWhenAvailable() {
+        let service = ScreenCaptureService()
+        let displays = [
+            DisplaySnapshot(displayID: 1, name: "Built-in", frame: CGRect(x: 0, y: 0, width: 800, height: 600), scale: 2),
+            DisplaySnapshot(displayID: 2, name: "External", frame: CGRect(x: 800, y: 0, width: 1024, height: 768), scale: 1)
+        ]
+
+        let resolved = service.fullscreenDisplay(
+            mode: .selectedDisplay,
+            selectedDisplayID: 2,
+            displays: displays,
+            preferredDisplayID: 1,
+            preferredPoint: CGPoint(x: 100, y: 100)
+        )
+
+        XCTAssertEqual(resolved?.displayID, 2)
+    }
+
+    func testFullscreenDisplayResolverFallsBackToCurrentDisplayWhenSelectedDisplayIsMissing() {
+        let service = ScreenCaptureService()
+        let displays = [
+            DisplaySnapshot(displayID: 1, name: "Built-in", frame: CGRect(x: 0, y: 0, width: 800, height: 600), scale: 2),
+            DisplaySnapshot(displayID: 2, name: "External", frame: CGRect(x: 800, y: 0, width: 1024, height: 768), scale: 1)
+        ]
+
+        let resolved = service.fullscreenDisplay(
+            mode: .selectedDisplay,
+            selectedDisplayID: 999,
+            displays: displays,
+            preferredDisplayID: nil,
+            preferredPoint: CGPoint(x: 900, y: 100)
+        )
+
+        XCTAssertEqual(resolved?.displayID, 2)
+    }
+
+    func testFullscreenDisplayResolverAllDisplaysStillTracksCurrentDisplayForRepeatFallbacks() {
+        let service = ScreenCaptureService()
+        let displays = [
+            DisplaySnapshot(displayID: 1, name: "Built-in", frame: CGRect(x: 0, y: 0, width: 800, height: 600), scale: 2),
+            DisplaySnapshot(displayID: 2, name: "External", frame: CGRect(x: 800, y: 0, width: 1024, height: 768), scale: 1)
+        ]
+
+        let resolved = service.fullscreenDisplay(
+            mode: .allDisplays,
+            selectedDisplayID: nil,
+            displays: displays,
+            preferredDisplayID: 2,
+            preferredPoint: nil
+        )
+
+        XCTAssertEqual(resolved?.displayID, 2)
+    }
+
+    func testRegionPrecisionNudgeClampsSelectionInsideBounds() {
+        let rect = CGRect(x: 90, y: 90, width: 20, height: 20)
+        let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+        let updated = RegionPrecisionGeometry.nudgedRect(rect, by: CGSize(width: 15, height: -120), within: bounds)
+
+        XCTAssertEqual(updated, CGRect(x: 80, y: 0, width: 20, height: 20))
+    }
+
+    func testRegionPrecisionResizeClampsToMinimumSize() {
+        let rect = CGRect(x: 20, y: 20, width: 80, height: 60)
+        let bounds = CGRect(x: 0, y: 0, width: 200, height: 200)
+
+        let updated = RegionPrecisionGeometry.resizedRect(
+            rect,
+            handle: .bottomRight,
+            point: CGPoint(x: 21, y: 21),
+            aspectRatio: nil,
+            within: bounds
+        )
+
+        XCTAssertGreaterThanOrEqual(updated.width, RegionPrecisionGeometry.minimumDimension)
+        XCTAssertGreaterThanOrEqual(updated.height, RegionPrecisionGeometry.minimumDimension)
+    }
+
+    func testRegionPrecisionNumericSizeSanitizesAndClamps() {
+        let rect = CGRect(x: 40, y: 30, width: 80, height: 60)
+        let bounds = CGRect(x: 0, y: 0, width: 120, height: 100)
+
+        let updated = RegionPrecisionGeometry.rectBySettingSize(
+            rect,
+            width: .nan,
+            height: 500,
+            lockedAspectRatio: nil,
+            within: bounds
+        )
+
+        XCTAssertEqual(updated, CGRect(x: 40, y: 30, width: 80, height: 70))
+    }
+
+    func testRegionPrecisionNumericWidthHonorsAspectLockWhenHeightIsUnset() {
+        let rect = CGRect(x: 10, y: 10, width: 100, height: 50)
+        let bounds = CGRect(x: 0, y: 0, width: 300, height: 300)
+
+        let updated = RegionPrecisionGeometry.rectBySettingSize(
+            rect,
+            width: 80,
+            height: nil,
+            lockedAspectRatio: 2,
+            within: bounds
+        )
+
+        XCTAssertEqual(updated, CGRect(x: 10, y: 10, width: 80, height: 40))
     }
 
     func testScreenshotFilenameTemplateResolvesTokensAndSanitizesOutput() {
