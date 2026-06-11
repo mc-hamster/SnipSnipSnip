@@ -136,7 +136,33 @@ struct HelpGuideView: View {
                         ]
                         : [],
                     relatedIDs: ["troubleshoot-capture", "privacy"]
-                ),
+                )
+            ] + (FeatureFlags.proUpdateCheckEnabled ? [
+                HelpArticle(
+                    id: "pro-updates",
+                    title: "Update SnipSnipSnip Pro",
+                    summary: "Check GitHub Releases for the newest Pro package and download it manually.",
+                    sections: [
+                        HelpArticleSection(
+                            title: "Check for updates",
+                            steps: [
+                                "Choose Help > Check for Pro Updates, or open Settings > General > Help & Onboarding.",
+                                "SnipSnipSnip Pro reads the latest GitHub release and compares it with the version you are running.",
+                                "If a newer version is available, choose Download Update to open the GitHub release page.",
+                                "Download the newest Pro package from GitHub Releases, quit SnipSnipSnip Pro, and install the package normally."
+                            ]
+                        ),
+                        HelpArticleSection(
+                            title: "Current limitation",
+                            body: "This checker only notifies you and opens GitHub Releases. It does not install updates automatically. A Sparkle-based updater is planned for a later Pro release."
+                        )
+                    ],
+                    important: [
+                        "Only download SnipSnipSnip Pro packages from the official GitHub Releases page or another trusted Oontz link."
+                    ],
+                    relatedIDs: ["get-started", "troubleshoot-capture"]
+                )
+            ] : []) + [
                 HelpArticle(
                     id: "ui-map",
                     title: "Inspect a UI Map",

@@ -14,7 +14,7 @@ on:
       prerelease:
         description: Mark GitHub release as pre-release
         required: true
-        default: false
+        default: true
         type: boolean
       draft:
         description: Create GitHub release as draft

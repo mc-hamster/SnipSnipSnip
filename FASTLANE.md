@@ -4,6 +4,12 @@ This repository now has a project-local Fastlane setup for the `SnipSnipSnip` ma
 
 This guide assumes Fastlane is already installed locally, `fastlane/.env` is already configured, the App Store Connect API key file is in place, and Xcode signing already works for the `Release` configuration.
 
+## Build Tooling License Note
+
+SnipSnipSnip does not currently bundle third-party app libraries. The shipped app targets use Apple frameworks from the macOS SDK.
+
+The repository does use Fastlane and its Ruby gem dependencies as build and release tooling, pinned by [Gemfile](Gemfile) and [Gemfile.lock](Gemfile.lock). Those tools are not copied into the app bundle. If this repository ever vendors those gems, distributes a prebuilt build environment, or adds runtime app dependencies, include the relevant third-party license notices with that distribution.
+
 It is designed for:
 
 - building the `SnipSnipSnip` release archive and exporting a Mac App Store package
@@ -202,7 +208,7 @@ GITHUB_TOKEN=ghp_xxx \
 ./bin/fastlane mac self_release_publish version:1.0.18 changelog:"Website release with scrolling capture fixes"
 
 GITHUB_TOKEN=ghp_xxx \
-./bin/fastlane mac self_release_publish version:1.0.18 prerelease:true
+./bin/fastlane mac self_release_publish version:1.0.18
 ```
 
 You can also publish through `self_release` directly:
@@ -220,12 +226,15 @@ Publishing details:
 4. Fastlane creates or updates a GitHub release (default repo `mc-hamster/SnipSnipSnip`).
 5. Fastlane uploads the `.pkg` asset to that release.
 
+Self Release GitHub releases default to pre-release and explicitly avoid being marked as Latest. Promote known-good builds to Latest manually from GitHub.
+
 Optional publish parameters:
 
 - `repository:owner/name` to override the destination repo (default `mc-hamster/SnipSnipSnip`)
 - `tag:v1.0.18-self.123` to override the generated tag
 - `release_name:"SnipSnipSnip Pro 1.0.18 Website"` to override the release title
-- `draft:true` and `prerelease:true` for release state
+- `draft:true` for draft release state
+- `prerelease:false` only if you intentionally want to publish a Self Release as a normal release
 - `asset_path:/absolute/path/to/SnipSnipSnip.pkg` to upload a specific package
 
 ### Build target feature flags

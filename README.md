@@ -77,6 +77,8 @@ xcodebuild test -project SnipSnipSnip.xcodeproj -scheme SnipSnipSnip -destinatio
 
 The test suite uses `/private/tmp` for DerivedData so build artifacts stay out of the repo.
 
+Release automation is documented in [FASTLANE.md](FASTLANE.md), including the distinction between app-bundled dependencies and build-time Fastlane tooling.
+
 ## Performance Profiling
 
 Use the profiling guide in [PERFORMANCE_PROFILING.md](PERFORMANCE_PROFILING.md).

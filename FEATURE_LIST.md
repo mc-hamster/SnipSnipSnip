@@ -306,6 +306,7 @@ The biggest unfinished areas are now clear:
 | User-facing diagnostics bundle export | ✓ Done | Settings > Privacy > Export Diagnostics writes a local JSON report with sanitized app/build target, macOS, feature flags, permissions, display summaries, archive/clipboard/video-relevant storage summaries, connected-device state, launch-at-login state, and recent sanitized statuses. | Extend carefully as support needs grow; do not include screenshots, OCR text, clipboard contents, annotation text, document data, window titles, or raw paths. |
 | Crash reporting | x Not done | No crash reporting integration was found. | Keep privacy-first if added. |
 | Product analytics | x Not done | No analytics integration was found. | Keep opt-in and local-first if ever added. |
+| Pro app updates | ~ Partial | SnipSnipSnip Pro can manually check the latest GitHub release and send users to GitHub Releases to download the newest package. | This is only a notification/download handoff, not an in-app updater. Add Sparkle appcast-based update installation later. |
 | Release automation | ~ Partial | `FASTLANE.md` and project-local Fastlane lanes exist for doctoring, TestFlight, and release submission. | Production release automation is still documented as not fully proven end-to-end in this repo. |
 | Documentation coverage | ~ Partial | Help, README, screenshot format docs, video format docs, performance profiling docs, and Fastlane docs are in place. | Broader release-facing visuals and walkthrough media are still missing. |
 

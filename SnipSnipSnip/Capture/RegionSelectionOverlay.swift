@@ -129,6 +129,10 @@ final class RegionSelectionSession: NSObject {
                 break
             }
 
+            if self.eventTargetsInteractiveOverlayControl(event) {
+                return event
+            }
+
             let point = self.globalPoint(for: event)
 
             switch event.type {
@@ -146,6 +150,32 @@ final class RegionSelectionSession: NSObject {
 
             return event
         }
+    }
+
+    private func eventTargetsInteractiveOverlayControl(_ event: NSEvent) -> Bool {
+        switch event.type {
+        case .leftMouseDown, .leftMouseDragged, .leftMouseUp:
+            break
+        default:
+            return false
+        }
+
+        guard let contentView = event.window?.contentView else {
+            return false
+        }
+
+        let localPoint = contentView.convert(event.locationInWindow, from: nil)
+        var hitView = contentView.hitTest(localPoint)
+
+        while let currentView = hitView {
+            if currentView is NSControl || currentView is NSTextView {
+                return true
+            }
+
+            hitView = currentView.superview
+        }
+
+        return false
     }
 
     private func globalPoint(for event: NSEvent) -> CGPoint {
@@ -665,14 +695,29 @@ private final class RegionSelectionView: NSView, NSTextFieldDelegate {
     }
 
     override func mouseDown(with event: NSEvent) {
+        guard !eventTargetsInteractiveControl(event) else {
+            super.mouseDown(with: event)
+            return
+        }
+
         coordinator.mouseDown(at: globalPoint(for: event), in: window, eventTimestamp: event.timestamp)
     }
 
     override func mouseDragged(with event: NSEvent) {
+        guard !eventTargetsInteractiveControl(event) else {
+            super.mouseDragged(with: event)
+            return
+        }
+
         coordinator.mouseDragged(to: globalPoint(for: event), eventTimestamp: event.timestamp)
     }
 
     override func mouseUp(with event: NSEvent) {
+        guard !eventTargetsInteractiveControl(event) else {
+            super.mouseUp(with: event)
+            return
+        }
+
         coordinator.mouseUp(at: globalPoint(for: event), eventTimestamp: event.timestamp)
     }
 
@@ -852,6 +897,21 @@ private final class RegionSelectionView: NSView, NSTextFieldDelegate {
     private func globalPoint(for event: NSEvent) -> CGPoint {
         let localPoint = convert(event.locationInWindow, from: nil)
         return displayPreview.snapshot.captureDisplayTransform.captureGlobalPoint(fromOverlayLocalPoint: localPoint)
+    }
+
+    private func eventTargetsInteractiveControl(_ event: NSEvent) -> Bool {
+        let localPoint = convert(event.locationInWindow, from: nil)
+        var hitView = hitTest(localPoint)
+
+        while let currentView = hitView {
+            if currentView is NSControl || currentView is NSTextView {
+                return true
+            }
+
+            hitView = currentView.superview
+        }
+
+        return false
     }
 
     @objc

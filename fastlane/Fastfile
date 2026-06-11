@@ -460,8 +460,10 @@ private_lane :publish_self_release_package do |options|
   asset_path = latest_pkg_path if asset_path.empty?
   asset_path = resolve_repo_path(asset_path)
 
-  draft = boolean_option(options[:draft] || ENV["GITHUB_RELEASE_DRAFT"], default_value: false)
-  prerelease = boolean_option(options[:prerelease] || ENV["GITHUB_RELEASE_PRERELEASE"], default_value: false)
+  draft_value = options[:draft].nil? ? ENV["GITHUB_RELEASE_DRAFT"] : options[:draft]
+  prerelease_value = options[:prerelease].nil? ? ENV["GITHUB_RELEASE_PRERELEASE"] : options[:prerelease]
+  draft = boolean_option(draft_value, default_value: false)
+  prerelease = boolean_option(prerelease_value, default_value: true)
 
   release_exists = github_release_exists?(tag: tag, repo: repository)
   if release_exists
@@ -475,15 +477,16 @@ private_lane :publish_self_release_package do |options|
       ].join(" ")
     )
 
-    Actions.sh(
-      [
-        "cd", Shellwords.escape(REPOSITORY_ROOT), "&&",
-        "gh", "release", "edit", Shellwords.escape(tag),
-        "--repo", Shellwords.escape(repository),
-        "--title", Shellwords.escape(release_name),
-        "--notes", Shellwords.escape(changelog_details[:text])
-      ].join(" ")
-    )
+    edit_command = [
+      "cd", Shellwords.escape(REPOSITORY_ROOT), "&&",
+      "gh", "release", "edit", Shellwords.escape(tag),
+      "--repo", Shellwords.escape(repository),
+      "--title", Shellwords.escape(release_name),
+      "--notes", Shellwords.escape(changelog_details[:text])
+    ]
+    edit_command << "--prerelease" if prerelease
+    edit_command << "--latest=false" if prerelease
+    Actions.sh(edit_command.join(" "))
   else
     create_command = [
       "cd", Shellwords.escape(REPOSITORY_ROOT), "&&",
@@ -495,6 +498,7 @@ private_lane :publish_self_release_package do |options|
     ]
     create_command << "--draft" if draft
     create_command << "--prerelease" if prerelease
+    create_command << "--latest=false" if prerelease
     Actions.sh(create_command.join(" "))
   end
 

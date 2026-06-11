@@ -27,6 +27,7 @@ nonisolated enum FeatureToggle {
     case accessibilityAutomation
     case connectedDeviceCapture
     case uiMap
+    case proUpdateCheck
 }
 
 /// Single source of truth for feature availability by build target.
@@ -54,6 +55,7 @@ nonisolated enum BuildTargetFeatureMatrix {
             .accessibilityAutomation,
             .connectedDeviceCapture,
             .uiMap,
+            .proUpdateCheck,
         ],
     ]
 
@@ -117,6 +119,18 @@ nonisolated enum FeatureFlags {
 
     static var uiMapEnabled: Bool {
         uiMapEnabled(for: .current)
+    }
+
+    static func proUpdateCheckEnabled(for target: BuildTarget = .current) -> Bool {
+#if APP_STORE_BUILD
+        false
+#else
+        BuildTargetFeatureMatrix.isEnabled(.proUpdateCheck, for: target)
+#endif
+    }
+
+    static var proUpdateCheckEnabled: Bool {
+        proUpdateCheckEnabled(for: .current)
     }
 }
 

@@ -387,6 +387,7 @@ final class AppModel: ObservableObject {
     @Published var recycleBinEntries: [DocumentHistoryEntry] = []
     @Published var pendingRecoverySession: PendingRecoverySession?
     @Published var workingMessage = "Capturing"
+    @Published var isCheckingProUpdates = false
     @Published var isShowingUnsavedChangesPrompt = false
     @Published var permissionSetupGuide: PermissionSetupGuide?
     @Published var connectedDevices: [ConnectedAppleDevice] = []
@@ -762,6 +763,29 @@ final class AppModel: ObservableObject {
         launchAtLoginController.openSystemSettings()
     }
 
+    func checkForProUpdates() {
+        guard FeatureFlags.proUpdateCheckEnabled, !isCheckingProUpdates else {
+            return
+        }
+
+        isCheckingProUpdates = true
+
+        Task { @MainActor [weak self] in
+            guard let self else {
+                return
+            }
+
+            do {
+                let result = try await ProUpdateChecker.checkCurrentBuild(fetcher: URLSession.shared)
+                self.presentProUpdateCheckResult(result)
+            } catch {
+                self.presentProUpdateCheckFailure(error)
+            }
+
+            self.isCheckingProUpdates = false
+        }
+    }
+
     func dismissWelcomeCard() {
         guard showsWelcomeCard else {
             return
@@ -910,6 +934,40 @@ final class AppModel: ObservableObject {
             return .exportFlattenedPNG
         default:
             return .cancel
+        }
+    }
+
+    private func presentProUpdateCheckResult(_ result: ProUpdateCheckResult) {
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+
+        if result.updateIsAvailable {
+            alert.messageText = "A SnipSnipSnip Pro update is available"
+            alert.informativeText = "\(result.latestRelease.name) is available. You are currently running \(result.currentDisplayVersion). Download the latest package from GitHub Releases."
+            alert.addButton(withTitle: "Download Update")
+            alert.addButton(withTitle: "Not Now")
+
+            if alert.runModal() == .alertFirstButtonReturn {
+                NSWorkspace.shared.open(result.latestRelease.pageURL)
+            }
+        } else {
+            alert.messageText = "SnipSnipSnip Pro is up to date"
+            alert.informativeText = "You are running \(result.currentDisplayVersion). The latest GitHub release is \(result.latestRelease.name)."
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+    }
+
+    private func presentProUpdateCheckFailure(_: Error) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Couldn't check for Pro updates"
+        alert.informativeText = "SnipSnipSnip Pro could not read the latest GitHub release. You can open GitHub Releases and download the newest package manually."
+        alert.addButton(withTitle: "Open GitHub Releases")
+        alert.addButton(withTitle: "OK")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            NSWorkspace.shared.open(AppLinks.proGitHubReleases)
         }
     }
 

@@ -193,6 +193,14 @@ private struct HelpCommands: Commands {
 
             Button("Show Onboarding", action: model.requestOnboardingPresentation)
 
+            if FeatureFlags.proUpdateCheckEnabled {
+                Button(
+                    model.isCheckingProUpdates ? "Checking for Pro Updates..." : "Check for Pro Updates...",
+                    action: model.checkForProUpdates
+                )
+                .disabled(model.isCheckingProUpdates)
+            }
+
             Divider()
 
             Button("Website", action: openWebsite)

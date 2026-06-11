@@ -36,7 +36,17 @@ struct CaptureAutomationSettingsView: View {
                         NSWorkspace.shared.open(AppLinks.supportDiscord)
                     }
 
-                    SettingsHelpText("Replay onboarding whenever you want a guided walkthrough. Support requests and feature requests go through Discord.")
+                    if FeatureFlags.proUpdateCheckEnabled {
+                        Button(
+                            model.isCheckingProUpdates ? "Checking for Pro Updates..." : "Check for Pro Updates...",
+                            action: model.checkForProUpdates
+                        )
+                        .disabled(model.isCheckingProUpdates)
+                    }
+
+                    SettingsHelpText(FeatureFlags.proUpdateCheckEnabled
+                        ? "Replay onboarding whenever you want a guided walkthrough. Support requests and feature requests go through Discord. Pro update checks read the latest GitHub release and send you there to download the newest package."
+                        : "Replay onboarding whenever you want a guided walkthrough. Support requests and feature requests go through Discord.")
                 }
 
                 Section("Screenshot Capture") {
