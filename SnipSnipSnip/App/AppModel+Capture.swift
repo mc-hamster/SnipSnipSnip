@@ -42,6 +42,185 @@ private enum AppUIMapCaptureDiagnostics {
 }
 
 extension AppModel {
+    var canSaveLastCaptureAsPreset: Bool {
+        capturePresetDraftForLastCapture() != nil
+    }
+
+    func currentCaptureRunOptions() -> CaptureRunOptions {
+        CaptureRunOptions(
+            captureDelay: captureDelay,
+            includesCursor: screenshotIncludesCursor,
+            fullscreenDisplayMode: screenshotFullscreenDisplayMode,
+            selectedFullscreenDisplayID: selectedScreenshotFullscreenDisplayID,
+            regionPreferences: regionCapturePreferences,
+            windowUIMapEnabled: windowUIMapEnabled
+        )
+    }
+
+    func beginSavingLastCaptureAsPreset() {
+        guard let draft = capturePresetDraftForLastCapture() else {
+            errorMessage = "There is no recent screenshot capture that can be saved as a preset."
+            requestMainWindowPresentation()
+            return
+        }
+
+        pendingCapturePresetDraft = draft
+        capturePresetNameDraft = draft.name
+        isShowingCapturePresetNamingSheet = true
+        requestMainWindowPresentation()
+    }
+
+    func cancelSavingCapturePreset() {
+        pendingCapturePresetDraft = nil
+        capturePresetNameDraft = ""
+        isShowingCapturePresetNamingSheet = false
+    }
+
+    func commitCapturePresetName() {
+        guard var draft = pendingCapturePresetDraft else {
+            cancelSavingCapturePreset()
+            return
+        }
+
+        let fallbackName = draft.name
+        draft.name = uniqueCapturePresetName(capturePresetNameDraft, fallback: fallbackName)
+        draft.updatedAt = Date()
+        capturePresets.append(draft)
+        cancelSavingCapturePreset()
+    }
+
+    func renameCapturePreset(id: CapturePreset.ID, to proposedName: String) {
+        guard let index = capturePresets.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        var preset = capturePresets[index]
+        preset.name = uniqueCapturePresetName(proposedName, fallback: preset.targetLabel, replacing: id)
+        preset.updatedAt = Date()
+        capturePresets[index] = preset
+    }
+
+    func deleteCapturePreset(id: CapturePreset.ID) {
+        capturePresets.removeAll { $0.id == id }
+    }
+
+    func moveCapturePreset(id: CapturePreset.ID, offset: Int) {
+        guard let sourceIndex = capturePresets.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        let destinationIndex = min(max(sourceIndex + offset, 0), capturePresets.count - 1)
+        guard sourceIndex != destinationIndex else {
+            return
+        }
+
+        let preset = capturePresets.remove(at: sourceIndex)
+        capturePresets.insert(preset, at: destinationIndex)
+    }
+
+    private func capturePresetDraftForLastCapture() -> CapturePreset? {
+        guard let lastCaptureRequest,
+              let options = lastCaptureRunOptions else {
+            return nil
+        }
+
+        let target: CapturePresetTarget
+        let suggestedName: String
+
+        switch lastCaptureRequest {
+        case .region(let rect):
+            let savedRegion = savedCaptureRegion(for: rect)
+            target = .region(savedRegion)
+            suggestedName = "Region \(Int(savedRegion.rect.width.rounded())) x \(Int(savedRegion.rect.height.rounded()))"
+        case .window(let window):
+            target = .window(SavedWindowTarget(window: window))
+            suggestedName = "Window - \(window.ownerName)"
+        case .frontmostWindow:
+            target = .frontmostWindow
+            suggestedName = "Frontmost Window"
+        case .fullscreen:
+            target = .fullscreen
+            suggestedName = fullscreenPresetName(for: options)
+        case .scrolling, .connectedDevice:
+            return nil
+        }
+
+        return CapturePreset(
+            name: uniqueCapturePresetName(suggestedName, fallback: suggestedName),
+            target: target,
+            options: options
+        )
+    }
+
+    private func uniqueCapturePresetName(
+        _ proposedName: String,
+        fallback: String,
+        replacing replacedID: CapturePreset.ID? = nil
+    ) -> String {
+        let trimmed = proposedName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallbackTrimmed = fallback.trimmingCharacters(in: .whitespacesAndNewlines)
+        let baseName = trimmed.isEmpty ? (fallbackTrimmed.isEmpty ? "Capture Preset" : fallbackTrimmed) : trimmed
+        let existingNames = Set(capturePresets.compactMap { preset -> String? in
+            if preset.id == replacedID {
+                return nil
+            }
+
+            return preset.name.lowercased()
+        })
+
+        guard existingNames.contains(baseName.lowercased()) else {
+            return baseName
+        }
+
+        var suffix = 2
+        while existingNames.contains("\(baseName) \(suffix)".lowercased()) {
+            suffix += 1
+        }
+
+        return "\(baseName) \(suffix)"
+    }
+
+    private func savedCaptureRegion(for rect: CGRect) -> SavedCaptureRegion {
+        let display = displayInfo(containingMostOf: rect)
+        return SavedCaptureRegion(
+            rect: rect,
+            displayID: display?.id,
+            displayName: display?.name
+        )
+    }
+
+    private func displayInfo(containingMostOf rect: CGRect) -> (id: CGDirectDisplayID, name: String)? {
+        NSScreen.screens
+            .compactMap { screen -> (id: CGDirectDisplayID, name: String, area: CGFloat)? in
+                guard let displayID = screen.gscDisplayID else {
+                    return nil
+                }
+
+                let displayFrame = CGDisplayBounds(displayID)
+                let intersection = displayFrame.intersection(rect.gscIntegralStandardized)
+                return (displayID, screen.gscDisplayName, rectArea(intersection))
+            }
+            .filter { $0.area > 0 }
+            .max { $0.area < $1.area }
+            .map { ($0.id, $0.name) }
+    }
+
+    private func fullscreenPresetName(for options: CaptureRunOptions) -> String {
+        switch options.fullscreenDisplayMode {
+        case .currentDisplay:
+            return "Fullscreen - Current Display"
+        case .selectedDisplay:
+            if let selectedID = options.selectedFullscreenDisplayID,
+               let screen = NSScreen.screens.first(where: { $0.gscDisplayID == selectedID }) {
+                return "Fullscreen - \(screen.gscDisplayName)"
+            }
+
+            return "Fullscreen - Selected Display"
+        case .allDisplays:
+            return "Fullscreen - All Displays"
+        }
+    }
+
     func suspendEditorAutosaveForInteractiveCapture() -> InteractiveCaptureAutosaveSuspension {
         interactiveCaptureAutosaveSuspensionDepth += 1
 
@@ -292,6 +471,7 @@ extension AppModel {
 
     func pickWindowOnScreen() {
         let windows = availableWindows
+        let runOptions = currentCaptureRunOptions()
         isShowingWindowPicker = false
 
         Task {
@@ -306,7 +486,7 @@ extension AppModel {
                 try? await Task.sleep(nanoseconds: 200_000_000)
             }
 
-            guard ensureWindowScreenshotCaptureAccess() else {
+            guard ensureScreenshotCaptureAccess(for: .frontmostWindow, runOptions: runOptions) else {
                 return
             }
 
@@ -323,11 +503,11 @@ extension AppModel {
                     return
                 }
 
-                try await runCaptureDelayIfNeeded(actionName: "Capturing Window")
+                try await runCaptureDelayIfNeeded(actionName: "Capturing Window", delay: runOptions.captureDelay)
                 let resolvedWindow = try await captureService.resolveWindowTarget(selectedWindow)
                 let capture = try await captureService.captureWindow(resolvedWindow)
                 showCapturedFeedback()
-                try completeCapture(capture, request: .window(resolvedWindow), isPrivateCapture: isPrivateCapture)
+                try completeCapture(capture, request: .window(resolvedWindow), isPrivateCapture: isPrivateCapture, runOptions: runOptions)
             } catch {
                 present(error)
             }
@@ -465,19 +645,21 @@ extension AppModel {
     }
 
     func beginFullscreenCapture() {
+        let runOptions = currentCaptureRunOptions()
         Task {
-            await performCapture(request: .fullscreen, minimizeAppWindow: true) {
+            await performCapture(request: .fullscreen, minimizeAppWindow: true, runOptions: runOptions) {
                 try await captureService.captureFullscreen(
-                    mode: screenshotFullscreenDisplayMode,
-                    selectedDisplayID: selectedScreenshotFullscreenDisplayID
+                    mode: runOptions.fullscreenDisplayMode,
+                    selectedDisplayID: runOptions.selectedFullscreenDisplayID
                 )
             }
         }
     }
 
     func beginFrontmostWindowCapture() {
+        let runOptions = currentCaptureRunOptions()
         Task {
-            await performCapture(request: .frontmostWindow, minimizeAppWindow: true) {
+            await performCapture(request: .frontmostWindow, minimizeAppWindow: true, runOptions: runOptions) {
                 let window = try await captureService.frontmostWindow()
                 return try await captureService.captureWindow(window)
             }
@@ -485,8 +667,9 @@ extension AppModel {
     }
 
     func beginRegionCapture() {
+        let runOptions = currentCaptureRunOptions()
         Task {
-            guard ensureScreenshotCaptureAccess() else {
+            guard ensureScreenshotCaptureAccess(for: .region(.zero), runOptions: runOptions) else {
                 return
             }
 
@@ -510,7 +693,7 @@ extension AppModel {
                 let session = RegionSelectionSession(
                     snapshot: snapshot,
                     windows: windowOptions,
-                    preferences: regionCapturePreferences
+                    preferences: runOptions.regionPreferences
                 )
 
                 guard let selection = await session.begin() else {
@@ -519,7 +702,7 @@ extension AppModel {
 
                 switch selection {
                 case let .region(region, cursorCaptureGlobalLocation):
-                    try await runCaptureDelayIfNeeded(actionName: "Capture Region")
+                    try await runCaptureDelayIfNeeded(actionName: "Capture Region", delay: runOptions.captureDelay)
                     let capture: CapturedScreenshot
                     do {
                         capture = try await captureService.captureRegionDirect(in: region)
@@ -533,17 +716,19 @@ extension AppModel {
                         request: .region(capture.sourceRect),
                         isPrivateCapture: isPrivateCapture,
                         cursorCaptureGlobalLocation: cursorCaptureGlobalLocation,
-                        shouldAttemptUIMapCapture: true
+                        shouldAttemptUIMapCapture: true,
+                        runOptions: runOptions
                     )
                 case .window(let window):
-                    try await runCaptureDelayIfNeeded(actionName: "Capturing Window")
+                    try await runCaptureDelayIfNeeded(actionName: "Capturing Window", delay: runOptions.captureDelay)
                     let resolvedWindow = try await captureService.resolveWindowTarget(window)
                     let capture = try await captureService.captureWindow(resolvedWindow)
                     showCapturedFeedback()
                     try completeCapture(
                         capture,
                         request: .window(resolvedWindow),
-                        isPrivateCapture: isPrivateCapture
+                        isPrivateCapture: isPrivateCapture,
+                        runOptions: runOptions
                     )
                 }
             } catch {
@@ -633,8 +818,352 @@ extension AppModel {
         }
     }
 
-    func performCapture(request: LastCaptureRequest, minimizeAppWindow: Bool = false, _ action: () async throws -> CapturedScreenshot) async {
-        guard ensureScreenshotCaptureAccess(for: request) else {
+    func capturePreset(_ preset: CapturePreset) {
+        guard !isWorking, !isRecordingVideo, !isConnectedDeviceSessionActive else {
+            return
+        }
+
+        switch preset.target {
+        case .region(let region):
+            capturePresetRegion(presetID: preset.id, savedRegion: region, options: preset.options)
+        case .window(let window):
+            capturePresetWindow(presetID: preset.id, savedWindow: window, options: preset.options)
+        case .frontmostWindow:
+            Task {
+                await performCapture(request: .frontmostWindow, minimizeAppWindow: true, runOptions: preset.options) {
+                    let window = try await captureService.frontmostWindow()
+                    return try await captureService.captureWindow(window)
+                }
+            }
+        case .fullscreen:
+            Task {
+                await performCapture(request: .fullscreen, minimizeAppWindow: true, runOptions: preset.options) {
+                    try await captureService.captureFullscreen(
+                        mode: preset.options.fullscreenDisplayMode,
+                        selectedDisplayID: preset.options.selectedFullscreenDisplayID
+                    )
+                }
+            }
+        }
+    }
+
+    func capturePreset(id: CapturePreset.ID) {
+        guard let preset = capturePresets.first(where: { $0.id == id }) else {
+            return
+        }
+
+        capturePreset(preset)
+    }
+
+    func replaceWindowTargetAndCapturePreset(id: CapturePreset.ID, with window: CaptureWindowSummary) {
+        updateWindowTarget(forPresetID: id, window: window)
+        capturePreset(id: id)
+    }
+
+    func pickWindowOnScreenForPresetReplacement(id presetID: CapturePreset.ID) {
+        let windows = availableWindows
+        isShowingWindowPicker = false
+
+        Task {
+            let autosaveSuspension = suspendEditorAutosaveForInteractiveCapture()
+            defer { resumeEditorAutosaveAfterInteractiveCapture(autosaveSuspension) }
+            let hiddenWindow = hideAppWindowIfNeeded()
+            defer { restoreAppWindowIfNeeded(hiddenWindow) }
+
+            if hiddenWindow != nil {
+                try? await Task.sleep(nanoseconds: 200_000_000)
+            }
+
+            guard ensureScreenshotCaptureAccess(for: .frontmostWindow, runOptions: capturePresets.first(where: { $0.id == presetID })?.options ?? currentCaptureRunOptions()) else {
+                return
+            }
+
+            isWorking = true
+            workingMessage = "Pick Window"
+            defer { isWorking = false }
+
+            do {
+                let windowOptions = windows.isEmpty ? try await captureService.listWindows(includeThumbnails: false) : windows
+                let snapshot = try await captureService.captureDesktopOverlaySnapshot()
+                let session = WindowSelectionSession(snapshot: snapshot, windows: windowOptions)
+
+                guard let selectedWindow = await session.begin() else {
+                    return
+                }
+
+                isWorking = false
+                updateWindowTarget(forPresetID: presetID, window: selectedWindow)
+                capturePreset(id: presetID)
+            } catch {
+                present(error)
+            }
+        }
+    }
+
+    private func capturePresetRegion(
+        presetID: CapturePreset.ID,
+        savedRegion: SavedCaptureRegion,
+        options: CaptureRunOptions
+    ) {
+        Task {
+            guard ensureScreenshotCaptureAccess(for: .region(savedRegion.rect), runOptions: options) else {
+                return
+            }
+
+            let isPrivateCapture = beginCapturePrivacyLock()
+            defer { endCapturePrivacyLock() }
+            let hiddenWindow = hideAppWindowIfNeeded()
+            defer { restoreAppWindowIfNeeded(hiddenWindow) }
+
+            if hiddenWindow != nil {
+                try? await Task.sleep(nanoseconds: 200_000_000)
+            }
+
+            isWorking = true
+            workingMessage = "Capture Preset"
+            defer { isWorking = false }
+
+            do {
+                let snapshot = try await captureService.captureDesktopOverlaySnapshot()
+                guard isSavedRegionAvailable(savedRegion.rect, in: snapshot) else {
+                    isWorking = false
+                    beginPresetRegionFallback(
+                        presetID: presetID,
+                        savedRegion: savedRegion,
+                        options: options
+                    )
+                    return
+                }
+
+                try await runCaptureDelayIfNeeded(actionName: "Capture Preset", delay: options.captureDelay)
+                let capture: CapturedScreenshot
+                do {
+                    capture = try await captureService.captureRegionDirect(in: savedRegion.rect)
+                } catch {
+                    let fallbackSnapshot = try await captureService.captureDesktopOverlaySnapshot()
+                    capture = try await captureService.captureRegion(from: fallbackSnapshot, selection: savedRegion.rect)
+                }
+
+                showCapturedFeedback()
+                try completeCapture(
+                    capture,
+                    request: .region(capture.sourceRect),
+                    isPrivateCapture: isPrivateCapture,
+                    runOptions: options
+                )
+            } catch {
+                present(error)
+            }
+        }
+    }
+
+    private func beginPresetRegionFallback(
+        presetID: CapturePreset.ID,
+        savedRegion: SavedCaptureRegion,
+        options: CaptureRunOptions
+    ) {
+        Task {
+            guard ensureScreenshotCaptureAccess(for: .region(savedRegion.rect), runOptions: options) else {
+                return
+            }
+
+            let isPrivateCapture = beginCapturePrivacyLock()
+            defer { endCapturePrivacyLock() }
+            let autosaveSuspension = suspendEditorAutosaveForInteractiveCapture()
+            defer { resumeEditorAutosaveAfterInteractiveCapture(autosaveSuspension) }
+            let hiddenWindow = hideAppWindowIfNeeded()
+            defer { restoreAppWindowIfNeeded(hiddenWindow) }
+
+            if hiddenWindow != nil {
+                try? await Task.sleep(nanoseconds: 200_000_000)
+            }
+
+            isWorking = true
+            workingMessage = "Reposition Preset"
+            defer { isWorking = false }
+
+            do {
+                let snapshot = try await captureService.captureDesktopOverlaySnapshot()
+                let initialRect = fallbackRegionRect(for: savedRegion, in: snapshot)
+                var fallbackPreferences = options.regionPreferences
+                fallbackPreferences.showsActionControls = true
+                fallbackPreferences.advancedControlsEnabled = true
+                let session = RegionSelectionSession(
+                    snapshot: snapshot,
+                    preferences: fallbackPreferences,
+                    initialSelectionRect: initialRect
+                )
+
+                guard let selection = await session.begin() else {
+                    return
+                }
+
+                guard case let .region(region, cursorCaptureGlobalLocation) = selection else {
+                    return
+                }
+
+                try await runCaptureDelayIfNeeded(actionName: "Capture Preset", delay: options.captureDelay)
+                let capture: CapturedScreenshot
+                do {
+                    capture = try await captureService.captureRegionDirect(in: region)
+                } catch {
+                    let fallbackSnapshot = try await captureService.captureDesktopOverlaySnapshot()
+                    capture = try await captureService.captureRegion(from: fallbackSnapshot, selection: region)
+                }
+
+                updateRegionTarget(forPresetID: presetID, rect: capture.sourceRect)
+                showCapturedFeedback()
+                try completeCapture(
+                    capture,
+                    request: .region(capture.sourceRect),
+                    isPrivateCapture: isPrivateCapture,
+                    cursorCaptureGlobalLocation: cursorCaptureGlobalLocation,
+                    runOptions: options
+                )
+            } catch {
+                present(error)
+            }
+        }
+    }
+
+    private func capturePresetWindow(
+        presetID: CapturePreset.ID,
+        savedWindow: SavedWindowTarget,
+        options: CaptureRunOptions
+    ) {
+        Task {
+            guard ensureScreenshotCaptureAccess(for: .frontmostWindow, runOptions: options) else {
+                return
+            }
+
+            isWorking = true
+            workingMessage = "Finding Window"
+            defer { isWorking = false }
+
+            do {
+                let windows = try await captureService.listWindows(includeThumbnails: true)
+                guard let resolvedWindow = gscStrictSavedWindowMatch(for: savedWindow, in: windows) else {
+                    isWorking = false
+                    presentWindowReplacementPicker(forPresetID: presetID)
+                    return
+                }
+
+                isWorking = false
+                await performCapture(request: .window(resolvedWindow), minimizeAppWindow: true, runOptions: options) {
+                    try await captureService.captureWindow(resolvedWindow)
+                }
+            } catch {
+                present(error)
+            }
+        }
+    }
+
+    private func presentWindowReplacementPicker(forPresetID presetID: CapturePreset.ID) {
+        errorMessage = "That preset's saved window is not available. Choose a replacement window to update and run the preset."
+        windowPickerMode = .capturePresetReplacement(presetID)
+        beginWindowPickerPresentation()
+    }
+
+    private func updateRegionTarget(forPresetID presetID: CapturePreset.ID, rect: CGRect) {
+        guard let index = capturePresets.firstIndex(where: { $0.id == presetID }) else {
+            return
+        }
+
+        var preset = capturePresets[index]
+        preset.target = .region(savedCaptureRegion(for: rect))
+        preset.updatedAt = Date()
+        capturePresets[index] = preset
+    }
+
+    private func updateWindowTarget(forPresetID presetID: CapturePreset.ID, window: CaptureWindowSummary) {
+        guard let index = capturePresets.firstIndex(where: { $0.id == presetID }) else {
+            return
+        }
+
+        var preset = capturePresets[index]
+        preset.target = .window(SavedWindowTarget(window: window))
+        preset.updatedAt = Date()
+        capturePresets[index] = preset
+    }
+
+    private func isSavedRegionAvailable(_ rect: CGRect, in snapshot: DesktopCompositeSnapshot) -> Bool {
+        let region = rect.gscIntegralStandardized
+        guard region.width > 2,
+              region.height > 2,
+              snapshot.globalFrame.contains(region) else {
+            return false
+        }
+
+        let coveredArea = snapshot.displays.reduce(CGFloat.zero) { partial, display in
+            partial + rectArea(display.frame.intersection(region))
+        }
+
+        return coveredArea >= max(rectArea(region) - 0.5, 0)
+    }
+
+    private func rectArea(_ rect: CGRect) -> CGFloat {
+        let standardized = rect.gscIntegralStandardized
+        guard !standardized.isNull else {
+            return 0
+        }
+
+        return max(standardized.width, 0) * max(standardized.height, 0)
+    }
+
+    private func fallbackRegionRect(
+        for savedRegion: SavedCaptureRegion,
+        in snapshot: DesktopCompositeSnapshot
+    ) -> CGRect {
+        let display = currentPresetFallbackDisplay(in: snapshot, preferredID: savedRegion.displayID)
+        let size = CGSize(
+            width: min(max(savedRegion.rect.width, RegionPrecisionGeometry.minimumDimension), display.frame.width),
+            height: min(max(savedRegion.rect.height, RegionPrecisionGeometry.minimumDimension), display.frame.height)
+        )
+        let origin = CGPoint(
+            x: display.frame.midX - size.width / 2,
+            y: display.frame.midY - size.height / 2
+        )
+
+        return CGRect(origin: origin, size: size)
+            .gscIntegralStandardized
+            .gscClamped(to: display.frame)
+    }
+
+    private func currentPresetFallbackDisplay(
+        in snapshot: DesktopCompositeSnapshot,
+        preferredID: CGDirectDisplayID?
+    ) -> DisplaySnapshot {
+        let currentCapturePoint = CursorCaptureGeometry.captureGlobalPoint(fromAppKitGlobalPoint: NSEvent.mouseLocation)
+        if let currentCapturePoint,
+           let display = snapshot.displays.first(where: { $0.frame.contains(currentCapturePoint) }) {
+            return display
+        }
+
+        if let preferredID,
+           let display = snapshot.displays.first(where: { $0.displayID == preferredID }) {
+            return display
+        }
+
+        return snapshot.displays.first ?? DisplaySnapshot(
+            displayID: 0,
+            name: "Display",
+            frame: CGRect(origin: .zero, size: savedFallbackDisplaySize),
+            scale: 1
+        )
+    }
+
+    private var savedFallbackDisplaySize: CGSize {
+        CGSize(width: 800, height: 600)
+    }
+
+    func performCapture(
+        request: LastCaptureRequest,
+        minimizeAppWindow: Bool = false,
+        runOptions: CaptureRunOptions? = nil,
+        _ action: () async throws -> CapturedScreenshot
+    ) async {
+        let resolvedRunOptions = runOptions ?? currentCaptureRunOptions()
+        guard ensureScreenshotCaptureAccess(for: request, runOptions: resolvedRunOptions) else {
             return
         }
 
@@ -649,14 +1178,14 @@ extension AppModel {
         }
 
         isWorking = true
-        workingMessage = captureDelay == .immediate ? "Capturing" : captureDelay.shortLabel
+        workingMessage = resolvedRunOptions.captureDelay == .immediate ? "Capturing" : resolvedRunOptions.captureDelay.shortLabel
         defer { isWorking = false }
 
         do {
-            try await runCaptureDelayIfNeeded(actionName: "Capturing")
+            try await runCaptureDelayIfNeeded(actionName: "Capturing", delay: resolvedRunOptions.captureDelay)
             let capture = try await action()
             showCapturedFeedback()
-            try completeCapture(capture, request: request, isPrivateCapture: isPrivateCapture)
+            try completeCapture(capture, request: request, isPrivateCapture: isPrivateCapture, runOptions: resolvedRunOptions)
         } catch {
             present(error)
         }
@@ -848,19 +1377,22 @@ extension AppModel {
         request: LastCaptureRequest,
         isPrivateCapture: Bool,
         cursorCaptureGlobalLocation: CGPoint? = nil,
-        shouldAttemptUIMapCapture: Bool = true
+        shouldAttemptUIMapCapture: Bool = true,
+        runOptions: CaptureRunOptions? = nil
     ) throws {
+        let resolvedRunOptions = runOptions ?? currentCaptureRunOptions()
         AppUIMapCaptureDiagnostics.notice(
-            "[UIMap] AppModel capture decision featureFlag=\(FeatureFlags.uiMapEnabled) userEnabled=\(uiMapEnabled) kind='\(capture.kind.rawValue)' hasWindowIdentity=\(capture.sourceWindowIdentity != nil) shouldCapture=\(shouldCaptureUIMap(for: capture)) hasAccessibility=\(permissionStatus.hasAccessibility) existingUIMap=\(capture.uiMap != nil) sourceName='\(capture.sourceName)'"
+            "[UIMap] AppModel capture decision featureFlag=\(FeatureFlags.uiMapEnabled) userEnabled=\(resolvedRunOptions.windowUIMapEnabled) kind='\(capture.kind.rawValue)' hasWindowIdentity=\(capture.sourceWindowIdentity != nil) shouldCapture=\(uiMapCaptureEligibility(for: capture, userEnabled: resolvedRunOptions.windowUIMapEnabled).shouldCapture) hasAccessibility=\(permissionStatus.hasAccessibility) existingUIMap=\(capture.uiMap != nil) sourceName='\(capture.sourceName)'"
         )
-        let uiMapEligibility = uiMapCaptureEligibility(for: capture)
+        let uiMapEligibility = uiMapCaptureEligibility(for: capture, userEnabled: resolvedRunOptions.windowUIMapEnabled)
         let shouldProcessUIMap = shouldAttemptUIMapCapture
             && capture.uiMap == nil
             && uiMapEligibility.shouldCapture
         shelveCurrentDocumentForRecents()
         let cursorAwareCapture = capture.attachingCursorOverlay(currentCursorOverlay(
             for: capture,
-            cursorCaptureGlobalLocation: cursorCaptureGlobalLocation
+            cursorCaptureGlobalLocation: cursorCaptureGlobalLocation,
+            includesCursor: resolvedRunOptions.includesCursor
         ))
         let controller = EditorController(
             capture: cursorAwareCapture,
@@ -877,6 +1409,7 @@ extension AppModel {
             initialCheckpointLabel: isPrivateCapture ? nil : "Capture"
         )
         lastCaptureRequest = request
+        lastCaptureRunOptions = resolvedRunOptions
 
         if !isPrivateCapture {
             scheduleClipboardSnipRecording(
@@ -892,7 +1425,7 @@ extension AppModel {
 
         if shouldProcessUIMap {
             scheduleUIMapCapture(for: controller, capture: capture)
-        } else if shouldAttemptUIMapCapture, windowUIMapEnabled, cursorAwareCapture.uiMap == nil {
+        } else if shouldAttemptUIMapCapture, resolvedRunOptions.windowUIMapEnabled, cursorAwareCapture.uiMap == nil {
             AppUIMapCaptureDiagnostics.notice(
                 "[UIMap] AppModel skipped capture: \(uiMapEligibility.skipReason ?? "screenshot already has UI Map metadata or capture disabled for this workflow")"
             )
@@ -924,6 +1457,14 @@ extension AppModel {
             initialCheckpointLabel: isPrivateCapture ? nil : "Screen Inspector"
         )
         lastCaptureRequest = .region(sample.sourceRect)
+        lastCaptureRunOptions = CaptureRunOptions(
+            captureDelay: .immediate,
+            includesCursor: false,
+            fullscreenDisplayMode: screenshotFullscreenDisplayMode,
+            selectedFullscreenDisplayID: selectedScreenshotFullscreenDisplayID,
+            regionPreferences: regionCapturePreferences,
+            windowUIMapEnabled: windowUIMapEnabled
+        )
 
         if !isPrivateCapture {
             scheduleClipboardSnipRecording(
@@ -941,9 +1482,10 @@ extension AppModel {
 
     private func currentCursorOverlay(
         for capture: CapturedScreenshot,
-        cursorCaptureGlobalLocation: CGPoint? = nil
+        cursorCaptureGlobalLocation: CGPoint? = nil,
+        includesCursor: Bool
     ) -> CapturedCursorOverlay? {
-        guard screenshotIncludesCursor, capture.kind != .scrolling else {
+        guard includesCursor, capture.kind != .scrolling else {
             return nil
         }
 
@@ -1049,9 +1591,13 @@ extension AppModel {
     }
 
     func ensureScreenshotCaptureAccess(for request: LastCaptureRequest) -> Bool {
+        ensureScreenshotCaptureAccess(for: request, runOptions: currentCaptureRunOptions())
+    }
+
+    func ensureScreenshotCaptureAccess(for request: LastCaptureRequest, runOptions: CaptureRunOptions) -> Bool {
         ensurePermissions(
-            screenshotCapturePermissionRequirements(for: request),
-            for: screenshotCaptureFeatureName(for: request)
+            screenshotCapturePermissionRequirements(for: request, runOptions: runOptions),
+            for: screenshotCaptureFeatureName(for: request, runOptions: runOptions)
         )
     }
 
@@ -1071,13 +1617,21 @@ extension AppModel {
     }
 
     func screenshotCapturePermissionRequirements(for request: LastCaptureRequest) -> [CapturePermissionRequirement] {
-        request.canIncludeWindowUIMap && windowUIMapEnabled
+        screenshotCapturePermissionRequirements(for: request, runOptions: currentCaptureRunOptions())
+    }
+
+    func screenshotCapturePermissionRequirements(for request: LastCaptureRequest, runOptions: CaptureRunOptions) -> [CapturePermissionRequirement] {
+        request.canIncludeWindowUIMap && FeatureFlags.uiMapEnabled && runOptions.windowUIMapEnabled
             ? [.screenRecording, .accessibility]
             : [.screenRecording]
     }
 
     func screenshotCaptureFeatureName(for request: LastCaptureRequest) -> String {
-        request.canIncludeWindowUIMap && windowUIMapEnabled
+        screenshotCaptureFeatureName(for: request, runOptions: currentCaptureRunOptions())
+    }
+
+    func screenshotCaptureFeatureName(for request: LastCaptureRequest, runOptions: CaptureRunOptions) -> String {
+        request.canIncludeWindowUIMap && FeatureFlags.uiMapEnabled && runOptions.windowUIMapEnabled
             ? "Window Capture with UI Map"
             : "Capture"
     }
@@ -1139,9 +1693,17 @@ extension AppModel {
         for request: LastCaptureRequest,
         action: @escaping @MainActor () -> Void
     ) {
+        runScreenshotCaptureWhenPermissionsReady(for: request, runOptions: currentCaptureRunOptions(), action: action)
+    }
+
+    func runScreenshotCaptureWhenPermissionsReady(
+        for request: LastCaptureRequest,
+        runOptions: CaptureRunOptions,
+        action: @escaping @MainActor () -> Void
+    ) {
         runActionWhenPermissionsReady(
-            screenshotCapturePermissionRequirements(for: request),
-            featureName: screenshotCaptureFeatureName(for: request),
+            screenshotCapturePermissionRequirements(for: request, runOptions: runOptions),
+            featureName: screenshotCaptureFeatureName(for: request, runOptions: runOptions),
             action: action
         )
     }
@@ -1234,19 +1796,20 @@ extension AppModel {
         }
     }
 
-    func runCaptureDelayIfNeeded(actionName: String) async throws {
-        guard captureDelay.countdownSeconds > 0 else {
+    func runCaptureDelayIfNeeded(actionName: String, delay: CaptureDelay? = nil) async throws {
+        let resolvedDelay = delay ?? captureDelay
+        guard resolvedDelay.countdownSeconds > 0 else {
             workingMessage = actionName
             return
         }
 
-        let overlay = AppModel.isRunningUnitTests ? nil : CaptureFeedbackOverlay(title: "\(captureDelay.countdownSeconds)", detail: actionName)
+        let overlay = AppModel.isRunningUnitTests ? nil : CaptureFeedbackOverlay(title: "\(resolvedDelay.countdownSeconds)", detail: actionName)
         overlay?.show()
         defer {
             overlay?.close()
         }
 
-        for remainingSeconds in stride(from: captureDelay.countdownSeconds, through: 1, by: -1) {
+        for remainingSeconds in stride(from: resolvedDelay.countdownSeconds, through: 1, by: -1) {
             workingMessage = "\(actionName) in \(remainingSeconds)…"
             overlay?.update(title: "\(remainingSeconds)", detail: actionName)
             try await Task.sleep(nanoseconds: 1_000_000_000)

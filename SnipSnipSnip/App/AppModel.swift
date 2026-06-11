@@ -75,6 +75,17 @@ nonisolated struct UIMapCaptureEligibility: Equatable, Sendable {
 enum WindowPickerMode {
     case screenshot
     case videoRecording
+    case capturePresetReplacement(CapturePreset.ID)
+}
+
+enum AppSettingsTab: Hashable {
+    case general
+    case presets
+    case shortcuts
+    case recording
+    case archive
+    case clipboard
+    case privacy
 }
 
 struct PermissionSetupGuide: Identifiable {
@@ -107,6 +118,7 @@ enum AppModelPreferenceKey {
     static let archiveMaximumSizeMB = "appModel.archiveMaximumSizeMB"
     static let captureAutomationPreferences = "appModel.captureAutomationPreferences"
     static let captureDelay = "appModel.captureDelay"
+    static let capturePresets = "appModel.capturePresets"
     static let clipboardPreferences = "appModel.clipboardPreferences"
     static let screenshotIncludesCursor = "appModel.screenshotIncludesCursor"
     static let screenshotFullscreenDisplayMode = "appModel.screenshotFullscreenDisplayMode"
@@ -201,6 +213,7 @@ final class AppModel: ObservableObject {
     @Published var isCapturePrivacyLocked = false
     @Published var isConnectedDeviceSessionActive = false
     @Published var windowPickerMode: WindowPickerMode = .screenshot
+    @Published var selectedSettingsTab: AppSettingsTab = .general
     @Published var autoCopyEnabled: Bool {
         didSet {
             defaults.set(autoCopyEnabled, forKey: AppModelPreferenceKey.autoCopyEnabled)
@@ -221,6 +234,11 @@ final class AppModel: ObservableObject {
     @Published var captureDelay: CaptureDelay {
         didSet {
             defaults.set(captureDelay.rawValue, forKey: AppModelPreferenceKey.captureDelay)
+        }
+    }
+    @Published var capturePresets: [CapturePreset] {
+        didSet {
+            persistCapturePresets()
         }
     }
     @Published var clipboardPreferences: ClipboardPreferences {
@@ -393,6 +411,8 @@ final class AppModel: ObservableObject {
     @Published var connectedDevices: [ConnectedAppleDevice] = []
     @Published var isLoadingConnectedDevices = false
     @Published var connectedDeviceEmptyStateMessage = ConnectedDeviceCaptureMenu.emptyStateMessage
+    @Published var isShowingCapturePresetNamingSheet = false
+    @Published var capturePresetNameDraft = ""
 
     var captureService: any ScreenCaptureServiceType
     let uiMapCaptureService: any UIMapCaptureServiceType
@@ -415,6 +435,7 @@ final class AppModel: ObservableObject {
         self?.handleGlobalHotKeyAction(action)
     }
     @Published var lastCaptureRequest: LastCaptureRequest?
+    @Published var lastCaptureRunOptions: CaptureRunOptions?
     var editorRenderObserver: AnyCancellable?
     var editorPersistenceObserver: AnyCancellable?
     var videoPersistenceObserver: AnyCancellable?
@@ -444,6 +465,7 @@ final class AppModel: ObservableObject {
     var savedVideoSession: VideoEditorSession?
     var pendingEditorAction: (() -> Void)?
     var pendingPermissionAction: PendingPermissionAction?
+    var pendingCapturePresetDraft: CapturePreset?
     var editableRedactionSaveConfirmationHandler: @MainActor () -> EditableRedactionSaveDecision = AppModel.presentEditableRedactionSaveConfirmation
     var editableRedactionSaveWarningAcknowledgedEditorIDs: Set<ObjectIdentifier> = []
     var lastAutosavedState: AutosaveState?
@@ -481,6 +503,7 @@ final class AppModel: ObservableObject {
         self.autoCopyEnabled = defaults.object(forKey: AppModelPreferenceKey.autoCopyEnabled) as? Bool ?? true
         self.autoRefreshWindowsEnabled = defaults.bool(forKey: AppModelPreferenceKey.autoRefreshWindowsEnabled)
         self.captureDelay = CaptureDelay(rawValue: defaults.integer(forKey: AppModelPreferenceKey.captureDelay)) ?? .immediate
+        self.capturePresets = Self.loadCapturePresets(from: defaults)
         let clipboardHistoryStore = clipboardHistoryStore ?? ClipboardHistoryStore()
         self.clipboardHistoryStore = clipboardHistoryStore
         self.clipboardMonitor = ClipboardMonitor(store: clipboardHistoryStore)
@@ -634,9 +657,13 @@ final class AppModel: ObservableObject {
     }
 
     func uiMapCaptureEligibility(for capture: CapturedScreenshot) -> UIMapCaptureEligibility {
+        uiMapCaptureEligibility(for: capture, userEnabled: uiMapEnabled)
+    }
+
+    func uiMapCaptureEligibility(for capture: CapturedScreenshot, userEnabled: Bool) -> UIMapCaptureEligibility {
         UIMapCaptureEligibility(
             featureFlagEnabled: FeatureFlags.uiMapEnabled,
-            userEnabled: uiMapEnabled,
+            userEnabled: userEnabled,
             captureKind: capture.kind,
             hasSourceWindowIdentity: capture.sourceWindowIdentity != nil,
             hasAccessibility: permissionStatus.hasAccessibility
@@ -763,6 +790,10 @@ final class AppModel: ObservableObject {
         launchAtLoginController.openSystemSettings()
     }
 
+    func prepareForCapturePresetsSettingsPresentation() {
+        selectedSettingsTab = .presets
+    }
+
     func checkForProUpdates() {
         guard FeatureFlags.proUpdateCheckEnabled, !isCheckingProUpdates else {
             return
@@ -803,6 +834,7 @@ final class AppModel: ObservableObject {
         autoCopyEnabled = true
         autoRefreshWindowsEnabled = false
         captureDelay = .immediate
+        capturePresets = []
         clipboardPreferences = .default
         clipboardSearchQuery = ""
         clipboardFilter = .all
@@ -839,6 +871,15 @@ final class AppModel: ObservableObject {
         }
 
         return preferences
+    }
+
+    static func loadCapturePresets(from defaults: UserDefaults) -> [CapturePreset] {
+        guard let data = defaults.data(forKey: AppModelPreferenceKey.capturePresets),
+              let presets = try? JSONDecoder().decode([CapturePreset].self, from: data) else {
+            return []
+        }
+
+        return presets
     }
 
     private static func loadCompletedOnboardingVersion(from defaults: UserDefaults) -> Int {
@@ -1049,6 +1090,14 @@ final class AppModel: ObservableObject {
         }
 
         defaults.set(data, forKey: AppModelPreferenceKey.captureAutomationPreferences)
+    }
+
+    private func persistCapturePresets() {
+        guard let data = try? JSONEncoder().encode(capturePresets) else {
+            return
+        }
+
+        defaults.set(data, forKey: AppModelPreferenceKey.capturePresets)
     }
 
     private static func loadVideoRecordingPreferences(from defaults: UserDefaults) -> VideoRecordingPreferences {

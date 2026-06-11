@@ -6,6 +6,7 @@ final class RegionSelectionSession: NSObject {
     private let snapshot: DesktopCompositeSnapshot
     private let windows: [CaptureWindowSummary]
     private let preferences: RegionCapturePreferences
+    private let initialSelectionRect: CGRect?
     private var continuation: CheckedContinuation<RegionCaptureSelection?, Never>?
     private var coordinator: RegionSelectionCoordinator?
     private var livePreviewSource: LiveDesktopPreviewSource?
@@ -13,10 +14,16 @@ final class RegionSelectionSession: NSObject {
     private var cursorHidden = false
     private var localEventMonitor: Any?
 
-    init(snapshot: DesktopCompositeSnapshot, windows: [CaptureWindowSummary] = [], preferences: RegionCapturePreferences) {
+    init(
+        snapshot: DesktopCompositeSnapshot,
+        windows: [CaptureWindowSummary] = [],
+        preferences: RegionCapturePreferences,
+        initialSelectionRect: CGRect? = nil
+    ) {
         self.snapshot = snapshot
         self.windows = windows
         self.preferences = preferences
+        self.initialSelectionRect = initialSelectionRect?.gscIntegralStandardized
     }
 
     func begin() async -> RegionCaptureSelection? {
@@ -41,6 +48,7 @@ final class RegionSelectionSession: NSObject {
             snapshot: snapshot,
             windows: windows,
             preferences: preferences,
+            initialSelectionRect: initialSelectionRect,
             onCaptureCursorHiddenChange: { [weak self] shouldHideCursor in
                 self?.setCaptureCursorHidden(shouldHideCursor)
             },
@@ -272,6 +280,7 @@ private final class RegionSelectionCoordinator {
         snapshot: DesktopCompositeSnapshot,
         windows: [CaptureWindowSummary],
         preferences: RegionCapturePreferences,
+        initialSelectionRect: CGRect? = nil,
         onCaptureCursorHiddenChange: @escaping (Bool) -> Void,
         onComplete: @escaping (RegionCaptureSelection?) -> Void
     ) {
@@ -280,6 +289,25 @@ private final class RegionSelectionCoordinator {
         self.preferences = preferences
         self.onCaptureCursorHiddenChange = onCaptureCursorHiddenChange
         self.onComplete = onComplete
+
+        if let initialSelectionRect {
+            let normalizedSelection = initialSelectionRect
+                .gscIntegralStandardized
+                .gscClamped(to: snapshot.globalFrame)
+
+            if normalizedSelection.width > 2, normalizedSelection.height > 2 {
+                self.selectionRect = normalizedSelection
+                let controlsDisplay = displayPreviewForControls(
+                    near: CGPoint(x: normalizedSelection.midX, y: normalizedSelection.midY),
+                    selectionRect: normalizedSelection
+                )
+                actionControlsDisplayID = controlsDisplay?.snapshot.displayID
+                actionControlsGlobalPoint = clampedActionPoint(
+                    CGPoint(x: normalizedSelection.maxX, y: normalizedSelection.maxY),
+                    in: controlsDisplay?.snapshot.frame
+                )
+            }
+        }
     }
 
     func register(_ view: RegionSelectionView) {

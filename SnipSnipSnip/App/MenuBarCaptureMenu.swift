@@ -70,6 +70,36 @@ struct CaptureTimerMenuContent: View {
     }
 }
 
+struct CapturePresetMenuContent: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        if model.capturePresets.isEmpty {
+            Text("No Presets")
+                .foregroundStyle(.secondary)
+        } else {
+            ForEach(model.capturePresets) { preset in
+                Button(preset.name) {
+                    model.capturePreset(preset)
+                }
+                .disabled(model.isWorking || model.isRecordingVideo || model.isConnectedDeviceSessionActive)
+            }
+        }
+
+        Divider()
+
+        Button("Save Last Capture as Preset...", action: model.beginSavingLastCaptureAsPreset)
+            .disabled(!model.canSaveLastCaptureAsPreset || model.isWorking || model.isRecordingVideo || model.isConnectedDeviceSessionActive)
+
+        SettingsLink {
+            Text("Manage Presets...")
+        }
+        .onAppear {
+            model.prepareForCapturePresetsSettingsPresentation()
+        }
+    }
+}
+
 struct ScreenshotCaptureSettingsMenuContent: View {
     @ObservedObject var model: AppModel
 

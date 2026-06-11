@@ -10,7 +10,7 @@ nonisolated enum CaptureKind: String {
     case connectedDevice
 }
 
-nonisolated enum CaptureDelay: Int, CaseIterable, Identifiable {
+nonisolated enum CaptureDelay: Int, CaseIterable, Codable, Identifiable {
     case immediate = 0
     case threeSeconds = 3
     case fiveSeconds = 5
@@ -79,7 +79,7 @@ nonisolated enum ScreenshotFullscreenDisplayMode: String, CaseIterable, Codable,
     }
 }
 
-nonisolated enum RegionCaptureOverlayMode: Int, CaseIterable, Identifiable {
+nonisolated enum RegionCaptureOverlayMode: Int, CaseIterable, Codable, Identifiable {
     case crosshair = 0
     case magnifyingGlass = 1
     case crosshairAndMagnifyingGlass = 2
@@ -116,7 +116,7 @@ nonisolated enum RegionCaptureOverlayMode: Int, CaseIterable, Identifiable {
     }
 }
 
-nonisolated struct RegionCapturePreferences: Equatable {
+nonisolated struct RegionCapturePreferences: Codable, Equatable {
     var overlayMode: RegionCaptureOverlayMode = .crosshairAndMagnifyingGlass
     var showsActionControls = false
     var advancedControlsEnabled = false
@@ -127,6 +127,151 @@ nonisolated struct RegionCapturePreferences: Equatable {
 
     var showsRegionConfirmationControls: Bool {
         showsActionControls || advancedControlsEnabled
+    }
+}
+
+nonisolated struct CaptureRunOptions: Codable, Equatable {
+    var captureDelay: CaptureDelay = .immediate
+    var includesCursor = false
+    var fullscreenDisplayMode: ScreenshotFullscreenDisplayMode = .currentDisplay
+    var selectedFullscreenDisplayID: CGDirectDisplayID?
+    var regionPreferences = RegionCapturePreferences()
+    var windowUIMapEnabled = false
+
+    init(
+        captureDelay: CaptureDelay = .immediate,
+        includesCursor: Bool = false,
+        fullscreenDisplayMode: ScreenshotFullscreenDisplayMode = .currentDisplay,
+        selectedFullscreenDisplayID: CGDirectDisplayID? = nil,
+        regionPreferences: RegionCapturePreferences = RegionCapturePreferences(),
+        windowUIMapEnabled: Bool = false
+    ) {
+        self.captureDelay = captureDelay
+        self.includesCursor = includesCursor
+        self.fullscreenDisplayMode = fullscreenDisplayMode
+        self.selectedFullscreenDisplayID = selectedFullscreenDisplayID
+        self.regionPreferences = regionPreferences
+        self.windowUIMapEnabled = windowUIMapEnabled
+    }
+}
+
+nonisolated struct SavedCaptureRegion: Codable, Equatable {
+    var rect: CGRect
+    var displayID: CGDirectDisplayID?
+    var displayName: String?
+
+    init(rect: CGRect, displayID: CGDirectDisplayID? = nil, displayName: String? = nil) {
+        self.rect = rect.gscIntegralStandardized
+        self.displayID = displayID
+        self.displayName = displayName
+    }
+}
+
+nonisolated struct SavedWindowTarget: Codable, Equatable {
+    var windowID: CGWindowID
+    var ownerName: String
+    var ownerPID: pid_t
+    var title: String
+    var frame: CGRect
+
+    init(window: CaptureWindowSummary) {
+        self.windowID = window.id
+        self.ownerName = window.ownerName
+        self.ownerPID = window.ownerPID
+        self.title = window.title
+        self.frame = window.frame.gscIntegralStandardized
+    }
+}
+
+nonisolated enum CapturePresetTarget: Codable, Equatable {
+    case region(SavedCaptureRegion)
+    case window(SavedWindowTarget)
+    case frontmostWindow
+    case fullscreen
+
+    private enum CodingKeys: String, CodingKey {
+        case kind
+        case region
+        case window
+    }
+
+    private enum Kind: String, Codable {
+        case region
+        case window
+        case frontmostWindow
+        case fullscreen
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decode(Kind.self, forKey: .kind)
+
+        switch kind {
+        case .region:
+            self = .region(try container.decode(SavedCaptureRegion.self, forKey: .region))
+        case .window:
+            self = .window(try container.decode(SavedWindowTarget.self, forKey: .window))
+        case .frontmostWindow:
+            self = .frontmostWindow
+        case .fullscreen:
+            self = .fullscreen
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        switch self {
+        case .region(let region):
+            try container.encode(Kind.region, forKey: .kind)
+            try container.encode(region, forKey: .region)
+        case .window(let window):
+            try container.encode(Kind.window, forKey: .kind)
+            try container.encode(window, forKey: .window)
+        case .frontmostWindow:
+            try container.encode(Kind.frontmostWindow, forKey: .kind)
+        case .fullscreen:
+            try container.encode(Kind.fullscreen, forKey: .kind)
+        }
+    }
+}
+
+nonisolated struct CapturePreset: Codable, Equatable, Identifiable {
+    var id: UUID
+    var name: String
+    var target: CapturePresetTarget
+    var options: CaptureRunOptions
+    var createdAt: Date
+    var updatedAt: Date
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        target: CapturePresetTarget,
+        options: CaptureRunOptions,
+        createdAt: Date = Date(),
+        updatedAt: Date = Date()
+    ) {
+        self.id = id
+        self.name = name
+        self.target = target
+        self.options = options
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+    var targetLabel: String {
+        switch target {
+        case .region(let region):
+            return "Region \(Int(region.rect.width.rounded())) x \(Int(region.rect.height.rounded()))"
+        case .window(let window):
+            let title = window.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            return title.isEmpty ? "Window - \(window.ownerName)" : "Window - \(title)"
+        case .frontmostWindow:
+            return "Frontmost Window"
+        case .fullscreen:
+            return "Fullscreen"
+        }
     }
 }
 
@@ -715,6 +860,29 @@ nonisolated func gscBestWindowMatch(
     }
 
     return candidates.min(by: { $0.focusRank < $1.focusRank })
+}
+
+nonisolated func gscStrictSavedWindowMatch(
+    for saved: SavedWindowTarget,
+    in candidates: [CaptureWindowSummary]
+) -> CaptureWindowSummary? {
+    if let exact = candidates.first(where: { $0.id == saved.windowID }) {
+        return exact
+    }
+
+    if let sameProcessAndTitle = candidates.first(where: {
+        $0.ownerPID == saved.ownerPID && $0.title == saved.title && !$0.title.isEmpty
+    }) {
+        return sameProcessAndTitle
+    }
+
+    if let sameOwnerAndTitle = candidates.first(where: {
+        $0.ownerName == saved.ownerName && $0.title == saved.title && !$0.title.isEmpty
+    }) {
+        return sameOwnerAndTitle
+    }
+
+    return nil
 }
 
 nonisolated func gscTopmostWindow(

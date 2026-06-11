@@ -311,7 +311,7 @@ struct EditorInspectorView: View {
                 }
 
                 if controller.requiresPNGForFaithfulExport {
-                    Text("Transparent background preserves shadows with PNG. Export JPEG and PDF are disabled in the editor toolbar while this is active.")
+                    Text("Transparent background preserves shadows with PNG. JPEG and PDF are disabled in the editor toolbar Export menu while this is active.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

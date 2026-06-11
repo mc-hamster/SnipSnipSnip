@@ -80,6 +80,10 @@ struct HelpGuideView: View {
                             body: "Settings > General includes Launch SnipSnipSnip at Login. If macOS needs extra confirmation, SnipSnipSnip can open Login Items in System Settings directly for you."
                         ),
                         HelpArticleSection(
+                            title: "Keep running in the background",
+                            body: "Command-Q minimizes SnipSnipSnip instead of quitting so the menu bar icon and shortcuts stay available. The menu bar Quit command asks before exiting; choose Run in Background to keep SnipSnipSnip available, or Quit to close the app."
+                        ),
+                        HelpArticleSection(
                             title: "Open an existing image",
                             body: "Choose File > Import Image to open PNG, JPEG, TIFF, HEIC, GIF, and other common image formats in the screenshot editor. You can also open supported images from Finder with Open With > SnipSnipSnip, or share a photo from Apple Photos to SnipSnipSnip."
                         )
@@ -222,7 +226,7 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Open clipboard history",
-                            body: "Choose Clipboard History from the menu bar icon or use Command-Shift-V. Search is focused when the floating window opens."
+                            body: "Choose Clipboard History from the menu bar icon or use Command-Shift-V. Search is focused when the floating window opens. Press Command-W to close the Clipboard History window."
                         ),
                         HelpArticleSection(
                             title: "What appears",
@@ -365,6 +369,10 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Use a timer",
                             body: "Choose a 3, 5, or 10 second timer from the Capture menu or menu bar extra when you need time to stage the screen before capture. For Region, Pick On Screen window capture, and Scrolling Capture, select the target first; SnipSnipSnip then shows the countdown and takes the snapshot when it reaches zero. Fullscreen, repeat, frontmost-window, and direct window captures count down immediately before reading pixels."
+                        ),
+                        HelpArticleSection(
+                            title: "Use capture presets",
+                            body: "After a region, window, frontmost-window, fullscreen, or Screen Inspector snip, choose Presets > Save Last Capture as Preset to name it. Presets remember the screenshot target, timer, cursor option, fullscreen display choice, region controls, and Window UI Map option used for that capture. Private Capture stays controlled by the current Privacy setting and is not saved inside presets. Run saved presets from the main window, Capture menu, or menu bar extra. Manage names, order, and deletion in Settings > Presets. If a saved region no longer fits the current display layout, SnipSnipSnip opens the region selector with the saved size so you can reposition it. If a saved window is not available, choose a replacement window to update and run the preset."
                         ),
                         HelpArticleSection(
                             title: "Include an editable cursor",
@@ -637,7 +645,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Export screenshots",
-                            body: "Choose Export PNG, Export JPEG, or Export PDF from the File menu. In Presentation, start with Plain, Canvas, or Drop Shadow. Open Customize only when you need to adjust the background, spacing, corners, or shadow. Transparent presentation output uses PNG so rounded corners and shadows can stay on alpha."
+                            body: "Use the editor toolbar Export menu, or choose Export PNG, Export JPEG, or Export PDF from the File menu. In Presentation, start with Plain, Canvas, or Drop Shadow. Open Customize only when you need to adjust the background, spacing, corners, or shadow. Transparent presentation output uses PNG so rounded corners and shadows can stay on alpha."
                         ),
                         HelpArticleSection(
                             title: "Import from Finder or Photos",

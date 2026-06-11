@@ -4,11 +4,13 @@ import SwiftUI
 private struct CaptureCommands: Commands {
     @ObservedObject var model: AppModel
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
 
     var body: some Commands {
         let _ = MenuBarStatusController.shared.setWindowActions(
             openMainWindow: showMainWindow,
-            openOnboardingWindow: showOnboardingWindow
+            openOnboardingWindow: showOnboardingWindow,
+            openCapturePresetsSettings: showCapturePresetsSettings
         )
 
         CommandMenu("Capture") {
@@ -71,6 +73,12 @@ private struct CaptureCommands: Commands {
             Button("Repeat Last Capture", action: model.repeatLastCapture)
                 .keyboardShortcut("r", modifiers: AppShortcut.modifiers)
                 .disabled(model.isWorking || model.isRecordingVideo || !model.canRepeatLastCapture)
+
+            Divider()
+
+            Menu("Presets") {
+                CapturePresetMenuContent(model: model)
+            }
 
             Divider()
 
@@ -138,6 +146,12 @@ private struct CaptureCommands: Commands {
         openWindow(id: AppSceneID.onboardingWindow)
         NSApp.activate(ignoringOtherApps: true)
         NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.onboardingWindow })?.makeKeyAndOrderFront(nil)
+    }
+
+    private func showCapturePresetsSettings() {
+        model.prepareForCapturePresetsSettingsPresentation()
+        openSettings()
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func screenInspectorBinding<Value>(_ keyPath: WritableKeyPath<ScreenInspectorPreferences, Value>) -> Binding<Value> {

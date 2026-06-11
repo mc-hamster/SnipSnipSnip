@@ -83,6 +83,10 @@ enum AppImportURL {
     }
 }
 
+enum AppLifecyclePreferenceKeys {
+    static let confirmsBeforeQuitting = "SSSConfirmsBeforeQuitting"
+}
+
 @MainActor
 final class AppOpenBridge: NSObject, NSApplicationDelegate {
     private var localEventMonitor: Any?
@@ -146,6 +150,11 @@ final class AppOpenBridge: NSObject, NSApplicationDelegate {
               let shortcut = event.charactersIgnoringModifiers?.lowercased(),
               shortcut == "w" || shortcut == "q" else {
             return event
+        }
+
+        if shortcut == "w", ClipboardManagerWindowID.isClipboardManagerWindow(NSApp.keyWindow) {
+            NSApp.keyWindow?.performClose(nil)
+            return nil
         }
 
         Self.minimizeActiveWindow()

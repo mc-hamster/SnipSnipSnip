@@ -411,19 +411,7 @@ private struct ActiveEditorToolbarView: View {
 
                 toolbarDivider
 
-                Button("Export PNG…", action: onExportPNG)
-                    .buttonStyle(SSSChromeButtonStyle())
-                    .help("Export the rendered image as a PNG file.")
-
-                Button("Export JPEG…", action: onExportJPEG)
-                    .buttonStyle(SSSChromeButtonStyle())
-                    .help("Export the rendered image as a JPEG file.")
-                    .disabled(controller.requiresPNGForFaithfulExport)
-
-                Button("Export PDF…", action: onExportPDF)
-                    .buttonStyle(SSSChromeButtonStyle())
-                    .help("Export the rendered image as a PDF file.")
-                    .disabled(controller.requiresPNGForFaithfulExport)
+                exportMenu
 
                 Button("Share", action: onShare)
                     .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
@@ -480,6 +468,28 @@ private struct ActiveEditorToolbarView: View {
 
     private var showsUIMapToolbarControls: Bool {
         FeatureFlags.uiMapEnabled && controller.capture.kind == .window
+    }
+
+    private var exportMenu: some View {
+        Menu {
+            Button("PNG…", action: onExportPNG)
+
+            Button("JPEG…", action: onExportJPEG)
+                .disabled(controller.requiresPNGForFaithfulExport)
+
+            Button("PDF…", action: onExportPDF)
+                .disabled(controller.requiresPNGForFaithfulExport)
+        } label: {
+            HStack(spacing: 6) {
+                Text("Export…")
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            .fixedSize(horizontal: true, vertical: false)
+        }
+        .buttonStyle(SSSChromeButtonStyle())
+        .help("Export the rendered image as PNG, JPEG, or PDF.")
     }
 
     private var uiMapToolGroup: some View {

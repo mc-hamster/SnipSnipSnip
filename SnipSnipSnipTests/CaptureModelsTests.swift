@@ -34,6 +34,68 @@ final class CaptureModelsTests: XCTestCase {
         XCTAssertTrue(RegionCaptureOverlayMode.crosshairAndMagnifyingGlass.showsMagnifyingGlass)
     }
 
+    func testCapturePresetRoundTripsThroughCodable() throws {
+        var regionPreferences = RegionCapturePreferences()
+        regionPreferences.overlayMode = .magnifyingGlass
+        regionPreferences.showsActionControls = true
+        let preset = CapturePreset(
+            id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+            name: "Docs Region",
+            target: .region(SavedCaptureRegion(
+                rect: CGRect(x: 20, y: 40, width: 640, height: 360),
+                displayID: 42,
+                displayName: "Studio Display"
+            )),
+            options: CaptureRunOptions(
+                captureDelay: .fiveSeconds,
+                includesCursor: true,
+                fullscreenDisplayMode: .selectedDisplay,
+                selectedFullscreenDisplayID: 42,
+                regionPreferences: regionPreferences,
+                windowUIMapEnabled: true
+            ),
+            createdAt: Date(timeIntervalSince1970: 10),
+            updatedAt: Date(timeIntervalSince1970: 20)
+        )
+
+        let data = try JSONEncoder().encode(preset)
+        let decoded = try JSONDecoder().decode(CapturePreset.self, from: data)
+
+        XCTAssertEqual(decoded, preset)
+    }
+
+    func testStrictSavedWindowMatchDoesNotFallBackToUnrelatedWindows() {
+        let saved = SavedWindowTarget(window: makeCaptureWindow(
+            id: 1,
+            ownerPID: 100,
+            ownerName: "Browser",
+            title: "Docs"
+        ))
+        let candidates = [
+            makeCaptureWindow(id: 2, ownerPID: 100, ownerName: "Browser", title: "Mail"),
+            makeCaptureWindow(id: 3, ownerPID: 200, ownerName: "Notes", title: "Docs")
+        ]
+
+        XCTAssertNil(gscStrictSavedWindowMatch(for: saved, in: candidates))
+    }
+
+    func testStrictSavedWindowMatchAllowsSameOwnerAndTitleWhenWindowIDChanges() {
+        let saved = SavedWindowTarget(window: makeCaptureWindow(
+            id: 1,
+            ownerPID: 100,
+            ownerName: "Browser",
+            title: "Docs"
+        ))
+        let candidate = makeCaptureWindow(
+            id: 2,
+            ownerPID: 999,
+            ownerName: "Browser",
+            title: "Docs"
+        )
+
+        XCTAssertEqual(gscStrictSavedWindowMatch(for: saved, in: [candidate])?.id, 2)
+    }
+
     func testDisplaySnapshotSeparatesCaptureFrameFromOverlayFrame() {
         let captureFrame = CGRect(x: 0, y: 1080, width: 1920, height: 1080)
         let overlayFrame = CGRect(x: 1920, y: 0, width: 1920, height: 1080)

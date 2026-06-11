@@ -1,6 +1,14 @@
 import AppKit
 import SwiftUI
 
+enum ClipboardManagerWindowID {
+    static let identifier = "clipboard-history"
+
+    static func isClipboardManagerWindow(_ window: NSWindow?) -> Bool {
+        window?.identifier?.rawValue == identifier
+    }
+}
+
 @MainActor
 final class ClipboardManagerWindowController: NSWindowController {
     private weak var model: AppModel?
@@ -15,7 +23,9 @@ final class ClipboardManagerWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
+        panel.identifier = NSUserInterfaceItemIdentifier(ClipboardManagerWindowID.identifier)
         panel.title = "Clipboard History"
+        panel.isReleasedWhenClosed = false
         panel.isFloatingPanel = true
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]

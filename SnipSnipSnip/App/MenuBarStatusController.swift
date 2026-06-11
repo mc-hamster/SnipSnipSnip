@@ -8,6 +8,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let menu = NSMenu()
     private let windowCaptureMenu = NSMenu(title: "Window Capture")
+    private let capturePresetsMenu = NSMenu(title: "Presets")
     private let videoRecordingMenu = NSMenu(title: "Video Recording")
     private let screenRulerMenu = NSMenu(title: "Screen Ruler")
     private let timerMenu = NSMenu(title: "Timer")
@@ -16,6 +17,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     private weak var model: AppModel?
     private var openMainWindowAction: (() -> Void)?
     private var openOnboardingWindowAction: (() -> Void)?
+    private var openCapturePresetsSettingsAction: (() -> Void)?
 
     override init() {
         super.init()
@@ -25,6 +27,9 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
 
         windowCaptureMenu.autoenablesItems = false
         windowCaptureMenu.delegate = self
+
+        capturePresetsMenu.autoenablesItems = false
+        capturePresetsMenu.delegate = self
 
         videoRecordingMenu.autoenablesItems = false
         videoRecordingMenu.delegate = self
@@ -81,10 +86,12 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
 
     func setWindowActions(
         openMainWindow: @escaping () -> Void,
-        openOnboardingWindow: @escaping () -> Void
+        openOnboardingWindow: @escaping () -> Void,
+        openCapturePresetsSettings: @escaping () -> Void
     ) {
         openMainWindowAction = openMainWindow
         openOnboardingWindowAction = openOnboardingWindow
+        openCapturePresetsSettingsAction = openCapturePresetsSettings
         performInitialWindowPresentationIfNeeded()
     }
 
@@ -95,6 +102,8 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             model?.refreshAvailableWindows(includeThumbnails: true)
         case windowCaptureMenu:
             rebuildWindowCaptureMenu()
+        case capturePresetsMenu:
+            rebuildCapturePresetsMenu()
         case videoRecordingMenu:
             rebuildVideoRecordingMenu()
         case screenRulerMenu:
@@ -126,6 +135,22 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
 
     @objc private func repeatLastCapture() {
         performMenuAction { $0.repeatLastCapture() }
+    }
+
+    @objc private func capturePreset(_ sender: NSMenuItem) {
+        guard let presetID = sender.representedObject as? CapturePreset.ID else {
+            return
+        }
+
+        performMenuAction { $0.capturePreset(id: presetID) }
+    }
+
+    @objc private func saveLastCaptureAsPreset() {
+        performMenuAction { $0.beginSavingLastCaptureAsPreset() }
+    }
+
+    @objc private func manageCapturePresets() {
+        openCapturePresetsSettingsAction?()
     }
 
     @objc private func recordRegion() {
@@ -274,7 +299,43 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     }
 
     @objc private func quitApplication() {
+        if confirmsBeforeQuitting {
+            guard confirmQuitApplication() else {
+                return
+            }
+        }
+
         NSApp.terminate(nil)
+    }
+
+    private var confirmsBeforeQuitting: Bool {
+        guard let storedValue = UserDefaults.standard.object(forKey: AppLifecyclePreferenceKeys.confirmsBeforeQuitting) as? Bool else {
+            return true
+        }
+
+        return storedValue
+    }
+
+    private func confirmQuitApplication() -> Bool {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Quit SnipSnipSnip?"
+        alert.informativeText = "To keep capture shortcuts, clipboard history, and the menu bar icon ready, let SnipSnipSnip run in the background."
+        alert.addButton(withTitle: "Run in Background")
+        alert.addButton(withTitle: "Quit")
+        alert.showsSuppressionButton = true
+        alert.suppressionButton?.title = "Don't ask me again"
+
+        let response = alert.runModal()
+        guard response == .alertSecondButtonReturn else {
+            return false
+        }
+
+        if alert.suppressionButton?.state == .on {
+            UserDefaults.standard.set(false, forKey: AppLifecyclePreferenceKeys.confirmsBeforeQuitting)
+        }
+
+        return true
     }
 
     private func rebuildMainMenu() {
@@ -332,6 +393,14 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             keyModifiers: captureShortcutModifiers,
             enabled: !isCaptureActionDisabled(for: model) && model.canRepeatLastCapture
         ))
+
+        menu.addItem(.separator())
+
+        let presetsItem = NSMenuItem(title: "Presets", action: nil, keyEquivalent: "")
+        presetsItem.image = NSImage(systemSymbolName: "star", accessibilityDescription: nil)
+        presetsItem.submenu = capturePresetsMenu
+        presetsItem.isEnabled = true
+        menu.addItem(presetsItem)
 
         menu.addItem(.separator())
 
@@ -539,6 +608,56 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
                 enabled: true
             ))
         }
+    }
+
+    private func rebuildCapturePresetsMenu() {
+        guard let model else {
+            return
+        }
+
+        capturePresetsMenu.removeAllItems()
+
+        let isEnabled = !isCaptureActionDisabled(for: model)
+        if model.capturePresets.isEmpty {
+            let emptyItem = NSMenuItem(title: "No Presets", action: nil, keyEquivalent: "")
+            emptyItem.isEnabled = false
+            capturePresetsMenu.addItem(emptyItem)
+        } else {
+            for preset in model.capturePresets {
+                let item = actionItem(
+                    title: capturePresetMenuTitle(preset.name),
+                    systemImage: nil,
+                    action: #selector(capturePreset(_:)),
+                    enabled: isEnabled
+                )
+                item.representedObject = preset.id
+                capturePresetsMenu.addItem(item)
+            }
+        }
+
+        capturePresetsMenu.addItem(.separator())
+        capturePresetsMenu.addItem(actionItem(
+            title: "Save Last Capture as Preset...",
+            systemImage: "plus",
+            action: #selector(saveLastCaptureAsPreset),
+            enabled: isEnabled && model.canSaveLastCaptureAsPreset
+        ))
+
+        capturePresetsMenu.addItem(actionItem(
+            title: "Manage Presets...",
+            systemImage: "slider.horizontal.3",
+            action: #selector(manageCapturePresets),
+            enabled: true
+        ))
+    }
+
+    private func capturePresetMenuTitle(_ name: String) -> String {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedName.count > 30 else {
+            return trimmedName.isEmpty ? "Capture Preset" : trimmedName
+        }
+
+        return String(trimmedName.prefix(27)) + "..."
     }
 
     private func rebuildTimerMenu() {

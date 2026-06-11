@@ -3,12 +3,12 @@ import SwiftUI
 
 struct CaptureAutomationSettingsView: View {
     @ObservedObject var model: AppModel
-    @State private var selectedTab: SettingsTab = .general
     @State private var isShowingResetDefaultsConfirmation = false
     @State private var launchAtLoginErrorMessage: String?
+    @AppStorage(AppLifecyclePreferenceKeys.confirmsBeforeQuitting) private var confirmsBeforeQuitting = true
 
     var body: some View {
-        TabView(selection: $selectedTab) {
+        TabView(selection: $model.selectedSettingsTab) {
             SettingsTabContainer(
                 title: "General",
                 summary: "Capture shortcuts, naming defaults, and editor behavior stay together here."
@@ -28,6 +28,9 @@ struct CaptureAutomationSettingsView: View {
                     if model.launchAtLoginStatus.needsSystemSettingsApproval || model.launchAtLoginStatus == .unavailable {
                         Button("Open Login Items in System Settings", action: model.openLaunchAtLoginSettings)
                     }
+
+                    Toggle("Confirm Before Quitting", isOn: $confirmsBeforeQuitting)
+                    SettingsHelpText("Command-Q minimizes SnipSnipSnip so the menu bar icon and shortcuts stay available. The menu bar Quit command asks before exiting unless this is turned off.")
                 }
 
                 Section("Help & Onboarding") {
@@ -277,7 +280,30 @@ struct CaptureAutomationSettingsView: View {
             .tabItem {
                 Label("General", systemImage: "gearshape")
             }
-            .tag(SettingsTab.general)
+            .tag(AppSettingsTab.general)
+
+            SettingsTabContainer(
+                title: "Presets",
+                summary: "Saved screenshot setups for repeating common captures quickly."
+            ) {
+                Section("Capture Presets") {
+                    SettingsHelpText("Presets rerun a saved screenshot target with the timer, cursor, display, region, and Window UI Map options captured when the preset was created.")
+
+                    if model.capturePresets.isEmpty {
+                        SettingsHelpText("Capture a screenshot, then choose Presets > Save Last Capture as Preset to add it here.")
+                    } else {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(model.capturePresets) { preset in
+                                capturePresetRow(preset)
+                            }
+                        }
+                    }
+                }
+            }
+            .tabItem {
+                Label("Presets", systemImage: "star")
+            }
+            .tag(AppSettingsTab.presets)
 
             SettingsTabContainer(
                 title: "Shortcuts",
@@ -310,7 +336,7 @@ struct CaptureAutomationSettingsView: View {
             .tabItem {
                 Label("Shortcuts", systemImage: "keyboard")
             }
-            .tag(SettingsTab.shortcuts)
+            .tag(AppSettingsTab.shortcuts)
 
             SettingsTabContainer(
                 title: "Recording",
@@ -359,7 +385,7 @@ struct CaptureAutomationSettingsView: View {
             .tabItem {
                 Label("Recording", systemImage: "record.circle")
             }
-            .tag(SettingsTab.recording)
+            .tag(AppSettingsTab.recording)
 
             SettingsTabContainer(
                 title: "Archive",
@@ -431,7 +457,7 @@ struct CaptureAutomationSettingsView: View {
             .tabItem {
                 Label("Archive", systemImage: "archivebox")
             }
-            .tag(SettingsTab.archive)
+            .tag(AppSettingsTab.archive)
 
             SettingsTabContainer(
                 title: "Clipboard",
@@ -548,7 +574,7 @@ struct CaptureAutomationSettingsView: View {
             .tabItem {
                 Label("Clipboard", systemImage: "clipboard")
             }
-            .tag(SettingsTab.clipboard)
+            .tag(AppSettingsTab.clipboard)
 
             SettingsTabContainer(
                 title: "Privacy",
@@ -588,7 +614,7 @@ struct CaptureAutomationSettingsView: View {
             .tabItem {
                 Label("Privacy", systemImage: "hand.raised")
             }
-            .tag(SettingsTab.privacy)
+            .tag(AppSettingsTab.privacy)
         }
         .frame(width: 700, height: 560)
         .task {
@@ -641,6 +667,57 @@ struct CaptureAutomationSettingsView: View {
                 var preferences = model.automationPreferences
                 preferences.setKey(newKey, for: action)
                 model.automationPreferences = preferences
+            }
+        )
+    }
+
+    private func capturePresetRow(_ preset: CapturePreset) -> some View {
+        let index = model.capturePresets.firstIndex(where: { $0.id == preset.id }) ?? 0
+
+        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
+                TextField("Preset name", text: capturePresetNameBinding(for: preset.id))
+                    .textFieldStyle(.roundedBorder)
+
+                Text(preset.targetLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 8)
+
+            Button {
+                model.moveCapturePreset(id: preset.id, offset: -1)
+            } label: {
+                Image(systemName: "arrow.up")
+            }
+            .help("Move preset up.")
+            .disabled(index == 0)
+
+            Button {
+                model.moveCapturePreset(id: preset.id, offset: 1)
+            } label: {
+                Image(systemName: "arrow.down")
+            }
+            .help("Move preset down.")
+            .disabled(index >= model.capturePresets.count - 1)
+
+            Button(role: .destructive) {
+                model.deleteCapturePreset(id: preset.id)
+            } label: {
+                Image(systemName: "trash")
+            }
+            .help("Delete preset.")
+        }
+    }
+
+    private func capturePresetNameBinding(for id: CapturePreset.ID) -> Binding<String> {
+        Binding(
+            get: {
+                model.capturePresets.first(where: { $0.id == id })?.name ?? ""
+            },
+            set: { newValue in
+                model.renameCapturePreset(id: id, to: newValue)
             }
         )
     }
@@ -904,15 +981,6 @@ struct CaptureAutomationSettingsView: View {
 
         return options
     }
-}
-
-private enum SettingsTab: Hashable {
-    case general
-    case shortcuts
-    case recording
-    case archive
-    case clipboard
-    case privacy
 }
 
 private struct DisplayOption: Identifiable {

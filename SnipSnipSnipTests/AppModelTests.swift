@@ -71,6 +71,119 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(model.screenshotCapturePermissionRequirements(for: .window(makeCaptureWindow(id: 1))), [.screenRecording])
     }
 
+    func testPresetRunOptionsDriveWindowUIMapPermissionRequirements() {
+        let suiteName = "AppModelTests.presetRunOptionsUIMapRequirements"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        let windowRequest = LastCaptureRequest.window(makeCaptureWindow(id: 1))
+        let expectedUIMapRequirements: [CapturePermissionRequirement] = FeatureFlags.uiMapEnabled
+            ? [.screenRecording, .accessibility]
+            : [.screenRecording]
+
+        model.uiMapEnabled = false
+        XCTAssertEqual(
+            model.screenshotCapturePermissionRequirements(
+                for: windowRequest,
+                runOptions: CaptureRunOptions(windowUIMapEnabled: true)
+            ),
+            expectedUIMapRequirements
+        )
+
+        model.uiMapEnabled = true
+        XCTAssertEqual(
+            model.screenshotCapturePermissionRequirements(
+                for: windowRequest,
+                runOptions: CaptureRunOptions(windowUIMapEnabled: false)
+            ),
+            [.screenRecording]
+        )
+    }
+
+    func testCapturePresetsSaveLastCaptureWithFallbackNameAndPersist() {
+        let suiteName = "AppModelTests.capturePresetsPersist"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        var regionPreferences = RegionCapturePreferences()
+        regionPreferences.advancedControlsEnabled = true
+        let options = CaptureRunOptions(
+            captureDelay: .fiveSeconds,
+            includesCursor: true,
+            fullscreenDisplayMode: .selectedDisplay,
+            selectedFullscreenDisplayID: 9,
+            regionPreferences: regionPreferences,
+            windowUIMapEnabled: true
+        )
+        model.lastCaptureRequest = .region(CGRect(x: 10, y: 20, width: 300, height: 200))
+        model.lastCaptureRunOptions = options
+
+        model.beginSavingLastCaptureAsPreset()
+        XCTAssertTrue(model.isShowingCapturePresetNamingSheet)
+        model.capturePresetNameDraft = ""
+        model.commitCapturePresetName()
+
+        XCTAssertEqual(model.capturePresets.count, 1)
+        XCTAssertEqual(model.capturePresets[0].name, "Region 300 x 200")
+        XCTAssertEqual(model.capturePresets[0].options, options)
+
+        model.beginSavingLastCaptureAsPreset()
+        model.capturePresetNameDraft = "Region 300 x 200"
+        model.commitCapturePresetName()
+
+        XCTAssertEqual(model.capturePresets.map(\.name), ["Region 300 x 200", "Region 300 x 200 2"])
+
+        let reloaded = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+
+        XCTAssertEqual(reloaded.capturePresets.map(\.name), ["Region 300 x 200", "Region 300 x 200 2"])
+        XCTAssertEqual(reloaded.capturePresets.first?.options, options)
+    }
+
+    func testResetPreferencesToDefaultsClearsCapturePresets() {
+        let suiteName = "AppModelTests.capturePresetsReset"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        model.lastCaptureRequest = .fullscreen
+        model.lastCaptureRunOptions = CaptureRunOptions(captureDelay: .threeSeconds)
+        model.beginSavingLastCaptureAsPreset()
+        model.commitCapturePresetName()
+
+        XCTAssertFalse(model.capturePresets.isEmpty)
+
+        model.resetPreferencesToDefaults()
+
+        XCTAssertTrue(model.capturePresets.isEmpty)
+        XCTAssertTrue(AppModel.loadCapturePresets(from: defaults).isEmpty)
+    }
+
     func testEverydayWorkflowPreferencesDefaultPersistAndReset() {
         let suiteName = "AppModelTests.everydayWorkflowPreferences"
         let defaults = makeDefaults(named: suiteName)

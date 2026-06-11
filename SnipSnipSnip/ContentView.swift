@@ -80,17 +80,24 @@ struct ContentView: View {
             CaptureWindowPickerView(
                 windows: model.availableWindows,
                 onSelect: { window in
-                    if model.windowPickerMode == .videoRecording {
+                    switch model.windowPickerMode {
+                    case .videoRecording:
                         model.recordWindow(window)
-                    } else {
+                    case .capturePresetReplacement(let presetID):
+                        model.isShowingWindowPicker = false
+                        model.replaceWindowTargetAndCapturePreset(id: presetID, with: window)
+                    case .screenshot:
                         model.captureWindow(window)
                     }
                     model.windowPickerMode = .screenshot
                 },
                 onPickOnScreen: {
-                    if model.windowPickerMode == .videoRecording {
+                    switch model.windowPickerMode {
+                    case .videoRecording:
                         model.pickWindowOnScreenForVideoRecording()
-                    } else {
+                    case .capturePresetReplacement(let presetID):
+                        model.pickWindowOnScreenForPresetReplacement(id: presetID)
+                    case .screenshot:
                         model.pickWindowOnScreen()
                     }
                     model.windowPickerMode = .screenshot
@@ -100,6 +107,10 @@ struct ContentView: View {
                     model.windowPickerMode = .screenshot
                 }
             )
+        }
+        .sheet(isPresented: $model.isShowingCapturePresetNamingSheet) {
+            CapturePresetNamingSheetView(model: model)
+                .frame(width: 420)
         }
         .alert("Capture Error", isPresented: Binding(get: {
             model.errorMessage != nil
@@ -293,6 +304,7 @@ struct ContentView: View {
                     }
                     captureButton(title: "Repeat", systemImage: "arrow.clockwise", action: model.repeatLastCapture)
                         .disabled(!model.canRepeatLastCapture)
+                    capturePresetsMenu
                     recordButton
                 }
             }
@@ -320,8 +332,19 @@ struct ContentView: View {
             }
             captureButton(title: "Repeat", systemImage: "arrow.clockwise", action: model.repeatLastCapture)
                 .disabled(!model.canRepeatLastCapture)
+            capturePresetsMenu
             recordButton
         }
+    }
+
+    private var capturePresetsMenu: some View {
+        Menu {
+            CapturePresetMenuContent(model: model)
+        } label: {
+            Label("Presets", systemImage: "star")
+        }
+        .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+        .help("Run saved screenshot capture presets or save the last capture as a preset.")
     }
 
     private var headerUtilities: some View {
@@ -1238,6 +1261,56 @@ private struct PermissionSetupGuideView: View {
                 .font(.subheadline)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+private struct CapturePresetNamingSheetView: View {
+    @ObservedObject var model: AppModel
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var isNameFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Save Capture Preset")
+                    .font(.headline)
+
+                Text("Name this preset so you can run the same screenshot capture again from the Presets menu.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            TextField("Preset name", text: $model.capturePresetNameDraft)
+                .textFieldStyle(.roundedBorder)
+                .focused($isNameFocused)
+                .onSubmit(save)
+
+            HStack(spacing: 10) {
+                Spacer()
+
+                Button("Cancel") {
+                    model.cancelSavingCapturePreset()
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Button("Save") {
+                    save()
+                }
+                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(20)
+        .onAppear {
+            isNameFocused = true
+        }
+    }
+
+    private func save() {
+        model.commitCapturePresetName()
+        dismiss()
     }
 }
 
