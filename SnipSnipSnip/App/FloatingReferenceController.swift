@@ -160,6 +160,8 @@ nonisolated enum FloatingReferenceWindowSizing {
     static let defaultWindowSize = CGSize(width: 520, height: 340)
     static let minimumWindowSize = CGSize(width: 360, height: 220)
     static let maximumWindowSize = CGSize(width: 720, height: 520)
+    static let toolbarHeight: CGFloat = 38
+    static let viewportPadding: CGFloat = EditorViewport.interactionInset * 2
 
     static func initialWindowSize(for pixelSize: CGSize, fittingWithin availableSize: CGSize? = nil) -> CGSize {
         guard pixelSize.width > 0, pixelSize.height > 0 else {
@@ -205,6 +207,60 @@ nonisolated enum FloatingReferenceWindowSizing {
             height: min(size.height, max(availableSize.height, 1))
         )
     }
+
+    static func displayedImageSize(forPixelSize pixelSize: CGSize, displayScale: CGFloat) -> CGSize {
+        guard pixelSize.width > 0,
+              pixelSize.height > 0,
+              displayScale > 0
+        else {
+            return .zero
+        }
+
+        return CGSize(
+            width: pixelSize.width * displayScale,
+            height: pixelSize.height * displayScale
+        )
+    }
+
+    static func contentSize(forDisplayedImageSize imageSize: CGSize) -> CGSize {
+        guard imageSize.width > 0, imageSize.height > 0 else {
+            return defaultWindowSize
+        }
+
+        return CGSize(
+            width: imageSize.width + viewportPadding,
+            height: imageSize.height + viewportPadding + toolbarHeight
+        )
+    }
+
+    static func resizedFrame(
+        currentFrame: CGRect,
+        requestedFrameSize: CGSize,
+        visibleFrame: CGRect
+    ) -> CGRect {
+        let maximumWidth = max(visibleFrame.width, 1)
+        let maximumHeight = max(visibleFrame.height, 1)
+        let minimumWidth = min(minimumWindowSize.width, maximumWidth)
+        let minimumHeight = min(minimumWindowSize.height, maximumHeight)
+        let targetSize = CGSize(
+            width: min(max(requestedFrameSize.width, minimumWidth), maximumWidth),
+            height: min(max(requestedFrameSize.height, minimumHeight), maximumHeight)
+        )
+        let currentCenter = CGPoint(x: currentFrame.midX, y: currentFrame.midY)
+        let proposedOrigin = CGPoint(
+            x: currentCenter.x - targetSize.width / 2,
+            y: currentCenter.y - targetSize.height / 2
+        )
+        let maxX = visibleFrame.maxX - targetSize.width
+        let maxY = visibleFrame.maxY - targetSize.height
+
+        return CGRect(
+            x: min(max(proposedOrigin.x, visibleFrame.minX), max(visibleFrame.minX, maxX)),
+            y: min(max(proposedOrigin.y, visibleFrame.minY), max(visibleFrame.minY, maxY)),
+            width: targetSize.width,
+            height: targetSize.height
+        ).integral
+    }
 }
 
 @MainActor
@@ -231,12 +287,31 @@ final class FloatingReferenceCloseNotifier {
 enum FloatingReferenceZoomAction {
     case zoomOut
     case zoomIn
+    case actualSize
     case fit
+    case resizeWindowToZoom
 }
 
 struct FloatingReferenceZoomRequest: Equatable {
     let id = UUID()
     let action: FloatingReferenceZoomAction
+}
+
+nonisolated struct FloatingReferenceZoomState: Equatable {
+    static let initial = FloatingReferenceZoomState(
+        percentage: 100,
+        canZoomIn: true,
+        canZoomOut: true
+    )
+
+    let percentage: Int
+    let canZoomIn: Bool
+    let canZoomOut: Bool
+}
+
+nonisolated struct FloatingReferenceWindowResizeRequest: Equatable {
+    let id = UUID()
+    let contentSize: CGSize
 }
 
 @MainActor
@@ -249,7 +324,10 @@ final class FloatingReferenceWindowModel: ObservableObject, Identifiable {
     let outOfCapturePatternSettings: EditorOutOfCapturePatternSettings
 
     @Published var opacity: Double = 1
+    @Published var resizesWindowForZoom = false
+    @Published var zoomState = FloatingReferenceZoomState.initial
     @Published var zoomRequest: FloatingReferenceZoomRequest?
+    @Published var windowResizeRequest: FloatingReferenceWindowResizeRequest?
 
     init(request: FloatingReferenceRequest) {
         title = request.title
@@ -257,6 +335,10 @@ final class FloatingReferenceWindowModel: ObservableObject, Identifiable {
         image = request.image
         pixelSize = CGSize(width: request.image.width, height: request.image.height)
         outOfCapturePatternSettings = request.outOfCapturePatternSettings
+    }
+
+    func requestZoom(_ action: FloatingReferenceZoomAction) {
+        zoomRequest = FloatingReferenceZoomRequest(action: action)
     }
 }
 
@@ -324,6 +406,37 @@ final class FloatingReferenceWindowController: NSWindowController {
                 self?.window?.alphaValue = max(0.35, min(opacity, 1))
             }
             .store(in: &cancellables)
+
+        model.$windowResizeRequest
+            .compactMap { $0 }
+            .sink { [weak self] request in
+                self?.resizeWindow(toContentSize: request.contentSize)
+            }
+            .store(in: &cancellables)
+    }
+
+    private func resizeWindow(toContentSize contentSize: CGSize) {
+        guard let window,
+              let screen = window.screen ?? NSScreen.main ?? NSScreen.screens.first
+        else {
+            return
+        }
+
+        let requestedFrameSize = window.frameRect(forContentRect: CGRect(origin: .zero, size: contentSize)).size
+        let targetFrame = FloatingReferenceWindowSizing.resizedFrame(
+            currentFrame: window.frame,
+            requestedFrameSize: requestedFrameSize,
+            visibleFrame: screen.visibleFrame
+        )
+
+        guard targetFrame.width > 0,
+              targetFrame.height > 0,
+              targetFrame != window.frame
+        else {
+            return
+        }
+
+        window.setFrame(targetFrame, display: true, animate: true)
     }
 }
 
@@ -410,24 +523,47 @@ private struct FloatingReferenceWindowView: View {
     private var zoomMenu: some View {
         Menu {
             Button("Zoom In") {
-                model.zoomRequest = FloatingReferenceZoomRequest(action: .zoomIn)
+                model.requestZoom(.zoomIn)
             }
+            .disabled(!model.zoomState.canZoomIn)
 
             Button("Zoom Out") {
-                model.zoomRequest = FloatingReferenceZoomRequest(action: .zoomOut)
+                model.requestZoom(.zoomOut)
+            }
+            .disabled(!model.zoomState.canZoomOut)
+
+            Divider()
+
+            Button("Actual Size (1:1)") {
+                model.requestZoom(.actualSize)
+            }
+
+            Button("Fit to View") {
+                model.requestZoom(.fit)
             }
 
             Divider()
 
-            Button("Fit to View") {
-                model.zoomRequest = FloatingReferenceZoomRequest(action: .fit)
-            }
+            Toggle("Resize Window for Zoom", isOn: resizeWindowForZoomBinding)
         } label: {
-            Label("Zoom", systemImage: "magnifyingglass")
+            Label("\(model.zoomState.percentage)%", systemImage: "magnifyingglass")
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
-        .help("Zoom in, zoom out, or fit the reference image to the view.")
+        .help("Zoom in, zoom out, show actual size, fit the image, or resize the window as zoom changes.")
+    }
+
+    private var resizeWindowForZoomBinding: Binding<Bool> {
+        Binding(
+            get: { model.resizesWindowForZoom },
+            set: { isEnabled in
+                model.resizesWindowForZoom = isEnabled
+
+                if isEnabled {
+                    model.requestZoom(.resizeWindowToZoom)
+                }
+            }
+        )
     }
 
     private var opacityControls: some View {
@@ -476,6 +612,20 @@ private struct ZoomableReferenceImageView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> ZoomableReferenceCanvasView {
         let canvasView = ZoomableReferenceCanvasView()
+        canvasView.onZoomStateChange = { [weak model] state in
+            DispatchQueue.main.async {
+                guard let model, model.zoomState != state else {
+                    return
+                }
+
+                model.zoomState = state
+            }
+        }
+        canvasView.onWindowResizeRequest = { [weak model] contentSize in
+            DispatchQueue.main.async {
+                model?.windowResizeRequest = FloatingReferenceWindowResizeRequest(contentSize: contentSize)
+            }
+        }
         canvasView.configure(
             image: model.image,
             outOfCapturePatternSettings: model.outOfCapturePatternSettings
@@ -488,6 +638,7 @@ private struct ZoomableReferenceImageView: NSViewRepresentable {
             image: model.image,
             outOfCapturePatternSettings: model.outOfCapturePatternSettings
         )
+        nsView.resizesWindowForZoom = model.resizesWindowForZoom
 
         if let request = model.zoomRequest,
            request.id != context.coordinator.lastZoomRequestID {
@@ -508,6 +659,12 @@ private final class ZoomableReferenceCanvasView: NSView {
     private var outOfCapturePatternSettings: EditorOutOfCapturePatternSettings = .default
     private var viewport = EditorViewport()
     private var followsFitToViewport = true
+    private var fixedDisplayScale: CGFloat?
+    private var lastPublishedZoomState: FloatingReferenceZoomState?
+
+    var resizesWindowForZoom = false
+    var onZoomStateChange: ((FloatingReferenceZoomState) -> Void)?
+    var onWindowResizeRequest: ((CGSize) -> Void)?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -534,8 +691,13 @@ private final class ZoomableReferenceCanvasView: NSView {
 
         if followsFitToViewport {
             viewport = viewport.zoomedToFit()
+            fixedDisplayScale = nil
+        } else if let fixedDisplayScale {
+            viewport = viewport.zoomed(to: zoomScale(forDisplayScale: fixedDisplayScale))
+            self.fixedDisplayScale = viewport.displayScale
         }
 
+        publishZoomStateIfNeeded()
         needsDisplay = true
     }
 
@@ -587,9 +749,11 @@ private final class ZoomableReferenceCanvasView: NSView {
             self.image = NSImage(cgImage: image, size: imageSize)
             viewport = viewport.updatingContentSize(imageSize, fitToWindow: true)
             followsFitToViewport = true
+            fixedDisplayScale = nil
             needsLayout = true
         }
 
+        publishZoomStateIfNeeded()
         needsDisplay = true
     }
 
@@ -598,25 +762,34 @@ private final class ZoomableReferenceCanvasView: NSView {
 
         switch action {
         case .zoomOut:
-            followsFitToViewport = false
-            viewport = viewport.zoomed(to: viewport.zoomScale / 1.25)
+            applyFixedDisplayScale(viewport.displayScale / 1.25)
+            finishZoomChange(resizeWindow: resizesWindowForZoom)
         case .zoomIn:
-            followsFitToViewport = false
-            viewport = viewport.zoomed(to: viewport.zoomScale * 1.25)
+            applyFixedDisplayScale(viewport.displayScale * 1.25)
+            finishZoomChange(resizeWindow: resizesWindowForZoom)
+        case .actualSize:
+            applyFixedDisplayScale(1)
+            finishZoomChange(resizeWindow: resizesWindowForZoom)
         case .fit:
             followsFitToViewport = true
+            fixedDisplayScale = nil
             viewport = viewport.zoomedToFit()
+            finishZoomChange(resizeWindow: false)
+        case .resizeWindowToZoom:
+            followsFitToViewport = false
+            fixedDisplayScale = viewport.displayScale
+            finishZoomChange(resizeWindow: true)
         }
-
-        needsDisplay = true
     }
 
     override func magnify(with event: NSEvent) {
-        followsFitToViewport = false
         synchronizeViewportToBounds()
         let factor = max(0.05, 1 + event.magnification)
-        viewport = viewport.zoomed(to: viewport.zoomScale * factor, anchoredAt: convert(event.locationInWindow, from: nil))
-        needsDisplay = true
+        applyFixedDisplayScale(
+            viewport.displayScale * factor,
+            anchoredAt: convert(event.locationInWindow, from: nil)
+        )
+        finishZoomChange(resizeWindow: resizesWindowForZoom)
     }
 
     override func scrollWheel(with event: NSEvent) {
@@ -628,18 +801,78 @@ private final class ZoomableReferenceCanvasView: NSView {
                 return
             }
 
-            followsFitToViewport = false
             let factor = pow(1.0018, event.scrollingDeltaY)
-            viewport = viewport.zoomed(to: viewport.zoomScale * factor, anchoredAt: convert(event.locationInWindow, from: nil))
+            applyFixedDisplayScale(
+                viewport.displayScale * factor,
+                anchoredAt: convert(event.locationInWindow, from: nil)
+            )
+            finishZoomChange(resizeWindow: resizesWindowForZoom)
         } else {
             viewport = viewport.panned(by: CGSize(width: event.scrollingDeltaX, height: event.scrollingDeltaY))
+            publishZoomStateIfNeeded()
+            needsDisplay = true
+        }
+    }
+
+    private func synchronizeViewportToBounds() {
+        viewport = viewport.updatingCanvasSize(bounds.size)
+    }
+
+    private func applyFixedDisplayScale(_ displayScale: CGFloat, anchoredAt anchor: CGPoint? = nil) {
+        followsFitToViewport = false
+        viewport = viewport.zoomed(to: zoomScale(forDisplayScale: displayScale), anchoredAt: anchor)
+        fixedDisplayScale = viewport.displayScale
+    }
+
+    private func finishZoomChange(resizeWindow: Bool) {
+        publishZoomStateIfNeeded()
+
+        if resizeWindow {
+            requestWindowResizeForCurrentZoom()
         }
 
         needsDisplay = true
     }
 
-    private func synchronizeViewportToBounds() {
-        viewport = viewport.updatingCanvasSize(bounds.size)
+    private func requestWindowResizeForCurrentZoom() {
+        let displayedImageSize = FloatingReferenceWindowSizing.displayedImageSize(
+            forPixelSize: imageSize,
+            displayScale: fixedDisplayScale ?? viewport.displayScale
+        )
+        onWindowResizeRequest?(
+            FloatingReferenceWindowSizing.contentSize(forDisplayedImageSize: displayedImageSize)
+        )
+    }
+
+    private func publishZoomStateIfNeeded() {
+        guard bounds.width > 0,
+              bounds.height > 0,
+              imageSize.width > 0,
+              imageSize.height > 0
+        else {
+            return
+        }
+
+        let state = FloatingReferenceZoomState(
+            percentage: viewport.zoomPercentage,
+            canZoomIn: viewport.canZoomIn,
+            canZoomOut: viewport.canZoomOut
+        )
+
+        guard state != lastPublishedZoomState else {
+            return
+        }
+
+        lastPublishedZoomState = state
+        onZoomStateChange?(state)
+    }
+
+    private func zoomScale(forDisplayScale displayScale: CGFloat) -> CGFloat {
+        guard viewport.fitScale > 0 else {
+            return EditorViewport.fitZoomScale
+        }
+
+        return displayScale / viewport.fitScale
     }
 }
 

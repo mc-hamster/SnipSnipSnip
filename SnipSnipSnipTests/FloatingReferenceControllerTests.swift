@@ -20,6 +20,25 @@ final class FloatingReferenceControllerTests: XCTestCase {
         XCTAssertEqual(size.height, 340, accuracy: 0.0001)
     }
 
+    func testDisplayedImageSizeAppliesZoomScale() {
+        let size = FloatingReferenceWindowSizing.displayedImageSize(
+            forPixelSize: CGSize(width: 640, height: 480),
+            displayScale: 1.5
+        )
+
+        XCTAssertEqual(size.width, 960, accuracy: 0.0001)
+        XCTAssertEqual(size.height, 720, accuracy: 0.0001)
+    }
+
+    func testContentSizeForDisplayedImageAddsViewportAndToolbarSpace() {
+        let size = FloatingReferenceWindowSizing.contentSize(
+            forDisplayedImageSize: CGSize(width: 640, height: 480)
+        )
+
+        XCTAssertEqual(size.width, 680, accuracy: 0.0001)
+        XCTAssertEqual(size.height, 558, accuracy: 0.0001)
+    }
+
     func testInitialFrameCascadesFromTopRightInsideVisibleFrame() {
         let visibleFrame = CGRect(x: 100, y: 200, width: 1_000, height: 800)
 
@@ -51,6 +70,28 @@ final class FloatingReferenceControllerTests: XCTestCase {
 
         XCTAssertEqual(frame, CGRect(x: 28, y: 28, width: 304, height: 204))
         XCTAssertTrue(visibleFrame.contains(frame))
+    }
+
+    func testResizedFrameKeepsCurrentCenterWhenItFits() {
+        let frame = FloatingReferenceWindowSizing.resizedFrame(
+            currentFrame: CGRect(x: 100, y: 100, width: 400, height: 300),
+            requestedFrameSize: CGSize(width: 600, height: 420),
+            visibleFrame: CGRect(x: 0, y: 0, width: 1_200, height: 900)
+        )
+
+        XCTAssertEqual(frame, CGRect(x: 0, y: 40, width: 600, height: 420))
+    }
+
+    func testResizedFrameClampsToVisibleFrame() {
+        let visibleFrame = CGRect(x: 80, y: 120, width: 900, height: 700)
+
+        let frame = FloatingReferenceWindowSizing.resizedFrame(
+            currentFrame: CGRect(x: 700, y: 620, width: 260, height: 180),
+            requestedFrameSize: CGSize(width: 1_400, height: 1_000),
+            visibleFrame: visibleFrame
+        )
+
+        XCTAssertEqual(frame, visibleFrame)
     }
 
     func testRetentionPolicyClosesOldestReferenceBeforeAddingPastLimit() {
