@@ -1476,6 +1476,33 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testCropPreviewDoesNotInvalidateStableCanvasContent() {
+        let controller = makeController(
+            snapshot: makeEditorSnapshot(cropRect: CGRect(x: 20, y: 15, width: 80, height: 60)),
+            captureSize: CGSize(width: 160, height: 120)
+        )
+        let (canvas, _, _) = makeCanvasHarness(
+            controller: controller,
+            frame: CGRect(x: 0, y: 0, width: 640, height: 480)
+        )
+
+        guard canvas.subviews.count >= 4 else {
+            return XCTFail("Expected base, crop mask, stable content, and interaction overlay views")
+        }
+
+        let stableInvalidationCount = canvas.debugStableContentInvalidationCount
+
+        controller.previewCropRect(CGRect(x: 20, y: 15, width: 120, height: 85))
+
+        XCTAssertEqual(controller.snapshot.cropRect, CGRect(x: 20, y: 15, width: 120, height: 85))
+        XCTAssertEqual(canvas.debugStableContentInvalidationCount, stableInvalidationCount)
+
+        controller.addAnnotation(Annotation.makeRectangle(in: CGRect(x: 30, y: 30, width: 40, height: 30)))
+
+        XCTAssertGreaterThan(canvas.debugStableContentInvalidationCount, stableInvalidationCount)
+    }
+
+    @MainActor
     func testCropHandleResizeHonorsFixedAspectRatioPreset() {
         let controller = makeController(
             snapshot: makeEditorSnapshot(cropRect: CGRect(x: 20, y: 15, width: 80, height: 60)),

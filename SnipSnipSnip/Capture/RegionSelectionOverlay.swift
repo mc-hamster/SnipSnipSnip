@@ -27,12 +27,14 @@ final class RegionSelectionSession: NSObject {
     }
 
     func begin() async -> RegionCaptureSelection? {
-        let livePreviewSource = LiveDesktopPreviewSource(displays: snapshot.displays)
-        do {
-            try await livePreviewSource.start()
-            self.livePreviewSource = livePreviewSource
-        } catch {
-            self.livePreviewSource = nil
+        if preferences.overlayMode.showsMagnifyingGlass {
+            let livePreviewSource = LiveDesktopPreviewSource(displays: snapshot.displays)
+            do {
+                try await livePreviewSource.start()
+                self.livePreviewSource = livePreviewSource
+            } catch {
+                self.livePreviewSource = nil
+            }
         }
 
         return await withCheckedContinuation { continuation in

@@ -73,6 +73,18 @@ private struct PersistedEditorColorRecord: Codable {
     }
 }
 
+enum EditorCanvasInvalidationReason: Equatable {
+    case full
+    case cropPreview
+    case cropChrome
+    case uiMapOverlay
+    case uiMapHover
+
+    var invalidatesStableContent: Bool {
+        self == .full
+    }
+}
+
 @MainActor
 final class EditorController: ObservableObject {
     enum ImageColorSamplingTarget: String {
@@ -109,6 +121,7 @@ final class EditorController: ObservableObject {
     var editorSingleKeyToolShortcutsEnabled = true
     @Published private(set) var toolStyles: [EditorTool: AnnotationStyle]
     @Published private(set) var canvasRevision = 0
+    private(set) var canvasInvalidationReason: EditorCanvasInvalidationReason = .full
     @Published var ocrReviewText: String?
     @Published var isRecognizingOCR = false
     @Published private(set) var imageColorSamplingTarget: ImageColorSamplingTarget?
@@ -122,7 +135,7 @@ final class EditorController: ObservableObject {
     @Published private(set) var hoveredUIMapElementID: UUID?
     @Published var showsAllUIMapElements = false {
         didSet {
-            invalidateCanvas()
+            invalidateCanvas(.uiMapOverlay)
         }
     }
     @Published var uiMapOverlayOptions = UIMapOverlayOptions() {
@@ -799,7 +812,7 @@ final class EditorController: ObservableObject {
             return
         }
 
-        applySnapshot(updatedSnapshot, fitViewportToCrop: false)
+        applySnapshot(updatedSnapshot, fitViewportToCrop: false, invalidationReason: .cropPreview)
     }
 
     func commitPreviewedCropRect(_ rect: CGRect, originalRect: CGRect) {
@@ -809,7 +822,7 @@ final class EditorController: ObservableObject {
         guard finalRect != initialRect else {
             let restoredSnapshot = SetCropCommand(rect: initialRect).apply(to: snapshot)
             if restoredSnapshot != snapshot {
-                applySnapshot(restoredSnapshot, fitViewportToCrop: false)
+                applySnapshot(restoredSnapshot, fitViewportToCrop: false, invalidationReason: .cropPreview)
             }
             return
         }
@@ -1211,7 +1224,7 @@ final class EditorController: ObservableObject {
         }
 
         cropOutsideOverlayAlpha = clampedAlpha
-        invalidateCanvas()
+        invalidateCanvas(.cropChrome)
     }
 
     func updateOutOfCapturePatternSettings(_ settings: EditorOutOfCapturePatternSettings) {
@@ -1239,7 +1252,7 @@ final class EditorController: ObservableObject {
         }
 
         selectedUIMapElementID = elementID
-        invalidateCanvas()
+        invalidateCanvas(.uiMapOverlay)
     }
 
     func hoverUIMapElement(_ elementID: UUID?) {
@@ -1248,7 +1261,7 @@ final class EditorController: ObservableObject {
         }
 
         hoveredUIMapElementID = elementID
-        invalidateCanvas()
+        invalidateCanvas(.uiMapHover)
     }
 
     func selectAndTogglePinnedUIMapElement(_ elementID: UUID?) {
@@ -2274,10 +2287,17 @@ final class EditorController: ObservableObject {
         }
     }
 
-    private func applySnapshot(_ updatedSnapshot: EditorSnapshot, fitViewportToCrop: Bool) {
+    private func applySnapshot(
+        _ updatedSnapshot: EditorSnapshot,
+        fitViewportToCrop: Bool,
+        invalidationReason: EditorCanvasInvalidationReason = .full
+    ) {
         snapshot = updatedSnapshot
-        invalidateCanvas()
-        updateViewport(publishChange: fitViewportToCrop) {
+        invalidateCanvas(invalidationReason)
+        updateViewport(
+            publishChange: fitViewportToCrop,
+            invalidationReason: fitViewportToCrop ? .full : invalidationReason
+        ) {
             let updatedViewport = $0.updatingContentSize(documentCanvasSize, fitToWindow: false)
 
             guard fitViewportToCrop else {
@@ -2292,7 +2312,11 @@ final class EditorController: ObservableObject {
         }
     }
 
-    private func updateViewport(publishChange: Bool = true, _ mutation: (EditorViewport) -> EditorViewport) {
+    private func updateViewport(
+        publishChange: Bool = true,
+        invalidationReason: EditorCanvasInvalidationReason = .full,
+        _ mutation: (EditorViewport) -> EditorViewport
+    ) {
         let updatedViewport = mutation(viewport)
 
         guard updatedViewport != viewport else {
@@ -2304,10 +2328,11 @@ final class EditorController: ObservableObject {
         }
 
         viewport = updatedViewport
-        invalidateCanvas()
+        invalidateCanvas(invalidationReason)
     }
 
-    private func invalidateCanvas() {
+    private func invalidateCanvas(_ reason: EditorCanvasInvalidationReason = .full) {
+        canvasInvalidationReason = reason
         canvasRevision += 1
     }
 }

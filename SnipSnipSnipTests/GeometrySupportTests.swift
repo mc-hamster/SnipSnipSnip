@@ -74,6 +74,18 @@ final class GeometrySupportTests: XCTestCase {
         XCTAssertEqual(resolution.rect, CGRect(x: 70, y: 20, width: 30, height: 20))
     }
 
+    func testSnapRectPreservesCandidateOrderWhenDistancesTie() {
+        let resolution = gscSnapRect(
+            CGRect(x: 47, y: 20, width: 20, height: 10),
+            within: CGRect(x: 0, y: 0, width: 100, height: 100),
+            against: [CGRect(x: 34, y: 80, width: 20, height: 10)],
+            threshold: 8
+        )
+
+        XCTAssertEqual(resolution.rect.minX, 50)
+        XCTAssertEqual(resolution.guides, [SnapGuide(orientation: .vertical, position: 50)])
+    }
+
     func testCapturePreviewTransformScalesCaptureSelectionIntoPreviewPixels() {
         let transform = CapturePreviewTransform(
             displayTransform: CaptureDisplayTransform(

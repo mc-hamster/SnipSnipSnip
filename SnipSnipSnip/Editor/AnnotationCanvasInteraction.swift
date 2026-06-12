@@ -38,50 +38,62 @@ struct AnnotationCanvasInteractionState {
     private(set) var draftCropRect: CGRect?
     private(set) var draftSelectionRect: CGRect?
     private(set) var snapGuides: [SnapGuide] = []
+    private var cachedSnapCandidates: SnapCandidateSet?
+    private var cachedSnapCandidateExcludedIDs: [UUID] = []
 
     mutating func beginRectDrawing(tool: EditorTool, anchor: CGPoint) {
+        clearSnapCandidateCache()
         dragMode = .drawingRect(tool: tool, anchor: anchor)
     }
 
     mutating func beginLineDrawing(tool: EditorTool, anchor: CGPoint) {
+        clearSnapCandidateCache()
         dragMode = .drawingLine(tool: tool, anchor: anchor)
     }
 
     mutating func beginFreehand(tool: EditorTool, at point: CGPoint, style: AnnotationStyle) {
+        clearSnapCandidateCache()
         let buffer = FreehandDraftBuffer(start: point)
         dragMode = .drawingFreehand(tool: tool, buffer: buffer)
         draftAnnotations = [makeFreehandAnnotation(for: tool, points: buffer.points, style: style)]
     }
 
     mutating func beginMove(annotations: [Annotation], anchor: CGPoint, originalBounds: CGRect) {
+        clearSnapCandidateCache()
         dragMode = .moving(annotations: annotations, anchor: anchor, originalBounds: originalBounds)
     }
 
     mutating func beginResize(annotations: [Annotation], originalBounds: CGRect, handle: ResizeHandle) {
+        clearSnapCandidateCache()
         dragMode = .resizing(annotations: annotations, originalBounds: originalBounds, handle: handle)
     }
 
     mutating func beginCropResize(originalBounds: CGRect, handle: ResizeHandle) {
+        clearSnapCandidateCache()
         dragMode = .resizingCrop(originalBounds: originalBounds, handle: handle)
         draftCropRect = originalBounds
     }
 
     mutating func beginCropMove(anchor: CGPoint, originalBounds: CGRect) {
+        clearSnapCandidateCache()
         dragMode = .movingCrop(anchor: anchor, originalBounds: originalBounds)
         draftCropRect = originalBounds
     }
 
     mutating func beginCrop(at point: CGPoint) {
+        clearSnapCandidateCache()
         dragMode = .cropping(anchor: point)
         draftCropRect = CGRect(origin: point, size: .zero)
     }
 
     mutating func beginTextRecognition(at point: CGPoint) {
+        clearSnapCandidateCache()
         dragMode = .recognizingText(anchor: point)
         draftCropRect = CGRect(origin: point, size: .zero)
     }
 
     mutating func beginMarquee(at point: CGPoint, additive: Bool) {
+        clearSnapCandidateCache()
         dragMode = .marqueeSelecting(anchor: point, additive: additive)
         draftSelectionRect = CGRect(origin: point, size: .zero)
     }
@@ -146,6 +158,7 @@ struct AnnotationCanvasInteractionState {
         draftCropRect = nil
         draftSelectionRect = nil
         snapGuides = []
+        clearSnapCandidateCache()
     }
 
     private mutating func updateDraftRect(
@@ -161,7 +174,7 @@ struct AnnotationCanvasInteractionState {
             width: abs(point.x - anchor.x),
             height: abs(point.y - anchor.y)
         )
-        let resolution = gscSnapRect(rect, within: snapshot.cropRect, against: otherAnnotationRects(excluding: [], snapshot: snapshot))
+        let resolution = gscSnapRect(rect, candidates: snapCandidates(excluding: [], snapshot: snapshot))
         snapGuides = resolution.guides
         draftAnnotations = makeRectAnnotation(for: tool, rect: resolution.rect, styleProvider: styleProvider).map { [$0] } ?? []
     }
@@ -172,7 +185,6 @@ struct AnnotationCanvasInteractionState {
 
     private mutating func updateDraftFreehand(tool: EditorTool, buffer: FreehandDraftBuffer, point: CGPoint, style: AnnotationStyle) {
         if let last = buffer.points.last, hypot(point.x - last.x, point.y - last.y) < 2 {
-            draftAnnotations = [makeFreehandAnnotation(for: tool, points: buffer.points, style: style)]
             return
         }
 
@@ -191,8 +203,7 @@ struct AnnotationCanvasInteractionState {
         let movedBounds = originalBounds.offsetBy(dx: rawDelta.width, dy: rawDelta.height)
         let resolution = gscSnapRect(
             movedBounds,
-            within: snapshot.cropRect,
-            against: otherAnnotationRects(excluding: annotations.map(\.id), snapshot: snapshot)
+            candidates: snapCandidates(excluding: annotations.map(\.id), snapshot: snapshot)
         )
         let snappedDelta = CGSize(width: resolution.rect.minX - originalBounds.minX, height: resolution.rect.minY - originalBounds.minY)
         snapGuides = resolution.guides
@@ -210,8 +221,7 @@ struct AnnotationCanvasInteractionState {
         let resizedBounds = signedBounds.rect.gscClamped(to: snapshot.cropRect)
         let resolution = gscSnapRect(
             resizedBounds,
-            within: snapshot.cropRect,
-            against: otherAnnotationRects(excluding: annotations.map(\.id), snapshot: snapshot)
+            candidates: snapCandidates(excluding: annotations.map(\.id), snapshot: snapshot)
         )
         let resolvedBounds = signedBounds.resolved(to: resolution.rect)
         snapGuides = resolution.guides
@@ -321,11 +331,24 @@ struct AnnotationCanvasInteractionState {
         }
     }
 
-    private func otherAnnotationRects(excluding excludedIDs: [UUID], snapshot: EditorSnapshot) -> [CGRect] {
+    private mutating func snapCandidates(excluding excludedIDs: [UUID], snapshot: EditorSnapshot) -> SnapCandidateSet {
+        if let cachedSnapCandidates, cachedSnapCandidateExcludedIDs == excludedIDs {
+            return cachedSnapCandidates
+        }
+
         let excludedSet = Set(excludedIDs)
-        return snapshot.annotations.compactMap { annotation in
+        let rects = snapshot.annotations.compactMap { annotation in
             excludedSet.contains(annotation.id) ? nil : annotation.boundingRect
         }
+        let candidates = SnapCandidateSet(bounds: snapshot.cropRect, others: rects)
+        cachedSnapCandidateExcludedIDs = excludedIDs
+        cachedSnapCandidates = candidates
+        return candidates
+    }
+
+    private mutating func clearSnapCandidateCache() {
+        cachedSnapCandidates = nil
+        cachedSnapCandidateExcludedIDs = []
     }
 
     private func annotationsIntersectingDraftSelection(in snapshot: EditorSnapshot) -> [Annotation] {

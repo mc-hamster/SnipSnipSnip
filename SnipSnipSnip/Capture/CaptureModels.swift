@@ -589,8 +589,11 @@ nonisolated struct ScreenshotFilenameTemplate: Equatable {
 
     var pattern: String
 
-    func resolvedFilename(for capture: CapturedScreenshot, formatExtension: String?) -> String {
+    func resolvedFilename(for capture: CapturedScreenshot, formatExtension: String?, timeZone: TimeZone? = nil) -> String {
         let dateFormatter = DateFormatter()
+        if let timeZone {
+            dateFormatter.timeZone = timeZone
+        }
         let source = sanitizedFilenameComponent(capture.sourceName)
         var resolved = pattern
             .replacingOccurrences(of: "{kind}", with: capture.kind.rawValue)

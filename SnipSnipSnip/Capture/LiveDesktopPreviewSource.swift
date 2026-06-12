@@ -136,6 +136,9 @@ private final class LiveDesktopPreviewSession: NSObject, SCStreamOutput {
     private let stream: SCStream
     private let sampleOutputQueue: DispatchQueue
     private let onFrame: @MainActor (LiveDesktopPreviewFrame) -> Void
+    private let frameDeliveryLock = NSLock()
+    nonisolated(unsafe) private var pendingFrame: LiveDesktopPreviewFrame?
+    nonisolated(unsafe) private var isFrameDeliveryScheduled = false
     private var isCapturing = false
 
     init(
@@ -152,7 +155,7 @@ private final class LiveDesktopPreviewSession: NSObject, SCStreamOutput {
         configuration.width = max(Int((snapshot.frame.width * snapshot.scale).rounded(.up)), 1)
         configuration.height = max(Int((snapshot.frame.height * snapshot.scale).rounded(.up)), 1)
         configuration.minimumFrameInterval = CMTime(value: 1, timescale: 30)
-        configuration.queueDepth = 3
+        configuration.queueDepth = 1
         configuration.showsCursor = false
         configuration.captureResolution = .best
         configuration.captureDynamicRange = .SDR
@@ -195,9 +198,41 @@ private final class LiveDesktopPreviewSession: NSObject, SCStreamOutput {
         }
 
         let frame = LiveDesktopPreviewFrame(displayID: displayID, image: cgImage)
-        Task { @MainActor [onFrame] in
+        storePendingFrame(frame)
+    }
+
+    nonisolated private func storePendingFrame(_ frame: LiveDesktopPreviewFrame) {
+        let shouldScheduleDelivery: Bool
+
+        frameDeliveryLock.lock()
+        pendingFrame = frame
+        shouldScheduleDelivery = !isFrameDeliveryScheduled
+        if shouldScheduleDelivery {
+            isFrameDeliveryScheduled = true
+        }
+        frameDeliveryLock.unlock()
+
+        guard shouldScheduleDelivery else {
+            return
+        }
+
+        Task { @MainActor [weak self, onFrame] in
+            guard let frame = self?.takePendingFrame() else {
+                return
+            }
+
             onFrame(frame)
         }
+    }
+
+    nonisolated private func takePendingFrame() -> LiveDesktopPreviewFrame? {
+        frameDeliveryLock.lock()
+        defer { frameDeliveryLock.unlock() }
+
+        let frame = pendingFrame
+        pendingFrame = nil
+        isFrameDeliveryScheduled = false
+        return frame
     }
 }
 

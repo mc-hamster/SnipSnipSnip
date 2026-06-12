@@ -16,6 +16,57 @@ nonisolated struct SnapResolution: Equatable {
     let guides: [SnapGuide]
 }
 
+nonisolated struct SnapCandidateSet {
+    fileprivate struct Candidate {
+        let value: CGFloat
+        let order: Int
+    }
+
+    fileprivate let bounds: CGRect
+    fileprivate let xCandidates: [Candidate]
+    fileprivate let yCandidates: [Candidate]
+
+    init(bounds: CGRect, others: [CGRect]) {
+        self.bounds = bounds
+
+        var xCandidates: [Candidate] = []
+        var yCandidates: [Candidate] = []
+        xCandidates.reserveCapacity(3 + others.count * 3)
+        yCandidates.reserveCapacity(3 + others.count * 3)
+
+        func appendX(_ value: CGFloat) {
+            xCandidates.append(Candidate(value: value, order: xCandidates.count))
+        }
+
+        func appendY(_ value: CGFloat) {
+            yCandidates.append(Candidate(value: value, order: yCandidates.count))
+        }
+
+        appendX(bounds.minX)
+        appendX(bounds.midX)
+        appendX(bounds.maxX)
+        appendY(bounds.minY)
+        appendY(bounds.midY)
+        appendY(bounds.maxY)
+
+        for rect in others {
+            appendX(rect.minX)
+            appendX(rect.midX)
+            appendX(rect.maxX)
+            appendY(rect.minY)
+            appendY(rect.midY)
+            appendY(rect.maxY)
+        }
+
+        self.xCandidates = xCandidates.sorted {
+            $0.value == $1.value ? $0.order < $1.order : $0.value < $1.value
+        }
+        self.yCandidates = yCandidates.sorted {
+            $0.value == $1.value ? $0.order < $1.order : $0.value < $1.value
+        }
+    }
+}
+
 nonisolated struct SignedScaleBounds: Equatable {
     let minXTarget: CGFloat
     let maxXTarget: CGFloat
@@ -624,16 +675,17 @@ nonisolated func gscSuggestedTextRect(adjacentTo selectionBounds: CGRect, within
 }
 
 nonisolated func gscSnapRect(_ rect: CGRect, within bounds: CGRect, against others: [CGRect], threshold: CGFloat = 8) -> SnapResolution {
-    let xCandidates = [bounds.minX, bounds.midX, bounds.maxX] + others.flatMap { [$0.minX, $0.midX, $0.maxX] }
-    let yCandidates = [bounds.minY, bounds.midY, bounds.maxY] + others.flatMap { [$0.minY, $0.midY, $0.maxY] }
+    gscSnapRect(rect, candidates: SnapCandidateSet(bounds: bounds, others: others), threshold: threshold)
+}
 
+nonisolated func gscSnapRect(_ rect: CGRect, candidates: SnapCandidateSet, threshold: CGFloat = 8) -> SnapResolution {
     let xTargets = [rect.minX, rect.midX, rect.maxX]
     let yTargets = [rect.minY, rect.midY, rect.maxY]
 
-    let xSnap = gscBestSnap(for: xTargets, candidates: xCandidates, threshold: threshold)
-    let ySnap = gscBestSnap(for: yTargets, candidates: yCandidates, threshold: threshold)
+    let xSnap = gscBestSnap(for: xTargets, candidates: candidates.xCandidates, threshold: threshold)
+    let ySnap = gscBestSnap(for: yTargets, candidates: candidates.yCandidates, threshold: threshold)
 
-    let snappedRect = rect.offsetBy(dx: xSnap?.delta ?? 0, dy: ySnap?.delta ?? 0).gscContained(in: bounds)
+    let snappedRect = rect.offsetBy(dx: xSnap?.delta ?? 0, dy: ySnap?.delta ?? 0).gscContained(in: candidates.bounds)
     let guides = [
         xSnap.map { SnapGuide(orientation: .vertical, position: $0.guide) },
         ySnap.map { SnapGuide(orientation: .horizontal, position: $0.guide) }
@@ -642,26 +694,75 @@ nonisolated func gscSnapRect(_ rect: CGRect, within bounds: CGRect, against othe
     return SnapResolution(rect: snappedRect, guides: guides)
 }
 
-nonisolated private func gscBestSnap(for targets: [CGFloat], candidates: [CGFloat], threshold: CGFloat) -> (delta: CGFloat, guide: CGFloat)? {
+nonisolated private func gscBestSnap(for targets: [CGFloat], candidates: [SnapCandidateSet.Candidate], threshold: CGFloat) -> (delta: CGFloat, guide: CGFloat)? {
     var best: (delta: CGFloat, guide: CGFloat)?
 
     for target in targets {
-        for candidate in candidates {
-            let delta = candidate - target
-
-            guard abs(delta) <= threshold else {
-                continue
-            }
-
-            if let best, abs(best.delta) <= abs(delta) {
-                continue
-            }
-
-            best = (delta, candidate)
+        guard let targetBest = gscBestSnap(for: target, candidates: candidates, threshold: threshold) else {
+            continue
         }
+
+        if let best, abs(best.delta) <= abs(targetBest.delta) {
+            continue
+        }
+
+        best = (targetBest.delta, targetBest.guide)
     }
 
     return best
+}
+
+nonisolated private func gscBestSnap(
+    for target: CGFloat,
+    candidates: [SnapCandidateSet.Candidate],
+    threshold: CGFloat
+) -> (delta: CGFloat, guide: CGFloat, order: Int)? {
+    let minimum = target - threshold
+    let maximum = target + threshold
+    var index = gscLowerBound(in: candidates, value: minimum)
+    var best: (delta: CGFloat, guide: CGFloat, order: Int)?
+
+    while index < candidates.count {
+        let candidate = candidates[index]
+        guard candidate.value <= maximum else {
+            break
+        }
+
+        let delta = candidate.value - target
+        let absoluteDelta = abs(delta)
+
+        if absoluteDelta <= threshold {
+            if let currentBest = best {
+                let currentAbsoluteDelta = abs(currentBest.delta)
+                if absoluteDelta < currentAbsoluteDelta ||
+                    (absoluteDelta == currentAbsoluteDelta && candidate.order < currentBest.order) {
+                    best = (delta, candidate.value, candidate.order)
+                }
+            } else {
+                best = (delta, candidate.value, candidate.order)
+            }
+        }
+
+        index += 1
+    }
+
+    return best
+}
+
+nonisolated private func gscLowerBound(in candidates: [SnapCandidateSet.Candidate], value: CGFloat) -> Int {
+    var low = 0
+    var high = candidates.count
+
+    while low < high {
+        let mid = (low + high) / 2
+        if candidates[mid].value < value {
+            low = mid + 1
+        } else {
+            high = mid
+        }
+    }
+
+    return low
 }
 
 nonisolated func gscResizedRect(_ rect: CGRect, handle: ResizeHandle, point: CGPoint) -> CGRect {

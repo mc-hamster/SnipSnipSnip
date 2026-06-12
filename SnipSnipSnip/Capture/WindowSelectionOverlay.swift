@@ -249,18 +249,14 @@ private final class WindowSelectionView: NSView {
     }
 
     override func mouseExited(with event: NSEvent) {
-        hoveredWindowID = nil
-        hoveredScreenRect = nil
-        needsDisplay = true
+        updateHover(windowID: nil, screenRect: nil)
     }
 
     override func mouseMoved(with event: NSEvent) {
         let screenPoint = appKitScreenPoint(from: event)
         let freshBounds = visibleWindowBoundsSources(desktopFrame: desktopFrame)
         let resolved = resolveWindow(at: screenPoint, boundsSources: freshBounds)
-        hoveredWindowID = resolved?.window.id
-        hoveredScreenRect = resolved?.screenRect
-        needsDisplay = true
+        updateHover(windowID: resolved?.window.id, screenRect: resolved?.screenRect)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -304,6 +300,16 @@ private final class WindowSelectionView: NSView {
                 .font: NSFont.systemFont(ofSize: 14, weight: .semibold)
             ]
         )
+    }
+
+    private func updateHover(windowID: CGWindowID?, screenRect: CGRect?) {
+        guard hoveredWindowID != windowID || hoveredScreenRect != screenRect else {
+            return
+        }
+
+        hoveredWindowID = windowID
+        hoveredScreenRect = screenRect
+        needsDisplay = true
     }
 
     // Convert event position to AppKit global screen coords.

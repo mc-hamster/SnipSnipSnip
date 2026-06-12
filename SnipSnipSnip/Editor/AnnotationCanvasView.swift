@@ -63,6 +63,245 @@ private final class AnnotationCanvasBaseImageView: NSView {
     }
 }
 
+private final class AnnotationCanvasCropMaskView: NSView {
+    var controller: EditorController {
+        didSet {
+            guard controller !== oldValue else {
+                return
+            }
+
+            lastSignature = nil
+            draftCropRect = nil
+            needsDisplay = true
+        }
+    }
+
+    private struct Signature: Equatable {
+        let cropRect: CGRect
+        let canvasRect: CGRect
+        let imageBounds: CGRect
+        let overlayAlpha: CGFloat
+        let isDraft: Bool
+        let boundsSize: CGSize
+    }
+
+    private var draftCropRect: CGRect?
+    private var lastSignature: Signature?
+
+    init(controller: EditorController) {
+        self.controller = controller
+        super.init(frame: .zero)
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    override var isFlipped: Bool {
+        true
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+
+    func updateDraftCropRect(_ rect: CGRect?) {
+        guard draftCropRect != rect else {
+            return
+        }
+
+        draftCropRect = rect
+        invalidateIfNeeded(force: true)
+    }
+
+    func controllerDidChange() {
+        invalidateIfNeeded()
+    }
+
+    func refreshAfterLayout() {
+        invalidateIfNeeded()
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        guard let signature = currentSignature(),
+              signature.overlayAlpha > 0,
+              signature.cropRect.gscIntegralStandardized != signature.imageBounds.gscIntegralStandardized else {
+            return
+        }
+
+        NSColor.black.withAlphaComponent(signature.overlayAlpha).setFill()
+        signature.canvasRect.fill(using: .sourceOver)
+        NSColor.clear.setFill()
+        viewRect(for: signature.cropRect, in: signature.canvasRect).fill(using: .clear)
+    }
+
+    private func invalidateIfNeeded(force: Bool = false) {
+        guard let signature = currentSignature() else {
+            lastSignature = nil
+            if force {
+                needsDisplay = true
+            }
+            return
+        }
+
+        guard force || signature != lastSignature else {
+            return
+        }
+
+        lastSignature = signature
+        needsDisplay = true
+    }
+
+    private func currentSignature() -> Signature? {
+        let canvasRect = controller.viewport.imageRect
+        let imageBounds = controller.capture.documentRect
+
+        guard canvasRect.width > 0,
+              canvasRect.height > 0,
+              imageBounds.width > 0,
+              imageBounds.height > 0 else {
+            return nil
+        }
+
+        let isDraft = draftCropRect != nil
+        let cropRect = (draftCropRect ?? controller.snapshot.cropRect).gscIntegralStandardized
+        let overlayAlpha = isDraft
+            ? 0.18
+            : (cropRect == imageBounds.gscIntegralStandardized ? 0 : controller.cropOutsideOverlayAlpha)
+
+        return Signature(
+            cropRect: cropRect,
+            canvasRect: canvasRect,
+            imageBounds: imageBounds,
+            overlayAlpha: overlayAlpha,
+            isDraft: isDraft,
+            boundsSize: bounds.size
+        )
+    }
+
+    private func viewRect(for documentRect: CGRect, in canvasRect: CGRect) -> CGRect {
+        DocumentProjection(
+            sourceDocumentRect: controller.capture.documentRect,
+            destinationBounds: canvasRect
+        )
+        .destinationRect(fromDocumentRect: documentRect)
+    }
+}
+
+private final class AnnotationCanvasStableContentView: NSView {
+    var controller: EditorController {
+        didSet {
+            guard controller !== oldValue else {
+                return
+            }
+
+            lastSignature = nil
+            needsDisplay = true
+        }
+    }
+
+    private struct Signature: Equatable {
+        let baseImageID: ObjectIdentifier
+        let annotations: [Annotation]
+        let pinnedUIMapElements: [UIMapElement]
+        let uiMapOverlayOptions: UIMapOverlayOptions
+        let outOfCapturePatternSettings: EditorOutOfCapturePatternSettings
+        let canvasRect: CGRect
+        let boundsSize: CGSize
+        let appearanceName: NSAppearance.Name?
+    }
+
+    private var lastSignature: Signature?
+    fileprivate private(set) var debugInvalidationCount = 0
+
+    init(controller: EditorController) {
+        self.controller = controller
+        super.init(frame: .zero)
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    override var isFlipped: Bool {
+        true
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+
+    func controllerDidChange() {
+        invalidateIfNeeded()
+    }
+
+    func refreshAfterLayout() {
+        invalidateIfNeeded()
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        let canvasRect = controller.viewport.imageRect
+        guard canvasRect.width > 0, canvasRect.height > 0 else {
+            return
+        }
+
+        OutOfCapturePatternRenderer.draw(
+            bounds: bounds,
+            excluding: canvasRect,
+            settings: controller.outOfCapturePatternSettings,
+            appearance: effectiveAppearance
+        )
+
+        EditorRenderer.drawAnnotations(
+            baseImage: controller.capture.image,
+            snapshot: controller.snapshot,
+            canvasRect: canvasRect,
+            draftAnnotations: [],
+            pinnedUIMapElements: controller.pinnedUIMapElements,
+            uiMapOverlayOptions: controller.uiMapOverlayOptions
+        )
+    }
+
+    private func invalidateIfNeeded() {
+        guard let signature = currentSignature() else {
+            lastSignature = nil
+            return
+        }
+
+        guard signature != lastSignature else {
+            return
+        }
+
+        lastSignature = signature
+        debugInvalidationCount += 1
+        needsDisplay = true
+    }
+
+    private func currentSignature() -> Signature? {
+        let canvasRect = controller.viewport.imageRect
+        guard canvasRect.width > 0, canvasRect.height > 0 else {
+            return nil
+        }
+
+        return Signature(
+            baseImageID: ObjectIdentifier(controller.capture.image as AnyObject),
+            annotations: controller.snapshot.annotations,
+            pinnedUIMapElements: controller.pinnedUIMapElements,
+            uiMapOverlayOptions: controller.uiMapOverlayOptions,
+            outOfCapturePatternSettings: controller.outOfCapturePatternSettings,
+            canvasRect: canvasRect,
+            boundsSize: bounds.size,
+            appearanceName: effectiveAppearance.name
+        )
+    }
+}
+
 final class AnnotationCanvasView: NSView {
     var controller: EditorController {
         didSet {
@@ -71,12 +310,16 @@ final class AnnotationCanvasView: NSView {
             }
 
             displayedBaseImageCrop = nil
+            cropMaskView.controller = controller
+            stableContentView.controller = controller
             overlayView.controller = controller
             bindController()
         }
     }
 
     private let baseImageView = AnnotationCanvasBaseImageView()
+    private lazy var cropMaskView = AnnotationCanvasCropMaskView(controller: controller)
+    private lazy var stableContentView = AnnotationCanvasStableContentView(controller: controller)
     private lazy var overlayView = AnnotationCanvasOverlayView(controller: controller)
     private var controllerChangeObserver: AnyCancellable?
     private var displayedBaseImageCrop: CGRect?
@@ -88,6 +331,8 @@ final class AnnotationCanvasView: NSView {
         layer?.masksToBounds = true
         layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         addSubview(baseImageView)
+        addSubview(cropMaskView)
+        addSubview(stableContentView)
         addSubview(overlayView)
         bindController()
     }
@@ -107,18 +352,28 @@ final class AnnotationCanvasView: NSView {
     override func layout() {
         super.layout()
         synchronizeViewportToBounds()
+        cropMaskView.frame = bounds
+        stableContentView.frame = bounds
         overlayView.frame = bounds
         synchronizeBaseImagePresentation()
+        cropMaskView.refreshAfterLayout()
+        stableContentView.refreshAfterLayout()
         overlayView.refreshAfterLayout()
     }
 
     func refreshCanvasDisplay() {
         synchronizeBaseImagePresentation()
+        cropMaskView.controllerDidChange()
+        stableContentView.controllerDidChange()
         overlayView.needsDisplay = true
     }
 
     var debugCommittedCropPresentation: CropFocusPresentationState? {
         overlayView.debugCommittedCropPresentation
+    }
+
+    var debugStableContentInvalidationCount: Int {
+        stableContentView.debugInvalidationCount
     }
 
     private func bindController() {
@@ -127,11 +382,18 @@ final class AnnotationCanvasView: NSView {
                 return
             }
 
+            let invalidationReason = self.controller.canvasInvalidationReason
             self.synchronizeBaseImagePresentation()
+            self.cropMaskView.controllerDidChange()
+            if invalidationReason.invalidatesStableContent {
+                self.stableContentView.controllerDidChange()
+            }
             self.overlayView.controllerDidChange()
         }
 
         synchronizeBaseImagePresentation()
+        cropMaskView.controllerDidChange()
+        stableContentView.controllerDidChange()
         overlayView.controllerDidChange()
     }
 
@@ -165,6 +427,10 @@ final class AnnotationCanvasView: NSView {
             baseImageView.imageSize = documentBounds.size
         }
     }
+
+    fileprivate func updateDraftCropMask(_ rect: CGRect?) {
+        cropMaskView.updateDraftCropRect(rect)
+    }
 }
 
 private final class AnnotationCanvasOverlayView: NSView {
@@ -184,14 +450,34 @@ private final class AnnotationCanvasOverlayView: NSView {
         "x": .redact
     ]
 
-    var controller: EditorController
+    var controller: EditorController {
+        didSet {
+            guard controller !== oldValue else {
+                return
+            }
+
+            invalidateUIMapOverlayElementCache()
+            lastHoveredUIMapElementID = controller.hoveredUIMapElementID
+            needsDisplay = true
+        }
+    }
 
     private var interactionState = AnnotationCanvasInteractionState()
     private var cropHUDDocumentPoint: CGPoint?
     private var pointerTrackingArea: NSTrackingArea?
+    private var uiMapOverlayElementCache: UIMapOverlayElementCache?
+    private var lastHoveredUIMapElementID: UUID?
+
+    private struct UIMapOverlayElementCache {
+        let allElements: [UIMapElement]
+        let showAllElements: [UIMapElement]
+        let hitTestElements: [UIMapElement]
+        let elementsByID: [UUID: UIMapElement]
+    }
 
     init(controller: EditorController) {
         self.controller = controller
+        self.lastHoveredUIMapElementID = controller.hoveredUIMapElementID
         super.init(frame: .zero)
     }
 
@@ -227,9 +513,9 @@ private final class AnnotationCanvasOverlayView: NSView {
     override func resetCursorRects() {
         discardCursorRects()
 
-        if controller.activeTool == .uiMapInspect, let uiMap = controller.uiMapSnapshot {
+        if controller.activeTool == .uiMapInspect {
             let canvasRect = controller.viewport.imageRect
-            for element in uiMap.allElements where element.isShowAllOverlayCandidate {
+            for element in uiMapOverlayElements().showAllElements {
                 let rect = viewRect(for: element.documentRect, in: canvasRect)
                 if rect.width > 0, rect.height > 0 {
                     addCursorRect(rect, cursor: .pointingHand)
@@ -272,25 +558,7 @@ private final class AnnotationCanvasOverlayView: NSView {
             return
         }
 
-        if let draftCropRect = interactionState.draftCropRect {
-            drawCropMask(for: viewRect(for: draftCropRect, in: canvasRect), overlayAlpha: 0.18, inside: canvasRect)
-        } else {
-            let committedRect = committedCropRect(in: canvasRect)
-            if committedCropOverlayAlpha > 0 {
-                drawCropMask(for: committedRect, overlayAlpha: committedCropOverlayAlpha, inside: canvasRect)
-            }
-        }
-
-        drawOutOfCapturePattern(excluding: canvasRect)
-
-        EditorRenderer.drawAnnotations(
-            baseImage: controller.capture.image,
-            snapshot: controller.snapshot,
-            canvasRect: canvasRect,
-            draftAnnotations: interactionState.draftAnnotations,
-            pinnedUIMapElements: controller.pinnedUIMapElements,
-            uiMapOverlayOptions: controller.uiMapOverlayOptions
-        )
+        drawDraftAnnotations(in: canvasRect)
 
         let displayedSelection = interactionState.draftAnnotations.isEmpty ? controller.selectedAnnotations : interactionState.draftAnnotations
 
@@ -324,8 +592,23 @@ private final class AnnotationCanvasOverlayView: NSView {
     }
 
     func controllerDidChange() {
-        invalidateCursorRects()
-        needsDisplay = true
+        switch controller.canvasInvalidationReason {
+        case .uiMapHover:
+            invalidateUIMapHoverChange(
+                from: lastHoveredUIMapElementID,
+                to: controller.hoveredUIMapElementID
+            )
+            lastHoveredUIMapElementID = controller.hoveredUIMapElementID
+        case .uiMapOverlay:
+            invalidateCursorRects()
+            needsDisplay = true
+            lastHoveredUIMapElementID = controller.hoveredUIMapElementID
+        default:
+            invalidateUIMapOverlayElementCache()
+            invalidateCursorRects()
+            needsDisplay = true
+            lastHoveredUIMapElementID = controller.hoveredUIMapElementID
+        }
     }
 
     func refreshAfterLayout() {
@@ -334,8 +617,10 @@ private final class AnnotationCanvasOverlayView: NSView {
     }
 
     private func drawSelectedUIMapElement(in canvasRect: CGRect) {
-        if controller.showsAllUIMapElements, let uiMap = controller.uiMapSnapshot {
-            for element in uiMap.allElements {
+        let uiMapElements = uiMapOverlayElements()
+
+        if controller.showsAllUIMapElements {
+            for element in uiMapElements.allElements {
                 let isSelected = element.id == controller.selectedUIMapElementID
                 guard isSelected || element.isShowAllOverlayCandidate else {
                     continue
@@ -352,7 +637,7 @@ private final class AnnotationCanvasOverlayView: NSView {
 
         if let hoveredElementID = controller.hoveredUIMapElementID,
            hoveredElementID != controller.selectedUIMapElementID,
-           let hoveredElement = controller.uiMapSnapshot?.element(matching: hoveredElementID) {
+           let hoveredElement = uiMapElements.elementsByID[hoveredElementID] {
             drawUIMapElement(hoveredElement, in: canvasRect, isSelected: false)
         }
 
@@ -452,6 +737,7 @@ private final class AnnotationCanvasOverlayView: NSView {
                 handle: handle
             )
             cropHUDDocumentPoint = handle.position(in: controller.snapshot.cropRect.gscIntegralStandardized)
+            canvasView?.updateDraftCropMask(interactionState.draftCropRect)
             needsDisplay = true
             return
         }
@@ -522,6 +808,7 @@ private final class AnnotationCanvasOverlayView: NSView {
         case .crop:
             interactionState.beginCrop(at: point)
             cropHUDDocumentPoint = point
+            canvasView?.updateDraftCropMask(interactionState.draftCropRect)
         }
     }
 
@@ -571,6 +858,7 @@ private final class AnnotationCanvasOverlayView: NSView {
             if let draftCropRect = interactionState.draftCropRect {
                 controller.previewCropRect(draftCropRect)
             }
+            canvasView?.updateDraftCropMask(interactionState.draftCropRect)
             needsDisplay = true
             return
         }
@@ -597,6 +885,7 @@ private final class AnnotationCanvasOverlayView: NSView {
             cropHUDDocumentPoint = point
         }
 
+        canvasView?.updateDraftCropMask(interactionState.draftCropRect)
         needsDisplay = true
     }
 
@@ -607,6 +896,7 @@ private final class AnnotationCanvasOverlayView: NSView {
         defer {
             interactionState.reset()
             cropHUDDocumentPoint = nil
+            canvasView?.updateDraftCropMask(nil)
             needsDisplay = true
         }
 
@@ -821,6 +1111,7 @@ private final class AnnotationCanvasOverlayView: NSView {
         if cropRect.contains(point) {
             interactionState.beginCropMove(anchor: point, originalBounds: cropRect)
             cropHUDDocumentPoint = point
+            canvasView?.updateDraftCropMask(interactionState.draftCropRect)
             needsDisplay = true
             return
         }
@@ -839,12 +1130,79 @@ private final class AnnotationCanvasOverlayView: NSView {
     }
 
     private func uiMapElement(at point: CGPoint) -> UIMapElement? {
-        controller.uiMapSnapshot?.allElements
-            .filter(\.isShowAllOverlayCandidate)
-            .filter { $0.documentRect.contains(point) }
-            .min { first, second in
-                uiMapHitTestArea(first.documentRect) < uiMapHitTestArea(second.documentRect)
+        uiMapOverlayElements().hitTestElements.first { $0.documentRect.contains(point) }
+    }
+
+    private func uiMapOverlayElements() -> UIMapOverlayElementCache {
+        if let uiMapOverlayElementCache {
+            return uiMapOverlayElementCache
+        }
+
+        guard let uiMap = controller.uiMapSnapshot else {
+            let empty = UIMapOverlayElementCache(
+                allElements: [],
+                showAllElements: [],
+                hitTestElements: [],
+                elementsByID: [:]
+            )
+            uiMapOverlayElementCache = empty
+            return empty
+        }
+
+        let allElements = uiMap.allElements
+        let showAllElements = allElements.filter(\.isShowAllOverlayCandidate)
+        let hitTestElements = showAllElements
+            .enumerated()
+            .sorted { first, second in
+                let firstArea = uiMapHitTestArea(first.element.documentRect)
+                let secondArea = uiMapHitTestArea(second.element.documentRect)
+
+                if firstArea == secondArea {
+                    return first.offset < second.offset
+                }
+
+                return firstArea < secondArea
             }
+            .map(\.element)
+
+        let cache = UIMapOverlayElementCache(
+            allElements: allElements,
+            showAllElements: showAllElements,
+            hitTestElements: hitTestElements,
+            elementsByID: Dictionary(uniqueKeysWithValues: allElements.map { ($0.id, $0) })
+        )
+        uiMapOverlayElementCache = cache
+        return cache
+    }
+
+    private func invalidateUIMapOverlayElementCache() {
+        uiMapOverlayElementCache = nil
+    }
+
+    private func invalidateUIMapHoverChange(from oldID: UUID?, to newID: UUID?) {
+        guard oldID != newID else {
+            return
+        }
+
+        let elementsByID = uiMapOverlayElements().elementsByID
+        var invalidatedAnyRect = false
+        for elementID in [oldID, newID].compactMap({ $0 }) {
+            guard let element = elementsByID[elementID] else {
+                continue
+            }
+
+            setNeedsDisplay(uiMapOverlayDirtyRect(for: element))
+            invalidatedAnyRect = true
+        }
+
+        if !invalidatedAnyRect {
+            needsDisplay = true
+        }
+    }
+
+    private func uiMapOverlayDirtyRect(for element: UIMapElement) -> CGRect {
+        viewRect(for: element.documentRect, in: controller.viewport.imageRect)
+            .insetBy(dx: -8, dy: -8)
     }
 
     private func uiMapHitTestArea(_ rect: CGRect) -> CGFloat {
@@ -918,22 +1276,6 @@ private final class AnnotationCanvasOverlayView: NSView {
         }
     }
 
-    private func drawCropMask(for rect: CGRect, overlayAlpha: CGFloat, inside imageRect: CGRect) {
-        NSColor.black.withAlphaComponent(overlayAlpha).setFill()
-        imageRect.fill(using: .sourceOver)
-        NSColor.clear.setFill()
-        rect.fill(using: .clear)
-    }
-
-    private func drawOutOfCapturePattern(excluding imageRect: CGRect) {
-        OutOfCapturePatternRenderer.draw(
-            bounds: bounds,
-            excluding: imageRect,
-            settings: controller.outOfCapturePatternSettings,
-            appearance: effectiveAppearance
-        )
-    }
-
     var debugCommittedCropPresentation: CropFocusPresentationState? {
         let canvasRect = controller.viewport.imageRect
         guard canvasRect.width > 0, canvasRect.height > 0 else {
@@ -966,6 +1308,23 @@ private final class AnnotationCanvasOverlayView: NSView {
         path.stroke()
 
         drawCropHandles(for: rect)
+    }
+
+    private func drawDraftAnnotations(in canvasRect: CGRect) {
+        guard !interactionState.draftAnnotations.isEmpty else {
+            return
+        }
+
+        var draftOnlySnapshot = controller.snapshot
+        draftOnlySnapshot.annotations = []
+        draftOnlySnapshot.pinnedUIMapElementIDs = []
+
+        EditorRenderer.drawAnnotations(
+            baseImage: controller.capture.image,
+            snapshot: draftOnlySnapshot,
+            canvasRect: canvasRect,
+            draftAnnotations: interactionState.draftAnnotations
+        )
     }
 
     private func drawCropInteractionHUD(for draftCropRect: CGRect, in canvasRect: CGRect) {
@@ -1013,18 +1372,14 @@ private final class AnnotationCanvasOverlayView: NSView {
     private func drawCropLoupe(layout: CropInteractionHUDLayout, focusDocumentPoint: CGPoint) {
         let cropRect = gscCenteredCropRect(around: focusDocumentPoint, size: 24, within: imageBounds)
 
-        guard let croppedImage = controller.capture.image.gscCropped(topLeftPixelRect: cropRect) else {
-            return
-        }
-
         NSColor.black.withAlphaComponent(0.82).setFill()
         NSBezierPath(roundedRect: layout.loupeRect, xRadius: 16, yRadius: 16).fill()
 
         let previousInterpolation = NSGraphicsContext.current?.imageInterpolation
         NSGraphicsContext.current?.imageInterpolation = .none
-        NSImage(cgImage: croppedImage, size: cropRect.size).draw(
+        NSImage(cgImage: controller.capture.image, size: imageBounds.size).draw(
             in: layout.loupeImageRect,
-            from: CGRect(origin: .zero, size: cropRect.size),
+            from: appKitSourceRect(fromTopLeftRect: cropRect, imageBounds: imageBounds),
             operation: .sourceOver,
             fraction: 1,
             respectFlipped: true,
@@ -1050,6 +1405,16 @@ private final class AnnotationCanvasOverlayView: NSView {
         crosshair.line(to: CGPoint(x: crosshairCenter.x, y: crosshairCenter.y + 14))
         crosshair.lineWidth = 1.5
         crosshair.stroke()
+    }
+
+    private func appKitSourceRect(fromTopLeftRect rect: CGRect, imageBounds: CGRect) -> CGRect {
+        let normalized = rect.gscIntegralStandardized
+        return CGRect(
+            x: normalized.minX,
+            y: imageBounds.height - normalized.maxY,
+            width: normalized.width,
+            height: normalized.height
+        ).gscIntegralStandardized
     }
 
     private func drawCropDimensionBadge(text: String, in rect: CGRect, attributes: [NSAttributedString.Key: Any]) {

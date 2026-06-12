@@ -257,7 +257,7 @@ final class CaptureModelsTests: XCTestCase {
         let template = ScreenshotFilenameTemplate(pattern: "Shot-{kind}-{source}-{yyyy-MM-dd-HH-mm}-{width}x{height}.{format}")
 
         XCTAssertEqual(
-            template.resolvedFilename(for: capture, formatExtension: "png"),
+            template.resolvedFilename(for: capture, formatExtension: "png", timeZone: TimeZone(secondsFromGMT: -7 * 60 * 60)),
             "Shot-window-Safari- Inbox-Work-2024-05-31-09-08-320x240.png"
         )
     }
@@ -270,7 +270,7 @@ final class CaptureModelsTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            ScreenshotFilenameTemplate.default.resolvedFilename(for: capture, formatExtension: nil),
+            ScreenshotFilenameTemplate.default.resolvedFilename(for: capture, formatExtension: nil, timeZone: TimeZone(secondsFromGMT: -7 * 60 * 60)),
             "SnipSnipSnip-Display-2024-05-31-09-08-37"
         )
     }

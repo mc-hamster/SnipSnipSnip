@@ -256,6 +256,79 @@ final class AppModelPerformanceTests: XCTestCase {
         }
     }
 
+    func testFreehandDraftInteractionPerformance() {
+        let snapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 5120, height: 2880)
+        )
+        let style = AnnotationStyle.default(for: .freehand)
+        let imageBounds = snapshot.cropRect
+        var interactionState = AnnotationCanvasInteractionState()
+
+        let elapsed = PerformanceBudgetTimer.measure {
+            interactionState.beginFreehand(tool: .freehand, at: CGPoint(x: 40, y: 40), style: style)
+
+            for index in 0..<1_200 {
+                let point = CGPoint(
+                    x: 40 + CGFloat(index) * 2.5,
+                    y: 140 + sin(CGFloat(index) / 12) * 40
+                )
+                interactionState.update(
+                    at: point,
+                    snapshot: snapshot,
+                    imageBounds: imageBounds,
+                    cropAspectRatio: nil,
+                    styleProvider: { _ in style }
+                )
+            }
+        }
+
+        XCTAssertLessThan(elapsed, 0.25, "Freehand draft interaction took \(elapsed)s")
+    }
+
+    func testDenseSnapCandidateDragPerformance() {
+        let stationaryAnnotations = (0..<2_000).map { index in
+            let column = index % 80
+            let row = index / 80
+            return Annotation.makeRectangle(in: CGRect(
+                x: 24 + CGFloat(column) * 62,
+                y: 24 + CGFloat(row) * 78,
+                width: 36,
+                height: 28
+            ))
+        }
+        let movingAnnotation = Annotation.makeRectangle(in: CGRect(x: 420, y: 380, width: 96, height: 64))
+        let snapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 5120, height: 2880),
+            annotations: stationaryAnnotations + [movingAnnotation],
+            selectedAnnotationIDs: [movingAnnotation.id]
+        )
+        let style = AnnotationStyle.default(for: .rectangle)
+        var interactionState = AnnotationCanvasInteractionState()
+
+        let elapsed = PerformanceBudgetTimer.measure {
+            interactionState.beginMove(
+                annotations: [movingAnnotation],
+                anchor: movingAnnotation.boundingRect.origin,
+                originalBounds: movingAnnotation.boundingRect
+            )
+
+            for index in 0..<800 {
+                interactionState.update(
+                    at: CGPoint(
+                        x: movingAnnotation.boundingRect.minX + CGFloat(index) * 3,
+                        y: movingAnnotation.boundingRect.minY + sin(CGFloat(index) / 18) * 140
+                    ),
+                    snapshot: snapshot,
+                    imageBounds: snapshot.cropRect,
+                    cropAspectRatio: nil,
+                    styleProvider: { _ in style }
+                )
+            }
+        }
+
+        XCTAssertLessThan(elapsed, 0.35, "Dense snap drag took \(elapsed)s")
+    }
+
     func testPerformanceBudgetCatalogCoversMajorScalablePaths() {
         XCTAssertGreaterThan(PerformanceBudgetCatalog.captureEntryPoint.maximumSeconds, 0)
         XCTAssertGreaterThan(PerformanceBudgetCatalog.screenshotRenderAndExport.maximumSeconds, 0)
