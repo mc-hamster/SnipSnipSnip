@@ -8,6 +8,7 @@ nonisolated struct EditorDocumentSession: Equatable {
     var undoStack: [EditorSnapshot]
     var redoStack: [EditorSnapshot]
     var toolStyles: [EditorTool: AnnotationStyle]
+    var savedPresentations: [SavedPresentation] = []
 }
 
 nonisolated struct EditableScreenshotDocument {
@@ -279,11 +280,19 @@ nonisolated enum SSSDocumentPackage {
         let pinnedUIMapElements = document.session.currentSnapshot.pinnedUIMapElementIDs.compactMap {
             document.capture.uiMap?.element(matching: $0)
         }
-        if let renderedPreview = ScreenshotPresentationRenderer.render(
-            baseImage: document.capture.image,
-            snapshot: document.session.currentSnapshot,
-            pinnedUIMapElements: pinnedUIMapElements
+        let renderedPreview = PresentationPerformanceMetrics.measure(
+            "document.displayPreview.rerender",
+            context: "base=\(document.capture.image.width)x\(document.capture.image.height) crop=\(PresentationPerformanceMetrics.size(document.session.currentSnapshot.cropRect.size)) annotations=\(document.session.currentSnapshot.annotations.count) \(PresentationPerformanceMetrics.presentationSummary(document.session.currentSnapshot.presentation))",
+            warnAfterMS: 120
         ) {
+            ScreenshotPresentationRenderer.render(
+                baseImage: document.capture.image,
+                snapshot: document.session.currentSnapshot,
+                pinnedUIMapElements: pinnedUIMapElements
+            )
+        }
+
+        if let renderedPreview {
             return DisplayPreview(image: renderedPreview, source: "rerendered-package")
         }
 
@@ -646,6 +655,7 @@ nonisolated private struct SessionRecord: Codable {
     var undoStack: [SnapshotRecord]
     var redoStack: [SnapshotRecord]
     var toolStyles: [ToolStyleRecord]
+    var savedPresentations: [SavedPresentation]?
 
     nonisolated init(_ session: EditorDocumentSession) {
         initialSnapshot = SnapshotRecord(session.initialSnapshot)
@@ -655,6 +665,7 @@ nonisolated private struct SessionRecord: Codable {
         toolStyles = EditorTool.allCases.map { tool in
             ToolStyleRecord(tool: tool.rawValue, style: StyleRecord(session.toolStyles[tool] ?? .default(for: tool)))
         }
+        savedPresentations = session.savedPresentations.isEmpty ? nil : session.savedPresentations
     }
 
     nonisolated func editorDocumentSession(imageOverlays: [UUID: CGImage] = [:]) throws -> EditorDocumentSession {
@@ -675,7 +686,8 @@ nonisolated private struct SessionRecord: Codable {
             currentSnapshot: try currentSnapshot.editorSnapshot(imageOverlays: imageOverlays),
             undoStack: try undoStack.map { try $0.editorSnapshot(imageOverlays: imageOverlays) },
             redoStack: try redoStack.map { try $0.editorSnapshot(imageOverlays: imageOverlays) },
-            toolStyles: decodedToolStyles
+            toolStyles: decodedToolStyles,
+            savedPresentations: savedPresentations ?? []
         )
     }
 }
@@ -716,7 +728,12 @@ nonisolated private struct SnapshotRecord: Codable {
 
 nonisolated private struct ScreenshotPresentationRecord: Codable {
     var isEnabled: Bool
+    var style: PresentationStyle?
+    var scene: AppliedPresentationScene?
     var background: ScreenshotPresentationBackgroundRecord
+    var canvas: PresentationCanvas?
+    var subjectPlacement: PresentationSubjectPlacement?
+    var frame: PresentationFrame?
     var padding: Double
     var cornerRadius: Double
     var shadow: String
@@ -727,7 +744,12 @@ nonisolated private struct ScreenshotPresentationRecord: Codable {
 
     nonisolated init(_ presentation: ScreenshotPresentation) {
         isEnabled = presentation.isEnabled
+        style = presentation.style
+        scene = presentation.scene
         background = ScreenshotPresentationBackgroundRecord(presentation.background)
+        canvas = presentation.canvas
+        subjectPlacement = presentation.subjectPlacement
+        frame = presentation.frame
         padding = Double(presentation.padding)
         cornerRadius = Double(presentation.cornerRadius)
         shadow = presentation.shadow.rawValue
@@ -739,16 +761,28 @@ nonisolated private struct ScreenshotPresentationRecord: Codable {
 
     var screenshotPresentation: ScreenshotPresentation {
         let shadowStyle = ScreenshotShadowStyle(rawValue: shadow) ?? .off
+        if let style {
+            return ScreenshotPresentation(
+                isEnabled: isEnabled,
+                style: style,
+                scene: scene
+            )
+        }
+
         return ScreenshotPresentation(
             isEnabled: isEnabled,
             background: background.screenshotPresentationBackground,
+            canvas: canvas ?? .original,
+            subjectPlacement: subjectPlacement ?? .default,
+            frame: frame ?? .none,
             padding: CGFloat(padding),
             cornerRadius: CGFloat(cornerRadius),
             shadow: shadowStyle,
             shadowBlurRadius: shadowBlurRadius.map { CGFloat($0) } ?? shadowStyle.blurRadius,
             shadowOffsetX: shadowOffsetX.map { CGFloat($0) } ?? shadowStyle.offsetX,
             shadowOffsetY: shadowOffsetY.map { CGFloat($0) } ?? shadowStyle.offsetY,
-            shadowOpacity: shadowOpacity.map { CGFloat($0) } ?? shadowStyle.opacity
+            shadowOpacity: shadowOpacity.map { CGFloat($0) } ?? shadowStyle.opacity,
+            scene: scene
         )
     }
 }
@@ -756,15 +790,54 @@ nonisolated private struct ScreenshotPresentationRecord: Codable {
 nonisolated private struct ScreenshotPresentationBackgroundRecord: Codable {
     var kind: String
     var color: ColorRecord?
+    var start: ColorRecord?
+    var end: ColorRecord?
+    var base: ColorRecord?
+    var spotlight: ColorRecord?
+    var tint: ColorRecord?
 
     nonisolated init(_ background: ScreenshotPresentationBackground) {
         switch background {
         case .transparent:
             kind = "transparent"
             color = nil
+            start = nil
+            end = nil
+            base = nil
+            spotlight = nil
+            tint = nil
         case let .solid(fillColor):
             kind = "solid"
             color = ColorRecord(fillColor)
+            start = nil
+            end = nil
+            base = nil
+            spotlight = nil
+            tint = nil
+        case let .twoColorGradient(startColor, endColor):
+            kind = "twoColorGradient"
+            color = nil
+            start = ColorRecord(startColor)
+            end = ColorRecord(endColor)
+            base = nil
+            spotlight = nil
+            tint = nil
+        case let .radialSpotlight(baseColor, spotlightColor):
+            kind = "radialSpotlight"
+            color = nil
+            start = nil
+            end = nil
+            base = ColorRecord(baseColor)
+            spotlight = ColorRecord(spotlightColor)
+            tint = nil
+        case let .blurredScreenshot(tintColor):
+            kind = "blurredScreenshot"
+            color = nil
+            start = nil
+            end = nil
+            base = nil
+            spotlight = nil
+            tint = ColorRecord(tintColor)
         }
     }
 
@@ -772,6 +845,20 @@ nonisolated private struct ScreenshotPresentationBackgroundRecord: Codable {
         switch kind {
         case "transparent":
             return .transparent
+        case "twoColorGradient", "gradient":
+            return .twoColorGradient(
+                start: start?.rgbaColor ?? RGBAColor(red: 0.32, green: 0.55, blue: 0.94, alpha: 1),
+                end: end?.rgbaColor ?? RGBAColor(red: 0.08, green: 0.12, blue: 0.20, alpha: 1)
+            )
+        case "radialSpotlight":
+            return .radialSpotlight(
+                base: base?.rgbaColor ?? RGBAColor(red: 0.08, green: 0.10, blue: 0.14, alpha: 1),
+                spotlight: spotlight?.rgbaColor ?? RGBAColor(red: 0.75, green: 0.86, blue: 1, alpha: 1)
+            )
+        case "blurredScreenshot":
+            return .blurredScreenshot(
+                tint: tint?.rgbaColor ?? RGBAColor(red: 0.12, green: 0.14, blue: 0.18, alpha: 0.35)
+            )
         default:
             return .solid(color?.rgbaColor ?? RGBAColor(red: 0.95, green: 0.96, blue: 0.98, alpha: 1))
         }

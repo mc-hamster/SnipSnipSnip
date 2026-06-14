@@ -14,7 +14,6 @@ struct EditorView: View {
     @Binding var captureSearchQuery: String
     let captureHistorySearchResultsLabel: String
     let historyActions: EditorHistoryActions
-    let dragOutPayloadProvider: @MainActor () -> PromisedFilePayload?
     @State private var previewedHistoryEntry: DocumentHistoryEntry?
 
     var body: some View {
@@ -44,8 +43,7 @@ struct EditorView: View {
                         captureSearchQuery: $captureSearchQuery,
                         captureHistorySearchResultsLabel: captureHistorySearchResultsLabel,
                         actions: historyActions,
-                        previewedHistoryEntry: $previewedHistoryEntry,
-                        dragOutPayloadProvider: dragOutPayloadProvider
+                        previewedHistoryEntry: $previewedHistoryEntry
                     )
                     .frame(width: inspectorWidth, height: proxy.size.height)
                 }
@@ -127,40 +125,46 @@ private struct EditorCanvasScrollContainer: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let canvasWidth = max(proxy.size.width - scrollerThickness, 0)
-            let canvasHeight = max(proxy.size.height - scrollerThickness, 0)
+            if FeatureFlags.presentationStylingEnabled && controller.workspaceMode == .presentation {
+                PresentationModeCanvasView(controller: controller)
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .clipped()
+            } else {
+                let canvasWidth = max(proxy.size.width - scrollerThickness, 0)
+                let canvasHeight = max(proxy.size.height - scrollerThickness, 0)
 
-            VStack(spacing: 0) {
-                HStack(spacing: 0) {
-                    AnnotationCanvasContainer(controller: controller)
-                        .frame(width: canvasWidth, height: canvasHeight)
+                VStack(spacing: 0) {
+                    HStack(spacing: 0) {
+                        AnnotationCanvasContainer(controller: controller)
+                            .frame(width: canvasWidth, height: canvasHeight)
 
-                    ViewportScrollbar(
-                        axis: .vertical,
-                        controller: controller,
-                        thickness: scrollerThickness
-                    )
-                    .frame(width: scrollerThickness, height: canvasHeight)
+                        ViewportScrollbar(
+                            axis: .vertical,
+                            controller: controller,
+                            thickness: scrollerThickness
+                        )
+                        .frame(width: scrollerThickness, height: canvasHeight)
+                    }
+
+                    HStack(spacing: 0) {
+                        ViewportScrollbar(
+                            axis: .horizontal,
+                            controller: controller,
+                            thickness: scrollerThickness
+                        )
+                        .frame(width: canvasWidth, height: scrollerThickness)
+
+                        Rectangle()
+                            .fill(Color.black.opacity(0.40))
+                            .overlay {
+                                Rectangle()
+                                    .stroke(Color.white.opacity(0.34), lineWidth: 1)
+                            }
+                            .frame(width: scrollerThickness, height: scrollerThickness)
+                    }
                 }
-
-                HStack(spacing: 0) {
-                    ViewportScrollbar(
-                        axis: .horizontal,
-                        controller: controller,
-                        thickness: scrollerThickness
-                    )
-                    .frame(width: canvasWidth, height: scrollerThickness)
-
-                    Rectangle()
-                        .fill(Color.black.opacity(0.40))
-                        .overlay {
-                            Rectangle()
-                                .stroke(Color.white.opacity(0.34), lineWidth: 1)
-                        }
-                        .frame(width: scrollerThickness, height: scrollerThickness)
-                }
+                .clipped()
             }
-            .clipped()
         }
     }
 }
@@ -269,6 +273,8 @@ struct EditorToolbarView: View {
     let onExportPNG: () -> Void
     let onExportJPEG: () -> Void
     let onExportPDF: () -> Void
+    let onCopyStyled: () -> Void
+    let onCopyPlain: () -> Void
     let onShare: () -> Void
     let dragOutPayloadProvider: @MainActor () -> PromisedFilePayload?
     @Environment(\.openWindow) private var openWindow
@@ -284,6 +290,8 @@ struct EditorToolbarView: View {
                         onExportPNG: onExportPNG,
                         onExportJPEG: onExportJPEG,
                         onExportPDF: onExportPDF,
+                        onCopyStyled: onCopyStyled,
+                        onCopyPlain: onCopyPlain,
                         onShare: onShare,
                         onShowLayers: showLayersWindow,
                         onShowUIMap: showUIMapWindow,
@@ -320,12 +328,32 @@ private struct ActiveEditorToolbarView: View {
     let onExportPNG: () -> Void
     let onExportJPEG: () -> Void
     let onExportPDF: () -> Void
+    let onCopyStyled: () -> Void
+    let onCopyPlain: () -> Void
     let onShare: () -> Void
     let onShowLayers: () -> Void
     let onShowUIMap: () -> Void
     let dragOutPayloadProvider: @MainActor () -> PromisedFilePayload?
 
     var body: some View {
+        if FeatureFlags.presentationStylingEnabled && controller.workspaceMode == .presentation {
+            PresentationEditorToolbarView(
+                controller: controller,
+                onFloatReference: onFloatReference,
+                onExportPNG: onExportPNG,
+                onExportJPEG: onExportJPEG,
+                onExportPDF: onExportPDF,
+                onCopyStyled: onCopyStyled,
+                onCopyPlain: onCopyPlain,
+                onShare: onShare,
+                dragOutPayloadProvider: dragOutPayloadProvider
+            )
+        } else {
+            editToolbar
+        }
+    }
+
+    private var editToolbar: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 Button(action: onBack) {
@@ -411,6 +439,20 @@ private struct ActiveEditorToolbarView: View {
 
                 toolbarDivider
 
+                if FeatureFlags.presentationStylingEnabled {
+                    Button {
+                        controller.setWorkspaceMode(controller.workspaceMode == .presentation ? .edit : .presentation)
+                    } label: {
+                        Label("Presentation", systemImage: EditorWorkspaceMode.presentation.systemImage)
+                    }
+                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary, isSelected: controller.workspaceMode == .presentation))
+                    .help("Open Presentation mode to style the final copy, share, and export output.")
+
+                    toolbarDivider
+                }
+
+                copyMenu
+
                 exportMenu
 
                 Button("Share", action: onShare)
@@ -472,16 +514,16 @@ private struct ActiveEditorToolbarView: View {
 
     private var exportMenu: some View {
         Menu {
-            Button("PNG…", action: onExportPNG)
+            Button(controller.presentation.isEnabled ? "Styled PNG…" : "PNG…", action: onExportPNG)
 
-            Button("JPEG…", action: onExportJPEG)
+            Button(controller.presentation.isEnabled ? "Styled JPEG…" : "JPEG…", action: onExportJPEG)
                 .disabled(controller.requiresPNGForFaithfulExport)
 
-            Button("PDF…", action: onExportPDF)
+            Button(controller.presentation.isEnabled ? "Styled PDF…" : "PDF…", action: onExportPDF)
                 .disabled(controller.requiresPNGForFaithfulExport)
         } label: {
             HStack(spacing: 6) {
-                Text("Export…")
+                Text(controller.presentation.isEnabled ? "Export Styled…" : "Export…")
                 Image(systemName: "chevron.down")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(.secondary)
@@ -490,6 +532,23 @@ private struct ActiveEditorToolbarView: View {
         }
         .buttonStyle(SSSChromeButtonStyle())
         .help("Export the rendered image as PNG, JPEG, or PDF.")
+    }
+
+    private var copyMenu: some View {
+        Menu {
+            Button(controller.presentation.isEnabled ? "Copy Styled" : "Copy", action: onCopyStyled)
+            Button("Copy Plain", action: onCopyPlain)
+        } label: {
+            HStack(spacing: 6) {
+                Text("Copy")
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            .fixedSize(horizontal: true, vertical: false)
+        }
+        .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+        .help("Copy the styled presentation or the plain annotated screenshot.")
     }
 
     private var uiMapToolGroup: some View {
@@ -579,6 +638,152 @@ private struct ActiveEditorToolbarView: View {
         }
         .help("Redaction: \(controller.currentRedactionMode.label)")
         .buttonStyle(EditorToolButtonStyle(isSelected: controller.activeTool.defaultRedactionMode != nil))
+    }
+
+    private var toolbarDivider: some View {
+        Divider()
+            .frame(height: 22)
+            .opacity(0.22)
+    }
+}
+
+private struct PresentationEditorToolbarView: View {
+    @ObservedObject var controller: EditorController
+    let onFloatReference: () -> Void
+    let onExportPNG: () -> Void
+    let onExportJPEG: () -> Void
+    let onExportPDF: () -> Void
+    let onCopyStyled: () -> Void
+    let onCopyPlain: () -> Void
+    let onShare: () -> Void
+    let dragOutPayloadProvider: @MainActor () -> PromisedFilePayload?
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button {
+                controller.setWorkspaceMode(.edit)
+            } label: {
+                Label("Back to Edit", systemImage: EditorWorkspaceMode.edit.systemImage)
+            }
+            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+            .help("Return to annotation editing.")
+
+            toolbarDivider
+
+            Button(action: controller.undo) {
+                Image(systemName: "arrow.uturn.backward")
+            }
+            .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
+            .help("Undo")
+            .disabled(!controller.canUndo)
+
+            Button(action: controller.redo) {
+                Image(systemName: "arrow.uturn.forward")
+            }
+            .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
+            .help("Redo")
+            .disabled(!controller.canRedo)
+
+            toolbarDivider
+
+            Button(action: controller.zoomOut) {
+                Image(systemName: "minus.magnifyingglass")
+            }
+            .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
+            .help("Zoom Out")
+            .disabled(!controller.canZoomOut)
+
+            Text(controller.zoomPercentageLabel)
+                .font(.caption.monospacedDigit())
+                .frame(minWidth: 54)
+
+            Button(action: controller.zoomIn) {
+                Image(systemName: "plus.magnifyingglass")
+            }
+            .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
+            .help("Zoom In")
+            .disabled(!controller.canZoomIn)
+
+            Button("100%", action: controller.zoomToActualSize)
+                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .help("Actual Size")
+
+            Button("Fit", action: controller.zoomToFit)
+                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .help("Fit to Window")
+
+            toolbarDivider
+
+            Button {
+                _ = controller.saveCurrentPresentationToDocument()
+            } label: {
+                Label("Save Variant", systemImage: "plus.square.on.square")
+            }
+            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+            .help("Save the current presentation as a named variant in this .sss document.")
+
+            copyMenu
+
+            exportMenu
+
+            Button("Share", action: onShare)
+                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .help("Share the current styled presentation using macOS sharing services.")
+
+            Button(action: onFloatReference) {
+                Label("Float", systemImage: "pin")
+            }
+            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+            .help("Open the styled presentation as an always-on-top floating reference.")
+
+            PromisedFileDragView(
+                accessibilityLabel: "Drag styled presentation to share",
+                payloadProvider: dragOutPayloadProvider
+            )
+            .frame(width: 68, height: 30)
+            .help("Drag the styled presentation into Finder, Mail, or another app.")
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var exportMenu: some View {
+        Menu {
+            Button("Styled PNG…", action: onExportPNG)
+
+            Button("Styled JPEG…", action: onExportJPEG)
+                .disabled(controller.requiresPNGForFaithfulExport)
+
+            Button("Styled PDF…", action: onExportPDF)
+                .disabled(controller.requiresPNGForFaithfulExport)
+        } label: {
+            HStack(spacing: 6) {
+                Text("Export Styled…")
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            .fixedSize(horizontal: true, vertical: false)
+        }
+        .buttonStyle(SSSChromeButtonStyle())
+        .help("Export the styled presentation as PNG, JPEG, or PDF.")
+    }
+
+    private var copyMenu: some View {
+        Menu {
+            Button("Copy Styled", action: onCopyStyled)
+            Button("Copy Plain", action: onCopyPlain)
+        } label: {
+            HStack(spacing: 6) {
+                Text("Copy")
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            .fixedSize(horizontal: true, vertical: false)
+        }
+        .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+        .help("Copy the styled presentation or the plain annotated screenshot.")
     }
 
     private var toolbarDivider: some View {

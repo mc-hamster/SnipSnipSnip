@@ -342,6 +342,23 @@ final class SSSDocumentTests: XCTestCase {
             capturedAt: Date(timeIntervalSince1970: 1_818_222_222)
         )
         var presentation = ScreenshotPresentationPreset.transparentShadow.settings
+        presentation.background = .twoColorGradient(
+            start: RGBAColor(red: 0.91, green: 0.95, blue: 1.0, alpha: 1),
+            end: RGBAColor(red: 0.70, green: 0.76, blue: 0.88, alpha: 1)
+        )
+        presentation.canvas = .preset(.landscapeWide)
+        presentation.subjectPlacement = PresentationSubjectPlacement(
+            fit: .contain,
+            alignment: .bottomRight,
+            scale: 0.84,
+            offset: CGSize(width: 14, height: -9)
+        )
+        presentation.frame = .browser(PresentationBrowserFrameStyle(
+            title: "Presentation Source",
+            address: "https://snipsnipsnip.test",
+            scheme: .dark,
+            showsTrafficLights: false
+        ))
         presentation.shadowBlurRadius = 72
         presentation.shadowOffsetY = 34
         presentation.shadowOpacity = 0.48
@@ -366,6 +383,62 @@ final class SSSDocumentTests: XCTestCase {
         XCTAssertEqual(loadedPreview.height, previewImage.height)
 
         try? FileManager.default.removeItem(at: packageURL)
+    }
+
+    func testPackageMigratesPresentationRecordsMissingNewFields() throws {
+        let baseImage = makeCoordinateImage(width: 72, height: 48, pattern: .weighted(xMultiplier: 5, yMultiplier: 7, includeBlueSum: true))
+        let capture = makeCapturedScreenshot(
+            image: baseImage,
+            sourceName: "Legacy Presentation",
+            bounds: CGRect(x: 0, y: 0, width: 72, height: 48),
+            capturedAt: Date(timeIntervalSince1970: 1_818_222_222)
+        )
+        var presentation = ScreenshotPresentationPreset.transparentShadow.settings
+        presentation.canvas = .preset(.story)
+        presentation.subjectPlacement = PresentationSubjectPlacement(alignment: .bottomRight, scale: 0.72, offset: CGSize(width: 8, height: 9))
+        presentation.frame = .phone(.phone)
+
+        let snapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 72, height: 48),
+            presentation: presentation
+        )
+        let document = makeEditableDocument(capture: capture, session: makeEditorDocumentSession(initialSnapshot: snapshot))
+        let previewImage = try XCTUnwrap(ScreenshotPresentationRenderer.render(baseImage: baseImage, snapshot: snapshot))
+        let packageURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("sss")
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+
+        try SSSDocumentPackage.save(document: document, previewImage: previewImage, to: packageURL)
+
+        let manifestURL = packageURL.appendingPathComponent("document.json")
+        let manifestData = try Data(contentsOf: manifestURL)
+        var manifest = try XCTUnwrap(JSONSerialization.jsonObject(with: manifestData) as? [String: Any])
+        var session = try XCTUnwrap(manifest["session"] as? [String: Any])
+
+        for snapshotKey in ["initialSnapshot", "currentSnapshot"] {
+            var snapshotRecord = try XCTUnwrap(session[snapshotKey] as? [String: Any])
+            var presentationRecord = try XCTUnwrap(snapshotRecord["presentation"] as? [String: Any])
+            presentationRecord.removeValue(forKey: "canvas")
+            presentationRecord.removeValue(forKey: "subjectPlacement")
+            presentationRecord.removeValue(forKey: "frame")
+            snapshotRecord["presentation"] = presentationRecord
+            session[snapshotKey] = snapshotRecord
+        }
+
+        manifest["session"] = session
+        let migratedManifestData = try JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .sortedKeys])
+        try migratedManifestData.write(to: manifestURL, options: .atomic)
+
+        let loaded = try SSSDocumentPackage.load(from: packageURL)
+        let loadedPresentation = loaded.session.currentSnapshot.presentation
+
+        XCTAssertEqual(loadedPresentation.background, presentation.background)
+        XCTAssertEqual(loadedPresentation.padding, presentation.padding)
+        XCTAssertEqual(loadedPresentation.shadow, presentation.shadow)
+        XCTAssertEqual(loadedPresentation.canvas, .original)
+        XCTAssertEqual(loadedPresentation.subjectPlacement, .default)
+        XCTAssertEqual(loadedPresentation.frame, .none)
     }
 
     func testPackageRoundTripsArrowAndCalloutPresentationFields() throws {
@@ -463,6 +536,54 @@ final class SSSDocumentTests: XCTestCase {
 
         XCTAssertEqual(shape.points, [CGPoint(x: 6, y: 16), CGPoint(x: 22, y: 18), CGPoint(x: 42, y: 17)])
         XCTAssertEqual(loaded.session.currentSnapshot.annotations.first?.editorTool, .highlighter)
+
+        try? FileManager.default.removeItem(at: packageURL)
+    }
+
+    func testPackageRoundTripsSavedPresentations() throws {
+        let baseImage = makeCoordinateImage(width: 80, height: 60, pattern: .weighted(xMultiplier: 5, yMultiplier: 7, includeBlueSum: true))
+        let capture = makeCapturedScreenshot(
+            image: baseImage,
+            sourceName: "Presentation Source",
+            bounds: CGRect(x: 0, y: 0, width: 80, height: 60),
+            capturedAt: Date(timeIntervalSince1970: 1_818_444_444)
+        )
+        let currentPresentation = ScreenshotPresentationPreset.lifted.settings
+        let savedPresentations = [
+            SavedPresentation(
+                id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+                name: "Social Post",
+                presentation: ScreenshotPresentationPreset.lifted.settings,
+                createdAt: Date(timeIntervalSince1970: 10),
+                updatedAt: Date(timeIntervalSince1970: 20)
+            ),
+            SavedPresentation(
+                id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
+                name: "Transparent Export",
+                presentation: ScreenshotPresentationPreset.transparentShadow.settings,
+                createdAt: Date(timeIntervalSince1970: 30),
+                updatedAt: Date(timeIntervalSince1970: 40)
+            ),
+        ]
+        let snapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 80, height: 60),
+            presentation: currentPresentation
+        )
+        let session = makeEditorDocumentSession(
+            initialSnapshot: snapshot,
+            savedPresentations: savedPresentations
+        )
+        let document = makeEditableDocument(capture: capture, session: session)
+        let previewImage = try XCTUnwrap(ScreenshotPresentationRenderer.render(baseImage: baseImage, snapshot: snapshot))
+        let packageURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("sss")
+
+        try SSSDocumentPackage.save(document: document, previewImage: previewImage, to: packageURL)
+        let loaded = try SSSDocumentPackage.load(from: packageURL)
+
+        XCTAssertEqual(loaded.session.currentSnapshot.presentation, currentPresentation)
+        XCTAssertEqual(loaded.session.savedPresentations, savedPresentations)
 
         try? FileManager.default.removeItem(at: packageURL)
     }

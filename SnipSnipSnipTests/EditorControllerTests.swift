@@ -214,6 +214,238 @@ final class EditorControllerTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testEnteringPresentationModeSelectsSelectTool() {
+        let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
+
+        controller.activateToolbarTool(.rectangle)
+        controller.setWorkspaceMode(.presentation)
+
+        if FeatureFlags.presentationStylingEnabled {
+            XCTAssertEqual(controller.workspaceMode, .presentation)
+            XCTAssertEqual(controller.activeTool, .select)
+        } else {
+            XCTAssertEqual(controller.workspaceMode, .edit)
+        }
+    }
+
+    @MainActor
+    func testPresentationModeZoomControlsUseViewportZoom() {
+        let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
+        let initialSubjectScale = controller.presentation.subjectPlacement.scale
+
+        controller.setWorkspaceMode(.presentation)
+        controller.updateViewportCanvasSize(CGSize(width: 320, height: 240))
+        controller.updatePresentationViewportContentSize(CGSize(width: 160, height: 120))
+        let initialZoomScale = controller.viewport.zoomScale
+
+        controller.zoomIn()
+
+        if FeatureFlags.presentationStylingEnabled {
+            XCTAssertEqual(controller.workspaceMode, .presentation)
+            XCTAssertGreaterThan(controller.viewport.zoomScale, initialZoomScale)
+            XCTAssertEqual(controller.presentation.subjectPlacement.scale, initialSubjectScale)
+
+            controller.zoomOut()
+
+            XCTAssertEqual(controller.viewport.zoomScale, initialZoomScale, accuracy: 0.001)
+            XCTAssertEqual(controller.presentation.subjectPlacement.scale, initialSubjectScale)
+        } else {
+            XCTAssertEqual(controller.workspaceMode, .edit)
+            XCTAssertEqual(controller.presentation, .plain)
+        }
+    }
+
+    @MainActor
+    func testPresentationSceneFramingChangesAreUndoable() throws {
+        let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
+
+        guard FeatureFlags.presentationStylingEnabled else {
+            return
+        }
+
+        let svgText = """
+        <svg xmlns="http://www.w3.org/2000/svg" width="240" height="135" viewBox="0 0 240 135">
+          <metadata id="snipsnipsnip-scene">
+        {
+          "schema": "\(PresentationSceneMetadata.schema)",
+          "schemaVersion": \(PresentationSceneMetadata.supportedSchemaVersion),
+          "id": "builtin.controller-framing",
+          "name": "Controller Framing",
+          "version": 1,
+          "canvas": { "width": 240, "height": 135 },
+          "slots": [
+            {"id":"primaryScreenshot","type":"image","required":true,"label":"Screenshot","defaultFraming":"showFull"}
+          ]
+        }
+          </metadata>
+          <image data-sss-slot="primaryScreenshot" href="snipsnipsnip:primaryScreenshot" x="20" y="30" width="200" height="80"/>
+        </svg>
+        """
+        let validated = try PresentationSceneValidator.validate(svgText: svgText, source: .bundled)
+        controller.presentationScenes = [
+            PresentationSceneDefinition(
+                metadata: validated.metadata,
+                sanitizedSVGText: validated.sanitizedSVGText,
+                source: .bundled,
+                fileURL: URL(fileURLWithPath: "/tmp/controller-framing.svg"),
+                isUserModifiedBundled: false
+            ),
+        ]
+
+        controller.applyPresentationScene(id: "builtin.controller-framing")
+        XCTAssertEqual(controller.presentation.scene?.screenshotSlotSettings.framingPreset, .showFull)
+
+        controller.updateAppliedPresentationSceneFramingPreset(.fillFrame)
+        XCTAssertEqual(controller.presentation.scene?.screenshotSlotSettings.framingPreset, .fillFrame)
+
+        controller.undo()
+        XCTAssertEqual(controller.presentation.scene?.screenshotSlotSettings.framingPreset, .showFull)
+
+        controller.updateAppliedPresentationSceneFramingScale(1.4)
+        XCTAssertEqual(controller.presentation.scene?.screenshotSlotSettings.scale, 1.4)
+        XCTAssertEqual(controller.presentation.scene?.screenshotSlotSettings.hasManualAdjustment, true)
+
+        controller.undo()
+        XCTAssertEqual(controller.presentation.scene?.screenshotSlotSettings.scale, 1)
+        XCTAssertEqual(controller.presentation.scene?.screenshotSlotSettings.hasManualAdjustment, false)
+    }
+
+    @MainActor
+    func testActivatingAnnotationToolLeavesPresentationMode() {
+        let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
+
+        controller.setWorkspaceMode(.presentation)
+        controller.activateToolbarTool(.arrow)
+
+        XCTAssertEqual(controller.workspaceMode, .edit)
+        XCTAssertEqual(controller.activeTool, .arrow)
+    }
+
+    @MainActor
+    func testPresentationTemplateLibraryEditsPersistOutsideUndo() throws {
+        let defaults = makeTestDefaults()
+        let controller = makeController(defaults: defaults)
+
+        controller.updatePresentationCanvas(.preset(.widescreen))
+        let templateID = controller.saveCurrentPresentationAsTemplate(named: "Launch Shot")
+
+        guard FeatureFlags.presentationStylingEnabled else {
+            XCTAssertNil(templateID)
+            return
+        }
+
+        let id = try XCTUnwrap(templateID)
+        XCTAssertTrue(controller.presentationTemplates.contains { $0.id == id && $0.name == "Launch Shot" })
+
+        controller.renamePresentationTemplate(id: id, name: "Launch Shot Final")
+        controller.setDefaultPresentationTemplate(id: id)
+        controller.undo()
+
+        XCTAssertEqual(controller.defaultPresentationTemplateID, id)
+        XCTAssertTrue(controller.presentationTemplates.contains { $0.id == id && $0.name == "Launch Shot Final" })
+        XCTAssertEqual(controller.snapshot.presentation, .plain)
+    }
+
+    @MainActor
+    func testPresentationTemplateDuplicateDeleteAndBuiltInProtection() throws {
+        let defaults = makeTestDefaults()
+        let controller = makeController(defaults: defaults)
+
+        guard FeatureFlags.presentationStylingEnabled else {
+            return
+        }
+
+        let userID = try XCTUnwrap(controller.saveCurrentPresentationAsTemplate(named: "Reusable"))
+        let duplicateID = try XCTUnwrap(controller.duplicatePresentationTemplate(id: userID))
+
+        XCTAssertTrue(controller.presentationTemplates.contains { $0.id == duplicateID && $0.name == "Reusable Copy" })
+
+        controller.deletePresentationTemplate(id: "builtin.plain")
+        XCTAssertTrue(controller.presentationTemplates.contains { $0.id == "builtin.plain" })
+
+        controller.setDefaultPresentationTemplate(id: duplicateID)
+        controller.deletePresentationTemplate(id: duplicateID)
+        XCTAssertFalse(controller.presentationTemplates.contains { $0.id == duplicateID })
+        XCTAssertNil(controller.defaultPresentationTemplateID)
+    }
+
+    @MainActor
+    func testSavedPresentationsStayWithDocumentAndApplyUndoably() throws {
+        let controller = makeController()
+
+        controller.applyPresentationPreset(.transparentShadow)
+        let savedID = controller.saveCurrentPresentationToDocument(named: "Share Card")
+
+        guard FeatureFlags.presentationStylingEnabled else {
+            XCTAssertNil(savedID)
+            XCTAssertTrue(controller.savedPresentations.isEmpty)
+            return
+        }
+
+        let id = try XCTUnwrap(savedID)
+        XCTAssertEqual(controller.savedPresentations.count, 1)
+        XCTAssertEqual(controller.savedPresentations.first?.name, "Share Card")
+        XCTAssertEqual(controller.documentSession.savedPresentations, controller.savedPresentations)
+
+        controller.applyPresentationPreset(.plain)
+        XCTAssertEqual(controller.snapshot.presentation, ScreenshotPresentationPreset.plain.settings)
+
+        controller.applySavedPresentation(id: id)
+        XCTAssertEqual(controller.snapshot.presentation, ScreenshotPresentationPreset.transparentShadow.settings)
+
+        controller.undo()
+        XCTAssertEqual(controller.snapshot.presentation, ScreenshotPresentationPreset.plain.settings)
+        XCTAssertEqual(controller.savedPresentations.count, 1)
+
+        controller.renameSavedPresentation(id: id, name: "Share Card Final")
+        let copyID = try XCTUnwrap(controller.duplicateSavedPresentation(id: id))
+
+        XCTAssertTrue(controller.savedPresentations.contains { $0.id == id && $0.name == "Share Card Final" })
+        XCTAssertTrue(controller.savedPresentations.contains { $0.id == copyID && $0.name == "Share Card Final Copy" })
+
+        controller.deleteSavedPresentation(id: id)
+        XCTAssertFalse(controller.savedPresentations.contains { $0.id == id })
+        XCTAssertTrue(controller.savedPresentations.contains { $0.id == copyID })
+    }
+
+    @MainActor
+    func testPresentationTemplateStoreFallsBackFromCorruptPreferences() {
+        let defaults = makeTestDefaults()
+        defaults.set(Data("not-json".utf8), forKey: "presentationTemplates.userTemplates")
+
+        let controller = makeController(defaults: defaults)
+
+        XCTAssertEqual(controller.presentationTemplates.map(\.id), PresentationTemplate.builtInTemplates.map(\.id))
+        XCTAssertNil(defaults.data(forKey: "presentationTemplates.userTemplates"))
+    }
+
+    @MainActor
+    func testDefaultPresentationTemplateAppliesOnlyToFreshCaptures() throws {
+        let defaults = makeTestDefaults()
+        let capture = makeCapturedScreenshot(image: makeCoordinateImage(width: 160, height: 120))
+        let setup = retainForTestLifetime(EditorController(capture: capture, defaults: defaults))
+
+        guard FeatureFlags.presentationStylingEnabled else {
+            return
+        }
+
+        setup.setDefaultPresentationTemplate(id: "builtin.drop-shadow")
+
+        let fresh = retainForTestLifetime(EditorController(capture: capture, defaults: defaults))
+        let shadowTemplate = try XCTUnwrap(PresentationTemplate.builtInTemplates.first { $0.id == "builtin.drop-shadow" })
+        XCTAssertEqual(fresh.snapshot.presentation, shadowTemplate.presentation)
+
+        let savedSnapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 160, height: 120),
+            presentation: ScreenshotPresentationPreset.transparentShadow.settings
+        )
+        let session = makeEditorDocumentSession(initialSnapshot: savedSnapshot, currentSnapshot: savedSnapshot)
+        let loaded = retainForTestLifetime(EditorController(capture: capture, session: session, defaults: defaults))
+
+        XCTAssertEqual(loaded.snapshot.presentation, ScreenshotPresentationPreset.transparentShadow.settings)
+    }
+
     func testSelectingGroupedAnnotationExpandsGroupInDocumentOrder() {
         let groupID = UUID()
         let first = Annotation.makeRectangle(in: CGRect(x: 10, y: 10, width: 40, height: 30)).updatingGroup(groupID)

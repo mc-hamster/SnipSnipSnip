@@ -275,6 +275,30 @@ struct CaptureAutomationSettingsView: View {
 
                         SettingsHelpText("The crosshatch marks canvas space outside the original captured image. It is editor-only and is never included when copying, exporting, sharing, or saving rendered output.")
                     }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Presentation Scenes")
+                            .font(.subheadline.weight(.semibold))
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Scenes Folder")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Text(model.presentationScenesRootDescription)
+                                .font(.footnote)
+                                .textSelection(.enabled)
+                        }
+
+                        HStack {
+                            Button("Choose Scenes Folder...", action: model.choosePresentationScenesRoot)
+                            Button("Reveal Scenes Folder", action: model.revealPresentationScenesRoot)
+                            Button("Reset to Default Folder", action: model.resetPresentationScenesRootToDefault)
+                                .disabled(model.usesDefaultPresentationScenesRoot)
+                            Button("Reload Scenes", action: model.reloadPresentationScenes)
+                        }
+
+                        SettingsHelpText("Presentation Scenes are SVG files. SnipSnipSnip manages shipped examples in Bundled and reads custom scenes from User inside this folder.")
+                    }
                 }
             }
             .tabItem {

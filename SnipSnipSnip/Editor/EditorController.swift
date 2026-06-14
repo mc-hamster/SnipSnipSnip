@@ -116,6 +116,22 @@ final class EditorController: ObservableObject {
             invalidateCanvas()
         }
     }
+    @Published var workspaceMode: EditorWorkspaceMode = .edit {
+        didSet {
+            guard workspaceMode != oldValue else {
+                return
+            }
+
+            if workspaceMode == .presentation {
+                clearTransientToolState()
+                if activeTool != .select {
+                    activeTool = .select
+                }
+            }
+
+            invalidateCanvas()
+        }
+    }
     @Published var errorMessage: String?
     @Published private(set) var noticeMessage: String?
     var editorSingleKeyToolShortcutsEnabled = true
@@ -128,7 +144,7 @@ final class EditorController: ObservableObject {
     @Published private(set) var previewedImageSampleColor: RGBAColor?
     @Published var cropAspectRatioPreset: CropAspectRatioPreset = .freeform
     private(set) var viewport: EditorViewport
-    @Published private(set) var persistenceRevision = 0
+    @Published var persistenceRevision = 0
     @Published private(set) var cropOutsideOverlayAlpha: CGFloat = AppModel.defaultEditorCropOutsideOverlayAlpha
     @Published private(set) var outOfCapturePatternSettings: EditorOutOfCapturePatternSettings = .default
     @Published var selectedUIMapElementID: UUID?
@@ -145,10 +161,18 @@ final class EditorController: ObservableObject {
     }
     @Published private(set) var isProcessingUIMap = false
     @Published private(set) var capture: CapturedScreenshot
+    @Published var presentationTemplates: [PresentationTemplate] = PresentationTemplate.builtInTemplates
+    @Published var defaultPresentationTemplateID: String?
+    @Published var presentationScenesRootURL: URL = PresentationSceneStore.defaultRootURL
+    @Published var presentationScenes: [PresentationSceneDefinition] = []
+    @Published var presentationSceneDiagnostics: [PresentationSceneDiagnostic] = []
+    @Published var savedPresentations: [SavedPresentation] = []
+    @Published private(set) var presentationContentRevision = 0
+    var presentationContentCache: (revision: Int, image: CGImage)?
 
     private let textRecognizer: any CaptureTextRecognizing
     private let initialSnapshot: EditorSnapshot
-    private let defaults: UserDefaults
+    let defaults: UserDefaults
     private var preferredRedactionMode: RedactionMode
 
     private var undoStack: [EditorSnapshot] = []
@@ -184,32 +208,41 @@ final class EditorController: ObservableObject {
         self.capture = capture
         self.textRecognizer = textRecognizer
         self.uiMapOverlayOptions = uiMapOverlayOptions
+        self.presentationScenesRootURL = PresentationSceneStore.configuredRootURL(in: defaults)
         let capturedCursorAnnotation = capture.cursorOverlay.map {
             Annotation.makeImageOverlay(image: $0.image, in: $0.rect, role: .capturedCursor)
         }
         let initialAnnotations = capturedCursorAnnotation.map { [$0] } ?? []
+        let defaultPresentation = FeatureFlags.presentationStylingEnabled
+            ? PresentationTemplateStore.defaultPresentation(in: defaults)
+            : .plain
         let session = EditorDocumentSession(
             initialSnapshot: EditorSnapshot(
                 cropRect: CGRect(origin: .zero, size: CGSize(width: capture.image.width, height: capture.image.height)),
                 annotations: initialAnnotations,
                 selectedAnnotationIDs: [],
-                nextCalloutNumber: 1
+                nextCalloutNumber: 1,
+                presentation: defaultPresentation
             ),
             currentSnapshot: EditorSnapshot(
                 cropRect: CGRect(origin: .zero, size: CGSize(width: capture.image.width, height: capture.image.height)),
                 annotations: initialAnnotations,
                 selectedAnnotationIDs: [],
-                nextCalloutNumber: 1
+                nextCalloutNumber: 1,
+                presentation: defaultPresentation
             ),
             undoStack: [],
             redoStack: [],
-            toolStyles: Dictionary(uniqueKeysWithValues: EditorTool.allCases.map { ($0, AnnotationStyle.default(for: $0)) })
+            toolStyles: Dictionary(uniqueKeysWithValues: EditorTool.allCases.map { ($0, AnnotationStyle.default(for: $0)) }),
+            savedPresentations: []
         )
         self.initialSnapshot = session.initialSnapshot
         self.snapshot = session.currentSnapshot
         self.toolStyles = Self.loadPersistedToolStyles(from: defaults, fallback: session.toolStyles)
         let documentCanvasSize = CGSize(width: capture.image.width, height: capture.image.height)
         self.viewport = EditorViewport(contentSize: documentCanvasSize)
+        reloadPresentationTemplateLibrary()
+        reloadPresentationScenes()
     }
 
     init(
@@ -225,13 +258,17 @@ final class EditorController: ObservableObject {
         self.capture = capture
         self.textRecognizer = textRecognizer
         self.uiMapOverlayOptions = uiMapOverlayOptions
+        self.presentationScenesRootURL = PresentationSceneStore.configuredRootURL(in: defaults)
         self.initialSnapshot = session.initialSnapshot
         self.snapshot = session.currentSnapshot
         self.undoStack = session.undoStack
         self.redoStack = session.redoStack
         self.toolStyles = session.toolStyles
+        self.savedPresentations = session.savedPresentations
         let documentCanvasSize = CGSize(width: capture.image.width, height: capture.image.height)
         self.viewport = EditorViewport(contentSize: documentCanvasSize)
+        reloadPresentationTemplateLibrary()
+        reloadPresentationScenes()
     }
 
     var canUndo: Bool {
@@ -520,6 +557,12 @@ final class EditorController: ObservableObject {
             return RGBAColor(red: 0.95, green: 0.96, blue: 0.98, alpha: 1)
         case let .solid(color):
             return color
+        case let .twoColorGradient(start, _):
+            return start
+        case let .radialSpotlight(base, _):
+            return base
+        case let .blurredScreenshot(tint):
+            return tint
         }
     }
 
@@ -545,7 +588,8 @@ final class EditorController: ObservableObject {
             currentSnapshot: snapshot,
             undoStack: undoStack,
             redoStack: redoStack,
-            toolStyles: toolStyles
+            toolStyles: toolStyles,
+            savedPresentations: savedPresentations
         )
     }
 
@@ -563,7 +607,12 @@ final class EditorController: ObservableObject {
             redoStack.removeAll()
         }
 
-        applySnapshot(updatedSnapshot, fitViewportToCrop: updatedSnapshot.cropRect != snapshot.cropRect)
+        let invalidationReason = snapshot.isPresentationOnlyChange(to: updatedSnapshot) ? EditorCanvasInvalidationReason.cropChrome : .full
+        applySnapshot(
+            updatedSnapshot,
+            fitViewportToCrop: updatedSnapshot.cropRect != snapshot.cropRect,
+            invalidationReason: invalidationReason
+        )
         persistenceRevision += 1
     }
 
@@ -1069,6 +1118,10 @@ final class EditorController: ObservableObject {
     }
 
     func activateToolbarTool(_ tool: EditorTool) {
+        if workspaceMode == .presentation {
+            workspaceMode = .edit
+        }
+
         if tool == .blur {
             selectedUIMapElementID = nil
             hoveredUIMapElementID = nil
@@ -1077,9 +1130,7 @@ final class EditorController: ObservableObject {
             return
         }
 
-        imageColorSamplingTarget = nil
-        imageColorSamplingSourceTool = nil
-        previewedImageSampleColor = nil
+        clearTransientToolState(clearUIMapSelection: false)
 
         if tool == .uiMapInspect {
             guard FeatureFlags.uiMapEnabled, uiMapSnapshot != nil else {
@@ -1104,7 +1155,22 @@ final class EditorController: ObservableObject {
         invalidateCanvas()
     }
 
+    private func clearTransientToolState(clearUIMapSelection: Bool = true) {
+        imageColorSamplingTarget = nil
+        imageColorSamplingSourceTool = nil
+        previewedImageSampleColor = nil
+
+        if clearUIMapSelection {
+            selectedUIMapElementID = nil
+            hoveredUIMapElementID = nil
+        }
+    }
+
     func beginImageColorSampling(_ target: ImageColorSamplingTarget) {
+        if workspaceMode == .presentation {
+            workspaceMode = .edit
+        }
+
         imageColorSamplingSourceTool = selectedAnnotation?.editorTool ?? activeTool
         imageColorSamplingTarget = target
         previewedImageSampleColor = nil
@@ -1121,6 +1187,10 @@ final class EditorController: ObservableObject {
     }
 
     func updateRedactionMode(_ mode: RedactionMode) {
+        if workspaceMode == .presentation {
+            workspaceMode = .edit
+        }
+
         storePreferredRedactionMode(mode)
 
         if !selectedRedactions.isEmpty {
@@ -1163,21 +1233,43 @@ final class EditorController: ObservableObject {
     }
 
     func updateViewportCanvasSize(_ size: CGSize) {
-        updateViewport(publishChange: false) {
+        guard viewport.canvasSize != size else {
+            return
+        }
+
+        updateViewport(publishChange: false, invalidationReason: .cropChrome) {
             $0.updatingCanvasSize(size)
         }
     }
 
+    func updatePresentationViewportContentSize(_ size: CGSize) {
+        guard workspaceMode == .presentation else {
+            return
+        }
+
+        guard viewport.contentSize != size else {
+            return
+        }
+
+        updateViewport(invalidationReason: .cropChrome) {
+            $0.updatingContentSize(size, fitToWindow: false)
+        }
+    }
+
     func zoomIn() {
-        updateViewport { $0.zoomed(to: $0.zoomScale * 1.25) }
+        updateViewport(invalidationReason: .cropChrome) { $0.zoomed(to: $0.zoomScale * 1.25) }
     }
 
     func zoomOut() {
-        updateViewport { $0.zoomed(to: $0.zoomScale / 1.25) }
+        updateViewport(invalidationReason: .cropChrome) { $0.zoomed(to: $0.zoomScale / 1.25) }
     }
 
     func zoomToFit() {
-        updateViewport {
+        updateViewport(invalidationReason: .cropChrome) {
+            guard workspaceMode != .presentation else {
+                return $0.zoomedToFit()
+            }
+
             guard snapshot.cropRect.gscIntegralStandardized != fullImageRect else {
                 return $0.zoomedToFit()
             }
@@ -1187,7 +1279,11 @@ final class EditorController: ObservableObject {
     }
 
     func zoomToInitialDisplayScale() {
-        updateViewport {
+        updateViewport(invalidationReason: .cropChrome) {
+            guard workspaceMode != .presentation else {
+                return $0.zoomedForInitialDisplay(maxDisplayScale: EditorViewport.maxInitialDisplayScale)
+            }
+
             let updatedViewport = $0.updatingContentSize(documentCanvasSize, fitToWindow: false)
 
             guard snapshot.cropRect.gscIntegralStandardized != fullImageRect else {
@@ -1199,12 +1295,12 @@ final class EditorController: ObservableObject {
     }
 
     func zoomToActualSize() {
-        updateViewport { $0.zoomed(to: $0.actualSizeZoomScale) }
+        updateViewport(invalidationReason: .cropChrome) { $0.zoomed(to: $0.actualSizeZoomScale) }
     }
 
     func magnifyViewport(by magnification: CGFloat, anchoredAt anchor: CGPoint) {
         let factor = max(0.05, 1 + magnification)
-        updateViewport { $0.zoomed(to: $0.zoomScale * factor, anchoredAt: anchor) }
+        updateViewport(invalidationReason: .cropChrome) { $0.zoomed(to: $0.zoomScale * factor, anchoredAt: anchor) }
     }
 
     func zoomViewportFromScrollWheel(deltaY: CGFloat, anchoredAt anchor: CGPoint) {
@@ -1213,7 +1309,7 @@ final class EditorController: ObservableObject {
         }
 
         let factor = pow(1.0018, deltaY)
-        updateViewport { $0.zoomed(to: $0.zoomScale * factor, anchoredAt: anchor) }
+        updateViewport(invalidationReason: .cropChrome) { $0.zoomed(to: $0.zoomScale * factor, anchoredAt: anchor) }
     }
 
     func updateCropOutsideOverlayAlpha(_ alpha: CGFloat) {
@@ -1237,7 +1333,7 @@ final class EditorController: ObservableObject {
     }
 
     func panViewport(by delta: CGSize) {
-        updateViewport { $0.panned(by: delta) }
+        updateViewport(invalidationReason: .cropChrome) { $0.panned(by: delta) }
     }
 
     func scrollViewport(horizontalPosition: CGFloat? = nil, verticalPosition: CGFloat? = nil) {
@@ -1329,120 +1425,7 @@ final class EditorController: ObservableObject {
     }
 
     func exportedImage() -> CGImage? {
-        ScreenshotPresentationRenderer.render(
-            baseImage: capture.image,
-            snapshot: snapshot,
-            pinnedUIMapElements: pinnedUIMapElements,
-            uiMapOverlayOptions: uiMapOverlayOptions
-        )
-    }
-
-    func applyPresentationPreset(_ preset: ScreenshotPresentationPreset) {
-        guard FeatureFlags.presentationStylingEnabled else {
-            return
-        }
-
-        execute(SetPresentationCommand(presentation: preset.settings))
-    }
-
-    func updatePresentationBackgroundIsTransparent(_ isTransparent: Bool) {
-        mutatePresentation { presentation in
-            presentation.background = isTransparent ? .transparent : .solid(presentationBackgroundColor)
-        }
-    }
-
-    func updatePresentationBackgroundColor(_ color: RGBAColor) {
-        mutatePresentation { presentation in
-            presentation.background = .solid(color)
-        }
-    }
-
-    func updatePresentationPadding(_ value: CGFloat) {
-        mutatePresentation { presentation in
-            presentation.padding = max(0, value)
-        }
-    }
-
-    func updatePresentationCornerRadius(_ value: CGFloat) {
-        mutatePresentation { presentation in
-            presentation.cornerRadius = min(max(0, value), 100)
-        }
-    }
-
-    func updatePresentationShadow(_ shadow: ScreenshotShadowStyle) {
-        mutatePresentation { presentation in
-            presentation.shadow = shadow
-            presentation.shadowBlurRadius = shadow.blurRadius
-            presentation.shadowOffsetX = shadow.offsetX
-            presentation.shadowOffsetY = shadow.offsetY
-            presentation.shadowOpacity = shadow.opacity
-        }
-    }
-
-    func updatePresentationShadowBlurRadius(_ value: CGFloat) {
-        mutatePresentation { presentation in
-            presentation.shadowBlurRadius = max(0, value)
-            if presentation.shadowBlurRadius <= 0 || presentation.shadowOpacity <= 0 {
-                presentation.shadow = .off
-            } else if presentation.shadow == .off {
-                presentation.shadow = .medium
-            }
-        }
-    }
-
-    func updatePresentationShadowOffsetY(_ value: CGFloat) {
-        mutatePresentation { presentation in
-            let direction = presentation.shadowDirection
-            let sign = direction.ySign == 0 ? 1 : direction.ySign
-            presentation.shadowOffsetY = sign * min(max(0, value), 72)
-            if presentation.shadowBlurRadius <= 0 || presentation.shadowOpacity <= 0 {
-                presentation.shadow = .off
-            } else if presentation.shadow == .off {
-                presentation.shadow = .medium
-            }
-        }
-    }
-
-    func updatePresentationShadowOffsetX(_ value: CGFloat) {
-        mutatePresentation { presentation in
-            let direction = presentation.shadowDirection
-            let sign = direction.xSign == 0 ? 1 : direction.xSign
-            presentation.shadowOffsetX = sign * min(max(0, value), 72)
-            if presentation.shadowBlurRadius <= 0 || presentation.shadowOpacity <= 0 {
-                presentation.shadow = .off
-            } else if presentation.shadow == .off {
-                presentation.shadow = .medium
-            }
-        }
-    }
-
-    func updatePresentationShadowDirection(_ direction: ScreenshotShadowDirection) {
-        mutatePresentation { presentation in
-            let fallbackX = max(abs(presentation.shadow.offsetX), 18)
-            let fallbackY = max(abs(presentation.shadow.offsetY), 18)
-            let currentX = abs(presentation.shadowOffsetX)
-            let currentY = abs(presentation.shadowOffsetY)
-            let magnitudeX = direction.xSign == 0 ? 0 : (currentX > 0 ? currentX : fallbackX)
-            let magnitudeY = direction.ySign == 0 ? 0 : (currentY > 0 ? currentY : fallbackY)
-            presentation.shadowOffsetX = direction.xSign * magnitudeX
-            presentation.shadowOffsetY = direction.ySign * magnitudeY
-            if presentation.shadowBlurRadius <= 0 || presentation.shadowOpacity <= 0 {
-                presentation.shadow = .off
-            } else if presentation.shadow == .off {
-                presentation.shadow = .medium
-            }
-        }
-    }
-
-    func updatePresentationShadowOpacity(_ value: CGFloat) {
-        mutatePresentation { presentation in
-            presentation.shadowOpacity = min(max(value, 0), 1)
-            if presentation.shadowBlurRadius <= 0 || presentation.shadowOpacity <= 0 {
-                presentation.shadow = .off
-            } else if presentation.shadow == .off {
-                presentation.shadow = .medium
-            }
-        }
+        presentationPreviewImage(context: "exportedImage")
     }
 
     func applySampledColor(at point: CGPoint, toFill: Bool = false) {
@@ -1646,9 +1629,22 @@ final class EditorController: ObservableObject {
     }
 
     func copyAnnotatedImage() {
+        copyAnnotatedImage(usingPresentation: true)
+    }
+
+    func copyPlainAnnotatedImage() {
+        copyAnnotatedImage(usingPresentation: false)
+    }
+
+    private func copyAnnotatedImage(usingPresentation: Bool) {
+        var exportSnapshot = snapshot
+        if !usingPresentation {
+            exportSnapshot.presentation = .plain
+        }
+
         let input = EditorExportRenderInput(
             baseImage: capture.image,
-            snapshot: snapshot,
+            snapshot: exportSnapshot,
             pinnedUIMapElements: pinnedUIMapElements,
             uiMapOverlayOptions: uiMapOverlayOptions
         )
@@ -1818,17 +1814,6 @@ final class EditorController: ObservableObject {
         toolStyles[activeTool] = style
         persistToolStyles()
         persistenceRevision += 1
-    }
-
-    private func mutatePresentation(_ mutation: (inout ScreenshotPresentation) -> Void) {
-        guard FeatureFlags.presentationStylingEnabled else {
-            return
-        }
-
-        var presentation = snapshot.presentation
-        mutation(&presentation)
-        presentation.isEnabled = presentation != .plain
-        execute(SetPresentationCommand(presentation: presentation))
     }
 
     private func addImageOverlay(_ image: CGImage) {
@@ -2334,6 +2319,44 @@ final class EditorController: ObservableObject {
     private func invalidateCanvas(_ reason: EditorCanvasInvalidationReason = .full) {
         canvasInvalidationReason = reason
         canvasRevision += 1
+
+        if reason == .full || reason == .uiMapOverlay {
+            presentationContentRevision += 1
+            presentationContentCache = nil
+            PresentationPerformanceMetrics.logEvent(
+                "controller.presentationContent.invalidate",
+                context: "reason=\(reason.metricName) revision=\(presentationContentRevision) canvasRevision=\(canvasRevision)"
+            )
+        }
+    }
+}
+
+private extension EditorCanvasInvalidationReason {
+    var metricName: String {
+        switch self {
+        case .full:
+            return "full"
+        case .cropPreview:
+            return "cropPreview"
+        case .cropChrome:
+            return "cropChrome"
+        case .uiMapOverlay:
+            return "uiMapOverlay"
+        case .uiMapHover:
+            return "uiMapHover"
+        }
+    }
+}
+
+private extension EditorSnapshot {
+    func isPresentationOnlyChange(to updated: EditorSnapshot) -> Bool {
+        guard presentation != updated.presentation else {
+            return false
+        }
+
+        var comparable = self
+        comparable.presentation = updated.presentation
+        return comparable == updated
     }
 }
 
@@ -2361,12 +2384,20 @@ nonisolated private enum EditorExportRenderer {
         let task = Task.detached(priority: .userInitiated) {
             try Task.checkCancellation()
 
-            guard let image = ScreenshotPresentationRenderer.render(
-                baseImage: input.baseImage,
-                snapshot: input.snapshot,
-                pinnedUIMapElements: input.pinnedUIMapElements,
-                uiMapOverlayOptions: input.uiMapOverlayOptions
-            ) else {
+            let image = PresentationPerformanceMetrics.measure(
+                "export.renderImage",
+                context: "base=\(input.baseImage.width)x\(input.baseImage.height) crop=\(PresentationPerformanceMetrics.size(input.snapshot.cropRect.size)) annotations=\(input.snapshot.annotations.count) \(PresentationPerformanceMetrics.presentationSummary(input.snapshot.presentation))",
+                warnAfterMS: 120
+            ) {
+                ScreenshotPresentationRenderer.render(
+                    baseImage: input.baseImage,
+                    snapshot: input.snapshot,
+                    pinnedUIMapElements: input.pinnedUIMapElements,
+                    uiMapOverlayOptions: input.uiMapOverlayOptions
+                )
+            }
+
+            guard let image else {
                 throw ImageExportError.encodingFailed
             }
 
@@ -2385,17 +2416,31 @@ nonisolated private enum EditorExportRenderer {
         let task = Task.detached(priority: .userInitiated) {
             try Task.checkCancellation()
 
-            guard let image = ScreenshotPresentationRenderer.render(
-                baseImage: input.baseImage,
-                snapshot: input.snapshot,
-                pinnedUIMapElements: input.pinnedUIMapElements,
-                uiMapOverlayOptions: input.uiMapOverlayOptions
-            ) else {
+            let image = PresentationPerformanceMetrics.measure(
+                "export.renderPNG.image",
+                context: "base=\(input.baseImage.width)x\(input.baseImage.height) crop=\(PresentationPerformanceMetrics.size(input.snapshot.cropRect.size)) annotations=\(input.snapshot.annotations.count) \(PresentationPerformanceMetrics.presentationSummary(input.snapshot.presentation))",
+                warnAfterMS: 120
+            ) {
+                ScreenshotPresentationRenderer.render(
+                    baseImage: input.baseImage,
+                    snapshot: input.snapshot,
+                    pinnedUIMapElements: input.pinnedUIMapElements,
+                    uiMapOverlayOptions: input.uiMapOverlayOptions
+                )
+            }
+
+            guard let image else {
                 throw ImageExportError.encodingFailed
             }
 
             try Task.checkCancellation()
-            return try ImageExporter.pngData(for: image)
+            return try PresentationPerformanceMetrics.measure(
+                "export.renderPNG.encode",
+                context: "image=\(image.width)x\(image.height)",
+                warnAfterMS: 80
+            ) {
+                try ImageExporter.pngData(for: image)
+            }
         }
 
         return try await withTaskCancellationHandler {

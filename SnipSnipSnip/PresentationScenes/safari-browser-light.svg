@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <metadata id="snipsnipsnip-scene">
+{
+  "schema": "com.oontz.snipsnipsnip.presentation-scene",
+  "schemaVersion": 1,
+  "id": "builtin.safari-browser-light",
+  "name": "Safari Browser Light",
+  "version": 3,
+  "author": "SnipSnipSnip",
+  "description": "Polished light Safari-style browser frame on a quiet neutral canvas.",
+  "canvas": { "width": 1600, "height": 900 },
+  "slots": [
+    { "id": "primaryScreenshot", "type": "image", "required": true, "label": "Screenshot", "defaultFraming": "showFull", "allowUserOverride": true, "minScale": 0.25, "maxScale": 3, "maxAutoEnlargement": 1.5 },
+    { "id": "browserAddress", "type": "text", "label": "Address", "defaultValue": "example.com" }
+  ]
+}
+  </metadata>
+  <defs>
+    <linearGradient id="page-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f6f7f9"/>
+      <stop offset="0.52" stop-color="#e8edf2"/>
+      <stop offset="1" stop-color="#d4dce6"/>
+    </linearGradient>
+    <linearGradient id="toolbar-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f9fafb"/>
+      <stop offset="1" stop-color="#eef1f5"/>
+    </linearGradient>
+    <linearGradient id="address-fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f8fafc"/>
+    </linearGradient>
+    <filter id="window-shadow" x="-10%" y="-18%" width="120%" height="140%">
+      <feDropShadow dx="0" dy="36" stdDeviation="34" flood-color="#1f2937" flood-opacity="0.18"/>
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#111827" flood-opacity="0.10"/>
+    </filter>
+    <filter id="soft-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="40"/>
+    </filter>
+    <clipPath id="screen-clip">
+      <path d="M112 176H1488V790C1488 803.3 1477.3 814 1464 814H136C122.7 814 112 803.3 112 790Z"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#page-bg)"/>
+  <circle cx="1330" cy="96" r="210" fill="#ffffff" opacity="0.48" filter="url(#soft-glow)"/>
+  <circle cx="248" cy="820" r="250" fill="#b9c7d8" opacity="0.24" filter="url(#soft-glow)"/>
+
+  <g filter="url(#window-shadow)">
+    <rect x="112" y="76" width="1376" height="738" rx="24" fill="#ffffff"/>
+    <path d="M136 76H1464C1477.3 76 1488 86.7 1488 100V176H112V100C112 86.7 122.7 76 136 76Z" fill="url(#toolbar-bg)"/>
+    <path d="M112 176H1488" stroke="#d9dee7" stroke-width="1.5"/>
+
+    <circle cx="154" cy="126" r="8.5" fill="#ff5f57"/>
+    <circle cx="184" cy="126" r="8.5" fill="#febc2e"/>
+    <circle cx="214" cy="126" r="8.5" fill="#28c840"/>
+
+    <g fill="none" stroke="#aeb6c1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M272 116L262 126L272 136"/>
+      <path d="M310 116L320 126L310 136"/>
+    </g>
+    <path d="M368 116V136M358 126H378" stroke="#b8c0cb" stroke-width="2.4" stroke-linecap="round"/>
+    <rect x="406" y="113" width="26" height="26" rx="6" fill="none" stroke="#b8c0cb" stroke-width="2"/>
+    <path d="M414 121H424M414 128H424M414 135H424" stroke="#b8c0cb" stroke-width="1.7" stroke-linecap="round"/>
+
+    <rect x="500" y="104" width="600" height="44" rx="22" fill="url(#address-fill)" stroke="#e1e6ee" stroke-width="1.2"/>
+    <path d="M672 126C672 119.9 676.9 115 683 115C689.1 115 694 119.9 694 126C694 132.1 689.1 137 683 137C676.9 137 672 132.1 672 126Z" fill="none" stroke="#c3cad4" stroke-width="2"/>
+    <path d="M690 134L699 143" stroke="#c3cad4" stroke-width="2" stroke-linecap="round"/>
+    <text id="browser-address" data-sss-slot="browserAddress" x="817" y="133" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="16" font-weight="550" fill="#8a94a3">example.com</text>
+
+    <g fill="none" stroke="#aeb6c1" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M1198 116V136M1188 126H1208"/>
+      <path d="M1260 118H1280V138H1260Z"/>
+      <path d="M1328 137H1350C1354.4 137 1358 133.4 1358 129V119H1348"/>
+      <path d="M1348 119L1360 107M1360 107V117M1360 107H1350"/>
+      <path d="M1418 119H1442M1418 126H1442M1418 133H1442"/>
+    </g>
+
+    <image id="primary-screenshot" data-sss-slot="primaryScreenshot" href="snipsnipsnip:primaryScreenshot" x="112" y="176" width="1376" height="638" preserveAspectRatio="xMidYMid slice" clip-path="url(#screen-clip)"/>
+    <path d="M136 76H1464C1477.3 76 1488 86.7 1488 100V790C1488 803.3 1477.3 814 1464 814H136C122.7 814 112 803.3 112 790V100C112 86.7 122.7 76 136 76Z" fill="none" stroke="#cfd7e2" stroke-width="1.5"/>
+  </g>
+</svg>

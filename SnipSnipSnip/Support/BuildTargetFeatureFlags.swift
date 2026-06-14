@@ -40,6 +40,7 @@ nonisolated enum BuildTargetFeatureMatrix {
           .presentationStyling,
           .connectedDeviceCapture,
           .uiMap,
+          .scrollingCapture,
         ],
         .internalTesting: [
           .presentationStyling,

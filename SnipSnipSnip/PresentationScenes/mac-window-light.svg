@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <metadata id="snipsnipsnip-scene">
+{
+  "schema": "com.oontz.snipsnipsnip.presentation-scene",
+  "schemaVersion": 1,
+  "id": "builtin.mac-window-light",
+  "name": "Mac Window Light",
+  "version": 3,
+  "author": "SnipSnipSnip",
+  "description": "Polished light macOS-style window frame with a centered title slot.",
+  "canvas": { "width": 1600, "height": 1000 },
+  "slots": [
+    { "id": "primaryScreenshot", "type": "image", "required": true, "label": "Screenshot", "defaultFraming": "showFull", "allowUserOverride": true, "minScale": 0.25, "maxScale": 3, "maxAutoEnlargement": 1.5 },
+    { "id": "windowTitle", "type": "text", "label": "Title", "defaultValue": "Screenshot" }
+  ]
+}
+  </metadata>
+  <defs>
+    <linearGradient id="desktop-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="0.52" stop-color="#edf2f7"/>
+      <stop offset="1" stop-color="#d3dce8"/>
+    </linearGradient>
+    <linearGradient id="titlebar-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f9fafb"/>
+      <stop offset="1" stop-color="#eef2f6"/>
+    </linearGradient>
+    <filter id="window-shadow" x="-12%" y="-18%" width="124%" height="140%">
+      <feDropShadow dx="0" dy="40" stdDeviation="36" flood-color="#0f172a" flood-opacity="0.17"/>
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#0f172a" flood-opacity="0.10"/>
+    </filter>
+    <filter id="bg-blur" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="44"/>
+    </filter>
+    <clipPath id="window-content-clip">
+      <path d="M146 206H1454V852C1454 866.4 1442.4 878 1428 878H172C157.6 878 146 866.4 146 852Z"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1600" height="1000" fill="url(#desktop-bg)"/>
+  <circle cx="1340" cy="130" r="260" fill="#ffffff" opacity="0.45" filter="url(#bg-blur)"/>
+  <circle cx="162" cy="862" r="330" fill="#bfdbfe" opacity="0.22" filter="url(#bg-blur)"/>
+
+  <g filter="url(#window-shadow)">
+    <rect x="146" y="106" width="1308" height="772" rx="26" fill="#ffffff"/>
+    <path d="M172 106H1428C1442.4 106 1454 117.6 1454 132V206H146V132C146 117.6 157.6 106 172 106Z" fill="url(#titlebar-bg)"/>
+    <path d="M146 206H1454" stroke="#d7dee8" stroke-width="1.5"/>
+    <circle cx="194" cy="156" r="8.5" fill="#ff5f57"/>
+    <circle cx="224" cy="156" r="8.5" fill="#febc2e"/>
+    <circle cx="254" cy="156" r="8.5" fill="#28c840"/>
+    <rect x="318" y="136" width="44" height="40" rx="10" fill="#f7f9fb" stroke="#dfe5ec"/>
+    <path d="M338 146V166M328 156H348" stroke="#a8b2bf" stroke-width="2.2" stroke-linecap="round"/>
+    <text id="window-title" data-sss-slot="windowTitle" x="800" y="164" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="20" font-weight="680" fill="#596575">Screenshot</text>
+    <g fill="none" stroke="#a8b2bf" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M1250 146H1270V166H1250Z"/>
+      <path d="M1316 166H1338C1342.4 166 1346 162.4 1346 158V148H1336"/>
+      <path d="M1336 148L1348 136M1348 136V146M1348 136H1338"/>
+      <path d="M1390 146H1418M1390 156H1418M1390 166H1418"/>
+    </g>
+    <image id="primary-screenshot" data-sss-slot="primaryScreenshot" href="snipsnipsnip:primaryScreenshot" x="146" y="206" width="1308" height="672" preserveAspectRatio="xMidYMid slice" clip-path="url(#window-content-clip)"/>
+    <path d="M172 106H1428C1442.4 106 1454 117.6 1454 132V852C1454 866.4 1442.4 878 1428 878H172C157.6 878 146 866.4 146 852V132C146 117.6 157.6 106 172 106Z" fill="none" stroke="#cbd5e1" stroke-width="1.6"/>
+  </g>
+</svg>

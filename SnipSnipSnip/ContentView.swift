@@ -30,6 +30,8 @@ struct ContentView: View {
                     onExportPNG: { model.exportAnnotatedImage(as: .png) },
                     onExportJPEG: { model.exportAnnotatedImage(as: .jpeg) },
                     onExportPDF: { model.exportAnnotatedImage(as: .pdf) },
+                    onCopyStyled: model.copyCurrentEditorImageToClipboard,
+                    onCopyPlain: model.copyCurrentPlainEditorImageToClipboard,
                     onShare: model.shareAnnotatedImage,
                     dragOutPayloadProvider: model.promisedAnnotatedImagePayload
                 )
@@ -57,8 +59,7 @@ struct ContentView: View {
                             onRestoreRecycledHistoryEntry: model.restoreRecycledHistoryEntry,
                             onPermanentlyDeleteRecycledHistoryEntry: model.permanentlyDeleteRecycledHistoryEntry,
                             onEmptyRecycleBin: model.emptyRecycleBin
-                        ),
-                        dragOutPayloadProvider: model.promisedAnnotatedImagePayload
+                        )
                     )
                     .id(ObjectIdentifier(editorController))
                 } else if let videoController = model.videoEditorController {

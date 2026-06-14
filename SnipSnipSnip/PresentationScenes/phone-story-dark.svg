@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
+  <metadata id="snipsnipsnip-scene">
+{
+  "schema": "com.oontz.snipsnipsnip.presentation-scene",
+  "schemaVersion": 1,
+  "id": "builtin.phone-story-dark",
+  "name": "Phone Story Dark",
+  "version": 3,
+  "author": "SnipSnipSnip",
+  "description": "Premium dark vertical scene with a generic vector phone frame.",
+  "canvas": { "width": 1080, "height": 1920 },
+  "slots": [
+    { "id": "primaryScreenshot", "type": "image", "required": true, "label": "Screenshot", "defaultFraming": "fillFrame", "allowUserOverride": true, "minScale": 0.25, "maxScale": 3, "maxAutoEnlargement": 1.5 },
+    { "id": "title", "type": "text", "label": "Title", "defaultValue": "Product Preview" }
+  ]
+}
+  </metadata>
+  <defs>
+    <radialGradient id="story-bg" cx="50%" cy="24%" r="86%">
+      <stop offset="0" stop-color="#334f8f"/>
+      <stop offset="0.38" stop-color="#111827"/>
+      <stop offset="1" stop-color="#030712"/>
+    </radialGradient>
+    <radialGradient id="blue-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#60a5fa" stop-opacity="0.62"/>
+      <stop offset="1" stop-color="#60a5fa" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="phone-shell" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4b5563"/>
+      <stop offset="0.28" stop-color="#171d28"/>
+      <stop offset="0.68" stop-color="#050812"/>
+      <stop offset="1" stop-color="#232b38"/>
+    </linearGradient>
+    <linearGradient id="bezel-edge" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.28"/>
+      <stop offset="0.16" stop-color="#ffffff" stop-opacity="0.06"/>
+      <stop offset="0.84" stop-color="#ffffff" stop-opacity="0.03"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.20"/>
+    </linearGradient>
+    <filter id="phone-shadow" x="-42%" y="-24%" width="184%" height="152%">
+      <feDropShadow dx="0" dy="54" stdDeviation="42" flood-color="#000000" flood-opacity="0.58"/>
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#000000" flood-opacity="0.38"/>
+    </filter>
+    <filter id="glow-blur" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="36"/>
+    </filter>
+    <clipPath id="phone-screen-clip">
+      <rect x="330" y="408" width="420" height="994" rx="46"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#story-bg)"/>
+  <ellipse cx="540" cy="1040" rx="470" ry="720" fill="url(#blue-glow)" filter="url(#glow-blur)" opacity="0.46"/>
+  <circle cx="186" cy="338" r="2.5" fill="#93c5fd" opacity="0.55"/>
+  <circle cx="892" cy="404" r="3" fill="#e0f2fe" opacity="0.42"/>
+  <circle cx="832" cy="1540" r="2.5" fill="#93c5fd" opacity="0.32"/>
+
+  <text x="540" y="154" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="18" font-weight="750" letter-spacing="3" fill="#93c5fd" opacity="0.9">PRESENTATION SCENE</text>
+  <text id="title" data-sss-slot="title" x="540" y="232" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="62" font-weight="760" fill="#f8fafc">Product Preview</text>
+
+  <g filter="url(#phone-shadow)">
+    <rect x="270" y="312" width="540" height="1228" rx="98" fill="url(#phone-shell)"/>
+    <rect x="286" y="328" width="508" height="1196" rx="86" fill="#05070d"/>
+    <rect x="302" y="346" width="476" height="1160" rx="74" fill="url(#bezel-edge)" opacity="0.72"/>
+    <rect x="314" y="360" width="452" height="1132" rx="64" fill="#030712"/>
+    <image id="primary-screenshot" data-sss-slot="primaryScreenshot" href="snipsnipsnip:primaryScreenshot" x="330" y="408" width="420" height="994" preserveAspectRatio="xMidYMid slice" clip-path="url(#phone-screen-clip)"/>
+    <rect x="330" y="408" width="420" height="994" rx="46" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="2"/>
+    <rect x="452" y="386" width="176" height="46" rx="23" fill="#030712"/>
+    <circle cx="660" cy="409" r="6" fill="#0b1220"/>
+    <rect x="265" y="604" width="9" height="124" rx="4.5" fill="#141b26"/>
+    <rect x="806" y="690" width="9" height="184" rx="4.5" fill="#141b26"/>
+    <path d="M320 374C350 340 387 328 438 328H640C696 328 741 348 765 386" fill="none" stroke="#ffffff" stroke-opacity="0.16" stroke-width="2"/>
+  </g>
+  <ellipse cx="540" cy="1626" rx="270" ry="30" fill="#000000" opacity="0.32" filter="url(#glow-blur)"/>
+</svg>

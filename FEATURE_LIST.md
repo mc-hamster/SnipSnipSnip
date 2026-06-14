@@ -4,7 +4,7 @@ Last reviewed: 2026-06-11
 
 This document is the source of truth for what SnipSnipSnip and SnipSnipSnip Pro currently ship, what is only partially complete, and what is still missing. It is based on the current app source, shipped Help content, public docs, and test suite, not on older roadmap text.
 
-SnipSnipSnip is already much larger than a screenshot MVP. It is a real screenshot app with a strong non-destructive editor and archive system, plus a usable first-generation screen recording and trim workflow. SnipSnipSnip Pro is the expanded product tier for advanced capture workflows: scrolling capture, connected iPhone/iPad screenshot capture, and UI Map capture. The strongest completed areas are screenshot capture, screenshot editing, editable document persistence, archive/history/recovery, privacy defaults, screenshot presentation styling, drag-out sharing, practical MP4/GIF/APNG recording export, and user-triggered support diagnostics export. The largest unfinished areas are richer screenshot presentation templates, Pro capture hardening, advanced video polish, automation/integrations, accessibility depth, and localization.
+SnipSnipSnip is already much larger than a screenshot MVP. It is a real screenshot app with a strong non-destructive editor and archive system, plus a usable first-generation screen recording and trim workflow. SnipSnipSnip Pro is the expanded product tier for advanced capture workflows: scrolling capture, connected iPhone/iPad screenshot capture, and UI Map capture. The strongest completed areas are screenshot capture, screenshot editing, editable document persistence, archive/history/recovery, privacy defaults, screenshot presentation styling, drag-out sharing, practical MP4/GIF/APNG recording export, and user-triggered support diagnostics export. The largest unfinished areas are Pro capture hardening, advanced video polish, automation/integrations, accessibility depth, localization, and multi-capture composition.
 
 ## Status Legend
 
@@ -59,7 +59,7 @@ The biggest unfinished areas are now clear:
 - Pro scrolling capture works, but it is still a `~ Partial` feature because compatibility and diagnostics are not hardened enough to call it fully done.
 - Pro connected iPhone/iPad screenshot capture works in the feature-gated build, but it remains `~ Partial` because it uses self-release capture plumbing and needs broader device, orientation, stream-interruption, and disconnect QA.
 - Pro UI Map capture is implemented and intentionally Pro-only. It is still dependent on Accessibility availability and target-app AX quality, but the workflow is already user-reachable and materially different from pixel-only capture tools.
-- Screenshot presentation styling is useful and shipped: padding, solid or transparent backgrounds, rounded corners, shadows, live preview, and rendered drag-out sharing are present. Richer frames, gradients, pinned screenshots, and multi-capture composition remain open.
+- Screenshot presentation styling is now first-class and shipped: native Presentation Styles, SVG Presentation Scenes from a configurable scenes folder, reusable built-in and user templates, transparent/solid/gradient/spotlight/blurred backgrounds, scene-based browser/macOS/phone/tablet layouts, live preview, styled/plain copy, and rendered drag-out sharing are present. Multi-capture composition remains open.
 - Video recording is useful, but advanced post-production is still mostly `x Not done`: webcam, keystrokes, zooms, captions, aspect-ratio layouts, video overlays, speed controls, volume editing, and multi-clip editing.
 - Workflow automation is still shallow: customizable global hotkeys, a centralized shortcuts settings tab, editor tool shortcuts, and a Clipboard History opener exist, but App Intents, URL schemes, and cloud/upload workflows are absent.
 - Non-functional readiness is mixed: privacy is strong, docs are solid for screenshots, performance profiling and local diagnostics export exist, but accessibility depth, localization, and crash reporting are still not done.
@@ -133,7 +133,7 @@ The biggest unfinished areas are now clear:
 | Image overlays | ✓ Done | Pasteboard and imported image overlays are editable annotations with resize, rotation, opacity, archive assets, and export/render support. | No blend modes or replace-image action. |
 | Layer order / reorder | ✓ Done | Bring Forward (`⌘]`), Send Backward (`⌘[`), Bring to Front (`⌥⌘]`), and Send to Back (`⌥⌘[`) commands with Arrange menu, undo/redo support, multi-selection block reordering, and a standalone Layers window with selection sync, drag reorder, group/ungroup, z-order buttons, delete, and empty states. | Visibility toggles and layer locking are intentionally deferred until annotation metadata, `.sss` schema, rendering, hit-testing, and export behavior support them additively. |
 | Combine screenshots on one canvas | x Not done | Screenshot documents still have one base image. | Add multi-capture composition or add-capture-as-layer workflow. |
-| Background and presentation tool | ~ Partial | The inspector now includes screenshot presentation presets plus controls for transparent or solid background, padding, rounded corners, and export shadows. Transparent shadow output is preserved on alpha for PNG copy, share, and export. | Add gradients, browser chrome, device frames, social aspect ratios, and a richer on-canvas preview workflow. |
+| Background and presentation tool | ✓ Done | The editor exposes a first-class Presentation workspace with its own focused export toolbar, final-export canvas preview, a Style tab for fast native polish, a Scene tab for SVG scene templates, built-in and user-saved style templates, document-saved variants, bundled and user scene files, transparent/solid/gradient/spotlight/blurred backgrounds, padding, rounded corners, and shadows. Browser, macOS window, phone, tablet, and other template-driven layouts now live in Scenes. Copy Styled, Copy Plain, Share, Float, drag-out, and Export Styled make output intent explicit. Transparent shadow output is preserved on alpha for PNG copy, share, and export. | Add template search/filter only if the built-in plus user-saved libraries become large enough to need it; continue visual QA for scene templates and third-party destinations. |
 | Floating or pinned screenshots | ✓ Done | Current rendered screenshots and history/recent/recycle-bin snapshots can be opened as always-on-top floating reference windows. Multiple references can be shown at once; each supports resizing, explicit handle-based moving, one-click close, opacity adjustment, visible zoom percentage, 1:1 actual size, pinch/scroll zoom, panning, fit/zoom controls, Resize Window for Zoom, and close-all from the Reference menu or menu bar extra. | Future work could add named reference sets, saved layouts, and a reference board. |
 
 ### Screenshot Output And Sharing
@@ -147,7 +147,7 @@ The biggest unfinished areas are now clear:
 | JPEG export | ✓ Done | JPEG export uses the Settings > General > Export & Sharing JPEG quality control, defaulting to 90%, while PNG and PDF behavior stays unchanged. | No auto format choice, destination rules, or reusable export presets. |
 | PDF export | ✓ Done | Single-image PDF export exists. | No vector-preserving annotation export. |
 | Native share sheet | ✓ Done | Uses `NSSharingServicePicker` for rendered screenshot sharing. | No upload destinations. |
-| Drag-and-drop export affordance | ✓ Done | Screenshot and video editors expose compact promised-file drag handles, and the large presentation preview is draggable. JPEG screenshot drag-out uses the same JPEG quality setting as Export JPEG. | Validate compatibility with more third-party destinations over time. |
+| Drag-and-drop export affordance | ✓ Done | Screenshot and video editors expose compact promised-file drag handles. JPEG screenshot drag-out uses the same JPEG quality setting as Export JPEG, and styled screenshot drag-out uses the same presentation renderer as Copy Styled and Export Styled. | Validate compatibility with more third-party destinations over time. |
 | Metadata stripping and privacy-safe export | ✓ Done | PNG, JPEG, and PDF outputs are re-encoded and tests confirm source EXIF, TIFF, GPS, IPTC, and user metadata are not preserved. | Future upload flows should add destination-aware privacy confirmations. |
 | Filename templates | ✓ Done | Save As and export suggestions use `ScreenshotFilenameTemplate` tokens for kind, source, time, width, height, and format. | No per-destination rules or reusable template presets. |
 | Cloud upload and share links | x Not done | No cloud backend or upload destination exists in the current app. | Add optional privacy-preserving upload workflows only if needed. |
@@ -242,7 +242,7 @@ The biggest unfinished areas are now clear:
 | App Shortcuts or App Intents | x Not done | `AppShortcuts.swift` only defines shortcut modifiers; no App Intents implementation was found. | Add Shortcuts support only if automation becomes a product priority. |
 | URL scheme or external API | x Not done | No URL scheme or external automation API was found. | Add only if power-user automation is in scope. |
 | Upload integrations | x Not done | No S3, Slack, issue tracker, webhook, or cloud destination integration exists. | Keep optional and privacy-preserving if added later. |
-| Template workflows and style presets | x Not done | No reusable screenshot beautify or video brand template system exists. | Add only after presentation layers exist. |
+| Template workflows and style presets | ~ Partial | Screenshot Presentation mode includes static built-in style templates, globally persisted user style templates with save, rename, duplicate, delete, and default-template actions, document-saved presentation variants, and SVG Presentation Scenes loaded from Bundled and User folders under a configurable scenes root. Applying a style template, scene, or variant is undoable document state; template library edits, scene folder settings, and variant-list edits are managed outside annotation editing. | Video brand templates and broader template/search/filter workflows remain open. |
 | In-app Help guide | ✓ Done | Help is rich, user-facing, and appears maintained alongside major screenshot and recording behavior. | Could add search and stronger troubleshooting diagnostics. |
 | README and product docs | ✓ Done | `README.md` covers features, privacy, permissions, formats, and build/test instructions. | Add release/download assets and more visuals when distribution stabilizes. |
 | Public `.sss` format docs | ✓ Done | `sss-format.md` documents the screenshot package format clearly. | Keep current as format evolves. |
@@ -327,7 +327,7 @@ The biggest unfinished areas are now clear:
 
 - Pro scrolling capture is implemented, but still not hardened enough to treat as fully complete across the app landscape.
 - Pro connected iPhone/iPad screenshot capture is implemented in the self-release capture path and now reports runtime stream interruptions, but still needs broader device compatibility validation.
-- Screenshot presentation styling is shipped for polished static output, but richer gradients, frames, social layouts, pinned screenshots, and multi-capture composition are still absent.
+- Screenshot presentation styling is shipped for polished static output, including gradients, scene layouts, social layouts, user templates, and styled/plain copy. Multi-capture composition is still absent.
 - Video editing is still a trim-and-export workflow, not a full demo-editor workflow.
 - Global hotkeys are customizable but intentionally background-only while the app is active, which may surprise power users.
 - Clipboard History source-app filtering is inherently best-effort because macOS pasteboard changes do not always include reliable origin metadata.
@@ -341,7 +341,7 @@ The biggest unfinished areas are now clear:
 
 ### Tier 1: Close The Screenshot Product Gap
 
-- Richer screenshot presentation/export layers: gradients, browser or device frames, social aspect ratios, and reusable templates.
+- Multi-capture composition or add-capture-as-layer workflows that build on the shipped single-screenshot Presentation mode.
 - Layer visibility toggles and locking, building on the shipped standalone Layers window.
 - Capture presets and fully customizable shortcut behavior for power users.
 - Better OCR controls: QR detection, language options, confidence review.
@@ -365,7 +365,7 @@ The biggest unfinished areas are now clear:
 - Optional upload destinations and share links.
 - Collections, tags, favorites, or projects in history.
 - Stronger support workflows built on the shipped local diagnostics bundle.
-- More polished preset and template workflows for screenshots and videos.
+- More polished preset and template workflows for videos, plus screenshot template search/filter if user libraries become large.
 
 ### Tier 4: Harden SnipSnipSnip Pro
 
@@ -377,7 +377,7 @@ The biggest unfinished areas are now clear:
 
 1. Treat `FEATURE_LIST.md` as the truth source and archive or rewrite the obsolete phase roadmap.
 2. Keep screenshot and video format docs versioned and in sync with schema changes.
-3. Extend the shipped screenshot presentation/export model with gradients, frames, reusable templates, and aspect ratios.
+3. Add multi-capture composition on top of the shipped screenshot presentation/export model.
 4. Add layer visibility and locking metadata to the existing Layers window, with additive `.sss` schema, renderer, hit-testing, export, and migration behavior.
 5. Harden SnipSnipSnip Pro capture with diagnostics, compatibility coverage, and fallback flows.
 6. Add conflict detection and keyboard-capture UX polish for customizable global hotkeys.
@@ -387,6 +387,6 @@ The biggest unfinished areas are now clear:
 
 ## Current Product Position
 
-SnipSnipSnip is already a strong local-first screenshot product with a meaningful editor, archive system, presentation styling, and local drag-out sharing. It also has a real, useful first-generation recording stack. SnipSnipSnip Pro extends that product with advanced capture workflows: scrolling capture, connected iPhone/iPad screenshot capture, and UI Map capture. The overall product family is not yet an ultra-premium capture suite because richer screenshot templates, advanced video polish, automation depth, Pro capture hardening, and support readiness are still behind the rest of the app.
+SnipSnipSnip is already a strong local-first screenshot product with a meaningful editor, archive system, presentation styling, and local drag-out sharing. It also has a real, useful first-generation recording stack. SnipSnipSnip Pro extends that product with advanced capture workflows: scrolling capture, connected iPhone/iPad screenshot capture, and UI Map capture. The overall product family is not yet an ultra-premium capture suite because multi-capture composition, advanced video polish, automation depth, Pro capture hardening, and support readiness are still behind the rest of the app.
 
-That is now the accurate state of the product family: standard screenshot capture, editing, presentation styling, local diagnostics export, and drag-out sharing are largely real and shipped; Pro UI Map is implemented as a unique structured screenshot workflow; Pro scrolling capture and connected iPhone/iPad screenshot capture are still partial; richer presentation templates, advanced video editing, automation, localization, and accessibility depth are still not done.
+That is now the accurate state of the product family: standard screenshot capture, editing, presentation styling, local diagnostics export, and drag-out sharing are largely real and shipped; Pro UI Map is implemented as a unique structured screenshot workflow; Pro scrolling capture and connected iPhone/iPad screenshot capture are still partial; multi-capture composition, advanced video editing, automation, localization, and accessibility depth are still not done.

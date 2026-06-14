@@ -488,6 +488,162 @@ final class EditorRendererTests: XCTestCase {
         XCTAssertGreaterThan(colorDistance(topBackground, bottomBackground), 12)
     }
 
+    func testPresentationCanvasPresetUsesRequestedAspectRatio() throws {
+        let image = makeSolidImage(width: 80, height: 60, color: PixelSample(red: 244, green: 244, blue: 244, alpha: 255))
+        let presentation = ScreenshotPresentation(
+            isEnabled: true,
+            background: .solid(RGBAColor(red: 0.90, green: 0.92, blue: 0.95, alpha: 1)),
+            canvas: .preset(.story),
+            padding: 20,
+            cornerRadius: 12,
+            shadow: .off
+        )
+
+        let result = try XCTUnwrap(ScreenshotPresentationRenderer.renderWithLayout(contentImage: image, presentation: presentation))
+        let aspectRatio = CGFloat(result.image.width) / CGFloat(result.image.height)
+
+        XCTAssertEqual(aspectRatio, PresentationCanvasPreset.story.aspectRatio, accuracy: 0.015)
+        XCTAssertEqual(result.layout.canvasSize.width, CGFloat(result.image.width), accuracy: 1)
+        XCTAssertEqual(result.layout.canvasSize.height, CGFloat(result.image.height), accuracy: 1)
+    }
+
+    func testPresentationPreviewRenderCanBeCapped() throws {
+        let image = makeSolidImage(width: 1200, height: 900, color: PixelSample(red: 244, green: 244, blue: 244, alpha: 255))
+        let presentation = ScreenshotPresentation(
+            isEnabled: true,
+            background: .twoColorGradient(
+                start: RGBAColor(red: 0.10, green: 0.14, blue: 0.22, alpha: 1),
+                end: RGBAColor(red: 0.32, green: 0.52, blue: 0.92, alpha: 1)
+            ),
+            canvas: .preset(.widescreen),
+            frame: .browser(.default),
+            padding: 60,
+            cornerRadius: 18,
+            shadow: .strong
+        )
+
+        let result = try XCTUnwrap(ScreenshotPresentationRenderer.renderWithLayout(
+            contentImage: image,
+            presentation: presentation,
+            maxPixelDimension: 240
+        ))
+
+        XCTAssertLessThanOrEqual(max(result.image.width, result.image.height), 248)
+        XCTAssertEqual(result.layout.canvasSize.width, CGFloat(result.image.width), accuracy: 1)
+        XCTAssertEqual(result.layout.canvasSize.height, CGFloat(result.image.height), accuracy: 1)
+    }
+
+    func testPresentationCustomCanvasGradientBackgroundPixelsVary() throws {
+        let image = makeSolidImage(width: 40, height: 30, color: PixelSample(red: 250, green: 250, blue: 250, alpha: 255))
+        let presentation = ScreenshotPresentation(
+            isEnabled: true,
+            background: .twoColorGradient(
+                start: RGBAColor(red: 1, green: 0.12, blue: 0.10, alpha: 1),
+                end: RGBAColor(red: 0.05, green: 0.16, blue: 0.90, alpha: 1)
+            ),
+            canvas: .custom(width: 320, height: 180),
+            padding: 24,
+            cornerRadius: 8,
+            shadow: .off
+        )
+
+        let result = try XCTUnwrap(ScreenshotPresentationRenderer.renderWithLayout(contentImage: image, presentation: presentation))
+
+        XCTAssertEqual(result.image.width, 320)
+        XCTAssertEqual(result.image.height, 180)
+        XCTAssertGreaterThan(
+            colorDistance(
+                samplePixel(in: result.image, topLeftX: 6, topLeftY: 6),
+                samplePixel(in: result.image, topLeftX: result.image.width - 7, topLeftY: result.image.height - 7)
+            ),
+            120
+        )
+    }
+
+    func testPresentationBrowserFramePlacesContentBelowChrome() throws {
+        let image = makeSolidImage(width: 80, height: 60, color: PixelSample(red: 244, green: 244, blue: 244, alpha: 255))
+        let presentation = ScreenshotPresentation(
+            isEnabled: true,
+            background: .solid(RGBAColor(red: 0.90, green: 0.92, blue: 0.95, alpha: 1)),
+            canvas: .preset(.widescreen),
+            frame: .browser(PresentationBrowserFrameStyle(title: "Docs", address: "https://example.test", scheme: .dark)),
+            padding: 32,
+            cornerRadius: 10,
+            shadow: .medium
+        )
+
+        let result = try XCTUnwrap(ScreenshotPresentationRenderer.renderWithLayout(contentImage: image, presentation: presentation))
+
+        XCTAssertGreaterThan(result.image.width, image.width)
+        XCTAssertGreaterThan(result.layout.screenRect.minY, result.layout.subjectRect.minY)
+        XCTAssertGreaterThanOrEqual(result.layout.contentRect.minX, result.layout.screenRect.minX)
+        XCTAssertGreaterThanOrEqual(result.layout.contentRect.minY, result.layout.screenRect.minY)
+        XCTAssertLessThanOrEqual(result.layout.contentRect.maxX, result.layout.screenRect.maxX)
+        XCTAssertLessThanOrEqual(result.layout.contentRect.maxY, result.layout.screenRect.maxY)
+
+        let chromeSample = samplePixel(
+            in: result.image,
+            topLeftX: Int(result.layout.subjectRect.midX),
+            topLeftY: Int(result.layout.subjectRect.minY + max((result.layout.screenRect.minY - result.layout.subjectRect.minY) * 0.35, 1))
+        )
+        XCTAssertLessThan(chromeSample.red, 90)
+        XCTAssertLessThan(chromeSample.green, 90)
+        XCTAssertLessThan(chromeSample.blue, 90)
+    }
+
+    func testPresentationDeviceFrameAddsInsetScreen() throws {
+        let image = makeSolidImage(width: 90, height: 160, color: PixelSample(red: 244, green: 244, blue: 244, alpha: 255))
+        let presentation = ScreenshotPresentation(
+            isEnabled: true,
+            background: .radialSpotlight(
+                base: RGBAColor(red: 0.06, green: 0.07, blue: 0.10, alpha: 1),
+                spotlight: RGBAColor(red: 0.32, green: 0.54, blue: 1, alpha: 1)
+            ),
+            canvas: .preset(.story),
+            frame: .phone(.phone),
+            padding: 36,
+            cornerRadius: 18,
+            shadow: .strong
+        )
+
+        let result = try XCTUnwrap(ScreenshotPresentationRenderer.renderWithLayout(contentImage: image, presentation: presentation))
+
+        XCTAssertGreaterThan(result.layout.screenRect.minX, result.layout.subjectRect.minX)
+        XCTAssertGreaterThan(result.layout.screenRect.minY, result.layout.subjectRect.minY)
+        XCTAssertLessThan(result.layout.screenRect.maxX, result.layout.subjectRect.maxX)
+        XCTAssertLessThan(result.layout.screenRect.maxY, result.layout.subjectRect.maxY)
+
+        let bezelSample = samplePixel(
+            in: result.image,
+            topLeftX: Int(result.layout.subjectRect.minX + max((result.layout.screenRect.minX - result.layout.subjectRect.minX) * 0.5, 1)),
+            topLeftY: Int(result.layout.subjectRect.midY)
+        )
+        XCTAssertLessThan(bezelSample.red, 60)
+        XCTAssertLessThan(bezelSample.green, 70)
+        XCTAssertLessThan(bezelSample.blue, 80)
+    }
+
+    func testPresentationBlurredScreenshotBackgroundUsesSourcePixels() throws {
+        let image = makeCoordinateImage(width: 120, height: 90, pattern: .weighted(xMultiplier: 9, yMultiplier: 13, includeBlueSum: true))
+        let presentation = ScreenshotPresentation(
+            isEnabled: true,
+            background: .blurredScreenshot(tint: RGBAColor(red: 0.10, green: 0.12, blue: 0.16, alpha: 0.28)),
+            canvas: .custom(width: 320, height: 220),
+            subjectPlacement: PresentationSubjectPlacement(scale: 0.62),
+            padding: 30,
+            cornerRadius: 12,
+            shadow: .off
+        )
+
+        let result = try XCTUnwrap(ScreenshotPresentationRenderer.renderWithLayout(contentImage: image, presentation: presentation))
+        let topLeft = samplePixel(in: result.image, topLeftX: 8, topLeftY: 8)
+        let bottomRight = samplePixel(in: result.image, topLeftX: result.image.width - 9, topLeftY: result.image.height - 9)
+
+        XCTAssertGreaterThan(topLeft.alpha, 230)
+        XCTAssertGreaterThan(bottomRight.alpha, 230)
+        XCTAssertGreaterThan(colorDistance(topLeft, bottomRight), 8)
+    }
+
     func testBlurRedactionSamplesCompositedContentBelowIt() {
         let image = makeCoordinateImage(width: 60, height: 40)
         let overlay = Annotation.makeRectangle(

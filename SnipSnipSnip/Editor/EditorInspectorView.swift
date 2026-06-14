@@ -100,40 +100,36 @@ struct EditorInspectorView: View {
     let captureHistorySearchResultsLabel: String
     let actions: EditorHistoryActions
     @Binding var previewedHistoryEntry: DocumentHistoryEntry?
-    let dragOutPayloadProvider: @MainActor () -> PromisedFilePayload?
     @State private var isShowingRecycleBin = false
-    @State private var isShowingPresentationPreview = false
-    @State private var isShowingPresentationCustomization = false
-    @State private var isShowingShadowFineTuning = false
 
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    if showsUIMapInspectionSection {
-                        uiMapInspectionSection
+                    if FeatureFlags.presentationStylingEnabled && controller.workspaceMode == .presentation {
+                        PresentationInspectorView(controller: controller)
                     } else {
-                        styleSection
+                        if showsUIMapInspectionSection {
+                            uiMapInspectionSection
+                        } else {
+                            styleSection
 
-                        if controller.showsTextAlignmentControls || controller.canAlignSelection {
-                            alignmentSection
+                            if controller.showsTextAlignmentControls || controller.canAlignSelection {
+                                alignmentSection
+                            }
                         }
-                    }
 
-                    if controller.showsCropControls {
-                        cropSection
-                    }
+                        if controller.showsCropControls {
+                            cropSection
+                        }
 
-                    if FeatureFlags.presentationStylingEnabled {
-                        presentationSection
-                    }
+                        changeHistorySection
 
-                    changeHistorySection
-
-                    if !recentSnipEntries.isEmpty
-                        || !captureHistoryEntries.isEmpty
-                        || !captureSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        recentSnipsSection
+                        if !recentSnipEntries.isEmpty
+                            || !captureHistoryEntries.isEmpty
+                            || !captureSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            recentSnipsSection
+                        }
                     }
                 }
                 .padding(16)
@@ -151,13 +147,6 @@ struct EditorInspectorView: View {
                 actions: actions
             )
             .frame(minWidth: 620, minHeight: 520)
-        }
-        .sheet(isPresented: $isShowingPresentationPreview) {
-            PresentationPreviewSheetView(
-                controller: controller,
-                dragOutPayloadProvider: dragOutPayloadProvider
-            )
-            .frame(minWidth: 720, minHeight: 620)
         }
     }
 
@@ -285,178 +274,6 @@ struct EditorInspectorView: View {
                 }
             }
         )
-    }
-
-    private var presentationSection: some View {
-        GroupBox("Presentation") {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Choose a Look")
-                    .font(.caption.weight(.semibold))
-
-                HStack(spacing: 8) {
-                    ForEach(ScreenshotPresentationPreset.allCases) { preset in
-                        Button(preset.label) {
-                            deferPublish { controller.applyPresentationPreset(preset) }
-                        }
-                        .buttonStyle(SSSChromeButtonStyle(tint: .secondary, isSelected: controller.presentation == preset.settings))
-                    }
-                }
-
-                Text(presentationSummary)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-
-                DisclosureGroup("Customize", isExpanded: $isShowingPresentationCustomization) {
-                    presentationCustomizationControls
-                }
-
-                if controller.requiresPNGForFaithfulExport {
-                    Text("Transparent background preserves shadows with PNG. JPEG and PDF are disabled in the editor toolbar Export menu while this is active.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Divider()
-
-                Button {
-                    isShowingPresentationPreview = true
-                } label: {
-                    GeometryReader { proxy in
-                        ZStack(alignment: .bottomTrailing) {
-                            LivePresentationThumbnailView(
-                                controller: controller,
-                                thumbnailSize: CGSize(width: max(proxy.size.width, 220), height: 176),
-                                cornerRadius: 16,
-                                contentMode: .fit
-                            )
-
-                            Image(systemName: "magnifyingglass")
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(.primary)
-                                .frame(width: 30, height: 30)
-                                .glassEffect(.regular.interactive(), in: .circle)
-                                .padding(10)
-                        }
-                    }
-                    .frame(height: 176)
-                }
-                .buttonStyle(.plain)
-                .help("Open a larger preview of the final export styling.")
-
-                Text("Preview the current export styling before you copy, share, or save.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private var presentationSummary: String {
-        switch ScreenshotPresentationPreset.allCases.first(where: { controller.presentation == $0.settings }) {
-        case .some(.plain):
-            return "Original screenshot with no added styling."
-        case .some(.lifted):
-            return "A polished canvas with comfortable spacing and depth."
-        case .some(.transparentShadow):
-            return "A classic drop shadow on a transparent background."
-        case nil:
-            return "Custom presentation styling."
-        }
-    }
-
-    private var presentationCustomizationControls: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Toggle("Transparent Background", isOn: Binding(get: {
-                controller.presentation.isTransparent
-            }, set: { value in
-                deferPublish { controller.updatePresentationBackgroundIsTransparent(value) }
-            }))
-            .toggleStyle(.switch)
-
-            if !controller.presentation.isTransparent {
-                Text("Canvas Color")
-                    .font(.caption.weight(.semibold))
-                paletteRow(selection: controller.presentationBackgroundColor, action: controller.updatePresentationBackgroundColor)
-            }
-
-            presentationSlider(
-                "Spacing",
-                value: controller.presentation.padding,
-                range: 0...96,
-                step: 2,
-                help: "Add canvas space around the screenshot.",
-                action: controller.updatePresentationPadding
-            )
-            presentationSlider(
-                "Corners",
-                value: controller.presentation.cornerRadius,
-                range: 0...100,
-                step: 1,
-                help: "Round the screenshot corners.",
-                action: controller.updatePresentationCornerRadius
-            )
-
-            Picker("Shadow", selection: Binding(get: {
-                controller.presentation.shadow
-            }, set: { shadow in
-                deferPublish { controller.updatePresentationShadow(shadow) }
-            })) {
-                ForEach(ScreenshotShadowStyle.allCases) { shadow in
-                    Text(shadow.label).tag(shadow)
-                }
-            }
-            .help("Choose a ready-made shadow style.")
-
-            if controller.presentation.shadow != .off {
-                DisclosureGroup("Fine Tune Shadow", isExpanded: $isShowingShadowFineTuning) {
-                    shadowFineTuningControls
-                }
-            }
-        }
-        .padding(.top, 8)
-    }
-
-    private var shadowFineTuningControls: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center, spacing: 12) {
-                Text("Direction")
-                Spacer(minLength: 8)
-                ShadowDirectionPicker(
-                    selection: controller.presentation.shadowDirection,
-                    action: { direction in
-                        deferPublish { controller.updatePresentationShadowDirection(direction) }
-                    }
-                )
-            }
-
-            presentationSlider("Softness", value: controller.presentation.shadowBlurRadius, range: 0...96, step: 2, help: "Blur the shadow edge.", action: controller.updatePresentationShadowBlurRadius)
-            presentationSlider("Horizontal", value: abs(controller.presentation.shadowOffsetX), range: 0...72, step: 2, help: "Move the shadow sideways.", action: controller.updatePresentationShadowOffsetX)
-            presentationSlider("Vertical", value: abs(controller.presentation.shadowOffsetY), range: 0...72, step: 2, help: "Move the shadow up or down.", action: controller.updatePresentationShadowOffsetY)
-            presentationSlider("Darkness", value: controller.presentation.shadowOpacity, range: 0...0.75, step: 0.01, help: "Adjust shadow darkness.", action: controller.updatePresentationShadowOpacity, displaysPercent: true)
-        }
-        .padding(.top, 8)
-    }
-
-    private func presentationSlider(
-        _ label: String,
-        value: CGFloat,
-        range: ClosedRange<CGFloat>,
-        step: CGFloat,
-        help: String,
-        action: @escaping (CGFloat) -> Void,
-        displaysPercent: Bool = false
-    ) -> some View {
-        HStack {
-            Text(label)
-                .help(help)
-            InspectorSlider(value: Binding(get: {
-                value
-            }, set: { newValue in
-                deferPublish { action(newValue) }
-            }), range: range, step: step)
-            Text(displaysPercent ? "\(Int((value * 100).rounded()))%" : "\(Int(value))")
-                .monospacedDigit()
-                .frame(width: 34)
-        }
     }
 
     private var styleSection: some View {
@@ -1051,94 +868,6 @@ struct EditorInspectorView: View {
     }
 }
 
-private struct LivePresentationThumbnailView: View {
-    @ObservedObject var controller: EditorController
-    var thumbnailSize = CGSize(width: 96, height: 64)
-    var cornerRadius: CGFloat = 10
-    var contentMode: ContentMode = .fill
-    @State private var previewImage: CGImage?
-
-    private var presentationBackgroundID: String {
-        switch controller.presentation.background {
-        case .transparent:
-            return "transparent"
-        case let .solid(color):
-            return "solid:\(color.red):\(color.green):\(color.blue):\(color.alpha)"
-        }
-    }
-
-    private var renderID: String {
-        [
-            "\(controller.canvasRevision)",
-            "\(controller.persistenceRevision)",
-            "\(controller.presentation.isEnabled)",
-            "\(controller.presentation.padding)",
-            "\(controller.presentation.cornerRadius)",
-            controller.presentation.shadow.rawValue,
-            "\(controller.presentation.shadowBlurRadius)",
-            "\(controller.presentation.shadowOffsetX)",
-            "\(controller.presentation.shadowOffsetY)",
-            "\(controller.presentation.shadowOpacity)",
-            presentationBackgroundID,
-            "\(Int(thumbnailSize.width))x\(Int(thumbnailSize.height))",
-        ].joined(separator: "|")
-    }
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.98),
-                            Color(red: 0.88, green: 0.91, blue: 0.96),
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .overlay {
-                    if controller.presentation.isTransparent {
-                        CheckerboardPattern()
-                            .opacity(0.28)
-                            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                    }
-                }
-
-            if let previewImage {
-                Image(decorative: previewImage, scale: 1)
-                    .resizable()
-                    .aspectRatio(contentMode: contentMode)
-                    .frame(
-                        width: max(thumbnailSize.width - 28, 1),
-                        height: max(thumbnailSize.height - 28, 1)
-                    )
-                    .shadow(color: .black.opacity(0.18), radius: 12, y: 5)
-            } else {
-                RoundedRectangle(cornerRadius: max(cornerRadius - 4, 4), style: .continuous)
-                    .fill(Color.white.opacity(0.55))
-                    .frame(
-                        width: max(thumbnailSize.width - 28, 1),
-                        height: max(thumbnailSize.height - 28, 1)
-                    )
-                    .overlay {
-                        Image(systemName: "photo")
-                            .foregroundStyle(.secondary)
-                    }
-            }
-        }
-        .frame(width: thumbnailSize.width, height: thumbnailSize.height)
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .stroke(Color.black.opacity(0.12), lineWidth: 1)
-        }
-        .shadow(color: .black.opacity(0.14), radius: 14, y: 6)
-        .task(id: renderID) {
-            previewImage = controller.exportedImage()
-        }
-    }
-}
 
 private struct PaletteSwatchView: View {
     let option: PaletteColorOption
@@ -1186,7 +915,7 @@ private struct ColorSampleSwatchView: View {
     }
 }
 
-private struct ShadowDirectionPicker: View {
+struct ShadowDirectionPicker: View {
     let selection: ScreenshotShadowDirection
     let action: (ScreenshotShadowDirection) -> Void
 
@@ -1239,7 +968,8 @@ private struct ShadowDirectionPicker: View {
     }
 }
 
-private struct ShadowDirectionGridLines: Shape {
+
+struct ShadowDirectionGridLines: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
         let thirdWidth = rect.width / 3
@@ -1259,7 +989,7 @@ private struct ShadowDirectionGridLines: Shape {
     }
 }
 
-private struct InspectorSlider: NSViewRepresentable {
+struct InspectorSlider: NSViewRepresentable {
     @Binding var value: CGFloat
     let range: ClosedRange<CGFloat>
     let step: CGFloat
@@ -1314,7 +1044,7 @@ private struct InspectorSlider: NSViewRepresentable {
     }
 }
 
-private struct CheckerboardPattern: View {
+struct CheckerboardPattern: View {
     private let tileSize: CGFloat = 5
 
     var body: some View {
@@ -1826,99 +1556,6 @@ private struct HistoryEntryRowView: View, Equatable {
                 .controlSize(.small)
                 .help(deleteHelp)
             }
-        }
-    }
-}
-
-private struct PresentationPreviewSheetView: View {
-    @ObservedObject var controller: EditorController
-    let dragOutPayloadProvider: @MainActor () -> PromisedFilePayload?
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        GeometryReader { proxy in
-            let previewHeight = max(360, min(proxy.size.height * 0.68, 700))
-
-            VStack(alignment: .leading, spacing: 20) {
-                HStack(alignment: .top, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Presentation Preview")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-
-                        Text("Final Export")
-                            .font(.title2.weight(.semibold))
-
-                        Text("Live preview of the current crop, annotations, and presentation styling.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    Button(action: dismiss.callAsFunction) {
-                        Label("Close", systemImage: "xmark")
-                    }
-                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-                    .keyboardShortcut(.cancelAction)
-                    .help("Close this preview.")
-                }
-
-                ZStack(alignment: .bottomLeading) {
-                    RoundedRectangle(cornerRadius: 26, style: .continuous)
-                        .fill(Color(nsColor: .controlBackgroundColor))
-
-                    LivePresentationThumbnailView(
-                        controller: controller,
-                        thumbnailSize: CGSize(width: max(proxy.size.width - 120, 420), height: previewHeight - 44),
-                        cornerRadius: 22,
-                        contentMode: .fit
-                    )
-                    .padding(22)
-                    .overlay {
-                        PromisedFileDragView(
-                            accessibilityLabel: "Drag presentation preview to share",
-                            payloadProvider: dragOutPayloadProvider,
-                            showsIcon: false
-                        )
-                        .help("Drag this styled screenshot into Finder, Mail, or another app.")
-                    }
-
-                    Label("Drag preview to share. This preview updates with the current presentation settings.", systemImage: "wand.and.stars")
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .glassEffect(.regular, in: .capsule)
-                        .padding(18)
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: previewHeight)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 26, style: .continuous)
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                }
-
-                HStack(spacing: 12) {
-                    Label(
-                        controller.requiresPNGForFaithfulExport ? "Transparent presentation keeps shadow fidelity only in PNG." : "Copy, Share, and Export use this presentation result.",
-                        systemImage: controller.requiresPNGForFaithfulExport ? "exclamationmark.circle.fill" : "checkmark.circle.fill"
-                    )
-                    .font(.footnote)
-                    .foregroundStyle(controller.requiresPNGForFaithfulExport ? .orange : .secondary)
-
-                    Spacer()
-
-                    Button(action: dismiss.callAsFunction) {
-                        Label("Back to Editing", systemImage: "chevron.backward")
-                    }
-                    .buttonStyle(HistoryPreviewSecondaryButtonStyle())
-                    .help("Close this preview and return to editing.")
-                }
-            }
-            .padding(28)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(Color(nsColor: .windowBackgroundColor))
         }
     }
 }

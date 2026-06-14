@@ -73,7 +73,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "What happens after capture",
-                            body: "Screenshots open in the editor. Screen recordings open in the video editor. Auto Copy is on by default, so the current rendered screenshot is copied after capture and after editor changes."
+                            body: "Screenshots open in the editor. Screen recordings open in the video editor. Auto Copy is on by default, so the current rendered screenshot is copied after capture and after editor annotation changes."
                         ),
                         HelpArticleSection(
                             title: "Start on login",
@@ -467,7 +467,7 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Choose a tool",
-                            body: "The toolbar includes Select, Rectangle, Ellipse, Line, Arrow, Freehand, Highlighter, Highlight Box, Text, Callout, Ruler, Spotlight, Copy Text, Redaction, and Import Image. For Window captures with UI Map metadata, the lower toolbar also includes Show UI Map and Pin UI Map."
+                            body: "The toolbar includes Select, Rectangle, Ellipse, Line, Arrow, Freehand, Highlighter, Highlight Box, Text, Callout, Ruler, Spotlight, Copy Text, Redaction, Import Image, and Presentation. Presentation switches to a final-export styling workspace without changing the screenshot annotation tools. For Window captures with UI Map metadata, the lower toolbar also includes Show UI Map and Pin UI Map."
                         ),
                         HelpArticleSection(
                             title: "Select and arrange annotations",
@@ -475,7 +475,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Use the inspector",
-                            body: "The right inspector changes with the active tool or selection. Use it to adjust style, colors, text size, effect strength, image overlay opacity, UI Map display and pin options when available, crop values, callout step guides, Change History, Recent Snips, search, and the Recycle Bin."
+                            body: "The right inspector changes with the active tool, selection, or workspace. Use it to adjust style, colors, text size, effect strength, image overlay opacity, UI Map display and pin options when available, crop values, Presentation Styles and Scenes, callout step guides, Change History, Recent Snips, search, and the Recycle Bin."
                         )
                     ],
                     important: [
@@ -647,11 +647,27 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Use Copy or Share",
-                            body: "Copy and Share use the current rendered screenshot: crop, annotations, presentation settings when enabled, and flattened redactions."
+                            body: "Use the editor toolbar Copy menu for Copy Styled or Copy Plain. Copy Styled and Share use the current rendered screenshot: crop, annotations, presentation settings when enabled, and flattened redactions. Copy Plain bypasses the presentation wrapper while keeping crop, annotations, and flattened redactions. Presentation styling changes do not auto-copy while you are in Presentation mode; use Copy Styled when you want the current styled result on the clipboard."
                         ),
                         HelpArticleSection(
                             title: "Export screenshots",
-                            body: "Use the editor toolbar Export menu, or choose Export PNG, Export JPEG, or Export PDF from the File menu. In Presentation, start with Plain, Canvas, or Drop Shadow. Open Customize only when you need to adjust the background, spacing, corners, or shadow. Transparent presentation output uses PNG so rounded corners and shadows can stay on alpha."
+                            body: "Click Presentation in the editor toolbar to switch into a focused export workspace. Presentation mode hides annotation tools and shows Back to Edit, zoom, Save Variant, Copy Styled, Copy Plain, Export Styled, Share, Float, and drag-out actions. The Style tab handles fast native polish such as transparent, solid, gradient, spotlight, or blurred-screenshot backgrounds, spacing, corners, and shadows. Use the Scene tab for browser, window, phone, tablet, and other template-driven layouts. Transparent presentation output uses PNG so rounded corners and shadows can stay on alpha."
+                        ),
+                        HelpArticleSection(
+                            title: "Use Presentation Scenes",
+                            body: "The Scene tab applies SVG templates from the Presentation Scenes folder. Scenes are grouped as Bundled or User, can expose editable text fields, and embed a sanitized snapshot of the SVG in the .sss document so the styled export can render later without depending on the original file. Use Framing to choose Auto, Show Full, Fill, edge focus presets, or Actual Size for the screenshot slot."
+                        ),
+                        HelpArticleSection(
+                            title: "Adjust scene framing",
+                            body: "Auto tries to fit arbitrary screenshot sizes into the scene slot. If the result needs correction, open Adjust to change alignment, scale, or nudge the screenshot. Drag inside the scene screenshot slot to reposition it, use Option-scroll or pinch inside the slot to scale it, and double-click or Reset Framing to return to the scene default."
+                        ),
+                        HelpArticleSection(
+                            title: "Save presentations in a document",
+                            body: "The Variants section stores named presentation variants inside the current .sss document. Save the current style or scene as a variant, then open Manage Variants to apply, rename, update, duplicate, or delete saved variants as the document evolves. Global Style templates remain app preferences; variants travel with the .sss file."
+                        ),
+                        HelpArticleSection(
+                            title: "Manage scene files",
+                            body: "The Scene tab includes Scene Files controls for revealing the User scenes folder and reloading scene files. Settings > General > Editor still lets you choose, reveal, reset, or reload the root Presentation Scenes folder. The default folder contains Bundled and User subfolders. Add custom SVG files to User. Bundled scenes use a metadata block with schema com.oontz.snipsnipsnip.presentation-scene and data-sss-slot markers; remote URLs, file URLs, scripts, foreignObject, animation, and event handlers are rejected. Scene diagnostics appear only when there is something to review."
                         ),
                         HelpArticleSection(
                             title: "Import from Finder or Photos",
@@ -659,7 +675,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Drag output into another app",
-                            body: "Drag the file icon beside Share to send the current rendered screenshot to Finder, Mail, or another app. You can also drag the large Presentation Preview. If you click without dragging, SnipSnipSnip shows a short reminder explaining how to use drag-out sharing. During the drag, the editor window temporarily hides so you can reach the destination, then returns when the drag finishes. Settings > General > Export & Sharing controls whether screenshot drag-out normally uses PNG, JPEG, or PDF and sets JPEG quality. Transparent presentation shadows automatically use PNG so the result stays faithful."
+                            body: "Drag the file icon beside Share to send the current rendered screenshot to Finder, Mail, or another app. If you click without dragging, SnipSnipSnip shows a short reminder explaining how to use drag-out sharing. During the drag, the editor window temporarily hides so you can reach the destination, then returns when the drag finishes. Settings > General > Export & Sharing controls whether screenshot drag-out normally uses PNG, JPEG, or PDF and sets JPEG quality. Transparent presentation shadows automatically use PNG so the result stays faithful."
                         ),
                         HelpArticleSection(
                             title: "Save editable work",
