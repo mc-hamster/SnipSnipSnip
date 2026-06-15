@@ -391,11 +391,7 @@ private final class PresentationViewportEventHostView: NSView {
     override func magnify(with event: NSEvent) {
         synchronizeViewport()
         let point = convert(event.locationInWindow, from: nil)
-        if isInsideSceneSlot(point) {
-            controller.scaleAppliedPresentationSceneFraming(by: max(1 + event.magnification, 0.05))
-        } else {
-            controller.magnifyViewport(by: event.magnification, anchoredAt: point)
-        }
+        controller.magnifyViewport(by: event.magnification, anchoredAt: point)
     }
 
     override func scrollWheel(with event: NSEvent) {
@@ -403,9 +399,7 @@ private final class PresentationViewportEventHostView: NSView {
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let point = convert(event.locationInWindow, from: nil)
 
-        if modifiers.contains(.option), isInsideSceneSlot(point) {
-            controller.scaleAppliedPresentationSceneFraming(by: exp(event.scrollingDeltaY / 300))
-        } else if modifiers.contains(.command) || modifiers.contains(.option) {
+        if modifiers.contains(.command) || modifiers.contains(.option) {
             controller.zoomViewportFromScrollWheel(deltaY: event.scrollingDeltaY, anchoredAt: point)
         } else {
             controller.panViewport(by: CGSize(width: event.scrollingDeltaX, height: event.scrollingDeltaY))

@@ -659,7 +659,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Adjust scene framing",
-                            body: "Auto tries to fit arbitrary screenshot sizes into the scene slot. If the result needs correction, open Adjust to change alignment, scale, or nudge the screenshot. Drag inside the scene screenshot slot to reposition it, use Option-scroll or pinch inside the slot to scale it, and double-click or Reset Framing to return to the scene default."
+                            body: "Auto tries to fit arbitrary screenshot sizes into the scene slot. If the result needs correction, open Adjust to change alignment, scale, or nudge the screenshot. Drag inside the scene screenshot slot to reposition it. Pinch, Command-scroll, and Option-scroll always zoom the full Presentation preview. Double-click the slot or use Reset Framing to return to the scene default."
                         ),
                         HelpArticleSection(
                             title: "Save presentations in a document",
