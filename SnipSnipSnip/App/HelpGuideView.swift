@@ -90,7 +90,7 @@ struct HelpGuideView: View {
                     ],
                     important: [
                         "Screen Recording permission is required before macOS lets SnipSnipSnip capture pixels or show live window thumbnails.",
-                        "Support requests and feature requests are handled through Help > Support (Discord)."
+                        "Support requests and feature requests start from Help > Support."
                     ] + (FeatureFlags.scrollingCaptureEnabled || FeatureFlags.uiMapEnabled
                         ? ["Accessibility permission is required for Window UI Map metadata capture\(FeatureFlags.scrollingCaptureEnabled ? " and Scrolling Capture" : ""). Region and Fullscreen captures do not require Accessibility because of UI Map."]
                         : []),
@@ -105,7 +105,7 @@ struct HelpGuideView: View {
                             title: "Screen Recording",
                             body: "Required for screenshot pixels, live window thumbnails, and screen recording. If it is missing, captures can be blank and window previews may not appear.",
                             steps: [
-                                "Click the Screen Recording Grant button in SnipSnipSnip.",
+                                "Click Continue beside Screen Recording in SnipSnipSnip.",
                                 "Allow SnipSnipSnip in System Settings > Privacy & Security > Screen Recording.",
                                 "Quit and reopen SnipSnipSnip if macOS asks you to."
                             ]
@@ -124,7 +124,7 @@ struct HelpGuideView: View {
                                         ? "Required for Window capture when Enable UI Map for Window captures is on. SnipSnipSnip uses it to read visible interface element names, roles, identifiers, and locations from the selected window during a user-initiated Window capture."
                                         : "Required only for Scrolling Capture. SnipSnipSnip uses it to scroll the selected app while collecting segments.",
                                 steps: [
-                                    "Click the Accessibility Grant button in SnipSnipSnip.",
+                                    "Click Continue beside Accessibility in SnipSnipSnip.",
                                     "Allow SnipSnipSnip in System Settings > Privacy & Security > Accessibility.",
                                     "If SnipSnipSnip is not listed, open the setup guide, choose Reveal App, and add that exact app with the + button."
                                 ]

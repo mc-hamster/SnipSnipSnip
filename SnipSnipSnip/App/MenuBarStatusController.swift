@@ -476,7 +476,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
                 isOn: model.uiMapEnabled,
                 enabled: true,
                 toolTip: model.windowUIMapNeedsAccessibilityAccess
-                    ? "Grant Accessibility access before Window UI Map metadata can be captured."
+                    ? "Allow Accessibility access before Window UI Map metadata can be captured."
                     : "Save available names, roles, identifiers, and locations of visible interface elements when capturing a window."
             ))
         }

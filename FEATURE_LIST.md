@@ -301,7 +301,7 @@ The biggest unfinished areas are now clear:
 
 | Requirement | Status | Current implementation | Remaining gap or limitation |
 | --- | --- | --- | --- |
-| In-app support links | ✓ Done | Help links to the website, privacy policy, and Discord support. | Add support flows that gather useful diagnostics. |
+| In-app support links | ✓ Done | Help links to the website, privacy policy, and support page. | Add support flows that gather useful diagnostics. |
 | Internal diagnostics logging | ~ Partial | Internal logging exists for scrolling capture, history preview loading, and video export. | This is not yet a support-grade diagnostics system. |
 | User-facing diagnostics bundle export | ✓ Done | Settings > Privacy > Export Diagnostics writes a local JSON report with sanitized app/build target, macOS, feature flags, permissions, display summaries, archive/clipboard/video-relevant storage summaries, connected-device state, launch-at-login state, and recent sanitized statuses. | Extend carefully as support needs grow; do not include screenshots, OCR text, clipboard contents, annotation text, document data, window titles, or raw paths. |
 | Crash reporting | x Not done | No crash reporting integration was found. | Keep privacy-first if added. |

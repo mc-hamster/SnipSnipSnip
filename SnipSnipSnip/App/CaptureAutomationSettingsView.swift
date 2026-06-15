@@ -35,8 +35,8 @@ struct CaptureAutomationSettingsView: View {
 
                 Section("Help & Onboarding") {
                     Button("Show Onboarding Again", action: model.requestOnboardingPresentation)
-                    Button("Open Support on Discord") {
-                        NSWorkspace.shared.open(AppLinks.supportDiscord)
+                    Button("Open Support Page") {
+                        NSWorkspace.shared.open(AppLinks.support)
                     }
 
                     if FeatureFlags.proUpdateCheckEnabled {
@@ -48,8 +48,8 @@ struct CaptureAutomationSettingsView: View {
                     }
 
                     SettingsHelpText(FeatureFlags.proUpdateCheckEnabled
-                        ? "Replay onboarding whenever you want a guided walkthrough. Support requests and feature requests go through Discord. Pro update checks read the latest GitHub release and send you there to download the newest package."
-                        : "Replay onboarding whenever you want a guided walkthrough. Support requests and feature requests go through Discord.")
+                        ? "Replay onboarding whenever you want a guided walkthrough. Support requests and feature requests start from the support page. Pro update checks read the latest GitHub release and send you there to download the newest package."
+                        : "Replay onboarding whenever you want a guided walkthrough. Support requests and feature requests start from the support page.")
                 }
 
                 Section("Screenshot Capture") {
@@ -100,7 +100,7 @@ struct CaptureAutomationSettingsView: View {
 
                                 Spacer()
 
-                                Button("Grant Accessibility") {
+                                Button("Continue") {
                                     model.requestAccessibilityAccess()
                                 }
                             }
@@ -1069,9 +1069,9 @@ private struct PermissionStatusRow: View {
         HStack {
             Label(requirement.title, systemImage: requirement.systemImage)
             Spacer()
-            Text(hasAccess ? "Granted" : "Missing")
+            Text(hasAccess ? "Allowed" : "Missing")
                 .foregroundStyle(hasAccess ? .green : .orange)
-            Button(hasAccess ? "Open Settings" : "Grant") {
+            Button(hasAccess ? "Open Settings" : "Continue") {
                 if hasAccess {
                     model.openPermissionSettings(requirement)
                 } else {
