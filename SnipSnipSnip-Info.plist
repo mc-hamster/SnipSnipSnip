@@ -15,7 +15,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>97</string>
+	<string>100</string>
 	<key>CFBundleDisplayName</key>
 	<string>SnipSnipSnip</string>
 	<key>SnipBuildTarget</key>
