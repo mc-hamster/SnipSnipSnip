@@ -37,16 +37,16 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
             return "Capture faster, edit immediately, and keep recovery close by."
         case .permissions:
             if FeatureFlags.scrollingCaptureEnabled {
-                return "Unlock capture pixels and scrolling capture with one-time macOS permissions."
+                return "Set up capture pixels and scrolling capture with one-time macOS permissions."
             }
 
-            return "Unlock capture pixels, live window thumbnails, and recording with one-time macOS permissions."
+            return "Set up capture pixels, live window thumbnails, and recording with one-time macOS permissions."
         case .uiMap:
             return "Choose whether screenshots save visible interface metadata."
         case .startup:
             return "Keep SnipSnipSnip ready right after login if you want the easiest setup."
         case .support:
-            return "Find help fast and send support requests or feature requests through Discord."
+            return "Find help fast and send support requests or feature requests from the support page."
         }
     }
 
@@ -412,7 +412,7 @@ struct OnboardingView: View {
             }
 
             actionGroup {
-                Button("Grant Missing Access", action: model.requestMissingCapturePermissions)
+                Button("Continue", action: model.requestMissingCapturePermissions)
                     .buttonStyle(SSSChromeButtonStyle())
 
                 Button("Open Help Guide") {
@@ -452,7 +452,7 @@ struct OnboardingView: View {
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.orange)
 
-                        Button("Grant Accessibility") {
+                        Button("Continue") {
                             model.requestAccessibilityAccess()
                         }
                         .buttonStyle(SSSChromeButtonStyle(tint: .orange))
@@ -546,7 +546,7 @@ struct OnboardingView: View {
 
             onboardingFeatureCard(
                 title: "Support and Feature Requests",
-                detail: "Join Discord for support requests, bug reports, and feature requests. That's the fastest way to reach the project.",
+                detail: "Open the support page for setup help, bug reports, support requests, and feature requests.",
                 systemImage: "bubble.left.and.bubble.right",
                 metrics: metrics
             )
@@ -558,8 +558,8 @@ struct OnboardingView: View {
                 }
                 .buttonStyle(SSSChromeButtonStyle())
 
-                Button("Join Discord") {
-                    NSWorkspace.shared.open(AppLinks.supportDiscord)
+                Button("Open Support Page") {
+                    NSWorkspace.shared.open(AppLinks.support)
                 }
                 .buttonStyle(SSSChromeButtonStyle(tint: .pink))
 
@@ -713,7 +713,7 @@ struct OnboardingView: View {
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(.white)
 
-                Text(hasAccess ? "Granted" : "Missing")
+                Text(hasAccess ? "Allowed" : "Missing")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(hasAccess ? .green : .orange)
             }
@@ -721,7 +721,7 @@ struct OnboardingView: View {
     }
 
     private func permissionButton(requirement: CapturePermissionRequirement, hasAccess: Bool) -> some View {
-        Button(hasAccess ? "Open Settings" : "Grant") {
+        Button(hasAccess ? "Open Settings" : "Continue") {
             if hasAccess {
                 model.openPermissionSettings(requirement)
             } else {

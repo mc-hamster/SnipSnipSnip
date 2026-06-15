@@ -219,7 +219,7 @@ private struct HelpCommands: Commands {
 
             Button("Website", action: openWebsite)
             Button("Privacy Policy", action: openPrivacyPolicy)
-            Button("Support (Discord)", action: openSupport)
+            Button("Support", action: openSupport)
         }
     }
 
@@ -238,7 +238,7 @@ private struct HelpCommands: Commands {
     }
 
     private func openSupport() {
-        NSWorkspace.shared.open(AppLinks.supportDiscord)
+        NSWorkspace.shared.open(AppLinks.support)
     }
 }
 

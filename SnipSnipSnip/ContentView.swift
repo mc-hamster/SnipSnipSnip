@@ -378,10 +378,10 @@ struct ContentView: View {
                 Spacer(minLength: 8)
 
                 if headerMissingRequirements.count > 1 {
-                    Button("Grant Next", action: requestNextHeaderPermission)
+                    Button("Continue", action: requestNextHeaderPermission)
                         .buttonStyle(SSSChromeButtonStyle())
                         .controlSize(.small)
-                        .help("Open the next missing macOS privacy permission for SnipSnipSnip.")
+                        .help("Continue to the next missing macOS privacy permission for SnipSnipSnip.")
                 }
             }
 
@@ -480,9 +480,9 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 16) {
                 quickStartStep(
                     systemImage: model.permissionStatus.hasScreenRecording ? "checkmark.shield" : "hand.raised.fill",
-                    title: "Grant Capture Permissions",
+                    title: "Set Up Capture Permissions",
                     detail: model.permissionStatus.hasScreenRecording
-                        ? grantedPermissionsDetail
+                        ? allowedPermissionsDetail
                         : permissionCalloutSummary
                 )
 
@@ -500,9 +500,9 @@ struct ContentView: View {
 
                 HStack(spacing: 10) {
                     if !model.permissionStatus.hasScreenRecording {
-                        Button("Grant Screen Recording", action: model.requestScreenRecordingAccess)
+                        Button("Continue", action: model.requestScreenRecordingAccess)
                             .buttonStyle(SSSChromeButtonStyle())
-                            .help("Ask macOS to grant Screen Recording permission for SnipSnipSnip.")
+                            .help("Continue to the macOS Screen Recording permission prompt for SnipSnipSnip.")
                     }
 
                     Button("Dismiss", action: model.dismissWelcomeCard)
@@ -575,9 +575,9 @@ struct ContentView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
 
-                    Button("Grant Screen Recording Access", action: model.requestScreenRecordingAccess)
+                    Button("Continue", action: model.requestScreenRecordingAccess)
                         .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-                        .help("Open the macOS Screen Recording permission prompt for SnipSnipSnip.")
+                        .help("Continue to the macOS Screen Recording permission prompt for SnipSnipSnip.")
                 } else if model.isLoadingWindowChoices && model.availableWindows.isEmpty {
                     HStack(spacing: 10) {
                         ProgressView()
@@ -1034,12 +1034,12 @@ struct ContentView: View {
 
             Spacer(minLength: 8)
 
-            Button("Grant") {
+            Button("Continue") {
                 model.requestPermission(requirement)
             }
             .buttonStyle(SSSChromeButtonStyle())
             .controlSize(.small)
-            .help("Ask macOS to grant \(requirement.title) permission for SnipSnipSnip.")
+            .help("Continue to the macOS \(requirement.title) permission prompt for SnipSnipSnip.")
 
             Button("Help") {
                 model.presentPermissionSetupGuide(for: requirement)
@@ -1087,31 +1087,31 @@ struct ContentView: View {
 
     private var quickStartDetail: String {
         if FeatureFlags.scrollingCaptureEnabled && FeatureFlags.uiMapEnabled {
-            return "SnipSnipSnip lives in the menu bar. Grant Screen Recording for capture pixels. Accessibility is only needed for Scrolling Capture and Window UI Map."
+            return "SnipSnipSnip lives in the menu bar. Screen Recording enables capture pixels. Accessibility is only needed for Scrolling Capture and Window UI Map."
         }
 
         if FeatureFlags.uiMapEnabled {
-            return "SnipSnipSnip lives in the menu bar. Grant Screen Recording for capture pixels. Accessibility is only needed for Window UI Map."
+            return "SnipSnipSnip lives in the menu bar. Screen Recording enables capture pixels. Accessibility is only needed for Window UI Map."
         }
 
         if FeatureFlags.scrollingCaptureEnabled {
-            return "SnipSnipSnip lives in the menu bar. Grant Screen Recording for capture pixels. Accessibility is only needed for Scrolling Capture."
+            return "SnipSnipSnip lives in the menu bar. Screen Recording enables capture pixels. Accessibility is only needed for Scrolling Capture."
         }
 
-        return "SnipSnipSnip lives in the menu bar. Grant Screen Recording for capture pixels, live window thumbnails, and recording."
+        return "SnipSnipSnip lives in the menu bar. Screen Recording enables capture pixels, live window thumbnails, and recording."
     }
 
-    private var grantedPermissionsDetail: String {
+    private var allowedPermissionsDetail: String {
         if FeatureFlags.scrollingCaptureEnabled && FeatureFlags.uiMapEnabled {
-            return "Screen Recording is enabled. Accessibility can be granted later for Scrolling Capture and Window UI Map."
+            return "Screen Recording is enabled. Accessibility can be allowed later for Scrolling Capture and Window UI Map."
         }
 
         if FeatureFlags.uiMapEnabled {
-            return "Screen Recording is enabled. Accessibility can be granted later for Window UI Map."
+            return "Screen Recording is enabled. Accessibility can be allowed later for Window UI Map."
         }
 
         if FeatureFlags.scrollingCaptureEnabled {
-            return "Screen Recording is enabled. Accessibility can be granted later for Scrolling Capture."
+            return "Screen Recording is enabled. Accessibility can be allowed later for Scrolling Capture."
         }
 
         return "Screen Recording is enabled for this Mac session."
@@ -1247,7 +1247,7 @@ private struct PermissionSetupGuideView: View {
         case .screenRecording:
             return "Open System Settings to Privacy & Security > Screen Recording."
         case .accessibility:
-            return "Click Grant to trigger the macOS Accessibility prompt. Then use the prompt's Open System Settings button, or click Open Settings here to go to Privacy & Security > Accessibility."
+            return "Click Continue to trigger the macOS Accessibility prompt. Then use the prompt's Open System Settings button, or click Open Settings here to go to Privacy & Security > Accessibility."
         }
     }
 

@@ -1739,17 +1739,17 @@ extension AppModel {
 
         if uniqueRequirements == [.accessibility] {
             if featureName == "Window Capture with UI Map" {
-                return "Window UI Map needs Accessibility access so SnipSnipSnip can read visible interface element names, roles, identifiers, and locations from the selected window. If SnipSnipSnip is not listed yet, click Grant once to trigger the macOS prompt, then use the setup guide to reveal and add this exact app."
+                return "Window UI Map needs Accessibility access so SnipSnipSnip can read visible interface element names, roles, identifiers, and locations from the selected window. If SnipSnipSnip is not listed yet, click Continue once to trigger the macOS prompt, then use the setup guide to reveal and add this exact app."
             }
 
-            return "Scrolling Capture needs Accessibility access so SnipSnipSnip can scroll the selected app while capturing. If SnipSnipSnip is not listed yet, click Grant once to trigger the macOS prompt, then use the setup guide to reveal and add this exact app."
+            return "Scrolling Capture needs Accessibility access so SnipSnipSnip can scroll the selected app while capturing. If SnipSnipSnip is not listed yet, click Continue once to trigger the macOS prompt, then use the setup guide to reveal and add this exact app."
         }
 
         if uniqueRequirements == [.screenRecording] {
-            return "\(featureName) needs Screen Recording access so SnipSnipSnip can read pixels from the screen. Click Grant Access in the main window, then enable SnipSnipSnip in System Settings > Privacy & Security > Screen Recording."
+            return "\(featureName) needs Screen Recording access so SnipSnipSnip can read pixels from the screen. Click Continue in the main window, then enable SnipSnipSnip in System Settings > Privacy & Security > Screen Recording."
         }
 
-        return "\(featureName) needs Screen Recording access to capture pixels and Accessibility access to save visible interface element names, roles, identifiers, and locations from the selected window. Click Grant Access in the main window, then enable SnipSnipSnip in System Settings > Privacy & Security."
+        return "\(featureName) needs Screen Recording access to capture pixels and Accessibility access to save visible interface element names, roles, identifiers, and locations from the selected window. Click Continue in the main window, then enable SnipSnipSnip in System Settings > Privacy & Security."
     }
 
     private func uiMapCaptureUnavailableNotice(for capture: CapturedScreenshot) -> String {
@@ -1760,7 +1760,7 @@ extension AppModel {
         }
 
         guard permissionStatus.hasAccessibility else {
-            return "UI Map was not captured. Grant Accessibility access, then capture the window again."
+            return "UI Map was not captured. Allow Accessibility access, then capture the window again."
         }
 
         return "No UI Map metadata was available for this window."
