@@ -11,7 +11,7 @@ final class RegionSelectionSession: NSObject {
     private var coordinator: RegionSelectionCoordinator?
     private var livePreviewSource: LiveDesktopPreviewSource?
     private var overlayWindows: [RegionSelectionWindow] = []
-    private var cursorHidden = false
+    private let cursorVisibility = CaptureCursorVisibilityController()
     private var localEventMonitor: Any?
 
     init(
@@ -37,9 +37,15 @@ final class RegionSelectionSession: NSObject {
             }
         }
 
-        return await withCheckedContinuation { continuation in
-            self.continuation = continuation
-            presentOverlay()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                self.continuation = continuation
+                presentOverlay()
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                self?.finish(with: nil)
+            }
         }
     }
 
@@ -79,23 +85,13 @@ final class RegionSelectionSession: NSObject {
     }
 
     private func setCaptureCursorHidden(_ hidden: Bool) {
-        guard cursorHidden != hidden else {
-            return
-        }
-
-        if hidden {
-            NSCursor.hide()
-        } else {
-            NSCursor.unhide()
-        }
-
-        cursorHidden = hidden
+        cursorVisibility.setHidden(hidden)
     }
 
     private func finish(with selection: RegionCaptureSelection?) {
         let continuation = continuation
         self.continuation = nil
-        setCaptureCursorHidden(false)
+        cursorVisibility.restoreIfNeeded()
         if let localEventMonitor {
             NSEvent.removeMonitor(localEventMonitor)
             self.localEventMonitor = nil

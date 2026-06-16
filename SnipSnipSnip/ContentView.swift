@@ -113,6 +113,14 @@ struct ContentView: View {
             CapturePresetNamingSheetView(model: model)
                 .frame(width: 420)
         }
+        .alert("Presentation Mode is Experimental", isPresented: $model.isShowingPresentationExperimentalNotice) {
+            Button("Join Discord") {
+                NSWorkspace.shared.open(AppLinks.presentationFeedbackDiscord)
+            }
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Presentation mode is still experimental. Join our Discord to share feedback about the feature.")
+        }
         .alert("Capture Error", isPresented: Binding(get: {
             model.errorMessage != nil
         }, set: { value in

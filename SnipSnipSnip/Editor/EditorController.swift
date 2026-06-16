@@ -1119,7 +1119,7 @@ final class EditorController: ObservableObject {
 
     func activateToolbarTool(_ tool: EditorTool) {
         if workspaceMode == .presentation {
-            workspaceMode = .edit
+            setWorkspaceMode(.edit)
         }
 
         if tool == .blur {
@@ -1168,7 +1168,7 @@ final class EditorController: ObservableObject {
 
     func beginImageColorSampling(_ target: ImageColorSamplingTarget) {
         if workspaceMode == .presentation {
-            workspaceMode = .edit
+            setWorkspaceMode(.edit)
         }
 
         imageColorSamplingSourceTool = selectedAnnotation?.editorTool ?? activeTool
@@ -1188,7 +1188,7 @@ final class EditorController: ObservableObject {
 
     func updateRedactionMode(_ mode: RedactionMode) {
         if workspaceMode == .presentation {
-            workspaceMode = .edit
+            setWorkspaceMode(.edit)
         }
 
         storePreferredRedactionMode(mode)
@@ -1253,6 +1253,16 @@ final class EditorController: ObservableObject {
 
         updateViewport(invalidationReason: .cropChrome) {
             $0.updatingContentSize(size, fitToWindow: false)
+        }
+    }
+
+    func restoreEditViewportContentSize() {
+        guard viewport.contentSize != documentCanvasSize else {
+            return
+        }
+
+        updateViewport(invalidationReason: .cropChrome) {
+            $0.updatingContentSize(documentCanvasSize, fitToWindow: false)
         }
     }
 
@@ -1424,8 +1434,11 @@ final class EditorController: ObservableObject {
         }
     }
 
-    func exportedImage() -> CGImage? {
-        presentationPreviewImage(context: "exportedImage")
+    func exportedImage(usingPresentation: Bool = true) -> CGImage? {
+        presentationPreviewImage(
+            presentation: usingPresentation ? nil : .plain,
+            context: usingPresentation ? "exportedImage.styled" : "exportedImage.plain"
+        )
     }
 
     func applySampledColor(at point: CGPoint, toFill: Bool = false) {

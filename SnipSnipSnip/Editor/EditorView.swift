@@ -463,7 +463,7 @@ private struct ActiveEditorToolbarView: View {
                     Label("Float", systemImage: "pin")
                 }
                 .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-                .help("Open the current rendered screenshot as an always-on-top floating reference.")
+                .help("Open the plain annotated screenshot as an always-on-top floating reference.")
 
                 PromisedFileDragView(
                     accessibilityLabel: "Drag rendered screenshot to share",

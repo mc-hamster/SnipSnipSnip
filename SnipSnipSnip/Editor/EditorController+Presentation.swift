@@ -75,6 +75,10 @@ extension EditorController {
             context: "from=\(workspaceMode.rawValue) to=\(mode.rawValue) contentRevision=\(presentationContentRevision) canvasRevision=\(canvasRevision) persistenceRevision=\(persistenceRevision)"
         )
         workspaceMode = mode
+
+        if mode == .edit {
+            restoreEditViewportContentSize()
+        }
     }
 
     func applyPresentationPreset(_ preset: ScreenshotPresentationPreset) {

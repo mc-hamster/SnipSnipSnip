@@ -74,7 +74,8 @@ extension AppModel {
 
         controller.commitPendingTextEdits()
 
-        guard let image = controller.exportedImage() else {
+        let usesPresentation = controller.workspaceMode == .presentation
+        guard let image = controller.exportedImage(usingPresentation: usesPresentation) else {
             errorMessage = "The floating reference image could not be rendered."
             return
         }
@@ -163,6 +164,7 @@ extension AppModel {
         guard let controller = editorController else {
             editorRenderObserver = nil
             editorPersistenceObserver = nil
+            editorWorkspaceModeObserver = nil
 
             if videoEditorController == nil {
                 resetEditorSessionState()
@@ -202,8 +204,23 @@ extension AppModel {
                 self.scheduleAutosave(for: controller)
             }
 
+        editorWorkspaceModeObserver = controller.$workspaceMode
+            .sink { [weak self] mode in
+                self?.handleEditorWorkspaceModeChange(mode)
+            }
+
         updateDocumentChangeTracking()
         refreshRecoveryPresentationState()
+    }
+
+    func handleEditorWorkspaceModeChange(_ mode: EditorWorkspaceMode) {
+        guard mode == .presentation,
+              !hasShownPresentationExperimentalNoticeThisStartup else {
+            return
+        }
+
+        hasShownPresentationExperimentalNoticeThisStartup = true
+        isShowingPresentationExperimentalNotice = true
     }
 
     func copyCurrentEditorImageToClipboard() {
@@ -237,6 +254,7 @@ extension AppModel {
     func resetEditorSessionState() {
         editorRenderObserver = nil
         editorPersistenceObserver = nil
+        editorWorkspaceModeObserver = nil
         videoPersistenceObserver = nil
         textRecognitionCoordinator.cancelAll()
         pendingAutoCopyTask?.cancel()

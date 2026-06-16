@@ -415,6 +415,7 @@ final class AppModel: ObservableObject {
     @Published var connectedDeviceEmptyStateMessage = ConnectedDeviceCaptureMenu.emptyStateMessage
     @Published var isShowingCapturePresetNamingSheet = false
     @Published var capturePresetNameDraft = ""
+    @Published var isShowingPresentationExperimentalNotice = false
 
     var captureService: any ScreenCaptureServiceType
     let uiMapCaptureService: any UIMapCaptureServiceType
@@ -440,6 +441,7 @@ final class AppModel: ObservableObject {
     @Published var lastCaptureRunOptions: CaptureRunOptions?
     var editorRenderObserver: AnyCancellable?
     var editorPersistenceObserver: AnyCancellable?
+    var editorWorkspaceModeObserver: AnyCancellable?
     var videoPersistenceObserver: AnyCancellable?
     var applicationActivationObserver: AnyCancellable?
     var launchAtLoginObserver: AnyCancellable?
@@ -470,6 +472,7 @@ final class AppModel: ObservableObject {
     var pendingCapturePresetDraft: CapturePreset?
     var editableRedactionSaveConfirmationHandler: @MainActor () -> EditableRedactionSaveDecision = AppModel.presentEditableRedactionSaveConfirmation
     var editableRedactionSaveWarningAcknowledgedEditorIDs: Set<ObjectIdentifier> = []
+    var hasShownPresentationExperimentalNoticeThisStartup = false
     var lastAutosavedState: AutosaveState?
     var capturePrivacyLockDepth = 0
     var interactiveCaptureAutosaveSuspensionDepth = 0

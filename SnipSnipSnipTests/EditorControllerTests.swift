@@ -215,6 +215,30 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testPlainExportedImageIgnoresSavedPresentationStyling() throws {
+        let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
+
+        controller.updatePresentationPadding(24)
+
+        let plainImage = try XCTUnwrap(controller.exportedImage(usingPresentation: false))
+
+        XCTAssertEqual(plainImage.width, 160)
+        XCTAssertEqual(plainImage.height, 120)
+
+        guard FeatureFlags.presentationStylingEnabled else {
+            let styledImage = try XCTUnwrap(controller.exportedImage(usingPresentation: true))
+            XCTAssertEqual(styledImage.width, plainImage.width)
+            XCTAssertEqual(styledImage.height, plainImage.height)
+            return
+        }
+
+        let styledImage = try XCTUnwrap(controller.exportedImage(usingPresentation: true))
+
+        XCTAssertGreaterThan(styledImage.width, plainImage.width)
+        XCTAssertGreaterThan(styledImage.height, plainImage.height)
+    }
+
+    @MainActor
     func testEnteringPresentationModeSelectsSelectTool() {
         let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
 
@@ -254,6 +278,29 @@ final class EditorControllerTests: XCTestCase {
             XCTAssertEqual(controller.workspaceMode, .edit)
             XCTAssertEqual(controller.presentation, .plain)
         }
+    }
+
+    @MainActor
+    func testLeavingPresentationModeRestoresEditViewportContentSize() {
+        let originalCrop = CGRect(x: 0, y: 0, width: 160, height: 120)
+        let controller = makeController(snapshot: makeEditorSnapshot(cropRect: originalCrop))
+
+        controller.setWorkspaceMode(.presentation)
+        controller.updatePresentationViewportContentSize(CGSize(width: 900, height: 300))
+
+        guard FeatureFlags.presentationStylingEnabled else {
+            XCTAssertEqual(controller.workspaceMode, .edit)
+            XCTAssertEqual(controller.viewport.contentSize, CGSize(width: 160, height: 120))
+            return
+        }
+
+        XCTAssertEqual(controller.viewport.contentSize, CGSize(width: 900, height: 300))
+
+        controller.setWorkspaceMode(.edit)
+
+        XCTAssertEqual(controller.workspaceMode, .edit)
+        XCTAssertEqual(controller.viewport.contentSize, CGSize(width: 160, height: 120))
+        XCTAssertEqual(controller.snapshot.cropRect, originalCrop)
     }
 
     @MainActor
@@ -316,10 +363,12 @@ final class EditorControllerTests: XCTestCase {
         let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
 
         controller.setWorkspaceMode(.presentation)
+        controller.updatePresentationViewportContentSize(CGSize(width: 900, height: 300))
         controller.activateToolbarTool(.arrow)
 
         XCTAssertEqual(controller.workspaceMode, .edit)
         XCTAssertEqual(controller.activeTool, .arrow)
+        XCTAssertEqual(controller.viewport.contentSize, CGSize(width: 160, height: 120))
     }
 
     @MainActor

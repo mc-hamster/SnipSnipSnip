@@ -21,6 +21,7 @@ private struct HelpArticleSection: Identifiable {
     let body: String?
     let steps: [String]
     let bullets: [String]
+    let links: [HelpArticleLink]
 
     var id: String { title }
 
@@ -28,13 +29,22 @@ private struct HelpArticleSection: Identifiable {
         title: String,
         body: String? = nil,
         steps: [String] = [],
-        bullets: [String] = []
+        bullets: [String] = [],
+        links: [HelpArticleLink] = []
     ) {
         self.title = title
         self.body = body
         self.steps = steps
         self.bullets = bullets
+        self.links = links
     }
+}
+
+private struct HelpArticleLink: Identifiable {
+    let title: String
+    let url: URL
+
+    var id: URL { url }
 }
 
 struct HelpGuideView: View {
@@ -86,6 +96,13 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Open an existing image",
                             body: "Choose File > Import Image to open PNG, JPEG, TIFF, HEIC, GIF, and other common image formats in the screenshot editor. You can also open supported images from Finder with Open With > SnipSnipSnip, or share a photo from Apple Photos to SnipSnipSnip."
+                        ),
+                        HelpArticleSection(
+                            title: "Project links",
+                            body: "Open the GitHub repository for source code, releases, and project activity.",
+                            links: [
+                                HelpArticleLink(title: "mc-hamster/SnipSnipSnip on GitHub", url: AppLinks.gitHubRepository)
+                            ]
                         )
                     ],
                     important: [
@@ -491,8 +508,9 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Create a floating reference",
                             bullets: [
-                                "Click Float in the editor toolbar to pin the current rendered screenshot.",
-                                "Choose Reference > Float Current Screenshot when you prefer the menu command.",
+                                "Click Float in the edit toolbar to pin the current annotated screenshot without the Presentation wrapper.",
+                                "In Presentation mode, click Float to pin the styled presentation output.",
+                                "Choose Reference > Float Current Screenshot when you prefer the menu command; it follows the active editor workspace.",
                                 "Open a Change History, Recent Snip, Capture History, or Recycle Bin preview and click Float Reference to pin that snapshot."
                             ]
                         ),
@@ -651,7 +669,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Export screenshots",
-                            body: "Click Presentation in the editor toolbar to switch into a focused export workspace. Presentation mode hides annotation tools and shows Back to Edit, zoom, Save Variant, Copy Styled, Copy Plain, Export Styled, Share, Float, and drag-out actions. The Style tab handles fast native polish such as transparent, solid, gradient, spotlight, or blurred-screenshot backgrounds, spacing, corners, and shadows. Use the Scene tab for browser, window, phone, tablet, and other template-driven layouts. Transparent presentation output uses PNG so rounded corners and shadows can stay on alpha."
+                            body: "Click Presentation in the editor toolbar to switch into a focused export workspace. The first time you enter Presentation mode after each app startup, SnipSnipSnip shows an experimental-feature notice with a Discord feedback link. Presentation mode hides annotation tools and shows Back to Edit, zoom, Save Variant, Copy Styled, Copy Plain, Export Styled, Share, Float, and drag-out actions. Float in Presentation mode opens the styled result; Float after returning to edit opens the plain annotated editor result. The Style tab handles fast native polish such as transparent, solid, gradient, spotlight, or blurred-screenshot backgrounds, spacing, corners, and shadows. Use the Scene tab for browser, window, phone, tablet, and other template-driven layouts. Transparent presentation output uses PNG so rounded corners and shadows can stay on alpha."
                         ),
                         HelpArticleSection(
                             title: "Use Presentation Scenes",
@@ -914,7 +932,7 @@ private extension HelpArticle {
 
 private extension HelpArticleSection {
     var searchableText: [String] {
-        [title, body].compactMap(\.self) + steps + bullets
+        [title, body].compactMap(\.self) + steps + bullets + links.map(\.title)
     }
 }
 
@@ -1028,6 +1046,19 @@ private struct HelpArticleSectionView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                                 .textSelection(.enabled)
                         }
+                    }
+                }
+            }
+
+            if !section.links.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(section.links) { link in
+                        Link(destination: link.url) {
+                            Label(AppBranding.branded(link.title), systemImage: "arrow.up.right.square")
+                                .labelStyle(.titleAndIcon)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.link)
                     }
                 }
             }
