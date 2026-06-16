@@ -139,6 +139,7 @@ struct ContentView: View {
             model.refreshAvailableWindows()
             handlePendingDocumentOpenRequests()
             handlePendingPasteboardImageImportRequests()
+            handlePendingAutomationRequests()
         }
         .onAppear {
             model.mainWindowDidAppear()
@@ -151,6 +152,9 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .sssPendingPasteboardImageImportsDidChange)) { _ in
             handlePendingPasteboardImageImportRequests()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .sssPendingAutomationRequestsDidChange)) { _ in
+            handlePendingAutomationRequests()
         }
         .onReceive(windowRefreshTimer) { _ in
             guard NSApp.isActive else {
@@ -1091,6 +1095,19 @@ struct ContentView: View {
             named: firstRequest.pasteboardName,
             sourceName: firstRequest.sourceName
         )
+    }
+
+    private func handlePendingAutomationRequests() {
+        let requests = PendingAutomationRequests.drain()
+        guard !requests.isEmpty else {
+            return
+        }
+
+        Task { @MainActor in
+            for request in requests {
+                _ = await model.automationService.perform(request)
+            }
+        }
     }
 
     private var quickStartDetail: String {

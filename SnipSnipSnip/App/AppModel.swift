@@ -445,6 +445,7 @@ final class AppModel: ObservableObject {
     var videoPersistenceObserver: AnyCancellable?
     var applicationActivationObserver: AnyCancellable?
     var launchAtLoginObserver: AnyCancellable?
+    var cachedAutomationService: AppAutomationService?
     var pendingAutoCopyTask: Task<Void, Never>?
     var pendingAutosaveTask: Task<Void, Never>?
     var archiveMaintenanceTask: Task<Void, Never>?

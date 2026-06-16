@@ -22,6 +22,12 @@ description: "Workspace instructions for implementing SnipSnipSnip as a phase-sc
 - Phase 3 adds multi-select, grouping, alignment, snapping, ellipse, line, freehand, highlight, callouts, a style system, and an expanded redaction system.
 - Keep the project sandbox-friendly. Accessibility support is optional enhancement, not a hard dependency for region and fullscreen capture.
 
+## Automation Maintenance
+- If any automation command, option, URL route, AppleScript term, result field, error code, or output behavior changes, update `Docs/AutomationServicePlan.md`, `Docs/Automation/README.md`, and affected scripts in `Docs/Automation/SampleScripts` in the same change.
+- Keep automation sample scripts GitHub-only; do not add them to app build products.
+- Keep automation sample basenames procedure-stable across languages. CLI and AppleScript samples must keep full procedure parity; URL samples must use the same basename for every procedure exposed by v1 URL routes.
+- Keep shell samples syntax-checkable with `bash -n`, and update automation contract tests when parser, route, result, permission, privacy, or output behavior changes.
+
 ## Quality
 - Prefer small, testable value types for geometry and editor state.
 - Add or update tests when changing geometry, command, or rendering logic.

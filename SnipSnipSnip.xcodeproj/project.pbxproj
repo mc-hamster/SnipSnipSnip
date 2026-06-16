@@ -7,11 +7,21 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		12F83C7C6ED5432F5C1E5562 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 01A66FD1E041A8D31B3563EB /* Cocoa.framework */; };
+		23BB43023AE9E021FF0056DD /* snipsnipsnipctl in Embed CLI Helper */ = {isa = PBXBuildFile; fileRef = F6FD52B2EF2C090434B16FBE /* snipsnipsnipctl */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		74EB5FBD5C7E7B3A3C8C980A /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F1398A41C2E4E8516FA5084 /* main.swift */; };
 		A100000A2F84000000A95020 /* SnipSnipSnipShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A10000012F84000000A95020 /* SnipSnipSnipShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A10000102F84000000A95020 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000E2F84000000A95020 /* ShareViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		4244A1CD2053FBE740E9DCC5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 3EEB1E722F83676F00A95020 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8D41E7BF427E68E36F47AD1D;
+			remoteInfo = snipsnipsnipctl;
+		};
 		4A0C010A2F83700100A95020 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 3EEB1E722F83676F00A95020 /* Project object */;
@@ -29,6 +39,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		50B8C12A19E0B93E5DCF291D /* Embed CLI Helper */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Library/Helpers;
+			dstSubfolderSpec = 1;
+			files = (
+				23BB43023AE9E021FF0056DD /* snipsnipsnipctl in Embed CLI Helper */,
+			);
+			name = "Embed CLI Helper";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A100000B2F84000000A95020 /* Embed App Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -43,22 +64,29 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		01A66FD1E041A8D31B3563EB /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
 		3EEB1E7A2F83676F00A95020 /* SnipSnipSnip.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnipSnipSnip.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4A0C01012F83700100A95020 /* SnipSnipSnipTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SnipSnipSnipTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9F1398A41C2E4E8516FA5084 /* main.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		A10000012F84000000A95020 /* SnipSnipSnipShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SnipSnipSnipShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A100000E2F84000000A95020 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		A100000F2F84000000A95020 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B20000012F86000000A95020 /* DevDebug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = DevDebug.xcconfig; sourceTree = "<group>"; };
+		F6FD52B2EF2C090434B16FBE /* snipsnipsnipctl */ = {isa = PBXFileReference; includeInIndex = 0; path = snipsnipsnipctl; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		3EEB1E7C2F83676F00A95020 /* SnipSnipSnip */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = SnipSnipSnip;
 			sourceTree = "<group>";
 		};
 		4A0C01022F83700100A95020 /* SnipSnipSnipTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = SnipSnipSnipTests;
 			sourceTree = "<group>";
 		};
@@ -76,6 +104,14 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6F1549A771DD847D34D5EC03 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				12F83C7C6ED5432F5C1E5562 /* Cocoa.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -97,6 +133,8 @@
 				A10000022F84000000A95020 /* SnipSnipSnipShareExtension */,
 				4A0C01022F83700100A95020 /* SnipSnipSnipTests */,
 				3EEB1E7B2F83676F00A95020 /* Products */,
+				E4787B101AEA17F745983884 /* Frameworks */,
+				732D3328F2D2E6074B0F8077 /* SnipSnipSnipCLI */,
 			);
 			sourceTree = "<group>";
 		};
@@ -106,8 +144,25 @@
 				3EEB1E7A2F83676F00A95020 /* SnipSnipSnip.app */,
 				A10000012F84000000A95020 /* SnipSnipSnipShareExtension.appex */,
 				4A0C01012F83700100A95020 /* SnipSnipSnipTests.xctest */,
+				F6FD52B2EF2C090434B16FBE /* snipsnipsnipctl */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		732D3328F2D2E6074B0F8077 /* SnipSnipSnipCLI */ = {
+			isa = PBXGroup;
+			children = (
+				9F1398A41C2E4E8516FA5084 /* main.swift */,
+			);
+			path = SnipSnipSnipCLI;
+			sourceTree = "<group>";
+		};
+		85D92E70C37B68686F47FD08 /* OS X */ = {
+			isa = PBXGroup;
+			children = (
+				01A66FD1E041A8D31B3563EB /* Cocoa.framework */,
+			);
+			name = "OS X";
 			sourceTree = "<group>";
 		};
 		A10000022F84000000A95020 /* SnipSnipSnipShareExtension */ = {
@@ -127,6 +182,14 @@
 			path = BuildConfigurations;
 			sourceTree = "<group>";
 		};
+		E4787B101AEA17F745983884 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				85D92E70C37B68686F47FD08 /* OS X */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -138,18 +201,18 @@
 				3EEB1E772F83676F00A95020 /* Frameworks */,
 				3EEB1E782F83676F00A95020 /* Resources */,
 				A100000B2F84000000A95020 /* Embed App Extensions */,
+				50B8C12A19E0B93E5DCF291D /* Embed CLI Helper */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				A100000D2F84000000A95020 /* PBXTargetDependency */,
+				B48DC87E8B1133257606F254 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				3EEB1E7C2F83676F00A95020 /* SnipSnipSnip */,
 			);
 			name = SnipSnipSnip;
-			packageProductDependencies = (
-			);
 			productName = SnipSnipSnip;
 			productReference = 3EEB1E7A2F83676F00A95020 /* SnipSnipSnip.app */;
 			productType = "com.apple.product-type.application";
@@ -171,11 +234,25 @@
 				4A0C01022F83700100A95020 /* SnipSnipSnipTests */,
 			);
 			name = SnipSnipSnipTests;
-			packageProductDependencies = (
-			);
 			productName = SnipSnipSnipTests;
 			productReference = 4A0C01012F83700100A95020 /* SnipSnipSnipTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		8D41E7BF427E68E36F47AD1D /* snipsnipsnipctl */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 55373AE3CABEE066C29BB338 /* Build configuration list for PBXNativeTarget "snipsnipsnipctl" */;
+			buildPhases = (
+				49F2992F5F6634FA444D2FCB /* Sources */,
+				6F1549A771DD847D34D5EC03 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = snipsnipsnipctl;
+			productName = snipsnipsnipctl;
+			productReference = F6FD52B2EF2C090434B16FBE /* snipsnipsnipctl */;
+			productType = "com.apple.product-type.tool";
 		};
 		A10000062F84000000A95020 /* SnipSnipSnipShareExtension */ = {
 			isa = PBXNativeTarget;
@@ -190,8 +267,6 @@
 			dependencies = (
 			);
 			name = SnipSnipSnipShareExtension;
-			packageProductDependencies = (
-			);
 			productName = SnipSnipSnipShareExtension;
 			productReference = A10000012F84000000A95020 /* SnipSnipSnipShareExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
@@ -235,6 +310,7 @@
 				3EEB1E792F83676F00A95020 /* SnipSnipSnip */,
 				A10000062F84000000A95020 /* SnipSnipSnipShareExtension */,
 				4A0C01062F83700100A95020 /* SnipSnipSnipTests */,
+				8D41E7BF427E68E36F47AD1D /* snipsnipsnipctl */,
 			);
 		};
 /* End PBXProject section */
@@ -271,6 +347,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		49F2992F5F6634FA444D2FCB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				74EB5FBD5C7E7B3A3C8C980A /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		4A0C01032F83700100A95020 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -298,6 +382,12 @@
 			isa = PBXTargetDependency;
 			target = A10000062F84000000A95020 /* SnipSnipSnipShareExtension */;
 			targetProxy = A100000C2F84000000A95020 /* PBXContainerItemProxy */;
+		};
+		B48DC87E8B1133257606F254 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = snipsnipsnipctl;
+			target = 8D41E7BF427E68E36F47AD1D /* snipsnipsnipctl */;
+			targetProxy = 4244A1CD2053FBE740E9DCC5 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -619,6 +709,36 @@
 			};
 			name = Release;
 		};
+		D3732FA2FA5BFD602CDC3FCF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 8RN882MNR5;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_NAME = snipsnipsnipctl;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		F2940D47B9AD5AC9108FCA33 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 8RN882MNR5;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_NAME = snipsnipsnipctl;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -645,6 +765,15 @@
 			buildConfigurations = (
 				4A0C01082F83700100A95020 /* Debug */,
 				4A0C01092F83700100A95020 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		55373AE3CABEE066C29BB338 /* Build configuration list for PBXNativeTarget "snipsnipsnipctl" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F2940D47B9AD5AC9108FCA33 /* Release */,
+				D3732FA2FA5BFD602CDC3FCF /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
