@@ -411,31 +411,7 @@ private struct ActiveEditorToolbarView: View {
 
                 toolbarDivider
 
-                Button(action: controller.zoomOut) {
-                    Image(systemName: "minus.magnifyingglass")
-                }
-                .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
-                .help("Zoom Out")
-                .disabled(!controller.canZoomOut)
-
-                Text(controller.zoomPercentageLabel)
-                    .font(.caption.monospacedDigit())
-                    .frame(minWidth: 54)
-
-                Button(action: controller.zoomIn) {
-                    Image(systemName: "plus.magnifyingglass")
-                }
-                .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
-                .help("Zoom In")
-                .disabled(!controller.canZoomIn)
-
-                Button("100%", action: controller.zoomToActualSize)
-                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-                    .help("Actual Size")
-
-                Button("Fit", action: controller.zoomToFit)
-                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-                    .help("Fit to Window")
+                EditorZoomControlGroup(controller: controller)
 
                 toolbarDivider
 
@@ -443,7 +419,7 @@ private struct ActiveEditorToolbarView: View {
                     Button {
                         controller.setWorkspaceMode(controller.workspaceMode == .presentation ? .edit : .presentation)
                     } label: {
-                        Label("Presentation", systemImage: EditorWorkspaceMode.presentation.systemImage)
+                        AdaptiveToolbarLabel("Presentation", systemImage: EditorWorkspaceMode.presentation.systemImage)
                     }
                     .buttonStyle(SSSChromeButtonStyle(tint: .secondary, isSelected: controller.workspaceMode == .presentation))
                     .help("Open Presentation mode to style the final copy, share, and export output.")
@@ -455,12 +431,14 @@ private struct ActiveEditorToolbarView: View {
 
                 exportMenu
 
-                Button("Share", action: onShare)
-                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-                    .help("Share the current rendered image using macOS sharing services.")
+                Button(action: onShare) {
+                    AdaptiveToolbarLabel("Share", systemImage: "square.and.arrow.up")
+                }
+                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .help("Share the current rendered image using macOS sharing services.")
 
                 Button(action: onFloatReference) {
-                    Label("Float", systemImage: "pin")
+                    AdaptiveToolbarLabel("Float", systemImage: "pin")
                 }
                 .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
                 .help("Open the plain annotated screenshot as an always-on-top floating reference.")
@@ -522,13 +500,10 @@ private struct ActiveEditorToolbarView: View {
             Button(controller.presentation.isEnabled ? "Styled PDF…" : "PDF…", action: onExportPDF)
                 .disabled(controller.requiresPNGForFaithfulExport)
         } label: {
-            HStack(spacing: 6) {
-                Text(controller.presentation.isEnabled ? "Export Styled…" : "Export…")
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.secondary)
-            }
-            .fixedSize(horizontal: true, vertical: false)
+            AdaptiveToolbarMenuLabel(
+                controller.presentation.isEnabled ? "Export Styled…" : "Export…",
+                systemImage: "square.and.arrow.down"
+            )
         }
         .buttonStyle(SSSChromeButtonStyle())
         .help("Export the rendered image as PNG, JPEG, or PDF.")
@@ -539,13 +514,7 @@ private struct ActiveEditorToolbarView: View {
             Button(controller.presentation.isEnabled ? "Copy Styled" : "Copy", action: onCopyStyled)
             Button("Copy Plain", action: onCopyPlain)
         } label: {
-            HStack(spacing: 6) {
-                Text("Copy")
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.secondary)
-            }
-            .fixedSize(horizontal: true, vertical: false)
+            AdaptiveToolbarMenuLabel("Copy", systemImage: "doc.on.doc")
         }
         .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
         .help("Copy the styled presentation or the plain annotated screenshot.")
@@ -663,7 +632,7 @@ private struct PresentationEditorToolbarView: View {
             Button {
                 controller.setWorkspaceMode(.edit)
             } label: {
-                Label("Back to Edit", systemImage: EditorWorkspaceMode.edit.systemImage)
+                AdaptiveToolbarLabel("Back to Edit", systemImage: EditorWorkspaceMode.edit.systemImage)
             }
             .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
             .help("Return to annotation editing.")
@@ -686,38 +655,14 @@ private struct PresentationEditorToolbarView: View {
 
             toolbarDivider
 
-            Button(action: controller.zoomOut) {
-                Image(systemName: "minus.magnifyingglass")
-            }
-            .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
-            .help("Zoom Out")
-            .disabled(!controller.canZoomOut)
-
-            Text(controller.zoomPercentageLabel)
-                .font(.caption.monospacedDigit())
-                .frame(minWidth: 54)
-
-            Button(action: controller.zoomIn) {
-                Image(systemName: "plus.magnifyingglass")
-            }
-            .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
-            .help("Zoom In")
-            .disabled(!controller.canZoomIn)
-
-            Button("100%", action: controller.zoomToActualSize)
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-                .help("Actual Size")
-
-            Button("Fit", action: controller.zoomToFit)
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-                .help("Fit to Window")
+            EditorZoomControlGroup(controller: controller)
 
             toolbarDivider
 
             Button {
                 _ = controller.saveCurrentPresentationToDocument()
             } label: {
-                Label("Save Variant", systemImage: "plus.square.on.square")
+                AdaptiveToolbarLabel("Save Variant", systemImage: "plus.square.on.square")
             }
             .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
             .help("Save the current presentation as a named variant in this .sss document.")
@@ -726,12 +671,14 @@ private struct PresentationEditorToolbarView: View {
 
             exportMenu
 
-            Button("Share", action: onShare)
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-                .help("Share the current styled presentation using macOS sharing services.")
+            Button(action: onShare) {
+                AdaptiveToolbarLabel("Share", systemImage: "square.and.arrow.up")
+            }
+            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+            .help("Share the current styled presentation using macOS sharing services.")
 
             Button(action: onFloatReference) {
-                Label("Float", systemImage: "pin")
+                AdaptiveToolbarLabel("Float", systemImage: "pin")
             }
             .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
             .help("Open the styled presentation as an always-on-top floating reference.")
@@ -757,13 +704,7 @@ private struct PresentationEditorToolbarView: View {
             Button("Styled PDF…", action: onExportPDF)
                 .disabled(controller.requiresPNGForFaithfulExport)
         } label: {
-            HStack(spacing: 6) {
-                Text("Export Styled…")
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.secondary)
-            }
-            .fixedSize(horizontal: true, vertical: false)
+            AdaptiveToolbarMenuLabel("Export Styled…", systemImage: "square.and.arrow.down")
         }
         .buttonStyle(SSSChromeButtonStyle())
         .help("Export the styled presentation as PNG, JPEG, or PDF.")
@@ -774,13 +715,7 @@ private struct PresentationEditorToolbarView: View {
             Button("Copy Styled", action: onCopyStyled)
             Button("Copy Plain", action: onCopyPlain)
         } label: {
-            HStack(spacing: 6) {
-                Text("Copy")
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.secondary)
-            }
-            .fixedSize(horizontal: true, vertical: false)
+            AdaptiveToolbarMenuLabel("Copy", systemImage: "doc.on.doc")
         }
         .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
         .help("Copy the styled presentation or the plain annotated screenshot.")
@@ -790,6 +725,100 @@ private struct PresentationEditorToolbarView: View {
         Divider()
             .frame(height: 22)
             .opacity(0.22)
+    }
+}
+
+private struct AdaptiveToolbarLabel: View {
+    let title: String
+    let systemImage: String
+
+    init(_ title: String, systemImage: String) {
+        self.title = title
+        self.systemImage = systemImage
+    }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            Label(title, systemImage: systemImage)
+                .fixedSize(horizontal: true, vertical: false)
+
+            Image(systemName: systemImage)
+                .accessibilityLabel(title)
+        }
+    }
+}
+
+private struct AdaptiveToolbarMenuLabel: View {
+    let title: String
+    let systemImage: String
+
+    init(_ title: String, systemImage: String) {
+        self.title = title
+        self.systemImage = systemImage
+    }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            menuLabel(showsTitle: true)
+                .fixedSize(horizontal: true, vertical: false)
+
+            menuLabel(showsTitle: false)
+        }
+    }
+
+    private func menuLabel(showsTitle: Bool) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage)
+
+            if showsTitle {
+                Text(title)
+            }
+
+            Image(systemName: "chevron.down")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.secondary)
+        }
+        .accessibilityLabel(title)
+    }
+}
+
+private struct EditorZoomControlGroup: View {
+    @ObservedObject var controller: EditorController
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Button(action: controller.zoomOut) {
+                Image(systemName: "minus.magnifyingglass")
+            }
+            .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
+            .help("Zoom Out")
+            .disabled(!controller.canZoomOut)
+
+            Text(controller.zoomPercentageLabel)
+                .font(.caption.monospacedDigit())
+                .frame(minWidth: 54)
+
+            Button(action: controller.zoomIn) {
+                Image(systemName: "plus.magnifyingglass")
+            }
+            .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
+            .help("Zoom In")
+            .disabled(!controller.canZoomIn)
+
+            Button(action: controller.zoomToActualSize) {
+                AdaptiveToolbarLabel("100%", systemImage: "viewfinder")
+            }
+            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+            .help("Actual Size")
+
+            Button(action: controller.zoomToFit) {
+                AdaptiveToolbarLabel("Fit", systemImage: "arrow.up.left.and.arrow.down.right")
+            }
+            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+            .help("Fit to Window")
+        }
+        .padding(3)
+        .glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 12))
     }
 }
 
