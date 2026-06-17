@@ -7,11 +7,44 @@ final class UIMapModelsTests: XCTestCase {
         let options = UIMapOverlayOptions()
 
         XCTAssertTrue(options.showsOutline)
+        XCTAssertNil(options.outlineColor)
+        XCTAssertFalse(options.showsSource)
         XCTAssertFalse(options.showsLabel)
+        XCTAssertFalse(options.showsAccessibilityLabel)
         XCTAssertFalse(options.showsIdentifier)
         XCTAssertFalse(options.showsRole)
+        XCTAssertFalse(options.showsValue)
         XCTAssertFalse(options.showsCoordinates)
         XCTAssertFalse(options.showsDimensions)
+        XCTAssertFalse(options.showsOwningApplication)
+        XCTAssertFalse(options.showsBundleIdentifier)
+        XCTAssertFalse(options.showsParentHierarchy)
+    }
+
+    func testOverlayOptionsDecodeLegacyPayloadsWithNewDisplayFlagsDefaultedOff() throws {
+        let data = """
+        {
+          "showsOutline": true,
+          "showsLabel": true,
+          "showsIdentifier": false,
+          "showsRole": false,
+          "showsCoordinates": true,
+          "showsDimensions": false
+        }
+        """.data(using: .utf8)!
+
+        let options = try JSONDecoder().decode(UIMapOverlayOptions.self, from: data)
+
+        XCTAssertTrue(options.showsOutline)
+        XCTAssertTrue(options.showsLabel)
+        XCTAssertTrue(options.showsCoordinates)
+        XCTAssertNil(options.outlineColor)
+        XCTAssertFalse(options.showsSource)
+        XCTAssertFalse(options.showsAccessibilityLabel)
+        XCTAssertFalse(options.showsValue)
+        XCTAssertFalse(options.showsOwningApplication)
+        XCTAssertFalse(options.showsBundleIdentifier)
+        XCTAssertFalse(options.showsParentHierarchy)
     }
 
     func testSearchAndRoleFilteringUseMetadataFields() {

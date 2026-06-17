@@ -21,7 +21,7 @@ enum ScrollingCaptureError: LocalizedError {
         case .firstFrameUnavailable:
             return "The first scrolling capture frame could not be captured."
         case .stitchingFailed:
-            return "SnipSnipSnip could not stitch the scrolling capture with enough confidence."
+            return "\(AppBranding.displayName) could not stitch the scrolling capture with enough confidence."
         case .cancelled:
             return "Scrolling capture was cancelled."
         }

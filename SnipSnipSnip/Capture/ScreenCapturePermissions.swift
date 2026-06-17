@@ -40,7 +40,7 @@ nonisolated enum CapturePermissionRequirement: CaseIterable, Identifiable {
         case .screenRecording:
             return "Captures, recordings, and live window thumbnails."
         case .accessibility:
-            return "Scrolling Capture, so SnipSnipSnip can scroll the selected app while capturing."
+            return "Scrolling Capture, so \(AppBranding.displayName) can scroll the selected app while capturing."
         }
     }
 
@@ -136,7 +136,7 @@ enum ScreenCapturePermissions {
     static var currentAppName: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
             ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
-            ?? "SnipSnipSnip"
+            ?? AppBranding.displayName
     }
 
     static var currentAppURL: URL {

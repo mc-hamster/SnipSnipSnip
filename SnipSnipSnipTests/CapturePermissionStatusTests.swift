@@ -2,6 +2,26 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class CapturePermissionStatusTests: XCTestCase {
+    func testAppBrandingDisplayNameReflectsBuildTarget() {
+        XCTAssertEqual(AppBranding.displayName(for: .release), "SnipSnipSnip")
+        XCTAssertEqual(AppBranding.displayName(for: .selfRelease), "SnipSnipSnip Pro")
+    }
+
+    func testAppBrandingDoesNotDuplicateExistingProSuffix() {
+        XCTAssertEqual(
+            AppBranding.branded("Welcome to SnipSnipSnip", for: .selfRelease),
+            "Welcome to SnipSnipSnip Pro"
+        )
+        XCTAssertEqual(
+            AppBranding.branded("Update SnipSnipSnip Pro from GitHub", for: .selfRelease),
+            "Update SnipSnipSnip Pro from GitHub"
+        )
+        XCTAssertEqual(
+            AppBranding.branded("Open SnipSnipSnip from SnipSnipSnip Pro", for: .selfRelease),
+            "Open SnipSnipSnip Pro from SnipSnipSnip Pro"
+        )
+    }
+
     func testScrollingFeatureFlagsAreEnabledOnlyForSelfRelease() {
         XCTAssertFalse(FeatureFlags.scrollingCaptureEnabled(for: .dev))
         XCTAssertFalse(FeatureFlags.scrollingCaptureEnabled(for: .internalTesting))

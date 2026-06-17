@@ -152,6 +152,7 @@ struct ConnectedDeviceCaptureMenuContent: View {
                         }
                     }
                     .disabled(model.isConnectedDeviceSessionActive)
+                    .help("Open a live connected-device preview. macOS may ask for Camera access because trusted iPhone and iPad screens are exposed as video sources.")
                 }
             }
 

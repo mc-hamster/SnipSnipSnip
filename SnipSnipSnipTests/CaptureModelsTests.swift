@@ -34,6 +34,46 @@ final class CaptureModelsTests: XCTestCase {
         XCTAssertTrue(RegionCaptureOverlayMode.crosshairAndMagnifyingGlass.showsMagnifyingGlass)
     }
 
+    func testCaptureCursorVisibilityBalancesRepeatedHiddenStateChanges() {
+        var hideCount = 0
+        var unhideCount = 0
+        var restoreCount = 0
+        let controller = CaptureCursorVisibilityController(operations: CaptureCursorVisibilityController.Operations(
+            hide: { hideCount += 1 },
+            unhide: { unhideCount += 1 },
+            restoreVisibleCursor: { restoreCount += 1 }
+        ))
+
+        controller.setHidden(true)
+        controller.setHidden(true)
+        controller.setHidden(false)
+        controller.setHidden(false)
+
+        XCTAssertEqual(hideCount, 1)
+        XCTAssertEqual(unhideCount, 1)
+        XCTAssertEqual(restoreCount, 1)
+        XCTAssertFalse(controller.isHidden)
+    }
+
+    func testCaptureCursorVisibilityRestoresWhenDeinitializedWhileHidden() {
+        var hideCount = 0
+        var unhideCount = 0
+        var restoreCount = 0
+
+        do {
+            let controller = CaptureCursorVisibilityController(operations: CaptureCursorVisibilityController.Operations(
+                hide: { hideCount += 1 },
+                unhide: { unhideCount += 1 },
+                restoreVisibleCursor: { restoreCount += 1 }
+            ))
+            controller.setHidden(true)
+        }
+
+        XCTAssertEqual(hideCount, 1)
+        XCTAssertEqual(unhideCount, 1)
+        XCTAssertEqual(restoreCount, 1)
+    }
+
     func testCapturePresetRoundTripsThroughCodable() throws {
         var regionPreferences = RegionCapturePreferences()
         regionPreferences.overlayMode = .magnifyingGlass

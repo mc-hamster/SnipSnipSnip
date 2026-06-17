@@ -121,7 +121,7 @@ extension AppModel {
         let panel = NSOpenPanel()
         panel.title = "Choose App to Ignore"
         panel.prompt = "Ignore"
-        panel.message = "Choose an app. SnipSnipSnip will skip clipboard history entries copied from it."
+        panel.message = "Choose an app. \(AppBranding.displayName) will skip clipboard history entries copied from it."
         panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
         panel.allowedContentTypes = [.applicationBundle]
         panel.allowsMultipleSelection = false
@@ -356,18 +356,41 @@ nonisolated private enum ClipboardSnipRenderer {
         let task = Task.detached(priority: .utility) {
             try Task.checkCancellation()
 
-            guard let image = EditorRenderer.render(
-                baseImage: input.baseImage,
-                snapshot: input.snapshot,
-                pinnedUIMapElements: input.pinnedUIMapElements,
-                uiMapOverlayOptions: input.uiMapOverlayOptions
-            ),
-                  let presentedImage = ScreenshotPresentationRenderer.render(contentImage: image, presentation: input.snapshot.presentation) else {
+            let image = PresentationPerformanceMetrics.measure(
+                "clipboard.content",
+                context: "base=\(input.baseImage.width)x\(input.baseImage.height) crop=\(PresentationPerformanceMetrics.size(input.snapshot.cropRect.size)) annotations=\(input.snapshot.annotations.count)",
+                warnAfterMS: 80
+            ) {
+                EditorRenderer.render(
+                    baseImage: input.baseImage,
+                    snapshot: input.snapshot,
+                    pinnedUIMapElements: input.pinnedUIMapElements,
+                    uiMapOverlayOptions: input.uiMapOverlayOptions
+                )
+            }
+
+            let presentedImage = image.flatMap { image in
+                PresentationPerformanceMetrics.measure(
+                    "clipboard.presentation",
+                    context: "content=\(image.width)x\(image.height) \(PresentationPerformanceMetrics.presentationSummary(input.snapshot.presentation))",
+                    warnAfterMS: 100
+                ) {
+                    ScreenshotPresentationRenderer.render(contentImage: image, presentation: input.snapshot.presentation)
+                }
+            }
+
+            guard let presentedImage else {
                 throw ImageExportError.encodingFailed
             }
 
             try Task.checkCancellation()
-            return try ImageExporter.pngData(for: presentedImage)
+            return try PresentationPerformanceMetrics.measure(
+                "clipboard.encode",
+                context: "image=\(presentedImage.width)x\(presentedImage.height)",
+                warnAfterMS: 80
+            ) {
+                try ImageExporter.pngData(for: presentedImage)
+            }
         }
 
         return try await withTaskCancellationHandler {

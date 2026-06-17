@@ -492,6 +492,7 @@ struct SnipSnipSnipApp: App {
         let model = AppModel()
         _model = StateObject(wrappedValue: model)
         MenuBarStatusController.shared.configure(with: model)
+        AutomationAppleScriptBridge.configure(model: model)
     }
 
     var body: some Scene {

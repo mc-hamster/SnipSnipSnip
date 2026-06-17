@@ -11,7 +11,7 @@ final class RegionSelectionSession: NSObject {
     private var coordinator: RegionSelectionCoordinator?
     private var livePreviewSource: LiveDesktopPreviewSource?
     private var overlayWindows: [RegionSelectionWindow] = []
-    private var cursorHidden = false
+    private let cursorVisibility = CaptureCursorVisibilityController()
     private var localEventMonitor: Any?
 
     init(
@@ -37,9 +37,15 @@ final class RegionSelectionSession: NSObject {
             }
         }
 
-        return await withCheckedContinuation { continuation in
-            self.continuation = continuation
-            presentOverlay()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                self.continuation = continuation
+                presentOverlay()
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                self?.finish(with: nil)
+            }
         }
     }
 
@@ -79,23 +85,13 @@ final class RegionSelectionSession: NSObject {
     }
 
     private func setCaptureCursorHidden(_ hidden: Bool) {
-        guard cursorHidden != hidden else {
-            return
-        }
-
-        if hidden {
-            NSCursor.hide()
-        } else {
-            NSCursor.unhide()
-        }
-
-        cursorHidden = hidden
+        cursorVisibility.setHidden(hidden)
     }
 
     private func finish(with selection: RegionCaptureSelection?) {
         let continuation = continuation
         self.continuation = nil
-        setCaptureCursorHidden(false)
+        cursorVisibility.restoreIfNeeded()
         if let localEventMonitor {
             NSEvent.removeMonitor(localEventMonitor)
             self.localEventMonitor = nil
@@ -1451,6 +1447,10 @@ private final class RegionSelectionCursorOverlayView: RegionSelectionPassThrough
         innerBorder.lineWidth = 1
         innerBorder.stroke()
 
+        if overlayMode.showsCrosshair {
+            drawLoupeCrosshair(in: imageRect)
+        }
+
         drawLoupeCaption(in: loupeRect)
     }
 
@@ -1458,24 +1458,12 @@ private final class RegionSelectionCursorOverlayView: RegionSelectionPassThrough
         let loupeSize = CGSize(width: 132, height: 156)
         let horizontalPadding: CGFloat = 18
         let verticalPadding: CGFloat = 18
-        let preferredX: CGFloat
-        let preferredY: CGFloat
-
-        if isActivelyDraggingSelection,
-           let selectionRect {
-            let localSelectionRect = overlayLocalRect(fromCaptureGlobalRect: selectionRect, display: displayPreview.snapshot)
-            preferredX = localPoint.x <= localSelectionRect.midX
-                ? localSelectionRect.maxX + 20
-                : localSelectionRect.minX - loupeSize.width - 20
-            preferredY = localSelectionRect.minY - loupeSize.height - 16
-        } else {
-            preferredX = localPoint.x < bounds.midX
-                ? localPoint.x + 32
-                : localPoint.x - loupeSize.width - 32
-            preferredY = localPoint.y < bounds.midY
-                ? localPoint.y + 28
-                : localPoint.y - loupeSize.height - 28
-        }
+        let preferredX = localPoint.x < bounds.midX
+            ? localPoint.x + 32
+            : localPoint.x - loupeSize.width - 32
+        let preferredY = localPoint.y < bounds.midY
+            ? localPoint.y + 28
+            : localPoint.y - loupeSize.height - 28
 
         let origin = CGPoint(
             x: min(max(preferredX, horizontalPadding), bounds.maxX - loupeSize.width - horizontalPadding),
@@ -1483,6 +1471,34 @@ private final class RegionSelectionCursorOverlayView: RegionSelectionPassThrough
         )
 
         return CGRect(origin: origin, size: loupeSize)
+    }
+
+    private func drawLoupeCrosshair(in imageRect: CGRect) {
+        let center = CGPoint(x: imageRect.midX, y: imageRect.midY)
+        let armLength: CGFloat = 18
+        let gap: CGFloat = 4
+
+        NSColor.black.withAlphaComponent(0.62).setStroke()
+        drawLoupeCrosshairLines(center: center, armLength: armLength, gap: gap, lineWidth: 3)
+
+        NSColor.white.withAlphaComponent(0.95).setStroke()
+        drawLoupeCrosshairLines(center: center, armLength: armLength, gap: gap, lineWidth: 1)
+    }
+
+    private func drawLoupeCrosshairLines(center: CGPoint, armLength: CGFloat, gap: CGFloat, lineWidth: CGFloat) {
+        let path = NSBezierPath()
+        path.lineWidth = lineWidth
+
+        path.move(to: CGPoint(x: center.x - armLength, y: center.y))
+        path.line(to: CGPoint(x: center.x - gap, y: center.y))
+        path.move(to: CGPoint(x: center.x + gap, y: center.y))
+        path.line(to: CGPoint(x: center.x + armLength, y: center.y))
+        path.move(to: CGPoint(x: center.x, y: center.y - armLength))
+        path.line(to: CGPoint(x: center.x, y: center.y - gap))
+        path.move(to: CGPoint(x: center.x, y: center.y + gap))
+        path.line(to: CGPoint(x: center.x, y: center.y + armLength))
+
+        path.stroke()
     }
 
     private func drawLoupeCaption(in loupeRect: CGRect) {

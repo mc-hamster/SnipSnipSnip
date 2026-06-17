@@ -130,6 +130,54 @@ nonisolated struct RegionCapturePreferences: Codable, Equatable {
     }
 }
 
+nonisolated final class CaptureCursorVisibilityController {
+    struct Operations {
+        var hide: () -> Void
+        var unhide: () -> Void
+        var restoreVisibleCursor: () -> Void
+
+        nonisolated(unsafe) static let appKit = Operations(
+            hide: NSCursor.hide,
+            unhide: NSCursor.unhide,
+            restoreVisibleCursor: { NSCursor.arrow.set() }
+        )
+    }
+
+    private let operations: Operations
+    private(set) var isHidden = false
+
+    init(operations: Operations = .appKit) {
+        self.operations = operations
+    }
+
+    deinit {
+        restoreIfNeeded()
+    }
+
+    func setHidden(_ hidden: Bool) {
+        guard isHidden != hidden else {
+            return
+        }
+
+        if hidden {
+            operations.hide()
+            isHidden = true
+        } else {
+            restoreIfNeeded()
+        }
+    }
+
+    func restoreIfNeeded() {
+        guard isHidden else {
+            return
+        }
+
+        operations.unhide()
+        operations.restoreVisibleCursor()
+        isHidden = false
+    }
+}
+
 nonisolated struct CaptureRunOptions: Codable, Equatable {
     var captureDelay: CaptureDelay = .immediate
     var includesCursor = false

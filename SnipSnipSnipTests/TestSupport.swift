@@ -164,7 +164,8 @@ func makeEditorDocumentSession(
     currentSnapshot: EditorSnapshot? = nil,
     undoStack: [EditorSnapshot] = [],
     redoStack: [EditorSnapshot] = [],
-    toolStyles: [EditorTool: AnnotationStyle] = makeDefaultToolStyles()
+    toolStyles: [EditorTool: AnnotationStyle] = makeDefaultToolStyles(),
+    savedPresentations: [SavedPresentation] = []
 ) -> EditorDocumentSession {
     let initial = initialSnapshot ?? makeEditorSnapshot()
     let current = currentSnapshot ?? initial
@@ -174,7 +175,8 @@ func makeEditorDocumentSession(
         currentSnapshot: current,
         undoStack: undoStack,
         redoStack: redoStack,
-        toolStyles: toolStyles
+        toolStyles: toolStyles,
+        savedPresentations: savedPresentations
     )
 }
 

@@ -57,13 +57,13 @@ enum LaunchAtLoginStatus: Equatable {
     var detail: String {
         switch self {
         case .disabled:
-            return "SnipSnipSnip will stay off until you open it, but you can turn this on any time in Settings."
+            return "\(AppBranding.displayName) will stay off until you open it, but you can turn this on any time in Settings."
         case .enabled:
-            return "SnipSnipSnip will launch automatically when you log in so the menu bar extra and shortcuts are ready right away."
+            return "\(AppBranding.displayName) will launch automatically when you log in so the menu bar extra and shortcuts are ready right away."
         case .requiresApproval:
             return "macOS needs one more confirmation in Login Items before launch at login is fully enabled."
         case .unavailable:
-            return "SnipSnipSnip couldn't verify its Login Items entry right now. Try again or open Login Items in System Settings."
+            return "\(AppBranding.displayName) couldn't verify its Login Items entry right now. Try again or open Login Items in System Settings."
         }
     }
 

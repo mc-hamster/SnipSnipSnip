@@ -141,60 +141,40 @@ final class EditorControllerTests: XCTestCase {
     @MainActor
     func testPresentationPresetChangesAreUndoable() {
         let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
-        let originalPresentation = controller.snapshot.presentation
 
         controller.applyPresentationPreset(.transparentShadow)
 
-        if FeatureFlags.presentationStylingEnabled {
-            XCTAssertEqual(controller.snapshot.presentation, ScreenshotPresentationPreset.transparentShadow.settings)
-            XCTAssertTrue(controller.requiresPNGForFaithfulExport)
+        XCTAssertEqual(controller.snapshot.presentation, ScreenshotPresentationPreset.transparentShadow.settings)
+        XCTAssertTrue(controller.requiresPNGForFaithfulExport)
 
-            controller.undo()
+        controller.undo()
 
-            XCTAssertEqual(controller.snapshot.presentation, .plain)
-            XCTAssertFalse(controller.requiresPNGForFaithfulExport)
-        } else {
-            XCTAssertEqual(controller.snapshot.presentation, originalPresentation)
-            XCTAssertFalse(controller.requiresPNGForFaithfulExport)
-        }
+        XCTAssertEqual(controller.snapshot.presentation, .plain)
+        XCTAssertFalse(controller.requiresPNGForFaithfulExport)
     }
 
     @MainActor
     func testPresentationDefaultsToTransparentBackground() {
         let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
-        let originalPresentation = controller.snapshot.presentation
 
         controller.updatePresentationPadding(24)
 
-        if FeatureFlags.presentationStylingEnabled {
-            XCTAssertTrue(controller.presentation.isTransparent)
-            XCTAssertTrue(controller.requiresPNGForFaithfulExport)
-        } else {
-            XCTAssertEqual(controller.snapshot.presentation, originalPresentation)
-            XCTAssertEqual(controller.presentation, .plain)
-            XCTAssertFalse(controller.requiresPNGForFaithfulExport)
-        }
+        XCTAssertTrue(controller.presentation.isTransparent)
+        XCTAssertTrue(controller.requiresPNGForFaithfulExport)
     }
 
     @MainActor
     func testPresentationCornerRadiusClampsToOneHundred() {
         let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
-        let originalPresentation = controller.snapshot.presentation
 
         controller.updatePresentationCornerRadius(120)
 
-        if FeatureFlags.presentationStylingEnabled {
-            XCTAssertEqual(controller.presentation.cornerRadius, 100)
-        } else {
-            XCTAssertEqual(controller.snapshot.presentation, originalPresentation)
-            XCTAssertEqual(controller.presentation, .plain)
-        }
+        XCTAssertEqual(controller.presentation.cornerRadius, 100)
     }
 
     @MainActor
     func testPresentationShadowDirectionControlsSignedOffsets() {
         let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
-        let originalPresentation = controller.snapshot.presentation
 
         controller.updatePresentationShadow(.strong)
         controller.updatePresentationShadowDirection(.topLeft)
@@ -204,14 +184,245 @@ final class EditorControllerTests: XCTestCase {
 
         controller.updatePresentationShadowDirection(.bottomRight)
 
-        if FeatureFlags.presentationStylingEnabled {
-            XCTAssertEqual(controller.presentation.shadowDirection, .bottomRight)
-            XCTAssertEqual(controller.presentation.shadowOffsetX, 24)
-            XCTAssertEqual(controller.presentation.shadowOffsetY, 26)
-        } else {
-            XCTAssertEqual(controller.snapshot.presentation, originalPresentation)
-            XCTAssertEqual(controller.presentation, .plain)
+        XCTAssertEqual(controller.presentation.shadowDirection, .bottomRight)
+        XCTAssertEqual(controller.presentation.shadowOffsetX, 24)
+        XCTAssertEqual(controller.presentation.shadowOffsetY, 26)
+    }
+
+    @MainActor
+    func testPlainExportedImageIgnoresSavedPresentationStyling() throws {
+        let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
+
+        controller.updatePresentationPadding(24)
+
+        let plainImage = try XCTUnwrap(controller.exportedImage(usingPresentation: false))
+
+        XCTAssertEqual(plainImage.width, 160)
+        XCTAssertEqual(plainImage.height, 120)
+
+        let styledImage = try XCTUnwrap(controller.exportedImage(usingPresentation: true))
+
+        XCTAssertGreaterThan(styledImage.width, plainImage.width)
+        XCTAssertGreaterThan(styledImage.height, plainImage.height)
+    }
+
+    @MainActor
+    func testEnteringPresentationModeSelectsSelectTool() {
+        let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
+
+        controller.activateToolbarTool(.rectangle)
+        controller.setWorkspaceMode(.presentation)
+
+        XCTAssertEqual(controller.workspaceMode, .presentation)
+        XCTAssertEqual(controller.activeTool, .select)
+    }
+
+    @MainActor
+    func testPresentationModeZoomControlsUseViewportZoom() {
+        let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
+        let initialSubjectScale = controller.presentation.subjectPlacement.scale
+
+        controller.setWorkspaceMode(.presentation)
+        controller.updateViewportCanvasSize(CGSize(width: 320, height: 240))
+        controller.updatePresentationViewportContentSize(CGSize(width: 160, height: 120))
+        let initialZoomScale = controller.viewport.zoomScale
+
+        controller.zoomIn()
+
+        XCTAssertEqual(controller.workspaceMode, .presentation)
+        XCTAssertGreaterThan(controller.viewport.zoomScale, initialZoomScale)
+        XCTAssertEqual(controller.presentation.subjectPlacement.scale, initialSubjectScale)
+
+        controller.zoomOut()
+
+        XCTAssertEqual(controller.viewport.zoomScale, initialZoomScale, accuracy: 0.001)
+        XCTAssertEqual(controller.presentation.subjectPlacement.scale, initialSubjectScale)
+    }
+
+    @MainActor
+    func testLeavingPresentationModeRestoresEditViewportContentSize() {
+        let originalCrop = CGRect(x: 0, y: 0, width: 160, height: 120)
+        let controller = makeController(snapshot: makeEditorSnapshot(cropRect: originalCrop))
+
+        controller.setWorkspaceMode(.presentation)
+        controller.updatePresentationViewportContentSize(CGSize(width: 900, height: 300))
+
+        XCTAssertEqual(controller.viewport.contentSize, CGSize(width: 900, height: 300))
+
+        controller.setWorkspaceMode(.edit)
+
+        XCTAssertEqual(controller.workspaceMode, .edit)
+        XCTAssertEqual(controller.viewport.contentSize, CGSize(width: 160, height: 120))
+        XCTAssertEqual(controller.snapshot.cropRect, originalCrop)
+    }
+
+    @MainActor
+    func testPresentationSceneFramingChangesAreUndoable() throws {
+        let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
+
+        let svgText = """
+        <svg xmlns="http://www.w3.org/2000/svg" width="240" height="135" viewBox="0 0 240 135">
+          <metadata id="snipsnipsnip-scene">
+        {
+          "schema": "\(PresentationSceneMetadata.schema)",
+          "schemaVersion": \(PresentationSceneMetadata.supportedSchemaVersion),
+          "id": "builtin.controller-framing",
+          "name": "Controller Framing",
+          "version": 1,
+          "canvas": { "width": 240, "height": 135 },
+          "slots": [
+            {"id":"primaryScreenshot","type":"image","required":true,"label":"Screenshot","defaultFraming":"showFull"}
+          ]
         }
+          </metadata>
+          <image data-sss-slot="primaryScreenshot" href="snipsnipsnip:primaryScreenshot" x="20" y="30" width="200" height="80"/>
+        </svg>
+        """
+        let validated = try PresentationSceneValidator.validate(svgText: svgText, source: .bundled)
+        controller.presentationScenes = [
+            PresentationSceneDefinition(
+                metadata: validated.metadata,
+                sanitizedSVGText: validated.sanitizedSVGText,
+                source: .bundled,
+                fileURL: URL(fileURLWithPath: "/tmp/controller-framing.svg"),
+                isUserModifiedBundled: false
+            ),
+        ]
+
+        controller.applyPresentationScene(id: "builtin.controller-framing")
+        XCTAssertEqual(controller.presentation.scene?.screenshotSlotSettings.framingPreset, .showFull)
+
+        controller.updateAppliedPresentationSceneFramingPreset(.fillFrame)
+        XCTAssertEqual(controller.presentation.scene?.screenshotSlotSettings.framingPreset, .fillFrame)
+
+        controller.undo()
+        XCTAssertEqual(controller.presentation.scene?.screenshotSlotSettings.framingPreset, .showFull)
+
+        controller.updateAppliedPresentationSceneFramingScale(1.4)
+        XCTAssertEqual(controller.presentation.scene?.screenshotSlotSettings.scale, 1.4)
+        XCTAssertEqual(controller.presentation.scene?.screenshotSlotSettings.hasManualAdjustment, true)
+
+        controller.undo()
+        XCTAssertEqual(controller.presentation.scene?.screenshotSlotSettings.scale, 1)
+        XCTAssertEqual(controller.presentation.scene?.screenshotSlotSettings.hasManualAdjustment, false)
+    }
+
+    @MainActor
+    func testActivatingAnnotationToolLeavesPresentationMode() {
+        let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
+
+        controller.setWorkspaceMode(.presentation)
+        controller.updatePresentationViewportContentSize(CGSize(width: 900, height: 300))
+        controller.activateToolbarTool(.arrow)
+
+        XCTAssertEqual(controller.workspaceMode, .edit)
+        XCTAssertEqual(controller.activeTool, .arrow)
+        XCTAssertEqual(controller.viewport.contentSize, CGSize(width: 160, height: 120))
+    }
+
+    @MainActor
+    func testPresentationTemplateLibraryEditsPersistOutsideUndo() throws {
+        let defaults = makeTestDefaults()
+        let controller = makeController(defaults: defaults)
+
+        controller.updatePresentationCanvas(.preset(.widescreen))
+        let templateID = controller.saveCurrentPresentationAsTemplate(named: "Launch Shot")
+
+        let id = try XCTUnwrap(templateID)
+        XCTAssertTrue(controller.presentationTemplates.contains { $0.id == id && $0.name == "Launch Shot" })
+
+        controller.renamePresentationTemplate(id: id, name: "Launch Shot Final")
+        controller.setDefaultPresentationTemplate(id: id)
+        controller.undo()
+
+        XCTAssertEqual(controller.defaultPresentationTemplateID, id)
+        XCTAssertTrue(controller.presentationTemplates.contains { $0.id == id && $0.name == "Launch Shot Final" })
+        XCTAssertEqual(controller.snapshot.presentation, .plain)
+    }
+
+    @MainActor
+    func testPresentationTemplateDuplicateDeleteAndBuiltInProtection() throws {
+        let defaults = makeTestDefaults()
+        let controller = makeController(defaults: defaults)
+
+        let userID = try XCTUnwrap(controller.saveCurrentPresentationAsTemplate(named: "Reusable"))
+        let duplicateID = try XCTUnwrap(controller.duplicatePresentationTemplate(id: userID))
+
+        XCTAssertTrue(controller.presentationTemplates.contains { $0.id == duplicateID && $0.name == "Reusable Copy" })
+
+        controller.deletePresentationTemplate(id: "builtin.plain")
+        XCTAssertTrue(controller.presentationTemplates.contains { $0.id == "builtin.plain" })
+
+        controller.setDefaultPresentationTemplate(id: duplicateID)
+        controller.deletePresentationTemplate(id: duplicateID)
+        XCTAssertFalse(controller.presentationTemplates.contains { $0.id == duplicateID })
+        XCTAssertNil(controller.defaultPresentationTemplateID)
+    }
+
+    @MainActor
+    func testSavedPresentationsStayWithDocumentAndApplyUndoably() throws {
+        let controller = makeController()
+
+        controller.applyPresentationPreset(.transparentShadow)
+        let savedID = controller.saveCurrentPresentationToDocument(named: "Share Card")
+
+        let id = try XCTUnwrap(savedID)
+        XCTAssertEqual(controller.savedPresentations.count, 1)
+        XCTAssertEqual(controller.savedPresentations.first?.name, "Share Card")
+        XCTAssertEqual(controller.documentSession.savedPresentations, controller.savedPresentations)
+
+        controller.applyPresentationPreset(.plain)
+        XCTAssertEqual(controller.snapshot.presentation, ScreenshotPresentationPreset.plain.settings)
+
+        controller.applySavedPresentation(id: id)
+        XCTAssertEqual(controller.snapshot.presentation, ScreenshotPresentationPreset.transparentShadow.settings)
+
+        controller.undo()
+        XCTAssertEqual(controller.snapshot.presentation, ScreenshotPresentationPreset.plain.settings)
+        XCTAssertEqual(controller.savedPresentations.count, 1)
+
+        controller.renameSavedPresentation(id: id, name: "Share Card Final")
+        let copyID = try XCTUnwrap(controller.duplicateSavedPresentation(id: id))
+
+        XCTAssertTrue(controller.savedPresentations.contains { $0.id == id && $0.name == "Share Card Final" })
+        XCTAssertTrue(controller.savedPresentations.contains { $0.id == copyID && $0.name == "Share Card Final Copy" })
+
+        controller.deleteSavedPresentation(id: id)
+        XCTAssertFalse(controller.savedPresentations.contains { $0.id == id })
+        XCTAssertTrue(controller.savedPresentations.contains { $0.id == copyID })
+    }
+
+    @MainActor
+    func testPresentationTemplateStoreFallsBackFromCorruptPreferences() {
+        let defaults = makeTestDefaults()
+        defaults.set(Data("not-json".utf8), forKey: "presentationTemplates.userTemplates")
+
+        let controller = makeController(defaults: defaults)
+
+        XCTAssertEqual(controller.presentationTemplates.map(\.id), PresentationTemplate.builtInTemplates.map(\.id))
+        XCTAssertNil(defaults.data(forKey: "presentationTemplates.userTemplates"))
+    }
+
+    @MainActor
+    func testDefaultPresentationTemplateAppliesOnlyToFreshCaptures() throws {
+        let defaults = makeTestDefaults()
+        let capture = makeCapturedScreenshot(image: makeCoordinateImage(width: 160, height: 120))
+        let setup = retainForTestLifetime(EditorController(capture: capture, defaults: defaults))
+
+        setup.setDefaultPresentationTemplate(id: "builtin.drop-shadow")
+
+        let fresh = retainForTestLifetime(EditorController(capture: capture, defaults: defaults))
+        let shadowTemplate = try XCTUnwrap(PresentationTemplate.builtInTemplates.first { $0.id == "builtin.drop-shadow" })
+        XCTAssertEqual(fresh.snapshot.presentation, shadowTemplate.presentation)
+
+        let savedSnapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 160, height: 120),
+            presentation: ScreenshotPresentationPreset.transparentShadow.settings
+        )
+        let session = makeEditorDocumentSession(initialSnapshot: savedSnapshot, currentSnapshot: savedSnapshot)
+        let loaded = retainForTestLifetime(EditorController(capture: capture, session: session, defaults: defaults))
+
+        XCTAssertEqual(loaded.snapshot.presentation, ScreenshotPresentationPreset.transparentShadow.settings)
     }
 
     func testSelectingGroupedAnnotationExpandsGroupInDocumentOrder() {
@@ -1099,6 +1310,46 @@ final class EditorControllerTests: XCTestCase {
         XCTAssertTrue(controller.pinnedUIMapElements.isEmpty)
     }
 
+    func testPinnedUIMapElementIncludesOverlayParentHierarchy() {
+        let childID = UUID()
+        let uiMap = UIMapSnapshot(
+            capturedAt: Date(timeIntervalSince1970: 1_818_400_100),
+            sourceRect: CGRect(x: 0, y: 0, width: 120, height: 80),
+            elements: [
+                UIMapElement(
+                    name: "Window",
+                    roleDescription: "window",
+                    documentRect: CGRect(x: 0, y: 0, width: 120, height: 80),
+                    children: [
+                        UIMapElement(
+                            name: "Bookmarks",
+                            roleDescription: "table",
+                            documentRect: CGRect(x: 0, y: 0, width: 80, height: 80),
+                            children: [
+                                UIMapElement(
+                                    id: childID,
+                                    name: "Home",
+                                    roleDescription: "text",
+                                    documentRect: CGRect(x: 8, y: 10, width: 24, height: 12)
+                                )
+                            ]
+                        )
+                    ]
+                )
+            ]
+        )
+        let controller = makeController(
+            capture: makeCapturedScreenshot(
+                image: makeCoordinateImage(width: 120, height: 80),
+                uiMap: uiMap
+            )
+        )
+
+        controller.togglePinnedUIMapElement(childID)
+
+        XCTAssertEqual(controller.pinnedUIMapElements.first?.overlayParentHierarchy, "Window > Bookmarks")
+    }
+
     @MainActor
     func testUIMapInspectSelectionTogglesPinState() {
         let uiMap = makeTestUIMap()
@@ -1118,9 +1369,54 @@ final class EditorControllerTests: XCTestCase {
 
         controller.selectAndTogglePinnedUIMapElement(elementID)
 
-        XCTAssertEqual(controller.selectedUIMapElementID, elementID)
+        XCTAssertNil(controller.selectedUIMapElementID)
         XCTAssertFalse(controller.isUIMapElementPinned(elementID))
         XCTAssertTrue(controller.pinnedUIMapElements.isEmpty)
+    }
+
+    @MainActor
+    func testUIMapInspectUnpinClearsHoverState() {
+        let uiMap = makeTestUIMap()
+        let elementID = uiMap.elements[0].id
+        let controller = makeController(
+            capture: makeCapturedScreenshot(
+                image: makeCoordinateImage(width: 64, height: 48),
+                uiMap: uiMap
+            )
+        )
+        controller.selectAndTogglePinnedUIMapElement(elementID)
+        controller.hoverUIMapElement(elementID)
+
+        controller.selectAndTogglePinnedUIMapElement(elementID)
+
+        XCTAssertNil(controller.selectedUIMapElementID)
+        XCTAssertNil(controller.hoveredUIMapElementID)
+        XCTAssertFalse(controller.isUIMapElementPinned(elementID))
+    }
+
+    @MainActor
+    func testUIMapPinTogglePublishesSnapshotChangeForAutoCopyObservers() async {
+        let uiMap = makeTestUIMap()
+        let elementID = uiMap.elements[0].id
+        let controller = makeController(
+            capture: makeCapturedScreenshot(
+                image: makeCoordinateImage(width: 64, height: 48),
+                uiMap: uiMap
+            )
+        )
+        var pinnedElementChanges: [[UUID]] = []
+        let cancellable = controller.$snapshot
+            .map(\.pinnedUIMapElementIDs)
+            .removeDuplicates()
+            .dropFirst()
+            .sink { pinnedElementChanges.append($0) }
+
+        controller.selectAndTogglePinnedUIMapElement(elementID)
+        controller.selectAndTogglePinnedUIMapElement(elementID)
+        await Task.yield()
+        cancellable.cancel()
+
+        XCTAssertEqual(pinnedElementChanges, [[elementID], []])
     }
 
     @MainActor
