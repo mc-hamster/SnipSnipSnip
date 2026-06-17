@@ -655,7 +655,7 @@ private final class AnnotationCanvasOverlayView: NSView {
             return
         }
 
-        let color = uiMapOverlayColor(for: element)
+        let color = uiMapOverlayColor(for: element, options: options)
 
         if options.showsOutline {
             let path = NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4)
@@ -669,6 +669,10 @@ private final class AnnotationCanvasOverlayView: NSView {
         }
 
         guard !(controller.showsAllUIMapElements || controller.activeTool == .uiMapInspect) || isSelected else {
+            return
+        }
+
+        guard !controller.isUIMapElementPinned(element.id) else {
             return
         }
 
@@ -696,15 +700,33 @@ private final class AnnotationCanvasOverlayView: NSView {
         attributedLabel.draw(at: CGPoint(x: labelRect.minX + 6, y: labelRect.minY + 3))
     }
 
-    private func uiMapOverlayColor(for element: UIMapElement) -> NSColor {
-        element.isRecognizedTextSupplement ? .systemOrange : .systemBlue
+    private func uiMapOverlayColor(for element: UIMapElement, options: UIMapOverlayOptions) -> NSColor {
+        if let outlineColor = options.outlineColor {
+            return outlineColor.nsColor
+        }
+
+        return element.isRecognizedTextSupplement ? NSColor.systemOrange : NSColor.systemBlue
     }
 
     private func uiMapOverlayLabelSegments(for element: UIMapElement, options: UIMapOverlayOptions) -> [String] {
         var segments: [String] = []
 
+        if options.showsSource {
+            segments.append(element.isRecognizedTextSupplement ? "OCR supplement text" : "Accessibility element")
+        }
+
         if options.showsLabel {
-            segments.append(element.displayName)
+            if let name = element.name {
+                segments.append(name)
+            } else {
+                segments.append(element.displayName)
+            }
+        }
+
+        if options.showsAccessibilityLabel,
+           let accessibilityLabel = element.accessibilityLabel,
+           accessibilityLabel != element.name {
+            segments.append(accessibilityLabel)
         }
 
         if options.showsIdentifier, let identifier = element.accessibilityIdentifier {
@@ -715,12 +737,33 @@ private final class AnnotationCanvasOverlayView: NSView {
             segments.append(element.typeLabel)
         }
 
+        if options.showsValue, let value = element.valueDescription {
+            segments.append(value)
+        }
+
         if options.showsCoordinates {
             segments.append("x \(Int(element.documentRect.minX)), y \(Int(element.documentRect.minY))")
         }
 
         if options.showsDimensions {
             segments.append("\(Int(element.documentRect.width)) x \(Int(element.documentRect.height))")
+        }
+
+        if options.showsOwningApplication, let owningApplication = element.owningApplication {
+            segments.append(owningApplication)
+        }
+
+        if options.showsBundleIdentifier, let bundleIdentifier = element.bundleIdentifier {
+            segments.append(bundleIdentifier)
+        }
+
+        if options.showsParentHierarchy {
+            let hierarchy = controller.uiMapSnapshot?.parentHierarchy(for: element.id)
+                .map(\.displayName)
+                .joined(separator: " > ")
+            if let hierarchy, !hierarchy.isEmpty {
+                segments.append(hierarchy)
+            }
         }
 
         return segments

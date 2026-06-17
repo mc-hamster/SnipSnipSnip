@@ -16,7 +16,7 @@ enum SSSVideoDocumentError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidPackage:
-            return "The selected .sssvideo file is not a valid SnipSnipSnip video package."
+            return "The selected .sssvideo file is not a valid \(AppBranding.displayName) video package."
         case .missingManifest:
             return "The selected .sssvideo file is missing its document manifest."
         case .missingMedia:
@@ -26,7 +26,7 @@ enum SSSVideoDocumentError: LocalizedError {
         case .unsupportedFormatVersion(let version):
             return "This .sssvideo file uses unsupported format version \(version)."
         case .unsupportedFormatIdentifier(let identifier):
-            return "The selected file is not a SnipSnipSnip video document (\(identifier))."
+            return "The selected file is not a \(AppBranding.displayName) video document (\(identifier))."
         case .invalidPosterData:
             return "The poster frame in this .sssvideo file could not be decoded."
         case .posterUnavailable:

@@ -13,9 +13,9 @@ nonisolated enum VideoStorageError: LocalizedError {
         case .exportAlreadyInProgress:
             return "A video export is already in progress."
         case .insufficientAvailableSpace(let location, let requiredBytes, let availableBytes):
-            return "SnipSnipSnip needs at least \(formatter.string(fromByteCount: requiredBytes)) of free space in \(location), but only \(formatter.string(fromByteCount: availableBytes)) is currently available."
+            return "\(AppBranding.displayName) needs at least \(formatter.string(fromByteCount: requiredBytes)) of free space in \(location), but only \(formatter.string(fromByteCount: availableBytes)) is currently available."
         case .temporaryStorageLimitExceeded(let currentBytes, let limitBytes):
-            return "SnipSnipSnip temporary video storage is already using \(formatter.string(fromByteCount: currentBytes)), which is over the current safety budget of \(formatter.string(fromByteCount: limitBytes)). Save or discard an open recording, then try again."
+            return "\(AppBranding.displayName) temporary video storage is already using \(formatter.string(fromByteCount: currentBytes)), which is over the current safety budget of \(formatter.string(fromByteCount: limitBytes)). Save or discard an open recording, then try again."
         }
     }
 }

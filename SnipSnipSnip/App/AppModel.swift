@@ -128,6 +128,7 @@ enum AppModelPreferenceKey {
     static let completedOnboardingVersion = "appModel.completedOnboardingVersion"
     static let editorCropOutsideOverlayAlpha = "appModel.editorCropOutsideOverlayAlpha"
     static let editorOutOfCapturePatternSettings = "appModel.editorOutOfCapturePatternSettings"
+    static let presentationScenesRootPath = "appModel.presentationScenesRootPath"
     static let uiMapPinnedOverlayDefaults = "appModel.uiMapPinnedOverlayDefaults"
     static let hasDismissedWelcomeCard = "appModel.hasDismissedWelcomeCard"
     static let hasPresentedWelcomeWindow = "appModel.hasPresentedWelcomeWindow"
@@ -321,6 +322,7 @@ final class AppModel: ObservableObject {
     }
     @Published private(set) var editorCropOutsideOverlayAlpha: CGFloat
     @Published private(set) var editorOutOfCapturePatternSettings: EditorOutOfCapturePatternSettings
+    @Published private(set) var presentationScenesRootURL: URL
     @Published var uiMapPinnedOverlayDefaults: UIMapOverlayOptions {
         didSet {
             persistUIMapPinnedOverlayDefaults()
@@ -413,6 +415,7 @@ final class AppModel: ObservableObject {
     @Published var connectedDeviceEmptyStateMessage = ConnectedDeviceCaptureMenu.emptyStateMessage
     @Published var isShowingCapturePresetNamingSheet = false
     @Published var capturePresetNameDraft = ""
+    @Published var isShowingPresentationExperimentalNotice = false
 
     var captureService: any ScreenCaptureServiceType
     let uiMapCaptureService: any UIMapCaptureServiceType
@@ -438,9 +441,11 @@ final class AppModel: ObservableObject {
     @Published var lastCaptureRunOptions: CaptureRunOptions?
     var editorRenderObserver: AnyCancellable?
     var editorPersistenceObserver: AnyCancellable?
+    var editorWorkspaceModeObserver: AnyCancellable?
     var videoPersistenceObserver: AnyCancellable?
     var applicationActivationObserver: AnyCancellable?
     var launchAtLoginObserver: AnyCancellable?
+    var cachedAutomationService: AppAutomationService?
     var pendingAutoCopyTask: Task<Void, Never>?
     var pendingAutosaveTask: Task<Void, Never>?
     var archiveMaintenanceTask: Task<Void, Never>?
@@ -468,6 +473,7 @@ final class AppModel: ObservableObject {
     var pendingCapturePresetDraft: CapturePreset?
     var editableRedactionSaveConfirmationHandler: @MainActor () -> EditableRedactionSaveDecision = AppModel.presentEditableRedactionSaveConfirmation
     var editableRedactionSaveWarningAcknowledgedEditorIDs: Set<ObjectIdentifier> = []
+    var hasShownPresentationExperimentalNoticeThisStartup = false
     var lastAutosavedState: AutosaveState?
     var capturePrivacyLockDepth = 0
     var interactiveCaptureAutosaveSuspensionDepth = 0
@@ -531,6 +537,7 @@ final class AppModel: ObservableObject {
         self.uiMapEnabled = defaults.object(forKey: AppModelPreferenceKey.uiMapEnabled) as? Bool ?? FeatureFlags.uiMapEnabled
         self.editorCropOutsideOverlayAlpha = Self.loadEditorCropOutsideOverlayAlpha(from: defaults)
         self.editorOutOfCapturePatternSettings = Self.loadEditorOutOfCapturePatternSettings(from: defaults)
+        self.presentationScenesRootURL = PresentationSceneStore.configuredRootURL(in: defaults)
         self.uiMapPinnedOverlayDefaults = Self.loadUIMapPinnedOverlayDefaults(from: defaults)
         let screenRulerPreferences = Self.loadScreenRulerPreferences(from: defaults)
         self.screenRulerPreferences = screenRulerPreferences
@@ -850,6 +857,7 @@ final class AppModel: ObservableObject {
         uiMapEnabled = FeatureFlags.uiMapEnabled
         updateEditorCropOutsideOverlayAlpha(Self.defaultEditorCropOutsideOverlayAlpha)
         updateEditorOutOfCapturePatternSettings(.default)
+        resetPresentationScenesRootToDefault()
         uiMapPinnedOverlayDefaults = UIMapOverlayOptions()
         screenRulerPreferences = .default
         screenInspectorPreferences = .default
@@ -1038,6 +1046,68 @@ final class AppModel: ObservableObject {
         }
 
         editorController?.updateOutOfCapturePatternSettings(sanitizedSettings)
+    }
+
+    var presentationScenesRootDescription: String {
+        presentationScenesRootURL.path
+    }
+
+    var usesDefaultPresentationScenesRoot: Bool {
+        presentationScenesRootURL.standardizedFileURL == PresentationSceneStore.defaultRootURL.standardizedFileURL
+    }
+
+    func choosePresentationScenesRoot() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = presentationScenesRootURL
+        panel.prompt = "Use Scenes Folder"
+
+        guard panel.runModal() == .OK, let selectedURL = panel.url else {
+            return
+        }
+
+        updatePresentationScenesRootURL(selectedURL)
+    }
+
+    func revealPresentationScenesRoot() {
+        do {
+            try FileManager.default.createDirectory(at: presentationScenesRootURL, withIntermediateDirectories: true)
+            NSWorkspace.shared.activateFileViewerSelecting([presentationScenesRootURL])
+        } catch {
+            present(error)
+        }
+    }
+
+    func resetPresentationScenesRootToDefault() {
+        defaults.removeObject(forKey: AppModelPreferenceKey.presentationScenesRootPath)
+        updatePresentationScenesRootURL(PresentationSceneStore.defaultRootURL, persists: false)
+    }
+
+    func reloadPresentationScenes() {
+        if let editorController {
+            editorController.reloadPresentationScenes()
+            return
+        }
+
+        do {
+            _ = try PresentationSceneStore(rootURL: presentationScenesRootURL).reload()
+        } catch {
+            present(error)
+        }
+    }
+
+    private func updatePresentationScenesRootURL(_ url: URL, persists: Bool = true) {
+        let standardizedURL = url.standardizedFileURL
+        presentationScenesRootURL = standardizedURL
+
+        if persists {
+            defaults.set(standardizedURL.path, forKey: AppModelPreferenceKey.presentationScenesRootPath)
+        }
+
+        editorController?.updatePresentationScenesRootURL(standardizedURL)
     }
 
     private func persistUIMapPinnedOverlayDefaults() {

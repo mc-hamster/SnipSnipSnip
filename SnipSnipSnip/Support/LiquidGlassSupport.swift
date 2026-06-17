@@ -100,6 +100,8 @@ struct SSSChromeButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.subheadline.weight(.semibold))
+            .lineLimit(1)
+            .truncationMode(.tail)
             .sssGlassAction(
                 tint: tint,
                 isEnabled: isEnabled,

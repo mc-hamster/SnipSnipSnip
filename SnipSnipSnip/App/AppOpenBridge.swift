@@ -4,6 +4,7 @@ import Foundation
 extension Notification.Name {
     static let sssPendingDocumentURLsDidChange = Notification.Name("sssPendingDocumentURLsDidChange")
     static let sssPendingPasteboardImageImportsDidChange = Notification.Name("sssPendingPasteboardImageImportsDidChange")
+    static let sssPendingAutomationRequestsDidChange = Notification.Name("sssPendingAutomationRequestsDidChange")
     static let sssOpenMainWindowRequest = Notification.Name("sssOpenMainWindowRequest")
 }
 
@@ -50,8 +51,25 @@ enum PendingPasteboardImageImportRequests {
     }
 }
 
+@MainActor
+enum PendingAutomationRequests {
+    private static var requests: [AutomationRequest] = []
+
+    static func enqueue(_ request: AutomationRequest) {
+        requests.append(request)
+        NotificationCenter.default.post(name: .sssOpenMainWindowRequest, object: nil)
+        NotificationCenter.default.post(name: .sssPendingAutomationRequestsDidChange, object: nil)
+    }
+
+    static func drain() -> [AutomationRequest] {
+        let drained = requests
+        requests.removeAll()
+        return drained
+    }
+}
+
 enum AppImportURL {
-    static let scheme = "snipsnipsnip"
+    nonisolated static let scheme = "snipsnipsnip"
     static let pasteboardImportHost = "import-pasteboard"
     static let pasteboardNameQueryItem = "name"
     static let sourceNameQueryItem = "source"
@@ -127,6 +145,8 @@ final class AppOpenBridge: NSObject, NSApplicationDelegate {
         for url in urls {
             if let request = AppImportURL.pasteboardImportRequest(from: url) {
                 PendingPasteboardImageImportRequests.enqueue(request)
+            } else if let request = AutomationURLRouter.request(from: url) {
+                PendingAutomationRequests.enqueue(request)
             } else if url.isFileURL {
                 fileURLs.append(url)
             }

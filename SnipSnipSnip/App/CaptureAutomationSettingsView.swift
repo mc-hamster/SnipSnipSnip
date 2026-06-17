@@ -14,7 +14,7 @@ struct CaptureAutomationSettingsView: View {
                 summary: "Capture shortcuts, naming defaults, and editor behavior stay together here."
             ) {
                 Section("Startup") {
-                    Toggle("Launch SnipSnipSnip at Login", isOn: launchAtLoginBinding)
+                    Toggle("Launch \(AppBranding.displayName) at Login", isOn: launchAtLoginBinding)
 
                     HStack {
                         Label("Status", systemImage: model.launchAtLoginStatus.systemImage)
@@ -30,7 +30,7 @@ struct CaptureAutomationSettingsView: View {
                     }
 
                     Toggle("Confirm Before Quitting", isOn: $confirmsBeforeQuitting)
-                    SettingsHelpText("Command-Q minimizes SnipSnipSnip so the menu bar icon and shortcuts stay available. The menu bar Quit command asks before exiting unless this is turned off.")
+                    SettingsHelpText("\(AppBranding.displayName) minimizes on Command-Q so the menu bar icon and shortcuts stay available. The menu bar Quit command asks before exiting unless this is turned off.")
                 }
 
                 Section("Help & Onboarding") {
@@ -84,11 +84,17 @@ struct CaptureAutomationSettingsView: View {
                                 .font(.subheadline.weight(.semibold))
 
                             Toggle("Show outline", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsOutline))
-                            Toggle("Show label", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsLabel))
+                            Toggle("Show source", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsSource))
+                            Toggle("Show name", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsLabel))
+                            Toggle("Show accessibility label", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsAccessibilityLabel))
                             Toggle("Show identifier", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsIdentifier))
                             Toggle("Show role", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsRole))
+                            Toggle("Show value", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsValue))
                             Toggle("Show coordinates", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsCoordinates))
                             Toggle("Show dimensions", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsDimensions))
+                            Toggle("Show owning app", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsOwningApplication))
+                            Toggle("Show bundle identifier", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsBundleIdentifier))
+                            Toggle("Show parent hierarchy", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsParentHierarchy))
                         }
 
                         SettingsHelpText("Choose which details are shown by default when pinned UI Map elements are rendered on copied, shared, or exported screenshots.")
@@ -275,6 +281,30 @@ struct CaptureAutomationSettingsView: View {
 
                         SettingsHelpText("The crosshatch marks canvas space outside the original captured image. It is editor-only and is never included when copying, exporting, sharing, or saving rendered output.")
                     }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Presentation Scenes")
+                            .font(.subheadline.weight(.semibold))
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Scenes Folder")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Text(model.presentationScenesRootDescription)
+                                .font(.footnote)
+                                .textSelection(.enabled)
+                        }
+
+                        HStack {
+                            Button("Choose Scenes Folder...", action: model.choosePresentationScenesRoot)
+                            Button("Reveal Scenes Folder", action: model.revealPresentationScenesRoot)
+                            Button("Reset to Default Folder", action: model.resetPresentationScenesRootToDefault)
+                                .disabled(model.usesDefaultPresentationScenesRoot)
+                            Button("Reload Scenes", action: model.reloadPresentationScenes)
+                        }
+
+                        SettingsHelpText("Presentation Scenes are SVG files. \(AppBranding.displayName) manages shipped examples in Bundled and reads custom scenes from User inside this folder.")
+                    }
                 }
             }
             .tabItem {
@@ -320,7 +350,7 @@ struct CaptureAutomationSettingsView: View {
                         }
                     }
 
-                    SettingsHelpText("Global hotkeys run while SnipSnipSnip is not frontmost, so the active app keeps those shortcuts when SnipSnipSnip is already focused.")
+                    SettingsHelpText("Global hotkeys run while \(AppBranding.displayName) is not frontmost, so the active app keeps those shortcuts when \(AppBranding.displayName) is already focused.")
                 }
 
                 Section("Editor Shortcuts") {
@@ -429,7 +459,7 @@ struct CaptureAutomationSettingsView: View {
 
                     Button("Clear Archive", role: .destructive, action: model.clearArchive)
 
-                    SettingsHelpText("SnipSnipSnip periodically trims the oldest archived checkpoints until the archive is back under the configured limit.")
+                    SettingsHelpText("\(AppBranding.displayName) periodically trims the oldest archived checkpoints until the archive is back under the configured limit.")
                 }
 
                 Section("Recycle Bin") {
@@ -496,11 +526,11 @@ struct CaptureAutomationSettingsView: View {
                     Button("Clear Clipboard History", role: .destructive, action: model.clearClipboardHistory)
                         .disabled(model.clipboardHistoryItems.isEmpty)
 
-                    SettingsHelpText("Clipboard history is local to this Mac. Non-private SnipSnipSnip screenshots are added to this timeline even when Auto Copy is off. Private Capture stays out of clipboard history.")
+                    SettingsHelpText("Clipboard history is local to this Mac. Non-private \(AppBranding.displayName) screenshots are added to this timeline even when Auto Copy is off. Private Capture stays out of clipboard history.")
                 }
 
                 Section("Ignored Apps") {
-                    SettingsHelpText("SnipSnipSnip skips concealed and transient clipboard types and ignores Apple Passwords plus common password managers by default.")
+                    SettingsHelpText("\(AppBranding.displayName) skips concealed and transient clipboard types and ignores Apple Passwords plus common password managers by default.")
 
                     HStack(spacing: 10) {
                         Menu("Ignore Running App") {
@@ -1006,7 +1036,7 @@ private struct ShortcutCatalogListView: View {
                                 .foregroundStyle(.primary)
                                 .frame(minWidth: 148, alignment: .leading)
 
-                            Text(entry.action)
+                            Text(AppBranding.branded(entry.action))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }

@@ -79,6 +79,10 @@ extension AppModel {
                 return
             }
 
+            guard await confirmConnectedDeviceCameraAccessIfNeeded() else {
+                return
+            }
+
             let isPrivateCapture = beginCapturePrivacyLock()
 
             isWorking = true
@@ -152,5 +156,20 @@ extension AppModel {
 
     private func prepareTemporaryVideoStorageForConnectedDeviceRecording() throws {
         try VideoStorageGuardrails.cleanupOwnedTemporaryMedia(excluding: currentProtectedTemporaryVideoURLs())
+    }
+
+    private func confirmConnectedDeviceCameraAccessIfNeeded() async -> Bool {
+        guard await connectedDeviceCaptureService.videoAuthorizationStatus() == .notDetermined else {
+            return true
+        }
+
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = "Allow Camera Access for Connected Device Preview?"
+        alert.informativeText = "\(AppBranding.displayName) uses Camera access only when you preview, capture, or record a connected iPhone or iPad. macOS exposes trusted device screens as video sources, so this permission is required before the live preview can start."
+        alert.addButton(withTitle: "Continue")
+        alert.addButton(withTitle: "Cancel")
+
+        return alert.runModal() == .alertFirstButtonReturn
     }
 }

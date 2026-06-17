@@ -74,7 +74,8 @@ extension AppModel {
 
         controller.commitPendingTextEdits()
 
-        guard let image = controller.exportedImage() else {
+        let usesPresentation = controller.workspaceMode == .presentation
+        guard let image = controller.exportedImage(usingPresentation: usesPresentation) else {
             errorMessage = "The floating reference image could not be rendered."
             return
         }
@@ -163,6 +164,7 @@ extension AppModel {
         guard let controller = editorController else {
             editorRenderObserver = nil
             editorPersistenceObserver = nil
+            editorWorkspaceModeObserver = nil
 
             if videoEditorController == nil {
                 resetEditorSessionState()
@@ -182,7 +184,9 @@ extension AppModel {
 
                 self.updateDocumentChangeTracking()
 
-                guard self.autoCopyEnabled, let controller else {
+                guard self.autoCopyEnabled,
+                      let controller,
+                      controller.workspaceMode != .presentation else {
                     return
                 }
 
@@ -200,8 +204,23 @@ extension AppModel {
                 self.scheduleAutosave(for: controller)
             }
 
+        editorWorkspaceModeObserver = controller.$workspaceMode
+            .sink { [weak self] mode in
+                self?.handleEditorWorkspaceModeChange(mode)
+            }
+
         updateDocumentChangeTracking()
         refreshRecoveryPresentationState()
+    }
+
+    func handleEditorWorkspaceModeChange(_ mode: EditorWorkspaceMode) {
+        guard mode == .presentation,
+              !hasShownPresentationExperimentalNoticeThisStartup else {
+            return
+        }
+
+        hasShownPresentationExperimentalNoticeThisStartup = true
+        isShowingPresentationExperimentalNotice = true
     }
 
     func copyCurrentEditorImageToClipboard() {
@@ -227,9 +246,15 @@ extension AppModel {
         clipboardMonitor.markCurrentPasteboardChangeAsHandled()
     }
 
+    func copyCurrentPlainEditorImageToClipboard() {
+        editorController?.copyPlainAnnotatedImage()
+        clipboardMonitor.markCurrentPasteboardChangeAsHandled()
+    }
+
     func resetEditorSessionState() {
         editorRenderObserver = nil
         editorPersistenceObserver = nil
+        editorWorkspaceModeObserver = nil
         videoPersistenceObserver = nil
         textRecognitionCoordinator.cancelAll()
         pendingAutoCopyTask?.cancel()
@@ -330,6 +355,7 @@ extension AppModel {
         controller.editorSingleKeyToolShortcutsEnabled = editorSingleKeyToolShortcutsEnabled
         controller.updateCropOutsideOverlayAlpha(editorCropOutsideOverlayAlpha)
         controller.updateOutOfCapturePatternSettings(editorOutOfCapturePatternSettings)
+        controller.updatePresentationScenesRootURL(presentationScenesRootURL)
         editorController = controller
         currentRecoverySessionID = recoverySessionID ?? (shouldCreateRecoverySession ? createRecoverySessionIfNeeded(for: controller, documentURL: documentURL) : nil)
         updateDocumentChangeTracking()
@@ -747,7 +773,7 @@ extension AppModel {
             window.isDocumentEdited = hasUnsavedChanges
         }
 
-        let title = editorController == nil && videoEditorController == nil ? "SnipSnipSnip" : currentDocumentFilename
+        let title = editorController == nil && videoEditorController == nil ? AppBranding.displayName : currentDocumentFilename
 
         if window.title != title {
             window.title = title
@@ -906,19 +932,35 @@ nonisolated private enum DocumentPackageWriter {
         let task = Task.detached(priority: .userInitiated) {
             try Task.checkCancellation()
 
-            guard let previewImage = EditorRenderer.render(
-                baseImage: payload.renderInput.baseImage,
-                snapshot: payload.renderInput.snapshot,
-                pinnedUIMapElements: payload.renderInput.pinnedUIMapElements,
-                uiMapOverlayOptions: payload.renderInput.uiMapOverlayOptions
-            ) else {
+            let previewImage = PresentationPerformanceMetrics.measure(
+                "package.preview.content",
+                context: "base=\(payload.renderInput.baseImage.width)x\(payload.renderInput.baseImage.height) crop=\(PresentationPerformanceMetrics.size(payload.renderInput.snapshot.cropRect.size)) annotations=\(payload.renderInput.snapshot.annotations.count)",
+                warnAfterMS: 80
+            ) {
+                EditorRenderer.render(
+                    baseImage: payload.renderInput.baseImage,
+                    snapshot: payload.renderInput.snapshot,
+                    pinnedUIMapElements: payload.renderInput.pinnedUIMapElements,
+                    uiMapOverlayOptions: payload.renderInput.uiMapOverlayOptions
+                )
+            }
+
+            guard let previewImage else {
                 throw ImageExportError.encodingFailed
             }
 
-            guard let presentedPreviewImage = ScreenshotPresentationRenderer.render(
-                contentImage: previewImage,
-                presentation: payload.renderInput.snapshot.presentation
-            ) else {
+            let presentedPreviewImage = PresentationPerformanceMetrics.measure(
+                "package.preview.presentation",
+                context: "content=\(previewImage.width)x\(previewImage.height) \(PresentationPerformanceMetrics.presentationSummary(payload.renderInput.snapshot.presentation))",
+                warnAfterMS: 100
+            ) {
+                ScreenshotPresentationRenderer.render(
+                    contentImage: previewImage,
+                    presentation: payload.renderInput.snapshot.presentation
+                )
+            }
+
+            guard let presentedPreviewImage else {
                 throw ImageExportError.encodingFailed
             }
 
@@ -961,21 +1003,43 @@ nonisolated private enum AutoCopyRenderer {
         let task = Task.detached(priority: .utility) {
             try Task.checkCancellation()
 
-            guard let image = EditorRenderer.render(
-                baseImage: input.baseImage,
-                snapshot: input.snapshot,
-                pinnedUIMapElements: input.pinnedUIMapElements,
-                uiMapOverlayOptions: input.uiMapOverlayOptions
-            ) else {
+            let image = PresentationPerformanceMetrics.measure(
+                "autoCopy.content",
+                context: "base=\(input.baseImage.width)x\(input.baseImage.height) crop=\(PresentationPerformanceMetrics.size(input.snapshot.cropRect.size)) annotations=\(input.snapshot.annotations.count)",
+                warnAfterMS: 80
+            ) {
+                EditorRenderer.render(
+                    baseImage: input.baseImage,
+                    snapshot: input.snapshot,
+                    pinnedUIMapElements: input.pinnedUIMapElements,
+                    uiMapOverlayOptions: input.uiMapOverlayOptions
+                )
+            }
+
+            guard let image else {
                 throw ImageExportError.encodingFailed
             }
 
-            guard let presentedImage = ScreenshotPresentationRenderer.render(contentImage: image, presentation: input.snapshot.presentation) else {
+            let presentedImage = PresentationPerformanceMetrics.measure(
+                "autoCopy.presentation",
+                context: "content=\(image.width)x\(image.height) \(PresentationPerformanceMetrics.presentationSummary(input.snapshot.presentation))",
+                warnAfterMS: 100
+            ) {
+                ScreenshotPresentationRenderer.render(contentImage: image, presentation: input.snapshot.presentation)
+            }
+
+            guard let presentedImage else {
                 throw ImageExportError.encodingFailed
             }
 
             try Task.checkCancellation()
-            return try ImageExporter.pngData(for: presentedImage)
+            return try PresentationPerformanceMetrics.measure(
+                "autoCopy.encode",
+                context: "image=\(presentedImage.width)x\(presentedImage.height)",
+                warnAfterMS: 80
+            ) {
+                try ImageExporter.pngData(for: presentedImage)
+            }
         }
 
         return try await withTaskCancellationHandler {

@@ -30,6 +30,17 @@ final class ConnectedDeviceCaptureServiceTests: XCTestCase {
         )
     }
 
+    func testConnectedDeviceCaptureErrorExplainsCameraPermissionPurpose() {
+        XCTAssertEqual(
+            ConnectedDeviceCaptureError.cameraPermissionNotDetermined.errorDescription,
+            "Connected-device capture needs Camera access because macOS exposes trusted iPhone and iPad screens as video sources. Choose a connected device to continue."
+        )
+        XCTAssertEqual(
+            ConnectedDeviceCaptureError.cameraPermissionDenied.errorDescription,
+            "Camera access is required for connected iPhone and iPad preview, screenshots, and recordings because macOS exposes those screens as video sources."
+        )
+    }
+
     func testConnectedDeviceKindsUseExpectedMetadataValues() {
         XCTAssertEqual(CaptureKind.connectedDevice.rawValue, "connectedDevice")
         XCTAssertEqual(VideoRecordingKind.connectedDevice.rawValue, "connectedDevice")

@@ -28,7 +28,7 @@ example.sss/
 - `formatIdentifier`: `com.oontz.snipsnipsnip.document`
 - `formatVersion`: `6`
 
-Version 6 stores explicit coordinate-space metadata and image overlay assets. New captures use Quartz-style top-left, y-down capture-global points. Existing documents retain their persisted coordinate descriptor when resaved.
+Version 6 stores explicit coordinate-space metadata, image overlay assets, and additive screenshot presentation fields. New captures use Quartz-style top-left, y-down capture-global points. Existing documents retain their persisted coordinate descriptor when resaved.
 
 ## Top-Level `document.json`
 
@@ -100,6 +100,7 @@ Private Capture sessions skip archive checkpoint creation and OCR indexing, so p
 - `undoStack`: prior snapshots.
 - `redoStack`: redo snapshots.
 - `toolStyles`: per-tool style defaults.
+- `savedPresentations`: optional document-scoped saved presentation variants.
 
 Each snapshot contains:
 
@@ -112,7 +113,12 @@ Each snapshot contains:
 `presentation` contains:
 
 - `isEnabled`
-- `background`: `transparent` or `solid` with an optional color record
+- `style`: optional native Presentation Style record. Newer writers include this as the canonical native style state.
+- `scene`: optional applied Presentation Scene snapshot. When present, it contains the scene ID, name, version, sanitized SVG text, text slot values, and screenshot slot fit settings.
+- `background`: `transparent`, `solid`, `twoColorGradient`, `radialSpotlight`, or `blurredScreenshot`
+- `canvas`: optional legacy/native canvas sizing record. Missing values decode as `original`.
+- `subjectPlacement`: optional legacy/native fit, alignment, scale, and offset record. Missing values decode as centered contain placement.
+- `frame`: optional legacy/native rendered frame record. Missing values decode as `none`.
 - `padding`
 - `cornerRadius`
 - `shadow`: `off`, `soft`, `medium`, `strong`, or `drop`
@@ -120,6 +126,50 @@ Each snapshot contains:
 - `shadowOffsetX`: optional custom horizontal shadow offset. Missing values use the selected `shadow` preset default.
 - `shadowOffsetY`: optional custom vertical shadow offset. Missing values use the selected `shadow` preset default.
 - `shadowOpacity`: optional custom shadow opacity from `0` to `1`. Missing values use the selected `shadow` preset default.
+
+The flat presentation fields remain present for compatibility with older readers. Readers that understand `style` should prefer it for native style state when no `scene` is applied. Native canvas sizing, subject placement, and rendered frame records are retained for file compatibility; current user-facing browser, window, phone, tablet, social, and fixed-layout presentation work should be represented as `scene` snapshots. When `scene` is present, readers should render the screenshot and annotations, then substitute that rendered content into the embedded SVG scene snapshot.
+
+Scene records use:
+
+- `sceneID`
+- `name`
+- `version`
+- `sanitizedSVGText`: the sanitized SVG template snapshot embedded in the document.
+- `textSlotValues`: string values keyed by scene text slot ID.
+- `screenshotSlotSettings`: selected screenshot slot framing preset, resolved fit, alignment, scale multiplier, x/y offset, and manual adjustment flag. Older fit-only records decode as `showFull` or `fillFrame`.
+
+See `presentation-scene-format.md` for the SVG metadata schema, slot conventions, validation rules, bundled scene sync policy, and rendering pipeline used by `sanitizedSVGText`.
+
+Saved variant records use:
+
+- `id`: UUID for the saved presentation inside this document.
+- `name`: user-facing variant name.
+- `presentation`: full `ScreenshotPresentation` state, including style and optional embedded scene snapshot.
+- `createdAt`: creation timestamp.
+- `updatedAt`: last update timestamp.
+
+Saved variants are stored in the `.sss` document, not global preferences. Applying a saved variant copies its `presentation` value into the active snapshot through the normal presentation command path. Renaming, duplicating, updating, or deleting saved variant records changes document metadata and should mark the document dirty, but those saved-list library edits are separate from snapshot undo history.
+
+Background records use:
+
+- `transparent`: `kind`
+- `solid`: `kind`, `color`
+- `twoColorGradient`: `kind`, `start`, `end`
+- `radialSpotlight`: `kind`, `base`, `spotlight`
+- `blurredScreenshot`: `kind`, `tint`
+
+Canvas records use:
+
+- `original`: `kind`
+- `preset`: `kind`, `preset`, where `preset` is `square`, `portraitFourFive`, `widescreen`, `story`, or `landscapeWide`
+- `custom`: `kind`, `width`, `height`
+
+Frame records use:
+
+- `none`: `kind`
+- `browser`: `kind`, `browser`, where `browser` contains `title`, `address`, `scheme`, and `showsTrafficLights`
+- `macOSWindow`: `kind`, `macOSWindow`, where `macOSWindow` contains `title`, `scheme`, and `showsTrafficLights`
+- `phone` or `tablet`: `kind`, `device`, where `device` contains `orientation`, `bezelColor`, `screenCornerRadius`, `showsSensorHousing`, and `castsDeviceShadow`
 
 ## Annotation Schema
 
@@ -159,6 +209,13 @@ Supported `redactionMode` values:
 - Readers must reject unknown `formatIdentifier` values.
 - Readers must reject `formatVersion` values outside the supported range.
 - Readers should default missing `presentation` values to plain output.
+- Readers should default missing presentation `canvas` values to `original`.
+- Readers should default missing presentation `subjectPlacement` values to centered contain placement.
+- Readers should default missing presentation `frame` values to `none`.
+- Readers should decode missing presentation `style` values from the flat compatibility fields.
+- Readers should default missing presentation `scene` values to style-only presentation output.
+- Readers should render an applied presentation scene from the embedded `sanitizedSVGText`; the original scene file is not required to load the document.
+- Readers should default missing `savedPresentations` values to an empty list.
 - Readers should default missing `rotationDegrees` to `0`.
 - Readers should default missing spotlight `isEllipse` to `true`.
 - Readers should default missing image overlay `opacity` to `1`.

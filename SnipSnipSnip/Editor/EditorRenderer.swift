@@ -217,7 +217,8 @@ enum EditorRenderer {
         drawPinnedUIMapElementsPreview(
             pinnedUIMapElements,
             options: uiMapOverlayOptions,
-            projection: projection
+            projection: projection,
+            renderScale: renderScale
         )
     }
 
@@ -475,7 +476,8 @@ enum EditorRenderer {
     private static func drawPinnedUIMapElementsPreview(
         _ elements: [UIMapElement],
         options: UIMapOverlayOptions,
-        projection: DocumentProjection
+        projection: DocumentProjection,
+        renderScale: CGFloat
     ) {
         guard !elements.isEmpty else {
             return
@@ -487,13 +489,17 @@ enum EditorRenderer {
                 continue
             }
 
-            let color = uiMapOverlayColor(for: element)
+            let color = uiMapOverlayColor(for: element, options: options)
             if options.showsOutline {
-                let path = NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4)
+                let path = NSBezierPath(
+                    roundedRect: rect,
+                    xRadius: scaled(4, by: renderScale),
+                    yRadius: scaled(4, by: renderScale)
+                )
                 color.withAlphaComponent(0.18).setFill()
                 path.fill()
                 color.withAlphaComponent(0.95).setStroke()
-                path.lineWidth = 2
+                path.lineWidth = scaled(2, by: renderScale)
                 path.stroke()
             }
 
@@ -502,7 +508,8 @@ enum EditorRenderer {
                 rect: rect,
                 canvasRect: projection.destinationBounds,
                 color: color,
-                options: options
+                options: options,
+                renderScale: renderScale
             )
         }
     }
@@ -523,7 +530,7 @@ enum EditorRenderer {
                 continue
             }
 
-            let color = uiMapOverlayColor(for: element)
+            let color = uiMapOverlayColor(for: element, options: options)
             if options.showsOutline {
                 let path = CGPath(roundedRect: rect, cornerWidth: 4, cornerHeight: 4, transform: nil)
                 context.saveGState()
@@ -553,15 +560,22 @@ enum EditorRenderer {
         rect: CGRect,
         canvasRect: CGRect,
         color: NSColor,
-        options: UIMapOverlayOptions
+        options: UIMapOverlayOptions,
+        renderScale: CGFloat
     ) {
         let label = uiMapOverlayLabel(for: element, options: options)
         guard !label.isEmpty else {
             return
         }
 
+        let fontSize = scaled(24, by: renderScale)
+        let horizontalPadding = scaled(24, by: renderScale)
+        let verticalPadding = scaled(12, by: renderScale)
+        let textInsetX = scaled(12, by: renderScale)
+        let textInsetY = scaled(6, by: renderScale)
+        let cornerRadius = scaled(8, by: renderScale)
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
+            .font: NSFont.systemFont(ofSize: fontSize, weight: .semibold),
             .foregroundColor: NSColor.white
         ]
         let attributedLabel = NSAttributedString(string: label, attributes: attributes)
@@ -570,12 +584,13 @@ enum EditorRenderer {
             for: rect,
             labelSize: labelSize,
             canvasRect: canvasRect,
-            padding: CGSize(width: 12, height: 6)
+            padding: CGSize(width: horizontalPadding, height: verticalPadding),
+            gap: scaled(10, by: renderScale)
         )
 
         color.withAlphaComponent(0.92).setFill()
-        NSBezierPath(roundedRect: labelRect, xRadius: 6, yRadius: 6).fill()
-        attributedLabel.draw(at: CGPoint(x: labelRect.minX + 6, y: labelRect.minY + 3))
+        NSBezierPath(roundedRect: labelRect, xRadius: cornerRadius, yRadius: cornerRadius).fill()
+        attributedLabel.draw(at: CGPoint(x: labelRect.minX + textInsetX, y: labelRect.minY + textInsetY))
     }
 
     nonisolated private static func drawUIMapOverlayLabelExport(
@@ -616,15 +631,33 @@ enum EditorRenderer {
         )
     }
 
-    nonisolated private static func uiMapOverlayColor(for element: UIMapElement) -> NSColor {
-        element.isRecognizedTextSupplement ? .systemOrange : .systemBlue
+    nonisolated private static func uiMapOverlayColor(for element: UIMapElement, options: UIMapOverlayOptions) -> NSColor {
+        if let outlineColor = options.outlineColor {
+            return outlineColor.nsColor
+        }
+
+        return element.isRecognizedTextSupplement ? NSColor.systemOrange : NSColor.systemBlue
     }
 
     nonisolated private static func uiMapOverlayLabel(for element: UIMapElement, options: UIMapOverlayOptions) -> String {
         var segments: [String] = []
 
+        if options.showsSource {
+            segments.append(element.isRecognizedTextSupplement ? "OCR supplement text" : "Accessibility element")
+        }
+
         if options.showsLabel {
-            segments.append(element.displayName)
+            if let name = element.name {
+                segments.append(name)
+            } else {
+                segments.append(element.displayName)
+            }
+        }
+
+        if options.showsAccessibilityLabel,
+           let accessibilityLabel = element.accessibilityLabel,
+           accessibilityLabel != element.name {
+            segments.append(accessibilityLabel)
         }
 
         if options.showsIdentifier, let identifier = element.accessibilityIdentifier {
@@ -635,12 +668,28 @@ enum EditorRenderer {
             segments.append(element.typeLabel)
         }
 
+        if options.showsValue, let value = element.valueDescription {
+            segments.append(value)
+        }
+
         if options.showsCoordinates {
             segments.append("x \(Int(element.documentRect.minX)), y \(Int(element.documentRect.minY))")
         }
 
         if options.showsDimensions {
             segments.append("\(Int(element.documentRect.width)) x \(Int(element.documentRect.height))")
+        }
+
+        if options.showsOwningApplication, let owningApplication = element.owningApplication {
+            segments.append(owningApplication)
+        }
+
+        if options.showsBundleIdentifier, let bundleIdentifier = element.bundleIdentifier {
+            segments.append(bundleIdentifier)
+        }
+
+        if options.showsParentHierarchy, let parentHierarchy = element.overlayParentHierarchy {
+            segments.append(parentHierarchy)
         }
 
         return segments.joined(separator: "  ")
@@ -650,13 +699,14 @@ enum EditorRenderer {
         for rect: CGRect,
         labelSize: CGSize,
         canvasRect: CGRect,
-        padding: CGSize
+        padding: CGSize,
+        gap: CGFloat = 8
     ) -> CGRect {
         let width = min(labelSize.width + padding.width, max(canvasRect.width, 1))
         let height = labelSize.height + padding.height
-        let y = rect.minY - height - 8 >= canvasRect.minY
-            ? rect.minY - height - 8
-            : min(rect.maxY + 8, canvasRect.maxY - height)
+        let y = rect.minY - height - gap >= canvasRect.minY
+            ? rect.minY - height - gap
+            : min(rect.maxY + gap, canvasRect.maxY - height)
         let x = min(max(rect.minX, canvasRect.minX), canvasRect.maxX - width)
 
         return CGRect(

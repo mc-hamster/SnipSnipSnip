@@ -93,6 +93,7 @@ nonisolated struct UIMapElement: Codable, Equatable, Identifiable, Sendable {
     var documentRect: CGRect
     var owningApplication: String?
     var bundleIdentifier: String?
+    var overlayParentHierarchy: String?
     var children: [UIMapElement]
 
     private enum CodingKeys: String, CodingKey {
@@ -107,6 +108,7 @@ nonisolated struct UIMapElement: Codable, Equatable, Identifiable, Sendable {
         case documentRect
         case owningApplication
         case bundleIdentifier
+        case overlayParentHierarchy
         case children
     }
 
@@ -122,6 +124,7 @@ nonisolated struct UIMapElement: Codable, Equatable, Identifiable, Sendable {
         documentRect: CGRect,
         owningApplication: String? = nil,
         bundleIdentifier: String? = nil,
+        overlayParentHierarchy: String? = nil,
         children: [UIMapElement] = []
     ) {
         self.id = id
@@ -135,6 +138,7 @@ nonisolated struct UIMapElement: Codable, Equatable, Identifiable, Sendable {
         self.documentRect = documentRect.gscIntegralStandardized
         self.owningApplication = owningApplication.normalizedUIMapText
         self.bundleIdentifier = bundleIdentifier.normalizedUIMapText
+        self.overlayParentHierarchy = overlayParentHierarchy.normalizedUIMapText
         self.children = children
     }
 
@@ -152,6 +156,7 @@ nonisolated struct UIMapElement: Codable, Equatable, Identifiable, Sendable {
         documentRect = try container.decode(CGRect.self, forKey: .documentRect).gscIntegralStandardized
         owningApplication = try container.decodeIfPresent(String.self, forKey: .owningApplication).normalizedUIMapText
         bundleIdentifier = try container.decodeIfPresent(String.self, forKey: .bundleIdentifier).normalizedUIMapText
+        overlayParentHierarchy = try container.decodeIfPresent(String.self, forKey: .overlayParentHierarchy).normalizedUIMapText
         children = try container.decodeIfPresent([UIMapElement].self, forKey: .children) ?? []
     }
 
@@ -168,6 +173,7 @@ nonisolated struct UIMapElement: Codable, Equatable, Identifiable, Sendable {
         try container.encode(documentRect, forKey: .documentRect)
         try container.encodeIfPresent(owningApplication, forKey: .owningApplication)
         try container.encodeIfPresent(bundleIdentifier, forKey: .bundleIdentifier)
+        try container.encodeIfPresent(overlayParentHierarchy, forKey: .overlayParentHierarchy)
         try container.encode(children, forKey: .children)
     }
 
@@ -196,7 +202,8 @@ nonisolated struct UIMapElement: Codable, Equatable, Identifiable, Sendable {
             roleDescription,
             valueDescription,
             owningApplication,
-            bundleIdentifier
+            bundleIdentifier,
+            overlayParentHierarchy
         ].compactMap { $0 }
     }
 
@@ -412,11 +419,81 @@ private extension String {
 
 nonisolated struct UIMapOverlayOptions: Codable, Equatable, Sendable {
     var showsOutline = true
+    var outlineColor: RGBAColor? = nil
+    var showsSource = false
     var showsLabel = false
+    var showsAccessibilityLabel = false
     var showsIdentifier = false
     var showsRole = false
+    var showsValue = false
     var showsCoordinates = false
     var showsDimensions = false
+    var showsOwningApplication = false
+    var showsBundleIdentifier = false
+    var showsParentHierarchy = false
+
+    init(
+        showsOutline: Bool = true,
+        outlineColor: RGBAColor? = nil,
+        showsSource: Bool = false,
+        showsLabel: Bool = false,
+        showsAccessibilityLabel: Bool = false,
+        showsIdentifier: Bool = false,
+        showsRole: Bool = false,
+        showsValue: Bool = false,
+        showsCoordinates: Bool = false,
+        showsDimensions: Bool = false,
+        showsOwningApplication: Bool = false,
+        showsBundleIdentifier: Bool = false,
+        showsParentHierarchy: Bool = false
+    ) {
+        self.showsOutline = showsOutline
+        self.outlineColor = outlineColor
+        self.showsSource = showsSource
+        self.showsLabel = showsLabel
+        self.showsAccessibilityLabel = showsAccessibilityLabel
+        self.showsIdentifier = showsIdentifier
+        self.showsRole = showsRole
+        self.showsValue = showsValue
+        self.showsCoordinates = showsCoordinates
+        self.showsDimensions = showsDimensions
+        self.showsOwningApplication = showsOwningApplication
+        self.showsBundleIdentifier = showsBundleIdentifier
+        self.showsParentHierarchy = showsParentHierarchy
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case showsOutline
+        case outlineColor
+        case showsSource
+        case showsLabel
+        case showsAccessibilityLabel
+        case showsIdentifier
+        case showsRole
+        case showsValue
+        case showsCoordinates
+        case showsDimensions
+        case showsOwningApplication
+        case showsBundleIdentifier
+        case showsParentHierarchy
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        showsOutline = try container.decodeIfPresent(Bool.self, forKey: .showsOutline) ?? true
+        outlineColor = try container.decodeIfPresent(RGBAColor.self, forKey: .outlineColor)
+        showsSource = try container.decodeIfPresent(Bool.self, forKey: .showsSource) ?? false
+        showsLabel = try container.decodeIfPresent(Bool.self, forKey: .showsLabel) ?? false
+        showsAccessibilityLabel = try container.decodeIfPresent(Bool.self, forKey: .showsAccessibilityLabel) ?? false
+        showsIdentifier = try container.decodeIfPresent(Bool.self, forKey: .showsIdentifier) ?? false
+        showsRole = try container.decodeIfPresent(Bool.self, forKey: .showsRole) ?? false
+        showsValue = try container.decodeIfPresent(Bool.self, forKey: .showsValue) ?? false
+        showsCoordinates = try container.decodeIfPresent(Bool.self, forKey: .showsCoordinates) ?? false
+        showsDimensions = try container.decodeIfPresent(Bool.self, forKey: .showsDimensions) ?? false
+        showsOwningApplication = try container.decodeIfPresent(Bool.self, forKey: .showsOwningApplication) ?? false
+        showsBundleIdentifier = try container.decodeIfPresent(Bool.self, forKey: .showsBundleIdentifier) ?? false
+        showsParentHierarchy = try container.decodeIfPresent(Bool.self, forKey: .showsParentHierarchy) ?? false
+    }
 }
 
 private extension Optional where Wrapped == String {
