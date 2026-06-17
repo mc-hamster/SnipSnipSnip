@@ -22,7 +22,6 @@ nonisolated enum BuildTarget: String {
 
 /// Add new build-gated features here, then expose them through `FeatureFlags`.
 nonisolated enum FeatureToggle {
-    case presentationStyling
     case scrollingCapture
     case accessibilityAutomation
     case connectedDeviceCapture
@@ -37,20 +36,13 @@ nonisolated enum FeatureToggle {
 nonisolated enum BuildTargetFeatureMatrix {
     private static let enabledFeaturesByTarget: [BuildTarget: Set<FeatureToggle>] = [
         .dev: [
-          .presentationStyling,
           .connectedDeviceCapture,
           .uiMap,
           .scrollingCapture,
         ],
-        .internalTesting: [
-          .presentationStyling,
-        ],
-        .externalTesting: [
-          .presentationStyling,
-        ],
-        .release: [
-          .presentationStyling,
-        ],
+        .internalTesting: [],
+        .externalTesting: [],
+        .release: [],
         .selfRelease: [
             .scrollingCapture,
             .accessibilityAutomation,
@@ -66,14 +58,6 @@ nonisolated enum BuildTargetFeatureMatrix {
 }
 
 nonisolated enum FeatureFlags {
-    static func presentationStylingEnabled(for target: BuildTarget = .current) -> Bool {
-        BuildTargetFeatureMatrix.isEnabled(.presentationStyling, for: target)
-    }
-
-    static var presentationStylingEnabled: Bool {
-        presentationStylingEnabled(for: .current)
-    }
-
     static func scrollingCaptureEnabled(for target: BuildTarget = .current) -> Bool {
 #if APP_STORE_BUILD
         false

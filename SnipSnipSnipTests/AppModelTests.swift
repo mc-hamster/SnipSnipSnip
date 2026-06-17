@@ -132,11 +132,6 @@ final class AppModelTests: XCTestCase {
 
         controller.setWorkspaceMode(.presentation)
 
-        guard FeatureFlags.presentationStylingEnabled else {
-            XCTAssertFalse(model.isShowingPresentationExperimentalNotice)
-            return
-        }
-
         XCTAssertTrue(model.isShowingPresentationExperimentalNotice)
 
         model.isShowingPresentationExperimentalNotice = false

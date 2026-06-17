@@ -106,7 +106,7 @@ struct EditorInspectorView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    if FeatureFlags.presentationStylingEnabled && controller.workspaceMode == .presentation {
+                    if controller.workspaceMode == .presentation {
                         PresentationInspectorView(controller: controller)
                     } else {
                         if showsUIMapInspectionSection {

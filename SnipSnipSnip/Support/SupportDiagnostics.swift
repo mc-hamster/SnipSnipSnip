@@ -17,7 +17,6 @@ struct SupportDiagnostics: Codable, Equatable {
     }
 
     struct FeatureFlagInfo: Codable, Equatable {
-        let presentationStyling: Bool
         let scrollingCapture: Bool
         let accessibilityAutomation: Bool
         let connectedDeviceCapture: Bool
@@ -138,7 +137,6 @@ enum SupportDiagnosticsBuilder {
 
     private static func featureInfo() -> SupportDiagnostics.FeatureFlagInfo {
         SupportDiagnostics.FeatureFlagInfo(
-            presentationStyling: FeatureFlags.presentationStylingEnabled,
             scrollingCapture: FeatureFlags.scrollingCaptureEnabled,
             accessibilityAutomation: FeatureFlags.accessibilityAutomationEnabled,
             connectedDeviceCapture: FeatureFlags.connectedDeviceCaptureEnabled

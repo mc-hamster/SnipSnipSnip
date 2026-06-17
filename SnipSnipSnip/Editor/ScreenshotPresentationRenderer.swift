@@ -86,8 +86,7 @@ enum ScreenshotPresentationRenderer {
             context: "input=\(contentImage.width)x\(contentImage.height) \(PresentationPerformanceMetrics.presentationSummary(presentation, maxPixelDimension: maxPixelDimension))",
             warnAfterMS: maxPixelDimension == nil ? 75 : 35
         ) {
-            if FeatureFlags.presentationStylingEnabled,
-               presentation.isEnabled,
+            if presentation.isEnabled,
                let scene = presentation.scene {
                 return PresentationSceneRenderer.renderWithLayout(
                     contentImage: contentImage,
@@ -113,7 +112,7 @@ enum ScreenshotPresentationRenderer {
         contentImage: CGImage,
         presentation: ScreenshotPresentation
     ) -> ScreenshotPresentationRenderResult? {
-        guard FeatureFlags.presentationStylingEnabled, presentation.isEnabled else {
+        guard presentation.isEnabled else {
             let size = CGSize(width: contentImage.width, height: contentImage.height)
             let rect = CGRect(origin: .zero, size: size)
             return ScreenshotPresentationRenderResult(
@@ -259,7 +258,7 @@ enum ScreenshotPresentationRenderer {
     }
 
     nonisolated static func outputSize(for cropSize: CGSize, presentation: ScreenshotPresentation) -> CGSize {
-        guard FeatureFlags.presentationStylingEnabled, presentation.isEnabled else {
+        guard presentation.isEnabled else {
             return cropSize
         }
 
@@ -286,7 +285,7 @@ enum ScreenshotPresentationRenderer {
 
         for _ in 0..<4 {
             let contentSize = CGSize(width: currentImage.width, height: currentImage.height)
-            let canvasSize = FeatureFlags.presentationStylingEnabled && currentPresentation.isEnabled
+            let canvasSize = currentPresentation.isEnabled
                 ? layout(contentSize: contentSize, presentation: currentPresentation).canvasSize
                 : contentSize
             let longestSide = max(canvasSize.width, canvasSize.height)

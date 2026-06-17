@@ -65,11 +65,6 @@ extension EditorController {
     }
 
     func setWorkspaceMode(_ mode: EditorWorkspaceMode) {
-        guard mode != .presentation || FeatureFlags.presentationStylingEnabled else {
-            workspaceMode = .edit
-            return
-        }
-
         PresentationPerformanceMetrics.logEvent(
             "controller.workspaceMode.set",
             context: "from=\(workspaceMode.rawValue) to=\(mode.rawValue) contentRevision=\(presentationContentRevision) canvasRevision=\(canvasRevision) persistenceRevision=\(persistenceRevision)"
@@ -82,16 +77,11 @@ extension EditorController {
     }
 
     func applyPresentationPreset(_ preset: ScreenshotPresentationPreset) {
-        guard FeatureFlags.presentationStylingEnabled else {
-            return
-        }
-
         execute(SetPresentationCommand(presentation: preset.settings))
     }
 
     func applyPresentationTemplate(id: String) {
-        guard FeatureFlags.presentationStylingEnabled,
-              let template = presentationTemplates.first(where: { $0.id == id }) else {
+        guard let template = presentationTemplates.first(where: { $0.id == id }) else {
             return
         }
 
@@ -99,8 +89,7 @@ extension EditorController {
     }
 
     func applyPresentationScene(id: String) {
-        guard FeatureFlags.presentationStylingEnabled,
-              let scene = presentationScenes.first(where: { $0.id == id }) else {
+        guard let scene = presentationScenes.first(where: { $0.id == id }) else {
             return
         }
 
@@ -246,10 +235,6 @@ extension EditorController {
 
     @discardableResult
     func saveCurrentPresentationAsTemplate(named requestedName: String = "Custom Style") -> String? {
-        guard FeatureFlags.presentationStylingEnabled else {
-            return nil
-        }
-
         var userTemplates = PresentationTemplateStore.userTemplates(in: defaults)
         let now = Date()
         let name = PresentationTemplateStore.uniqueTemplateName(
@@ -273,10 +258,6 @@ extension EditorController {
     }
 
     func renamePresentationTemplate(id: String, name requestedName: String) {
-        guard FeatureFlags.presentationStylingEnabled else {
-            return
-        }
-
         var userTemplates = PresentationTemplateStore.userTemplates(in: defaults)
         guard let index = userTemplates.firstIndex(where: { $0.id == id }) else {
             return
@@ -296,8 +277,7 @@ extension EditorController {
 
     @discardableResult
     func duplicatePresentationTemplate(id: String) -> String? {
-        guard FeatureFlags.presentationStylingEnabled,
-              let template = presentationTemplates.first(where: { $0.id == id }) else {
+        guard let template = presentationTemplates.first(where: { $0.id == id }) else {
             return nil
         }
 
@@ -322,10 +302,6 @@ extension EditorController {
     }
 
     func deletePresentationTemplate(id: String) {
-        guard FeatureFlags.presentationStylingEnabled else {
-            return
-        }
-
         var userTemplates = PresentationTemplateStore.userTemplates(in: defaults)
         guard userTemplates.contains(where: { $0.id == id }) else {
             return
@@ -340,20 +316,12 @@ extension EditorController {
     }
 
     func setDefaultPresentationTemplate(id: String?) {
-        guard FeatureFlags.presentationStylingEnabled else {
-            return
-        }
-
         PresentationTemplateStore.setDefaultTemplateID(id, in: defaults)
         reloadPresentationTemplateLibrary()
     }
 
     @discardableResult
     func saveCurrentPresentationToDocument(named requestedName: String = "Presentation") -> UUID? {
-        guard FeatureFlags.presentationStylingEnabled else {
-            return nil
-        }
-
         let now = Date()
         let name = uniqueSavedPresentationName(
             requestedName,
@@ -372,8 +340,7 @@ extension EditorController {
     }
 
     func applySavedPresentation(id: UUID) {
-        guard FeatureFlags.presentationStylingEnabled,
-              let saved = savedPresentations.first(where: { $0.id == id }) else {
+        guard let saved = savedPresentations.first(where: { $0.id == id }) else {
             return
         }
 
@@ -394,8 +361,7 @@ extension EditorController {
     }
 
     func updateSavedPresentation(id: UUID) {
-        guard FeatureFlags.presentationStylingEnabled,
-              let index = savedPresentations.firstIndex(where: { $0.id == id }) else {
+        guard let index = savedPresentations.firstIndex(where: { $0.id == id }) else {
             return
         }
 
@@ -786,10 +752,6 @@ extension EditorController {
     }
 
     func mutatePresentation(_ mutation: (inout ScreenshotPresentation) -> Void) {
-        guard FeatureFlags.presentationStylingEnabled else {
-            return
-        }
-
         let before = snapshot.presentation
         var presentation = snapshot.presentation
         mutation(&presentation)
@@ -854,12 +816,6 @@ extension EditorController {
     }
 
     func reloadPresentationScenes() {
-        guard FeatureFlags.presentationStylingEnabled else {
-            presentationScenes = []
-            presentationSceneDiagnostics = []
-            return
-        }
-
         do {
             let result = try PresentationSceneStore(rootURL: presentationScenesRootURL).reload()
             presentationScenes = result.scenes

@@ -213,9 +213,7 @@ final class EditorController: ObservableObject {
             Annotation.makeImageOverlay(image: $0.image, in: $0.rect, role: .capturedCursor)
         }
         let initialAnnotations = capturedCursorAnnotation.map { [$0] } ?? []
-        let defaultPresentation = FeatureFlags.presentationStylingEnabled
-            ? PresentationTemplateStore.defaultPresentation(in: defaults)
-            : .plain
+        let defaultPresentation = PresentationTemplateStore.defaultPresentation(in: defaults)
         let session = EditorDocumentSession(
             initialSnapshot: EditorSnapshot(
                 cropRect: CGRect(origin: .zero, size: CGSize(width: capture.image.width, height: capture.image.height)),
@@ -544,11 +542,7 @@ final class EditorController: ObservableObject {
     }
 
     var presentation: ScreenshotPresentation {
-        guard FeatureFlags.presentationStylingEnabled else {
-            return .plain
-        }
-
-        return snapshot.presentation
+        snapshot.presentation
     }
 
     var presentationBackgroundColor: RGBAColor {
@@ -567,11 +561,7 @@ final class EditorController: ObservableObject {
     }
 
     var requiresPNGForFaithfulExport: Bool {
-        guard FeatureFlags.presentationStylingEnabled else {
-            return false
-        }
-
-        return snapshot.presentation.requiresPNGForFaithfulExport
+        snapshot.presentation.requiresPNGForFaithfulExport
     }
 
     var canZoomIn: Bool {

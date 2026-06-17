@@ -125,7 +125,7 @@ private struct EditorCanvasScrollContainer: View {
 
     var body: some View {
         GeometryReader { proxy in
-            if FeatureFlags.presentationStylingEnabled && controller.workspaceMode == .presentation {
+            if controller.workspaceMode == .presentation {
                 PresentationModeCanvasView(controller: controller)
                     .frame(width: proxy.size.width, height: proxy.size.height)
                     .clipped()
@@ -336,7 +336,7 @@ private struct ActiveEditorToolbarView: View {
     let dragOutPayloadProvider: @MainActor () -> PromisedFilePayload?
 
     var body: some View {
-        if FeatureFlags.presentationStylingEnabled && controller.workspaceMode == .presentation {
+        if controller.workspaceMode == .presentation {
             PresentationEditorToolbarView(
                 controller: controller,
                 onFloatReference: onFloatReference,
@@ -415,17 +415,15 @@ private struct ActiveEditorToolbarView: View {
 
                 toolbarDivider
 
-                if FeatureFlags.presentationStylingEnabled {
-                    Button {
-                        controller.setWorkspaceMode(controller.workspaceMode == .presentation ? .edit : .presentation)
-                    } label: {
-                        AdaptiveToolbarLabel("Presentation", systemImage: EditorWorkspaceMode.presentation.systemImage)
-                    }
-                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary, isSelected: controller.workspaceMode == .presentation))
-                    .help("Open Presentation mode to style the final copy, share, and export output.")
-
-                    toolbarDivider
+                Button {
+                    controller.setWorkspaceMode(controller.workspaceMode == .presentation ? .edit : .presentation)
+                } label: {
+                    AdaptiveToolbarLabel("Presentation", systemImage: EditorWorkspaceMode.presentation.systemImage)
                 }
+                .buttonStyle(SSSChromeButtonStyle(tint: .secondary, isSelected: controller.workspaceMode == .presentation))
+                .help("Open Presentation mode to style the final copy, share, and export output.")
+
+                toolbarDivider
 
                 copyMenu
 

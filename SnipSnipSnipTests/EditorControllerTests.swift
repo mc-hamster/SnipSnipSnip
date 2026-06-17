@@ -141,60 +141,40 @@ final class EditorControllerTests: XCTestCase {
     @MainActor
     func testPresentationPresetChangesAreUndoable() {
         let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
-        let originalPresentation = controller.snapshot.presentation
 
         controller.applyPresentationPreset(.transparentShadow)
 
-        if FeatureFlags.presentationStylingEnabled {
-            XCTAssertEqual(controller.snapshot.presentation, ScreenshotPresentationPreset.transparentShadow.settings)
-            XCTAssertTrue(controller.requiresPNGForFaithfulExport)
+        XCTAssertEqual(controller.snapshot.presentation, ScreenshotPresentationPreset.transparentShadow.settings)
+        XCTAssertTrue(controller.requiresPNGForFaithfulExport)
 
-            controller.undo()
+        controller.undo()
 
-            XCTAssertEqual(controller.snapshot.presentation, .plain)
-            XCTAssertFalse(controller.requiresPNGForFaithfulExport)
-        } else {
-            XCTAssertEqual(controller.snapshot.presentation, originalPresentation)
-            XCTAssertFalse(controller.requiresPNGForFaithfulExport)
-        }
+        XCTAssertEqual(controller.snapshot.presentation, .plain)
+        XCTAssertFalse(controller.requiresPNGForFaithfulExport)
     }
 
     @MainActor
     func testPresentationDefaultsToTransparentBackground() {
         let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
-        let originalPresentation = controller.snapshot.presentation
 
         controller.updatePresentationPadding(24)
 
-        if FeatureFlags.presentationStylingEnabled {
-            XCTAssertTrue(controller.presentation.isTransparent)
-            XCTAssertTrue(controller.requiresPNGForFaithfulExport)
-        } else {
-            XCTAssertEqual(controller.snapshot.presentation, originalPresentation)
-            XCTAssertEqual(controller.presentation, .plain)
-            XCTAssertFalse(controller.requiresPNGForFaithfulExport)
-        }
+        XCTAssertTrue(controller.presentation.isTransparent)
+        XCTAssertTrue(controller.requiresPNGForFaithfulExport)
     }
 
     @MainActor
     func testPresentationCornerRadiusClampsToOneHundred() {
         let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
-        let originalPresentation = controller.snapshot.presentation
 
         controller.updatePresentationCornerRadius(120)
 
-        if FeatureFlags.presentationStylingEnabled {
-            XCTAssertEqual(controller.presentation.cornerRadius, 100)
-        } else {
-            XCTAssertEqual(controller.snapshot.presentation, originalPresentation)
-            XCTAssertEqual(controller.presentation, .plain)
-        }
+        XCTAssertEqual(controller.presentation.cornerRadius, 100)
     }
 
     @MainActor
     func testPresentationShadowDirectionControlsSignedOffsets() {
         let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
-        let originalPresentation = controller.snapshot.presentation
 
         controller.updatePresentationShadow(.strong)
         controller.updatePresentationShadowDirection(.topLeft)
@@ -204,14 +184,9 @@ final class EditorControllerTests: XCTestCase {
 
         controller.updatePresentationShadowDirection(.bottomRight)
 
-        if FeatureFlags.presentationStylingEnabled {
-            XCTAssertEqual(controller.presentation.shadowDirection, .bottomRight)
-            XCTAssertEqual(controller.presentation.shadowOffsetX, 24)
-            XCTAssertEqual(controller.presentation.shadowOffsetY, 26)
-        } else {
-            XCTAssertEqual(controller.snapshot.presentation, originalPresentation)
-            XCTAssertEqual(controller.presentation, .plain)
-        }
+        XCTAssertEqual(controller.presentation.shadowDirection, .bottomRight)
+        XCTAssertEqual(controller.presentation.shadowOffsetX, 24)
+        XCTAssertEqual(controller.presentation.shadowOffsetY, 26)
     }
 
     @MainActor
@@ -224,13 +199,6 @@ final class EditorControllerTests: XCTestCase {
 
         XCTAssertEqual(plainImage.width, 160)
         XCTAssertEqual(plainImage.height, 120)
-
-        guard FeatureFlags.presentationStylingEnabled else {
-            let styledImage = try XCTUnwrap(controller.exportedImage(usingPresentation: true))
-            XCTAssertEqual(styledImage.width, plainImage.width)
-            XCTAssertEqual(styledImage.height, plainImage.height)
-            return
-        }
 
         let styledImage = try XCTUnwrap(controller.exportedImage(usingPresentation: true))
 
@@ -245,12 +213,8 @@ final class EditorControllerTests: XCTestCase {
         controller.activateToolbarTool(.rectangle)
         controller.setWorkspaceMode(.presentation)
 
-        if FeatureFlags.presentationStylingEnabled {
-            XCTAssertEqual(controller.workspaceMode, .presentation)
-            XCTAssertEqual(controller.activeTool, .select)
-        } else {
-            XCTAssertEqual(controller.workspaceMode, .edit)
-        }
+        XCTAssertEqual(controller.workspaceMode, .presentation)
+        XCTAssertEqual(controller.activeTool, .select)
     }
 
     @MainActor
@@ -265,19 +229,14 @@ final class EditorControllerTests: XCTestCase {
 
         controller.zoomIn()
 
-        if FeatureFlags.presentationStylingEnabled {
-            XCTAssertEqual(controller.workspaceMode, .presentation)
-            XCTAssertGreaterThan(controller.viewport.zoomScale, initialZoomScale)
-            XCTAssertEqual(controller.presentation.subjectPlacement.scale, initialSubjectScale)
+        XCTAssertEqual(controller.workspaceMode, .presentation)
+        XCTAssertGreaterThan(controller.viewport.zoomScale, initialZoomScale)
+        XCTAssertEqual(controller.presentation.subjectPlacement.scale, initialSubjectScale)
 
-            controller.zoomOut()
+        controller.zoomOut()
 
-            XCTAssertEqual(controller.viewport.zoomScale, initialZoomScale, accuracy: 0.001)
-            XCTAssertEqual(controller.presentation.subjectPlacement.scale, initialSubjectScale)
-        } else {
-            XCTAssertEqual(controller.workspaceMode, .edit)
-            XCTAssertEqual(controller.presentation, .plain)
-        }
+        XCTAssertEqual(controller.viewport.zoomScale, initialZoomScale, accuracy: 0.001)
+        XCTAssertEqual(controller.presentation.subjectPlacement.scale, initialSubjectScale)
     }
 
     @MainActor
@@ -287,12 +246,6 @@ final class EditorControllerTests: XCTestCase {
 
         controller.setWorkspaceMode(.presentation)
         controller.updatePresentationViewportContentSize(CGSize(width: 900, height: 300))
-
-        guard FeatureFlags.presentationStylingEnabled else {
-            XCTAssertEqual(controller.workspaceMode, .edit)
-            XCTAssertEqual(controller.viewport.contentSize, CGSize(width: 160, height: 120))
-            return
-        }
 
         XCTAssertEqual(controller.viewport.contentSize, CGSize(width: 900, height: 300))
 
@@ -306,10 +259,6 @@ final class EditorControllerTests: XCTestCase {
     @MainActor
     func testPresentationSceneFramingChangesAreUndoable() throws {
         let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
-
-        guard FeatureFlags.presentationStylingEnabled else {
-            return
-        }
 
         let svgText = """
         <svg xmlns="http://www.w3.org/2000/svg" width="240" height="135" viewBox="0 0 240 135">
@@ -379,11 +328,6 @@ final class EditorControllerTests: XCTestCase {
         controller.updatePresentationCanvas(.preset(.widescreen))
         let templateID = controller.saveCurrentPresentationAsTemplate(named: "Launch Shot")
 
-        guard FeatureFlags.presentationStylingEnabled else {
-            XCTAssertNil(templateID)
-            return
-        }
-
         let id = try XCTUnwrap(templateID)
         XCTAssertTrue(controller.presentationTemplates.contains { $0.id == id && $0.name == "Launch Shot" })
 
@@ -400,10 +344,6 @@ final class EditorControllerTests: XCTestCase {
     func testPresentationTemplateDuplicateDeleteAndBuiltInProtection() throws {
         let defaults = makeTestDefaults()
         let controller = makeController(defaults: defaults)
-
-        guard FeatureFlags.presentationStylingEnabled else {
-            return
-        }
 
         let userID = try XCTUnwrap(controller.saveCurrentPresentationAsTemplate(named: "Reusable"))
         let duplicateID = try XCTUnwrap(controller.duplicatePresentationTemplate(id: userID))
@@ -425,12 +365,6 @@ final class EditorControllerTests: XCTestCase {
 
         controller.applyPresentationPreset(.transparentShadow)
         let savedID = controller.saveCurrentPresentationToDocument(named: "Share Card")
-
-        guard FeatureFlags.presentationStylingEnabled else {
-            XCTAssertNil(savedID)
-            XCTAssertTrue(controller.savedPresentations.isEmpty)
-            return
-        }
 
         let id = try XCTUnwrap(savedID)
         XCTAssertEqual(controller.savedPresentations.count, 1)
@@ -474,10 +408,6 @@ final class EditorControllerTests: XCTestCase {
         let defaults = makeTestDefaults()
         let capture = makeCapturedScreenshot(image: makeCoordinateImage(width: 160, height: 120))
         let setup = retainForTestLifetime(EditorController(capture: capture, defaults: defaults))
-
-        guard FeatureFlags.presentationStylingEnabled else {
-            return
-        }
 
         setup.setDefaultPresentationTemplate(id: "builtin.drop-shadow")
 
