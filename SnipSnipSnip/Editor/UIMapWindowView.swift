@@ -229,11 +229,12 @@ private struct UIMapPanelView: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    UIMapOutlineDisplayControls(
+                        isShown: overlayBinding(\.showsOutline),
+                        outlineColor: outlineColorBinding
+                    )
+
                     metadataRows(for: element)
-
-                    Divider()
-
-                    overlayOptions
                 } else {
                     UIMapEmptyStateView(
                         title: "Select an Element",
@@ -251,41 +252,76 @@ private struct UIMapPanelView: View {
 
     private func metadataRows(for element: UIMapElement) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            UIMapMetadataRow(
+            UIMapMetadataDisplayRow(
                 label: "Source",
-                value: element.isRecognizedTextSupplement ? "OCR supplement text" : "Accessibility element"
+                value: element.isRecognizedTextSupplement ? "OCR supplement text" : "Accessibility element",
+                displayBinding: overlayBinding(\.showsSource),
+                displayHelp: "Show the selected element source in pinned UI Map overlays."
             )
-            UIMapMetadataRow(label: "Name", value: element.name)
-            UIMapMetadataRow(label: "Accessibility Label", value: element.accessibilityLabel)
-            UIMapMetadataRow(label: "Accessibility Identifier", value: element.accessibilityIdentifier)
-            UIMapMetadataRow(label: "Role", value: element.roleDescription ?? element.role)
-            UIMapMetadataRow(label: "Value", value: element.valueDescription)
-            UIMapMetadataRow(label: "Position", value: "\(Int(element.documentRect.minX)), \(Int(element.documentRect.minY))")
-            UIMapMetadataRow(label: "Size", value: "\(Int(element.documentRect.width)) x \(Int(element.documentRect.height))")
-            UIMapMetadataRow(label: "Owning Application", value: element.owningApplication)
-            UIMapMetadataRow(label: "Bundle Identifier", value: element.bundleIdentifier)
+            UIMapMetadataDisplayRow(
+                label: "Name",
+                value: element.name,
+                displayBinding: overlayBinding(\.showsLabel),
+                displayHelp: "Show the selected element name in pinned UI Map overlays."
+            )
+            UIMapMetadataDisplayRow(
+                label: "Accessibility Label",
+                value: element.accessibilityLabel,
+                displayBinding: overlayBinding(\.showsAccessibilityLabel),
+                displayHelp: "Show the selected element accessibility label in pinned UI Map overlays."
+            )
+            UIMapMetadataDisplayRow(
+                label: "Accessibility Identifier",
+                value: element.accessibilityIdentifier,
+                displayBinding: overlayBinding(\.showsIdentifier),
+                displayHelp: "Show the selected element identifier in pinned UI Map overlays."
+            )
+            UIMapMetadataDisplayRow(
+                label: "Role",
+                value: element.roleDescription ?? element.role,
+                displayBinding: overlayBinding(\.showsRole),
+                displayHelp: "Show the selected element role in pinned UI Map overlays."
+            )
+            UIMapMetadataDisplayRow(
+                label: "Value",
+                value: element.valueDescription,
+                displayBinding: overlayBinding(\.showsValue),
+                displayHelp: "Show the selected element value in pinned UI Map overlays."
+            )
+            UIMapMetadataDisplayRow(
+                label: "Position",
+                value: "\(Int(element.documentRect.minX)), \(Int(element.documentRect.minY))",
+                displayBinding: overlayBinding(\.showsCoordinates),
+                displayHelp: "Show the selected element position in pinned UI Map overlays."
+            )
+            UIMapMetadataDisplayRow(
+                label: "Size",
+                value: "\(Int(element.documentRect.width)) x \(Int(element.documentRect.height))",
+                displayBinding: overlayBinding(\.showsDimensions),
+                displayHelp: "Show the selected element dimensions in pinned UI Map overlays."
+            )
+            UIMapMetadataDisplayRow(
+                label: "Owning Application",
+                value: element.owningApplication,
+                displayBinding: overlayBinding(\.showsOwningApplication),
+                displayHelp: "Show the selected element owning app in pinned UI Map overlays."
+            )
+            UIMapMetadataDisplayRow(
+                label: "Bundle Identifier",
+                value: element.bundleIdentifier,
+                displayBinding: overlayBinding(\.showsBundleIdentifier),
+                displayHelp: "Show the selected element bundle identifier in pinned UI Map overlays."
+            )
 
             let hierarchy = uiMap.parentHierarchy(for: element.id)
             if !hierarchy.isEmpty {
-                UIMapMetadataRow(
+                UIMapMetadataDisplayRow(
                     label: "Parent Hierarchy",
-                    value: hierarchy.map(\.displayName).joined(separator: " > ")
+                    value: hierarchy.map(\.displayName).joined(separator: " > "),
+                    displayBinding: overlayBinding(\.showsParentHierarchy),
+                    displayHelp: "Show the selected element parent hierarchy in pinned UI Map overlays."
                 )
             }
-        }
-    }
-
-    private var overlayOptions: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Display")
-                .font(.subheadline.weight(.semibold))
-
-            Toggle("Show outline", isOn: overlayBinding(\.showsOutline))
-            Toggle("Show label", isOn: overlayBinding(\.showsLabel))
-            Toggle("Show identifier", isOn: overlayBinding(\.showsIdentifier))
-            Toggle("Show role", isOn: overlayBinding(\.showsRole))
-            Toggle("Show coordinates", isOn: overlayBinding(\.showsCoordinates))
-            Toggle("Show dimensions", isOn: overlayBinding(\.showsDimensions))
         }
     }
 
@@ -295,6 +331,17 @@ private struct UIMapPanelView: View {
             set: { newValue in
                 var options = controller.uiMapOverlayOptions
                 options[keyPath: keyPath] = newValue
+                controller.uiMapOverlayOptions = options
+            }
+        )
+    }
+
+    private var outlineColorBinding: Binding<RGBAColor?> {
+        Binding(
+            get: { controller.uiMapOverlayOptions.outlineColor },
+            set: { newValue in
+                var options = controller.uiMapOverlayOptions
+                options.outlineColor = newValue
                 controller.uiMapOverlayOptions = options
             }
         )
@@ -634,24 +681,6 @@ private struct UIMapTreeNodeView: View {
         }
 
         return "rectangle.3.group"
-    }
-}
-
-private struct UIMapMetadataRow: View {
-    let label: String
-    let value: String?
-
-    var body: some View {
-        if let value, !value.isEmpty {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(label)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Text(value)
-                    .font(.callout)
-                    .textSelection(.enabled)
-            }
-        }
     }
 }
 

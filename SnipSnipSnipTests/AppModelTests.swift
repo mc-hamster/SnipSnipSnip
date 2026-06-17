@@ -893,11 +893,13 @@ final class AppModelTests: XCTestCase {
 
         let configuredOptions = UIMapOverlayOptions(
             showsOutline: true,
+            outlineColor: .calloutFill,
             showsLabel: true,
             showsIdentifier: true,
             showsRole: false,
             showsCoordinates: true,
-            showsDimensions: false
+            showsDimensions: false,
+            showsParentHierarchy: true
         )
         let model = AppModel(
             defaults: defaults,

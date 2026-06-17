@@ -214,11 +214,11 @@ struct HelpGuideView: View {
                                 "Choose Arrange > Show UI Map, or use the UI Map toolbar button.",
                                 "Search by name, role, label, or identifier, filter by element type, or turn on Pinned Only to show just pinned UI Map overlays.",
                                 "Select an element to show its region on the screenshot and inspect its metadata. With a row selected, use the arrow keys to move through the visible tree, expand, or collapse branches.",
-                                "Use Show All to outline captured controls and leaf elements without permanently annotating the screenshot. Accessibility elements use blue outlines; OCR supplement text uses orange outlines.",
+                                "Use Show All to outline captured controls and leaf elements without permanently annotating the screenshot. Accessibility elements use blue outlines and OCR supplement text uses orange outlines unless you choose a custom outline color for pinned overlays.",
                                 "For Window captures with UI Map available, use the lower toolbar UI Map group to open the UI Map panel or switch to Pin UI Map. Pin UI Map starts with captured element outlines hidden unless Show All is enabled in the UI Map panel. Move over the screenshot to preview an available element, then click to select and pin it; click it again to unpin it.",
                                 "Pinned UI Map overlays stay visible in copied, shared, or exported screenshots. You can also pin or unpin the selected element from the inspector or UI Map panel.",
                                 "Use Export JSON to save the structured UI Map metadata for debugging, review, or support.",
-                                "Use the UI Map panel or inspector display toggles to show the selected element outline, label, identifier, role, coordinates, or dimensions."
+                                "In the UI Map panel or inspector, use the checkboxes beside the selected element's outline, source, name, accessibility label, identifier, role, value, position, size, owning app, bundle identifier, and parent hierarchy rows to choose what appears in pinned overlays. The outline row also lets you choose the overlay color."
                             ]
                         ),
                         HelpArticleSection(
@@ -665,11 +665,11 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Use Copy or Share",
-                            body: "Use the editor toolbar Copy menu for Copy Styled or Copy Plain. Copy Styled and Share use the current rendered screenshot: crop, annotations, presentation settings when enabled, and flattened redactions. Copy Plain bypasses the presentation wrapper while keeping crop, annotations, and flattened redactions. Presentation styling changes do not auto-copy while you are in Presentation mode; use Copy Styled when you want the current styled result on the clipboard."
+                            body: "Use Copy in the editor toolbar to copy the plain annotated screenshot with crop, annotations, pinned UI Map overlays, and flattened redactions. In Presentation mode, use Copy Styled to copy the styled presentation output. Presentation styling changes do not auto-copy while you are in Presentation mode; use Copy Styled when you want the current styled result on the clipboard."
                         ),
                         HelpArticleSection(
                             title: "Export screenshots",
-                            body: "Click Presentation in the editor toolbar to switch into a focused export workspace. The first time you enter Presentation mode after each app startup, SnipSnipSnip shows an experimental-feature notice with a Discord feedback link. Presentation mode hides annotation tools and shows Back to Edit, zoom, Save Variant, Copy Styled, Copy Plain, Export Styled, Share, Float, and drag-out actions. Float in Presentation mode opens the styled result; Float after returning to edit opens the plain annotated editor result. The Style tab handles fast native polish such as transparent, solid, gradient, spotlight, or blurred-screenshot backgrounds, spacing, corners, and shadows. Use the Scene tab for browser, window, phone, tablet, and other template-driven layouts. Transparent presentation output uses PNG so rounded corners and shadows can stay on alpha."
+                            body: "Click Presentation in the editor toolbar to switch into a focused export workspace. The first time you enter Presentation mode after each app startup, SnipSnipSnip shows an experimental-feature notice with a Discord feedback link. Presentation mode hides annotation tools and shows Back to Edit, zoom, Save Variant, Copy Styled, Export Styled, Share, Float, and drag-out actions. Float in Presentation mode opens the styled result; Float after returning to edit opens the plain annotated editor result. The Style tab handles fast native polish such as transparent, solid, gradient, spotlight, or blurred-screenshot backgrounds, spacing, corners, and shadows. Use the Scene tab for browser, window, phone, tablet, and other template-driven layouts. Transparent presentation output uses PNG so rounded corners and shadows can stay on alpha."
                         ),
                         HelpArticleSection(
                             title: "Use Presentation Scenes",

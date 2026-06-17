@@ -425,15 +425,7 @@ private struct ActiveEditorToolbarView: View {
 
                 toolbarDivider
 
-                copyMenu
-
-                exportMenu
-
-                Button(action: onShare) {
-                    AdaptiveToolbarLabel("Share", systemImage: "square.and.arrow.up")
-                }
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-                .help("Share the current rendered image using macOS sharing services.")
+                outputActionGroup
 
                 Button(action: onFloatReference) {
                     AdaptiveToolbarLabel("Float", systemImage: "pin")
@@ -507,15 +499,27 @@ private struct ActiveEditorToolbarView: View {
         .help("Export the rendered image as PNG, JPEG, or PDF.")
     }
 
-    private var copyMenu: some View {
-        Menu {
-            Button(controller.presentation.isEnabled ? "Copy Styled" : "Copy", action: onCopyStyled)
-            Button("Copy Plain", action: onCopyPlain)
-        } label: {
-            AdaptiveToolbarMenuLabel("Copy", systemImage: "doc.on.doc")
+    private var copyButton: some View {
+        Button(action: onCopyPlain) {
+            AdaptiveToolbarLabel("Copy", systemImage: "doc.on.doc")
         }
         .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-        .help("Copy the styled presentation or the plain annotated screenshot.")
+        .help("Copy the plain annotated screenshot.")
+    }
+
+    private var outputActionGroup: some View {
+        HStack(spacing: 6) {
+            copyButton
+            exportMenu
+
+            Button(action: onShare) {
+                AdaptiveToolbarLabel("Share", systemImage: "square.and.arrow.up")
+            }
+            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+            .help("Share the current rendered image using macOS sharing services.")
+        }
+        .padding(3)
+        .glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 12))
     }
 
     private var uiMapToolGroup: some View {
@@ -665,15 +669,7 @@ private struct PresentationEditorToolbarView: View {
             .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
             .help("Save the current presentation as a named variant in this .sss document.")
 
-            copyMenu
-
-            exportMenu
-
-            Button(action: onShare) {
-                AdaptiveToolbarLabel("Share", systemImage: "square.and.arrow.up")
-            }
-            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-            .help("Share the current styled presentation using macOS sharing services.")
+            outputActionGroup
 
             Button(action: onFloatReference) {
                 AdaptiveToolbarLabel("Float", systemImage: "pin")
@@ -708,15 +704,27 @@ private struct PresentationEditorToolbarView: View {
         .help("Export the styled presentation as PNG, JPEG, or PDF.")
     }
 
-    private var copyMenu: some View {
-        Menu {
-            Button("Copy Styled", action: onCopyStyled)
-            Button("Copy Plain", action: onCopyPlain)
-        } label: {
-            AdaptiveToolbarMenuLabel("Copy", systemImage: "doc.on.doc")
+    private var copyButton: some View {
+        Button(action: onCopyStyled) {
+            AdaptiveToolbarLabel("Copy Styled", systemImage: "doc.on.doc")
         }
         .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-        .help("Copy the styled presentation or the plain annotated screenshot.")
+        .help("Copy the styled presentation.")
+    }
+
+    private var outputActionGroup: some View {
+        HStack(spacing: 6) {
+            copyButton
+            exportMenu
+
+            Button(action: onShare) {
+                AdaptiveToolbarLabel("Share", systemImage: "square.and.arrow.up")
+            }
+            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+            .help("Share the current styled presentation using macOS sharing services.")
+        }
+        .padding(3)
+        .glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 12))
     }
 
     private var toolbarDivider: some View {

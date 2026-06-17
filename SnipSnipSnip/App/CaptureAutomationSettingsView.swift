@@ -84,11 +84,17 @@ struct CaptureAutomationSettingsView: View {
                                 .font(.subheadline.weight(.semibold))
 
                             Toggle("Show outline", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsOutline))
-                            Toggle("Show label", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsLabel))
+                            Toggle("Show source", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsSource))
+                            Toggle("Show name", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsLabel))
+                            Toggle("Show accessibility label", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsAccessibilityLabel))
                             Toggle("Show identifier", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsIdentifier))
                             Toggle("Show role", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsRole))
+                            Toggle("Show value", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsValue))
                             Toggle("Show coordinates", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsCoordinates))
                             Toggle("Show dimensions", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsDimensions))
+                            Toggle("Show owning app", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsOwningApplication))
+                            Toggle("Show bundle identifier", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsBundleIdentifier))
+                            Toggle("Show parent hierarchy", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsParentHierarchy))
                         }
 
                         SettingsHelpText("Choose which details are shown by default when pinned UI Map elements are rendered on copied, shared, or exported screenshots.")

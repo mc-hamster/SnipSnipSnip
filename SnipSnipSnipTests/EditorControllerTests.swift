@@ -1310,6 +1310,46 @@ final class EditorControllerTests: XCTestCase {
         XCTAssertTrue(controller.pinnedUIMapElements.isEmpty)
     }
 
+    func testPinnedUIMapElementIncludesOverlayParentHierarchy() {
+        let childID = UUID()
+        let uiMap = UIMapSnapshot(
+            capturedAt: Date(timeIntervalSince1970: 1_818_400_100),
+            sourceRect: CGRect(x: 0, y: 0, width: 120, height: 80),
+            elements: [
+                UIMapElement(
+                    name: "Window",
+                    roleDescription: "window",
+                    documentRect: CGRect(x: 0, y: 0, width: 120, height: 80),
+                    children: [
+                        UIMapElement(
+                            name: "Bookmarks",
+                            roleDescription: "table",
+                            documentRect: CGRect(x: 0, y: 0, width: 80, height: 80),
+                            children: [
+                                UIMapElement(
+                                    id: childID,
+                                    name: "Home",
+                                    roleDescription: "text",
+                                    documentRect: CGRect(x: 8, y: 10, width: 24, height: 12)
+                                )
+                            ]
+                        )
+                    ]
+                )
+            ]
+        )
+        let controller = makeController(
+            capture: makeCapturedScreenshot(
+                image: makeCoordinateImage(width: 120, height: 80),
+                uiMap: uiMap
+            )
+        )
+
+        controller.togglePinnedUIMapElement(childID)
+
+        XCTAssertEqual(controller.pinnedUIMapElements.first?.overlayParentHierarchy, "Window > Bookmarks")
+    }
+
     @MainActor
     func testUIMapInspectSelectionTogglesPinState() {
         let uiMap = makeTestUIMap()
@@ -1329,9 +1369,54 @@ final class EditorControllerTests: XCTestCase {
 
         controller.selectAndTogglePinnedUIMapElement(elementID)
 
-        XCTAssertEqual(controller.selectedUIMapElementID, elementID)
+        XCTAssertNil(controller.selectedUIMapElementID)
         XCTAssertFalse(controller.isUIMapElementPinned(elementID))
         XCTAssertTrue(controller.pinnedUIMapElements.isEmpty)
+    }
+
+    @MainActor
+    func testUIMapInspectUnpinClearsHoverState() {
+        let uiMap = makeTestUIMap()
+        let elementID = uiMap.elements[0].id
+        let controller = makeController(
+            capture: makeCapturedScreenshot(
+                image: makeCoordinateImage(width: 64, height: 48),
+                uiMap: uiMap
+            )
+        )
+        controller.selectAndTogglePinnedUIMapElement(elementID)
+        controller.hoverUIMapElement(elementID)
+
+        controller.selectAndTogglePinnedUIMapElement(elementID)
+
+        XCTAssertNil(controller.selectedUIMapElementID)
+        XCTAssertNil(controller.hoveredUIMapElementID)
+        XCTAssertFalse(controller.isUIMapElementPinned(elementID))
+    }
+
+    @MainActor
+    func testUIMapPinTogglePublishesSnapshotChangeForAutoCopyObservers() async {
+        let uiMap = makeTestUIMap()
+        let elementID = uiMap.elements[0].id
+        let controller = makeController(
+            capture: makeCapturedScreenshot(
+                image: makeCoordinateImage(width: 64, height: 48),
+                uiMap: uiMap
+            )
+        )
+        var pinnedElementChanges: [[UUID]] = []
+        let cancellable = controller.$snapshot
+            .map(\.pinnedUIMapElementIDs)
+            .removeDuplicates()
+            .dropFirst()
+            .sink { pinnedElementChanges.append($0) }
+
+        controller.selectAndTogglePinnedUIMapElement(elementID)
+        controller.selectAndTogglePinnedUIMapElement(elementID)
+        await Task.yield()
+        cancellable.cancel()
+
+        XCTAssertEqual(pinnedElementChanges, [[elementID], []])
     }
 
     @MainActor

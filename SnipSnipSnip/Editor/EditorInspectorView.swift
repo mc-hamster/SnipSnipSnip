@@ -59,21 +59,116 @@ private struct UIMapInspectorLegendItem: View {
     }
 }
 
-private struct UIMapInspectorMetadataRow: View {
+struct UIMapMetadataDisplayRow: View {
     let label: String
     let value: String?
+    var displayBinding: Binding<Bool>? = nil
+    var displayHelp: String? = nil
 
     var body: some View {
         if let value, !value.isEmpty {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(label)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Text(value)
-                    .font(.callout)
-                    .textSelection(.enabled)
+            HStack(alignment: .top, spacing: 8) {
+                if let displayBinding {
+                    Toggle("Show \(label)", isOn: displayBinding)
+                        .labelsHidden()
+                        .toggleStyle(.checkbox)
+                        .frame(width: 16, alignment: .leading)
+                        .padding(.top, 1)
+                        .help(displayHelp ?? "Show \(label.lowercased()) in pinned UI Map overlays.")
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(label)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text(value)
+                        .font(.callout)
+                        .textSelection(.enabled)
+                }
             }
         }
+    }
+}
+
+struct UIMapOutlineDisplayControls: View {
+    let isShown: Binding<Bool>
+    let outlineColor: Binding<RGBAColor?>
+
+    private var colorOptions: [PaletteColorOption] {
+        RGBAColor.paletteOptions.filter { $0.color.alpha > 0 }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+                Toggle("Show outline", isOn: isShown)
+                    .labelsHidden()
+                    .toggleStyle(.checkbox)
+                    .frame(width: 16, alignment: .leading)
+                    .padding(.top, 1)
+                    .help("Show the selected element outline in pinned UI Map overlays.")
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Outline")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text("Element region")
+                        .font(.callout)
+                }
+            }
+
+            if isShown.wrappedValue {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Outline Color")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 20, maximum: 20), spacing: 8)], alignment: .leading, spacing: 8) {
+                        Button {
+                            outlineColor.wrappedValue = nil
+                        } label: {
+                            UIMapSourceColorSwatch(isSelected: outlineColor.wrappedValue == nil)
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Use source colors")
+
+                        ForEach(colorOptions) { option in
+                            Button {
+                                outlineColor.wrappedValue = option.color
+                            } label: {
+                                PaletteSwatchView(option: option, isSelected: outlineColor.wrappedValue == option.color)
+                                    .contentShape(Circle())
+                            }
+                            .buttonStyle(.plain)
+                            .help(option.label)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.leading, 24)
+            }
+        }
+    }
+}
+
+private struct UIMapSourceColorSwatch: View {
+    let isSelected: Bool
+
+    var body: some View {
+        Circle()
+            .fill(
+                AngularGradient(
+                    colors: [.blue, .blue, .orange, .orange, .blue],
+                    center: .center
+                )
+            )
+            .frame(width: 20, height: 20)
+            .overlay {
+                Circle()
+                    .stroke(isSelected ? Color.accentColor : Color.white.opacity(0.25), lineWidth: isSelected ? 3 : 1)
+            }
+            .accessibilityLabel("Use source colors")
     }
 }
 
@@ -199,12 +294,13 @@ struct EditorInspectorView: View {
                                 .foregroundStyle(.secondary)
                         }
 
+                        UIMapOutlineDisplayControls(
+                            isShown: uiMapOverlayBinding(\.showsOutline),
+                            outlineColor: uiMapOutlineColorBinding
+                        )
+
                         uiMapMetadataRows(for: element)
                     }
-
-                    Divider()
-
-                    uiMapOverlayOptions
 
                     Button("Clear Selection") {
                         controller.selectUIMapElement(nil)
@@ -225,41 +321,76 @@ struct EditorInspectorView: View {
 
     private func uiMapMetadataRows(for element: UIMapElement) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            UIMapInspectorMetadataRow(
+            UIMapMetadataDisplayRow(
                 label: "Source",
-                value: element.isRecognizedTextSupplement ? "OCR supplement text" : "Accessibility element"
+                value: element.isRecognizedTextSupplement ? "OCR supplement text" : "Accessibility element",
+                displayBinding: uiMapOverlayBinding(\.showsSource),
+                displayHelp: "Show the selected element source in pinned UI Map overlays."
             )
-            UIMapInspectorMetadataRow(label: "Name", value: element.name)
-            UIMapInspectorMetadataRow(label: "Accessibility Label", value: element.accessibilityLabel)
-            UIMapInspectorMetadataRow(label: "Accessibility Identifier", value: element.accessibilityIdentifier)
-            UIMapInspectorMetadataRow(label: "Role", value: element.roleDescription ?? element.role)
-            UIMapInspectorMetadataRow(label: "Value", value: element.valueDescription)
-            UIMapInspectorMetadataRow(label: "Position", value: "\(Int(element.documentRect.minX)), \(Int(element.documentRect.minY))")
-            UIMapInspectorMetadataRow(label: "Size", value: "\(Int(element.documentRect.width)) x \(Int(element.documentRect.height))")
-            UIMapInspectorMetadataRow(label: "Owning Application", value: element.owningApplication)
-            UIMapInspectorMetadataRow(label: "Bundle Identifier", value: element.bundleIdentifier)
+            UIMapMetadataDisplayRow(
+                label: "Name",
+                value: element.name,
+                displayBinding: uiMapOverlayBinding(\.showsLabel),
+                displayHelp: "Show the selected element name in pinned UI Map overlays."
+            )
+            UIMapMetadataDisplayRow(
+                label: "Accessibility Label",
+                value: element.accessibilityLabel,
+                displayBinding: uiMapOverlayBinding(\.showsAccessibilityLabel),
+                displayHelp: "Show the selected element accessibility label in pinned UI Map overlays."
+            )
+            UIMapMetadataDisplayRow(
+                label: "Accessibility Identifier",
+                value: element.accessibilityIdentifier,
+                displayBinding: uiMapOverlayBinding(\.showsIdentifier),
+                displayHelp: "Show the selected element identifier in pinned UI Map overlays."
+            )
+            UIMapMetadataDisplayRow(
+                label: "Role",
+                value: element.roleDescription ?? element.role,
+                displayBinding: uiMapOverlayBinding(\.showsRole),
+                displayHelp: "Show the selected element role in pinned UI Map overlays."
+            )
+            UIMapMetadataDisplayRow(
+                label: "Value",
+                value: element.valueDescription,
+                displayBinding: uiMapOverlayBinding(\.showsValue),
+                displayHelp: "Show the selected element value in pinned UI Map overlays."
+            )
+            UIMapMetadataDisplayRow(
+                label: "Position",
+                value: "\(Int(element.documentRect.minX)), \(Int(element.documentRect.minY))",
+                displayBinding: uiMapOverlayBinding(\.showsCoordinates),
+                displayHelp: "Show the selected element position in pinned UI Map overlays."
+            )
+            UIMapMetadataDisplayRow(
+                label: "Size",
+                value: "\(Int(element.documentRect.width)) x \(Int(element.documentRect.height))",
+                displayBinding: uiMapOverlayBinding(\.showsDimensions),
+                displayHelp: "Show the selected element dimensions in pinned UI Map overlays."
+            )
+            UIMapMetadataDisplayRow(
+                label: "Owning Application",
+                value: element.owningApplication,
+                displayBinding: uiMapOverlayBinding(\.showsOwningApplication),
+                displayHelp: "Show the selected element owning app in pinned UI Map overlays."
+            )
+            UIMapMetadataDisplayRow(
+                label: "Bundle Identifier",
+                value: element.bundleIdentifier,
+                displayBinding: uiMapOverlayBinding(\.showsBundleIdentifier),
+                displayHelp: "Show the selected element bundle identifier in pinned UI Map overlays."
+            )
 
             if let hierarchy = controller.uiMapSnapshot?.parentHierarchy(for: element.id),
                !hierarchy.isEmpty {
-                UIMapInspectorMetadataRow(
+                UIMapMetadataDisplayRow(
                     label: "Parent Hierarchy",
-                    value: hierarchy.map(\.displayName).joined(separator: " > ")
+                    value: hierarchy.map(\.displayName).joined(separator: " > "),
+                    displayBinding: uiMapOverlayBinding(\.showsParentHierarchy),
+                    displayHelp: "Show the selected element parent hierarchy in pinned UI Map overlays."
                 )
             }
-        }
-    }
-
-    private var uiMapOverlayOptions: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Display")
-                .font(.subheadline.weight(.semibold))
-
-            Toggle("Show outline", isOn: uiMapOverlayBinding(\.showsOutline))
-            Toggle("Show label", isOn: uiMapOverlayBinding(\.showsLabel))
-            Toggle("Show identifier", isOn: uiMapOverlayBinding(\.showsIdentifier))
-            Toggle("Show role", isOn: uiMapOverlayBinding(\.showsRole))
-            Toggle("Show coordinates", isOn: uiMapOverlayBinding(\.showsCoordinates))
-            Toggle("Show dimensions", isOn: uiMapOverlayBinding(\.showsDimensions))
         }
     }
 
@@ -270,6 +401,19 @@ struct EditorInspectorView: View {
                 deferPublish {
                     var options = controller.uiMapOverlayOptions
                     options[keyPath: keyPath] = newValue
+                    controller.uiMapOverlayOptions = options
+                }
+            }
+        )
+    }
+
+    private var uiMapOutlineColorBinding: Binding<RGBAColor?> {
+        Binding(
+            get: { controller.uiMapOverlayOptions.outlineColor },
+            set: { newValue in
+                deferPublish {
+                    var options = controller.uiMapOverlayOptions
+                    options.outlineColor = newValue
                     controller.uiMapOverlayOptions = options
                 }
             }

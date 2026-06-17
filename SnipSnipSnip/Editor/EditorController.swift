@@ -430,7 +430,17 @@ final class EditorController: ObservableObject {
             return []
         }
 
-        return snapshot.pinnedUIMapElementIDs.compactMap { uiMapSnapshot.element(matching: $0) }
+        return snapshot.pinnedUIMapElementIDs.compactMap { id in
+            guard var element = uiMapSnapshot.element(matching: id) else {
+                return nil
+            }
+
+            let hierarchy = uiMapSnapshot.parentHierarchy(for: id)
+                .map(\.displayName)
+                .joined(separator: " > ")
+            element.overlayParentHierarchy = hierarchy.isEmpty ? nil : hierarchy
+            return element
+        }
     }
 
     var isInspectingUIMap: Bool {
@@ -1366,8 +1376,17 @@ final class EditorController: ObservableObject {
             return
         }
 
-        selectUIMapElement(elementID)
+        let wasPinned = isUIMapElementPinned(elementID)
         togglePinnedUIMapElement(elementID)
+
+        if wasPinned {
+            if hoveredUIMapElementID == elementID {
+                hoverUIMapElement(nil)
+            }
+            selectUIMapElement(nil)
+        } else {
+            selectUIMapElement(elementID)
+        }
     }
 
     func beginUIMapProcessing() {
