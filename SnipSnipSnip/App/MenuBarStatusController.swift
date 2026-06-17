@@ -44,9 +44,9 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         regionCaptureSettingsMenu.delegate = self
 
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "scissors", accessibilityDescription: "SnipSnipSnip")
+            button.image = NSImage(systemSymbolName: "scissors", accessibilityDescription: AppBranding.displayName)
             button.imagePosition = .imageOnly
-            button.toolTip = "SnipSnipSnip"
+            button.toolTip = AppBranding.displayName
         }
 
         statusItem.menu = menu
@@ -319,8 +319,8 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     private func confirmQuitApplication() -> Bool {
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Quit SnipSnipSnip?"
-        alert.informativeText = "To keep capture shortcuts, clipboard history, and the menu bar icon ready, let SnipSnipSnip run in the background."
+        alert.messageText = "Quit \(AppBranding.displayName)?"
+        alert.informativeText = "To keep capture shortcuts, clipboard history, and the menu bar icon ready, let \(AppBranding.displayName) run in the background."
         alert.addButton(withTitle: "Run in Background")
         alert.addButton(withTitle: "Quit")
         alert.showsSuppressionButton = true
@@ -412,7 +412,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         menu.addItem(actionItem(
-            title: "Open SnipSnipSnip",
+            title: "Open \(AppBranding.displayName)",
             systemImage: "menubar.rectangle",
             action: #selector(openMainWindow),
             keyEquivalent: "o",
@@ -500,11 +500,11 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             action: #selector(toggleGlobalHotkeys),
             isOn: model.automationPreferences.globalHotkeysEnabled,
             enabled: true,
-            toolTip: "Register capture hotkeys while SnipSnipSnip is not frontmost."
+            toolTip: "Register capture hotkeys while \(AppBranding.displayName) is not frontmost."
         ))
 
         menu.addItem(.separator())
-        menu.addItem(actionItem(title: "Quit SnipSnipSnip", systemImage: nil, action: #selector(quitApplication), enabled: true))
+        menu.addItem(actionItem(title: "Quit \(AppBranding.displayName)", systemImage: nil, action: #selector(quitApplication), enabled: true))
 
         if model.isWorking || model.isRecordingVideo {
             menu.addItem(.separator())

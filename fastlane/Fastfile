@@ -533,7 +533,7 @@ private_lane :build_release_pkg do |options|
     "SWIFT_ACTIVE_COMPILATION_CONDITIONS='#{compilation_conditions}'"
   ]
   if build_target == "Self Release"
-    xcargs << "INFOPLIST_KEY_CFBundleDisplayName=#{Shellwords.escape('SnipSnipSnip Pro')}"
+    xcargs << "SNIP_APP_DISPLAY_NAME=#{Shellwords.escape('SnipSnipSnip Pro')}"
     xcargs << "ENABLE_APP_SANDBOX=NO"
     xcargs << "ENABLE_RESOURCE_ACCESS_CAMERA=YES"
     xcargs << "INFOPLIST_PREPROCESSOR_DEFINITIONS=SNIP_SELF_RELEASE_INFO=1"

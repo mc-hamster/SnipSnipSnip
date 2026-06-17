@@ -136,11 +136,33 @@ nonisolated enum FeatureFlags {
 }
 
 nonisolated enum AppBranding {
+    private static let standardDisplayName = "SnipSnipSnip"
+    private static let proDisplayName = "SnipSnipSnip Pro"
+
     static var displayName: String {
-        BuildTarget.current == .selfRelease ? "SnipSnipSnip Pro" : "SnipSnipSnip"
+        displayName(for: .current)
     }
 
-    static func branded(_ text: String) -> String {
-        text.replacingOccurrences(of: "SnipSnipSnip", with: displayName)
+    static func displayName(for target: BuildTarget) -> String {
+        target == .selfRelease ? proDisplayName : standardDisplayName
+    }
+
+    static func branded(_ text: String, for target: BuildTarget = .current) -> String {
+        let targetDisplayName = displayName(for: target)
+        guard targetDisplayName != standardDisplayName else {
+            return text
+        }
+
+        var result = ""
+        var searchStart = text.startIndex
+
+        while let range = text[searchStart...].range(of: standardDisplayName) {
+            result.append(contentsOf: text[searchStart..<range.lowerBound])
+            result.append(contentsOf: text[range.upperBound...].hasPrefix(" Pro") ? standardDisplayName : targetDisplayName)
+            searchStart = range.upperBound
+        }
+
+        result.append(contentsOf: text[searchStart...])
+        return result
     }
 }

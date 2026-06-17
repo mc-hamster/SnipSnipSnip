@@ -16,7 +16,7 @@ enum ScrollingCaptureError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .accessibilityPermissionDenied:
-            return "Scrolling Capture needs Accessibility access so SnipSnipSnip can scroll the selected app while capturing."
+            return "Scrolling Capture needs Accessibility access so \(AppBranding.displayName) can scroll the selected app while capturing."
         case .invalidViewport:
             return "The selected scrolling area was too small to capture."
         case .noScrollableTarget:
@@ -24,7 +24,7 @@ enum ScrollingCaptureError: LocalizedError {
         case .firstFrameUnavailable:
             return "The first scrolling capture frame could not be captured."
         case .stitchingFailed:
-            return "SnipSnipSnip could not stitch the scrolling capture with enough confidence."
+            return "\(AppBranding.displayName) could not stitch the scrolling capture with enough confidence."
         case .cancelled:
             return "Scrolling capture was cancelled."
         }
@@ -844,7 +844,7 @@ struct ScrollingCaptureService {
                 case .appended:
                     previousImage = nextImage
                     previousGray = retryGray
-                    warnings.append("SnipSnipSnip reduced one scroll step to keep stitching aligned.")
+                    warnings.append("\(AppBranding.displayName) reduced one scroll step to keep stitching aligned.")
                     ScrollingCaptureDiagnostics.info(
                         "Retry append succeeded segment=\(segmentIndex + 1) stitchedSegments=\(stitched.segmentCount) retryScrollMs=\(retryScrollDuration) retryCaptureMs=\(retryCaptureDuration) retryStitchMs=\(retryStitchDuration)"
                     )

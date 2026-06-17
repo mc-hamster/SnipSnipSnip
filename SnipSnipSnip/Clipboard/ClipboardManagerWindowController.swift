@@ -152,7 +152,7 @@ struct ClipboardManagerView: View {
             ContentUnavailableView(
                 "No Clipboard Items",
                 systemImage: "clipboard",
-                description: Text("Copied text, links, images, files, and SnipSnipSnip screenshots appear here.")
+                description: Text("Copied text, links, images, files, and \(AppBranding.displayName) screenshots appear here.")
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {

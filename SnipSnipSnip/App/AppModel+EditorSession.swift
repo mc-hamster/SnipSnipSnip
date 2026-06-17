@@ -773,7 +773,7 @@ extension AppModel {
             window.isDocumentEdited = hasUnsavedChanges
         }
 
-        let title = editorController == nil && videoEditorController == nil ? "SnipSnipSnip" : currentDocumentFilename
+        let title = editorController == nil && videoEditorController == nil ? AppBranding.displayName : currentDocumentFilename
 
         if window.title != title {
             window.title = title

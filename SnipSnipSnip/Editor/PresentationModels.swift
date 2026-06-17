@@ -321,7 +321,7 @@ nonisolated struct PresentationBrowserFrameStyle: Equatable, Codable, Sendable {
     var showsTrafficLights: Bool
 
     nonisolated init(
-        title: String = "SnipSnipSnip",
+        title: String = AppBranding.displayName,
         address: String = "https://example.com",
         scheme: PresentationAppearanceScheme = .light,
         showsTrafficLights: Bool = true

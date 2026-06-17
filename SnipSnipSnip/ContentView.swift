@@ -75,7 +75,7 @@ struct ContentView: View {
             Button("Discard Changes", role: .destructive, action: model.discardChangesAndContinue)
             Button("Cancel", role: .cancel, action: model.cancelPendingEditorAction)
         } message: {
-            Text("The current SnipSnipSnip document has unsaved changes.")
+            Text("The current \(AppBranding.displayName) document has unsaved changes.")
         }
         .sheet(isPresented: $model.isShowingWindowPicker) {
             CaptureWindowPickerView(
@@ -234,7 +234,7 @@ struct ContentView: View {
     private var headerIntro: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 8) {
-                Text("SnipSnipSnip")
+                Text(AppBranding.displayName)
                     .font(.system(size: 20, weight: .bold, design: .rounded))
                     .lineLimit(1)
                     .accessibilityAddTraits(.isHeader)
@@ -243,7 +243,7 @@ struct ContentView: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("SnipSnipSnip")
+                Text(AppBranding.displayName)
                     .font(.system(size: 20, weight: .bold, design: .rounded))
                     .lineLimit(1)
                     .accessibilityAddTraits(.isHeader)
@@ -290,7 +290,7 @@ struct ContentView: View {
     }
 
     private var appTitle: some View {
-        Text("SnipSnipSnip")
+        Text(AppBranding.displayName)
             .font(.headline.weight(.bold))
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
@@ -393,7 +393,7 @@ struct ContentView: View {
                     Button("Continue", action: requestNextHeaderPermission)
                         .buttonStyle(SSSChromeButtonStyle())
                         .controlSize(.small)
-                        .help("Continue to the next missing macOS privacy permission for SnipSnipSnip.")
+                        .help("Continue to the next missing macOS privacy permission for \(AppBranding.displayName).")
                 }
             }
 
@@ -501,7 +501,7 @@ struct ContentView: View {
                 quickStartStep(
                     systemImage: "keyboard",
                     title: "Capture From Anywhere",
-                    detail: "Use the app shortcuts while SnipSnipSnip is active, use global hotkeys in the background, or trigger capture from the menu bar extra."
+                    detail: "Use the app shortcuts while \(AppBranding.displayName) is active, use global hotkeys in the background, or trigger capture from the menu bar extra."
                 )
 
                 quickStartStep(
@@ -514,7 +514,7 @@ struct ContentView: View {
                     if !model.permissionStatus.hasScreenRecording {
                         Button("Continue", action: model.requestScreenRecordingAccess)
                             .buttonStyle(SSSChromeButtonStyle())
-                            .help("Continue to the macOS Screen Recording permission prompt for SnipSnipSnip.")
+                            .help("Continue to the macOS Screen Recording permission prompt for \(AppBranding.displayName).")
                     }
 
                     Button("Dismiss", action: model.dismissWelcomeCard)
@@ -579,7 +579,7 @@ struct ContentView: View {
                         .toggleStyle(.switch)
                         .controlSize(.small)
                         .fixedSize()
-                        .help("Refresh the available window list automatically while this view is visible. When off, SnipSnipSnip still refreshes once when the app returns to the foreground.")
+                        .help("Refresh the available window list automatically while this view is visible. When off, \(AppBranding.displayName) still refreshes once when the app returns to the foreground.")
                 }
 
                 if !model.permissionStatus.hasScreenRecording {
@@ -589,7 +589,7 @@ struct ContentView: View {
 
                     Button("Continue", action: model.requestScreenRecordingAccess)
                         .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-                        .help("Continue to the macOS Screen Recording permission prompt for SnipSnipSnip.")
+                        .help("Continue to the macOS Screen Recording permission prompt for \(AppBranding.displayName).")
                 } else if model.isLoadingWindowChoices && model.availableWindows.isEmpty {
                     HStack(spacing: 10) {
                         ProgressView()
@@ -622,7 +622,7 @@ struct ContentView: View {
         CaptureModeCard(
             title: "Recover Last Session",
             systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90",
-            detail: "SnipSnipSnip found an autosaved session from your last run."
+            detail: "\(AppBranding.displayName) found an autosaved session from your last run."
         ) {
             HStack(alignment: .top, spacing: 16) {
                 DocumentPreviewThumbnailView(
@@ -857,7 +857,7 @@ struct ContentView: View {
                 .padding(.vertical, 4)
                 .glassEffect(.regular, in: .rect(cornerRadius: 8))
 
-            Text(action)
+            Text(AppBranding.branded(action))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -1009,7 +1009,7 @@ struct ContentView: View {
         }
 
         if FeatureFlags.scrollingCaptureEnabled, missingRequirements == [.accessibility] {
-            return "Accessibility is required for Scrolling Capture so SnipSnipSnip can scroll the selected app while capturing."
+            return "Accessibility is required for Scrolling Capture so \(AppBranding.displayName) can scroll the selected app while capturing."
         }
 
         if FeatureFlags.scrollingCaptureEnabled {
@@ -1051,14 +1051,14 @@ struct ContentView: View {
             }
             .buttonStyle(SSSChromeButtonStyle())
             .controlSize(.small)
-            .help("Continue to the macOS \(requirement.title) permission prompt for SnipSnipSnip.")
+            .help("Continue to the macOS \(requirement.title) permission prompt for \(AppBranding.displayName).")
 
             Button("Help") {
                 model.presentPermissionSetupGuide(for: requirement)
             }
             .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
             .controlSize(.small)
-            .help("Show manual setup steps below if macOS does not list SnipSnipSnip.")
+            .help("Show manual setup steps below if macOS does not list \(AppBranding.displayName).")
         }
     }
 
@@ -1074,7 +1074,7 @@ struct ContentView: View {
         }
 
         if urls.count > 1 {
-            model.errorMessage = "SnipSnipSnip can only open or import one file at a time. Opened \(firstURL.lastPathComponent)."
+            model.errorMessage = "\(AppBranding.displayName) can only open or import one file at a time. Opened \(firstURL.lastPathComponent)."
         }
 
         model.openExternalFile(at: firstURL)
@@ -1088,7 +1088,7 @@ struct ContentView: View {
         }
 
         if requests.count > 1 {
-            model.errorMessage = "SnipSnipSnip can only import one shared image at a time."
+            model.errorMessage = "\(AppBranding.displayName) can only import one shared image at a time."
         }
 
         model.importImageFromPasteboard(
@@ -1112,18 +1112,18 @@ struct ContentView: View {
 
     private var quickStartDetail: String {
         if FeatureFlags.scrollingCaptureEnabled && FeatureFlags.uiMapEnabled {
-            return "SnipSnipSnip lives in the menu bar. Screen Recording enables capture pixels. Accessibility is only needed for Scrolling Capture and Window UI Map."
+            return "\(AppBranding.displayName) lives in the menu bar. Screen Recording enables capture pixels. Accessibility is only needed for Scrolling Capture and Window UI Map."
         }
 
         if FeatureFlags.uiMapEnabled {
-            return "SnipSnipSnip lives in the menu bar. Screen Recording enables capture pixels. Accessibility is only needed for Window UI Map."
+            return "\(AppBranding.displayName) lives in the menu bar. Screen Recording enables capture pixels. Accessibility is only needed for Window UI Map."
         }
 
         if FeatureFlags.scrollingCaptureEnabled {
-            return "SnipSnipSnip lives in the menu bar. Screen Recording enables capture pixels. Accessibility is only needed for Scrolling Capture."
+            return "\(AppBranding.displayName) lives in the menu bar. Screen Recording enables capture pixels. Accessibility is only needed for Scrolling Capture."
         }
 
-        return "SnipSnipSnip lives in the menu bar. Screen Recording enables capture pixels, live window thumbnails, and recording."
+        return "\(AppBranding.displayName) lives in the menu bar. Screen Recording enables capture pixels, live window thumbnails, and recording."
     }
 
     private var allowedPermissionsDetail: String {
@@ -1261,9 +1261,9 @@ private struct PermissionSetupGuideView: View {
     private var permissionIntro: String {
         switch guide.requirement {
         case .screenRecording:
-            return "macOS needs this before SnipSnipSnip can read screen pixels for captures, recordings, and live window thumbnails."
+            return "macOS needs this before \(AppBranding.displayName) can read screen pixels for captures, recordings, and live window thumbnails."
         case .accessibility:
-            return "macOS needs this before Scrolling Capture can scroll the selected app while SnipSnipSnip captures and stitches the viewport."
+            return "macOS needs this before Scrolling Capture can scroll the selected app while \(AppBranding.displayName) captures and stitches the viewport."
         }
     }
 

@@ -121,7 +121,7 @@ extension AppModel {
         let panel = NSOpenPanel()
         panel.title = "Choose App to Ignore"
         panel.prompt = "Ignore"
-        panel.message = "Choose an app. SnipSnipSnip will skip clipboard history entries copied from it."
+        panel.message = "Choose an app. \(AppBranding.displayName) will skip clipboard history entries copied from it."
         panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
         panel.allowedContentTypes = [.applicationBundle]
         panel.allowsMultipleSelection = false

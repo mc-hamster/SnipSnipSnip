@@ -44,7 +44,7 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
         case .uiMap:
             return "Choose whether screenshots save visible interface metadata."
         case .startup:
-            return "Keep SnipSnipSnip ready right after login if you want the easiest setup."
+            return "Keep \(AppBranding.displayName) ready right after login if you want the easiest setup."
         case .support:
             return "Find help fast and send support requests or feature requests from the support page."
         }
@@ -231,7 +231,7 @@ struct OnboardingView: View {
 
     private func headerCopy(metrics: OnboardingLayoutMetrics) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Welcome to SnipSnipSnip")
+            Text("Welcome to \(AppBranding.displayName)")
                 .font(.system(size: metrics.primaryTitleSize, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
 
@@ -493,7 +493,7 @@ struct OnboardingView: View {
     private func startupStep(metrics: OnboardingLayoutMetrics) -> some View {
         VStack(alignment: .leading, spacing: metrics.cardSpacing) {
             VStack(alignment: .leading, spacing: 14) {
-                Toggle("Start SnipSnipSnip automatically when I log in", isOn: launchAtLoginBinding)
+                Toggle("Start \(AppBranding.displayName) automatically when I log in", isOn: launchAtLoginBinding)
                     .toggleStyle(.switch)
                     .controlSize(.large)
 
@@ -527,7 +527,7 @@ struct OnboardingView: View {
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(.white)
 
-                Text("If SnipSnipSnip starts at login, the menu bar extra, capture shortcuts, and quick editor flow are already in place when you need them.")
+                Text("If \(AppBranding.displayName) starts at login, the menu bar extra, capture shortcuts, and quick editor flow are already in place when you need them.")
                     .font(.body)
                     .foregroundStyle(.white.opacity(0.78))
                     .fixedSize(horizontal: false, vertical: true)
@@ -588,7 +588,7 @@ struct OnboardingView: View {
                     Button("Skip", action: skipOnboarding)
                         .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
 
-                    Button(selectedStep == OnboardingStep.visibleCases.last ? "Open SnipSnipSnip" : "Continue", action: moveForward)
+                    Button(AppBranding.branded(selectedStep == OnboardingStep.visibleCases.last ? "Open SnipSnipSnip" : "Continue"), action: moveForward)
                         .buttonStyle(SSSChromeButtonStyle(tint: selectedStep.accent))
                 }
             }
@@ -604,7 +604,7 @@ struct OnboardingView: View {
                     Button("Skip", action: skipOnboarding)
                         .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
 
-                    Button(selectedStep == OnboardingStep.visibleCases.last ? "Open SnipSnipSnip" : "Continue", action: moveForward)
+                    Button(AppBranding.branded(selectedStep == OnboardingStep.visibleCases.last ? "Open SnipSnipSnip" : "Continue"), action: moveForward)
                         .buttonStyle(SSSChromeButtonStyle(tint: selectedStep.accent))
                 }
             }
@@ -744,7 +744,7 @@ struct OnboardingView: View {
                 return "Required only for Window UI Map. Region and Fullscreen captures do not require Accessibility because of UI Map."
             }
 
-            return "Required only for Scrolling Capture so SnipSnipSnip can scroll the selected app while collecting segments."
+            return "Required only for Scrolling Capture so \(AppBranding.displayName) can scroll the selected app while collecting segments."
         }
     }
 
@@ -769,7 +769,7 @@ struct OnboardingView: View {
             HStack(spacing: 12) {
                 shortcutBadge(key)
 
-                Text(action)
+                Text(AppBranding.branded(action))
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.78))
             }
@@ -777,7 +777,7 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 8) {
                 shortcutBadge(key)
 
-                Text(action)
+                Text(AppBranding.branded(action))
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.78))
             }

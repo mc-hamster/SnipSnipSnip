@@ -29,7 +29,7 @@ nonisolated enum SSSDocumentError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidPackage:
-            return "The selected .sss file is not a valid SnipSnipSnip document package."
+            return "The selected .sss file is not a valid \(AppBranding.displayName) document package."
         case .missingManifest:
             return "The selected .sss file is missing its document manifest."
         case .missingBaseImage:
@@ -39,7 +39,7 @@ nonisolated enum SSSDocumentError: LocalizedError {
         case .unsupportedFormatVersion(let version):
             return "This .sss file uses unsupported format version \(version)."
         case .unsupportedFormatIdentifier(let identifier):
-            return "The selected file is not a SnipSnipSnip document (\(identifier))."
+            return "The selected file is not a \(AppBranding.displayName) document (\(identifier))."
         case .invalidImageData:
             return "The screenshot image in this .sss file could not be decoded."
         case .unknownAnnotationKind(let kind):

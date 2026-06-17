@@ -48,7 +48,7 @@ nonisolated enum ConnectedDeviceCaptureError: LocalizedError, Equatable {
         case .missingCaptureConfiguration(let keys):
             return "Connected-device capture is enabled, but this app build is missing required camera configuration: \(keys.joined(separator: ", ")). Use the Dev Debug configuration file or the self-release configuration so the camera entitlement and Info.plist keys are included."
         case .publicScreenCaptureUnavailable:
-            return "Connected iPhone and iPad screen capture is not available through public macOS APIs. SnipSnipSnip cannot use private device services or QuickTime automation in an App Store-safe build."
+            return "Connected iPhone and iPad screen capture is not available through public macOS APIs. \(AppBranding.displayName) cannot use private device services or QuickTime automation in an App Store-safe build."
         case .sessionAlreadyActive:
             return "Another connected-device capture session is already active."
         case .deviceDisconnected(let deviceName):

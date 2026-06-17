@@ -64,8 +64,8 @@ struct IncompatibleDocumentCoordinator {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = context.urls.count == 1
-            ? "Older SnipSnipSnip Document Found"
-            : "Older SnipSnipSnip Documents Found"
+            ? "Older \(AppBranding.displayName) Document Found"
+            : "Older \(AppBranding.displayName) Documents Found"
         alert.informativeText = confirmationMessage(for: context)
         alert.addButton(withTitle: "Move to Trash")
         alert.addButton(withTitle: "Cancel")
@@ -76,7 +76,7 @@ struct IncompatibleDocumentCoordinator {
         let alert = NSAlert()
         alert.alertStyle = .critical
         alert.messageText = "Open an Older Version"
-        alert.informativeText = "This version cannot continue with the incompatible \(context.sourceDescription). SnipSnipSnip will now close. Reopen an older version to work with these files."
+        alert.informativeText = "This version cannot continue with the incompatible \(context.sourceDescription). \(AppBranding.displayName) will now close. Reopen an older version to work with these files."
         alert.addButton(withTitle: "Close App")
         alert.runModal()
     }
@@ -99,10 +99,10 @@ struct IncompatibleDocumentCoordinator {
         let suffix = extraCount > 0 ? " and \(extraCount) more" : ""
 
         if context.urls.count == 1 {
-            return "This version no longer supports documents created by older SnipSnipSnip builds. If you continue, \(filenameSummary) will be moved to the Trash."
+            return "This version no longer supports documents created by older \(AppBranding.displayName) builds. If you continue, \(filenameSummary) will be moved to the Trash."
         }
 
-        return "This version no longer supports documents created by older SnipSnipSnip builds. If you continue, \(filenameSummary)\(suffix) from \(context.sourceDescription) will be moved to the Trash."
+        return "This version no longer supports documents created by older \(AppBranding.displayName) builds. If you continue, \(filenameSummary)\(suffix) from \(context.sourceDescription) will be moved to the Trash."
     }
 }
 
