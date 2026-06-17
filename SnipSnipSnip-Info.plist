@@ -15,7 +15,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>103</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>CFBundleDisplayName</key>
 	<string>$(SNIP_APP_DISPLAY_NAME)</string>
 	<key>SnipBuildTarget</key>
@@ -92,7 +92,7 @@
 	<string>$(SNIP_APP_DISPLAY_NAME) can include system audio in screen recordings when you enable system audio.</string>
 #if SNIP_SELF_RELEASE_INFO
 	<key>NSCameraUsageDescription</key>
-	<string>$(SNIP_APP_DISPLAY_NAME) can preview, capture, and record connected iPhone or iPad screens in self-release builds.</string>
+	<string>$(SNIP_APP_DISPLAY_NAME) uses Camera access only for connected iPhone or iPad preview, screenshots, and recordings because macOS exposes those screens as video sources.</string>
 	<key>NSCameraUseContinuityCameraDeviceType</key>
 	<true/>
 	<key>NSCameraUseExternalDeviceType</key>

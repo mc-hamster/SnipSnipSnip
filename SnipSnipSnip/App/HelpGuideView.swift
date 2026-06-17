@@ -131,7 +131,12 @@ struct HelpGuideView: View {
                             title: "Audio permissions",
                             body: "Microphone and system audio permissions are optional. macOS asks for them only when the matching recording source is enabled."
                         )
-                    ] + (FeatureFlags.scrollingCaptureEnabled || FeatureFlags.uiMapEnabled
+                    ] + (FeatureFlags.connectedDeviceCaptureEnabled ? [
+                        HelpArticleSection(
+                            title: "Camera",
+                            body: "Required only when you start a connected iPhone or iPad preview, screenshot, or recording. macOS exposes trusted iPhone and iPad screens as video sources, so the system permission is named Camera even though SnipSnipSnip is using it for the connected-device screen stream."
+                        )
+                    ] : []) + (FeatureFlags.scrollingCaptureEnabled || FeatureFlags.uiMapEnabled
                         ? [
                             HelpArticleSection(
                                 title: "Accessibility",
@@ -380,7 +385,7 @@ struct HelpGuideView: View {
                     ] + (FeatureFlags.connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(
                             title: "Connected devices",
-                            body: "Capture > Connected Device scans for trusted USB iPhone and iPad sources when the menu opens. Choose a device to open a live preview, then capture the latest visible frame, copy it, save it, or open it in the screenshot editor. Keep the device awake and unlocked. If the phone or tablet was just connected, unlocked, trusted, or reconnected, choose Refresh Devices."
+                            body: "Capture > Connected Device scans for trusted USB iPhone and iPad sources when the menu opens. Choose a device to open a live preview, then capture the latest visible frame, copy it, save it, or open it in the screenshot editor. The first preview can ask for Camera access because macOS exposes trusted iPhone and iPad screens as video sources. Keep the device awake and unlocked. If the phone or tablet was just connected, unlocked, trusted, or reconnected, choose Refresh Devices."
                         )
                     ] : []) + [
                         HelpArticleSection(
@@ -458,7 +463,7 @@ struct HelpGuideView: View {
                     ] + (FeatureFlags.connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(
                             title: "Connected-device recording",
-                            body: "Choose Record Connected Device; the menu scans for trusted USB iPhone and iPad sources as it opens. Pick a device, then use the preview window to start and stop recording. Keep the device awake, unlocked, and connected until recording is stopped. Finished MP4 recordings open in the normal video editor for poster frames, trimming, export, and archive behavior."
+                            body: "Choose Record Connected Device; the menu scans for trusted USB iPhone and iPad sources as it opens. Pick a device, then use the preview window to start and stop recording. The first preview can ask for Camera access because macOS exposes trusted iPhone and iPad screens as video sources. Keep the device awake, unlocked, and connected until recording is stopped. Finished MP4 recordings open in the normal video editor for poster frames, trimming, export, and archive behavior."
                         )
                     ] : []) + [
                         HelpArticleSection(

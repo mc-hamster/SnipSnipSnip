@@ -24,8 +24,15 @@ nonisolated struct ConnectedAppleDevice: Identifiable, Equatable, Sendable {
     }
 }
 
+nonisolated enum ConnectedDeviceVideoAuthorizationStatus: Equatable, Sendable {
+    case authorized
+    case notDetermined
+    case denied
+}
+
 nonisolated enum ConnectedDeviceCaptureError: LocalizedError, Equatable {
     case noConnectedDevice
+    case cameraPermissionNotDetermined
     case cameraPermissionDenied
     case missingCaptureConfiguration([String])
     case publicScreenCaptureUnavailable
@@ -43,8 +50,10 @@ nonisolated enum ConnectedDeviceCaptureError: LocalizedError, Equatable {
         switch self {
         case .noConnectedDevice:
             return "No iPhone or iPad connected. Connect a device with USB and trust this Mac."
+        case .cameraPermissionNotDetermined:
+            return "Connected-device capture needs Camera access because macOS exposes trusted iPhone and iPad screens as video sources. Choose a connected device to continue."
         case .cameraPermissionDenied:
-            return "Camera access is required to preview connected-device video sources in this self-release build."
+            return "Camera access is required for connected iPhone and iPad preview, screenshots, and recordings because macOS exposes those screens as video sources."
         case .missingCaptureConfiguration(let keys):
             return "Connected-device capture is enabled, but this app build is missing required camera configuration: \(keys.joined(separator: ", ")). Use the Dev Debug configuration file or the self-release configuration so the camera entitlement and Info.plist keys are included."
         case .publicScreenCaptureUnavailable:
@@ -74,6 +83,7 @@ nonisolated enum ConnectedDeviceCaptureError: LocalizedError, Equatable {
 nonisolated protocol ConnectedDeviceCaptureServiceType: Sendable {
     func listDevices() async -> [ConnectedAppleDevice]
     func unavailableReason() async -> ConnectedDeviceCaptureError
+    func videoAuthorizationStatus() async -> ConnectedDeviceVideoAuthorizationStatus
     func makePreviewSession(for device: ConnectedAppleDevice, preferences: VideoRecordingPreferences) async throws -> ConnectedDevicePreviewSession
 }
 
@@ -99,6 +109,18 @@ nonisolated struct ConnectedDeviceCaptureService: ConnectedDeviceCaptureServiceT
         return .publicScreenCaptureUnavailable
 #else
         return await ConnectedDeviceAVFoundationBridge.unavailableReason()
+#endif
+    }
+
+    func videoAuthorizationStatus() async -> ConnectedDeviceVideoAuthorizationStatus {
+        guard FeatureFlags.connectedDeviceCaptureEnabled else {
+            return .denied
+        }
+
+#if APP_STORE_BUILD
+        return .denied
+#else
+        return ConnectedDeviceAVFoundationBridge.videoAuthorizationStatus()
 #endif
     }
 
@@ -133,10 +155,6 @@ nonisolated private enum ConnectedDeviceAVFoundationBridge {
 
         enableWiredScreenCaptureDevices()
 
-        guard await ensureVideoAccess() else {
-            return []
-        }
-
         return captureDevices().map { device in
             ConnectedAppleDevice(
                 id: device.uniqueID,
@@ -151,26 +169,39 @@ nonisolated private enum ConnectedDeviceAVFoundationBridge {
             return error
         }
 
-        switch AVCaptureDevice.authorizationStatus(for: .video) {
-        case .denied, .restricted:
+        enableWiredScreenCaptureDevices()
+
+        switch videoAuthorizationStatus() {
+        case .denied:
             return .cameraPermissionDenied
-        case .notDetermined:
-            guard await ensureVideoAccess() else {
-                return .cameraPermissionDenied
-            }
         case .authorized:
             break
-        @unknown default:
-            return .cameraPermissionDenied
-        }
+        case .notDetermined:
+            if usbConnectedMobileDevices().isEmpty, captureDevices().isEmpty {
+                return .noConnectedDevice
+            }
 
-        enableWiredScreenCaptureDevices()
+            return .cameraPermissionNotDetermined
+        }
 
         if let usbDevice = usbConnectedMobileDevices().first {
             return .usbDeviceStreamUnavailable(usbDevice.displayName)
         }
 
         return .noConnectedDevice
+    }
+
+    static func videoAuthorizationStatus() -> ConnectedDeviceVideoAuthorizationStatus {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            return .authorized
+        case .notDetermined:
+            return .notDetermined
+        case .denied, .restricted:
+            return .denied
+        @unknown default:
+            return .denied
+        }
     }
 
     static func makePreviewSession(

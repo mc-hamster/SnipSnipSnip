@@ -40,6 +40,10 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
                 return "Set up capture pixels and scrolling capture with one-time macOS permissions."
             }
 
+            if FeatureFlags.connectedDeviceCaptureEnabled {
+                return "Set up capture pixels, live window thumbnails, recording, and learn when connected-device preview asks for Camera access."
+            }
+
             return "Set up capture pixels, live window thumbnails, and recording with one-time macOS permissions."
         case .uiMap:
             return "Choose whether screenshots save visible interface metadata."
@@ -758,7 +762,15 @@ struct OnboardingView: View {
         }
 
         if FeatureFlags.scrollingCaptureEnabled {
+            if FeatureFlags.connectedDeviceCaptureEnabled {
+                return "Screen Recording is required for pixels and live window thumbnails. Accessibility is only required for Scrolling Capture. Connected-device preview asks for Camera access only when you start using an iPhone or iPad screen stream."
+            }
+
             return "Screen Recording is required for pixels and live window thumbnails. Accessibility is only required for Scrolling Capture."
+        }
+
+        if FeatureFlags.connectedDeviceCaptureEnabled {
+            return "Screen Recording is required for pixels, live window thumbnails, and recording. Connected-device preview asks for Camera access only when you start using an iPhone or iPad screen stream."
         }
 
         return "Screen Recording is required for pixels, live window thumbnails, and recording."
