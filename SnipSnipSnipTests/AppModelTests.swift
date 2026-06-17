@@ -702,6 +702,57 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(model.permissionStatus.missingRequirements(for: .release), [.screenRecording])
     }
 
+    func testRequestScreenRecordingAccessOpensSettingsWhenPermissionStillMissing() async {
+        let suiteName = "AppModelTests.requestScreenRecordingAccessOpensSettings"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let originalScreenRecordingStatusProvider = ScreenCapturePermissions.screenRecordingStatusProvider
+        let originalAccessibilityStatusProvider = ScreenCapturePermissions.accessibilityStatusProvider
+        let originalScreenRecordingAccessRequester = ScreenCapturePermissions.screenRecordingAccessRequester
+        let originalSystemSettingsOpener = ScreenCapturePermissions.systemSettingsOpener
+        defer {
+            ScreenCapturePermissions.screenRecordingStatusProvider = originalScreenRecordingStatusProvider
+            ScreenCapturePermissions.accessibilityStatusProvider = originalAccessibilityStatusProvider
+            ScreenCapturePermissions.screenRecordingAccessRequester = originalScreenRecordingAccessRequester
+            ScreenCapturePermissions.systemSettingsOpener = originalSystemSettingsOpener
+        }
+
+        let recorder = PermissionRequestRecorder()
+        ScreenCapturePermissions.screenRecordingStatusProvider = { false }
+        ScreenCapturePermissions.accessibilityStatusProvider = { false }
+        ScreenCapturePermissions.screenRecordingAccessRequester = {
+            recorder.recordScreenRecordingRequest()
+            return false
+        }
+        ScreenCapturePermissions.systemSettingsOpener = { requirement in
+            recorder.recordOpenedSettings(requirement)
+        }
+
+        let model = retainForTestLifetime(
+            AppModel(
+                defaults: defaults,
+                recoveryStore: DocumentRecoveryStore(baseURL: nil),
+                captureService: ScreenCaptureService(),
+                shouldCheckCompatibilityOnLaunch: false,
+                shouldStartArchiveMaintenance: false
+            )
+        )
+        model.permissionStatus = CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: false)
+
+        model.requestPermission(.screenRecording)
+
+        XCTAssertTrue(recorder.didRequestScreenRecordingAccess())
+        XCTAssertEqual(model.permissionSetupGuide?.requirement, .screenRecording)
+
+        await waitUntil {
+            recorder.openedSettingsRequirements() == [.screenRecording]
+        }
+
+        XCTAssertEqual(recorder.openedSettingsRequirements(), [.screenRecording])
+        XCTAssertEqual(model.permissionSetupGuide?.requirement, .screenRecording)
+    }
+
     func testPresentPermissionDeniedClearsScreenRecordingAccessImmediately() {
         let suiteName = "AppModelTests.presentPermissionDeniedClearsScreenRecordingAccessImmediately"
         let defaults = makeDefaults(named: suiteName)
@@ -1305,5 +1356,35 @@ private actor WindowRefreshRequestRecorder {
 
     func requests() -> [Bool] {
         values
+    }
+}
+
+private final class PermissionRequestRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var requestedScreenRecordingAccess = false
+    private var openedSettings: [CapturePermissionRequirement] = []
+
+    func recordScreenRecordingRequest() {
+        lock.withLock {
+            requestedScreenRecordingAccess = true
+        }
+    }
+
+    func didRequestScreenRecordingAccess() -> Bool {
+        lock.withLock {
+            requestedScreenRecordingAccess
+        }
+    }
+
+    func recordOpenedSettings(_ requirement: CapturePermissionRequirement) {
+        lock.withLock {
+            openedSettings.append(requirement)
+        }
+    }
+
+    func openedSettingsRequirements() -> [CapturePermissionRequirement] {
+        lock.withLock {
+            openedSettings
+        }
     }
 }

@@ -120,6 +120,19 @@ enum ScreenCapturePermissions {
         await verifyScreenRecordingAccessWithShareableContentProbe()
     }
 
+    nonisolated(unsafe) static var screenRecordingAccessRequester: @Sendable () -> Bool = {
+        CGRequestScreenCaptureAccess()
+    }
+
+    nonisolated(unsafe) static var accessibilityAccessRequester: @Sendable () -> Bool = {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as NSString: true] as CFDictionary
+        return AXIsProcessTrustedWithOptions(options)
+    }
+
+    nonisolated(unsafe) static var systemSettingsOpener: @Sendable (CapturePermissionRequirement) -> Void = { requirement in
+        NSWorkspace.shared.open(requirement.settingsURL)
+    }
+
     static var currentAppName: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
             ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
@@ -140,13 +153,12 @@ enum ScreenCapturePermissions {
 
     @discardableResult
     static func requestScreenRecordingAccess() -> Bool {
-        CGRequestScreenCaptureAccess()
+        screenRecordingAccessRequester()
     }
 
     @discardableResult
     static func requestAccessibilityAccess() -> Bool {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as NSString: true] as CFDictionary
-        return AXIsProcessTrustedWithOptions(options)
+        accessibilityAccessRequester()
     }
 
     @discardableResult
@@ -163,7 +175,7 @@ enum ScreenCapturePermissions {
     }
 
     static func openSystemSettings(for requirement: CapturePermissionRequirement) {
-        NSWorkspace.shared.open(requirement.settingsURL)
+        systemSettingsOpener(requirement)
     }
 
     static func revealCurrentAppInFinder() {

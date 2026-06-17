@@ -376,7 +376,32 @@ extension AppModel {
             return
         }
 
+        if requirement == .screenRecording {
+            openScreenRecordingSettingsAfterPromptOpportunity()
+            presentPermissionSetupGuide(for: .screenRecording)
+            return
+        }
+
         permissionSetupGuide = nil
+    }
+
+    func openScreenRecordingSettingsAfterPromptOpportunity() {
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard let self else {
+                return
+            }
+
+            self.refreshPermissions()
+
+            guard !self.permissionStatus.hasScreenRecording else {
+                self.permissionSetupGuide = nil
+                return
+            }
+
+            ScreenCapturePermissions.openSystemSettings(for: .screenRecording)
+            self.presentPermissionSetupGuide(for: .screenRecording)
+        }
     }
 
     func openAccessibilitySettingsAfterPromptOpportunity() {

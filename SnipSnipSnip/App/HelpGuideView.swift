@@ -105,7 +105,7 @@ struct HelpGuideView: View {
                             title: "Screen Recording",
                             body: "Required for screenshot pixels, live window thumbnails, and screen recording. If it is missing, captures can be blank and window previews may not appear.",
                             steps: [
-                                "Click Continue beside Screen Recording in SnipSnipSnip.",
+                                "Click Continue beside Screen Recording in SnipSnipSnip. If macOS does not show a prompt, SnipSnipSnip opens the Screen Recording settings pane.",
                                 "Allow SnipSnipSnip in System Settings > Privacy & Security > Screen Recording.",
                                 "Quit and reopen SnipSnipSnip if macOS asks you to."
                             ]
