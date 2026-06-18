@@ -458,7 +458,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Choose recording options",
-                            body: "Open Settings > Recording to set quality, frame rate, fullscreen display mode, cursor visibility, click rings, system audio, and microphone narration."
+                            body: "Open Settings > Recording to set the default quality, frame rate, fullscreen display mode, cursor visibility, click rings, system audio, and microphone narration. During an active recording, use the floating recording control to turn system audio or microphone narration on or off for that recording only."
                         ),
                     ] + (FeatureFlags.connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(

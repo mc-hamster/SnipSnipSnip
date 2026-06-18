@@ -208,7 +208,8 @@ final class SSSVideoDocumentTests: XCTestCase {
             ),
             isPaused: false,
             pauseResumeAction: {},
-            stopAction: {}
+            stopAction: {},
+            audioOptionsAction: { _, _ in }
         )
 
         XCTAssertEqual(model.stateLabel, "Recording")
@@ -220,6 +221,46 @@ final class SSSVideoDocumentTests: XCTestCase {
 
         XCTAssertEqual(model.stateLabel, "Paused")
         XCTAssertEqual(model.pauseResumeLabel, "Resume")
+    }
+
+    @MainActor
+    func testRecordingOverlayAudioTogglesUpdateSessionPreferences() async {
+        var updates: [(systemAudio: Bool, microphone: Bool)] = []
+        let model = RecordingControlOverlayModel(
+            title: "Recording Region",
+            sourceLabel: "Region",
+            preferences: VideoRecordingPreferences(
+                recordsSystemAudio: false,
+                recordsMicrophone: true
+            ),
+            isPaused: false,
+            pauseResumeAction: {},
+            stopAction: {},
+            audioOptionsAction: { systemAudio, microphone in
+                updates.append((systemAudio, microphone))
+            }
+        )
+
+        XCTAssertFalse(model.recordsSystemAudio)
+        XCTAssertTrue(model.recordsMicrophone)
+
+        model.setRecordsSystemAudio(true)
+        try? await Task.sleep(for: .milliseconds(20))
+
+        XCTAssertTrue(model.recordsSystemAudio)
+        XCTAssertTrue(model.recordsMicrophone)
+        XCTAssertEqual(updates.count, 1)
+        XCTAssertEqual(updates.first?.systemAudio, true)
+        XCTAssertEqual(updates.first?.microphone, true)
+
+        model.setRecordsMicrophone(false)
+        try? await Task.sleep(for: .milliseconds(20))
+
+        XCTAssertTrue(model.recordsSystemAudio)
+        XCTAssertFalse(model.recordsMicrophone)
+        XCTAssertEqual(updates.count, 2)
+        XCTAssertEqual(updates.last?.systemAudio, true)
+        XCTAssertEqual(updates.last?.microphone, false)
     }
 
     func testSizeConstrainedPlanStartsFivePercentUnderAndStepsDown() throws {

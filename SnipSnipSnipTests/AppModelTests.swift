@@ -806,6 +806,129 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(model.permissionSetupGuide?.requirement, .screenRecording)
     }
 
+    func testRefreshAvailableWindowsOrRequestAccessRequestsScreenRecordingWhenMissing() async {
+        let suiteName = "AppModelTests.refreshAvailableWindowsOrRequestAccessRequestsScreenRecordingWhenMissing"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let originalScreenRecordingStatusProvider = ScreenCapturePermissions.screenRecordingStatusProvider
+        let originalAccessibilityStatusProvider = ScreenCapturePermissions.accessibilityStatusProvider
+        let originalScreenRecordingAccessRequester = ScreenCapturePermissions.screenRecordingAccessRequester
+        let originalSystemSettingsOpener = ScreenCapturePermissions.systemSettingsOpener
+        defer {
+            ScreenCapturePermissions.screenRecordingStatusProvider = originalScreenRecordingStatusProvider
+            ScreenCapturePermissions.accessibilityStatusProvider = originalAccessibilityStatusProvider
+            ScreenCapturePermissions.screenRecordingAccessRequester = originalScreenRecordingAccessRequester
+            ScreenCapturePermissions.systemSettingsOpener = originalSystemSettingsOpener
+        }
+
+        let recorder = PermissionRequestRecorder()
+        ScreenCapturePermissions.screenRecordingStatusProvider = { false }
+        ScreenCapturePermissions.accessibilityStatusProvider = { false }
+        ScreenCapturePermissions.screenRecordingAccessRequester = {
+            recorder.recordScreenRecordingRequest()
+            return false
+        }
+        ScreenCapturePermissions.systemSettingsOpener = { requirement in
+            recorder.recordOpenedSettings(requirement)
+        }
+
+        let captureService = WindowRefreshCaptureService()
+        let model = retainForTestLifetime(
+            AppModel(
+                defaults: defaults,
+                recoveryStore: DocumentRecoveryStore(baseURL: nil),
+                captureService: captureService,
+                shouldCheckCompatibilityOnLaunch: false,
+                shouldStartArchiveMaintenance: false
+            )
+        )
+        model.permissionStatus = CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: false)
+
+        model.refreshAvailableWindowsOrRequestAccess()
+
+        XCTAssertTrue(recorder.didRequestScreenRecordingAccess())
+        let requests = await captureService.includeThumbnailRequests()
+        XCTAssertEqual(requests, [])
+
+        await waitUntil {
+            recorder.openedSettingsRequirements() == [.screenRecording]
+        }
+
+        XCTAssertEqual(model.permissionSetupGuide?.requirement, .screenRecording)
+    }
+
+    func testRefreshAvailableWindowsOrRequestAccessRefreshesWindowsWhenAuthorized() async {
+        let suiteName = "AppModelTests.refreshAvailableWindowsOrRequestAccessRefreshesWindowsWhenAuthorized"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let originalScreenRecordingStatusProvider = ScreenCapturePermissions.screenRecordingStatusProvider
+        let originalAccessibilityStatusProvider = ScreenCapturePermissions.accessibilityStatusProvider
+        let originalScreenRecordingAccessRequester = ScreenCapturePermissions.screenRecordingAccessRequester
+        let originalScreenRecordingAccessVerifier = ScreenCapturePermissions.screenRecordingAccessVerifier
+        defer {
+            ScreenCapturePermissions.screenRecordingStatusProvider = originalScreenRecordingStatusProvider
+            ScreenCapturePermissions.accessibilityStatusProvider = originalAccessibilityStatusProvider
+            ScreenCapturePermissions.screenRecordingAccessRequester = originalScreenRecordingAccessRequester
+            ScreenCapturePermissions.screenRecordingAccessVerifier = originalScreenRecordingAccessVerifier
+        }
+
+        let recorder = PermissionRequestRecorder()
+        ScreenCapturePermissions.screenRecordingStatusProvider = { true }
+        ScreenCapturePermissions.accessibilityStatusProvider = { false }
+        ScreenCapturePermissions.screenRecordingAccessRequester = {
+            recorder.recordScreenRecordingRequest()
+            return true
+        }
+        ScreenCapturePermissions.screenRecordingAccessVerifier = { true }
+
+        let captureService = WindowRefreshCaptureService()
+        let model = retainForTestLifetime(
+            AppModel(
+                defaults: defaults,
+                recoveryStore: DocumentRecoveryStore(baseURL: nil),
+                captureService: captureService,
+                shouldCheckCompatibilityOnLaunch: false,
+                shouldStartArchiveMaintenance: false
+            )
+        )
+        model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false)
+
+        model.refreshAvailableWindowsOrRequestAccess()
+
+        await waitUntil {
+            let requests = await captureService.includeThumbnailRequests()
+            return !requests.isEmpty
+        }
+
+        let requests = await captureService.includeThumbnailRequests()
+        XCTAssertFalse(recorder.didRequestScreenRecordingAccess())
+        XCTAssertFalse(requests.isEmpty)
+    }
+
+    func testGlobalHotKeyShowsBusyFeedbackWhenCaptureIsWorking() {
+        let suiteName = "AppModelTests.globalHotKeyShowsBusyFeedbackWhenCaptureIsWorking"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let model = retainForTestLifetime(
+            AppModel(
+                defaults: defaults,
+                recoveryStore: DocumentRecoveryStore(baseURL: nil),
+                captureService: ScreenCaptureService(),
+                shouldCheckCompatibilityOnLaunch: false,
+                shouldStartArchiveMaintenance: false
+            )
+        )
+        model.isWorking = true
+        model.workingMessage = "Capturing"
+
+        model.handleGlobalHotKeyAction(.fullscreen)
+
+        XCTAssertEqual(model.workingMessage, "Capture already in progress")
+    }
+
     func testPresentPermissionDeniedClearsScreenRecordingAccessImmediately() {
         let suiteName = "AppModelTests.presentPermissionDeniedClearsScreenRecordingAccessImmediately"
         let defaults = makeDefaults(named: suiteName)

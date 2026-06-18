@@ -265,24 +265,7 @@ struct ScreenRecordingService {
             return
         }
 
-        switch AVAudioApplication.shared.recordPermission {
-        case .granted:
-            return
-        case .denied:
-            throw ScreenRecordingError.microphonePermissionDenied
-        case .undetermined:
-            let granted = await withCheckedContinuation { continuation in
-                AVAudioApplication.requestRecordPermission { granted in
-                    continuation.resume(returning: granted)
-                }
-            }
-
-            if !granted {
-                throw ScreenRecordingError.microphonePermissionDenied
-            }
-        @unknown default:
-            throw ScreenRecordingError.microphonePermissionDenied
-        }
+        try await ScreenRecordingAudioPermission.requestMicrophoneAccess()
     }
 
     private func currentDisplay(in displays: [SCDisplay]) -> SCDisplay? {
@@ -383,6 +366,29 @@ struct ScreenRecordingService {
     }
 }
 
+private enum ScreenRecordingAudioPermission {
+    static func requestMicrophoneAccess() async throws {
+        switch AVAudioApplication.shared.recordPermission {
+        case .granted:
+            return
+        case .denied:
+            throw ScreenRecordingError.microphonePermissionDenied
+        case .undetermined:
+            let granted = await withCheckedContinuation { continuation in
+                AVAudioApplication.requestRecordPermission { granted in
+                    continuation.resume(returning: granted)
+                }
+            }
+
+            if !granted {
+                throw ScreenRecordingError.microphonePermissionDenied
+            }
+        @unknown default:
+            throw ScreenRecordingError.microphonePermissionDenied
+        }
+    }
+}
+
 private struct FullscreenRecordingTarget {
     let filter: SCContentFilter
     let bounds: CGRect
@@ -460,7 +466,8 @@ final class ScreenRecordingSession: NSObject, SCRecordingOutputDelegate, SCStrea
     private let kind: VideoRecordingKind
     private let sourceName: String
     private let bounds: CGRect
-    private let preferences: VideoRecordingPreferences
+    private var preferences: VideoRecordingPreferences
+    private let configuration: SCStreamConfiguration
     private let recordingWidth: Int
     private let recordingHeight: Int
     private let startedAt: Date
@@ -486,6 +493,7 @@ final class ScreenRecordingSession: NSObject, SCRecordingOutputDelegate, SCStrea
         self.sourceName = sourceName
         self.bounds = bounds
         self.preferences = preferences
+        self.configuration = configuration
         self.recordingWidth = configuration.width
         self.recordingHeight = configuration.height
         self.startedAt = Date()
@@ -555,6 +563,27 @@ final class ScreenRecordingSession: NSObject, SCRecordingOutputDelegate, SCStrea
         try startRecordingSegment()
         try await stream.startCapture()
         isCaptureRunning = true
+    }
+
+    func updateAudioOptions(recordsSystemAudio: Bool, recordsMicrophone: Bool) async throws {
+        guard !didStop else {
+            throw ScreenRecordingError.recordingAlreadyStopped
+        }
+
+        if recordsMicrophone {
+            try await ScreenRecordingAudioPermission.requestMicrophoneAccess()
+        }
+
+        guard recordsSystemAudio != preferences.recordsSystemAudio
+                || recordsMicrophone != preferences.recordsMicrophone else {
+            return
+        }
+
+        configuration.capturesAudio = recordsSystemAudio
+        configuration.captureMicrophone = recordsMicrophone
+        try await stream.updateConfiguration(configuration)
+        preferences.recordsSystemAudio = recordsSystemAudio
+        preferences.recordsMicrophone = recordsMicrophone
     }
 
     func stop() async throws -> CapturedVideoRecording {

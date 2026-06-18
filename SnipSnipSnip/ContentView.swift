@@ -567,11 +567,13 @@ struct ContentView: View {
                         .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
                         .help("Capture the frontmost shareable window immediately.")
 
-                    Button("Refresh") {
-                        model.refreshAvailableWindows()
-                    }
+                    Button("Refresh", action: model.refreshAvailableWindowsOrRequestAccess)
                         .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-                        .help("Reload the list of available windows.")
+                        .help(
+                            model.permissionStatus.hasScreenRecording
+                            ? "Reload the list of available windows."
+                            : "Continue to the macOS Screen Recording permission prompt before window thumbnails can be shown."
+                        )
 
                     Spacer(minLength: 8)
 

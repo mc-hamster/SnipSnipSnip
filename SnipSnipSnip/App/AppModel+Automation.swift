@@ -61,7 +61,8 @@ extension AppModel {
     }
 
     func handleGlobalHotKeyAction(_ action: GlobalHotKeyAction) {
-        guard !isWorking else {
+        guard !isWorking, !isRecordingVideo else {
+            presentBusyHotKeyFeedback()
             return
         }
 
@@ -79,6 +80,11 @@ extension AppModel {
         case .screenInspector:
             toggleScreenInspector()
         }
+    }
+
+    private func presentBusyHotKeyFeedback() {
+        workingMessage = isRecordingVideo ? "Recording in progress" : "Capture already in progress"
+        NSSound.beep()
     }
 
     func indexCurrentCaptureIfNeeded(using controller: EditorController) {

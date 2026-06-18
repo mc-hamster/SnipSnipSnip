@@ -6,16 +6,19 @@ import SwiftUI
 final class RecordingControlOverlayModel: ObservableObject {
     @Published private(set) var elapsedSeconds: TimeInterval = 0
     @Published private(set) var isPaused: Bool
+    @Published private(set) var preferences: VideoRecordingPreferences
+    @Published private(set) var audioToggleErrorMessage: String?
 
     let title: String
     let sourceLabel: String
-    let preferences: VideoRecordingPreferences
     let pauseResumeAction: () -> Void
     let stopAction: () -> Void
+    let audioOptionsAction: (_ recordsSystemAudio: Bool, _ recordsMicrophone: Bool) async throws -> Void
     private let startedAt = Date()
     private var accumulatedPausedDuration: TimeInterval = 0
     private var pauseStartedAt: Date?
     private var timerTask: Task<Void, Never>?
+    private var audioOptionsTask: Task<Void, Never>?
 
     init(
         title: String,
@@ -23,7 +26,8 @@ final class RecordingControlOverlayModel: ObservableObject {
         preferences: VideoRecordingPreferences,
         isPaused: Bool,
         pauseResumeAction: @escaping () -> Void,
-        stopAction: @escaping () -> Void
+        stopAction: @escaping () -> Void,
+        audioOptionsAction: @escaping (_ recordsSystemAudio: Bool, _ recordsMicrophone: Bool) async throws -> Void
     ) {
         self.title = title
         self.sourceLabel = sourceLabel
@@ -31,6 +35,7 @@ final class RecordingControlOverlayModel: ObservableObject {
         self.isPaused = isPaused
         self.pauseResumeAction = pauseResumeAction
         self.stopAction = stopAction
+        self.audioOptionsAction = audioOptionsAction
 
         if isPaused {
             pauseStartedAt = Date()
@@ -46,6 +51,7 @@ final class RecordingControlOverlayModel: ObservableObject {
 
     deinit {
         timerTask?.cancel()
+        audioOptionsTask?.cancel()
     }
 
     var elapsedLabel: String {
@@ -78,6 +84,28 @@ final class RecordingControlOverlayModel: ObservableObject {
         ].joined(separator: " • ")
     }
 
+    var recordsSystemAudio: Bool {
+        preferences.recordsSystemAudio
+    }
+
+    var recordsMicrophone: Bool {
+        preferences.recordsMicrophone
+    }
+
+    func setRecordsSystemAudio(_ recordsSystemAudio: Bool) {
+        updateAudioOptions(
+            recordsSystemAudio: recordsSystemAudio,
+            recordsMicrophone: preferences.recordsMicrophone
+        )
+    }
+
+    func setRecordsMicrophone(_ recordsMicrophone: Bool) {
+        updateAudioOptions(
+            recordsSystemAudio: preferences.recordsSystemAudio,
+            recordsMicrophone: recordsMicrophone
+        )
+    }
+
     func updatePausedState(_ paused: Bool) {
         guard paused != isPaused else {
             return
@@ -92,6 +120,31 @@ final class RecordingControlOverlayModel: ObservableObject {
 
         isPaused = paused
         tick()
+    }
+
+    private func updateAudioOptions(recordsSystemAudio: Bool, recordsMicrophone: Bool) {
+        guard recordsSystemAudio != preferences.recordsSystemAudio
+                || recordsMicrophone != preferences.recordsMicrophone else {
+            return
+        }
+
+        let previousPreferences = preferences
+        preferences.recordsSystemAudio = recordsSystemAudio
+        preferences.recordsMicrophone = recordsMicrophone
+        audioToggleErrorMessage = nil
+        audioOptionsTask?.cancel()
+        audioOptionsTask = Task { @MainActor [weak self] in
+            guard let self else {
+                return
+            }
+
+            do {
+                try await audioOptionsAction(recordsSystemAudio, recordsMicrophone)
+            } catch {
+                preferences = previousPreferences
+                audioToggleErrorMessage = error.localizedDescription
+            }
+        }
     }
 
     private func tick() {
@@ -118,7 +171,8 @@ final class RecordingControlOverlay {
         preferences: VideoRecordingPreferences,
         isPaused: Bool,
         pauseResumeAction: @escaping () -> Void,
-        stopAction: @escaping () -> Void
+        stopAction: @escaping () -> Void,
+        audioOptionsAction: @escaping (_ recordsSystemAudio: Bool, _ recordsMicrophone: Bool) async throws -> Void
     ) {
         model = RecordingControlOverlayModel(
             title: title,
@@ -126,10 +180,11 @@ final class RecordingControlOverlay {
             preferences: preferences,
             isPaused: isPaused,
             pauseResumeAction: pauseResumeAction,
-            stopAction: stopAction
+            stopAction: stopAction,
+            audioOptionsAction: audioOptionsAction
         )
         panel = NSPanel(
-            contentRect: CGRect(x: 0, y: 0, width: 500, height: 94),
+            contentRect: CGRect(x: 0, y: 0, width: 560, height: 126),
             styleMask: [.nonactivatingPanel, .hudWindow],
             backing: .buffered,
             defer: false
@@ -166,10 +221,10 @@ final class RecordingControlOverlay {
     private func positionPanel() {
         let screenFrame = NSScreen.main?.visibleFrame ?? NSScreen.screens.first?.visibleFrame ?? .zero
         let frame = CGRect(
-            x: screenFrame.midX - 250,
-            y: screenFrame.maxY - 116,
-            width: 500,
-            height: 94
+            x: screenFrame.midX - 280,
+            y: screenFrame.maxY - 148,
+            width: 560,
+            height: 126
         )
         panel.setFrame(frame, display: true)
     }
@@ -204,6 +259,13 @@ private struct RecordingControlOverlayView: View {
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
+
+                    if let audioToggleErrorMessage = model.audioToggleErrorMessage {
+                        Text(audioToggleErrorMessage)
+                            .font(.caption2)
+                            .foregroundStyle(.red)
+                            .lineLimit(1)
+                    }
                 }
             }
 
@@ -213,6 +275,24 @@ private struct RecordingControlOverlayView: View {
                 Text(model.elapsedLabel)
                     .font(.system(.title2, design: .monospaced).weight(.bold))
                     .contentTransition(.numericText())
+
+                HStack(spacing: 10) {
+                    Toggle("System", isOn: Binding(
+                        get: { model.recordsSystemAudio },
+                        set: { model.setRecordsSystemAudio($0) }
+                    ))
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .help("Include or mute system audio for this recording only.")
+
+                    Toggle("Mic", isOn: Binding(
+                        get: { model.recordsMicrophone },
+                        set: { model.setRecordsMicrophone($0) }
+                    ))
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .help("Include or mute microphone narration for this recording only.")
+                }
 
                 HStack(spacing: 8) {
                     Button(action: model.pauseResumeAction) {
@@ -238,7 +318,7 @@ private struct RecordingControlOverlayView: View {
             }
         }
         .padding(16)
-        .frame(width: 500, height: 94)
+        .frame(width: 560, height: 126)
         .sssGlassSurface(cornerRadius: 20)
     }
 

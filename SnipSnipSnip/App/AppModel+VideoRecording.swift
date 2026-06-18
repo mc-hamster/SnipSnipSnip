@@ -338,6 +338,12 @@ extension AppModel {
                 },
                 stopAction: { [weak self] in
                     self?.stopVideoRecording()
+                },
+                audioOptionsAction: { [weak session] recordsSystemAudio, recordsMicrophone in
+                    try await session?.updateAudioOptions(
+                        recordsSystemAudio: recordsSystemAudio,
+                        recordsMicrophone: recordsMicrophone
+                    )
                 }
             ),
             hiddenWindow: hiddenWindow

@@ -494,6 +494,17 @@ extension AppModel {
         }
     }
 
+    func refreshAvailableWindowsOrRequestAccess() {
+        refreshPermissions()
+
+        guard permissionStatus.hasScreenRecording else {
+            requestScreenRecordingAccess()
+            return
+        }
+
+        refreshAvailableWindows()
+    }
+
     func pickWindowOnScreen() {
         let windows = availableWindows
         let runOptions = currentCaptureRunOptions()
