@@ -141,6 +141,12 @@ nonisolated enum UIMapTextRecognitionGeometry {
 }
 
 nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
+    private let capabilities: AppCapabilitySnapshot
+
+    init(capabilities: AppCapabilitySnapshot = BuildTargetCapabilityProvider().currentSnapshot()) {
+        self.capabilities = capabilities
+    }
+
     private struct WindowCandidate {
         let windowID: CGWindowID?
         let ownerPID: pid_t
@@ -203,10 +209,10 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
 
     nonisolated func captureUIMap(for capture: CapturedScreenshot) -> UIMapSnapshot? {
         UIMapCaptureDiagnostics.notice(
-            "[UIMap] capture requested sourceName='\(capture.sourceName)' kind='\(capture.kind.rawValue)' sourceRect=\(Self.describe(capture.sourceRect)) documentRect=\(Self.describe(capture.documentRect)) pixelSize=\(Int(capture.pixelSize.width))x\(Int(capture.pixelSize.height)) featureFlag=\(FeatureFlags.uiMapEnabled) axTrusted=\(AXIsProcessTrusted())"
+            "[UIMap] capture requested sourceName='\(capture.sourceName)' kind='\(capture.kind.rawValue)' sourceRect=\(Self.describe(capture.sourceRect)) documentRect=\(Self.describe(capture.documentRect)) pixelSize=\(Int(capture.pixelSize.width))x\(Int(capture.pixelSize.height)) featureEnabled=\(capabilities.isEnabled(.uiMap)) axTrusted=\(AXIsProcessTrusted())"
         )
 
-        guard FeatureFlags.uiMapEnabled else {
+        guard capabilities.isEnabled(.uiMap) else {
             UIMapCaptureDiagnostics.failure("[UIMap] capture skipped: feature flag disabled")
             return nil
         }

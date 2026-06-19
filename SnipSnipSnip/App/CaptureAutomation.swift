@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 
-struct CaptureAutomationPreferences: Codable, Equatable {
+nonisolated struct CaptureAutomationPreferences: Codable, Equatable {
     var globalHotkeysEnabled = true
     var regionHotkey: GlobalHotKeyKey = .one
     var windowHotkey: GlobalHotKeyKey = .two

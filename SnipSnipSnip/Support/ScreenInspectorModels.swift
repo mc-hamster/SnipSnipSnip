@@ -2,7 +2,7 @@ import AppKit
 import CoreGraphics
 import Foundation
 
-enum ScreenInspectorZoomLevel: Int, CaseIterable, Codable, Identifiable, Sendable {
+nonisolated enum ScreenInspectorZoomLevel: Int, CaseIterable, Codable, Identifiable, Sendable {
     case two = 2
     case four = 4
     case eight = 8
@@ -15,7 +15,7 @@ enum ScreenInspectorZoomLevel: Int, CaseIterable, Codable, Identifiable, Sendabl
     }
 }
 
-struct ScreenInspectorPreferences: Codable, Equatable, Sendable {
+nonisolated struct ScreenInspectorPreferences: Codable, Equatable, Sendable {
     static let `default` = ScreenInspectorPreferences(
         zoomLevel: .eight,
         showsPixelGrid: false,

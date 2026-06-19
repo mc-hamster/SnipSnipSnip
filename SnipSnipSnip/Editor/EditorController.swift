@@ -173,6 +173,7 @@ final class EditorController: ObservableObject {
     private let textRecognizer: any CaptureTextRecognizing
     private let initialSnapshot: EditorSnapshot
     let defaults: UserDefaults
+    let capabilities: AppCapabilitySnapshot
     private var preferredRedactionMode: RedactionMode
 
     private var undoStack: [EditorSnapshot] = []
@@ -199,10 +200,12 @@ final class EditorController: ObservableObject {
     init(
         capture: CapturedScreenshot,
         defaults: UserDefaults = .standard,
+        capabilities: AppCapabilitySnapshot = BuildTargetCapabilityProvider().currentSnapshot(),
         textRecognizer: any CaptureTextRecognizing = VisionCaptureTextRecognizer(),
         uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions()
     ) {
         self.defaults = defaults
+        self.capabilities = capabilities
         self.preferredRedactionMode = defaults.string(forKey: EditorPreferenceKey.lastRedactionMode)
             .flatMap(RedactionMode.init(rawValue:)) ?? .blur
         self.capture = capture
@@ -247,10 +250,12 @@ final class EditorController: ObservableObject {
         capture: CapturedScreenshot,
         session: EditorDocumentSession,
         defaults: UserDefaults = .standard,
+        capabilities: AppCapabilitySnapshot = BuildTargetCapabilityProvider().currentSnapshot(),
         textRecognizer: any CaptureTextRecognizing = VisionCaptureTextRecognizer(),
         uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions()
     ) {
         self.defaults = defaults
+        self.capabilities = capabilities
         self.preferredRedactionMode = defaults.string(forKey: EditorPreferenceKey.lastRedactionMode)
             .flatMap(RedactionMode.init(rawValue:)) ?? .blur
         self.capture = capture
@@ -444,7 +449,7 @@ final class EditorController: ObservableObject {
     }
 
     var isInspectingUIMap: Bool {
-        FeatureFlags.uiMapEnabled
+        capabilities.isEnabled(.uiMap)
             && (activeTool == .uiMapInspect || selectedUIMapElement != nil)
     }
 
@@ -1133,7 +1138,7 @@ final class EditorController: ObservableObject {
         clearTransientToolState(clearUIMapSelection: false)
 
         if tool == .uiMapInspect {
-            guard FeatureFlags.uiMapEnabled, uiMapSnapshot != nil else {
+            guard capabilities.isEnabled(.uiMap), uiMapSnapshot != nil else {
                 activeTool = .select
                 selectedUIMapElementID = nil
                 hoveredUIMapElementID = nil

@@ -7,7 +7,7 @@ struct UIMapWindowView: View {
 
     var body: some View {
         Group {
-            if !FeatureFlags.uiMapEnabled {
+            if !model.capabilities.isEnabled(.uiMap) {
                 UIMapEmptyStateView(
                     title: "UI Map Unavailable",
                     systemImage: "rectangle.3.group",

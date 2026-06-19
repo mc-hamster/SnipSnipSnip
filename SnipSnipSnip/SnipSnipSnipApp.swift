@@ -30,12 +30,12 @@ private struct CaptureCommands: Commands {
                 .keyboardShortcut("4", modifiers: AppShortcut.modifiers)
                 .disabled(model.isWorking || model.isRecordingVideo)
 
-            if FeatureFlags.scrollingCaptureEnabled {
+            if model.capabilities.isEnabled(.scrollingCapture) {
                 Button("Scrolling Capture", action: model.captureScrollingArea)
                     .disabled(model.isWorking || model.isRecordingVideo)
             }
 
-            if FeatureFlags.connectedDeviceCaptureEnabled {
+            if model.capabilities.isEnabled(.connectedDeviceCapture) {
                 Menu("Connected Device") {
                     ConnectedDeviceCaptureMenuContent(model: model, mode: .screenshot)
                 }
@@ -54,7 +54,7 @@ private struct CaptureCommands: Commands {
                 Button("Record Full Screen", action: model.recordCurrentDisplay)
                     .disabled(model.isWorking || model.isRecordingVideo)
 
-                if FeatureFlags.connectedDeviceCaptureEnabled {
+                if model.capabilities.isEnabled(.connectedDeviceCapture) {
                     Menu("Record Connected Device") {
                         ConnectedDeviceCaptureMenuContent(model: model, mode: .recording)
                     }
@@ -207,7 +207,7 @@ private struct HelpCommands: Commands {
 
             Button("Show Onboarding", action: model.requestOnboardingPresentation)
 
-            if FeatureFlags.proUpdateCheckEnabled {
+            if model.capabilities.isEnabled(.proUpdateCheck) {
                 Button(
                     model.isCheckingProUpdates ? "Checking for Pro Updates..." : "Check for Pro Updates...",
                     action: model.checkForProUpdates
@@ -388,7 +388,7 @@ private struct EditorCommands: Commands {
                     .keyboardShortcut("l", modifiers: [.command, .shift])
                     .disabled(model.editorController == nil)
 
-                if FeatureFlags.uiMapEnabled {
+                if model.capabilities.isEnabled(.uiMap) {
                     Button("Show UI Map", action: showUIMapWindow)
                         .keyboardShortcut("u", modifiers: [.command, .shift])
                         .disabled(model.editorController?.uiMapSnapshot == nil)
@@ -526,7 +526,7 @@ struct SnipSnipSnipApp: App {
         .restorationBehavior(.disabled)
 
         Window("\(AppBranding.displayName) Help", id: AppSceneID.helpWindow) {
-            HelpGuideView()
+            HelpGuideView(capabilities: model.capabilities)
         }
         .defaultSize(width: 920, height: 760)
 

@@ -3,7 +3,7 @@ import Foundation
 
 extension AppModel {
     func refreshConnectedDevices() {
-        guard FeatureFlags.connectedDeviceCaptureEnabled else {
+        guard capabilities.isEnabled(.connectedDeviceCapture) else {
             connectedDevices = []
             connectedDeviceEmptyStateMessage = ConnectedDeviceCaptureMenu.emptyStateMessage
             return
@@ -15,7 +15,7 @@ extension AppModel {
     }
 
     func loadConnectedDevices(showErrors: Bool) async {
-        guard FeatureFlags.connectedDeviceCaptureEnabled else {
+        guard capabilities.isEnabled(.connectedDeviceCapture) else {
             connectedDevices = []
             connectedDeviceEmptyStateMessage = ConnectedDeviceCaptureMenu.emptyStateMessage
             if showErrors {
@@ -69,7 +69,7 @@ extension AppModel {
         intent: ConnectedDevicePreviewIntent
     ) {
         Task {
-            guard FeatureFlags.connectedDeviceCaptureEnabled else {
+            guard capabilities.isEnabled(.connectedDeviceCapture) else {
                 present(ConnectedDeviceCaptureError.publicScreenCaptureUnavailable)
                 return
             }

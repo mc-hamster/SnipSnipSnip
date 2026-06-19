@@ -71,7 +71,7 @@ final class CaptureTextRecognitionCoordinator {
     func recognizeText(
         for entry: DocumentHistoryEntry,
         image: CGImage,
-        includeUIMapSearchText: Bool = FeatureFlags.uiMapEnabled,
+        includeUIMapSearchText: Bool = BuildTargetCapabilityProvider().currentSnapshot().isEnabled(.uiMap),
         didUpdate: @escaping @MainActor (String) -> Void
     ) {
         guard activeTasks[entry.packageURL] == nil else {

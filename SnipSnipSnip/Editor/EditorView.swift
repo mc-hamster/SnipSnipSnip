@@ -477,7 +477,7 @@ private struct ActiveEditorToolbarView: View {
     }
 
     private var showsUIMapToolbarControls: Bool {
-        FeatureFlags.uiMapEnabled && controller.capture.kind == .window
+        controller.capabilities.isEnabled(.uiMap) && controller.capture.kind == .window
     }
 
     private var exportMenu: some View {

@@ -1122,20 +1122,6 @@ enum ScreenshotPresentationRenderer {
         let offsetY = presentation.shadowOffsetY
         let opacity = min(max(presentation.shadowOpacity, 0), 1)
 
-        if max(destinationRect.width, destinationRect.height) <= 360 {
-            drawFastPreviewShadow(
-                in: context,
-                shadowRect: shadowRect,
-                cornerRadius: cornerRadius,
-                color: style == .drop ? .black : coolShadowColor,
-                blurRadius: blurRadius,
-                offsetX: offsetX,
-                offsetY: -offsetY,
-                opacity: opacity
-            )
-            return
-        }
-
         guard let maskImage = roundedRectMaskImage(size: destinationRect.size, rect: shadowRect, cornerRadius: cornerRadius) else {
             return
         }
@@ -1203,33 +1189,6 @@ enum ScreenshotPresentationRenderer {
             offsetY: -offsetY * 1.36,
             opacity: opacity * 0.24
         )
-    }
-
-    nonisolated private static func drawFastPreviewShadow(
-        in context: CGContext,
-        shadowRect: CGRect,
-        cornerRadius: CGFloat,
-        color: NSColor,
-        blurRadius: CGFloat,
-        offsetX: CGFloat,
-        offsetY: CGFloat,
-        opacity: CGFloat
-    ) {
-        guard opacity > 0 else {
-            return
-        }
-
-        let path = CGPath(roundedRect: shadowRect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-        context.saveGState()
-        context.setShadow(
-            offset: CGSize(width: offsetX, height: offsetY),
-            blur: max(blurRadius, 1),
-            color: color.withAlphaComponent(opacity).cgColor
-        )
-        context.setFillColor(color.withAlphaComponent(0.004).cgColor)
-        context.addPath(path)
-        context.fillPath()
-        context.restoreGState()
     }
 
     nonisolated private static func drawCanvasBackground(

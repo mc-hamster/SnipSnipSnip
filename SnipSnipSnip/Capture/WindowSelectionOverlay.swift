@@ -27,12 +27,18 @@ private enum WindowPickerDiagnostics {
 final class WindowSelectionSession: NSObject {
     private let snapshot: DesktopCompositeSnapshot
     private let windows: [CaptureWindowSummary]
+    private let capabilities: AppCapabilitySnapshot
     private var continuation: CheckedContinuation<CaptureWindowSummary?, Never>?
     private var overlayWindows: [WindowSelectionWindow] = []
 
-    init(snapshot: DesktopCompositeSnapshot, windows: [CaptureWindowSummary]) {
+    init(
+        snapshot: DesktopCompositeSnapshot,
+        windows: [CaptureWindowSummary],
+        capabilities: AppCapabilitySnapshot = BuildTargetCapabilityProvider().currentSnapshot()
+    ) {
         self.snapshot = snapshot
         self.windows = windows
+        self.capabilities = capabilities
     }
 
     func begin() async -> CaptureWindowSummary? {
@@ -83,7 +89,8 @@ final class WindowSelectionSession: NSObject {
             let overlay = WindowSelectionWindow(
                 displayPreview: displayPreview,
                 windows: displayWindows,
-                desktopFrame: snapshot.globalFrame
+                desktopFrame: snapshot.globalFrame,
+                capabilities: capabilities
             ) { [weak self] window in
                 self?.finish(with: window)
             }
@@ -111,6 +118,7 @@ private final class WindowSelectionWindow: NSWindow {
         displayPreview: DisplayPreview,
         windows: [CaptureWindowSummary],
         desktopFrame: CGRect,
+        capabilities: AppCapabilitySnapshot,
         onComplete: @escaping (CaptureWindowSummary?) -> Void
     ) {
         self.displayFrame = displayPreview.snapshot.overlayFrame
@@ -134,6 +142,7 @@ private final class WindowSelectionWindow: NSWindow {
             windows: windows,
             desktopFrame: desktopFrame,
             displayFrame: displayFrame,
+            capabilities: capabilities,
             onComplete: onComplete
         )
         makeFirstResponder(contentView)
@@ -149,6 +158,7 @@ private final class WindowSelectionView: NSView {
     private let accessibilityTransform: CaptureAccessibilityTransform?
     private let desktopFrame: CGRect
     private let displayFrame: CGRect
+    private let capabilities: AppCapabilitySnapshot
     private let onComplete: (CaptureWindowSummary?) -> Void
     private var hoveredWindowID: CGWindowID?
     // Screen-space (AppKit) rect of the hovered window, refreshed each mouseMoved.
@@ -160,10 +170,12 @@ private final class WindowSelectionView: NSView {
         windows: [CaptureWindowSummary],
         desktopFrame: CGRect,
         displayFrame: CGRect,
+        capabilities: AppCapabilitySnapshot,
         onComplete: @escaping (CaptureWindowSummary?) -> Void
     ) {
         self.windows = windows
         self.displayTransform = displayPreview.snapshot.captureDisplayTransform
+        self.capabilities = capabilities
 #if APP_STORE_BUILD
         self.accessibilityTransform = nil
 #else
@@ -384,7 +396,7 @@ private final class WindowSelectionView: NSView {
         boundsSources: WindowBoundsSources
     ) -> (window: CaptureWindowSummary, screenRect: CGRect)? {
 #if !APP_STORE_BUILD
-        if FeatureFlags.accessibilityAutomationEnabled,
+        if capabilities.isEnabled(.accessibilityAutomation),
            let accessibilityResolved = resolveAccessibilityWindow(at: screenPoint, boundsSources: boundsSources) {
             return accessibilityResolved
         }

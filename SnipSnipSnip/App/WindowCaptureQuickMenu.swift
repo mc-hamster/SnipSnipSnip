@@ -101,7 +101,7 @@ enum WindowCaptureMenuBuilder {
     }
 
     private static func windowUIMapHelpText(for model: AppModel) -> String? {
-        guard FeatureFlags.uiMapEnabled, model.uiMapEnabled else {
+        guard model.capabilities.isEnabled(.uiMap), model.uiMapEnabled else {
             return nil
         }
 

@@ -73,7 +73,7 @@ nonisolated enum SSSDocumentPackage {
         session: EditorDocumentSession,
         recognizedText: String? = nil,
         uiMap: UIMapSnapshot? = nil,
-        includeUIMapSearchText: Bool = FeatureFlags.uiMapEnabled
+        includeUIMapSearchText: Bool = BuildTargetCapabilityProvider().currentSnapshot().isEnabled(.uiMap)
     ) -> String {
         let annotationText = annotationSearchText(for: session)
         return buildSearchableText(
@@ -87,7 +87,7 @@ nonisolated enum SSSDocumentPackage {
     nonisolated static func searchableText(
         for document: EditableScreenshotDocument,
         recognizedText: String? = nil,
-        includeUIMapSearchText: Bool = FeatureFlags.uiMapEnabled
+        includeUIMapSearchText: Bool = BuildTargetCapabilityProvider().currentSnapshot().isEnabled(.uiMap)
     ) -> String {
         searchableText(
             sourceName: document.capture.sourceName,
@@ -103,7 +103,7 @@ nonisolated enum SSSDocumentPackage {
         previewImage: CGImage,
         to url: URL,
         baseImageStorage: BaseImageStorage = .embedded,
-        includeUIMapSearchText: Bool = FeatureFlags.uiMapEnabled
+        includeUIMapSearchText: Bool = BuildTargetCapabilityProvider().currentSnapshot().isEnabled(.uiMap)
     ) throws {
         let fileManager = FileManager.default
         let temporaryDirectoryURL = fileManager.temporaryDirectory
@@ -331,7 +331,7 @@ nonisolated enum SSSDocumentPackage {
     nonisolated static func updateRecognizedText(
         _ recognizedText: String?,
         in packageURL: URL,
-        includeUIMapSearchText: Bool = FeatureFlags.uiMapEnabled
+        includeUIMapSearchText: Bool = BuildTargetCapabilityProvider().currentSnapshot().isEnabled(.uiMap)
     ) throws -> String {
         let manifestURL = packageURL.appendingPathComponent(manifestFilename)
         var manifest = try loadManifest(from: manifestURL)
@@ -761,14 +761,6 @@ nonisolated private struct ScreenshotPresentationRecord: Codable {
 
     var screenshotPresentation: ScreenshotPresentation {
         let shadowStyle = ScreenshotShadowStyle(rawValue: shadow) ?? .off
-        if let style {
-            return ScreenshotPresentation(
-                isEnabled: isEnabled,
-                style: style,
-                scene: scene
-            )
-        }
-
         return ScreenshotPresentation(
             isEnabled: isEnabled,
             background: background.screenshotPresentationBackground,

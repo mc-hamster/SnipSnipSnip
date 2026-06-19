@@ -41,34 +41,11 @@ extension AppModel {
     }
 
     static func loadArchiveLocationURL(from defaults: UserDefaults) -> URL? {
-        if let bookmarkData = defaults.data(forKey: AppModelPreferenceKey.archiveLocationBookmarkData) {
-            var isStale = false
-            if let url = try? URL(
-                resolvingBookmarkData: bookmarkData,
-                options: [.withSecurityScope, .withoutUI],
-                relativeTo: nil,
-                bookmarkDataIsStale: &isStale
-            ) {
-                return url
-            }
-        }
-
-        guard let path = defaults.string(forKey: AppModelPreferenceKey.archiveLocationPath) else {
-            return nil
-        }
-
-        return URL(fileURLWithPath: path, isDirectory: true)
+        AppPreferenceStores(storage: defaults).archive.loadLocationURL()
     }
 
     static func loadArchiveMaximumSizeMB(from defaults: UserDefaults) -> Int {
-        let configuredSize = defaults.object(forKey: AppModelPreferenceKey.archiveMaximumSizeMB) as? Int
-            ?? defaults.integer(forKey: AppModelPreferenceKey.archiveMaximumSizeMB)
-
-        guard configuredSize > 0 else {
-            return defaultArchiveMaximumSizeMB
-        }
-
-        return max(configuredSize, minimumArchiveMaximumSizeMB)
+        AppPreferenceStores(storage: defaults).archive.loadMaximumSizeMB()
     }
 
     func chooseArchiveLocation() {
@@ -220,18 +197,7 @@ extension AppModel {
     }
 
     func persistArchiveLocation(_ url: URL?) {
-        if let url {
-            defaults.set(url.path, forKey: AppModelPreferenceKey.archiveLocationPath)
-
-            if let bookmarkData = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
-                defaults.set(bookmarkData, forKey: AppModelPreferenceKey.archiveLocationBookmarkData)
-            } else {
-                defaults.removeObject(forKey: AppModelPreferenceKey.archiveLocationBookmarkData)
-            }
-        } else {
-            defaults.removeObject(forKey: AppModelPreferenceKey.archiveLocationPath)
-            defaults.removeObject(forKey: AppModelPreferenceKey.archiveLocationBookmarkData)
-        }
+        preferenceStores.archive.saveLocationURL(url)
     }
 
     func reconfigureArchiveStore(baseURL: URL?) {

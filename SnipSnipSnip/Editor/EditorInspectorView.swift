@@ -246,7 +246,7 @@ struct EditorInspectorView: View {
     }
 
     private var showsUIMapInspectionSection: Bool {
-        FeatureFlags.uiMapEnabled && controller.isInspectingUIMap
+        controller.capabilities.isEnabled(.uiMap) && controller.isInspectingUIMap
     }
 
     private var uiMapInspectionSection: some View {

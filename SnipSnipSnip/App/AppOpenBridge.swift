@@ -101,7 +101,7 @@ enum AppImportURL {
     }
 }
 
-enum AppLifecyclePreferenceKeys {
+nonisolated enum AppLifecyclePreferenceKeys {
     static let confirmsBeforeQuitting = "SSSConfirmsBeforeQuitting"
 }
 

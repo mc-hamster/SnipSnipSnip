@@ -105,7 +105,7 @@ enum SupportDiagnosticsBuilder {
             generatedAt: generatedAt,
             app: appInfo(),
             system: systemInfo(),
-            features: featureInfo(),
+            features: featureInfo(from: model.capabilities),
             permissions: permissionInfo(from: model),
             displays: displayInfo(),
             storage: storageInfo(from: model),
@@ -135,11 +135,11 @@ enum SupportDiagnosticsBuilder {
         )
     }
 
-    private static func featureInfo() -> SupportDiagnostics.FeatureFlagInfo {
+    private static func featureInfo(from capabilities: AppCapabilitySnapshot) -> SupportDiagnostics.FeatureFlagInfo {
         SupportDiagnostics.FeatureFlagInfo(
-            scrollingCapture: FeatureFlags.scrollingCaptureEnabled,
-            accessibilityAutomation: FeatureFlags.accessibilityAutomationEnabled,
-            connectedDeviceCapture: FeatureFlags.connectedDeviceCaptureEnabled
+            scrollingCapture: capabilities.isEnabled(.scrollingCapture),
+            accessibilityAutomation: capabilities.isEnabled(.accessibilityAutomation),
+            connectedDeviceCapture: capabilities.isEnabled(.connectedDeviceCapture)
         )
     }
 
@@ -198,7 +198,7 @@ enum SupportDiagnosticsBuilder {
     @MainActor
     private static func connectedDeviceInfo(from model: AppModel) -> SupportDiagnostics.ConnectedDeviceInfo {
         SupportDiagnostics.ConnectedDeviceInfo(
-            featureEnabled: FeatureFlags.connectedDeviceCaptureEnabled,
+            featureEnabled: model.capabilities.isEnabled(.connectedDeviceCapture),
             listedDeviceCount: model.connectedDevices.count,
             previewSessionActive: model.isConnectedDeviceSessionActive,
             isLoadingDevices: model.isLoadingConnectedDevices,

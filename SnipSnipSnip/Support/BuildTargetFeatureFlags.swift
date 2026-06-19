@@ -3,7 +3,7 @@ import Foundation
 /// Fastlane stamps released builds with one of these target names through
 /// `SNIP_BUILD_TARGET`. Local Xcode Debug builds default to `Dev`, while
 /// local Xcode Release builds default to `Release` unless overridden.
-nonisolated enum BuildTarget: String {
+nonisolated enum BuildTarget: String, Sendable {
     case release = "Release"
     case selfRelease = "Self Release"
     case internalTesting = "Internal"
@@ -21,7 +21,7 @@ nonisolated enum BuildTarget: String {
 }
 
 /// Add new build-gated features here, then expose them through `FeatureFlags`.
-nonisolated enum FeatureToggle {
+nonisolated enum FeatureToggle: Sendable {
     case scrollingCapture
     case accessibilityAutomation
     case connectedDeviceCapture
@@ -38,7 +38,6 @@ nonisolated enum BuildTargetFeatureMatrix {
         .dev: [
           .connectedDeviceCapture,
           .uiMap,
-          .scrollingCapture,
         ],
         .internalTesting: [],
         .externalTesting: [],
@@ -58,12 +57,10 @@ nonisolated enum BuildTargetFeatureMatrix {
 }
 
 nonisolated enum FeatureFlags {
+    private static let capabilityProvider = BuildTargetCapabilityProvider()
+
     static func scrollingCaptureEnabled(for target: BuildTarget = .current) -> Bool {
-#if APP_STORE_BUILD
-        false
-#else
-        BuildTargetFeatureMatrix.isEnabled(.scrollingCapture, for: target)
-#endif
+        capabilityProvider.snapshot(for: target).isEnabled(.scrollingCapture)
     }
 
     static var scrollingCaptureEnabled: Bool {
@@ -71,11 +68,7 @@ nonisolated enum FeatureFlags {
     }
 
     static func accessibilityAutomationEnabled(for target: BuildTarget = .current) -> Bool {
-#if APP_STORE_BUILD
-        false
-#else
-        BuildTargetFeatureMatrix.isEnabled(.accessibilityAutomation, for: target)
-#endif
+        capabilityProvider.snapshot(for: target).isEnabled(.accessibilityAutomation)
     }
 
     static var accessibilityAutomationEnabled: Bool {
@@ -83,11 +76,7 @@ nonisolated enum FeatureFlags {
     }
 
     static func connectedDeviceCaptureEnabled(for target: BuildTarget = .current) -> Bool {
-#if APP_STORE_BUILD
-        false
-#else
-        BuildTargetFeatureMatrix.isEnabled(.connectedDeviceCapture, for: target)
-#endif
+        capabilityProvider.snapshot(for: target).isEnabled(.connectedDeviceCapture)
     }
 
     static var connectedDeviceCaptureEnabled: Bool {
@@ -95,11 +84,7 @@ nonisolated enum FeatureFlags {
     }
 
     static func uiMapEnabled(for target: BuildTarget = .current) -> Bool {
-#if APP_STORE_BUILD
-        false
-#else
-        BuildTargetFeatureMatrix.isEnabled(.uiMap, for: target)
-#endif
+        capabilityProvider.snapshot(for: target).isEnabled(.uiMap)
     }
 
     static var uiMapEnabled: Bool {
@@ -107,11 +92,7 @@ nonisolated enum FeatureFlags {
     }
 
     static func proUpdateCheckEnabled(for target: BuildTarget = .current) -> Bool {
-#if APP_STORE_BUILD
-        false
-#else
-        BuildTargetFeatureMatrix.isEnabled(.proUpdateCheck, for: target)
-#endif
+        capabilityProvider.snapshot(for: target).isEnabled(.proUpdateCheck)
     }
 
     static var proUpdateCheckEnabled: Bool {

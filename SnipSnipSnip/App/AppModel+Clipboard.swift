@@ -8,24 +8,11 @@ extension AppModel {
     }
 
     static func loadClipboardPreferences(from defaults: UserDefaults) -> ClipboardPreferences {
-        guard let data = defaults.data(forKey: AppModelPreferenceKey.clipboardPreferences),
-              let preferences = try? JSONDecoder().decode(ClipboardPreferences.self, from: data) else {
-            return .default
-        }
-
-        var migratedPreferences = preferences
-        let existingMatches = Set(migratedPreferences.ignoredApps.map { $0.id })
-        let missingDefaultIgnores = ClipboardPreferences.defaultIgnoredApps.filter { !existingMatches.contains($0.id) }
-        migratedPreferences.ignoredApps.append(contentsOf: missingDefaultIgnores)
-        return migratedPreferences.sanitized()
+        AppPreferenceStores(storage: defaults).clipboard.loadPreferences()
     }
 
     func persistClipboardPreferences() {
-        guard let data = try? JSONEncoder().encode(clipboardPreferences.sanitized()) else {
-            return
-        }
-
-        defaults.set(data, forKey: AppModelPreferenceKey.clipboardPreferences)
+        preferenceStores.clipboard.savePreferences(clipboardPreferences)
     }
 
     func showClipboardManager() {

@@ -9,17 +9,9 @@ protocol AutomationService {
 }
 
 @MainActor
-protocol AutomationHost: AnyObject {
+protocol AutomationHost: AutomationCommandHandler {
     var automationCapabilities: AutomationCapabilities { get }
     var automationPermissionSummary: AutomationPermissionSummary { get }
-    var automationCapturePresets: [AutomationPresetSummary] { get }
-
-    func performAutomation(_ request: AutomationRequest) async -> AutomationResultEnvelope
-}
-
-@MainActor
-protocol AutomationOutputWriter {
-    func writeAutomationOutput(_ output: AutomationOutput) async throws -> [AutomationOutputResult]
 }
 
 @MainActor
@@ -35,28 +27,15 @@ extension AutomationHost {
 @MainActor
 final class AppAutomationService: AutomationService {
     private weak var host: AutomationHost?
+    private let executor: AutomationExecutor
 
     init(host: AutomationHost) {
         self.host = host
+        self.executor = AutomationExecutor(handler: host)
     }
 
     func perform(_ request: AutomationRequest) async -> AutomationResultEnvelope {
-        if let validationError = request.validationError {
-            return .failure(requestID: request.id, code: validationError.code, message: validationError.message)
-        }
-
-        guard let host else {
-            return .failure(requestID: request.id, code: .internalError, message: "Automation host is not available.")
-        }
-
-        switch request.command {
-        case .status:
-            return await capabilities(requestID: request.id)
-        case .listPresets:
-            return await listCapturePresets(requestID: request.id)
-        default:
-            return await host.performAutomation(request)
-        }
+        await executor.perform(request)
     }
 
     func capabilities(requestID: UUID) async -> AutomationResultEnvelope {

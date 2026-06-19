@@ -309,11 +309,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     }
 
     private var confirmsBeforeQuitting: Bool {
-        guard let storedValue = UserDefaults.standard.object(forKey: AppLifecyclePreferenceKeys.confirmsBeforeQuitting) as? Bool else {
-            return true
-        }
-
-        return storedValue
+        model?.confirmsBeforeQuitting ?? true
     }
 
     private func confirmQuitApplication() -> Bool {
@@ -332,7 +328,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         }
 
         if alert.suppressionButton?.state == .on {
-            UserDefaults.standard.set(false, forKey: AppLifecyclePreferenceKeys.confirmsBeforeQuitting)
+            model?.confirmsBeforeQuitting = false
         }
 
         return true
@@ -376,7 +372,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             enabled: !isCaptureActionDisabled(for: model)
         ))
 
-        if FeatureFlags.scrollingCaptureEnabled {
+        if model.capabilities.isEnabled(.scrollingCapture) {
             menu.addItem(actionItem(
                 title: "Scrolling Capture",
                 systemImage: "arrow.down.to.line",
@@ -469,7 +465,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             toolTip: "Add the cursor as an editable overlay in screenshots. Scrolling Capture always excludes it."
         ))
 
-        if FeatureFlags.uiMapEnabled {
+        if model.capabilities.isEnabled(.uiMap) {
             menu.addItem(toggleItem(
                 title: "Include UI Map for Window Captures",
                 action: #selector(toggleUIMap),

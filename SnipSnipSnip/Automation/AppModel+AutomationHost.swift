@@ -1,7 +1,6 @@
-import AppKit
 import Foundation
 
-extension AppModel: AutomationHost, AutomationOutputWriter {
+extension AppModel: AutomationHost, AutomationOutputPort {
     var automationService: AppAutomationService {
         if let service = cachedAutomationService {
             return service
@@ -19,9 +18,9 @@ extension AppModel: AutomationHost, AutomationOutputWriter {
             supportsCLI: true,
             supportsCapturePresets: true,
             supportsPrivateCapture: true,
-            supportsUIMap: FeatureFlags.uiMapEnabled,
-            supportsScrollingCapture: FeatureFlags.scrollingCaptureEnabled,
-            supportsConnectedDeviceCapture: FeatureFlags.connectedDeviceCaptureEnabled,
+            supportsUIMap: capabilities.isEnabled(.uiMap),
+            supportsScrollingCapture: capabilities.isEnabled(.scrollingCapture),
+            supportsConnectedDeviceCapture: capabilities.isEnabled(.connectedDeviceCapture),
             supportsCurrentEditorExport: editorController != nil
         )
     }
@@ -48,37 +47,33 @@ extension AppModel: AutomationHost, AutomationOutputWriter {
         }
     }
 
-    func performAutomation(_ request: AutomationRequest) async -> AutomationResultEnvelope {
-        switch request.command {
-        case .status:
-            return .success(requestID: request.id, payload: .preflight(automationPermissionPreflight), outputs: [.init(kind: .none)])
-        case .listPresets:
-            return .success(requestID: request.id, payload: .presets(automationCapturePresets), outputs: [.init(kind: .none)])
-        case .runPreset(let command):
-            return await performAutomationPreset(command, request: request)
-        case .capture(let command):
-            return await performAutomationCapture(command, request: request)
-        case .repeatLastCapture:
-            return await performAutomationRepeatLastCapture(request)
-        case .openDocument(let command):
-            return await performAutomationOpenDocument(command, request: request)
-        case .exportCurrent(let command):
-            return await performAutomationExportCurrent(command, request: request)
-        }
+    var automationCurrentEditorController: EditorController? {
+        editorController
+    }
+
+    var automationImageExportOptions: ImageExportOptions {
+        screenshotImageExportOptions
+    }
+
+    func requestAutomationEditorPresentation() {
+        requestMainWindowPresentation()
+    }
+
+    func markAutomationPasteboardChangeAsHandled() {
+        clipboardMonitor.markCurrentPasteboardChangeAsHandled()
+    }
+
+    func saveAutomationDocument(_ controller: EditorController, to url: URL) async -> Bool {
+        await saveDocument(controller, to: url)
+    }
+
+    func floatAutomationReference() {
+        floatCurrentEditorReference()
     }
 }
 
 extension AppModel {
-    private struct AutomationExecutionError: LocalizedError {
-        var code: AutomationErrorCode
-        var message: String
-
-        var errorDescription: String? {
-            message
-        }
-    }
-
-    private func performAutomationPreset(
+    func runAutomationPreset(
         _ command: RunPresetAutomationCommand,
         request: AutomationRequest
     ) async -> AutomationResultEnvelope {
@@ -86,7 +81,7 @@ extension AppModel {
             return .failure(requestID: request.id, code: .busy, message: "SnipSnipSnip is already working.")
         }
 
-        guard let preset = resolveAutomationPreset(command) else {
+        guard let preset = AutomationPresetResolver(presets: capturePresets).resolve(command) else {
             return .failure(requestID: request.id, code: .targetUnavailable, message: "Capture preset was not found.")
         }
 
@@ -119,7 +114,7 @@ extension AppModel {
         }
     }
 
-    private func performAutomationCapture(
+    func captureAutomation(
         _ command: CaptureAutomationCommand,
         request: AutomationRequest
     ) async -> AutomationResultEnvelope {
@@ -155,7 +150,7 @@ extension AppModel {
         }
     }
 
-    private func performAutomationRepeatLastCapture(_ request: AutomationRequest) async -> AutomationResultEnvelope {
+    func repeatLastAutomationCapture(_ request: AutomationRequest) async -> AutomationResultEnvelope {
         guard canRepeatLastCapture else {
             return .failure(requestID: request.id, code: .targetUnavailable, message: "There is no repeatable last capture.")
         }
@@ -164,7 +159,7 @@ extension AppModel {
         return acceptedInteractiveResult(requestID: request.id, kind: "repeatLastCapture", warning: "Repeat last capture uses the normal app workflow and may finish after this automation result is returned.")
     }
 
-    private func performAutomationOpenDocument(
+    func openAutomationDocument(
         _ command: OpenDocumentAutomationCommand,
         request: AutomationRequest
     ) async -> AutomationResultEnvelope {
@@ -176,7 +171,7 @@ extension AppModel {
         return await automationResultAfterCurrentEditorOutput(request: request, kind: "openDocument", sourceName: command.url.lastPathComponent)
     }
 
-    private func performAutomationExportCurrent(
+    func exportCurrentAutomationDocument(
         _ command: ExportCurrentAutomationCommand,
         request: AutomationRequest
     ) async -> AutomationResultEnvelope {
@@ -254,7 +249,7 @@ extension AppModel {
         sourceName: String?
     ) async -> AutomationResultEnvelope {
         do {
-            let outputs = try await writeAutomationOutput(request.output)
+            let outputs = try await AutomationOutputService(port: self).write(request.output)
             return .success(
                 requestID: request.id,
                 payload: .capture(AutomationCaptureSummary(kind: kind, sourceName: sourceName, acceptedInteractiveWorkflow: false)),
@@ -266,81 +261,6 @@ extension AppModel {
             present(error)
             return .failure(requestID: request.id, code: .outputFailed, message: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
         }
-    }
-
-    func writeAutomationOutput(_ output: AutomationOutput) async throws -> [AutomationOutputResult] {
-        switch output {
-        case .appDefault, .openEditor:
-            requestMainWindowPresentation()
-            return [.init(kind: .openedEditor)]
-        case .copyRenderedImage:
-            guard let controller = editorController,
-                  let image = controller.exportedImage(usingPresentation: true) else {
-                throw AutomationExecutionError(code: .targetUnavailable, message: "There is no current screenshot to copy.")
-            }
-            try ImageExporter.copyToClipboard(image)
-            clipboardMonitor.markCurrentPasteboardChangeAsHandled()
-            return [.init(kind: .copiedClipboard)]
-        case .saveFile(let file):
-            guard file.format != .sss else {
-                throw AutomationExecutionError(code: .unsupportedOutput, message: "Rendered file output does not support .sss.")
-            }
-            let url = try automationOutputURL(file)
-            guard let format = ImageExportFormat(automationFormat: file.format),
-                  let image = editorController?.exportedImage(usingPresentation: true) else {
-                throw AutomationExecutionError(code: .targetUnavailable, message: "There is no current screenshot to export.")
-            }
-            try await writeAutomationFile(to: url, overwrite: file.overwrite) {
-                try await ImageExporter.write(image, format: format, to: url, options: screenshotImageExportOptions)
-            }
-            revealAutomationOutputIfNeeded(url, reveal: file.revealInFinder)
-            return [.init(kind: .savedFile, url: url, format: file.format)]
-        case .saveEditableDocument(let file):
-            guard file.format == .sss else {
-                throw AutomationExecutionError(code: .unsupportedOutput, message: "Editable document output only supports .sss.")
-            }
-            guard let controller = editorController else {
-                throw AutomationExecutionError(code: .targetUnavailable, message: "There is no current screenshot document to save.")
-            }
-            if controller.containsRedactions {
-                throw AutomationExecutionError(code: .confirmationRequired, message: "Editable .sss output with redactions requires user confirmation because original pixels remain in the package.")
-            }
-            let url = try automationOutputURL(file)
-            try await writeAutomationFile(to: url, overwrite: file.overwrite) {
-                guard await saveDocument(controller, to: url) else {
-                    throw AutomationExecutionError(code: .outputFailed, message: "The editable document could not be saved.")
-                }
-            }
-            revealAutomationOutputIfNeeded(url, reveal: file.revealInFinder)
-            return [.init(kind: .savedEditableDocument, url: url, format: .sss)]
-        case .floatReference:
-            floatCurrentEditorReference()
-            return [.init(kind: .floatedReference)]
-        case .none:
-            return [.init(kind: .none)]
-        }
-    }
-
-    private func automationOutputURL(_ file: AutomationFileOutput) throws -> URL {
-        guard let url = file.url else {
-            throw AutomationExecutionError(code: .invalidRequest, message: "Automation file output requires a path.")
-        }
-        return url
-    }
-
-    private func writeAutomationFile(to url: URL, overwrite: Bool, operation: () async throws -> Void) async throws {
-        if FileManager.default.fileExists(atPath: url.path), !overwrite {
-            throw AutomationExecutionError(code: .outputFailed, message: "Output file already exists. Pass overwrite to replace it.")
-        }
-        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try await operation()
-    }
-
-    private func revealAutomationOutputIfNeeded(_ url: URL, reveal: Bool) {
-        guard reveal else {
-            return
-        }
-        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
     private func acceptedInteractiveResult(requestID: UUID, kind: String, warning: String?) -> AutomationResultEnvelope {
@@ -355,19 +275,6 @@ extension AppModel {
             outputs: [.init(kind: .acceptedInteractiveWorkflow)],
             warnings: warnings
         )
-    }
-
-    private func resolveAutomationPreset(_ command: RunPresetAutomationCommand) -> CapturePreset? {
-        if let id = command.id,
-           let preset = capturePresets.first(where: { $0.id == id }) {
-            return preset
-        }
-
-        guard let name = command.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else {
-            return nil
-        }
-
-        return capturePresets.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
     }
 
     private func automationRunOptions(
@@ -430,7 +337,7 @@ private extension CapturePresetTarget {
     }
 }
 
-private extension ImageExportFormat {
+extension ImageExportFormat {
     init?(automationFormat: AutomationExportFormat) {
         switch automationFormat {
         case .png:

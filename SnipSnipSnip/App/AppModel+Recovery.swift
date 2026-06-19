@@ -98,6 +98,7 @@ extension AppModel {
             let controller = EditorController(
                 capture: document.capture,
                 session: document.session,
+                capabilities: capabilities,
                 uiMapOverlayOptions: uiMapPinnedOverlayDefaults
             )
             installEditorController(

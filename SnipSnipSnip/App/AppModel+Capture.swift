@@ -247,7 +247,7 @@ extension AppModel {
     }
 
     func refreshPermissions() {
-        let status = CapturePermissionStatus.current()
+        let status = environment.currentPermissionStatus()
         if status != permissionStatus {
             permissionStatus = status
         }
@@ -334,7 +334,7 @@ extension AppModel {
     }
 
     func requestAccessibilityAccess() {
-        guard FeatureFlags.accessibilityAutomationEnabled || FeatureFlags.uiMapEnabled else {
+        guard capabilities.isEnabled(.accessibilityAutomation) || capabilities.isEnabled(.uiMap) else {
             return
         }
 
@@ -353,7 +353,7 @@ extension AppModel {
 
     func requestPermission(_ requirement: CapturePermissionRequirement) {
         guard CapturePermissionRequirement.availableCases.contains(requirement)
-                || (requirement == .accessibility && FeatureFlags.uiMapEnabled) else {
+                || (requirement == .accessibility && capabilities.isEnabled(.uiMap)) else {
             permissionSetupGuide = nil
             return
         }
@@ -405,7 +405,7 @@ extension AppModel {
     }
 
     func openAccessibilitySettingsAfterPromptOpportunity() {
-        guard FeatureFlags.accessibilityAutomationEnabled || FeatureFlags.uiMapEnabled else {
+        guard capabilities.isEnabled(.accessibilityAutomation) || capabilities.isEnabled(.uiMap) else {
             return
         }
 
@@ -445,7 +445,7 @@ extension AppModel {
     }
 
     func captureScrollingArea() {
-        guard FeatureFlags.scrollingCaptureEnabled else {
+        guard capabilities.isEnabled(.scrollingCapture) else {
             return
         }
 
@@ -533,7 +533,7 @@ extension AppModel {
             do {
                 let windowOptions = windows.isEmpty ? try await captureService.listWindows(includeThumbnails: false) : windows
                 let snapshot = try await captureService.captureDesktopOverlaySnapshot()
-                let session = WindowSelectionSession(snapshot: snapshot, windows: windowOptions)
+                let session = WindowSelectionSession(snapshot: snapshot, windows: windowOptions, capabilities: capabilities)
 
                 guard let selectedWindow = await session.begin() else {
                     return
@@ -774,7 +774,7 @@ extension AppModel {
     }
 
     func beginScrollingCapture() {
-        guard FeatureFlags.scrollingCaptureEnabled else {
+        guard capabilities.isEnabled(.scrollingCapture) else {
             return
         }
 
@@ -839,7 +839,7 @@ extension AppModel {
         case .region(let region):
             repeatRegionCapture(region)
         case .scrolling(let region):
-            guard FeatureFlags.scrollingCaptureEnabled else {
+            guard capabilities.isEnabled(.scrollingCapture) else {
                 return
             }
             repeatScrollingCapture(region)
@@ -921,7 +921,7 @@ extension AppModel {
             do {
                 let windowOptions = windows.isEmpty ? try await captureService.listWindows(includeThumbnails: false) : windows
                 let snapshot = try await captureService.captureDesktopOverlaySnapshot()
-                let session = WindowSelectionSession(snapshot: snapshot, windows: windowOptions)
+                let session = WindowSelectionSession(snapshot: snapshot, windows: windowOptions, capabilities: capabilities)
 
                 guard let selectedWindow = await session.begin() else {
                     return
@@ -1236,7 +1236,7 @@ extension AppModel {
     }
 
     func repeatScrollingCapture(_ region: CGRect) {
-        guard FeatureFlags.scrollingCaptureEnabled else {
+        guard capabilities.isEnabled(.scrollingCapture) else {
             return
         }
 
@@ -1418,7 +1418,7 @@ extension AppModel {
     ) throws {
         let resolvedRunOptions = runOptions ?? currentCaptureRunOptions()
         AppUIMapCaptureDiagnostics.notice(
-            "[UIMap] AppModel capture decision featureFlag=\(FeatureFlags.uiMapEnabled) userEnabled=\(resolvedRunOptions.windowUIMapEnabled) kind='\(capture.kind.rawValue)' hasWindowIdentity=\(capture.sourceWindowIdentity != nil) shouldCapture=\(uiMapCaptureEligibility(for: capture, userEnabled: resolvedRunOptions.windowUIMapEnabled).shouldCapture) hasAccessibility=\(permissionStatus.hasAccessibility) existingUIMap=\(capture.uiMap != nil) sourceName='\(capture.sourceName)'"
+            "[UIMap] AppModel capture decision featureFlag=\(capabilities.isEnabled(.uiMap)) userEnabled=\(resolvedRunOptions.windowUIMapEnabled) kind='\(capture.kind.rawValue)' hasWindowIdentity=\(capture.sourceWindowIdentity != nil) shouldCapture=\(uiMapCaptureEligibility(for: capture, userEnabled: resolvedRunOptions.windowUIMapEnabled).shouldCapture) hasAccessibility=\(permissionStatus.hasAccessibility) existingUIMap=\(capture.uiMap != nil) sourceName='\(capture.sourceName)'"
         )
         let uiMapEligibility = uiMapCaptureEligibility(for: capture, userEnabled: resolvedRunOptions.windowUIMapEnabled)
         let shouldProcessUIMap = shouldAttemptUIMapCapture
@@ -1432,6 +1432,7 @@ extension AppModel {
         ))
         let controller = EditorController(
             capture: cursorAwareCapture,
+            capabilities: capabilities,
             uiMapOverlayOptions: uiMapPinnedOverlayDefaults
         )
         if shouldProcessUIMap {
@@ -1483,6 +1484,7 @@ extension AppModel {
         shelveCurrentDocumentForRecents()
         let controller = EditorController(
             capture: capture,
+            capabilities: capabilities,
             uiMapOverlayOptions: uiMapPinnedOverlayDefaults
         )
         installEditorController(
@@ -1657,7 +1659,7 @@ extension AppModel {
     }
 
     func screenshotCapturePermissionRequirements(for request: LastCaptureRequest, runOptions: CaptureRunOptions) -> [CapturePermissionRequirement] {
-        request.canIncludeWindowUIMap && FeatureFlags.uiMapEnabled && runOptions.windowUIMapEnabled
+        request.canIncludeWindowUIMap && capabilities.isEnabled(.uiMap) && runOptions.windowUIMapEnabled
             ? [.screenRecording, .accessibility]
             : [.screenRecording]
     }
@@ -1667,13 +1669,13 @@ extension AppModel {
     }
 
     func screenshotCaptureFeatureName(for request: LastCaptureRequest, runOptions: CaptureRunOptions) -> String {
-        request.canIncludeWindowUIMap && FeatureFlags.uiMapEnabled && runOptions.windowUIMapEnabled
+        request.canIncludeWindowUIMap && capabilities.isEnabled(.uiMap) && runOptions.windowUIMapEnabled
             ? "Window Capture with UI Map"
             : "Capture"
     }
 
     func ensureAccessibilityAccess() -> Bool {
-        guard FeatureFlags.accessibilityAutomationEnabled || FeatureFlags.uiMapEnabled else {
+        guard capabilities.isEnabled(.accessibilityAutomation) || capabilities.isEnabled(.uiMap) else {
             return false
         }
 

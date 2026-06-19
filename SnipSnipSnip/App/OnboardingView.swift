@@ -10,9 +10,9 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
 
     var id: Int { rawValue }
 
-    static var visibleCases: [OnboardingStep] {
+    static func visibleCases(for capabilities: AppCapabilitySnapshot) -> [OnboardingStep] {
         allCases.filter { step in
-            step != .uiMap || FeatureFlags.uiMapEnabled
+            step != .uiMap || capabilities.isEnabled(.uiMap)
         }
     }
 
@@ -31,16 +31,16 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
         }
     }
 
-    var summary: String {
+    func summary(for capabilities: AppCapabilitySnapshot) -> String {
         switch self {
         case .welcome:
             return "Capture faster, edit immediately, and keep recovery close by."
         case .permissions:
-            if FeatureFlags.scrollingCaptureEnabled {
+            if capabilities.isEnabled(.scrollingCapture) {
                 return "Set up capture pixels and scrolling capture with one-time macOS permissions."
             }
 
-            if FeatureFlags.connectedDeviceCaptureEnabled {
+            if capabilities.isEnabled(.connectedDeviceCapture) {
                 return "Set up capture pixels, live window thumbnails, recording, and learn when connected-device preview asks for Camera access."
             }
 
@@ -121,11 +121,17 @@ struct OnboardingView: View {
     private static let windowCornerRadius: CGFloat = 14
 
     @ObservedObject var model: AppModel
+    private let capabilities: AppCapabilitySnapshot
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openWindow) private var openWindow
 
     @State private var selectedStep: OnboardingStep = .welcome
     @State private var launchAtLoginErrorMessage: String?
+
+    init(model: AppModel, capabilities: AppCapabilitySnapshot? = nil) {
+        self.model = model
+        self.capabilities = capabilities ?? model.capabilities
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -248,7 +254,7 @@ struct OnboardingView: View {
 
     private func stepRail(metrics: OnboardingLayoutMetrics) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            ForEach(OnboardingStep.visibleCases) { step in
+            ForEach(visibleSteps) { step in
                 Button {
                     selectedStep = step
                 } label: {
@@ -261,7 +267,7 @@ struct OnboardingView: View {
                             Text(step.title)
                                 .font(.headline.weight(.semibold))
 
-                            Text(step.summary)
+                            Text(step.summary(for: capabilities))
                                 .font(metrics.isCompactHeight ? .caption : .footnote)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -334,7 +340,7 @@ struct OnboardingView: View {
                     .font(.system(size: metrics.stepTitleSize, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
 
-                Text(selectedStep.summary)
+                Text(selectedStep.summary(for: capabilities))
                     .font(.title3)
                     .foregroundStyle(.white.opacity(0.8))
                     .fixedSize(horizontal: false, vertical: true)
@@ -411,7 +417,7 @@ struct OnboardingView: View {
     private func permissionsStep(metrics: OnboardingLayoutMetrics) -> some View {
         VStack(alignment: .leading, spacing: metrics.cardSpacing) {
             permissionCard(requirement: .screenRecording, metrics: metrics)
-            if FeatureFlags.scrollingCaptureEnabled {
+            if capabilities.isEnabled(.scrollingCapture) {
                 permissionCard(requirement: .accessibility, metrics: metrics)
             }
 
@@ -592,7 +598,7 @@ struct OnboardingView: View {
                     Button("Skip", action: skipOnboarding)
                         .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
 
-                    Button(AppBranding.branded(selectedStep == OnboardingStep.visibleCases.last ? "Open SnipSnipSnip" : "Continue"), action: moveForward)
+                    Button(AppBranding.branded(selectedStep == visibleSteps.last ? "Open SnipSnipSnip" : "Continue"), action: moveForward)
                         .buttonStyle(SSSChromeButtonStyle(tint: selectedStep.accent))
                 }
             }
@@ -608,7 +614,7 @@ struct OnboardingView: View {
                     Button("Skip", action: skipOnboarding)
                         .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
 
-                    Button(AppBranding.branded(selectedStep == OnboardingStep.visibleCases.last ? "Open SnipSnipSnip" : "Continue"), action: moveForward)
+                    Button(AppBranding.branded(selectedStep == visibleSteps.last ? "Open SnipSnipSnip" : "Continue"), action: moveForward)
                         .buttonStyle(SSSChromeButtonStyle(tint: selectedStep.accent))
                 }
             }
@@ -740,11 +746,11 @@ struct OnboardingView: View {
         case .screenRecording:
             return "Required for capture pixels, live window thumbnails, fullscreen capture, and video recording."
         case .accessibility:
-            if FeatureFlags.scrollingCaptureEnabled && FeatureFlags.uiMapEnabled {
+            if capabilities.isEnabled(.scrollingCapture) && capabilities.isEnabled(.uiMap) {
                 return "Required only for Scrolling Capture and Window UI Map. Region and Fullscreen captures do not require Accessibility because of UI Map."
             }
 
-            if FeatureFlags.uiMapEnabled {
+            if capabilities.isEnabled(.uiMap) {
                 return "Required only for Window UI Map. Region and Fullscreen captures do not require Accessibility because of UI Map."
             }
 
@@ -753,23 +759,23 @@ struct OnboardingView: View {
     }
 
     private var permissionsSummaryText: String {
-        if FeatureFlags.scrollingCaptureEnabled && FeatureFlags.uiMapEnabled {
+        if capabilities.isEnabled(.scrollingCapture) && capabilities.isEnabled(.uiMap) {
             return "Screen Recording is required for pixels and live window thumbnails. Accessibility is only required for Scrolling Capture and Window UI Map."
         }
 
-        if FeatureFlags.uiMapEnabled {
+        if capabilities.isEnabled(.uiMap) {
             return "Screen Recording is required for pixels and live window thumbnails. Accessibility is only required for Window UI Map."
         }
 
-        if FeatureFlags.scrollingCaptureEnabled {
-            if FeatureFlags.connectedDeviceCaptureEnabled {
+        if capabilities.isEnabled(.scrollingCapture) {
+            if capabilities.isEnabled(.connectedDeviceCapture) {
                 return "Screen Recording is required for pixels and live window thumbnails. Accessibility is only required for Scrolling Capture. Connected-device preview asks for Camera access only when you start using an iPhone or iPad screen stream."
             }
 
             return "Screen Recording is required for pixels and live window thumbnails. Accessibility is only required for Scrolling Capture."
         }
 
-        if FeatureFlags.connectedDeviceCaptureEnabled {
+        if capabilities.isEnabled(.connectedDeviceCapture) {
             return "Screen Recording is required for pixels, live window thumbnails, and recording. Connected-device preview asks for Camera access only when you start using an iPhone or iPad screen stream."
         }
 
@@ -840,8 +846,12 @@ struct OnboardingView: View {
         }
     }
 
+    private var visibleSteps: [OnboardingStep] {
+        OnboardingStep.visibleCases(for: capabilities)
+    }
+
     private func moveBack() {
-        let steps = OnboardingStep.visibleCases
+        let steps = visibleSteps
         guard let currentIndex = steps.firstIndex(of: selectedStep),
               currentIndex > steps.startIndex else {
             return
@@ -851,7 +861,7 @@ struct OnboardingView: View {
     }
 
     private func moveForward() {
-        let steps = OnboardingStep.visibleCases
+        let steps = visibleSteps
         guard let currentIndex = steps.firstIndex(of: selectedStep) else {
             completeOnboarding()
             return

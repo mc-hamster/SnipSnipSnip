@@ -60,7 +60,7 @@ extension AppModel {
             do {
                 let windowOptions = windows.isEmpty ? try await captureService.listWindows(includeThumbnails: false) : windows
                 let snapshot = try await captureService.captureDesktopOverlaySnapshot()
-                let session = WindowSelectionSession(snapshot: snapshot, windows: windowOptions)
+                let session = WindowSelectionSession(snapshot: snapshot, windows: windowOptions, capabilities: capabilities)
 
                 guard let selectedWindow = await session.begin() else {
                     return

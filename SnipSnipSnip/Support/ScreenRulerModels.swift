@@ -2,7 +2,7 @@ import AppKit
 import CoreGraphics
 import Foundation
 
-enum ScreenRulerKind: String, CaseIterable, Identifiable, Codable, Sendable {
+nonisolated enum ScreenRulerKind: String, CaseIterable, Identifiable, Codable, Sendable {
     case horizontal
     case vertical
 
@@ -27,7 +27,7 @@ enum ScreenRulerKind: String, CaseIterable, Identifiable, Codable, Sendable {
     }
 }
 
-enum ScreenRulerHorizontalTickEdge: String, CaseIterable, Codable, Identifiable, Sendable {
+nonisolated enum ScreenRulerHorizontalTickEdge: String, CaseIterable, Codable, Identifiable, Sendable {
     case top
     case bottom
 
@@ -52,7 +52,7 @@ enum ScreenRulerHorizontalTickEdge: String, CaseIterable, Codable, Identifiable,
     }
 }
 
-enum ScreenRulerVerticalTickEdge: String, CaseIterable, Codable, Identifiable, Sendable {
+nonisolated enum ScreenRulerVerticalTickEdge: String, CaseIterable, Codable, Identifiable, Sendable {
     case left
     case right
 
@@ -77,7 +77,7 @@ enum ScreenRulerVerticalTickEdge: String, CaseIterable, Codable, Identifiable, S
     }
 }
 
-enum ScreenRulerHorizontalOrigin: String, CaseIterable, Codable, Identifiable, Sendable {
+nonisolated enum ScreenRulerHorizontalOrigin: String, CaseIterable, Codable, Identifiable, Sendable {
     case left
     case right
 
@@ -102,7 +102,7 @@ enum ScreenRulerHorizontalOrigin: String, CaseIterable, Codable, Identifiable, S
     }
 }
 
-enum ScreenRulerVerticalOrigin: String, CaseIterable, Codable, Identifiable, Sendable {
+nonisolated enum ScreenRulerVerticalOrigin: String, CaseIterable, Codable, Identifiable, Sendable {
     case top
     case bottom
 
@@ -127,7 +127,7 @@ enum ScreenRulerVerticalOrigin: String, CaseIterable, Codable, Identifiable, Sen
     }
 }
 
-struct ScreenRulerPreferences: Codable, Equatable, Sendable {
+nonisolated struct ScreenRulerPreferences: Codable, Equatable, Sendable {
     static let `default` = ScreenRulerPreferences(
         opacity: 0.92,
         tickSpacing: 10,
@@ -206,7 +206,7 @@ struct ScreenRulerPreferences: Codable, Equatable, Sendable {
     }
 }
 
-extension ScreenRulerPreferences {
+nonisolated extension ScreenRulerPreferences {
     func sanitized() -> ScreenRulerPreferences {
         ScreenRulerPreferences(
             opacity: min(max(opacity, 0.35), 1),

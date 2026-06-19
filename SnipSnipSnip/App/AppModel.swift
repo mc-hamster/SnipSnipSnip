@@ -110,7 +110,7 @@ enum EditableRedactionSaveDecision {
     case cancel
 }
 
-enum AppModelPreferenceKey {
+nonisolated enum AppModelPreferenceKey {
     static let autoCopyEnabled = "appModel.autoCopyEnabled"
     static let autoRefreshWindowsEnabled = "appModel.autoRefreshWindowsEnabled"
     static let archiveLocationBookmarkData = "appModel.archiveLocationBookmarkData"
@@ -146,8 +146,8 @@ enum AppModelPreferenceKey {
     static let videoRecordingPreferences = "appModel.videoRecordingPreferences"
 }
 
-struct EditorOutOfCapturePatternSettings: Codable, Equatable {
-    static let `default` = EditorOutOfCapturePatternSettings(
+nonisolated struct EditorOutOfCapturePatternSettings: Codable, Equatable {
+    nonisolated static let `default` = EditorOutOfCapturePatternSettings(
         isEnabled: true,
         spacing: 34,
         lineOpacity: 0.10,
@@ -215,9 +215,14 @@ final class AppModel: ObservableObject {
     @Published var isConnectedDeviceSessionActive = false
     @Published var windowPickerMode: WindowPickerMode = .screenshot
     @Published var selectedSettingsTab: AppSettingsTab = .general
+    @Published var confirmsBeforeQuitting: Bool {
+        didSet {
+            preferenceStores.lifecycle.saveConfirmsBeforeQuitting(confirmsBeforeQuitting)
+        }
+    }
     @Published var autoCopyEnabled: Bool {
         didSet {
-            defaults.set(autoCopyEnabled, forKey: AppModelPreferenceKey.autoCopyEnabled)
+            preferenceStores.clipboard.saveAutoCopyEnabled(autoCopyEnabled)
 
             if autoCopyEnabled {
                 copyCurrentEditorImageToClipboard()
@@ -229,17 +234,17 @@ final class AppModel: ObservableObject {
     }
     @Published var autoRefreshWindowsEnabled: Bool {
         didSet {
-            defaults.set(autoRefreshWindowsEnabled, forKey: AppModelPreferenceKey.autoRefreshWindowsEnabled)
+            preferenceStores.capture.saveAutoRefreshWindowsEnabled(autoRefreshWindowsEnabled)
         }
     }
     @Published var captureDelay: CaptureDelay {
         didSet {
-            defaults.set(captureDelay.rawValue, forKey: AppModelPreferenceKey.captureDelay)
+            preferenceStores.capture.saveCaptureDelay(captureDelay)
         }
     }
     @Published var capturePresets: [CapturePreset] {
         didSet {
-            persistCapturePresets()
+            preferenceStores.capture.saveCapturePresets(capturePresets)
         }
     }
     @Published var clipboardPreferences: ClipboardPreferences {
@@ -250,7 +255,7 @@ final class AppModel: ObservableObject {
                 return
             }
 
-            persistClipboardPreferences()
+            preferenceStores.clipboard.savePreferences(clipboardPreferences)
             clipboardMonitor.update(preferences: clipboardPreferences)
             clipboardHistoryStore.prune(using: clipboardPreferences)
         }
@@ -259,21 +264,17 @@ final class AppModel: ObservableObject {
     @Published var clipboardFilter: ClipboardItemFilter = .all
     @Published var screenshotIncludesCursor: Bool {
         didSet {
-            defaults.set(screenshotIncludesCursor, forKey: AppModelPreferenceKey.screenshotIncludesCursor)
+            preferenceStores.capture.saveScreenshotIncludesCursor(screenshotIncludesCursor)
         }
     }
     @Published var screenshotFullscreenDisplayMode: ScreenshotFullscreenDisplayMode {
         didSet {
-            defaults.set(screenshotFullscreenDisplayMode.rawValue, forKey: AppModelPreferenceKey.screenshotFullscreenDisplayMode)
+            preferenceStores.capture.saveFullscreenDisplayMode(screenshotFullscreenDisplayMode)
         }
     }
     @Published var selectedScreenshotFullscreenDisplayID: CGDirectDisplayID? {
         didSet {
-            if let selectedScreenshotFullscreenDisplayID {
-                defaults.set(selectedScreenshotFullscreenDisplayID, forKey: AppModelPreferenceKey.selectedScreenshotFullscreenDisplayID)
-            } else {
-                defaults.removeObject(forKey: AppModelPreferenceKey.selectedScreenshotFullscreenDisplayID)
-            }
+            preferenceStores.capture.saveSelectedFullscreenDisplayID(selectedScreenshotFullscreenDisplayID)
         }
     }
     @Published var screenshotJPEGQuality: CGFloat {
@@ -284,40 +285,38 @@ final class AppModel: ObservableObject {
                 return
             }
 
-            defaults.set(Double(screenshotJPEGQuality), forKey: AppModelPreferenceKey.screenshotJPEGQuality)
+            preferenceStores.capture.saveScreenshotJPEGQuality(screenshotJPEGQuality)
         }
     }
     @Published var editorSingleKeyToolShortcutsEnabled: Bool {
         didSet {
-            defaults.set(editorSingleKeyToolShortcutsEnabled, forKey: AppModelPreferenceKey.editorSingleKeyToolShortcutsEnabled)
+            preferenceStores.editor.saveSingleKeyToolShortcutsEnabled(editorSingleKeyToolShortcutsEnabled)
             editorController?.editorSingleKeyToolShortcutsEnabled = editorSingleKeyToolShortcutsEnabled
         }
     }
     @Published var regionCapturePreferences: RegionCapturePreferences {
         didSet {
-            defaults.set(regionCapturePreferences.overlayMode.rawValue, forKey: AppModelPreferenceKey.regionCaptureOverlayMode)
-            defaults.set(regionCapturePreferences.showsActionControls, forKey: AppModelPreferenceKey.regionCaptureShowsActionControls)
-            defaults.set(regionCapturePreferences.advancedControlsEnabled, forKey: AppModelPreferenceKey.regionCaptureAdvancedControlsEnabled)
+            preferenceStores.capture.saveRegionCapturePreferences(regionCapturePreferences)
         }
     }
     @Published var screenshotFilenameTemplate: String {
         didSet {
-            defaults.set(screenshotFilenameTemplate, forKey: AppModelPreferenceKey.screenshotFilenameTemplate)
+            preferenceStores.capture.saveScreenshotFilenameTemplate(screenshotFilenameTemplate)
         }
     }
     @Published var screenshotDragOutFormat: ImageExportFormat {
         didSet {
-            defaults.set(screenshotDragOutFormat.rawValue, forKey: AppModelPreferenceKey.screenshotDragOutFormat)
+            preferenceStores.capture.saveScreenshotDragOutFormat(screenshotDragOutFormat)
         }
     }
     @Published var privateCaptureEnabled: Bool {
         didSet {
-            defaults.set(privateCaptureEnabled, forKey: AppModelPreferenceKey.privateCaptureEnabled)
+            preferenceStores.capture.savePrivateCaptureEnabled(privateCaptureEnabled)
         }
     }
     @Published var uiMapEnabled: Bool {
         didSet {
-            defaults.set(uiMapEnabled, forKey: AppModelPreferenceKey.uiMapEnabled)
+            preferenceStores.capture.saveUIMapEnabled(uiMapEnabled)
         }
     }
     @Published private(set) var editorCropOutsideOverlayAlpha: CGFloat
@@ -336,7 +335,7 @@ final class AppModel: ObservableObject {
                 return
             }
 
-            persistScreenRulerPreferences()
+            preferenceStores.screenTools.saveRulerPreferences(screenRulerPreferences)
             screenRulerCoordinator.updatePreferences(screenRulerPreferences)
         }
     }
@@ -348,30 +347,30 @@ final class AppModel: ObservableObject {
                 return
             }
 
-            persistScreenInspectorPreferences()
+            preferenceStores.screenTools.saveInspectorPreferences(screenInspectorPreferences)
             screenInspectorCoordinator.updatePreferences(screenInspectorPreferences)
         }
     }
     @Published var automationPreferences: CaptureAutomationPreferences {
         didSet {
-            persistAutomationPreferences()
+            preferenceStores.automation.savePreferences(automationPreferences)
             globalHotKeyCoordinator.setActionKeys(automationPreferences.actionKeys)
             globalHotKeyCoordinator.setEnabled(automationPreferences.globalHotkeysEnabled)
         }
     }
     @Published var videoRecordingPreferences: VideoRecordingPreferences {
         didSet {
-            persistVideoRecordingPreferences()
+            preferenceStores.video.saveRecordingPreferences(videoRecordingPreferences)
         }
     }
     @Published var videoExportPreferences: VideoExportPreferences {
         didSet {
-            persistVideoExportPreferences()
+            preferenceStores.video.saveExportPreferences(videoExportPreferences)
         }
     }
     @Published var archiveMaximumSizeMB: Int {
         didSet {
-            defaults.set(archiveMaximumSizeMB, forKey: AppModelPreferenceKey.archiveMaximumSizeMB)
+            preferenceStores.archive.saveMaximumSizeMB(archiveMaximumSizeMB)
             triggerArchiveMaintenance()
         }
     }
@@ -384,7 +383,7 @@ final class AppModel: ObservableObject {
                 return
             }
 
-            defaults.set(recycleBinRetentionDays, forKey: AppModelPreferenceKey.recycleBinRetentionDays)
+            preferenceStores.archive.saveRecycleBinRetentionDays(recycleBinRetentionDays)
             triggerArchiveMaintenance()
         }
     }
@@ -429,7 +428,10 @@ final class AppModel: ObservableObject {
     let screenInspectorCoordinator: ScreenInspectorCoordinator
     let clipboardHistoryStore: ClipboardHistoryStore
     let clipboardMonitor: ClipboardMonitor
+    let environment: AppEnvironment
     let defaults: UserDefaults
+    var capabilities: AppCapabilitySnapshot { environment.capabilities }
+    var preferenceStores: AppPreferenceStores { environment.preferenceStores }
     let textRecognitionCoordinator = CaptureTextRecognitionCoordinator()
     private var shouldPresentOnboardingWindowOnLaunch: Bool
     private var shouldPresentMainWindowOnLaunch: Bool
@@ -484,11 +486,12 @@ final class AppModel: ObservableObject {
 
     init(
         defaults: UserDefaults = .standard,
+        environment: AppEnvironment? = nil,
         recoveryStore: DocumentRecoveryStore? = nil,
         clipboardHistoryStore: ClipboardHistoryStore? = nil,
         captureService: any ScreenCaptureServiceType = ScreenCaptureService(),
-        uiMapCaptureService: any UIMapCaptureServiceType = AccessibilityUIMapCaptureService(),
-        connectedDeviceCaptureService: any ConnectedDeviceCaptureServiceType = ConnectedDeviceCaptureService(),
+        uiMapCaptureService: (any UIMapCaptureServiceType)? = nil,
+        connectedDeviceCaptureService: (any ConnectedDeviceCaptureServiceType)? = nil,
         incompatibleDocumentCoordinator: IncompatibleDocumentCoordinator = IncompatibleDocumentCoordinator(),
         launchAtLoginController: LaunchAtLoginController = LaunchAtLoginController(),
         shouldCheckCompatibilityOnLaunch: Bool = !AppModel.isRunningUnitTests,
@@ -496,60 +499,55 @@ final class AppModel: ObservableObject {
     ) {
         self.shouldCheckCompatibilityOnLaunch = shouldCheckCompatibilityOnLaunch
         self.shouldStartArchiveMaintenance = shouldStartArchiveMaintenance
-        let configuredArchiveLocationURL = Self.loadArchiveLocationURL(from: defaults)
+        let environment = environment ?? AppEnvironment(defaults: defaults)
+        let defaults = environment.defaults
+        let preferenceStores = environment.preferenceStores
+        let configuredArchiveLocationURL = preferenceStores.archive.loadLocationURL()
         let recoveryStore = recoveryStore ?? DocumentRecoveryStore(baseURL: configuredArchiveLocationURL)
+        self.environment = environment
         self.defaults = defaults
         self.recoveryStore = recoveryStore
         self.incompatibleDocumentCoordinator = incompatibleDocumentCoordinator
         self.launchAtLoginController = launchAtLoginController
+        self.permissionStatus = environment.currentPermissionStatus()
         self.configuredArchiveLocationURL = configuredArchiveLocationURL
         self.captureService = captureService
-        self.uiMapCaptureService = uiMapCaptureService
-        self.connectedDeviceCaptureService = connectedDeviceCaptureService
-        self.autoCopyEnabled = defaults.object(forKey: AppModelPreferenceKey.autoCopyEnabled) as? Bool ?? true
-        self.autoRefreshWindowsEnabled = defaults.bool(forKey: AppModelPreferenceKey.autoRefreshWindowsEnabled)
-        self.captureDelay = CaptureDelay(rawValue: defaults.integer(forKey: AppModelPreferenceKey.captureDelay)) ?? .immediate
-        self.capturePresets = Self.loadCapturePresets(from: defaults)
+        self.uiMapCaptureService = uiMapCaptureService ?? environment.makeUIMapCaptureService()
+        self.connectedDeviceCaptureService = connectedDeviceCaptureService ?? environment.makeConnectedDeviceCaptureService()
+        self.confirmsBeforeQuitting = preferenceStores.lifecycle.loadConfirmsBeforeQuitting()
+        self.autoCopyEnabled = preferenceStores.clipboard.loadAutoCopyEnabled()
+        self.autoRefreshWindowsEnabled = preferenceStores.capture.loadAutoRefreshWindowsEnabled()
+        self.captureDelay = preferenceStores.capture.loadCaptureDelay()
+        self.capturePresets = preferenceStores.capture.loadCapturePresets()
         let clipboardHistoryStore = clipboardHistoryStore ?? ClipboardHistoryStore()
         self.clipboardHistoryStore = clipboardHistoryStore
         self.clipboardMonitor = ClipboardMonitor(store: clipboardHistoryStore)
-        self.clipboardPreferences = Self.loadClipboardPreferences(from: defaults)
-        self.screenshotIncludesCursor = defaults.object(forKey: AppModelPreferenceKey.screenshotIncludesCursor) as? Bool ?? false
-        self.screenshotFullscreenDisplayMode = defaults.string(forKey: AppModelPreferenceKey.screenshotFullscreenDisplayMode)
-            .flatMap(ScreenshotFullscreenDisplayMode.init(rawValue:)) ?? .currentDisplay
-        if let selectedDisplayNumber = defaults.object(forKey: AppModelPreferenceKey.selectedScreenshotFullscreenDisplayID) as? NSNumber {
-            self.selectedScreenshotFullscreenDisplayID = CGDirectDisplayID(selectedDisplayNumber.uint32Value)
-        } else {
-            self.selectedScreenshotFullscreenDisplayID = nil
-        }
-        self.screenshotJPEGQuality = Self.loadScreenshotJPEGQuality(from: defaults)
-        self.editorSingleKeyToolShortcutsEnabled = defaults.object(forKey: AppModelPreferenceKey.editorSingleKeyToolShortcutsEnabled) as? Bool ?? true
-        self.regionCapturePreferences = RegionCapturePreferences(
-            overlayMode: (defaults.object(forKey: AppModelPreferenceKey.regionCaptureOverlayMode) as? Int)
-                .flatMap(RegionCaptureOverlayMode.init(rawValue:)) ?? .crosshairAndMagnifyingGlass,
-            showsActionControls: defaults.object(forKey: AppModelPreferenceKey.regionCaptureShowsActionControls) as? Bool ?? false,
-            advancedControlsEnabled: defaults.object(forKey: AppModelPreferenceKey.regionCaptureAdvancedControlsEnabled) as? Bool ?? false
-        )
-        self.screenshotFilenameTemplate = defaults.string(forKey: AppModelPreferenceKey.screenshotFilenameTemplate) ?? ScreenshotFilenameTemplate.defaultPattern
-        self.screenshotDragOutFormat = defaults.string(forKey: AppModelPreferenceKey.screenshotDragOutFormat)
-            .flatMap(ImageExportFormat.init(rawValue:)) ?? .png
-        self.privateCaptureEnabled = defaults.object(forKey: AppModelPreferenceKey.privateCaptureEnabled) as? Bool ?? false
-        self.uiMapEnabled = defaults.object(forKey: AppModelPreferenceKey.uiMapEnabled) as? Bool ?? FeatureFlags.uiMapEnabled
-        self.editorCropOutsideOverlayAlpha = Self.loadEditorCropOutsideOverlayAlpha(from: defaults)
-        self.editorOutOfCapturePatternSettings = Self.loadEditorOutOfCapturePatternSettings(from: defaults)
-        self.presentationScenesRootURL = PresentationSceneStore.configuredRootURL(in: defaults)
-        self.uiMapPinnedOverlayDefaults = Self.loadUIMapPinnedOverlayDefaults(from: defaults)
-        let screenRulerPreferences = Self.loadScreenRulerPreferences(from: defaults)
+        self.clipboardPreferences = preferenceStores.clipboard.loadPreferences()
+        self.screenshotIncludesCursor = preferenceStores.capture.loadScreenshotIncludesCursor()
+        self.screenshotFullscreenDisplayMode = preferenceStores.capture.loadFullscreenDisplayMode()
+        self.selectedScreenshotFullscreenDisplayID = preferenceStores.capture.loadSelectedFullscreenDisplayID()
+        self.screenshotJPEGQuality = preferenceStores.capture.loadScreenshotJPEGQuality()
+        self.editorSingleKeyToolShortcutsEnabled = preferenceStores.editor.loadSingleKeyToolShortcutsEnabled()
+        self.regionCapturePreferences = preferenceStores.capture.loadRegionCapturePreferences()
+        self.screenshotFilenameTemplate = preferenceStores.capture.loadScreenshotFilenameTemplate()
+        self.screenshotDragOutFormat = preferenceStores.capture.loadScreenshotDragOutFormat()
+        self.privateCaptureEnabled = preferenceStores.capture.loadPrivateCaptureEnabled()
+        self.uiMapEnabled = preferenceStores.capture.loadUIMapEnabled(defaultEnabled: environment.capabilities.isEnabled(.uiMap))
+        self.editorCropOutsideOverlayAlpha = preferenceStores.editor.loadCropOutsideOverlayAlpha()
+        self.editorOutOfCapturePatternSettings = preferenceStores.editor.loadOutOfCapturePatternSettings()
+        self.presentationScenesRootURL = preferenceStores.editor.loadPresentationScenesRootURL()
+        self.uiMapPinnedOverlayDefaults = preferenceStores.editor.loadUIMapPinnedOverlayDefaults()
+        let screenRulerPreferences = preferenceStores.screenTools.loadRulerPreferences()
         self.screenRulerPreferences = screenRulerPreferences
         self.screenRulerCoordinator = ScreenRulerCoordinator(preferences: screenRulerPreferences)
-        let screenInspectorPreferences = Self.loadScreenInspectorPreferences(from: defaults)
+        let screenInspectorPreferences = preferenceStores.screenTools.loadInspectorPreferences()
         self.screenInspectorPreferences = screenInspectorPreferences
         self.screenInspectorCoordinator = ScreenInspectorCoordinator(preferences: screenInspectorPreferences)
-        self.automationPreferences = Self.loadAutomationPreferences(from: defaults)
-        self.videoRecordingPreferences = Self.loadVideoRecordingPreferences(from: defaults)
-        self.videoExportPreferences = Self.loadVideoExportPreferences(from: defaults)
-        self.archiveMaximumSizeMB = Self.loadArchiveMaximumSizeMB(from: defaults)
-        self.recycleBinRetentionDays = Self.loadRecycleBinRetentionDays(from: defaults)
+        self.automationPreferences = preferenceStores.automation.loadPreferences()
+        self.videoRecordingPreferences = preferenceStores.video.loadRecordingPreferences()
+        self.videoExportPreferences = preferenceStores.video.loadExportPreferences()
+        self.archiveMaximumSizeMB = preferenceStores.archive.loadMaximumSizeMB()
+        self.recycleBinRetentionDays = preferenceStores.archive.loadRecycleBinRetentionDays()
         self.archiveDirectoryURL = recoveryStore.archiveURL
         self.showsWelcomeCard = false
         let pendingRecoverySession = recoveryStore.latestPendingRecovery()
@@ -557,7 +555,7 @@ final class AppModel: ObservableObject {
         self.allCaptureHistoryEntries = recoveryStore.allHistoryEntries(limit: Self.captureHistoryLimit)
         self.recentSnipEntries = recoveryStore.pendingRecoveryEntries(limit: Self.recentSnipLimit)
         self.recycleBinEntries = recoveryStore.recycledHistoryEntries(limit: Self.recycleBinLimit)
-        let completedOnboardingVersion = Self.loadCompletedOnboardingVersion(from: defaults)
+        let completedOnboardingVersion = preferenceStores.lifecycle.loadCompletedOnboardingVersion(currentVersion: Self.currentOnboardingVersion)
         self.shouldPresentOnboardingWindowOnLaunch = completedOnboardingVersion < Self.currentOnboardingVersion
         self.shouldPresentMainWindowOnLaunch = pendingRecoverySession != nil
         globalHotKeyCoordinator.setActionKeys(self.automationPreferences.actionKeys)
@@ -606,7 +604,7 @@ final class AppModel: ObservableObject {
             self.startArchiveMaintenance()
         }
 
-        if FeatureFlags.connectedDeviceCaptureEnabled, !Self.isRunningUnitTests {
+        if capabilities.isEnabled(.connectedDeviceCapture), !Self.isRunningUnitTests {
             refreshConnectedDevices()
         }
         clipboardMonitor.start(preferences: clipboardPreferences)
@@ -637,11 +635,11 @@ final class AppModel: ObservableObject {
         }
 
         if case .scrolling = lastCaptureRequest {
-            return FeatureFlags.scrollingCaptureEnabled
+            return capabilities.isEnabled(.scrollingCapture)
         }
 
         if case .connectedDevice = lastCaptureRequest {
-            return FeatureFlags.connectedDeviceCaptureEnabled
+            return capabilities.isEnabled(.connectedDeviceCapture)
         }
 
         return true
@@ -656,7 +654,7 @@ final class AppModel: ObservableObject {
     }
 
     var windowUIMapEnabled: Bool {
-        FeatureFlags.uiMapEnabled && uiMapEnabled
+        capabilities.isEnabled(.uiMap) && uiMapEnabled
     }
 
     var windowUIMapNeedsAccessibilityAccess: Bool {
@@ -669,7 +667,7 @@ final class AppModel: ObservableObject {
 
     func uiMapCaptureEligibility(for capture: CapturedScreenshot, userEnabled: Bool) -> UIMapCaptureEligibility {
         UIMapCaptureEligibility(
-            featureFlagEnabled: FeatureFlags.uiMapEnabled,
+            featureFlagEnabled: capabilities.isEnabled(.uiMap),
             userEnabled: userEnabled,
             captureKind: capture.kind,
             hasSourceWindowIdentity: capture.sourceWindowIdentity != nil,
@@ -754,7 +752,7 @@ final class AppModel: ObservableObject {
     }
 
     func completeOnboarding() {
-        defaults.set(Self.currentOnboardingVersion, forKey: AppModelPreferenceKey.completedOnboardingVersion)
+        preferenceStores.lifecycle.saveCompletedOnboardingVersion(Self.currentOnboardingVersion)
 
         if shouldOpenMainWindowAfterOnboarding {
             requestMainWindowPresentation()
@@ -768,7 +766,7 @@ final class AppModel: ObservableObject {
     }
 
     func updateUIMapEnabled(_ enabled: Bool) {
-        guard FeatureFlags.uiMapEnabled else {
+        guard capabilities.isEnabled(.uiMap) else {
             uiMapEnabled = false
             return
         }
@@ -802,7 +800,7 @@ final class AppModel: ObservableObject {
     }
 
     func checkForProUpdates() {
-        guard FeatureFlags.proUpdateCheckEnabled, !isCheckingProUpdates else {
+        guard capabilities.isEnabled(.proUpdateCheck), !isCheckingProUpdates else {
             return
         }
 
@@ -830,7 +828,7 @@ final class AppModel: ObservableObject {
         }
 
         showsWelcomeCard = false
-        defaults.set(true, forKey: AppModelPreferenceKey.hasDismissedWelcomeCard)
+        preferenceStores.lifecycle.saveWelcomeCardDismissed()
     }
 
     func resetPreferencesToDefaults() {
@@ -854,7 +852,7 @@ final class AppModel: ObservableObject {
         screenshotFilenameTemplate = ScreenshotFilenameTemplate.defaultPattern
         screenshotDragOutFormat = .png
         privateCaptureEnabled = false
-        uiMapEnabled = FeatureFlags.uiMapEnabled
+        uiMapEnabled = capabilities.isEnabled(.uiMap)
         updateEditorCropOutsideOverlayAlpha(Self.defaultEditorCropOutsideOverlayAlpha)
         updateEditorOutOfCapturePatternSettings(.default)
         resetPresentationScenesRootToDefault()
@@ -873,98 +871,47 @@ final class AppModel: ObservableObject {
     }
 
     private static func loadAutomationPreferences(from defaults: UserDefaults) -> CaptureAutomationPreferences {
-        guard let data = defaults.data(forKey: AppModelPreferenceKey.captureAutomationPreferences),
-              let preferences = try? JSONDecoder().decode(CaptureAutomationPreferences.self, from: data) else {
-            return CaptureAutomationPreferences()
-        }
-
-        return preferences
+        AppPreferenceStores(storage: defaults).automation.loadPreferences()
     }
 
     static func loadCapturePresets(from defaults: UserDefaults) -> [CapturePreset] {
-        guard let data = defaults.data(forKey: AppModelPreferenceKey.capturePresets),
-              let presets = try? JSONDecoder().decode([CapturePreset].self, from: data) else {
-            return []
-        }
-
-        return presets
+        AppPreferenceStores(storage: defaults).capture.loadCapturePresets()
     }
 
     private static func loadCompletedOnboardingVersion(from defaults: UserDefaults) -> Int {
-        if let storedVersion = defaults.object(forKey: AppModelPreferenceKey.completedOnboardingVersion) as? Int {
-            return storedVersion
-        }
-
-        let hasLegacyWelcomeState = defaults.object(forKey: AppModelPreferenceKey.hasPresentedWelcomeWindow) != nil
-            || defaults.object(forKey: AppModelPreferenceKey.hasDismissedWelcomeCard) != nil
-
-        return hasLegacyWelcomeState ? currentOnboardingVersion : 0
+        AppPreferenceStores(storage: defaults).lifecycle.loadCompletedOnboardingVersion(currentVersion: currentOnboardingVersion)
     }
 
     private static func loadEditorCropOutsideOverlayAlpha(from defaults: UserDefaults) -> CGFloat {
-        guard let configuredValue = defaults.object(forKey: AppModelPreferenceKey.editorCropOutsideOverlayAlpha) as? Double else {
-            return defaultEditorCropOutsideOverlayAlpha
-        }
-
-        return clampedEditorCropOutsideOverlayAlpha(CGFloat(configuredValue))
+        AppPreferenceStores(storage: defaults).editor.loadCropOutsideOverlayAlpha()
     }
 
     private static func loadScreenshotJPEGQuality(from defaults: UserDefaults) -> CGFloat {
-        guard let configuredValue = defaults.object(forKey: AppModelPreferenceKey.screenshotJPEGQuality) as? Double else {
-            return ImageExportOptions.default.jpegQuality
-        }
-
-        return ImageExportOptions.sanitizedJPEGQuality(CGFloat(configuredValue))
+        AppPreferenceStores(storage: defaults).capture.loadScreenshotJPEGQuality()
     }
 
     private static func loadEditorOutOfCapturePatternSettings(from defaults: UserDefaults) -> EditorOutOfCapturePatternSettings {
-        guard let data = defaults.data(forKey: AppModelPreferenceKey.editorOutOfCapturePatternSettings),
-              let settings = try? JSONDecoder().decode(EditorOutOfCapturePatternSettings.self, from: data) else {
-            return .default
-        }
-
-        return sanitizedEditorOutOfCapturePatternSettings(settings)
+        AppPreferenceStores(storage: defaults).editor.loadOutOfCapturePatternSettings()
     }
 
     private static func loadUIMapPinnedOverlayDefaults(from defaults: UserDefaults) -> UIMapOverlayOptions {
-        guard let data = defaults.data(forKey: AppModelPreferenceKey.uiMapPinnedOverlayDefaults),
-              let options = try? JSONDecoder().decode(UIMapOverlayOptions.self, from: data) else {
-            return UIMapOverlayOptions()
-        }
-
-        return options
+        AppPreferenceStores(storage: defaults).editor.loadUIMapPinnedOverlayDefaults()
     }
 
     static func loadScreenRulerPreferences(from defaults: UserDefaults) -> ScreenRulerPreferences {
-        guard let data = defaults.data(forKey: AppModelPreferenceKey.screenRulerPreferences),
-              let preferences = try? JSONDecoder().decode(ScreenRulerPreferences.self, from: data) else {
-            return .default
-        }
-
-        return preferences.sanitized()
+        AppPreferenceStores(storage: defaults).screenTools.loadRulerPreferences()
     }
 
     static func loadScreenInspectorPreferences(from defaults: UserDefaults) -> ScreenInspectorPreferences {
-        guard let data = defaults.data(forKey: AppModelPreferenceKey.screenInspectorPreferences),
-              let preferences = try? JSONDecoder().decode(ScreenInspectorPreferences.self, from: data) else {
-            return .default
-        }
-
-        return preferences.sanitized()
+        AppPreferenceStores(storage: defaults).screenTools.loadInspectorPreferences()
     }
 
     private static func clampedEditorCropOutsideOverlayAlpha(_ value: CGFloat) -> CGFloat {
-        min(max(value, 0), 0.9)
+        EditorPreferenceStore.clampedCropOutsideOverlayAlpha(value)
     }
 
     private static func sanitizedEditorOutOfCapturePatternSettings(_ settings: EditorOutOfCapturePatternSettings) -> EditorOutOfCapturePatternSettings {
-        EditorOutOfCapturePatternSettings(
-            isEnabled: settings.isEnabled,
-            spacing: min(max(settings.spacing, 16), 96),
-            lineOpacity: min(max(settings.lineOpacity, 0.05), 0.9),
-            dotOpacity: min(max(settings.dotOpacity, 0.05), 1),
-            dotDiameter: min(max(settings.dotDiameter, 2), 12)
-        )
+        settings.sanitized()
     }
 
     private static func presentEditableRedactionSaveConfirmation() -> EditableRedactionSaveDecision {
@@ -1082,7 +1029,7 @@ final class AppModel: ObservableObject {
     }
 
     func resetPresentationScenesRootToDefault() {
-        defaults.removeObject(forKey: AppModelPreferenceKey.presentationScenesRootPath)
+        preferenceStores.editor.savePresentationScenesRootURL(nil)
         updatePresentationScenesRootURL(PresentationSceneStore.defaultRootURL, persists: false)
     }
 
@@ -1104,18 +1051,14 @@ final class AppModel: ObservableObject {
         presentationScenesRootURL = standardizedURL
 
         if persists {
-            defaults.set(standardizedURL.path, forKey: AppModelPreferenceKey.presentationScenesRootPath)
+            preferenceStores.editor.savePresentationScenesRootURL(standardizedURL)
         }
 
         editorController?.updatePresentationScenesRootURL(standardizedURL)
     }
 
     private func persistUIMapPinnedOverlayDefaults() {
-        guard let data = try? JSONEncoder().encode(uiMapPinnedOverlayDefaults) else {
-            return
-        }
-
-        defaults.set(data, forKey: AppModelPreferenceKey.uiMapPinnedOverlayDefaults)
+        preferenceStores.editor.saveUIMapPinnedOverlayDefaults(uiMapPinnedOverlayDefaults)
     }
 
     func presentScreenRuler(_ kind: ScreenRulerKind) {
@@ -1139,81 +1082,38 @@ final class AppModel: ObservableObject {
     }
 
     private func persistScreenRulerPreferences() {
-        guard let data = try? JSONEncoder().encode(screenRulerPreferences.sanitized()) else {
-            return
-        }
-
-        defaults.set(data, forKey: AppModelPreferenceKey.screenRulerPreferences)
+        preferenceStores.screenTools.saveRulerPreferences(screenRulerPreferences)
     }
 
     private func persistScreenInspectorPreferences() {
-        guard let data = try? JSONEncoder().encode(screenInspectorPreferences.sanitized()) else {
-            return
-        }
-
-        defaults.set(data, forKey: AppModelPreferenceKey.screenInspectorPreferences)
+        preferenceStores.screenTools.saveInspectorPreferences(screenInspectorPreferences)
     }
 
     private func persistAutomationPreferences() {
-        guard let data = try? JSONEncoder().encode(automationPreferences) else {
-            return
-        }
-
-        defaults.set(data, forKey: AppModelPreferenceKey.captureAutomationPreferences)
+        preferenceStores.automation.savePreferences(automationPreferences)
     }
 
     private func persistCapturePresets() {
-        guard let data = try? JSONEncoder().encode(capturePresets) else {
-            return
-        }
-
-        defaults.set(data, forKey: AppModelPreferenceKey.capturePresets)
+        preferenceStores.capture.saveCapturePresets(capturePresets)
     }
 
     private static func loadVideoRecordingPreferences(from defaults: UserDefaults) -> VideoRecordingPreferences {
-        guard let data = defaults.data(forKey: AppModelPreferenceKey.videoRecordingPreferences),
-              let preferences = try? JSONDecoder().decode(VideoRecordingPreferences.self, from: data) else {
-            return VideoRecordingPreferences()
-        }
-
-        return preferences
+        AppPreferenceStores(storage: defaults).video.loadRecordingPreferences()
     }
 
     private func persistVideoRecordingPreferences() {
-        guard let data = try? JSONEncoder().encode(videoRecordingPreferences) else {
-            return
-        }
-
-        defaults.set(data, forKey: AppModelPreferenceKey.videoRecordingPreferences)
+        preferenceStores.video.saveRecordingPreferences(videoRecordingPreferences)
     }
 
     private static func loadVideoExportPreferences(from defaults: UserDefaults) -> VideoExportPreferences {
-        guard let data = defaults.data(forKey: AppModelPreferenceKey.videoExportPreferences),
-              let preferences = try? JSONDecoder().decode(VideoExportPreferences.self, from: data) else {
-            return VideoExportPreferences()
-        }
-
-        return VideoExportSupport.capability(for: preferences.format, target: preferences.target).isSupported
-            ? preferences
-            : VideoExportPreferences()
+        AppPreferenceStores(storage: defaults).video.loadExportPreferences()
     }
 
     private func persistVideoExportPreferences() {
-        guard let data = try? JSONEncoder().encode(videoExportPreferences) else {
-            return
-        }
-
-        defaults.set(data, forKey: AppModelPreferenceKey.videoExportPreferences)
+        preferenceStores.video.saveExportPreferences(videoExportPreferences)
     }
 
     private static func loadRecycleBinRetentionDays(from defaults: UserDefaults) -> Int {
-        let configuredDays = defaults.object(forKey: AppModelPreferenceKey.recycleBinRetentionDays) as? Int
-            ?? defaults.integer(forKey: AppModelPreferenceKey.recycleBinRetentionDays)
-
-        guard configuredDays > 0 else {
-            return defaultRecycleBinRetentionDays
-        }
-
-        return max(configuredDays, minimumRecycleBinRetentionDays)
+        AppPreferenceStores(storage: defaults).archive.loadRecycleBinRetentionDays()
     }
 }

@@ -107,7 +107,7 @@ struct ScreenshotCaptureSettingsMenuContent: View {
         Toggle("Include Cursor", isOn: $model.screenshotIncludesCursor)
             .help("Add the cursor as an editable screenshot overlay. Scrolling Capture always excludes it.")
 
-        if FeatureFlags.uiMapEnabled {
+        if model.capabilities.isEnabled(.uiMap) {
             Toggle("Include UI Map for Window Captures", isOn: uiMapBinding)
                 .help("Save available names, roles, identifiers, and locations of visible interface elements when capturing a window.")
         }

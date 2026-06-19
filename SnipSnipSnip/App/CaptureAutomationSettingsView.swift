@@ -5,7 +5,6 @@ struct CaptureAutomationSettingsView: View {
     @ObservedObject var model: AppModel
     @State private var isShowingResetDefaultsConfirmation = false
     @State private var launchAtLoginErrorMessage: String?
-    @AppStorage(AppLifecyclePreferenceKeys.confirmsBeforeQuitting) private var confirmsBeforeQuitting = true
 
     var body: some View {
         TabView(selection: $model.selectedSettingsTab) {
@@ -29,7 +28,7 @@ struct CaptureAutomationSettingsView: View {
                         Button("Open Login Items in System Settings", action: model.openLaunchAtLoginSettings)
                     }
 
-                    Toggle("Confirm Before Quitting", isOn: $confirmsBeforeQuitting)
+                    Toggle("Confirm Before Quitting", isOn: $model.confirmsBeforeQuitting)
                     SettingsHelpText("\(AppBranding.displayName) minimizes on Command-Q so the menu bar icon and shortcuts stay available. The menu bar Quit command asks before exiting unless this is turned off.")
                 }
 
@@ -39,7 +38,7 @@ struct CaptureAutomationSettingsView: View {
                         NSWorkspace.shared.open(AppLinks.support)
                     }
 
-                    if FeatureFlags.proUpdateCheckEnabled {
+                    if model.capabilities.isEnabled(.proUpdateCheck) {
                         Button(
                             model.isCheckingProUpdates ? "Checking for Pro Updates..." : "Check for Pro Updates...",
                             action: model.checkForProUpdates
@@ -47,7 +46,7 @@ struct CaptureAutomationSettingsView: View {
                         .disabled(model.isCheckingProUpdates)
                     }
 
-                    SettingsHelpText(FeatureFlags.proUpdateCheckEnabled
+                    SettingsHelpText(model.capabilities.isEnabled(.proUpdateCheck)
                         ? "Replay onboarding whenever you want a guided walkthrough. Support requests and feature requests start from the support page. Pro update checks read the latest GitHub release and send you there to download the newest package."
                         : "Replay onboarding whenever you want a guided walkthrough. Support requests and feature requests start from the support page.")
                 }
@@ -75,7 +74,7 @@ struct CaptureAutomationSettingsView: View {
 
                     SettingsHelpText(model.screenshotFullscreenDisplayMode.detail)
 
-                    if FeatureFlags.uiMapEnabled {
+                    if model.capabilities.isEnabled(.uiMap) {
                         Toggle("Enable UI Map for Window captures", isOn: uiMapBinding)
                         SettingsHelpText("Save available names, roles, identifiers, and locations of visible interface elements when capturing a window. Region, fullscreen, scrolling, recording, and connected-device captures do not include UI Map metadata.")
 
@@ -619,14 +618,14 @@ struct CaptureAutomationSettingsView: View {
 
                 Section("Permission Diagnostics") {
                     PermissionStatusRow(requirement: .screenRecording, model: model)
-                    if FeatureFlags.scrollingCaptureEnabled {
+                    if model.capabilities.isEnabled(.scrollingCapture) {
                         PermissionStatusRow(requirement: .accessibility, model: model)
                     }
 
                     Button("Export Diagnostics…", action: model.exportSupportDiagnostics)
 
                     SettingsHelpText(
-                        FeatureFlags.scrollingCaptureEnabled
+                        model.capabilities.isEnabled(.scrollingCapture)
                             ? "Accessibility is only required for Scrolling Capture. Region, Window, Fullscreen, editor OCR, export, and annotation tools do not depend on Accessibility. Diagnostics export sanitized app, permission, display, storage, and status details without screenshots, clipboard contents, OCR text, annotations, or document data."
                             : "Screen Recording is the only privacy permission required for screenshot pixels, live window thumbnails, and screen recording in this build. Diagnostics export sanitized app, permission, display, storage, and status details without screenshots, clipboard contents, OCR text, annotations, or document data."
                     )

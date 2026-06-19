@@ -227,7 +227,7 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
         previewImage: CGImage,
         pendingRecovery: Bool,
         hasUnsavedChanges: Bool,
-        includeUIMapSearchText: Bool = FeatureFlags.uiMapEnabled
+        includeUIMapSearchText: Bool = BuildTargetCapabilityProvider().currentSnapshot().isEnabled(.uiMap)
     ) throws {
         try withLockedAccess {
             try ensureRootDirectories()

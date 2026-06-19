@@ -9,6 +9,13 @@ final class AppModelTests: XCTestCase {
         return defaults
     }
 
+    private func makeEnvironment(
+        defaults: UserDefaults,
+        permissionStatus: CapturePermissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
+    ) -> AppEnvironment {
+        AppEnvironment(defaults: defaults, permissionStatusProvider: { permissionStatus })
+    }
+
     private func makeHistoryEntry(
         title: String = "Snapshot.sss",
         label: String = "Capture",
@@ -460,6 +467,7 @@ final class AppModelTests: XCTestCase {
         let model = retainForTestLifetime(
             AppModel(
                 defaults: defaults,
+                environment: makeEnvironment(defaults: defaults),
                 recoveryStore: DocumentRecoveryStore(baseURL: nil),
                 captureService: captureService,
                 shouldCheckCompatibilityOnLaunch: false,
@@ -509,6 +517,7 @@ final class AppModelTests: XCTestCase {
         let model = retainForTestLifetime(
             AppModel(
                 defaults: defaults,
+                environment: makeEnvironment(defaults: defaults),
                 recoveryStore: DocumentRecoveryStore(baseURL: nil),
                 captureService: captureService,
                 shouldCheckCompatibilityOnLaunch: false,
@@ -550,6 +559,7 @@ final class AppModelTests: XCTestCase {
         let model = retainForTestLifetime(
             AppModel(
                 defaults: defaults,
+                environment: makeEnvironment(defaults: defaults),
                 recoveryStore: DocumentRecoveryStore(baseURL: nil),
                 captureService: captureService,
                 shouldCheckCompatibilityOnLaunch: false,

@@ -1,5 +1,5 @@
 ---
-description: "Workspace instructions for implementing SnipSnipSnip as a phase-scoped macOS screenshot and annotation app."
+description: "Workspace instructions for implementing SnipSnipSnip as a local-first macOS screenshot, annotation, automation, presentation, clipboard, and screen-recording app."
 ---
 
 # SnipSnipSnip Instructions
@@ -16,11 +16,12 @@ description: "Workspace instructions for implementing SnipSnipSnip as a phase-sc
 - Route undoable editor mutations through command types rather than ad hoc view mutations.
 - Keep view, controller, renderer, and app-model responsibilities narrow. Prefer extracting helpers or small collaborator types over growing monolithic files.
 
-## Current Phase Rules
-- Capture modes for this repo are region, window, and fullscreen.
-- Phase 2 tools must remain supported.
-- Phase 3 adds multi-select, grouping, alignment, snapping, ellipse, line, freehand, highlight, callouts, a style system, and an expanded redaction system.
-- Keep the project sandbox-friendly. Accessibility support is optional enhancement, not a hard dependency for region and fullscreen capture.
+## Product Scope
+- Treat screenshot capture, annotation, presentation styling, clipboard history, automation, screen recording, connected-device capture, UI Map, screen ruler, screen inspector, recovery, archive, and export workflows as first-class product areas.
+- Keep feature areas bounded. Avoid routing new behavior through `AppModel` or `EditorController` when a focused coordinator, service, model, renderer, or store can own the responsibility.
+- Screenshot capture includes region, window, frontmost-window, fullscreen, repeat, timer, scrolling, connected-device, and Screen Inspector snips when the relevant build flags allow them.
+- Preserve the full existing editor toolset, including multi-select, grouping, alignment, snapping, ellipse, line, freehand, highlighter, highlight, text, callouts, measurement, spotlight, image overlays, style controls, rotation, layer ordering, and blur/pixelate/solid redaction.
+- Keep the project sandbox-friendly. Accessibility support powers UI Map, scrolling capture, and accessibility-assisted workflows, but region and fullscreen capture must not depend on Accessibility.
 
 ## Automation Maintenance
 - If any automation command, option, URL route, AppleScript term, result field, error code, or output behavior changes, update `Docs/AutomationServicePlan.md`, `Docs/Automation/README.md`, and affected scripts in `Docs/Automation/SampleScripts` in the same change.

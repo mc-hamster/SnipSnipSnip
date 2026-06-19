@@ -9,6 +9,7 @@ nonisolated enum ScrollingStitchAppendResult: Equatable {
 
 nonisolated struct ScrollingStitchState {
     private var segments: [CGImage]
+    fileprivate private(set) var lastCapturedFrame: CGImage
     private(set) var segmentCount: Int
     private(set) var width: Int
     private(set) var outputHeight: Int
@@ -20,6 +21,7 @@ nonisolated struct ScrollingStitchState {
 
     init(image: CGImage, maxOutputHeight: Int) {
         self.segments = [image]
+        self.lastCapturedFrame = image
         self.segmentCount = 1
         self.width = image.width
         self.outputHeight = image.height
@@ -30,6 +32,10 @@ nonisolated struct ScrollingStitchState {
         segments.append(image)
         outputHeight += image.height
         segmentCount += 1
+    }
+
+    mutating func recordCapturedFrame(_ image: CGImage) {
+        lastCapturedFrame = image
     }
 
     func makeImage() -> CGImage? {
@@ -119,7 +125,7 @@ nonisolated struct ScrollingStitcher {
     }
 
     func append(_ nextImage: CGImage, to state: inout ScrollingStitchState) -> ScrollingStitchAppendResult {
-        append(nextImage, after: state.image, to: &state)
+        append(nextImage, after: state.lastCapturedFrame, to: &state)
     }
 
     func append(_ nextImage: CGImage, after previousImage: CGImage, to state: inout ScrollingStitchState) -> ScrollingStitchAppendResult {
@@ -140,6 +146,7 @@ nonisolated struct ScrollingStitcher {
         }
 
         guard match.appendStartY < nextImage.height else {
+            state.recordCapturedFrame(nextImage)
             return .appended
         }
 
@@ -156,6 +163,7 @@ nonisolated struct ScrollingStitcher {
             }
 
             state.appendSegment(partialAppend)
+            state.recordCapturedFrame(nextImage)
             return .reachedMaximumHeight
         }
 
@@ -166,6 +174,7 @@ nonisolated struct ScrollingStitcher {
         }
 
         state.appendSegment(appendImage)
+        state.recordCapturedFrame(nextImage)
         return .appended
     }
 
@@ -238,6 +247,7 @@ nonisolated struct ScrollingStitcher {
         let overlapLowerBound = max(minimumOverlap, coarse.overlapHeight - refinementRadius)
         let overlapUpperBound = min(maximumOverlap, coarse.overlapHeight + refinementRadius)
         let refinementStride = 2
+        let refinedMaxRows = 48
 
         for nextStart in stride(from: nextStartLowerBound, through: nextStartUpperBound, by: refinementStride) {
             for overlap in stride(from: overlapLowerBound, through: overlapUpperBound, by: refinementStride) where overlap <= next.height - nextStart {
@@ -248,6 +258,7 @@ nonisolated struct ScrollingStitcher {
                     right: next,
                     rightY: nextStart,
                     height: overlap,
+                    maxRows: refinedMaxRows,
                     minConfidence: max(best.confidence, minimumConfidence)
                 )
                 let candidate = ScrollingStitchMatch(overlapHeight: overlap, nextStartY: nextStart, confidence: score)

@@ -839,7 +839,7 @@ enum EditorRenderer {
         lineWidth: CGFloat,
         scale: CGFloat
     ) -> ArrowHeadGeometry {
-        let tangentAngle = arrowEndpointTangentAngle(tip: tip, tail: tail, curvature: curvature)
+        let tangentAngle = EditorRenderGeometry.arrowEndpointTangentAngle(tip: tip, tail: tail, curvature: curvature)
         let bodyLength = hypot(tip.x - tail.x, tip.y - tail.y)
         let arrowLength = arrowHeadLength(bodyLength: bodyLength, lineWidth: lineWidth, scale: scale)
         let spread: CGFloat = .pi / 6
@@ -852,82 +852,11 @@ enum EditorRenderer {
     }
 
     nonisolated private static func arrowBodyPath(for shape: ArrowShape) -> CGPath {
-        let path = CGMutablePath()
-        path.move(to: shape.start)
-        if abs(shape.curvature) > 0.5 {
-            let control = arrowControlPoint(for: shape)
-            path.addCurve(to: shape.end, control1: control, control2: control)
-        } else {
-            path.addLine(to: shape.end)
-        }
-        return path
-    }
-
-    nonisolated private static func arrowControlPoint(for shape: ArrowShape) -> CGPoint {
-        let midpoint = CGPoint(x: (shape.start.x + shape.end.x) / 2, y: (shape.start.y + shape.end.y) / 2)
-        let dx = shape.end.x - shape.start.x
-        let dy = shape.end.y - shape.start.y
-        let length = max(hypot(dx, dy), 1)
-        let normal = CGPoint(x: -dy / length, y: dx / length)
-        return CGPoint(x: midpoint.x + normal.x * shape.curvature, y: midpoint.y + normal.y * shape.curvature)
-    }
-
-    nonisolated private static func arrowMidpoint(for shape: ArrowShape) -> CGPoint {
-        if abs(shape.curvature) > 0.5 {
-            let control = arrowControlPoint(for: shape)
-            let t: CGFloat = 0.5
-            let mt = 1 - t
-            return CGPoint(
-                x: mt * mt * shape.start.x + 2 * mt * t * control.x + t * t * shape.end.x,
-                y: mt * mt * shape.start.y + 2 * mt * t * control.y + t * t * shape.end.y
-            )
-        }
-        return CGPoint(x: (shape.start.x + shape.end.x) / 2, y: (shape.start.y + shape.end.y) / 2)
+        EditorRenderGeometry.arrowBodyPath(for: shape)
     }
 
     nonisolated private static func arrowLabelGeometry(for shape: ArrowShape) -> (rect: CGRect, rotationDegrees: CGFloat) {
-        let fontSize = max(shape.labelFontSize, 8)
-        let height = max(fontSize + 14, 28)
-        let width = max(CGFloat(shape.label.count) * fontSize * 0.58 + 24, 64)
-        let midpoint = arrowMidpoint(for: shape)
-        let angle = atan2(shape.end.y - shape.start.y, shape.end.x - shape.start.x)
-        let offset = height / 2 + 8
-        let center: CGPoint
-        let rotationDegrees: CGFloat
-
-        switch shape.labelPlacement {
-        case .horizontal:
-            center = midpoint
-            rotationDegrees = 0
-        case .parallelAbove:
-            let labelOffset = gscArrowLabelOffset(angle: angle, distance: offset, placeAbove: true, yAxisPointsDown: false)
-            center = CGPoint(x: midpoint.x + labelOffset.x, y: midpoint.y + labelOffset.y)
-            rotationDegrees = gscUprightTextRotationDegrees(for: angle * 180 / .pi)
-        case .parallelBelow:
-            let labelOffset = gscArrowLabelOffset(angle: angle, distance: offset, placeAbove: false, yAxisPointsDown: false)
-            center = CGPoint(x: midpoint.x + labelOffset.x, y: midpoint.y + labelOffset.y)
-            rotationDegrees = gscUprightTextRotationDegrees(for: angle * 180 / .pi)
-        }
-
-        return (
-            CGRect(x: center.x - width / 2, y: center.y - height / 2, width: width, height: height),
-            rotationDegrees
-        )
-    }
-
-    nonisolated private static func arrowEndpointTangentAngle(tip: CGPoint, tail: CGPoint, curvature: CGFloat) -> CGFloat {
-        guard abs(curvature) > 0.5 else {
-            return atan2(tip.y - tail.y, tip.x - tail.x)
-        }
-
-        let control = arrowControlPoint(for: ArrowShape(start: tail, end: tip, curvature: curvature))
-        let tangent = CGPoint(x: tip.x - control.x, y: tip.y - control.y)
-
-        guard hypot(tangent.x, tangent.y) > .leastNonzeroMagnitude else {
-            return atan2(tip.y - tail.y, tip.x - tail.x)
-        }
-
-        return atan2(tangent.y, tangent.x)
+        EditorRenderGeometry.arrowLabelGeometry(for: shape, yAxisPointsDown: false)
     }
 
     nonisolated private static func arrowHeadPath(shape: ArrowHeadShape, tip: CGPoint, tail: CGPoint, curvature: CGFloat, lineWidth: CGFloat, scale: CGFloat) -> CGPath {
@@ -1727,19 +1656,11 @@ enum EditorRenderer {
     }
 
     nonisolated private static func redactionDashPattern(for mode: RedactionMode, scale: CGFloat) -> [CGFloat] {
-        switch mode {
-        case .blur:
-            let dashLength = scaled(6, by: scale)
-            return [dashLength, dashLength]
-        case .pixelate:
-            return [scaled(3, by: scale), scaled(5, by: scale)]
-        case .solid:
-            return []
-        }
+        RedactionRenderStyle.dashPattern(for: mode, scale: scale)
     }
 
     nonisolated private static func redactionCornerRadius(scale: CGFloat) -> CGFloat {
-        scaled(8, by: scale)
+        RedactionRenderStyle.cornerRadius(scale: scale)
     }
 
     nonisolated private static func makeBlurredRedactionImage(in localRect: CGRect, sourceImage: CGImage, radius: CGFloat) -> CGImage? {

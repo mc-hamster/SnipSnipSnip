@@ -262,7 +262,7 @@ struct ContentView: View {
                     tint: permissionStatusTint
                 )
 
-                if FeatureFlags.uiMapEnabled, shouldShowHeaderUIMapStatus {
+                if model.capabilities.isEnabled(.uiMap), shouldShowHeaderUIMapStatus {
                     headerUIMapStatusChip
                 }
 
@@ -278,7 +278,7 @@ struct ContentView: View {
                     tint: permissionStatusTint
                 )
 
-                if FeatureFlags.uiMapEnabled, shouldShowHeaderUIMapStatus {
+                if model.capabilities.isEnabled(.uiMap), shouldShowHeaderUIMapStatus {
                     headerUIMapStatusChip
                 }
 
@@ -312,7 +312,7 @@ struct ContentView: View {
                 }
 
                 HStack(spacing: 8) {
-                    if FeatureFlags.scrollingCaptureEnabled {
+                    if model.capabilities.isEnabled(.scrollingCapture) {
                         captureButton(title: "Scroll", systemImage: "arrow.down.to.line", action: model.captureScrollingArea)
                     }
                     captureButton(title: "Repeat", systemImage: "arrow.clockwise", action: model.repeatLastCapture)
@@ -340,7 +340,7 @@ struct ContentView: View {
             captureButton(title: "Region", systemImage: "selection.pin.in.out", action: model.captureRegion)
             captureButton(title: "Full", systemImage: "macwindow", action: model.captureCurrentDisplay)
             captureButton(title: "Window", systemImage: "rectangle.on.rectangle", action: captureWindowFromHeader)
-            if FeatureFlags.scrollingCaptureEnabled {
+            if model.capabilities.isEnabled(.scrollingCapture) {
                 captureButton(title: "Scroll", systemImage: "arrow.down.to.line", action: model.captureScrollingArea)
             }
             captureButton(title: "Repeat", systemImage: "arrow.clockwise", action: model.repeatLastCapture)
@@ -887,7 +887,7 @@ struct ContentView: View {
                 .disabled(model.isConnectedDeviceSessionActive)
             Button("Record Fullscreen", action: model.recordCurrentDisplay)
                 .disabled(model.isConnectedDeviceSessionActive)
-            if FeatureFlags.connectedDeviceCaptureEnabled {
+            if model.capabilities.isEnabled(.connectedDeviceCapture) {
                 Menu("Record Connected Device") {
                     ConnectedDeviceCaptureMenuContent(model: model, mode: .recording)
                 }
@@ -929,7 +929,7 @@ struct ContentView: View {
         case "Full", "Fullscreen":
             return "Capture the full desktop across connected displays."
         case "Window":
-            if FeatureFlags.uiMapEnabled, model.uiMapEnabled {
+            if model.capabilities.isEnabled(.uiMap), model.uiMapEnabled {
                 return "Open quick window capture choices. UI Map enabled for Window captures."
             }
 
@@ -952,7 +952,7 @@ struct ContentView: View {
             return "Access Needed"
         }
 
-        return FeatureFlags.scrollingCaptureEnabled ? "Scroll Access Needed" : "Access Needed"
+        return model.capabilities.isEnabled(.scrollingCapture) ? "Scroll Access Needed" : "Access Needed"
     }
 
     private var permissionStatusSystemImage: String {
@@ -1010,11 +1010,11 @@ struct ContentView: View {
             return "Screen Recording is required for captures, recordings, and live window thumbnails."
         }
 
-        if FeatureFlags.scrollingCaptureEnabled, missingRequirements == [.accessibility] {
+        if model.capabilities.isEnabled(.scrollingCapture), missingRequirements == [.accessibility] {
             return "Accessibility is required for Scrolling Capture so \(AppBranding.displayName) can scroll the selected app while capturing."
         }
 
-        if FeatureFlags.scrollingCaptureEnabled {
+        if model.capabilities.isEnabled(.scrollingCapture) {
             return "Screen Recording is required for captures. Accessibility is also required for Scrolling Capture."
         }
 
@@ -1113,15 +1113,15 @@ struct ContentView: View {
     }
 
     private var quickStartDetail: String {
-        if FeatureFlags.scrollingCaptureEnabled && FeatureFlags.uiMapEnabled {
+        if model.capabilities.isEnabled(.scrollingCapture) && model.capabilities.isEnabled(.uiMap) {
             return "\(AppBranding.displayName) lives in the menu bar. Screen Recording enables capture pixels. Accessibility is only needed for Scrolling Capture and Window UI Map."
         }
 
-        if FeatureFlags.uiMapEnabled {
+        if model.capabilities.isEnabled(.uiMap) {
             return "\(AppBranding.displayName) lives in the menu bar. Screen Recording enables capture pixels. Accessibility is only needed for Window UI Map."
         }
 
-        if FeatureFlags.scrollingCaptureEnabled {
+        if model.capabilities.isEnabled(.scrollingCapture) {
             return "\(AppBranding.displayName) lives in the menu bar. Screen Recording enables capture pixels. Accessibility is only needed for Scrolling Capture."
         }
 
@@ -1129,15 +1129,15 @@ struct ContentView: View {
     }
 
     private var allowedPermissionsDetail: String {
-        if FeatureFlags.scrollingCaptureEnabled && FeatureFlags.uiMapEnabled {
+        if model.capabilities.isEnabled(.scrollingCapture) && model.capabilities.isEnabled(.uiMap) {
             return "Screen Recording is enabled. Accessibility can be allowed later for Scrolling Capture and Window UI Map."
         }
 
-        if FeatureFlags.uiMapEnabled {
+        if model.capabilities.isEnabled(.uiMap) {
             return "Screen Recording is enabled. Accessibility can be allowed later for Window UI Map."
         }
 
-        if FeatureFlags.scrollingCaptureEnabled {
+        if model.capabilities.isEnabled(.scrollingCapture) {
             return "Screen Recording is enabled. Accessibility can be allowed later for Scrolling Capture."
         }
 

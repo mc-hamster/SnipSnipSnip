@@ -52,8 +52,19 @@ struct HelpGuideView: View {
 
     @State private var selectedArticleID: HelpArticle.ID? = Self.defaultArticleID
     @State private var searchText = ""
+    private let capabilities: AppCapabilitySnapshot
 
-    private static let categories: [HelpCategory] = [
+    init(capabilities: AppCapabilitySnapshot = BuildTargetCapabilityProvider().currentSnapshot()) {
+        self.capabilities = capabilities
+    }
+
+    private static func categories(for capabilities: AppCapabilitySnapshot) -> [HelpCategory] {
+        let scrollingCaptureEnabled = capabilities.isEnabled(.scrollingCapture)
+        let connectedDeviceCaptureEnabled = capabilities.isEnabled(.connectedDeviceCapture)
+        let uiMapEnabled = capabilities.isEnabled(.uiMap)
+        let proUpdateCheckEnabled = capabilities.isEnabled(.proUpdateCheck)
+
+        return [
         HelpCategory(
             title: "Start here",
             articles: [
@@ -108,8 +119,8 @@ struct HelpGuideView: View {
                     important: [
                         "Screen Recording permission is required before macOS lets SnipSnipSnip capture pixels or show live window thumbnails.",
                         "Support requests and feature requests start from Help > Support."
-                    ] + (FeatureFlags.scrollingCaptureEnabled || FeatureFlags.uiMapEnabled
-                        ? ["Accessibility permission is required for Window UI Map metadata capture\(FeatureFlags.scrollingCaptureEnabled ? " and Scrolling Capture" : ""). Region and Fullscreen captures do not require Accessibility because of UI Map."]
+                    ] + (scrollingCaptureEnabled || uiMapEnabled
+                        ? ["Accessibility permission is required for Window UI Map metadata capture\(scrollingCaptureEnabled ? " and Scrolling Capture" : ""). Region and Fullscreen captures do not require Accessibility because of UI Map."]
                         : []),
                     relatedIDs: ["capture-screenshot", "edit-screenshot", "copy-save-export"]
                 ),
@@ -131,18 +142,18 @@ struct HelpGuideView: View {
                             title: "Audio permissions",
                             body: "Microphone and system audio permissions are optional. macOS asks for them only when the matching recording source is enabled."
                         )
-                    ] + (FeatureFlags.connectedDeviceCaptureEnabled ? [
+                    ] + (connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(
                             title: "Camera",
                             body: "Required only when you start a connected iPhone or iPad preview, screenshot, or recording. macOS exposes trusted iPhone and iPad screens as video sources, so the system permission is named Camera even though SnipSnipSnip is using it for the connected-device screen stream."
                         )
-                    ] : []) + (FeatureFlags.scrollingCaptureEnabled || FeatureFlags.uiMapEnabled
+                    ] : []) + (scrollingCaptureEnabled || uiMapEnabled
                         ? [
                             HelpArticleSection(
                                 title: "Accessibility",
-                                body: FeatureFlags.scrollingCaptureEnabled && FeatureFlags.uiMapEnabled
+                                body: scrollingCaptureEnabled && uiMapEnabled
                                     ? "Required for Scrolling Capture and for Window capture when Enable UI Map for Window captures is on. SnipSnipSnip uses it to scroll the selected app during Scrolling Capture and to read visible interface element names, roles, identifiers, and locations from the selected window during UI Map capture."
-                                    : FeatureFlags.uiMapEnabled
+                                    : uiMapEnabled
                                         ? "Required for Window capture when Enable UI Map for Window captures is on. SnipSnipSnip uses it to read visible interface element names, roles, identifiers, and locations from the selected window during a user-initiated Window capture."
                                         : "Required only for Scrolling Capture. SnipSnipSnip uses it to scroll the selected app while collecting segments.",
                                 steps: [
@@ -153,9 +164,9 @@ struct HelpGuideView: View {
                             )
                         ]
                         : []),
-                    important: FeatureFlags.scrollingCaptureEnabled || FeatureFlags.uiMapEnabled
+                    important: scrollingCaptureEnabled || uiMapEnabled
                         ? [
-                            FeatureFlags.uiMapEnabled
+                            uiMapEnabled
                                 ? "Region and Fullscreen screenshot capture do not include UI Map metadata and do not require Accessibility because of UI Map."
                                 : "Region and Fullscreen screenshot capture do not require Accessibility.",
                             "Development builds launched from Xcode may need Accessibility permission for the exact app in DerivedData, not a copy in Applications."
@@ -163,7 +174,7 @@ struct HelpGuideView: View {
                         : [],
                     relatedIDs: ["troubleshoot-capture", "privacy"]
                 )
-            ] + (FeatureFlags.proUpdateCheckEnabled ? [
+            ] + (proUpdateCheckEnabled ? [
                 HelpArticle(
                     id: "pro-updates",
                     title: "Update SnipSnipSnip Pro",
@@ -193,7 +204,7 @@ struct HelpGuideView: View {
                     id: "ui-map",
                     title: "Inspect a UI Map",
                     summary: "SnipSnipSnip Pro can save and inspect structured names, roles, identifiers, hierarchy, and locations of visible interface elements captured with a Window screenshot.",
-                    sections: FeatureFlags.uiMapEnabled ? [
+                    sections: uiMapEnabled ? [
                         HelpArticleSection(
                             title: "Enable UI Map for Window captures",
                             body: "UI Map is a SnipSnipSnip Pro feature. Open Settings > General > Screenshot Capture and turn on Enable UI Map for Window captures. Window screenshots then try to save available metadata for visible interface elements in the selected window, including names, labels, identifiers, roles, positions, sizes, parent hierarchy, and owning app. This makes a Window screenshot searchable and inspectable as structured interface data, not just pixels. Settings also controls the default visible details for pinned UI Map overlays; only Show outline is enabled by default."
@@ -236,7 +247,7 @@ struct HelpGuideView: View {
                             body: "This build does not include UI Map. Documents containing UI Map metadata still open safely, but the UI Map panel and capture options are hidden."
                         )
                     ],
-                    important: FeatureFlags.uiMapEnabled
+                    important: uiMapEnabled
                         ? ["Editable .sss documents can contain UI Map metadata. Share flattened image exports when you do not want editable document metadata to travel with a screenshot."]
                         : [],
                     relatedIDs: ["capture-screenshot", "privacy", "copy-save-export"]
@@ -382,7 +393,7 @@ struct HelpGuideView: View {
                             title: "Capture the screen",
                             body: "Choose Fullscreen to capture the current display by default. Settings > General > Screenshot Capture can switch fullscreen screenshots to a selected display or all displays. Choose Repeat Last Capture to rerun the previous capture when the target can still be found."
                         ),
-                    ] + (FeatureFlags.connectedDeviceCaptureEnabled ? [
+                    ] + (connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(
                             title: "Connected devices",
                             body: "Capture > Connected Device scans for trusted USB iPhone and iPad sources when the menu opens. Choose a device to open a live preview, then capture the latest visible frame, copy it, save it, or open it in the screenshot editor. The first preview can ask for Camera access because macOS exposes trusted iPhone and iPad screens as video sources. Keep the device awake and unlocked. If the phone or tablet was just connected, unlocked, trusted, or reconnected, choose Refresh Devices."
@@ -402,10 +413,10 @@ struct HelpGuideView: View {
                         )
                     ],
                     important: [],
-                    relatedIDs: FeatureFlags.scrollingCaptureEnabled ? ["capture-scrolling", "keyboard-shortcuts", "edit-screenshot"] : ["keyboard-shortcuts", "edit-screenshot"]
+                    relatedIDs: scrollingCaptureEnabled ? ["capture-scrolling", "keyboard-shortcuts", "edit-screenshot"] : ["keyboard-shortcuts", "edit-screenshot"]
                 )
             ]
-            + (FeatureFlags.scrollingCaptureEnabled ? [
+            + (scrollingCaptureEnabled ? [
                 HelpArticle(
                     id: "capture-scrolling",
                     title: "Capture scrolling content",
@@ -460,7 +471,7 @@ struct HelpGuideView: View {
                             title: "Choose recording options",
                             body: "Open Settings > Recording to set the default quality, frame rate, fullscreen display mode, cursor visibility, click rings, system audio, and microphone narration. During an active recording, use the floating recording control to turn system audio or microphone narration on or off for that recording only."
                         ),
-                    ] + (FeatureFlags.connectedDeviceCaptureEnabled ? [
+                    ] + (connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(
                             title: "Connected-device recording",
                             body: "Choose Record Connected Device; the menu scans for trusted USB iPhone and iPad sources as it opens. Pick a device, then use the preview window to start and stop recording. The first preview can ask for Camera access because macOS exposes trusted iPhone and iPad screens as video sources. Keep the device awake, unlocked, and connected until recording is stopped. Finished MP4 recordings open in the normal video editor for poster frames, trimming, export, and archive behavior."
@@ -820,7 +831,7 @@ struct HelpGuideView: View {
                 HelpArticle(
                     id: "troubleshoot-capture",
                     title: "Solve common capture problems",
-                    summary: FeatureFlags.scrollingCaptureEnabled
+                    summary: scrollingCaptureEnabled
                         ? "Fix blank captures, missing windows, Scrolling Capture failures, and deleted snips."
                         : "Fix blank captures, missing windows, and deleted snips.",
                     sections: [
@@ -848,7 +859,7 @@ struct HelpGuideView: View {
                             title: "Export diagnostics for support",
                             body: "Use Settings > Privacy > Export Diagnostics to save a local JSON report with sanitized app, permission, display, storage, connected-device, and status details. Diagnostics do not include screenshots, clipboard contents, OCR text, annotation text, document data, window titles, or raw file paths."
                         )
-                    ] + (FeatureFlags.scrollingCaptureEnabled
+                    ] + (scrollingCaptureEnabled
                         ? [
                             HelpArticleSection(
                                 title: "Scrolling Capture does not start",
@@ -857,25 +868,26 @@ struct HelpGuideView: View {
                         ]
                         : []),
                     important: [],
-                    relatedIDs: FeatureFlags.scrollingCaptureEnabled
+                    relatedIDs: scrollingCaptureEnabled
                         ? ["permissions", "history-recovery", "capture-scrolling"]
                         : ["permissions", "history-recovery"]
                 )
             ]
         )
     ]
+    }
 
-    private static var allArticles: [HelpArticle] {
-        categories.flatMap(\.articles)
+    private var allArticles: [HelpArticle] {
+        Self.categories(for: capabilities).flatMap(\.articles)
     }
 
     private var displayedCategories: [HelpCategory] {
         let normalizedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedQuery.isEmpty else {
-            return Self.categories
+            return Self.categories(for: capabilities)
         }
 
-        let matches = Self.allArticles.filter { article in
+        let matches = allArticles.filter { article in
             article.searchText.localizedCaseInsensitiveContains(normalizedQuery)
         }
 
@@ -884,16 +896,16 @@ struct HelpGuideView: View {
 
     private var selectedArticle: HelpArticle {
         if let selectedArticleID,
-           let article = Self.allArticles.first(where: { $0.id == selectedArticleID }) {
+           let article = allArticles.first(where: { $0.id == selectedArticleID }) {
             return article
         }
 
-        return Self.allArticles[0]
+        return allArticles[0]
     }
 
     private var relatedArticles: [HelpArticle] {
         selectedArticle.relatedIDs.compactMap { id in
-            Self.allArticles.first(where: { $0.id == id })
+            allArticles.first(where: { $0.id == id })
         }
     }
 

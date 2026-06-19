@@ -648,6 +648,7 @@ extension AppModel {
                 let controller = EditorController(
                     capture: document.capture,
                     session: document.session,
+                    capabilities: capabilities,
                     uiMapOverlayOptions: uiMapPinnedOverlayDefaults
                 )
                 installEditorController(controller, documentURL: url, savedSession: controller.documentSession)
@@ -712,6 +713,7 @@ extension AppModel {
         )
         let controller = EditorController(
             capture: capture,
+            capabilities: capabilities,
             uiMapOverlayOptions: uiMapPinnedOverlayDefaults
         )
         installEditorController(controller, documentURL: nil, savedSession: nil)

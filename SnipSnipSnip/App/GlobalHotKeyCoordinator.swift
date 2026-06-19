@@ -2,7 +2,7 @@ import AppKit
 import Carbon
 import Foundation
 
-enum GlobalHotKeyKey: String, CaseIterable, Codable, Identifiable {
+nonisolated enum GlobalHotKeyKey: String, CaseIterable, Codable, Identifiable {
     case one
     case two
     case three
@@ -92,7 +92,7 @@ enum GlobalHotKeyKey: String, CaseIterable, Codable, Identifiable {
     }
 }
 
-enum GlobalHotKeyAction: UInt32, CaseIterable {
+nonisolated enum GlobalHotKeyAction: UInt32, CaseIterable {
     case region = 1
     case window = 2
     case fullscreen = 3

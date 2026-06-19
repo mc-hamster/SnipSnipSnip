@@ -88,8 +88,14 @@ nonisolated protocol ConnectedDeviceCaptureServiceType: Sendable {
 }
 
 nonisolated struct ConnectedDeviceCaptureService: ConnectedDeviceCaptureServiceType {
+    private let capabilities: AppCapabilitySnapshot
+
+    init(capabilities: AppCapabilitySnapshot = BuildTargetCapabilityProvider().currentSnapshot()) {
+        self.capabilities = capabilities
+    }
+
     func listDevices() async -> [ConnectedAppleDevice] {
-        guard FeatureFlags.connectedDeviceCaptureEnabled else {
+        guard capabilities.isEnabled(.connectedDeviceCapture) else {
             return []
         }
 
@@ -101,7 +107,7 @@ nonisolated struct ConnectedDeviceCaptureService: ConnectedDeviceCaptureServiceT
     }
 
     func unavailableReason() async -> ConnectedDeviceCaptureError {
-        guard FeatureFlags.connectedDeviceCaptureEnabled else {
+        guard capabilities.isEnabled(.connectedDeviceCapture) else {
             return .publicScreenCaptureUnavailable
         }
 
@@ -113,7 +119,7 @@ nonisolated struct ConnectedDeviceCaptureService: ConnectedDeviceCaptureServiceT
     }
 
     func videoAuthorizationStatus() async -> ConnectedDeviceVideoAuthorizationStatus {
-        guard FeatureFlags.connectedDeviceCaptureEnabled else {
+        guard capabilities.isEnabled(.connectedDeviceCapture) else {
             return .denied
         }
 
@@ -128,7 +134,7 @@ nonisolated struct ConnectedDeviceCaptureService: ConnectedDeviceCaptureServiceT
         for device: ConnectedAppleDevice,
         preferences: VideoRecordingPreferences
     ) async throws -> ConnectedDevicePreviewSession {
-        guard FeatureFlags.connectedDeviceCaptureEnabled else {
+        guard capabilities.isEnabled(.connectedDeviceCapture) else {
             throw ConnectedDeviceCaptureError.publicScreenCaptureUnavailable
         }
 
