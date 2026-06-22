@@ -143,6 +143,94 @@ final class EditorCommandsTests: XCTestCase {
         }
     }
 
+    func testSingleArrowResizeKeepsOppositeEndpointStable() {
+        let annotation = Annotation.makeArrow(from: CGPoint(x: 100, y: 100), to: CGPoint(x: 200, y: 160))
+        let selectionBounds = annotation.boundingRect
+        let resizedBounds = gscSignedScaleBounds(for: selectionBounds, handle: .bottom, point: CGPoint(x: selectionBounds.midX, y: 220))
+        let updated = annotation.scaledForSingleSelectionResize(from: selectionBounds, to: resizedBounds)
+        let expectedEndY = resizedBounds.maxYTarget - (selectionBounds.maxY - 160)
+
+        switch updated.kind {
+        case let .arrow(shape):
+            XCTAssertEqual(shape.start, CGPoint(x: 100, y: 100))
+            XCTAssertEqual(shape.end.y, expectedEndY)
+        default:
+            XCTFail("Expected an arrow annotation")
+        }
+    }
+
+    func testSingleLineResizeKeepsOppositeEndpointStable() {
+        let annotation = Annotation.makeLine(from: CGPoint(x: 100, y: 100), to: CGPoint(x: 200, y: 160))
+        let selectionBounds = annotation.boundingRect
+        let resizedBounds = gscSignedScaleBounds(for: selectionBounds, handle: .bottom, point: CGPoint(x: selectionBounds.midX, y: 220))
+        let updated = annotation.scaledForSingleSelectionResize(from: selectionBounds, to: resizedBounds)
+        let expectedEndY = resizedBounds.maxYTarget - (selectionBounds.maxY - 160)
+
+        switch updated.kind {
+        case let .line(shape):
+            XCTAssertEqual(shape.start, CGPoint(x: 100, y: 100))
+            XCTAssertEqual(shape.end.y, expectedEndY)
+        default:
+            XCTFail("Expected a line annotation")
+        }
+    }
+
+    func testSingleMeasurementResizeKeepsOppositeEndpointStable() {
+        let annotation = Annotation.makeMeasurement(from: CGPoint(x: 100, y: 100), to: CGPoint(x: 200, y: 160))
+        let selectionBounds = annotation.boundingRect
+        let resizedBounds = gscSignedScaleBounds(for: selectionBounds, handle: .bottom, point: CGPoint(x: selectionBounds.midX, y: 220))
+        let updated = annotation.scaledForSingleSelectionResize(from: selectionBounds, to: resizedBounds)
+        let expectedEndY = resizedBounds.maxYTarget - (selectionBounds.maxY - 160)
+
+        switch updated.kind {
+        case let .measurement(shape):
+            XCTAssertEqual(shape.start, CGPoint(x: 100, y: 100))
+            XCTAssertEqual(shape.end.y, expectedEndY)
+        default:
+            XCTFail("Expected a measurement annotation")
+        }
+    }
+
+    func testSingleFreehandResizeKeepsOppositePointStable() {
+        let annotation = Annotation.makeFreehand(points: [
+            CGPoint(x: 100, y: 100),
+            CGPoint(x: 150, y: 130),
+            CGPoint(x: 200, y: 160)
+        ])
+        let selectionBounds = annotation.boundingRect
+        let resizedBounds = gscSignedScaleBounds(for: selectionBounds, handle: .bottom, point: CGPoint(x: selectionBounds.midX, y: 220))
+        let updated = annotation.scaledForSingleSelectionResize(from: selectionBounds, to: resizedBounds)
+        let expectedEndY = resizedBounds.maxYTarget - (selectionBounds.maxY - 160)
+
+        switch updated.kind {
+        case let .freehand(shape):
+            XCTAssertEqual(shape.points.first, CGPoint(x: 100, y: 100))
+            XCTAssertEqual(shape.points.last?.y, expectedEndY)
+        default:
+            XCTFail("Expected a freehand annotation")
+        }
+    }
+
+    func testSingleHighlighterResizeKeepsOppositePointStable() {
+        let annotation = Annotation.makeHighlighter(points: [
+            CGPoint(x: 100, y: 100),
+            CGPoint(x: 150, y: 130),
+            CGPoint(x: 200, y: 160)
+        ])
+        let selectionBounds = annotation.boundingRect
+        let resizedBounds = gscSignedScaleBounds(for: selectionBounds, handle: .bottom, point: CGPoint(x: selectionBounds.midX, y: 220))
+        let updated = annotation.scaledForSingleSelectionResize(from: selectionBounds, to: resizedBounds)
+        let expectedEndY = resizedBounds.maxYTarget - (selectionBounds.maxY - 160)
+
+        switch updated.kind {
+        case let .highlighter(shape):
+            XCTAssertEqual(shape.points.first, CGPoint(x: 100, y: 100))
+            XCTAssertEqual(shape.points.last?.y, expectedEndY)
+        default:
+            XCTFail("Expected a highlighter annotation")
+        }
+    }
+
     // MARK: - Layer Reordering Tests
 
     func testBringForwardMovesAnnotationUpOnePosition() {

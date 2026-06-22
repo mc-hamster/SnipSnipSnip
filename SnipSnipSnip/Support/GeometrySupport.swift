@@ -16,6 +16,16 @@ nonisolated struct SnapResolution: Equatable {
     let guides: [SnapGuide]
 }
 
+nonisolated struct SignedScaleResolution: Equatable {
+    let bounds: SignedScaleBounds
+    let guides: [SnapGuide]
+}
+
+nonisolated struct PointSnapResolution: Equatable {
+    let point: CGPoint
+    let guides: [SnapGuide]
+}
+
 nonisolated struct SnapCandidateSet {
     fileprivate struct Candidate {
         let value: CGFloat
@@ -259,30 +269,71 @@ nonisolated func gscBoundingRect(of rects: [CGRect]) -> CGRect {
 }
 
 nonisolated func gscScaledPoint(_ point: CGPoint, from oldBounds: CGRect, to newBounds: CGRect) -> CGPoint {
-    guard oldBounds.width > 0, oldBounds.height > 0 else {
-        return newBounds.origin
-    }
-
-    let x = (point.x - oldBounds.minX) / oldBounds.width
-    let y = (point.y - oldBounds.minY) / oldBounds.height
-
     return CGPoint(
-        x: newBounds.minX + x * newBounds.width,
-        y: newBounds.minY + y * newBounds.height
+        x: gscScaledCoordinate(
+            point.x,
+            oldMin: oldBounds.minX,
+            oldLength: oldBounds.width,
+            newMinTarget: newBounds.minX,
+            newMaxTarget: newBounds.maxX
+        ),
+        y: gscScaledCoordinate(
+            point.y,
+            oldMin: oldBounds.minY,
+            oldLength: oldBounds.height,
+            newMinTarget: newBounds.minY,
+            newMaxTarget: newBounds.maxY
+        )
     )
 }
 
 nonisolated func gscScaledPoint(_ point: CGPoint, from oldBounds: CGRect, to newBounds: SignedScaleBounds) -> CGPoint {
-    guard oldBounds.width > 0, oldBounds.height > 0 else {
-        return CGPoint(x: newBounds.minXTarget, y: newBounds.minYTarget)
+    return CGPoint(
+        x: gscScaledCoordinate(
+            point.x,
+            oldMin: oldBounds.minX,
+            oldLength: oldBounds.width,
+            newMinTarget: newBounds.minXTarget,
+            newMaxTarget: newBounds.maxXTarget
+        ),
+        y: gscScaledCoordinate(
+            point.y,
+            oldMin: oldBounds.minY,
+            oldLength: oldBounds.height,
+            newMinTarget: newBounds.minYTarget,
+            newMaxTarget: newBounds.maxYTarget
+        )
+    )
+}
+
+nonisolated private func gscScaledCoordinate(
+    _ value: CGFloat,
+    oldMin: CGFloat,
+    oldLength: CGFloat,
+    newMinTarget: CGFloat,
+    newMaxTarget: CGFloat
+) -> CGFloat {
+    guard oldLength > 0 else {
+        return newMinTarget
     }
 
-    let x = (point.x - oldBounds.minX) / oldBounds.width
-    let y = (point.y - oldBounds.minY) / oldBounds.height
+    let ratio = (value - oldMin) / oldLength
+    return newMinTarget + ratio * (newMaxTarget - newMinTarget)
+}
 
-    return CGPoint(
-        x: newBounds.minXTarget + x * (newBounds.maxXTarget - newBounds.minXTarget),
-        y: newBounds.minYTarget + y * (newBounds.maxYTarget - newBounds.minYTarget)
+nonisolated func gscInnerSignedScaleBounds(
+    _ innerBounds: CGRect,
+    from outerBounds: CGRect,
+    to newOuterBounds: SignedScaleBounds
+) -> SignedScaleBounds {
+    let innerBounds = innerBounds.gscIntegralStandardized
+    let outerBounds = outerBounds.gscIntegralStandardized
+
+    return SignedScaleBounds(
+        minXTarget: newOuterBounds.minXTarget + (innerBounds.minX - outerBounds.minX),
+        maxXTarget: newOuterBounds.maxXTarget - (outerBounds.maxX - innerBounds.maxX),
+        minYTarget: newOuterBounds.minYTarget + (innerBounds.minY - outerBounds.minY),
+        maxYTarget: newOuterBounds.maxYTarget - (outerBounds.maxY - innerBounds.maxY)
     )
 }
 
@@ -692,6 +743,102 @@ nonisolated func gscSnapRect(_ rect: CGRect, candidates: SnapCandidateSet, thres
     ].compactMap { $0 }
 
     return SnapResolution(rect: snappedRect, guides: guides)
+}
+
+nonisolated func gscSnapSignedScaleBounds(
+    _ bounds: SignedScaleBounds,
+    handle: ResizeHandle,
+    candidates: SnapCandidateSet,
+    threshold: CGFloat = 8
+) -> SignedScaleResolution {
+    let xTarget: CGFloat?
+    let yTarget: CGFloat?
+
+    switch handle {
+    case .topLeft, .left, .bottomLeft:
+        xTarget = bounds.minXTarget
+    case .topRight, .right, .bottomRight:
+        xTarget = bounds.maxXTarget
+    case .top, .bottom:
+        xTarget = nil
+    }
+
+    switch handle {
+    case .topLeft, .top, .topRight:
+        yTarget = bounds.minYTarget
+    case .bottomLeft, .bottom, .bottomRight:
+        yTarget = bounds.maxYTarget
+    case .left, .right:
+        yTarget = nil
+    }
+
+    let xSnap = xTarget.flatMap { gscBestSnap(for: $0, candidates: candidates.xCandidates, threshold: threshold) }
+    let ySnap = yTarget.flatMap { gscBestSnap(for: $0, candidates: candidates.yCandidates, threshold: threshold) }
+    var snappedBounds = bounds
+
+    if let xSnap {
+        switch handle {
+        case .topLeft, .left, .bottomLeft:
+            snappedBounds = SignedScaleBounds(
+                minXTarget: bounds.minXTarget + xSnap.delta,
+                maxXTarget: snappedBounds.maxXTarget,
+                minYTarget: snappedBounds.minYTarget,
+                maxYTarget: snappedBounds.maxYTarget
+            )
+        case .topRight, .right, .bottomRight:
+            snappedBounds = SignedScaleBounds(
+                minXTarget: snappedBounds.minXTarget,
+                maxXTarget: bounds.maxXTarget + xSnap.delta,
+                minYTarget: snappedBounds.minYTarget,
+                maxYTarget: snappedBounds.maxYTarget
+            )
+        case .top, .bottom:
+            break
+        }
+    }
+
+    if let ySnap {
+        switch handle {
+        case .topLeft, .top, .topRight:
+            snappedBounds = SignedScaleBounds(
+                minXTarget: snappedBounds.minXTarget,
+                maxXTarget: snappedBounds.maxXTarget,
+                minYTarget: bounds.minYTarget + ySnap.delta,
+                maxYTarget: snappedBounds.maxYTarget
+            )
+        case .bottomLeft, .bottom, .bottomRight:
+            snappedBounds = SignedScaleBounds(
+                minXTarget: snappedBounds.minXTarget,
+                maxXTarget: snappedBounds.maxXTarget,
+                minYTarget: snappedBounds.minYTarget,
+                maxYTarget: bounds.maxYTarget + ySnap.delta
+            )
+        case .left, .right:
+            break
+        }
+    }
+
+    let guides = [
+        xSnap.map { SnapGuide(orientation: .vertical, position: $0.guide) },
+        ySnap.map { SnapGuide(orientation: .horizontal, position: $0.guide) }
+    ].compactMap { $0 }
+
+    return SignedScaleResolution(bounds: snappedBounds, guides: guides)
+}
+
+nonisolated func gscSnapPoint(_ point: CGPoint, candidates: SnapCandidateSet, threshold: CGFloat = 8) -> PointSnapResolution {
+    let xSnap = gscBestSnap(for: point.x, candidates: candidates.xCandidates, threshold: threshold)
+    let ySnap = gscBestSnap(for: point.y, candidates: candidates.yCandidates, threshold: threshold)
+    let snappedPoint = CGPoint(
+        x: point.x + (xSnap?.delta ?? 0),
+        y: point.y + (ySnap?.delta ?? 0)
+    )
+    let guides = [
+        xSnap.map { SnapGuide(orientation: .vertical, position: $0.guide) },
+        ySnap.map { SnapGuide(orientation: .horizontal, position: $0.guide) }
+    ].compactMap { $0 }
+
+    return PointSnapResolution(point: snappedPoint, guides: guides)
 }
 
 nonisolated private func gscBestSnap(for targets: [CGFloat], candidates: [SnapCandidateSet.Candidate], threshold: CGFloat) -> (delta: CGFloat, guide: CGFloat)? {

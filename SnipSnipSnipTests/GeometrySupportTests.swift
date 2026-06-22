@@ -41,6 +41,62 @@ final class GeometrySupportTests: XCTestCase {
         XCTAssertEqual(mappedMaxPoint, CGPoint(x: 160, y: 120))
     }
 
+    func testResizeSnapOnlyMovesDraggedBottomEdge() {
+        let original = CGRect(x: 100, y: 100, width: 60, height: 40)
+        let signedBounds = gscSignedScaleBounds(for: original, handle: .bottom, point: CGPoint(x: 130, y: 153))
+        let candidates = SnapCandidateSet(
+            bounds: CGRect(x: 0, y: 0, width: 400, height: 400),
+            others: [CGRect(x: 220, y: 155, width: 40, height: 20)]
+        )
+
+        let resolution = gscSnapSignedScaleBounds(signedBounds, handle: .bottom, candidates: candidates)
+
+        XCTAssertEqual(resolution.bounds.minYTarget, original.minY)
+        XCTAssertEqual(resolution.bounds.maxYTarget, 155)
+        XCTAssertEqual(resolution.bounds.minXTarget, original.minX)
+        XCTAssertEqual(resolution.bounds.maxXTarget, original.maxX)
+        XCTAssertEqual(resolution.guides, [SnapGuide(orientation: .horizontal, position: 155)])
+    }
+
+    func testInnerSignedScaleBoundsPreserveOppositeEdgeInset() {
+        let outer = CGRect(x: 82, y: 82, width: 136, height: 96)
+        let inner = CGRect(x: 100, y: 100, width: 100, height: 60)
+        let resizedOuter = gscSignedScaleBounds(for: outer, handle: .bottom, point: CGPoint(x: 150, y: 220))
+
+        let resizedInner = gscInnerSignedScaleBounds(inner, from: outer, to: resizedOuter)
+
+        XCTAssertEqual(resizedInner.minYTarget, inner.minY)
+        XCTAssertEqual(resizedInner.maxYTarget, 202)
+        XCTAssertEqual(resizedInner.minXTarget, inner.minX)
+        XCTAssertEqual(resizedInner.maxXTarget, inner.maxX)
+    }
+
+    func testPointSnapKeepsRectangleDrawingAnchorStable() {
+        let anchor = CGPoint(x: 100, y: 100)
+        let dragPoint = CGPoint(x: 153, y: 153)
+        let candidates = SnapCandidateSet(
+            bounds: CGRect(x: 0, y: 0, width: 400, height: 400),
+            others: [CGRect(x: 155, y: 155, width: 40, height: 20)]
+        )
+
+        let resolution = gscSnapPoint(dragPoint, candidates: candidates)
+        let rect = CGRect(
+            x: min(anchor.x, resolution.point.x),
+            y: min(anchor.y, resolution.point.y),
+            width: abs(resolution.point.x - anchor.x),
+            height: abs(resolution.point.y - anchor.y)
+        )
+
+        XCTAssertEqual(rect.minX, anchor.x)
+        XCTAssertEqual(rect.minY, anchor.y)
+        XCTAssertEqual(rect.maxX, 155)
+        XCTAssertEqual(rect.maxY, 155)
+        XCTAssertEqual(resolution.guides, [
+            SnapGuide(orientation: .vertical, position: 155),
+            SnapGuide(orientation: .horizontal, position: 155)
+        ])
+    }
+
     func testBoundingRectUnionsMultipleRects() {
         let bounds = gscBoundingRect(of: [
             CGRect(x: 10, y: 20, width: 20, height: 20),

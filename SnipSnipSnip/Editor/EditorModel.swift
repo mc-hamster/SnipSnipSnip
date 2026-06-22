@@ -945,6 +945,24 @@ nonisolated struct Annotation: Identifiable, Equatable {
         )
     }
 
+    func scaledForSingleSelectionResize(from oldSelectionBounds: CGRect, to newSelectionBounds: SignedScaleBounds) -> Annotation {
+        guard rotationDegrees == 0 else {
+            return scaled(from: oldSelectionBounds, to: newSelectionBounds)
+        }
+
+        let resizeReferenceRect = AnnotationGeometry.resizeReferenceRect(for: kind, style: style)
+        guard !resizeReferenceRect.isNull else {
+            return scaled(from: oldSelectionBounds, to: newSelectionBounds)
+        }
+
+        let newResizeReferenceBounds = gscInnerSignedScaleBounds(
+            resizeReferenceRect,
+            from: oldSelectionBounds,
+            to: newSelectionBounds
+        )
+        return scaled(from: resizeReferenceRect, to: newResizeReferenceBounds)
+    }
+
     func resized(to rect: CGRect) -> Annotation {
         scaled(from: boundingRect, to: rect.standardized.integral)
     }

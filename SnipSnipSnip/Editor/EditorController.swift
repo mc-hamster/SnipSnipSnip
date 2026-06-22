@@ -75,13 +75,14 @@ private struct PersistedEditorColorRecord: Codable {
 
 enum EditorCanvasInvalidationReason: Equatable {
     case full
+    case viewport
     case cropPreview
     case cropChrome
     case uiMapOverlay
     case uiMapHover
 
     var invalidatesStableContent: Bool {
-        self == .full
+        self == .full || self == .viewport
     }
 }
 
@@ -1242,7 +1243,7 @@ final class EditorController: ObservableObject {
             return
         }
 
-        updateViewport(publishChange: false, invalidationReason: .cropChrome) {
+        updateViewport(publishChange: false, invalidationReason: .viewport) {
             $0.updatingCanvasSize(size)
         }
     }
@@ -1272,29 +1273,19 @@ final class EditorController: ObservableObject {
     }
 
     func zoomIn() {
-        updateViewport(invalidationReason: .cropChrome) { $0.zoomed(to: $0.zoomScale * 1.25) }
+        updateViewport(invalidationReason: .viewport) { $0.zoomed(to: $0.zoomScale * 1.25) }
     }
 
     func zoomOut() {
-        updateViewport(invalidationReason: .cropChrome) { $0.zoomed(to: $0.zoomScale / 1.25) }
+        updateViewport(invalidationReason: .viewport) { $0.zoomed(to: $0.zoomScale / 1.25) }
     }
 
     func zoomToFit() {
-        updateViewport(invalidationReason: .cropChrome) {
-            guard workspaceMode != .presentation else {
-                return $0.zoomedToFit()
-            }
-
-            guard snapshot.cropRect.gscIntegralStandardized != fullImageRect else {
-                return $0.zoomedToFit()
-            }
-
-            return $0.focused(on: snapshot.cropRect)
-        }
+        updateViewport(invalidationReason: .viewport) { $0.zoomedToFit() }
     }
 
     func zoomToInitialDisplayScale() {
-        updateViewport(invalidationReason: .cropChrome) {
+        updateViewport(invalidationReason: .viewport) {
             guard workspaceMode != .presentation else {
                 return $0.zoomedForInitialDisplay(maxDisplayScale: EditorViewport.maxInitialDisplayScale)
             }
@@ -1310,12 +1301,12 @@ final class EditorController: ObservableObject {
     }
 
     func zoomToActualSize() {
-        updateViewport(invalidationReason: .cropChrome) { $0.zoomed(to: $0.actualSizeZoomScale) }
+        updateViewport(invalidationReason: .viewport) { $0.zoomed(to: $0.actualSizeZoomScale) }
     }
 
     func magnifyViewport(by magnification: CGFloat, anchoredAt anchor: CGPoint) {
         let factor = max(0.05, 1 + magnification)
-        updateViewport(invalidationReason: .cropChrome) { $0.zoomed(to: $0.zoomScale * factor, anchoredAt: anchor) }
+        updateViewport(invalidationReason: .viewport) { $0.zoomed(to: $0.zoomScale * factor, anchoredAt: anchor) }
     }
 
     func zoomViewportFromScrollWheel(deltaY: CGFloat, anchoredAt anchor: CGPoint) {
@@ -1324,7 +1315,7 @@ final class EditorController: ObservableObject {
         }
 
         let factor = pow(1.0018, deltaY)
-        updateViewport(invalidationReason: .cropChrome) { $0.zoomed(to: $0.zoomScale * factor, anchoredAt: anchor) }
+        updateViewport(invalidationReason: .viewport) { $0.zoomed(to: $0.zoomScale * factor, anchoredAt: anchor) }
     }
 
     func updateCropOutsideOverlayAlpha(_ alpha: CGFloat) {
@@ -1348,11 +1339,11 @@ final class EditorController: ObservableObject {
     }
 
     func panViewport(by delta: CGSize) {
-        updateViewport(invalidationReason: .cropChrome) { $0.panned(by: delta) }
+        updateViewport(invalidationReason: .viewport) { $0.panned(by: delta) }
     }
 
     func scrollViewport(horizontalPosition: CGFloat? = nil, verticalPosition: CGFloat? = nil) {
-        updateViewport {
+        updateViewport(invalidationReason: .viewport) {
             $0.scrolledTo(horizontalPosition: horizontalPosition, verticalPosition: verticalPosition)
         }
     }
@@ -2363,6 +2354,8 @@ private extension EditorCanvasInvalidationReason {
         switch self {
         case .full:
             return "full"
+        case .viewport:
+            return "viewport"
         case .cropPreview:
             return "cropPreview"
         case .cropChrome:

@@ -168,15 +168,16 @@ struct AnnotationCanvasInteractionState {
         snapshot: EditorSnapshot,
         styleProvider: (EditorTool) -> AnnotationStyle
     ) {
+        let resolution = gscSnapPoint(point, candidates: snapCandidates(excluding: [], snapshot: snapshot))
+        let snappedPoint = resolution.point
         let rect = CGRect(
-            x: min(anchor.x, point.x),
-            y: min(anchor.y, point.y),
-            width: abs(point.x - anchor.x),
-            height: abs(point.y - anchor.y)
+            x: min(anchor.x, snappedPoint.x),
+            y: min(anchor.y, snappedPoint.y),
+            width: abs(snappedPoint.x - anchor.x),
+            height: abs(snappedPoint.y - anchor.y)
         )
-        let resolution = gscSnapRect(rect, candidates: snapCandidates(excluding: [], snapshot: snapshot))
         snapGuides = resolution.guides
-        draftAnnotations = makeRectAnnotation(for: tool, rect: resolution.rect, styleProvider: styleProvider).map { [$0] } ?? []
+        draftAnnotations = makeRectAnnotation(for: tool, rect: rect, styleProvider: styleProvider).map { [$0] } ?? []
     }
 
     private mutating func updateDraftLine(for tool: EditorTool, anchor: CGPoint, point: CGPoint, styleProvider: (EditorTool) -> AnnotationStyle) {
@@ -218,14 +219,26 @@ struct AnnotationCanvasInteractionState {
         point: CGPoint
     ) {
         let signedBounds = gscSignedScaleBounds(for: originalBounds, handle: handle, point: point)
-        let resizedBounds = signedBounds.rect.gscClamped(to: snapshot.cropRect)
-        let resolution = gscSnapRect(
-            resizedBounds,
+        let clampedRect = signedBounds.rect.gscClamped(to: snapshot.cropRect)
+        guard !clampedRect.isNull else {
+            draftAnnotations = []
+            return
+        }
+
+        let clampedBounds = signedBounds.resolved(to: clampedRect)
+        let resolution = gscSnapSignedScaleBounds(
+            clampedBounds,
+            handle: handle,
             candidates: snapCandidates(excluding: annotations.map(\.id), snapshot: snapshot)
         )
-        let resolvedBounds = signedBounds.resolved(to: resolution.rect)
         snapGuides = resolution.guides
-        draftAnnotations = annotations.map { $0.scaled(from: originalBounds, to: resolvedBounds) }
+        if annotations.count == 1 {
+            draftAnnotations = annotations.map {
+                $0.scaledForSingleSelectionResize(from: originalBounds, to: resolution.bounds)
+            }
+        } else {
+            draftAnnotations = annotations.map { $0.scaled(from: originalBounds, to: resolution.bounds) }
+        }
     }
 
     private mutating func updateDraftCrop(anchor: CGPoint, point: CGPoint, imageBounds: CGRect, aspectRatio: CGFloat?) {

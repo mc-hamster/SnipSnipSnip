@@ -97,6 +97,32 @@ nonisolated enum AnnotationGeometry {
         }
     }
 
+    static func resizeReferenceRect(for kind: AnnotationKind, style: AnnotationStyle) -> CGRect {
+        switch kind {
+        case let .line(shape):
+            return pointBounds([shape.start, shape.end])
+        case let .arrow(shape):
+            var points = [shape.start, shape.end]
+            if abs(shape.curvature) > 0.5 {
+                points.append(arrowControlPoint(for: shape))
+            }
+            return pointBounds(points)
+        case let .measurement(shape):
+            return pointBounds([shape.start, shape.end])
+        case let .freehand(shape):
+            return pointBounds(shape.points)
+        case let .highlighter(shape):
+            return pointBounds(shape.points)
+        case let .callout(shape):
+            if let leaderPoint = shape.leaderPoint {
+                return gscBoundingRect(of: [standardizedRect(shape.rect), pointBounds([leaderPoint])])
+            }
+            return standardizedRect(shape.rect)
+        default:
+            return unrotatedBoundingRect(for: kind, style: style)
+        }
+    }
+
     static func standardizedRect(_ rect: CGRect) -> CGRect {
         rect.standardized.integral
     }
@@ -116,6 +142,10 @@ nonisolated enum AnnotationGeometry {
         let rect = gscBoundingRect(of: points.map { CGRect(origin: $0, size: .zero) })
         let padding = style.lineWidth + 6
         return rect.insetBy(dx: -padding, dy: -padding).integral
+    }
+
+    static func pointBounds(_ points: [CGPoint]) -> CGRect {
+        gscBoundingRect(of: points.map { CGRect(origin: $0, size: .zero) })
     }
 
     static func arrowLabelRect(for shape: ArrowShape) -> CGRect {

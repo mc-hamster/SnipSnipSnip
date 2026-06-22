@@ -1799,6 +1799,24 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testViewportZoomInvalidatesStableCanvasContent() {
+        let controller = makeController(
+            snapshot: makeEditorSnapshot(),
+            captureSize: CGSize(width: 160, height: 120)
+        )
+        let (canvas, _, _) = makeCanvasHarness(
+            controller: controller,
+            frame: CGRect(x: 0, y: 0, width: 640, height: 480)
+        )
+
+        let stableInvalidationCount = canvas.debugStableContentInvalidationCount
+
+        controller.zoomIn()
+
+        XCTAssertGreaterThan(canvas.debugStableContentInvalidationCount, stableInvalidationCount)
+    }
+
+    @MainActor
     func testCropHandleResizeHonorsFixedAspectRatioPreset() {
         let controller = makeController(
             snapshot: makeEditorSnapshot(cropRect: CGRect(x: 20, y: 15, width: 80, height: 60)),
@@ -1943,7 +1961,7 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
-    func testFocusedCropShowsCommittedCropChromeWhenNotScrollable() {
+    func testFitShowsFullImageEvenWhenCropIsActive() {
         let controller = makeController(
             snapshot: makeEditorSnapshot(cropRect: CGRect(x: 20, y: 15, width: 120, height: 85)),
             captureSize: CGSize(width: 160, height: 120)
@@ -1960,9 +1978,12 @@ final class EditorControllerTests: XCTestCase {
             return XCTFail("Expected committed crop presentation state")
         }
 
+        XCTAssertEqual(controller.viewport.zoomScale, EditorViewport.fitZoomScale)
+        XCTAssertGreaterThanOrEqual(controller.viewport.imageRect.minX, EditorViewport.interactionInset - 0.001)
+        XCTAssertGreaterThanOrEqual(controller.viewport.imageRect.minY, EditorViewport.interactionInset - 0.001)
+        XCTAssertLessThanOrEqual(controller.viewport.imageRect.maxX, controller.viewport.canvasSize.width - EditorViewport.interactionInset + 0.001)
+        XCTAssertLessThanOrEqual(controller.viewport.imageRect.maxY, controller.viewport.canvasSize.height - EditorViewport.interactionInset + 0.001)
         XCTAssertTrue(presentation.showsFocusedCropChrome)
-        XCTAssertEqual(presentation.overlayAlpha, AppPreferenceDefaults.editorCropOutsideOverlayAlpha, accuracy: 0.001)
-        XCTAssertGreaterThan(controller.viewport.zoomScale, 1, "Zoomed fit should focus on the cropped area, not the full image")
     }
 
     @MainActor

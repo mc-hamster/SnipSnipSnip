@@ -573,7 +573,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Move around the canvas",
                             bullets: [
-                                "Use Zoom In, Zoom Out, 100%, or Fit in the toolbar.",
+                                "Use Zoom In, Zoom Out, 100%, or Fit in the toolbar. Fit scales the full editable image into view.",
                                 "Use pinch zoom, Command-scroll, or Option-scroll to zoom.",
                                 "Use two-finger or mouse-wheel panning and the visible scroll tracks to pan."
                             ]
