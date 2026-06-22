@@ -20,7 +20,10 @@ nonisolated enum BuildTarget: String, Sendable {
     }
 }
 
-/// Add new build-gated features here, then expose them through `FeatureFlags`.
+/// Compatibility-only build-gated feature identifiers.
+///
+/// New app code should depend on `AppEnvironment.capabilities`; keep
+/// `FeatureFlags` as a bridge for legacy tests and compatibility callsites.
 nonisolated enum FeatureToggle: Sendable {
     case scrollingCapture
     case accessibilityAutomation

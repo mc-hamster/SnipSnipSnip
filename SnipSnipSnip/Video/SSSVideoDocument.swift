@@ -44,9 +44,13 @@ nonisolated enum SSSVideoDocumentPackage {
     static let mediaFilename = "media.mp4"
     static let posterFilename = "poster.png"
 
-    nonisolated static func save(document: EditableVideoDocument, posterImage: CGImage?, to url: URL) throws {
-        let fileManager = FileManager.default
-        let temporaryDirectoryURL = fileManager.temporaryDirectory
+    nonisolated static func save(
+        document: EditableVideoDocument,
+        posterImage: CGImage?,
+        to url: URL,
+        files: any FileSystemServicing = SystemFileService()
+    ) throws {
+        let temporaryDirectoryURL = files.temporaryDirectory
             .appendingPathComponent("\(temporaryDirectoryPrefix)\(UUID().uuidString)", isDirectory: true)
         let manifest = DocumentManifest(
             formatIdentifier: formatIdentifier,
@@ -62,41 +66,41 @@ nonisolated enum SSSVideoDocumentPackage {
         let manifestData = try encoder.encode(manifest)
 
         defer {
-            try? fileManager.removeItem(at: temporaryDirectoryURL)
+            try? files.removeItem(at: temporaryDirectoryURL)
         }
 
-        try? fileManager.removeItem(at: temporaryDirectoryURL)
-        try fileManager.createDirectory(at: temporaryDirectoryURL, withIntermediateDirectories: false, attributes: nil)
-        try manifestData.write(to: temporaryDirectoryURL.appendingPathComponent(manifestFilename), options: .atomic)
-        try fileManager.copyItem(at: document.recording.sourceURL, to: temporaryDirectoryURL.appendingPathComponent(mediaFilename))
+        try? files.removeItem(at: temporaryDirectoryURL)
+        try files.createDirectory(at: temporaryDirectoryURL, withIntermediateDirectories: false)
+        try files.writeData(manifestData, to: temporaryDirectoryURL.appendingPathComponent(manifestFilename), options: .atomic)
+        try files.copyItem(at: document.recording.sourceURL, to: temporaryDirectoryURL.appendingPathComponent(mediaFilename))
 
         guard let poster = posterImage else {
             throw SSSVideoDocumentError.posterUnavailable
         }
-        try VideoExporter.pngData(for: poster).write(to: temporaryDirectoryURL.appendingPathComponent(posterFilename), options: .atomic)
+        try files.writeData(VideoExporter.pngData(for: poster), to: temporaryDirectoryURL.appendingPathComponent(posterFilename), options: .atomic)
 
-        if fileManager.fileExists(atPath: url.path) {
-            _ = try fileManager.replaceItemAt(url, withItemAt: temporaryDirectoryURL)
+        if files.fileExists(atPath: url.path) {
+            try files.replaceItemAt(url, withItemAt: temporaryDirectoryURL)
         } else {
-            try fileManager.moveItem(at: temporaryDirectoryURL, to: url)
+            try files.moveItem(at: temporaryDirectoryURL, to: url)
         }
     }
 
-    nonisolated static func load(from url: URL) throws -> EditableVideoDocument {
-        let fileManager = FileManager.default
-        var isDirectory = ObjCBool(false)
-
-        guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+    nonisolated static func load(
+        from url: URL,
+        files: any FileSystemServicing = SystemFileService()
+    ) throws -> EditableVideoDocument {
+        guard files.directoryExists(at: url) else {
             throw SSSVideoDocumentError.invalidPackage
         }
 
         let manifestURL = url.appendingPathComponent(manifestFilename)
 
-        guard fileManager.fileExists(atPath: manifestURL.path) else {
+        guard files.fileExists(atPath: manifestURL.path) else {
             throw SSSVideoDocumentError.missingManifest
         }
 
-        let manifestHeader = try loadManifestHeader(from: manifestURL)
+        let manifestHeader = try loadManifestHeader(from: manifestURL, files: files)
 
         guard manifestHeader.formatIdentifier == formatIdentifier else {
             throw SSSVideoDocumentError.unsupportedFormatIdentifier(manifestHeader.formatIdentifier)
@@ -106,11 +110,11 @@ nonisolated enum SSSVideoDocumentPackage {
             throw SSSVideoDocumentError.unsupportedFormatVersion(manifestHeader.formatVersion)
         }
 
-        let manifest = try loadManifest(from: manifestURL)
+        let manifest = try loadManifest(from: manifestURL, files: files)
 
         let mediaURL = url.appendingPathComponent(manifest.assets.media)
 
-        guard fileManager.fileExists(atPath: mediaURL.path) else {
+        guard files.fileExists(atPath: mediaURL.path) else {
             throw SSSVideoDocumentError.missingMedia
         }
 
@@ -119,18 +123,19 @@ nonisolated enum SSSVideoDocumentPackage {
         return EditableVideoDocument(recording: recording, session: session)
     }
 
-    nonisolated static func compatibilityStatus(at url: URL) -> PackageCompatibilityStatus {
-        let fileManager = FileManager.default
+    nonisolated static func compatibilityStatus(
+        at url: URL,
+        files: any FileSystemServicing = SystemFileService()
+    ) -> PackageCompatibilityStatus {
         let manifestURL = url.appendingPathComponent(manifestFilename)
-        var isDirectory = ObjCBool(false)
 
-        guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue,
-              fileManager.fileExists(atPath: manifestURL.path) else {
+        guard files.directoryExists(at: url),
+              files.fileExists(atPath: manifestURL.path) else {
             return .invalidManifest
         }
 
         do {
-            let manifestHeader = try loadManifestHeader(from: manifestURL)
+            let manifestHeader = try loadManifestHeader(from: manifestURL, files: files)
 
             guard manifestHeader.formatIdentifier == formatIdentifier else {
                 return .unsupportedFormatIdentifier(manifestHeader.formatIdentifier)
@@ -146,19 +151,25 @@ nonisolated enum SSSVideoDocumentPackage {
         }
     }
 
-    nonisolated static func previewAssetURL(in packageURL: URL) -> URL? {
+    nonisolated static func previewAssetURL(
+        in packageURL: URL,
+        files: any FileSystemServicing = SystemFileService()
+    ) -> URL? {
         let manifestURL = packageURL.appendingPathComponent(manifestFilename)
-        let assetName = (try? loadManifest(from: manifestURL).assets.posterImage) ?? posterFilename
+        let assetName = (try? loadManifest(from: manifestURL, files: files).assets.posterImage) ?? posterFilename
         let previewURL = packageURL.appendingPathComponent(assetName)
-        return FileManager.default.fileExists(atPath: previewURL.path) ? previewURL : nil
+        return files.fileExists(atPath: previewURL.path) ? previewURL : nil
     }
 
-    nonisolated static func loadPosterImage(from url: URL) throws -> CGImage? {
-        guard let posterURL = previewAssetURL(in: url) else {
+    nonisolated static func loadPosterImage(
+        from url: URL,
+        files: any FileSystemServicing = SystemFileService()
+    ) throws -> CGImage? {
+        guard let posterURL = previewAssetURL(in: url, files: files) else {
             return nil
         }
 
-        let posterData = try Data(contentsOf: posterURL)
+        let posterData = try files.readData(from: posterURL)
 
         guard let source = CGImageSourceCreateWithData(posterData as CFData, nil),
               let posterImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
@@ -168,8 +179,11 @@ nonisolated enum SSSVideoDocumentPackage {
         return posterImage
     }
 
-    nonisolated private static func loadManifest(from url: URL) throws -> DocumentManifest {
-        let data = try Data(contentsOf: url)
+    nonisolated private static func loadManifest(
+        from url: URL,
+        files: any FileSystemServicing
+    ) throws -> DocumentManifest {
+        let data = try files.readData(from: url)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
 
@@ -180,9 +194,12 @@ nonisolated enum SSSVideoDocumentPackage {
         }
     }
 
-    nonisolated private static func loadManifestHeader(from url: URL) throws -> DocumentManifestHeader {
+    nonisolated private static func loadManifestHeader(
+        from url: URL,
+        files: any FileSystemServicing
+    ) throws -> DocumentManifestHeader {
         do {
-            return try JSONDecoder().decode(DocumentManifestHeader.self, from: Data(contentsOf: url))
+            return try JSONDecoder().decode(DocumentManifestHeader.self, from: files.readData(from: url))
         } catch {
             throw SSSVideoDocumentError.invalidManifest
         }

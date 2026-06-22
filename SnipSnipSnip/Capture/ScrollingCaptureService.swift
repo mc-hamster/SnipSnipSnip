@@ -1,5 +1,4 @@
 #if !APP_STORE_BUILD
-import ApplicationServices
 import AppKit
 import CoreGraphics
 import Foundation
@@ -96,14 +95,16 @@ protocol ScrollDriver {
 }
 
 struct AccessibilityScrollDriver: ScrollDriver {
-    private let element: AXUIElement
-    private let scrollBar: AXUIElement?
+    private let element: AccessibilityElementHandle
+    private let scrollBar: AccessibilityElementHandle?
     private let centerPoint: CGPoint
+    private let accessibility: any AccessibilityPlatform
+    private let screens: any ScreenTopologyProviding
     let sourceName: String
 
     private struct ResolvedTarget {
-        let element: AXUIElement
-        let scrollBar: AXUIElement?
+        let element: AccessibilityElementHandle
+        let scrollBar: AccessibilityElementHandle?
         let capturePoint: CGPoint
         let accessibilityPoint: CGPoint
     }
@@ -116,21 +117,38 @@ struct AccessibilityScrollDriver: ScrollDriver {
         let focusRank: Int
     }
 
-    init(point: CGPoint) throws {
-        try self.init(viewportRect: CGRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2))
+    init(
+        point: CGPoint,
+        permissions: any CapturePermissionServicing,
+        accessibility: any AccessibilityPlatform = LiveAccessibilityPlatform(),
+        screens: any ScreenTopologyProviding = SystemScreenTopologyService()
+    ) throws {
+        try self.init(
+            viewportRect: CGRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2),
+            permissions: permissions,
+            accessibility: accessibility,
+            screens: screens
+        )
     }
 
-    init(viewportRect: CGRect) throws {
-        guard CapturePermissionStatus.current().hasAccessibility else {
+    init(
+        viewportRect: CGRect,
+        permissions: any CapturePermissionServicing,
+        accessibility: any AccessibilityPlatform = LiveAccessibilityPlatform(),
+        screens: any ScreenTopologyProviding = SystemScreenTopologyService()
+    ) throws {
+        guard permissions.currentStatus().hasAccessibility else {
             ScrollingCaptureDiagnostics.error("Accessibility permission missing before resolving scroll target")
             throw ScrollingCaptureError.accessibilityPermissionDenied
         }
 
+        self.accessibility = accessibility
+        self.screens = screens
         ScrollingCaptureDiagnostics.info(
             "Resolving scroll target rect=\(Self.describe(viewportRect))"
         )
 
-        let coordinateMappings = Self.currentCoordinateMappings()
+        let coordinateMappings = Self.currentCoordinateMappings(screens: screens)
         let accessibilityRect = Self.accessibilityRect(
             fromCaptureRect: viewportRect,
             mappings: coordinateMappings
@@ -143,7 +161,8 @@ struct AccessibilityScrollDriver: ScrollDriver {
         guard let target = Self.resolveTarget(
             in: viewportRect,
             accessibilityRect: accessibilityRect,
-            coordinateMappings: coordinateMappings
+            coordinateMappings: coordinateMappings,
+            accessibility: accessibility
         ) else {
             ScrollingCaptureDiagnostics.error(
                 "No scroll target resolved rect=\(Self.describe(viewportRect))"
@@ -154,19 +173,20 @@ struct AccessibilityScrollDriver: ScrollDriver {
         element = target.element
         scrollBar = target.scrollBar
         centerPoint = target.capturePoint
-        sourceName = Self.sourceName(for: target.element)
+        sourceName = Self.sourceName(for: target.element, accessibility: accessibility)
 
         ScrollingCaptureDiagnostics.info(
-            "Resolved scroll target role=\(Self.roleDescription(for: target.element)) bundle=\(Self.bundleIdentifier(for: target.element) ?? "unknown") hasScrollBar=\(target.scrollBar != nil) capturePoint=\(Self.describe(target.capturePoint)) axPoint=\(Self.describe(target.accessibilityPoint)) source=\(sourceName)"
+            "Resolved scroll target role=\(Self.roleDescription(for: target.element, accessibility: accessibility)) bundle=\(Self.bundleIdentifier(for: target.element, accessibility: accessibility) ?? "unknown") hasScrollBar=\(target.scrollBar != nil) capturePoint=\(Self.describe(target.capturePoint)) axPoint=\(Self.describe(target.accessibilityPoint)) source=\(sourceName)"
         )
     }
 
     private static func resolveTarget(
         in viewportRect: CGRect,
         accessibilityRect: CGRect,
-        coordinateMappings: [CaptureAccessibilityTransform]
+        coordinateMappings: [CaptureAccessibilityTransform],
+        accessibility: any AccessibilityPlatform
     ) -> ResolvedTarget? {
-        let systemElement = AXUIElementCreateSystemWide()
+        let systemElement = accessibility.systemWideElement()
         var fallbackTarget: ResolvedTarget?
 
         for point in candidatePoints(in: viewportRect) {
@@ -176,28 +196,27 @@ struct AccessibilityScrollDriver: ScrollDriver {
             )
 
             for hitTestPoint in hitTestPoints {
-                var hitElement: AXUIElement?
-                let hitError = AXUIElementCopyElementAtPosition(
-                    systemElement,
-                    Float(hitTestPoint.accessibilityPoint.x),
-                    Float(hitTestPoint.accessibilityPoint.y),
-                    &hitElement
-                )
+                let hitResult = accessibility.element(at: hitTestPoint.accessibilityPoint, from: systemElement)
+                let hitElement = hitResult.element
 
-                guard hitError == .success, let hitElement else {
+                guard hitResult.status == .success, let hitElement else {
                     ScrollingCaptureDiagnostics.info(
-                        "AX hit test failed mode=\(hitTestPoint.mode) capturePoint=\(describe(point)) axPoint=\(describe(hitTestPoint.accessibilityPoint)) error=\(hitError.rawValue)"
+                        "AX hit test failed mode=\(hitTestPoint.mode) capturePoint=\(describe(point)) axPoint=\(describe(hitTestPoint.accessibilityPoint)) error=\(hitResult.status.rawValue)"
                     )
                     continue
                 }
 
                 ScrollingCaptureDiagnostics.info(
-                    "AX hit mode=\(hitTestPoint.mode) capturePoint=\(describe(point)) axPoint=\(describe(hitTestPoint.accessibilityPoint)) role=\(roleDescription(for: hitElement)) bundle=\(bundleIdentifier(for: hitElement) ?? "unknown")"
+                    "AX hit mode=\(hitTestPoint.mode) capturePoint=\(describe(point)) axPoint=\(describe(hitTestPoint.accessibilityPoint)) role=\(roleDescription(for: hitElement, accessibility: accessibility)) bundle=\(bundleIdentifier(for: hitElement, accessibility: accessibility) ?? "unknown")"
                 )
 
-                if let scrollable = Self.scrollableElement(startingAt: hitElement, containing: hitTestPoint.accessibilityPoint) {
+                if let scrollable = Self.scrollableElement(
+                    startingAt: hitElement,
+                    containing: hitTestPoint.accessibilityPoint,
+                    accessibility: accessibility
+                ) {
                     ScrollingCaptureDiagnostics.info(
-                        "AX scrollable target found mode=\(hitTestPoint.mode) axPoint=\(describe(hitTestPoint.accessibilityPoint)) role=\(roleDescription(for: scrollable.element)) hasScrollBar=\(scrollable.scrollBar != nil)"
+                        "AX scrollable target found mode=\(hitTestPoint.mode) axPoint=\(describe(hitTestPoint.accessibilityPoint)) role=\(roleDescription(for: scrollable.element, accessibility: accessibility)) hasScrollBar=\(scrollable.scrollBar != nil)"
                     )
                     return ResolvedTarget(
                         element: scrollable.element,
@@ -207,9 +226,9 @@ struct AccessibilityScrollDriver: ScrollDriver {
                     )
                 }
 
-                if fallbackTarget == nil, allowsWheelFallback(for: hitElement) {
+                if fallbackTarget == nil, allowsWheelFallback(for: hitElement, accessibility: accessibility) {
                     ScrollingCaptureDiagnostics.info(
-                        "Using browser wheel fallback mode=\(hitTestPoint.mode) capturePoint=\(describe(point)) axPoint=\(describe(hitTestPoint.accessibilityPoint)) bundle=\(bundleIdentifier(for: hitElement) ?? "unknown") role=\(roleDescription(for: hitElement))"
+                        "Using browser wheel fallback mode=\(hitTestPoint.mode) capturePoint=\(describe(point)) axPoint=\(describe(hitTestPoint.accessibilityPoint)) bundle=\(bundleIdentifier(for: hitElement, accessibility: accessibility) ?? "unknown") role=\(roleDescription(for: hitElement, accessibility: accessibility))"
                     )
                     fallbackTarget = ResolvedTarget(
                         element: hitElement,
@@ -228,7 +247,8 @@ struct AccessibilityScrollDriver: ScrollDriver {
         return resolveWindowTarget(
             in: viewportRect,
             accessibilityRect: accessibilityRect,
-            coordinateMappings: coordinateMappings
+            coordinateMappings: coordinateMappings,
+            accessibility: accessibility
         )
     }
 
@@ -270,7 +290,7 @@ struct AccessibilityScrollDriver: ScrollDriver {
 
     func snapshotPosition() -> Double? {
         guard let scrollBar,
-              let value = Self.attribute("AXValue", from: scrollBar) as? NSNumber else {
+              let value = Self.attribute("AXValue", from: scrollBar, accessibility: accessibility) as? NSNumber else {
             return nil
         }
 
@@ -284,7 +304,7 @@ struct AccessibilityScrollDriver: ScrollDriver {
         }
 
         ScrollingCaptureDiagnostics.debug("Restoring scroll position to \(position)")
-        AXUIElementSetAttributeValue(scrollBar, "AXValue" as CFString, NSNumber(value: position))
+        accessibility.setNumberAttribute("AXValue", value: position, on: scrollBar)
     }
 
     func scrollDown(logicalDistance: CGFloat) {
@@ -318,9 +338,13 @@ struct AccessibilityScrollDriver: ScrollDriver {
         return abs(current - previousPosition) < 0.0001
     }
 
-    private static func scrollableElement(startingAt element: AXUIElement, containing point: CGPoint) -> (element: AXUIElement, scrollBar: AXUIElement?)? {
-        var current: AXUIElement? = element
-        var ancestors: [AXUIElement] = []
+    private static func scrollableElement(
+        startingAt element: AccessibilityElementHandle,
+        containing point: CGPoint,
+        accessibility: any AccessibilityPlatform
+    ) -> (element: AccessibilityElementHandle, scrollBar: AccessibilityElementHandle?)? {
+        var current: AccessibilityElementHandle? = element
+        var ancestors: [AccessibilityElementHandle] = []
 
         for _ in 0..<16 {
             guard let candidate = current else {
@@ -328,16 +352,16 @@ struct AccessibilityScrollDriver: ScrollDriver {
             }
 
             ancestors.append(candidate)
-            let scrollBar = elementAttribute("AXVerticalScrollBar", from: candidate)
-            if scrollBar != nil || looksScrollable(candidate) {
+            let scrollBar = elementAttribute("AXVerticalScrollBar", from: candidate, accessibility: accessibility)
+            if scrollBar != nil || looksScrollable(candidate, accessibility: accessibility) {
                 return (candidate, scrollBar)
             }
 
-            current = elementAttribute("AXParent", from: candidate)
+            current = elementAttribute("AXParent", from: candidate, accessibility: accessibility)
         }
 
         for ancestor in ancestors {
-            if let descendant = scrollableDescendant(in: ancestor, containing: point) {
+            if let descendant = scrollableDescendant(in: ancestor, containing: point, accessibility: accessibility) {
                 return descendant
             }
         }
@@ -345,46 +369,49 @@ struct AccessibilityScrollDriver: ScrollDriver {
         return nil
     }
 
-    private static func looksScrollable(_ element: AXUIElement) -> Bool {
-        let role = attribute("AXRole", from: element) as? String
+    private static func looksScrollable(_ element: AccessibilityElementHandle, accessibility: any AccessibilityPlatform) -> Bool {
+        let role = attribute("AXRole", from: element, accessibility: accessibility) as? String
         if role == "AXScrollArea" || role == "AXWebArea" || role == "AXTable" || role == "AXOutline" || role == "AXList" || role == "AXBrowser" {
             return true
         }
 
-        var actionNames: CFArray?
-        guard AXUIElementCopyActionNames(element, &actionNames) == .success,
-              let actions = actionNames as? [String] else {
+        let result = accessibility.copyActionNames(from: element)
+        guard result.status == .success else {
             return false
         }
 
-        return actions.contains("AXScrollDown") || actions.contains("AXScrollToVisible")
+        return result.names.contains("AXScrollDown") || result.names.contains("AXScrollToVisible")
     }
 
-    private static func scrollableDescendant(in root: AXUIElement, containing point: CGPoint) -> (element: AXUIElement, scrollBar: AXUIElement?)? {
-        var queue = elementChildren(of: root)
+    private static func scrollableDescendant(
+        in root: AccessibilityElementHandle,
+        containing point: CGPoint,
+        accessibility: any AccessibilityPlatform
+    ) -> (element: AccessibilityElementHandle, scrollBar: AccessibilityElementHandle?)? {
+        var queue = elementChildren(of: root, accessibility: accessibility)
         var inspectedCount = 0
 
         while let candidate = queue.first, inspectedCount < 240 {
             queue.removeFirst()
             inspectedCount += 1
 
-            if let frame = frame(of: candidate), !frame.insetBy(dx: -2, dy: -2).contains(point) {
+            if let frame = accessibility.frame(of: candidate), !frame.insetBy(dx: -2, dy: -2).contains(point) {
                 continue
             }
 
-            let scrollBar = elementAttribute("AXVerticalScrollBar", from: candidate)
-            if scrollBar != nil || looksScrollable(candidate) {
+            let scrollBar = elementAttribute("AXVerticalScrollBar", from: candidate, accessibility: accessibility)
+            if scrollBar != nil || looksScrollable(candidate, accessibility: accessibility) {
                 return (candidate, scrollBar)
             }
 
-            queue.append(contentsOf: elementChildren(of: candidate))
+            queue.append(contentsOf: elementChildren(of: candidate, accessibility: accessibility))
         }
 
         return nil
     }
 
-    private static func allowsWheelFallback(for element: AXUIElement) -> Bool {
-        guard let bundleIdentifier = bundleIdentifier(for: element) else {
+    private static func allowsWheelFallback(for element: AccessibilityElementHandle, accessibility: any AccessibilityPlatform) -> Bool {
+        guard let bundleIdentifier = bundleIdentifier(for: element, accessibility: accessibility) else {
             return false
         }
 
@@ -407,7 +434,8 @@ struct AccessibilityScrollDriver: ScrollDriver {
     private static func resolveWindowTarget(
         in viewportRect: CGRect,
         accessibilityRect: CGRect,
-        coordinateMappings: [CaptureAccessibilityTransform]
+        coordinateMappings: [CaptureAccessibilityTransform],
+        accessibility: any AccessibilityPlatform
     ) -> ResolvedTarget? {
         guard let windowTarget = windowTarget(under: viewportRect) else {
             ScrollingCaptureDiagnostics.info("Window fallback found no candidate under rect=\(describe(viewportRect))")
@@ -419,14 +447,18 @@ struct AccessibilityScrollDriver: ScrollDriver {
             fromCapturePoint: point,
             mappings: coordinateMappings
         )
-        let appElement = AXUIElementCreateApplication(windowTarget.ownerPID)
+        let appElement = accessibility.applicationElement(processID: windowTarget.ownerPID)
         ScrollingCaptureDiagnostics.info(
             "Window fallback candidate owner=\(windowTarget.ownerName) pid=\(windowTarget.ownerPID) bundle=\(windowTarget.bundleIdentifier ?? "unknown") frame=\(describe(windowTarget.frame)) rank=\(windowTarget.focusRank)"
         )
 
-        if let scrollable = scrollableDescendant(in: appElement, containing: accessibilityPoint) {
+        if let scrollable = scrollableDescendant(
+            in: appElement,
+            containing: accessibilityPoint,
+            accessibility: accessibility
+        ) {
             ScrollingCaptureDiagnostics.info(
-                "Window fallback resolved AX descendant role=\(roleDescription(for: scrollable.element)) hasScrollBar=\(scrollable.scrollBar != nil) axRect=\(describe(accessibilityRect))"
+                "Window fallback resolved AX descendant role=\(roleDescription(for: scrollable.element, accessibility: accessibility)) hasScrollBar=\(scrollable.scrollBar != nil) axRect=\(describe(accessibilityRect))"
             )
             return ResolvedTarget(
                 element: scrollable.element,
@@ -460,13 +492,9 @@ struct AccessibilityScrollDriver: ScrollDriver {
         )
     }
 
-    private static func currentCoordinateMappings() -> [CaptureAccessibilityTransform] {
-        NSScreen.screens.compactMap { screen in
-            guard let displayID = screen.gscDisplayID else {
-                return nil
-            }
-
-            let captureFrame = CGDisplayBounds(displayID)
+    private static func currentCoordinateMappings(screens: any ScreenTopologyProviding) -> [CaptureAccessibilityTransform] {
+        screens.screens.compactMap { screen in
+            let captureFrame = CGDisplayBounds(screen.displayID)
             guard captureFrame.width > 0, captureFrame.height > 0 else {
                 return nil
             }
@@ -554,19 +582,25 @@ struct AccessibilityScrollDriver: ScrollDriver {
         }
     }
 
-    private static func sourceName(for element: AXUIElement) -> String {
-        var pid: pid_t = 0
-        AXUIElementGetPid(element, &pid)
-
-        if let appName = NSRunningApplication(processIdentifier: pid)?.localizedName, !appName.isEmpty {
+    private static func sourceName(
+        for element: AccessibilityElementHandle,
+        accessibility: any AccessibilityPlatform
+    ) -> String {
+        let processResult = accessibility.processIdentifier(for: element)
+        if processResult.status == .success,
+           let appName = NSRunningApplication(processIdentifier: processResult.processID)?.localizedName,
+           !appName.isEmpty {
             return "Scrolling Capture - \(appName)"
         }
 
         return "Scrolling Capture"
     }
 
-    private static func roleDescription(for element: AXUIElement) -> String {
-        attribute("AXRole", from: element) as? String ?? "unknown"
+    private static func roleDescription(
+        for element: AccessibilityElementHandle,
+        accessibility: any AccessibilityPlatform
+    ) -> String {
+        attribute("AXRole", from: element, accessibility: accessibility) as? String ?? "unknown"
     }
 
     private static func describe(_ point: CGPoint) -> String {
@@ -577,72 +611,53 @@ struct AccessibilityScrollDriver: ScrollDriver {
         "x=\(Int(rect.minX)) y=\(Int(rect.minY)) w=\(Int(rect.width)) h=\(Int(rect.height))"
     }
 
-    private static func bundleIdentifier(for element: AXUIElement) -> String? {
-        var pid: pid_t = 0
-        AXUIElementGetPid(element, &pid)
-
-        return NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
-    }
-
-    private static func attribute(_ name: String, from element: AXUIElement) -> AnyObject? {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else {
+    private static func bundleIdentifier(
+        for element: AccessibilityElementHandle,
+        accessibility: any AccessibilityPlatform
+    ) -> String? {
+        let processResult = accessibility.processIdentifier(for: element)
+        guard processResult.status == .success else {
             return nil
         }
 
-        return value as AnyObject?
+        return NSRunningApplication(processIdentifier: processResult.processID)?.bundleIdentifier
     }
 
-    private static func elementAttribute(_ name: String, from element: AXUIElement) -> AXUIElement? {
-        guard let value = attribute(name, from: element) else {
-            return nil
-        }
-
-        let cfValue = value as CFTypeRef
-        guard CFGetTypeID(cfValue) == AXUIElementGetTypeID() else {
-            return nil
-        }
-
-        return (cfValue as! AXUIElement)
+    private static func attribute(
+        _ name: String,
+        from element: AccessibilityElementHandle,
+        accessibility: any AccessibilityPlatform
+    ) -> Any? {
+        let result = accessibility.copyAttribute(name, from: element)
+        return result.status == .success ? result.value : nil
     }
 
-    private static func elementChildren(of element: AXUIElement) -> [AXUIElement] {
+    private static func elementAttribute(
+        _ name: String,
+        from element: AccessibilityElementHandle,
+        accessibility: any AccessibilityPlatform
+    ) -> AccessibilityElementHandle? {
+        attribute(name, from: element, accessibility: accessibility) as? AccessibilityElementHandle
+    }
+
+    private static func elementChildren(
+        of element: AccessibilityElementHandle,
+        accessibility: any AccessibilityPlatform
+    ) -> [AccessibilityElementHandle] {
         let attributeNames = ["AXVisibleChildren", "AXChildren", "AXRows"]
 
         for attributeName in attributeNames {
-            if let children = attribute(attributeName, from: element) as? [AXUIElement], !children.isEmpty {
+            if let children = attribute(
+                attributeName,
+                from: element,
+                accessibility: accessibility
+            ) as? [AccessibilityElementHandle],
+                !children.isEmpty {
                 return children
             }
         }
 
         return []
-    }
-
-    private static func frame(of element: AXUIElement) -> CGRect? {
-        guard let positionObject = attribute("AXPosition", from: element),
-              let sizeObject = attribute("AXSize", from: element) else {
-            return nil
-        }
-
-        let positionCFValue = positionObject as CFTypeRef
-        let sizeCFValue = sizeObject as CFTypeRef
-
-        guard CFGetTypeID(positionCFValue) == AXValueGetTypeID(),
-              CFGetTypeID(sizeCFValue) == AXValueGetTypeID() else {
-            return nil
-        }
-
-        let positionValue = positionCFValue as! AXValue
-        let sizeValue = sizeCFValue as! AXValue
-        var position = CGPoint.zero
-        var size = CGSize.zero
-
-        guard AXValueGetValue(positionValue, .cgPoint, &position),
-              AXValueGetValue(sizeValue, .cgSize, &size) else {
-            return nil
-        }
-
-        return CGRect(origin: position, size: size)
     }
 }
 
@@ -652,9 +667,41 @@ struct ScrollingCaptureService {
     private static let postScrollSettleDelayNanoseconds: UInt64 = 220_000_000
     private static let cursorSettleDelayNanoseconds: UInt64 = 160_000_000
 
-    var captureService: any ScreenCaptureServiceType = ScreenCaptureService()
-    var driverFactory: (CGRect) throws -> any ScrollDriver = { try AccessibilityScrollDriver(viewportRect: $0) }
-    var stitcher = ScrollingStitcher()
+    var captureService: any ScreenCaptureServiceType
+    let permissions: any CapturePermissionServicing
+    let accessibility: any AccessibilityPlatform
+    let screens: any ScreenTopologyProviding
+    let scheduler: any Scheduling
+    let clock: any ClockProviding
+    var driverFactory: (CGRect) throws -> any ScrollDriver
+    var stitcher: ScrollingStitcher
+
+    init(
+        captureService: any ScreenCaptureServiceType,
+        permissions: any CapturePermissionServicing,
+        accessibility: any AccessibilityPlatform = LiveAccessibilityPlatform(),
+        screens: any ScreenTopologyProviding = SystemScreenTopologyService(),
+        scheduler: any Scheduling = SystemScheduler(),
+        clock: any ClockProviding = SystemClock(),
+        driverFactory: ((CGRect) throws -> any ScrollDriver)? = nil,
+        stitcher: ScrollingStitcher = ScrollingStitcher()
+    ) {
+        self.captureService = captureService
+        self.permissions = permissions
+        self.accessibility = accessibility
+        self.screens = screens
+        self.scheduler = scheduler
+        self.clock = clock
+        self.driverFactory = driverFactory ?? { viewportRect in
+            try AccessibilityScrollDriver(
+                viewportRect: viewportRect,
+                permissions: permissions,
+                accessibility: accessibility,
+                screens: screens
+            )
+        }
+        self.stitcher = stitcher
+    }
 
     func capture(
         request: ScrollingCaptureRequest,
@@ -671,7 +718,7 @@ struct ScrollingCaptureService {
             throw ScrollingCaptureError.invalidViewport
         }
 
-        guard CapturePermissionStatus.current().hasAccessibility else {
+        guard permissions.currentStatus().hasAccessibility else {
             ScrollingCaptureDiagnostics.error("Accessibility permission missing at capture preflight")
             throw ScrollingCaptureError.accessibilityPermissionDenied
         }
@@ -720,7 +767,7 @@ struct ScrollingCaptureService {
         progressHandler: (@MainActor (ScrollingCaptureProgress) -> Void)?
     ) async throws -> ScrollingCaptureResult {
         var warnings: [String] = []
-        try await Task.sleep(nanoseconds: Self.cursorSettleDelayNanoseconds)
+        try await scheduler.sleep(nanoseconds: Self.cursorSettleDelayNanoseconds)
         let firstCaptureStart = DispatchTime.now()
         let firstCapture = try await captureService.captureRegionWithinSingleDisplayDirect(in: request.viewportRect)
         let firstCaptureDuration = Self.elapsedMilliseconds(since: firstCaptureStart)
@@ -753,7 +800,7 @@ struct ScrollingCaptureService {
             )
             let scrollStart = DispatchTime.now()
             driver.scrollDown(logicalDistance: request.viewportRect.height * Self.primaryScrollFraction)
-            try await Task.sleep(nanoseconds: Self.postScrollSettleDelayNanoseconds)
+            try await scheduler.sleep(nanoseconds: Self.postScrollSettleDelayNanoseconds)
             let scrollWaitDuration = Self.elapsedMilliseconds(since: scrollStart)
             try cancellation.checkCancellation()
             if cancellation.shouldFinish() {
@@ -807,7 +854,7 @@ struct ScrollingCaptureService {
                     image: outputImage,
                     sourceViewportRect: request.viewportRect,
                     sourceName: sourceName,
-                    capturedAt: Date(),
+                    capturedAt: clock.now(),
                     warnings: warnings
                 )
             case .lowConfidence:
@@ -816,9 +863,9 @@ struct ScrollingCaptureService {
                 )
                 let retryScrollStart = DispatchTime.now()
                 driver.scrollDown(logicalDistance: -(request.viewportRect.height * Self.retryScrollFraction))
-                try await Task.sleep(nanoseconds: Self.postScrollSettleDelayNanoseconds)
+                try await scheduler.sleep(nanoseconds: Self.postScrollSettleDelayNanoseconds)
                 driver.scrollDown(logicalDistance: request.viewportRect.height * Self.retryScrollFraction)
-                try await Task.sleep(nanoseconds: Self.postScrollSettleDelayNanoseconds)
+                try await scheduler.sleep(nanoseconds: Self.postScrollSettleDelayNanoseconds)
                 let retryScrollDuration = Self.elapsedMilliseconds(since: retryScrollStart)
                 let retryCaptureStart = DispatchTime.now()
                 nextImage = try await captureService.captureRegionWithinSingleDisplayDirect(in: request.viewportRect).image
@@ -861,7 +908,7 @@ struct ScrollingCaptureService {
                         image: outputImage,
                         sourceViewportRect: request.viewportRect,
                         sourceName: sourceName,
-                        capturedAt: Date(),
+                        capturedAt: clock.now(),
                         warnings: warnings
                     )
                 case .lowConfidence:
@@ -878,7 +925,7 @@ struct ScrollingCaptureService {
                             image: outputImage,
                             sourceViewportRect: request.viewportRect,
                             sourceName: sourceName,
-                            capturedAt: Date(),
+                            capturedAt: clock.now(),
                             warnings: warnings
                         )
                     }
@@ -917,7 +964,7 @@ struct ScrollingCaptureService {
             image: outputImage,
             sourceViewportRect: request.viewportRect,
             sourceName: sourceName,
-            capturedAt: Date(),
+            capturedAt: clock.now(),
             warnings: warnings
         )
     }
@@ -937,7 +984,7 @@ struct ScrollingCaptureService {
         }
 
         let parkingLocation = MainActor.assumeIsolated {
-            let screen = NSScreen.screens.first(where: { $0.frame.intersects(viewportRect) }) ?? NSScreen.main
+            let screen = screens.screens.first(where: { $0.frame.intersects(viewportRect) }) ?? screens.mainScreen
             return Self.cursorParkingLocation(avoiding: viewportRect, on: screen?.visibleFrame)
         }
 

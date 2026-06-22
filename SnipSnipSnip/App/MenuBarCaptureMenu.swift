@@ -9,7 +9,7 @@ enum AppSceneID {
 }
 
 struct RegionCaptureSettingsMenuContent: View {
-    @ObservedObject var model: AppModel
+    @ObservedObject var capture: CaptureWorkflowModel
 
     var body: some View {
         Picker("Region Capture Overlay", selection: overlayModeBinding) {
@@ -25,32 +25,32 @@ struct RegionCaptureSettingsMenuContent: View {
 
     private var overlayModeBinding: Binding<RegionCaptureOverlayMode> {
         Binding(
-            get: { model.regionCapturePreferences.overlayMode },
+            get: { capture.regionCapturePreferences.overlayMode },
             set: { newValue in
-                var preferences = model.regionCapturePreferences
+                var preferences = capture.regionCapturePreferences
                 preferences.overlayMode = newValue
-                model.regionCapturePreferences = preferences
+                capture.regionCapturePreferences = preferences
             }
         )
     }
 
     private var autoCaptureBinding: Binding<Bool> {
         Binding(
-            get: { model.regionCapturePreferences.autoCapturesOnMouseUp },
+            get: { capture.regionCapturePreferences.autoCapturesOnMouseUp },
             set: { newValue in
-                var preferences = model.regionCapturePreferences
+                var preferences = capture.regionCapturePreferences
                 preferences.showsActionControls = !newValue
                 if newValue {
                     preferences.advancedControlsEnabled = false
                 }
-                model.regionCapturePreferences = preferences
+                capture.regionCapturePreferences = preferences
             }
         )
     }
 }
 
 struct CaptureTimerMenuContent: View {
-    @ObservedObject var model: AppModel
+    @ObservedObject var capture: CaptureWorkflowModel
 
     var body: some View {
         ForEach(CaptureDelay.allCases) { delay in
@@ -60,10 +60,10 @@ struct CaptureTimerMenuContent: View {
 
     private func binding(for delay: CaptureDelay) -> Binding<Bool> {
         Binding(
-            get: { model.captureDelay == delay },
+            get: { capture.captureDelay == delay },
             set: { isSelected in
                 if isSelected {
-                    model.captureDelay = delay
+                    capture.captureDelay = delay
                 }
             }
         )
@@ -71,43 +71,49 @@ struct CaptureTimerMenuContent: View {
 }
 
 struct CapturePresetMenuContent: View {
-    @ObservedObject var model: AppModel
+    @ObservedObject var capture: CaptureWorkflowModel
+    @ObservedObject var video: VideoWorkflowModel
+    @ObservedObject var lifecycle: AppLifecycleModel
 
     var body: some View {
-        if model.capturePresets.isEmpty {
+        if capture.capturePresets.isEmpty {
             Text("No Presets")
                 .foregroundStyle(.secondary)
         } else {
-            ForEach(model.capturePresets) { preset in
+            ForEach(capture.capturePresets) { preset in
                 Button(preset.name) {
-                    model.capturePreset(preset)
+                    capture.capturePreset(preset)
                 }
-                .disabled(model.isWorking || model.isRecordingVideo || model.isConnectedDeviceSessionActive)
+                .disabled(isCaptureActionDisabled)
             }
         }
 
         Divider()
 
-        Button("Save Last Capture as Preset...", action: model.beginSavingLastCaptureAsPreset)
-            .disabled(!model.canSaveLastCaptureAsPreset || model.isWorking || model.isRecordingVideo || model.isConnectedDeviceSessionActive)
+        Button("Save Last Capture as Preset...", action: capture.beginSavingLastCaptureAsPreset)
+            .disabled(!capture.canSaveLastCaptureAsPreset || isCaptureActionDisabled)
 
         SettingsLink {
             Text("Manage Presets...")
         }
         .onAppear {
-            model.prepareForCapturePresetsSettingsPresentation()
+            lifecycle.selectedSettingsTab = .presets
         }
+    }
+
+    private var isCaptureActionDisabled: Bool {
+        capture.isWorking || video.isRecording || capture.isConnectedDeviceSessionActive
     }
 }
 
 struct ScreenshotCaptureSettingsMenuContent: View {
-    @ObservedObject var model: AppModel
+    @ObservedObject var capture: CaptureWorkflowModel
 
     var body: some View {
-        Toggle("Include Cursor", isOn: $model.screenshotIncludesCursor)
+        Toggle("Include Cursor", isOn: $capture.screenshotIncludesCursor)
             .help("Add the cursor as an editable screenshot overlay. Scrolling Capture always excludes it.")
 
-        if model.capabilities.isEnabled(.uiMap) {
+        if capture.dependencies.capabilities.isEnabled(.uiMap) {
             Toggle("Include UI Map for Window Captures", isOn: uiMapBinding)
                 .help("Save available names, roles, identifiers, and locations of visible interface elements when capturing a window.")
         }
@@ -115,8 +121,8 @@ struct ScreenshotCaptureSettingsMenuContent: View {
 
     private var uiMapBinding: Binding<Bool> {
         Binding(
-            get: { model.uiMapEnabled },
-            set: { model.updateUIMapEnabled($0) }
+            get: { capture.uiMapEnabled },
+            set: { capture.updateUIMapEnabled($0) }
         )
     }
 }
@@ -127,42 +133,42 @@ enum ConnectedDeviceCaptureMenuMode {
 }
 
 struct ConnectedDeviceCaptureMenuContent: View {
-    @ObservedObject var model: AppModel
+    @ObservedObject var capture: CaptureWorkflowModel
     let mode: ConnectedDeviceCaptureMenuMode
 
     var body: some View {
         Group {
-            if model.isConnectedDeviceSessionActive {
-                Button("Connected Device Preview Active", action: model.presentConnectedDeviceSessionActiveMessage)
+            if capture.isConnectedDeviceSessionActive {
+                Button("Connected Device Preview Active", action: capture.presentConnectedDeviceSessionActiveMessage)
                     .help("Close the current connected-device preview before starting another connected-device session.")
-            } else if model.isLoadingConnectedDevices {
+            } else if capture.isLoadingConnectedDevices {
                 Text("Looking for Devices...")
                     .foregroundStyle(.secondary)
-            } else if model.connectedDevices.isEmpty {
-                Button(ConnectedDeviceCaptureMenu.emptyStateTitle, action: model.presentConnectedDeviceEmptyState)
-                    .help(model.connectedDeviceEmptyStateMessage)
+            } else if capture.connectedDevices.isEmpty {
+                Button(ConnectedDeviceCaptureMenu.emptyStateTitle, action: capture.presentConnectedDeviceEmptyState)
+                    .help(capture.connectedDeviceEmptyStateMessage)
             } else {
-                ForEach(model.connectedDevices) { device in
+                ForEach(capture.connectedDevices) { device in
                     Button(device.displayName) {
                         switch mode {
                         case .screenshot:
-                            model.captureConnectedDevice(device)
+                            capture.captureConnectedDevice(device)
                         case .recording:
-                            model.recordConnectedDevice(device)
+                            capture.recordConnectedDevice(device)
                         }
                     }
-                    .disabled(model.isConnectedDeviceSessionActive)
+                    .disabled(capture.isConnectedDeviceSessionActive)
                     .help("Open a live connected-device preview. macOS may ask for Camera access because trusted iPhone and iPad screens are exposed as video sources.")
                 }
             }
 
             Divider()
 
-            Button("Refresh Devices", action: model.refreshConnectedDevices)
-                .disabled(model.isLoadingConnectedDevices || model.isConnectedDeviceSessionActive)
+            Button("Refresh Devices", action: capture.refreshConnectedDevices)
+                .disabled(capture.isLoadingConnectedDevices || capture.isConnectedDeviceSessionActive)
         }
         .onAppear {
-            model.refreshConnectedDevices()
+            capture.refreshConnectedDevices()
         }
     }
 }

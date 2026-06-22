@@ -765,7 +765,7 @@ nonisolated enum RegionCaptureSelection {
     case window(CaptureWindowSummary)
 }
 
-nonisolated struct DisplaySnapshot {
+nonisolated struct DisplaySnapshot: Equatable, Sendable {
     let displayID: CGDirectDisplayID
     let name: String
     // ScreenCaptureKit display-space frame used for screenshot capture and crop math.

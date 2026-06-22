@@ -2,6 +2,7 @@ import CoreGraphics
 import XCTest
 @testable import SnipSnipSnip
 
+@MainActor
 final class ScrollingCaptureServiceTests: XCTestCase {
     func testCursorParkingLocationPrefersPointOutsideViewport() {
         let point = ScrollingCaptureService.cursorParkingLocation(
@@ -20,9 +21,50 @@ final class ScrollingCaptureServiceTests: XCTestCase {
 
         XCTAssertNil(point)
     }
+
+    func testCaptureDeniesBeforeResolvingDriverWhenAccessibilityPermissionMissing() async {
+        let deniedPermissions = TestCapturePermissionService(
+            status: CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false)
+        )
+        let service = ScrollingCaptureService(
+            captureService: ScreenCaptureService(permissions: deniedPermissions),
+            permissions: deniedPermissions,
+            driverFactory: { _ in
+                XCTFail("Accessibility preflight should fail before creating a scroll driver.")
+                throw ScrollingCaptureError.noScrollableTarget
+            }
+        )
+
+        do {
+            _ = try await service.capture(
+                request: ScrollingCaptureRequest(viewportRect: CGRect(x: 0, y: 0, width: 120, height: 120)),
+                cancellation: ScrollingCaptureCancellation()
+            )
+            XCTFail("Expected scrolling capture to fail without Accessibility permission.")
+        } catch ScrollingCaptureError.accessibilityPermissionDenied {
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
 }
 
 final class ScreenCaptureServiceTests: XCTestCase {
+    func testListWindowsDeniesBeforeFetchingSystemContentWhenScreenRecordingPermissionMissing() async {
+        let service = ScreenCaptureService(
+            permissions: TestCapturePermissionService(
+                status: CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: true)
+            )
+        )
+
+        do {
+            _ = try await service.listWindows(includeThumbnails: false)
+            XCTFail("Expected window listing to fail without Screen Recording permission.")
+        } catch ScreenCaptureError.permissionDenied {
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testRepairTransparentArtifactRowsReplacesIsolatedTransparentRow() {
         let service = ScreenCaptureService()
         let image = makeImageWithTransparentRows(width: 16, height: 8, transparentRows: [3])

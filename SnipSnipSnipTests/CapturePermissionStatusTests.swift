@@ -49,27 +49,27 @@ final class CapturePermissionStatusTests: XCTestCase {
     }
 
     func testCaptureReadyRequiresScreenRecordingOnlyWhenScrollingFeatureDisabled() {
-        let releaseTarget = BuildTarget.release
+        let releaseCapabilities = BuildTargetCapabilityProvider().snapshot(for: .release)
 
-        XCTAssertTrue(CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true).isCaptureReady(for: releaseTarget))
-        XCTAssertTrue(CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false).isCaptureReady(for: releaseTarget))
-        XCTAssertFalse(CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: true).isCaptureReady(for: releaseTarget))
-        XCTAssertFalse(CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: false).isCaptureReady(for: releaseTarget))
+        XCTAssertTrue(CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true).isCaptureReady(for: releaseCapabilities))
+        XCTAssertTrue(CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false).isCaptureReady(for: releaseCapabilities))
+        XCTAssertFalse(CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: true).isCaptureReady(for: releaseCapabilities))
+        XCTAssertFalse(CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: false).isCaptureReady(for: releaseCapabilities))
     }
 
     func testMissingRequirementsReflectReleasePermissionModel() {
-        let releaseTarget = BuildTarget.release
+        let releaseCapabilities = BuildTargetCapabilityProvider().snapshot(for: .release)
 
         XCTAssertEqual(
-            CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: true).missingRequirements(for: releaseTarget),
+            CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: true).missingRequirements(for: releaseCapabilities),
             [.screenRecording]
         )
         XCTAssertEqual(
-            CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false).missingRequirements(for: releaseTarget),
+            CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false).missingRequirements(for: releaseCapabilities),
             []
         )
         XCTAssertEqual(
-            CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: false).missingRequirements(for: releaseTarget),
+            CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: false).missingRequirements(for: releaseCapabilities),
             [.screenRecording]
         )
     }

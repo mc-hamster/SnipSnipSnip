@@ -1,10 +1,10 @@
-import AppKit
 import Foundation
 
 struct ArchiveMaintenanceRequest {
     let store: DocumentRecoveryStore
     let maximumSizeBytes: Int64
     let recycleBinRetentionDays: Int
+    let now: Date
 }
 
 struct ArchiveMaintenanceResult: Equatable {
@@ -15,7 +15,7 @@ struct ArchiveMaintenanceResult: Equatable {
 enum ArchiveMaintenanceManager {
     static func run(_ request: ArchiveMaintenanceRequest) async -> ArchiveMaintenanceResult {
         await Task.detached(priority: .utility) {
-            let cutoffDate = Calendar.current.date(byAdding: .day, value: -request.recycleBinRetentionDays, to: Date()) ?? .distantPast
+            let cutoffDate = Calendar.current.date(byAdding: .day, value: -request.recycleBinRetentionDays, to: request.now) ?? .distantPast
             let didPruneRecycleBin = (try? request.store.pruneRecycleBin(deletedBefore: cutoffDate)) ?? false
             let didPruneArchive = (try? request.store.pruneArchiveIfNeeded(maximumSizeBytes: request.maximumSizeBytes)) ?? false
             let archiveSizeBytes = (try? request.store.archiveSizeInBytes()) ?? 0
@@ -27,13 +27,13 @@ enum ArchiveMaintenanceManager {
     }
 }
 
-extension AppModel {
+extension ArchiveWorkflowModel {
     var archiveSizeLabel: String {
-        ByteCountFormatter.string(fromByteCount: archiveSizeBytes, countStyle: .file)
+        ByteCountFormatter.string(fromByteCount: sizeBytes, countStyle: .file)
     }
 
     var archiveLocationDescription: String {
-        archiveDirectoryURL.path
+        directoryURL.path
     }
 
     var usesDefaultArchiveLocation: Bool {
@@ -49,15 +49,7 @@ extension AppModel {
     }
 
     func chooseArchiveLocation() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.directoryURL = archiveDirectoryURL
-        panel.prompt = "Use Location"
-
-        guard panel.runModal() == .OK, let selectedURL = panel.url else {
+        guard let selectedURL = dependencies.locationPresenter.selectArchiveLocation(initialDirectory: directoryURL) else {
             return
         }
 
@@ -72,19 +64,19 @@ extension AppModel {
 
     func openArchiveLocationInFinder() {
         do {
-            try FileManager.default.createDirectory(at: archiveDirectoryURL, withIntermediateDirectories: true)
-            NSWorkspace.shared.activateFileViewerSelecting([archiveDirectoryURL])
+            try dependencies.systemServices.files.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+            dependencies.systemServices.workspace.activateFileViewerSelecting([directoryURL])
         } catch {
             present(error)
         }
     }
 
     func updateArchiveMaximumSizeMB(_ value: Int) {
-        archiveMaximumSizeMB = max(value, Self.minimumArchiveMaximumSizeMB)
+        maximumSizeMB = max(value, ArchiveWorkflowConstants.minimumMaximumSizeMB)
     }
 
     func updateRecycleBinRetentionDays(_ value: Int) {
-        recycleBinRetentionDays = max(value, Self.minimumRecycleBinRetentionDays)
+        recycleBinRetentionDays = max(value, ArchiveWorkflowConstants.minimumRecycleBinRetentionDays)
     }
 
     func clearArchive() {
@@ -95,16 +87,7 @@ extension AppModel {
                 return
             }
 
-            self.pendingAutosaveTask?.cancel()
-            self.pendingAutosaveTask = nil
-
-            let pendingWriteTasks = Array(self.pendingRecoveryWriteTasks.values)
-            self.pendingRecoveryWriteTasks.removeAll()
-            pendingWriteTasks.forEach { $0.cancel() }
-
-            for task in pendingWriteTasks {
-                await task.value
-            }
+            await self.documents?.prepareForArchiveClear()
 
             do {
                 try await Task.detached(priority: .utility) {
@@ -128,39 +111,34 @@ extension AppModel {
     func startArchiveMaintenance() {
         archiveMaintenanceTask?.cancel()
         archiveMaintenanceTask = Task { @MainActor [weak self] in
-            guard let strongSelf = self else {
+            guard let self else {
                 return
             }
 
-            await strongSelf.runArchiveMaintenanceCycle()
+            await self.runArchiveMaintenanceCycle()
 
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: Self.archiveMaintenanceNanoseconds)
+                try? await self.dependencies.systemServices.scheduler.sleep(nanoseconds: ArchiveWorkflowConstants.maintenanceDebounceNanoseconds)
 
                 guard !Task.isCancelled else {
                     return
                 }
 
-                guard let strongSelf = self else {
-                    return
-                }
-
-                await strongSelf.runArchiveMaintenanceCycle()
+                await self.runArchiveMaintenanceCycle()
             }
         }
     }
-}
 
-extension AppModel {
     var archiveMaximumSizeBytes: Int64 {
-        Int64(archiveMaximumSizeMB) * 1_024 * 1_024
+        Int64(maximumSizeMB) * 1_024 * 1_024
     }
 
     func runArchiveMaintenanceCycle() async {
         let request = ArchiveMaintenanceRequest(
             store: recoveryStore,
             maximumSizeBytes: archiveMaximumSizeBytes,
-            recycleBinRetentionDays: recycleBinRetentionDays
+            recycleBinRetentionDays: recycleBinRetentionDays,
+            now: dependencies.systemServices.clock.now()
         )
         let result = await ArchiveMaintenanceManager.run(request)
 
@@ -168,10 +146,10 @@ extension AppModel {
             return
         }
 
-        archiveSizeBytes = result.archiveSizeBytes
+        sizeBytes = result.archiveSizeBytes
 
         if result.didPrune {
-            refreshRecoveryPresentationState()
+            documents?.refreshRecoveryPresentationState()
         }
     }
 
@@ -197,27 +175,18 @@ extension AppModel {
     }
 
     func persistArchiveLocation(_ url: URL?) {
-        preferenceStores.archive.saveLocationURL(url)
+        preferenceStore.saveLocationURL(url)
     }
 
     func reconfigureArchiveStore(baseURL: URL?) {
-        pendingAutosaveTask?.cancel()
-        pendingAutosaveTask = nil
-        pendingRecoveryRefreshTask?.cancel()
-        pendingRecoveryRefreshTask = nil
-        pendingCaptureHistorySearchTask?.cancel()
-        pendingCaptureHistorySearchTask = nil
-        pendingRecoveryWriteTasks.values.forEach { $0.cancel() }
-        pendingRecoveryWriteTasks.removeAll()
-        lastAutosavedState = nil
-
         configuredArchiveLocationURL = baseURL
         activateArchiveDirectoryAccess(baseURL)
         recoveryStore = DocumentRecoveryStore(baseURL: baseURL)
-        archiveDirectoryURL = recoveryStore.archiveURL
+        documents?.rebindRecoveryStore(recoveryStore)
+        directoryURL = recoveryStore.archiveURL
         reseedCurrentRecoverySessionIfNeeded()
 
-        if shouldStartArchiveMaintenance {
+        if shouldStartMaintenance {
             startArchiveMaintenance()
         } else {
             archiveMaintenanceTask?.cancel()
@@ -226,14 +195,10 @@ extension AppModel {
     }
 
     func reseedCurrentRecoverySessionIfNeeded() {
-        guard let controller = editorController else {
-            currentRecoverySessionID = nil
-            refreshRecoveryPresentationState()
-            return
-        }
+        documents?.reseedRecoverySessionAfterArchiveChange()
+    }
 
-        currentRecoverySessionID = createRecoverySessionIfNeeded(for: controller, documentURL: currentDocumentURL)
-        refreshRecoveryPresentationState()
-        recordRecoveryCheckpoint(for: controller, label: hasUnsavedChanges ? "Autosave" : "Saved", pendingRecovery: hasUnsavedChanges)
+    private func present(_ error: Error) {
+        dependencies.lifecycle.presentError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
     }
 }

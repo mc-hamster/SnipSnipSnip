@@ -1,11 +1,18 @@
 import AppKit
 
 @MainActor
+struct WindowCaptureMenuContext {
+    let windows: [CaptureWindowSummary]
+    let isActionEnabled: Bool
+    let isUIMapEnabled: Bool
+}
+
+@MainActor
 enum WindowCaptureMenuBuilder {
     static let suggestedWindowLimit = 5
 
     static func makeMenu(
-        for model: AppModel,
+        context: WindowCaptureMenuContext,
         target: AnyObject,
         pickOnScreenAction: Selector,
         captureWindowAction: Selector,
@@ -16,7 +23,7 @@ enum WindowCaptureMenuBuilder {
         menu.autoenablesItems = false
         populate(
             menu,
-            for: model,
+            context: context,
             target: target,
             pickOnScreenAction: pickOnScreenAction,
             captureWindowAction: captureWindowAction,
@@ -28,7 +35,7 @@ enum WindowCaptureMenuBuilder {
 
     static func populate(
         _ menu: NSMenu,
-        for model: AppModel,
+        context: WindowCaptureMenuContext,
         target: AnyObject,
         pickOnScreenAction: Selector,
         captureWindowAction: Selector,
@@ -38,18 +45,16 @@ enum WindowCaptureMenuBuilder {
         menu.removeAllItems()
         menu.autoenablesItems = false
 
-        let isEnabled = !(model.isWorking || model.isRecordingVideo)
-
         menu.addItem(actionItem(
             title: "Pick On Screen",
             systemImage: "cursorarrow.click.2",
             action: pickOnScreenAction,
             target: target,
-            enabled: isEnabled,
-            toolTip: windowUIMapHelpText(for: model)
+            enabled: context.isActionEnabled,
+            toolTip: windowUIMapHelpText(isEnabled: context.isUIMapEnabled)
         ))
 
-        let windows = Array(model.availableWindows.prefix(suggestedWindowLimit))
+        let windows = Array(context.windows.prefix(suggestedWindowLimit))
         if !windows.isEmpty {
             menu.addItem(.separator())
 
@@ -63,12 +68,12 @@ enum WindowCaptureMenuBuilder {
                 item.representedObject = window
                 item.toolTip = [
                     window.displayTitle,
-                    windowUIMapHelpText(for: model)
+                    windowUIMapHelpText(isEnabled: context.isUIMapEnabled)
                 ]
                     .compactMap { $0 }
                     .joined(separator: "\n")
                 item.image = resizedThumbnailImage(for: window, size: thumbnailSize)
-                item.isEnabled = isEnabled
+                item.isEnabled = context.isActionEnabled
                 menu.addItem(item)
             }
         }
@@ -79,8 +84,8 @@ enum WindowCaptureMenuBuilder {
             systemImage: "list.bullet.rectangle",
             action: presentWindowPickerAction,
             target: target,
-            enabled: isEnabled,
-            toolTip: windowUIMapHelpText(for: model)
+            enabled: context.isActionEnabled,
+            toolTip: windowUIMapHelpText(isEnabled: context.isUIMapEnabled)
         ))
     }
 
@@ -100,8 +105,8 @@ enum WindowCaptureMenuBuilder {
         return item
     }
 
-    private static func windowUIMapHelpText(for model: AppModel) -> String? {
-        guard model.capabilities.isEnabled(.uiMap), model.uiMapEnabled else {
+    private static func windowUIMapHelpText(isEnabled: Bool) -> String? {
+        guard isEnabled else {
             return nil
         }
 
@@ -129,24 +134,33 @@ enum WindowCaptureMenuBuilder {
 final class WindowCaptureQuickMenuPresenter: NSObject {
     static let shared = WindowCaptureQuickMenuPresenter()
 
-    private weak var model: AppModel?
+    private weak var capture: CaptureWorkflowModel?
     private var activeMenu: NSMenu?
     private var isPresenting = false
 
-    func present(for model: AppModel) {
+    func present(
+        capture: CaptureWorkflowModel,
+        video: VideoWorkflowModel,
+        capabilities: AppCapabilitySnapshot
+    ) {
         guard !isPresenting else {
             return
         }
 
         isPresenting = true
-        self.model = model
-        model.refreshAvailableWindows(
+        self.capture = capture
+        capture.refreshAvailableWindows(
             includeThumbnails: false,
             allowsCancellingPendingThumbnailRefresh: false
         )
+        let context = WindowCaptureMenuContext(
+            windows: capture.availableWindows,
+            isActionEnabled: !capture.isWorking && video.activeVideoRecording == nil,
+            isUIMapEnabled: capabilities.isEnabled(.uiMap) && capture.uiMapEnabled
+        )
 
         let menu = WindowCaptureMenuBuilder.makeMenu(
-            for: model,
+            context: context,
             target: self,
             pickOnScreenAction: #selector(pickWindowOnScreen),
             captureWindowAction: #selector(captureWindow(_:)),
@@ -167,7 +181,7 @@ final class WindowCaptureQuickMenuPresenter: NSObject {
     }
 
     @objc private func pickWindowOnScreen() {
-        model?.pickWindowOnScreen()
+        capture?.pickWindowOnScreen()
     }
 
     @objc private func captureWindow(_ sender: NSMenuItem) {
@@ -175,11 +189,11 @@ final class WindowCaptureQuickMenuPresenter: NSObject {
             return
         }
 
-        model?.captureWindow(window)
+        capture?.captureWindow(window)
     }
 
     @objc private func presentWindowPicker() {
-        model?.presentWindowPicker()
+        capture?.presentWindowPicker()
     }
 
     private var popupOrigin: NSPoint {

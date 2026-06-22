@@ -53,10 +53,6 @@ nonisolated enum CapturePermissionRequirement: CaseIterable, Identifiable {
         }
     }
 
-    static func availableCases(for target: BuildTarget = .current) -> [CapturePermissionRequirement] {
-        availableCases(for: BuildTargetCapabilityProvider().snapshot(for: target))
-    }
-
     static func availableCases(for capabilities: AppCapabilitySnapshot) -> [CapturePermissionRequirement] {
         var requirements: [CapturePermissionRequirement] = [.screenRecording]
         if capabilities.isEnabled(.scrollingCapture) {
@@ -64,34 +60,18 @@ nonisolated enum CapturePermissionRequirement: CaseIterable, Identifiable {
         }
         return requirements
     }
-
-    static var availableCases: [CapturePermissionRequirement] {
-        availableCases(for: .current)
-    }
 }
 
 nonisolated struct CapturePermissionStatus: Equatable {
     let hasScreenRecording: Bool
     let hasAccessibility: Bool
 
-    private func availableRequirements(for target: BuildTarget = .current) -> [CapturePermissionRequirement] {
-        CapturePermissionRequirement.availableCases(for: target)
+    func isCaptureReady(for capabilities: AppCapabilitySnapshot) -> Bool {
+        missingRequirements(for: capabilities).isEmpty
     }
 
-    var isCaptureReady: Bool {
-        isCaptureReady(for: .current)
-    }
-
-    func isCaptureReady(for target: BuildTarget = .current) -> Bool {
-        missingRequirements(for: target).isEmpty
-    }
-
-    var missingRequirements: [CapturePermissionRequirement] {
-        missingRequirements(for: .current)
-    }
-
-    func missingRequirements(for target: BuildTarget = .current) -> [CapturePermissionRequirement] {
-        availableRequirements(for: target).filter { !hasAccess(to: $0) }
+    func missingRequirements(for capabilities: AppCapabilitySnapshot) -> [CapturePermissionRequirement] {
+        CapturePermissionRequirement.availableCases(for: capabilities).filter { !hasAccess(to: $0) }
     }
 
     func hasAccess(to requirement: CapturePermissionRequirement) -> Bool {
@@ -151,7 +131,7 @@ enum ScreenCapturePermissions {
         currentAppURL.path
     }
 
-    static func verifyScreenRecordingAccess() async -> Bool {
+    nonisolated static func verifyScreenRecordingAccess() async -> Bool {
         await screenRecordingAccessVerifier()
     }
 
@@ -171,10 +151,6 @@ enum ScreenCapturePermissions {
         case .screenRecording:
             return requestScreenRecordingAccess()
         case .accessibility:
-            let capabilities = BuildTargetCapabilityProvider().currentSnapshot()
-            guard capabilities.isEnabled(.accessibilityAutomation) || capabilities.isEnabled(.uiMap) else {
-                return false
-            }
             return requestAccessibilityAccess()
         }
     }
@@ -193,7 +169,7 @@ enum ScreenCapturePermissions {
         pasteboard.setString(currentAppPath, forType: .string)
     }
 
-    static func indicatesScreenRecordingPermissionFailure(_ error: Error) -> Bool {
+    nonisolated static func indicatesScreenRecordingPermissionFailure(_ error: Error) -> Bool {
         if let error = error as? ScreenCaptureError, error == .permissionDenied {
             return true
         }

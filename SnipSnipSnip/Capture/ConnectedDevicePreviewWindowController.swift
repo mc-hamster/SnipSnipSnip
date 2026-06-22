@@ -1,4 +1,3 @@
-import AVFoundation
 import AppKit
 import Combine
 import SwiftUI
@@ -334,7 +333,7 @@ private struct ConnectedDevicePreviewView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            ConnectedDeviceVideoPreviewView(session: viewModel.session.captureSession)
+            ConnectedDeviceVideoPreviewView(session: viewModel.session)
                 .aspectRatio(9.0 / 16.0, contentMode: .fit)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.black)
@@ -435,35 +434,31 @@ private struct ConnectedDevicePreviewView: View {
 }
 
 private struct ConnectedDeviceVideoPreviewView: NSViewRepresentable {
-    let session: AVCaptureSession
+    let session: ConnectedDevicePreviewSession
 
-    func makeNSView(context: Context) -> PreviewLayerContainerView {
-        let view = PreviewLayerContainerView()
-        view.previewLayer.session = session
-        return view
+    func makeCoordinator() -> Coordinator {
+        Coordinator(session: session)
     }
 
-    func updateNSView(_ nsView: PreviewLayerContainerView, context: Context) {
-        nsView.previewLayer.session = session
+    func makeNSView(context: Context) -> NSView {
+        context.coordinator.session = session
+        return session.makePreviewView()
     }
 
-    static func dismantleNSView(_ nsView: PreviewLayerContainerView, coordinator: ()) {
-        nsView.previewLayer.session = nil
-    }
-}
-
-private final class PreviewLayerContainerView: NSView {
-    let previewLayer = AVCaptureVideoPreviewLayer()
-
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        wantsLayer = true
-        previewLayer.videoGravity = .resizeAspect
-        layer = previewLayer
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.session = session
+        session.updatePreviewView(nsView)
     }
 
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        nil
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        coordinator.session?.dismantlePreviewView(nsView)
+    }
+
+    final class Coordinator {
+        var session: ConnectedDevicePreviewSession?
+
+        init(session: ConnectedDevicePreviewSession?) {
+            self.session = session
+        }
     }
 }

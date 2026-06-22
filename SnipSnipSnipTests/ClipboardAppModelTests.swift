@@ -56,23 +56,23 @@ final class ClipboardAppModelTests: XCTestCase {
             shouldStartArchiveMaintenance: false
         ))
 
-        try model.completeCapture(
+        try model.capture.completeCapture(
             makeCapturedScreenshot(sourceName: "Timeline Source"),
             request: .region(CGRect(x: 0, y: 0, width: 64, height: 48)),
             isPrivateCapture: false
         )
 
         await waitUntil {
-            model.clipboardHistoryItems.count == 1
+            model.clipboard.clipboardHistoryItems.count == 1
         }
 
-        XCTAssertEqual(model.clipboardHistoryItems.count, 1)
-        guard case let .snip(_, _, title) = try XCTUnwrap(model.clipboardHistoryItems.first).kind else {
+        XCTAssertEqual(model.clipboard.clipboardHistoryItems.count, 1)
+        guard case let .snip(_, _, title) = try XCTUnwrap(model.clipboard.clipboardHistoryItems.first).kind else {
             XCTFail("Expected a snip clipboard item")
             return
         }
         XCTAssertTrue(title.hasSuffix(".sss"))
-        XCTAssertTrue(try XCTUnwrap(model.clipboardHistoryItems.first).searchableText.contains("Timeline Source"))
+        XCTAssertTrue(try XCTUnwrap(model.clipboard.clipboardHistoryItems.first).searchableText.contains("Timeline Source"))
     }
 
     func testPrivateCaptureDoesNotRecordClipboardSnip() async throws {
@@ -93,7 +93,7 @@ final class ClipboardAppModelTests: XCTestCase {
             shouldStartArchiveMaintenance: false
         ))
 
-        try model.completeCapture(
+        try model.capture.completeCapture(
             makeCapturedScreenshot(),
             request: .fullscreen,
             isPrivateCapture: true
@@ -101,7 +101,7 @@ final class ClipboardAppModelTests: XCTestCase {
 
         try? await Task.sleep(nanoseconds: 150_000_000)
 
-        XCTAssertTrue(model.clipboardHistoryItems.isEmpty)
+        XCTAssertTrue(model.clipboard.clipboardHistoryItems.isEmpty)
     }
 
     func testClipboardSettingsPersistAndSanitize() {
@@ -121,12 +121,12 @@ final class ClipboardAppModelTests: XCTestCase {
             shouldStartArchiveMaintenance: false
         ))
 
-        model.updateClipboardHistoryEnabled(false)
-        model.updateClipboardMaxItemCount(2)
-        model.updateClipboardMaxStorageMB(1)
-        model.addIgnoredClipboardApp(match: "com.example.SecretApp")
+        model.clipboard.updateClipboardHistoryEnabled(false)
+        model.clipboard.updateClipboardMaxItemCount(2)
+        model.clipboard.updateClipboardMaxStorageMB(1)
+        model.clipboard.addIgnoredClipboardApp(match: "com.example.SecretApp")
 
-        let reloaded = AppModel.loadClipboardPreferences(from: defaults)
+        let reloaded = ClipboardWorkflowModel.loadClipboardPreferences(from: defaults)
         XCTAssertFalse(reloaded.isEnabled)
         XCTAssertEqual(reloaded.maxItemCount, 10)
         XCTAssertEqual(reloaded.maxStorageMB, 25)

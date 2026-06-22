@@ -80,9 +80,20 @@ protocol AutomationOutputPort: AnyObject {
 @MainActor
 final class AutomationOutputService {
     private weak var port: AutomationOutputPort?
+    private let files: any FileSystemServicing
+    private let workspace: any WorkspaceServicing
+    private let pasteboard: any PasteboardServicing
 
-    init(port: AutomationOutputPort) {
+    init(
+        port: AutomationOutputPort,
+        files: any FileSystemServicing = SystemFileService(),
+        workspace: any WorkspaceServicing = SystemWorkspaceService(),
+        pasteboard: any PasteboardServicing = SystemPasteboardService()
+    ) {
         self.port = port
+        self.files = files
+        self.workspace = workspace
+        self.pasteboard = pasteboard
     }
 
     func write(_ output: AutomationOutput) async throws -> [AutomationOutputResult] {
@@ -99,7 +110,7 @@ final class AutomationOutputService {
                   let image = controller.exportedImage(usingPresentation: true) else {
                 throw AutomationExecutionError(code: .targetUnavailable, message: "There is no current screenshot to copy.")
             }
-            try ImageExporter.copyToClipboard(image)
+            try ImageExporter.copyToClipboard(image, pasteboard: pasteboard)
             port.markAutomationPasteboardChangeAsHandled()
             return [.init(kind: .copiedClipboard)]
         case .saveFile(let file):
@@ -150,10 +161,10 @@ final class AutomationOutputService {
     }
 
     private func writeFile(to url: URL, overwrite: Bool, operation: () async throws -> Void) async throws {
-        if FileManager.default.fileExists(atPath: url.path), !overwrite {
+        if files.fileExists(atPath: url.path), !overwrite {
             throw AutomationExecutionError(code: .outputFailed, message: "Output file already exists. Pass overwrite to replace it.")
         }
-        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try files.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try await operation()
     }
 
@@ -161,6 +172,21 @@ final class AutomationOutputService {
         guard reveal else {
             return
         }
-        NSWorkspace.shared.activateFileViewerSelecting([url])
+        workspace.activateFileViewerSelecting([url])
+    }
+}
+
+extension ImageExportFormat {
+    init?(automationFormat: AutomationExportFormat) {
+        switch automationFormat {
+        case .png:
+            self = .png
+        case .jpeg:
+            self = .jpeg
+        case .pdf:
+            self = .pdf
+        case .sss:
+            return nil
+        }
     }
 }

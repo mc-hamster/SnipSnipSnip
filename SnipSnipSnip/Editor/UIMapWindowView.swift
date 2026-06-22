@@ -3,26 +3,27 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct UIMapWindowView: View {
-    @ObservedObject var model: AppModel
+    @ObservedObject var documents: DocumentWorkflowModel
+    let capabilities: AppCapabilitySnapshot
 
     var body: some View {
         Group {
-            if !model.capabilities.isEnabled(.uiMap) {
+            if !capabilities.isEnabled(.uiMap) {
                 UIMapEmptyStateView(
                     title: "UI Map Unavailable",
                     systemImage: "rectangle.3.group",
                     message: "This build does not include UI Map."
                 )
-            } else if let controller = model.editorController,
+            } else if let controller = documents.editorController,
                       let uiMap = controller.uiMapSnapshot {
                 UIMapPanelView(controller: controller, uiMap: uiMap)
-            } else if model.editorController?.isProcessingUIMap == true {
+            } else if documents.editorController?.isProcessingUIMap == true {
                 UIMapEmptyStateView(
                     title: "UI Map Processing",
                     systemImage: "hourglass",
                     message: "Window UI Map metadata is being captured in the background."
                 )
-            } else if let controller = model.editorController,
+            } else if let controller = documents.editorController,
                       controller.capture.kind != .window {
                 UIMapEmptyStateView(
                     title: "No UI Map",

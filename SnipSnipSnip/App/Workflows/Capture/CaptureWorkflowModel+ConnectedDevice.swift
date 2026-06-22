@@ -1,9 +1,10 @@
 import AppKit
 import Foundation
 
-extension AppModel {
+@MainActor
+extension CaptureWorkflowModel {
     func refreshConnectedDevices() {
-        guard capabilities.isEnabled(.connectedDeviceCapture) else {
+        guard dependencies.capabilities.isEnabled(.connectedDeviceCapture) else {
             connectedDevices = []
             connectedDeviceEmptyStateMessage = ConnectedDeviceCaptureMenu.emptyStateMessage
             return
@@ -15,7 +16,7 @@ extension AppModel {
     }
 
     func loadConnectedDevices(showErrors: Bool) async {
-        guard capabilities.isEnabled(.connectedDeviceCapture) else {
+        guard dependencies.capabilities.isEnabled(.connectedDeviceCapture) else {
             connectedDevices = []
             connectedDeviceEmptyStateMessage = ConnectedDeviceCaptureMenu.emptyStateMessage
             if showErrors {
@@ -46,8 +47,8 @@ extension AppModel {
     }
 
     func presentConnectedDeviceEmptyState() {
-        errorMessage = connectedDeviceEmptyStateMessage
-        requestMainWindowPresentation()
+        dependencies.lifecycle.presentError(connectedDeviceEmptyStateMessage)
+        dependencies.lifecycle.requestMainWindowPresentation()
     }
 
     func presentConnectedDeviceSessionActiveMessage() {
@@ -59,7 +60,7 @@ extension AppModel {
     }
 
     func recordConnectedDevice(_ device: ConnectedAppleDevice) {
-        performAfterHandlingUnsavedChanges { [weak self] in
+        documents?.performAfterHandlingUnsavedChanges { [weak self] in
             self?.presentConnectedDevicePreview(for: device, intent: .recording)
         }
     }
@@ -69,12 +70,12 @@ extension AppModel {
         intent: ConnectedDevicePreviewIntent
     ) {
         Task {
-            guard capabilities.isEnabled(.connectedDeviceCapture) else {
+            guard dependencies.capabilities.isEnabled(.connectedDeviceCapture) else {
                 present(ConnectedDeviceCaptureError.publicScreenCaptureUnavailable)
                 return
             }
 
-            guard activeVideoRecording == nil, connectedDevicePreviewController == nil else {
+            guard video?.isRecording != true, connectedDevicePreviewController == nil else {
                 present(ConnectedDeviceCaptureError.sessionAlreadyActive)
                 return
             }
@@ -86,13 +87,13 @@ extension AppModel {
             let isPrivateCapture = beginCapturePrivacyLock()
 
             isWorking = true
-            workingMessage = "Connected Device"
+            dependencies.lifecycle.updateWorkingMessage("Connected Device")
 
             do {
                 try prepareTemporaryVideoStorageForConnectedDeviceRecording()
                 let session = try await connectedDeviceCaptureService.makePreviewSession(
                     for: device,
-                    preferences: videoRecordingPreferences
+                    preferences: video?.connectedDeviceRecordingPreferences ?? VideoRecordingPreferences()
                 )
                 let controller = ConnectedDevicePreviewWindowController(
                     device: device,
@@ -110,19 +111,14 @@ extension AppModel {
                             request: .connectedDevice(device),
                             isPrivateCapture: isPrivateCapture
                         )
-                        self.requestMainWindowPresentation()
+                        self.dependencies.lifecycle.requestMainWindowPresentation()
                     },
                     openRecording: { [weak self] recording in
                         guard let self else {
                             return
                         }
 
-                        self.installVideoController(
-                            VideoEditorController(recording: recording),
-                            documentURL: nil,
-                            savedSession: nil
-                        )
-                        self.requestMainWindowPresentation()
+                        self.outputSink?.handle(.recordingCompleted(recording))
                     },
                     presentError: { [weak self] error in
                         self?.present(error)
@@ -141,7 +137,7 @@ extension AppModel {
                 isConnectedDeviceSessionActive = true
                 isWorking = false
                 controller.showWindow(nil)
-                NSApp.activate(ignoringOtherApps: true)
+                dependencies.appWindowPresenter.activateApp()
                 try await controller.start()
             } catch {
                 connectedDevicePreviewController?.close()
@@ -155,7 +151,7 @@ extension AppModel {
     }
 
     private func prepareTemporaryVideoStorageForConnectedDeviceRecording() throws {
-        try VideoStorageGuardrails.cleanupOwnedTemporaryMedia(excluding: currentProtectedTemporaryVideoURLs())
+        try VideoStorageGuardrails.cleanupOwnedTemporaryMedia(excluding: documents?.currentProtectedTemporaryVideoURLs() ?? [])
     }
 
     private func confirmConnectedDeviceCameraAccessIfNeeded() async -> Bool {

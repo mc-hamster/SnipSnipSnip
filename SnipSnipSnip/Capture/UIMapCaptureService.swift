@@ -1,5 +1,4 @@
 import AppKit
-import ApplicationServices
 import CoreGraphics
 import Foundation
 import OSLog
@@ -142,9 +141,20 @@ nonisolated enum UIMapTextRecognitionGeometry {
 
 nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
     private let capabilities: AppCapabilitySnapshot
+    private let accessibility: any AccessibilityPlatform
+    private let screens: any ScreenTopologyProviding
+    private let clock: any ClockProviding
 
-    init(capabilities: AppCapabilitySnapshot = BuildTargetCapabilityProvider().currentSnapshot()) {
+    init(
+        capabilities: AppCapabilitySnapshot,
+        accessibility: any AccessibilityPlatform = LiveAccessibilityPlatform(),
+        screens: any ScreenTopologyProviding = SystemScreenTopologyService(),
+        clock: any ClockProviding = SystemClock()
+    ) {
         self.capabilities = capabilities
+        self.accessibility = accessibility
+        self.screens = screens
+        self.clock = clock
     }
 
     private struct WindowCandidate {
@@ -209,7 +219,7 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
 
     nonisolated func captureUIMap(for capture: CapturedScreenshot) -> UIMapSnapshot? {
         UIMapCaptureDiagnostics.notice(
-            "[UIMap] capture requested sourceName='\(capture.sourceName)' kind='\(capture.kind.rawValue)' sourceRect=\(Self.describe(capture.sourceRect)) documentRect=\(Self.describe(capture.documentRect)) pixelSize=\(Int(capture.pixelSize.width))x\(Int(capture.pixelSize.height)) featureEnabled=\(capabilities.isEnabled(.uiMap)) axTrusted=\(AXIsProcessTrusted())"
+            "[UIMap] capture requested sourceName='\(capture.sourceName)' kind='\(capture.kind.rawValue)' sourceRect=\(Self.describe(capture.sourceRect)) documentRect=\(Self.describe(capture.documentRect)) pixelSize=\(Int(capture.pixelSize.width))x\(Int(capture.pixelSize.height)) featureEnabled=\(capabilities.isEnabled(.uiMap)) axTrusted=\(accessibility.isProcessTrusted())"
         )
 
         guard capabilities.isEnabled(.uiMap) else {
@@ -227,7 +237,7 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
             return nil
         }
 
-        guard AXIsProcessTrusted() else {
+        guard accessibility.isProcessTrusted() else {
             UIMapCaptureDiagnostics.failure("[UIMap] capture skipped: Accessibility trust is false")
             return nil
         }
@@ -235,14 +245,14 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         let mapping = CaptureMapping(
             captureSourceRect: capture.sourceRect,
             documentRect: capture.documentRect,
-            accessibilityMappings: Self.currentCoordinateMappings()
+            accessibilityMappings: currentCoordinateMappings()
         )
         var remainingElementBudget = maxElementCount
         var remainingVisitBudget = maxVisitedElementCount
-        var visited = Set<CFHashCode>()
+        var visited = Set<AccessibilityElementHandle>()
         var didHitTimeLimit = false
         var bestAXWindowMatchScore: CGFloat?
-        let deadline = Date().addingTimeInterval(captureDeadlineSeconds)
+        let deadline = clock.now().addingTimeInterval(captureDeadlineSeconds)
         let candidates = windowCandidates(for: capture)
         UIMapCaptureDiagnostics.notice(
             "[UIMap] window candidate count=\(candidates.count) captureSourceRect=\(Self.describe(capture.sourceRect)) displayMappings=\(mapping.accessibilityMappings.count)"
@@ -279,7 +289,7 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         }
 
         let supplementedElements: [UIMapElement]
-        if Date() < deadline {
+        if clock.now() < deadline {
             supplementedElements = elementsWithTextRecognitionSupplement(
                 for: capture,
                 candidates: candidates,
@@ -297,7 +307,7 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
             .count
         let didHitBudgetLimit = remainingElementBudget <= 0 || remainingVisitBudget <= 0
         let snapshot = UIMapSnapshot(
-            capturedAt: Date(),
+            capturedAt: clock.now(),
             sourceRect: capture.sourceRect,
             elements: supplementedElements,
             diagnostics: UIMapCaptureDiagnosticsSummary(
@@ -428,17 +438,17 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
     private func captureWindowElement(
         for candidate: WindowCandidate,
         mapping: CaptureMapping,
-        visited: inout Set<CFHashCode>,
+        visited: inout Set<AccessibilityElementHandle>,
         remainingVisitBudget: inout Int,
         remainingElementBudget: inout Int,
         bestAXWindowMatchScore: inout CGFloat?,
         deadline: Date,
         didHitTimeLimit: inout Bool
     ) -> UIMapElement? {
-        let appElement = AXUIElementCreateApplication(candidate.ownerPID)
-        AXUIElementSetMessagingTimeout(appElement, 2.0)
+        let appElement = accessibility.applicationElement(processID: candidate.ownerPID)
+        accessibility.setMessagingTimeout(2.0, for: appElement)
         let windowsResult = attributeResult("AXWindows", from: appElement)
-        let windows = (windowsResult.value as? [AXUIElement]) ?? []
+        let windows = (windowsResult.value as? [AccessibilityElementHandle]) ?? []
         UIMapCaptureDiagnostics.notice(
             "[UIMap] AX app owner='\(candidate.ownerName)' pid=\(candidate.ownerPID) windows=\(windows.count) AXWindowsStatus=\(windowsResult.status.rawValue)"
         )
@@ -466,7 +476,7 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
             mapping: mapping,
             bestAXWindowMatchScore: &bestAXWindowMatchScore
         )
-        let roots = deduplicatedAXElements(matchingWindows + fallbackRoots)
+        let roots = deduplicatedAccessibilityElements(matchingWindows + fallbackRoots)
         UIMapCaptureDiagnostics.notice(
             "[UIMap] AX app owner='\(candidate.ownerName)' rootWindows=\(roots.count) fallbackRoots=\(fallbackRoots.count)"
         )
@@ -522,12 +532,12 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
     }
 
     private func applicationWindowRoots(
-        from appElement: AXUIElement,
+        from appElement: AccessibilityElementHandle,
         candidate: WindowCandidate,
         mapping: CaptureMapping,
         bestAXWindowMatchScore: inout CGFloat?
-    ) -> [AXUIElement] {
-        var roots = [AXUIElement]()
+    ) -> [AccessibilityElementHandle] {
+        var roots = [AccessibilityElementHandle]()
 
         for attributeName in ["AXFocusedWindow", "AXMainWindow"] {
             let result = attributeResult(attributeName, from: appElement)
@@ -538,7 +548,7 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
                 continue
             }
 
-            guard let root = axElement(from: result.value) else {
+            guard let root = element(from: result.value) else {
                 UIMapCaptureDiagnostics.notice(
                     "[UIMap] AX app owner='\(candidate.ownerName)' \(attributeName)Status=\(result.status.rawValue) nonElement=true"
                 )
@@ -560,7 +570,7 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         }
 
         let childrenResult = attributeResult("AXChildren", from: appElement)
-        let childRoots = (childrenResult.value as? [AXUIElement]) ?? []
+        let childRoots = (childrenResult.value as? [AccessibilityElementHandle]) ?? []
         let matchingChildRoots = childRoots.filter { childRoot in
             let score = axWindowMatchScore(childRoot, candidate: candidate, mapping: mapping)
             if score >= minimumAXWindowMatchScore {
@@ -575,11 +585,11 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         )
         roots.append(contentsOf: matchingChildRoots)
 
-        return deduplicatedAXElements(roots)
+        return deduplicatedAccessibilityElements(roots)
     }
 
     private func axWindowMatchScore(
-        _ element: AXUIElement,
+        _ element: AccessibilityElementHandle,
         candidate: WindowCandidate,
         mapping: CaptureMapping
     ) -> CGFloat {
@@ -615,13 +625,14 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         return max(0, overlapRatio + roleBonus - framePenalty)
     }
 
-    private func deduplicatedAXElements(_ elements: [AXUIElement]) -> [AXUIElement] {
-        var seen = Set<CFHashCode>()
-        var deduplicated = [AXUIElement]()
+    private func deduplicatedAccessibilityElements(
+        _ elements: [AccessibilityElementHandle]
+    ) -> [AccessibilityElementHandle] {
+        var seen = Set<AccessibilityElementHandle>()
+        var deduplicated = [AccessibilityElementHandle]()
 
         for element in elements {
-            let hash = CFHash(element)
-            guard seen.insert(hash).inserted else {
+            guard seen.insert(element).inserted else {
                 continue
             }
             deduplicated.append(element)
@@ -631,19 +642,19 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
     }
 
     private func captureElement(
-        _ element: AXUIElement,
+        _ element: AccessibilityElementHandle,
         ownerName: String,
         bundleIdentifier: String?,
         mapping: CaptureMapping,
         windowRelativeMapping: UIMapWindowRelativeMapping?,
         depth: Int,
-        visited: inout Set<CFHashCode>,
+        visited: inout Set<AccessibilityElementHandle>,
         remainingVisitBudget: inout Int,
         remainingElementBudget: inout Int,
         deadline: Date,
         didHitTimeLimit: inout Bool
     ) -> UIMapElement? {
-        guard Date() <= deadline else {
+        guard clock.now() <= deadline else {
             didHitTimeLimit = true
             return nil
         }
@@ -654,8 +665,7 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
             return nil
         }
 
-        let hash = CFHash(element)
-        guard visited.insert(hash).inserted else {
+        guard visited.insert(element).inserted else {
             return nil
         }
         remainingVisitBudget -= 1
@@ -763,7 +773,7 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
     }
 
     private func windowRelativeMapping(
-        forRoot root: AXUIElement,
+        forRoot root: AccessibilityElementHandle,
         candidate: WindowCandidate,
         mapping: CaptureMapping
     ) -> UIMapWindowRelativeMapping? {
@@ -1016,105 +1026,79 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         return rect.gscIntegralStandardized
     }
 
-    private func accessibilityFrame(of element: AXUIElement) -> CGRect? {
-        guard let positionObject = attribute("AXPosition", from: element),
-              let sizeObject = attribute("AXSize", from: element) else {
+    private func accessibilityFrame(of element: AccessibilityElementHandle) -> CGRect? {
+        guard let frame = accessibility.frame(of: element),
+              frame.width > 0,
+              frame.height > 0 else {
             return nil
         }
 
-        let positionCFValue = positionObject as CFTypeRef
-        let sizeCFValue = sizeObject as CFTypeRef
-
-        guard CFGetTypeID(positionCFValue) == AXValueGetTypeID(),
-              CFGetTypeID(sizeCFValue) == AXValueGetTypeID() else {
-            return nil
-        }
-
-        let positionValue = positionCFValue as! AXValue
-        let sizeValue = sizeCFValue as! AXValue
-        var position = CGPoint.zero
-        var size = CGSize.zero
-
-        guard AXValueGetValue(positionValue, .cgPoint, &position),
-              AXValueGetValue(sizeValue, .cgSize, &size),
-              size.width > 0,
-              size.height > 0 else {
-            return nil
-        }
-
-        return CGRect(origin: position, size: size).gscIntegralStandardized
+        return frame.gscIntegralStandardized
     }
 
-    private func attribute(_ name: String, from element: AXUIElement) -> AnyObject? {
+    private func attribute(_ name: String, from element: AccessibilityElementHandle) -> Any? {
         attributeResult(name, from: element).value
     }
 
-    private func attributeResult(_ name: String, from element: AXUIElement) -> (status: AXError, value: AnyObject?) {
-        var lastStatus = AXError.failure
-        var lastValue: CFTypeRef?
+    private func attributeResult(
+        _ name: String,
+        from element: AccessibilityElementHandle
+    ) -> (status: AccessibilityPlatformStatus, value: Any?) {
+        var lastStatus = AccessibilityPlatformStatus.failure(-1)
+        var lastValue: Any?
 
         for attempt in 0..<3 {
-            var value: CFTypeRef?
-            let status = AXUIElementCopyAttributeValue(element, name as CFString, &value)
+            let result = accessibility.copyAttribute(name, from: element)
+            let status = result.status
             if status == .success {
-                return (status, value as AnyObject?)
+                return result
             }
 
             lastStatus = status
-            lastValue = value
+            lastValue = result.value
 
-            guard status == .cannotComplete,
+            guard status.isCannotComplete,
                   attempt < 2 else {
                 break
             }
 
-            Thread.sleep(forTimeInterval: 0.08)
+            accessibility.wait(seconds: 0.08)
         }
 
-        return (lastStatus, lastValue as AnyObject?)
+        return (lastStatus, lastValue)
     }
 
-    private func attributeNamesResult(from element: AXUIElement) -> (status: AXError, names: [String]) {
-        var names: CFArray?
-        let status = AXUIElementCopyAttributeNames(element, &names)
-        return (status, (names as? [String]) ?? [])
+    private func attributeNamesResult(
+        from element: AccessibilityElementHandle
+    ) -> (status: AccessibilityPlatformStatus, names: [String]) {
+        accessibility.copyAttributeNames(from: element)
     }
 
-    private func stringAttribute(_ name: String, from element: AXUIElement) -> String? {
+    private func stringAttribute(_ name: String, from element: AccessibilityElementHandle) -> String? {
         attribute(name, from: element) as? String
     }
 
-    private func elementAttribute(_ name: String, from element: AXUIElement) -> AXUIElement? {
-        guard let value = attribute(name, from: element) else {
-            return nil
-        }
-
-        return axElement(from: value)
+    private func elementAttribute(
+        _ name: String,
+        from element: AccessibilityElementHandle
+    ) -> AccessibilityElementHandle? {
+        self.element(from: attribute(name, from: element))
     }
 
-    private func axElement(from value: AnyObject?) -> AXUIElement? {
-        guard let value else {
-            return nil
-        }
-
-        let cfValue = value as CFTypeRef
-        guard CFGetTypeID(cfValue) == AXUIElementGetTypeID() else {
-            return nil
-        }
-
-        return unsafeDowncast(value, to: AXUIElement.self)
+    private func element(from value: Any?) -> AccessibilityElementHandle? {
+        value as? AccessibilityElementHandle
     }
 
-    private func elementPID(_ element: AXUIElement) -> pid_t? {
-        var pid = pid_t(0)
-        guard AXUIElementGetPid(element, &pid) == .success else {
+    private func elementPID(_ element: AccessibilityElementHandle) -> pid_t? {
+        let result = accessibility.processIdentifier(for: element)
+        guard result.status == .success else {
             return nil
         }
 
-        return pid
+        return result.processID
     }
 
-    private func valueDescription(from element: AXUIElement) -> String? {
+    private func valueDescription(from element: AccessibilityElementHandle) -> String? {
         guard let value = attribute("AXValue", from: element) else {
             return nil
         }
@@ -1130,9 +1114,10 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         return nil
     }
 
-    private func elementChildren(of element: AXUIElement) -> [AXUIElement] {
+    private func elementChildren(of element: AccessibilityElementHandle) -> [AccessibilityElementHandle] {
         for attributeName in ["AXVisibleChildren", "AXChildren", "AXRows", "AXColumns", "AXMenuItems"] {
-            if let children = attribute(attributeName, from: element) as? [AXUIElement], !children.isEmpty {
+            if let children = attribute(attributeName, from: element) as? [AccessibilityElementHandle],
+               !children.isEmpty {
                 return children
             }
         }
@@ -1140,13 +1125,9 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         return []
     }
 
-    private static func currentCoordinateMappings() -> [CaptureAccessibilityTransform] {
-        NSScreen.screens.compactMap { screen in
-            guard let displayID = screen.gscDisplayID else {
-                return nil
-            }
-
-            let captureFrame = CGDisplayBounds(displayID)
+    private func currentCoordinateMappings() -> [CaptureAccessibilityTransform] {
+        screens.screens.compactMap { screen in
+            let captureFrame = CGDisplayBounds(screen.displayID)
             guard captureFrame.width > 0,
                   captureFrame.height > 0 else {
                 return nil

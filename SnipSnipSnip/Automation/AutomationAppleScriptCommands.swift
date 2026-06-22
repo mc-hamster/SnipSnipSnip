@@ -4,10 +4,12 @@ import Foundation
 
 @MainActor
 enum AutomationAppleScriptBridge {
-    private static weak var model: AppModel?
+    private static weak var automation: AutomationWorkflowModel?
+    private static var automationService: (any AutomationService)?
 
-    static func configure(model: AppModel) {
-        self.model = model
+    static func configure(automation: AutomationWorkflowModel, automationService: any AutomationService) {
+        self.automation = automation
+        self.automationService = automationService
     }
 
     nonisolated static func jsonResult(for request: AutomationRequest, enqueueOnly: Bool = false) -> String {
@@ -31,18 +33,22 @@ enum AutomationAppleScriptBridge {
     }
 
     private static func performOrEnqueue(_ request: AutomationRequest, enqueueOnly: Bool) -> AutomationResultEnvelope {
-        guard let model else {
+        guard let automation else {
             return .failure(requestID: request.id, code: .internalError, message: "SnipSnipSnip is not ready for automation.")
         }
 
         switch request.command {
         case .status:
-            return .success(requestID: request.id, payload: .preflight(model.automationPermissionPreflight), outputs: [.init(kind: .none)])
+            return .success(requestID: request.id, payload: .preflight(automation.automationPermissionPreflight), outputs: [.init(kind: .none)])
         case .listPresets:
-            return .success(requestID: request.id, payload: .presets(model.automationCapturePresets), outputs: [.init(kind: .none)])
+            return .success(requestID: request.id, payload: .presets(automation.automationCapturePresets), outputs: [.init(kind: .none)])
         default:
+            guard let automationService else {
+                return .failure(requestID: request.id, code: .internalError, message: "SnipSnipSnip is not ready for automation.")
+            }
+
             Task { @MainActor in
-                _ = await model.automationService.perform(request)
+                _ = await automationService.perform(request)
             }
 
             if enqueueOnly {

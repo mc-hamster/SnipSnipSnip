@@ -111,6 +111,7 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
 
     private let accessLock = NSRecursiveLock()
     private let fileManager: FileManager
+    private let files: any FileSystemServicing
     private let rootURL: URL
     private let sessionsURL: URL
     private let searchIndexURL: URL
@@ -129,6 +130,7 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
 
     init(fileManager: FileManager = .default, baseURL: URL? = nil) {
         self.fileManager = fileManager
+        self.files = SystemFileService(fileManager: fileManager)
 
         rootURL = baseURL ?? Self.defaultArchiveURL(fileManager: fileManager)
 
@@ -227,7 +229,7 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
         previewImage: CGImage,
         pendingRecovery: Bool,
         hasUnsavedChanges: Bool,
-        includeUIMapSearchText: Bool = BuildTargetCapabilityProvider().currentSnapshot().isEnabled(.uiMap)
+        includeUIMapSearchText: Bool
     ) throws {
         try withLockedAccess {
             try ensureRootDirectories()
@@ -261,7 +263,8 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
                     assetName: Self.sharedBaseImageRelativePath,
                     fileURL: sharedBaseImageURL
                 ),
-                includeUIMapSearchText: includeUIMapSearchText
+                includeUIMapSearchText: includeUIMapSearchText,
+                files: files
             )
             let packageSizeBytes = try directorySize(at: packageURL)
 
@@ -345,7 +348,7 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
 
     func restoreDocument(from entry: DocumentHistoryEntry) throws -> EditableScreenshotDocument {
         try withLockedAccess {
-            try SSSDocumentPackage.load(from: entry.packageURL)
+            try SSSDocumentPackage.load(from: entry.packageURL, files: files)
         }
     }
 
@@ -360,7 +363,7 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
                     session.checkpoints.map { historyEntry(from: $0, in: session) }
                 }
                 .filter { entry in
-                    SSSDocumentPackage.compatibilityStatus(at: entry.packageURL).isUnsupportedFormatVersion
+                    SSSDocumentPackage.compatibilityStatus(at: entry.packageURL, files: files).isUnsupportedFormatVersion
                 }
                 .sorted { $0.savedAt > $1.savedAt }
         }
@@ -781,7 +784,7 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
             let candidateURL = packageURL.appendingPathComponent(previewAssetName)
             previewAssetURL = fileManager.fileExists(atPath: candidateURL.path) ? candidateURL : nil
         } else {
-            previewAssetURL = SSSDocumentPackage.previewAssetURL(in: packageURL)
+            previewAssetURL = SSSDocumentPackage.previewAssetURL(in: packageURL, files: files)
         }
 
         return DocumentHistoryEntry(
@@ -795,7 +798,7 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
             previewAssetURL: previewAssetURL,
             sourceDocumentURL: session.sourceDocumentPath.map { URL(fileURLWithPath: $0) },
             hasUnsavedChanges: checkpoint.hasUnsavedChanges,
-            searchableText: checkpoint.searchableText ?? SSSDocumentPackage.loadSearchableText(from: packageURL),
+            searchableText: checkpoint.searchableText ?? SSSDocumentPackage.loadSearchableText(from: packageURL, files: files),
             packageSizeBytes: checkpoint.packageSizeBytes,
             deletedAt: checkpoint.deletedAt
         )
@@ -810,13 +813,13 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
             let candidateURL = packageURL.appendingPathComponent(previewAssetName)
             previewAssetURL = fileManager.fileExists(atPath: candidateURL.path) ? candidateURL : nil
         } else {
-            previewAssetURL = SSSDocumentPackage.previewAssetURL(in: packageURL)
+            previewAssetURL = SSSDocumentPackage.previewAssetURL(in: packageURL, files: files)
         }
 
         if let persistedSummary = indexEntry.changeSummary {
             changeSummary = persistedSummary
         } else if derivingLegacySummary,
-                  let document = try? SSSDocumentPackage.load(from: packageURL) {
+                  let document = try? SSSDocumentPackage.load(from: packageURL, files: files) {
             changeSummary = RecoveryCheckpointSummary.summary(for: document.session, fallbackLabel: indexEntry.label)
         } else {
             changeSummary = nil

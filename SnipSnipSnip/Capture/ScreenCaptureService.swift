@@ -1,8 +1,6 @@
-import AppKit
 import CoreGraphics
 import Foundation
 import OSLog
-@preconcurrency import ScreenCaptureKit
 
 protocol ScreenCaptureServiceType: Sendable {
     func listWindows(excluding processID: pid_t, includeThumbnails: Bool) async throws -> [CaptureWindowSummary]
@@ -105,8 +103,34 @@ nonisolated enum RegionCapturePlan: Equatable {
 }
 
 struct ScreenCaptureService: ScreenCaptureServiceType {
+    let permissions: any CapturePermissionServicing
+    let platform: any ScreenCapturePlatform
+    let workspace: any WorkspaceServicing
+    let screens: any ScreenTopologyProviding
+    let mouse: any MouseLocationProviding
+    let windowFocus: any ApplicationWindowFocusProviding
+    let clock: any ClockProviding
+
+    nonisolated init(
+        permissions: any CapturePermissionServicing,
+        platform: any ScreenCapturePlatform,
+        workspace: any WorkspaceServicing,
+        screens: any ScreenTopologyProviding,
+        mouse: any MouseLocationProviding,
+        windowFocus: any ApplicationWindowFocusProviding,
+        clock: any ClockProviding
+    ) {
+        self.permissions = permissions
+        self.platform = platform
+        self.workspace = workspace
+        self.screens = screens
+        self.mouse = mouse
+        self.windowFocus = windowFocus
+        self.clock = clock
+    }
+
     func listWindows(excluding processID: pid_t = ProcessInfo.processInfo.processIdentifier, includeThumbnails: Bool = true) async throws -> [CaptureWindowSummary] {
-        guard CapturePermissionStatus.current().hasScreenRecording else {
+        guard permissions.currentStatus().hasScreenRecording else {
             throw ScreenCaptureError.permissionDenied
         }
 
@@ -115,28 +139,25 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
 
         let displays = content.displays
         let candidates = content.windows.compactMap { window -> WindowCaptureCandidate? in
-            let ownerName = window.owningApplication?.applicationName ?? "Window"
-            let ownerPID = window.owningApplication?.processID ?? 0
-            let title = window.title ?? ""
             let scale = displayScale(forCaptureFrame: window.frame, displays: displays)
 
-            guard ownerPID != processID else {
+            guard window.ownerPID != processID else {
                 return nil
             }
 
-            guard window.windowLayer == 0, window.frame.width >= 60, window.frame.height >= 40, window.isOnScreen else {
+            guard window.layer == 0, window.frame.width >= 60, window.frame.height >= 40, window.isOnScreen else {
                 return nil
             }
 
             return WindowCaptureCandidate(
                 window: window,
-                id: window.windowID,
-                ownerName: ownerName,
-                ownerPID: ownerPID,
-                title: title,
+                id: window.id,
+                ownerName: window.ownerName,
+                ownerPID: window.ownerPID,
+                title: window.title,
                 frame: window.frame,
-                layer: window.windowLayer,
-                focusRank: focusOrder[window.windowID] ?? Int.max,
+                layer: window.layer,
+                focusRank: focusOrder[window.id] ?? Int.max,
                 scale: scale
             )
         }
@@ -199,7 +220,7 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
 
     func frontmostWindow(excluding processID: pid_t = ProcessInfo.processInfo.processIdentifier) async throws -> CaptureWindowSummary {
         let windows = try await listWindows(excluding: processID, includeThumbnails: true)
-        let frontmostOwnerPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let frontmostOwnerPID = workspace.frontmostApplicationProcessIdentifier
 
         if let frontmostOwnerPID,
            let frontmostWindow = windows
@@ -224,7 +245,7 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
         guard let resolved = gscBestWindowMatch(
             for: window,
             in: windows,
-            frontmostOwnerPID: NSWorkspace.shared.frontmostApplication?.processIdentifier
+            frontmostOwnerPID: workspace.frontmostApplicationProcessIdentifier
         ) else {
             throw ScreenCaptureError.noWindowsAvailable
         }
@@ -234,7 +255,7 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
 
     func captureCurrentDisplay() async throws -> CapturedScreenshot {
         let displays = try await captureDisplaySnapshots()
-        guard let display = currentDisplay(from: displays) else {
+        guard let display = await currentDisplay(from: displays) else {
             throw ScreenCaptureError.currentDisplayUnavailable
         }
 
@@ -273,7 +294,7 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
             kind: .fullscreen,
             sourceName: display.name,
             sourceRect: display.frame,
-            capturedAt: Date()
+            capturedAt: clock.now()
         )
     }
 
@@ -330,7 +351,7 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
             kind: .region,
             sourceName: "Region",
             sourceRect: region,
-            capturedAt: Date()
+            capturedAt: clock.now()
         )
     }
 
@@ -347,7 +368,7 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
         }
 
         let content = try await fetchShareableContent()
-        let displays = makeDisplaySnapshots(from: content.displays)
+        let displays = content.displays
         guard case let .screenRect(rect, scale) = regionCapturePlan(
             for: region,
             displays: displays,
@@ -363,7 +384,7 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
             kind: .region,
             sourceName: "Region",
             sourceRect: region,
-            capturedAt: Date()
+            capturedAt: clock.now()
         )
     }
 
@@ -374,21 +395,18 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
         }
 
         let content = try await fetchShareableContent()
-        let displays = makeDisplaySnapshots(from: content.displays)
+        let displays = content.displays
         guard case let .filteredDisplay(request) = regionCapturePlan(
             for: region,
             displays: displays,
             requiresSingleDisplay: true
         ),
-              let scDisplay = content.displays.first(where: { $0.displayID == request.displayID }),
               let displaySnapshot = displays.first(where: { $0.displayID == request.displayID }) else {
             throw ScreenCaptureError.regionSpansMultipleDisplays
         }
 
-        let filter = makeDisplayCaptureFilter(for: scDisplay, content: content)
         debugCapturePlan(strategy: "filtered-display-local", region: region, displays: displays, request: request)
         let image = try await captureDisplayRegion(
-            filter: filter,
             displaySnapshot: displaySnapshot,
             cropRegion: region,
             primaryRequest: request
@@ -399,29 +417,26 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
             kind: .region,
             sourceName: "Region",
             sourceRect: region,
-            capturedAt: Date()
+            capturedAt: clock.now()
         )
     }
 
     /// Captures a region within a single display. Tries the `sourceRect` path first (fastest),
     /// then falls back to capturing the full display and cropping. The full-display path avoids a
-    /// known SCKit failure where `SCScreenshotConfiguration.sourceRect` causes "Failed to start
-    /// stream" on secondary displays regardless of filter or configuration.
+    /// known capture backend failure where source-rect capture can fail on secondary displays.
     private func captureDisplayRegion(
-        filter: SCContentFilter,
         displaySnapshot: DisplaySnapshot,
         cropRegion: CGRect,
         primaryRequest: DirectDisplayCaptureRequest
     ) async throws -> CGImage {
         do {
             return try await captureScreenshot(
-                filter: filter,
+                target: .display(primaryRequest.displayID, excludingProcessID: ProcessInfo.processInfo.processIdentifier),
                 sourceRect: primaryRequest.sourceRect,
                 outputSize: primaryRequest.outputSize
             )
         } catch {
             return try await captureFullDisplayAndCrop(
-                filter: filter,
                 display: displaySnapshot,
                 cropRegion: cropRegion
             )
@@ -431,7 +446,6 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
     /// Captures the entire display using a content filter (no `sourceRect`), then crops to the
     /// requested region. Used when setting `sourceRect` on the configuration causes SCKit to fail.
     private func captureFullDisplayAndCrop(
-        filter: SCContentFilter,
         display: DisplaySnapshot,
         cropRegion: CGRect
     ) async throws -> CGImage {
@@ -440,13 +454,12 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
         let fullW = max(Int((frame.width * scale).rounded(.up)), 1)
         let fullH = max(Int((frame.height * scale).rounded(.up)), 1)
 
-        let configuration = SCScreenshotConfiguration()
-        configuration.width = fullW
-        configuration.height = fullH
-        configuration.showsCursor = false
-        configuration.dynamicRange = .sdr
-
-        let fullImage = try await captureScreenshot(filter: filter, configuration: configuration)
+        let fullImage = try await platform.captureScreenshot(
+            ScreenCaptureRequest(
+                target: .display(display.displayID, excludingProcessID: ProcessInfo.processInfo.processIdentifier),
+                configuration: ScreenCaptureConfiguration(width: fullW, height: fullH)
+            )
+        )
 
         // Quartz global and image crop coordinates are both top-left, y-down.
         let localRect = CaptureScreenTransform(captureFrame: frame)
@@ -465,33 +478,35 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
     }
 
     func captureWindow(_ window: CaptureWindowSummary) async throws -> CapturedScreenshot {
-        guard CapturePermissionStatus.current().hasScreenRecording else {
+        guard permissions.currentStatus().hasScreenRecording else {
             throw ScreenCaptureError.permissionDenied
         }
 
         let content = try await fetchShareableContent()
 
-        guard let sourceWindow = content.windows.first(where: { $0.windowID == window.id }) else {
+        guard let sourceWindow = content.windows.first(where: { $0.id == window.id }) else {
             throw ScreenCaptureError.windowImageUnavailable
         }
 
-        let filter = SCContentFilter(desktopIndependentWindow: sourceWindow)
-        let configuration = SCScreenshotConfiguration()
         let scale = displayScale(forCaptureFrame: sourceWindow.frame, displays: content.displays)
-        configuration.width = max(Int((sourceWindow.frame.width * scale).rounded(.up)), 1)
-        configuration.height = max(Int((sourceWindow.frame.height * scale).rounded(.up)), 1)
-        configuration.showsCursor = false
-        configuration.dynamicRange = .sdr
-        let image = try await captureScreenshot(filter: filter, configuration: configuration)
+        let image = try await platform.captureScreenshot(
+            ScreenCaptureRequest(
+                target: .window(sourceWindow.id),
+                configuration: ScreenCaptureConfiguration(
+                    width: max(Int((sourceWindow.frame.width * scale).rounded(.up)), 1),
+                    height: max(Int((sourceWindow.frame.height * scale).rounded(.up)), 1)
+                )
+            )
+        )
         let sourceFrame = sourceWindow.frame.gscIntegralStandardized
-        let sourceOwnerPID = sourceWindow.owningApplication?.processID ?? window.ownerPID
-        let sourceOwnerName = sourceWindow.owningApplication?.applicationName ?? window.ownerName
-        let sourceTitle = sourceWindow.title ?? window.title
+        let sourceOwnerPID = sourceWindow.ownerPID
+        let sourceOwnerName = sourceWindow.ownerName
+        let sourceTitle = sourceWindow.title
         let sourceWindowIdentity = CaptureSourceWindowIdentity(
-            windowID: sourceWindow.windowID,
+            windowID: sourceWindow.id,
             ownerName: sourceOwnerName,
             ownerPID: sourceOwnerPID,
-            bundleIdentifier: NSRunningApplication(processIdentifier: sourceOwnerPID)?.bundleIdentifier,
+            bundleIdentifier: sourceWindow.bundleIdentifier,
             title: sourceTitle,
             frame: sourceFrame
         )
@@ -500,28 +515,28 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
             image: image,
             kind: .window,
             sourceName: CaptureWindowSummary(
-                id: sourceWindow.windowID,
+                id: sourceWindow.id,
                 ownerName: sourceOwnerName,
                 ownerPID: sourceOwnerPID,
                 title: sourceTitle,
                 frame: sourceFrame,
-                layer: sourceWindow.windowLayer,
+                layer: sourceWindow.layer,
                 focusRank: window.focusRank,
                 thumbnail: nil
             ).displayTitle,
             sourceRect: sourceFrame,
             sourceWindowIdentity: sourceWindowIdentity,
-            capturedAt: Date()
+            capturedAt: clock.now()
         )
     }
 
     private func captureDisplaySnapshots() async throws -> [DisplaySnapshot] {
-        guard CapturePermissionStatus.current().hasScreenRecording else {
+        guard permissions.currentStatus().hasScreenRecording else {
             throw ScreenCaptureError.permissionDenied
         }
 
         let content = try await fetchShareableContent()
-        let displays = makeDisplaySnapshots(from: content.displays)
+        let displays = content.displays
 
         guard !displays.isEmpty else {
             throw ScreenCaptureError.noDisplays
@@ -530,23 +545,23 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
         return displays
     }
 
-    private func fetchShareableContent() async throws -> SCShareableContent {
-        let result: ShareableContentResult = try await withCheckedThrowingContinuation { continuation in
-            SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: true) { content, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-
-                guard let content else {
-                    continuation.resume(throwing: ScreenCaptureError.noDisplays)
-                    return
-                }
-
-                continuation.resume(returning: ShareableContentResult(content: content))
-            }
+    private func fetchShareableContent() async throws -> ScreenContentSnapshot {
+        let content = try await platform.shareableContent()
+        let displays = content.displays.map { display in
+            let screen = screens.screen(withDisplayID: display.displayID)
+            return DisplaySnapshot(
+                displayID: display.displayID,
+                name: screen?.name ?? display.name,
+                frame: display.frame,
+                overlayFrame: screen?.frame ?? display.overlayFrame,
+                scale: screen?.backingScaleFactor ?? display.scale
+            )
         }
-        return result.content
+        return ScreenContentSnapshot(
+            displays: displays,
+            windows: content.windows,
+            applications: content.applications
+        )
     }
 
     nonisolated func directDisplayCaptureRequest(for region: CGRect, displays: [DisplaySnapshot]) -> DirectDisplayCaptureRequest? {
@@ -592,21 +607,6 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
         return .screenRect(rect: normalizedRegion, scale: captureScale(for: normalizedRegion, displays: displays))
     }
 
-    private func makeDisplayCaptureFilter(for display: SCDisplay, content: SCShareableContent) -> SCContentFilter {
-        let processID = ProcessInfo.processInfo.processIdentifier
-        let excludedApplications = content.applications.filter { $0.processID == processID }
-        if excludedApplications.isEmpty {
-            let excludedWindows = content.windows.filter { $0.owningApplication?.processID == processID }
-            return SCContentFilter(display: display, excludingWindows: excludedWindows)
-        } else {
-            return SCContentFilter(
-                display: display,
-                excludingApplications: excludedApplications,
-                exceptingWindows: []
-            )
-        }
-    }
-
     private func debugCapturePlan(
         strategy: String,
         region: CGRect,
@@ -625,44 +625,35 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
     }
 
     private func captureScreenshot(in rect: CGRect, scale: CGFloat) async throws -> CGImage {
-        let configuration = SCScreenshotConfiguration()
-        configuration.width = max(Int((rect.width * scale).rounded(.up)), 1)
-        configuration.height = max(Int((rect.height * scale).rounded(.up)), 1)
-        configuration.showsCursor = false
-        configuration.dynamicRange = .sdr
-
-        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CGImage, Error>) in
-            SCScreenshotManager.captureScreenshot(rect: rect, configuration: configuration) { output, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-
-                guard let image = output?.sdrImage else {
-                    continuation.resume(throwing: ScreenCaptureError.bitmapContextCreationFailed)
-                    return
-                }
-
-                continuation.resume(returning: self.repairTransparentArtifactRows(in: image))
-            }
-        }
+        let image = try await platform.captureScreenshot(
+            ScreenCaptureRequest(
+                target: .screenRect(rect),
+                configuration: ScreenCaptureConfiguration(
+                    width: max(Int((rect.width * scale).rounded(.up)), 1),
+                    height: max(Int((rect.height * scale).rounded(.up)), 1)
+                )
+            )
+        )
+        return repairTransparentArtifactRows(in: image)
     }
 
     private func captureScreenshot(
-        filter: SCContentFilter,
+        target: ScreenCaptureTarget,
         sourceRect: DisplayLocalRect,
         outputSize: CGSize
     ) async throws -> CGImage {
-        let configuration = SCScreenshotConfiguration()
-        configuration.width = max(Int(outputSize.width.rounded(.up)), 1)
-        configuration.height = max(Int(outputSize.height.rounded(.up)), 1)
-        configuration.showsCursor = false
-        configuration.dynamicRange = .sdr
-        configuration.sourceRect = sourceRect.cgRect
-        configuration.ignoreShadows = true
-        configuration.ignoreClipping = true
-
-        let image = try await captureScreenshot(filter: filter, configuration: configuration)
+        let image = try await platform.captureScreenshot(
+            ScreenCaptureRequest(
+                target: target,
+                configuration: ScreenCaptureConfiguration(
+                    width: max(Int(outputSize.width.rounded(.up)), 1),
+                    height: max(Int(outputSize.height.rounded(.up)), 1),
+                    sourceRect: sourceRect.cgRect,
+                    ignoreShadows: true,
+                    ignoreClipping: true
+                )
+            )
+        )
         return repairTransparentArtifactRows(in: image)
     }
 
@@ -785,38 +776,21 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
         return nil
     }
 
-    private func captureScreenshot(filter: SCContentFilter, configuration: SCScreenshotConfiguration) async throws -> CGImage {
-        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CGImage, Error>) in
-            SCScreenshotManager.captureScreenshot(contentFilter: filter, configuration: configuration) { output, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-
-                guard let image = output?.sdrImage else {
-                    continuation.resume(throwing: ScreenCaptureError.windowImageUnavailable)
-                    return
-                }
-
-                continuation.resume(returning: image)
-            }
-        }
-    }
-
-    private func captureThumbnail(for window: SCWindow, scale: CGFloat) async throws -> CGImage? {
-        let filter = SCContentFilter(desktopIndependentWindow: window)
-        let configuration = SCScreenshotConfiguration()
+    private func captureThumbnail(for window: ScreenWindowSnapshot, scale: CGFloat) async throws -> CGImage? {
         let maxThumbnailSize = CGSize(width: 320, height: 200)
         let widthScale = maxThumbnailSize.width / max(window.frame.width, 1)
         let heightScale = maxThumbnailSize.height / max(window.frame.height, 1)
         let thumbnailScale = min(widthScale, heightScale, 1)
 
-        configuration.width = max(Int((window.frame.width * scale * thumbnailScale).rounded(.up)), 1)
-        configuration.height = max(Int((window.frame.height * scale * thumbnailScale).rounded(.up)), 1)
-        configuration.showsCursor = false
-        configuration.dynamicRange = .sdr
-
-        return try await captureScreenshot(filter: filter, configuration: configuration)
+        return try await platform.captureScreenshot(
+            ScreenCaptureRequest(
+                target: .window(window.id),
+                configuration: ScreenCaptureConfiguration(
+                    width: max(Int((window.frame.width * scale * thumbnailScale).rounded(.up)), 1),
+                    height: max(Int((window.frame.height * scale * thumbnailScale).rounded(.up)), 1)
+                )
+            )
+        )
     }
 
     private func captureDisplayPreviews(from displays: [DisplaySnapshot]) async throws -> [DisplayPreview] {
@@ -945,35 +919,12 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
         return ordering
     }
 
-    private func displayName(for displayID: CGDirectDisplayID) -> String {
-        NSScreen.screens.first(where: { $0.gscDisplayID == displayID })?.gscDisplayName ?? "Display"
-    }
-
-    private func makeDisplaySnapshots(from displays: [SCDisplay]) -> [DisplaySnapshot] {
-        displays.compactMap { display -> DisplaySnapshot? in
-            let screen = NSScreen.screens.first(where: { $0.gscDisplayID == display.displayID })
-
-            return DisplaySnapshot(
-                displayID: display.displayID,
-                name: screen?.gscDisplayName ?? displayName(for: display.displayID),
-                frame: display.frame,
-                overlayFrame: screen?.frame,
-                scale: screen?.backingScaleFactor ?? displayScale(for: display.frame, displayID: display.displayID)
-            )
-        }
-    }
-
-    private func currentDisplay(from displays: [DisplaySnapshot]) -> DisplaySnapshot? {
-        let preferredDisplayID = NSApp.keyWindow?.screen?.gscDisplayID
-            ?? NSApp.mainWindow?.screen?.gscDisplayID
-            ?? NSApp.windows.first(where: { $0.isVisible && !$0.isMiniaturized })?.screen?.gscDisplayID
-
-        let mouseLocation = NSEvent.mouseLocation
-
+    private func currentDisplay(from displays: [DisplaySnapshot]) async -> DisplaySnapshot? {
+        let preferredDisplayID = await windowFocus.preferredDisplayID()
         return currentDisplay(
             from: displays,
             preferredDisplayID: preferredDisplayID,
-            preferredPoint: mouseLocation
+            preferredPoint: mouse.appKitGlobalLocation
         )
     }
 
@@ -1037,34 +988,17 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
         return max(intersectingScales.max() ?? 1, 1)
     }
 
-    private func displayScale(forCaptureFrame frame: CGRect, displays: [SCDisplay]) -> CGFloat {
-        let displayIDs = displays
-            .filter { $0.frame.intersects(frame) }
-            .map(\.displayID)
-
-        let scales = displayIDs.compactMap { displayID in
-            NSScreen.screens.first(where: { $0.gscDisplayID == displayID })?.backingScaleFactor
+    private func displayScale(forCaptureFrame frame: CGRect, displays: [DisplaySnapshot]) -> CGFloat {
+        let scales = displays.compactMap { display -> CGFloat? in
+            display.frame.intersects(frame) ? display.scale : nil
         }
 
         return max(scales.max() ?? 2, 1)
     }
-
-    private func displayScale(for _: CGRect, displayID: CGDirectDisplayID? = nil) -> CGFloat {
-        if let displayID,
-           let scale = NSScreen.screens.first(where: { $0.gscDisplayID == displayID })?.backingScaleFactor {
-            return scale
-        }
-
-        return 2
-    }
-}
-
-nonisolated private struct ShareableContentResult: @unchecked Sendable {
-    let content: SCShareableContent
 }
 
 private struct WindowCaptureCandidate: @unchecked Sendable {
-    let window: SCWindow
+    let window: ScreenWindowSnapshot
     let id: CGWindowID
     let ownerName: String
     let ownerPID: pid_t

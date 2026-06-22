@@ -81,7 +81,10 @@ final class RegionSelectionSession: NSObject {
 
         setCaptureCursorHidden(true)
 
-        coordinator.mouseMoved(to: NSEvent.mouseLocation, eventTimestamp: nil)
+        coordinator.mouseMoved(
+            to: captureGlobalPointFromAppKitScreenPoint(NSEvent.mouseLocation),
+            eventTimestamp: nil
+        )
     }
 
     private func setCaptureCursorHidden(_ hidden: Bool) {
@@ -200,6 +203,16 @@ final class RegionSelectionSession: NSObject {
         }
 
         return screenPoint
+    }
+
+    private func captureGlobalPointFromAppKitScreenPoint(_ screenPoint: CGPoint) -> CGPoint {
+        guard let display = snapshot.displayPreviews.first(where: {
+            $0.snapshot.overlayFrame.insetBy(dx: -1, dy: -1).contains(screenPoint)
+        })?.snapshot else {
+            return screenPoint
+        }
+
+        return captureGlobalPoint(fromOverlayGlobalPoint: screenPoint, on: display)
     }
 }
 

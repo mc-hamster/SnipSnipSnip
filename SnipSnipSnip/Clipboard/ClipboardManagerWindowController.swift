@@ -11,11 +11,19 @@ enum ClipboardManagerWindowID {
 
 @MainActor
 final class ClipboardManagerWindowController: NSWindowController {
-    private weak var model: AppModel?
-    private var previousFrontmostApplication: NSRunningApplication?
+    private weak var clipboard: ClipboardWorkflowModel?
+    private let workspace: any WorkspaceServicing
+    private let bundleIdentifier: String?
+    private var previousFrontmostApplicationProcessIdentifier: pid_t?
 
-    init(model: AppModel) {
-        self.model = model
+    init(
+        clipboard: ClipboardWorkflowModel,
+        workspace: any WorkspaceServicing,
+        bundleIdentifier: String?
+    ) {
+        self.clipboard = clipboard
+        self.workspace = workspace
+        self.bundleIdentifier = bundleIdentifier
 
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 560, height: 620),
@@ -30,7 +38,7 @@ final class ClipboardManagerWindowController: NSWindowController {
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.hidesOnDeactivate = false
-        panel.contentView = NSHostingView(rootView: ClipboardManagerView(model: model))
+        panel.contentView = NSHostingView(rootView: ClipboardManagerView(clipboard: clipboard))
 
         super.init(window: panel)
     }
@@ -45,9 +53,9 @@ final class ClipboardManagerWindowController: NSWindowController {
             return
         }
 
-        if let frontmostApplication = NSWorkspace.shared.frontmostApplication,
-           frontmostApplication.bundleIdentifier != Bundle.main.bundleIdentifier {
-            previousFrontmostApplication = frontmostApplication
+        if let frontmostApplication = workspace.frontmostApplication,
+           frontmostApplication.bundleIdentifier != bundleIdentifier {
+            previousFrontmostApplicationProcessIdentifier = frontmostApplication.processIdentifier
         }
 
         if !window.isVisible {
@@ -59,27 +67,30 @@ final class ClipboardManagerWindowController: NSWindowController {
     }
 
     func activatePreviousApplicationForPaste() {
-        previousFrontmostApplication?.activate(options: [])
+        guard let previousFrontmostApplicationProcessIdentifier else {
+            return
+        }
+        workspace.activateApplication(processIdentifier: previousFrontmostApplicationProcessIdentifier)
     }
 }
 
 struct ClipboardManagerView: View {
-    @ObservedObject var model: AppModel
+    @ObservedObject var clipboard: ClipboardWorkflowModel
     @State private var selectedItemID: ClipboardItem.ID?
     @FocusState private var isSearchFocused: Bool
 
     private var filteredItems: [ClipboardItem] {
-        model.clipboardHistoryItems.filter { item in
-            switch model.clipboardFilter {
+        clipboard.clipboardHistoryItems.filter { item in
+            switch clipboard.filter {
             case .all:
                 break
             case .pinned:
                 guard item.isPinned else { return false }
             default:
-                guard item.kind.filter == model.clipboardFilter else { return false }
+                guard item.kind.filter == clipboard.filter else { return false }
             }
 
-            return item.matchesSearchQuery(model.clipboardSearchQuery)
+            return item.matchesSearchQuery(clipboard.searchQuery)
         }
     }
 
@@ -114,21 +125,21 @@ struct ClipboardManagerView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                TextField("Search clipboard history", text: $model.clipboardSearchQuery)
+                TextField("Search clipboard history", text: $clipboard.searchQuery)
                     .textFieldStyle(.roundedBorder)
                     .focused($isSearchFocused)
 
                 Button {
-                    model.clearUnpinnedClipboardItems()
+                    clipboard.clearUnpinnedClipboardItems()
                 } label: {
                     Image(systemName: "trash")
                 }
                 .buttonStyle(.borderless)
                 .help("Clear unpinned clipboard history")
-                .disabled(model.clipboardHistoryItems.allSatisfy(\.isPinned))
+                .disabled(clipboard.clipboardHistoryItems.allSatisfy(\.isPinned))
             }
 
-            Picker("Filter", selection: $model.clipboardFilter) {
+            Picker("Filter", selection: $clipboard.filter) {
                 ForEach(ClipboardItemFilter.allCases) { filter in
                     Text(filter.label).tag(filter)
                 }
@@ -141,7 +152,7 @@ struct ClipboardManagerView: View {
 
     @ViewBuilder
     private var content: some View {
-        if !model.clipboardPreferences.isEnabled {
+        if !clipboard.preferences.isEnabled {
             ContentUnavailableView(
                 "Clipboard History Disabled",
                 systemImage: "clipboard",
@@ -162,16 +173,16 @@ struct ClipboardManagerView: View {
                         ForEach(Array(filteredItems.enumerated()), id: \.element.id) { index, item in
                             ClipboardItemRow(
                                 item: item,
-                                image: model.clipboardPreviewImage(for: item),
+                                image: clipboard.clipboardPreviewImage(for: item),
                                 shortcutNumber: index < 9 ? index + 1 : nil,
                                 isSelected: selectedItemID == item.id,
-                                onCopy: { model.copyClipboardItem(item) },
-                                onCopyPlainText: { model.copyClipboardItemAsPlainText(item) },
-                                onPaste: { model.pasteClipboardItem(item) },
-                                onPastePlainText: { model.pasteClipboardItemAsPlainText(item) },
-                                onTogglePinned: { model.togglePinnedClipboardItem(item) },
-                                onDelete: { model.deleteClipboardItem(item) },
-                                onOpenSnip: { model.openClipboardSnip(item) }
+                                onCopy: { clipboard.copyClipboardItem(item) },
+                                onCopyPlainText: { clipboard.copyClipboardItemAsPlainText(item) },
+                                onPaste: { clipboard.pasteClipboardItem(item) },
+                                onPastePlainText: { clipboard.pasteClipboardItemAsPlainText(item) },
+                                onTogglePinned: { clipboard.togglePinnedClipboardItem(item) },
+                                onDelete: { clipboard.deleteClipboardItem(item) },
+                                onOpenSnip: { clipboard.openClipboardSnip(item) }
                             )
                             .id(item.id)
                             .contentShape(Rectangle())
@@ -208,11 +219,11 @@ struct ClipboardManagerView: View {
             if let selectedItem, selectedItem.supportsPlainTextSanitization {
                 Menu("Plain Text") {
                     Button("Copy Plain Text") {
-                        model.copyClipboardItemAsPlainText(selectedItem)
+                        clipboard.copyClipboardItemAsPlainText(selectedItem)
                     }
 
                     Button("Copy & Paste Plain Text") {
-                        model.pasteClipboardItemAsPlainText(selectedItem)
+                        clipboard.pasteClipboardItemAsPlainText(selectedItem)
                     }
                 }
                 .help("Sanitize formatting by writing only the plain text value.")
@@ -220,14 +231,14 @@ struct ClipboardManagerView: View {
 
             Button("Copy") {
                 if let selectedItem {
-                    model.copyClipboardItem(selectedItem)
+                    clipboard.copyClipboardItem(selectedItem)
                 }
             }
             .disabled(selectedItem == nil)
 
             Button("Copy & Paste") {
                 if let selectedItem {
-                    model.pasteClipboardItem(selectedItem)
+                    clipboard.pasteClipboardItem(selectedItem)
                 }
             }
             .keyboardShortcut(.return, modifiers: [])
@@ -243,7 +254,7 @@ struct ClipboardManagerView: View {
                 return
             }
 
-            model.copyClipboardItem(filteredItems[number - 1])
+            clipboard.copyClipboardItem(filteredItems[number - 1])
         }
         .frame(width: 0, height: 0)
     }

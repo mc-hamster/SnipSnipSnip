@@ -2,7 +2,12 @@ import AppKit
 import SwiftUI
 
 private struct CaptureCommands: Commands {
-    @ObservedObject var model: AppModel
+    @ObservedObject var lifecycle: AppLifecycleModel
+    @ObservedObject var capture: CaptureWorkflowModel
+    @ObservedObject var video: VideoWorkflowModel
+    @ObservedObject var tools: ToolWorkflowModel
+    let capabilities: AppCapabilitySnapshot
+    let workflowCoordinator: AppWorkflowCoordinator
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
 
@@ -14,70 +19,70 @@ private struct CaptureCommands: Commands {
         )
 
         CommandMenu("Capture") {
-            Button("Region Capture", action: model.captureRegion)
+            Button("Region Capture", action: capture.captureRegion)
                 .keyboardShortcut("1", modifiers: AppShortcut.modifiers)
-                .disabled(model.isWorking || model.isRecordingVideo)
+                .disabled(isCaptureOrRecordingActive)
 
-            Button("Window Capture", action: model.presentWindowPicker)
+            Button("Window Capture", action: capture.presentWindowPicker)
                 .keyboardShortcut("2", modifiers: AppShortcut.modifiers)
-                .disabled(model.isWorking || model.isRecordingVideo)
+                .disabled(isCaptureOrRecordingActive)
 
-            Button("Full Screen Capture", action: model.captureCurrentDisplay)
+            Button("Full Screen Capture", action: capture.captureCurrentDisplay)
                 .keyboardShortcut("3", modifiers: AppShortcut.modifiers)
-                .disabled(model.isWorking || model.isRecordingVideo)
+                .disabled(isCaptureOrRecordingActive)
 
-            Button("Frontmost Window Capture", action: model.captureFrontmostWindow)
+            Button("Frontmost Window Capture", action: capture.captureFrontmostWindow)
                 .keyboardShortcut("4", modifiers: AppShortcut.modifiers)
-                .disabled(model.isWorking || model.isRecordingVideo)
+                .disabled(isCaptureOrRecordingActive)
 
-            if model.capabilities.isEnabled(.scrollingCapture) {
-                Button("Scrolling Capture", action: model.captureScrollingArea)
-                    .disabled(model.isWorking || model.isRecordingVideo)
+            if capabilities.isEnabled(.scrollingCapture) {
+                Button("Scrolling Capture", action: capture.captureScrollingArea)
+                    .disabled(isCaptureOrRecordingActive)
             }
 
-            if model.capabilities.isEnabled(.connectedDeviceCapture) {
+            if capabilities.isEnabled(.connectedDeviceCapture) {
                 Menu("Connected Device") {
-                    ConnectedDeviceCaptureMenuContent(model: model, mode: .screenshot)
+                    ConnectedDeviceCaptureMenuContent(capture: capture, mode: .screenshot)
                 }
-                .disabled(model.isWorking || model.isRecordingVideo || model.isConnectedDeviceSessionActive)
+                .disabled(isCaptureOrRecordingActive || capture.isConnectedDeviceSessionActive)
             }
 
             Divider()
 
             Menu("Video Recording") {
-                Button("Record Region", action: model.recordRegion)
-                    .disabled(model.isWorking || model.isRecordingVideo)
+                Button("Record Region", action: video.recordRegion)
+                    .disabled(isCaptureOrRecordingActive)
 
-                Button("Record Window", action: model.presentVideoWindowPicker)
-                    .disabled(model.isWorking || model.isRecordingVideo)
+                Button("Record Window", action: video.presentVideoWindowPicker)
+                    .disabled(isCaptureOrRecordingActive)
 
-                Button("Record Full Screen", action: model.recordCurrentDisplay)
-                    .disabled(model.isWorking || model.isRecordingVideo)
+                Button("Record Full Screen", action: video.recordCurrentDisplay)
+                    .disabled(isCaptureOrRecordingActive)
 
-                if model.capabilities.isEnabled(.connectedDeviceCapture) {
+                if capabilities.isEnabled(.connectedDeviceCapture) {
                     Menu("Record Connected Device") {
-                        ConnectedDeviceCaptureMenuContent(model: model, mode: .recording)
+                        ConnectedDeviceCaptureMenuContent(capture: capture, mode: .recording)
                     }
-                    .disabled(model.isWorking || model.isRecordingVideo || model.isConnectedDeviceSessionActive)
+                    .disabled(isCaptureOrRecordingActive || capture.isConnectedDeviceSessionActive)
                 }
 
-                if model.isRecordingVideo {
+                if isRecordingVideo {
                     Divider()
 
-                    Button("Stop Recording", action: model.stopVideoRecording)
+                    Button("Stop Recording", action: video.stopVideoRecording)
                 }
             }
 
             Divider()
 
-            Button("Repeat Last Capture", action: model.repeatLastCapture)
+            Button("Repeat Last Capture", action: capture.repeatLastCapture)
                 .keyboardShortcut("r", modifiers: AppShortcut.modifiers)
-                .disabled(model.isWorking || model.isRecordingVideo || !model.canRepeatLastCapture)
+                .disabled(isCaptureOrRecordingActive || !capture.canRepeatLastCapture)
 
             Divider()
 
             Menu("Presets") {
-                CapturePresetMenuContent(model: model)
+                CapturePresetMenuContent(capture: capture, video: video, lifecycle: lifecycle)
             }
 
             Divider()
@@ -87,26 +92,26 @@ private struct CaptureCommands: Commands {
 
             Menu("Screen Ruler") {
                 Button("New Horizontal Ruler") {
-                    model.presentScreenRuler(.horizontal)
+                    tools.presentScreenRuler(.horizontal)
                 }
 
                 Button("New Vertical Ruler") {
-                    model.presentScreenRuler(.vertical)
+                    tools.presentScreenRuler(.vertical)
                 }
 
-                if model.screenRulerCoordinator.hasActiveRulers {
+                if tools.screenRulerCoordinator.hasActiveRulers {
                     Divider()
 
-                    Button("Close All Screen Rulers", action: model.closeAllScreenRulers)
+                    Button("Close All Screen Rulers", action: tools.closeAllScreenRulers)
                 }
             }
 
             Menu("Screen Inspector") {
-                Button("Open Screen Inspector", action: model.presentScreenInspector)
+                Button("Open Screen Inspector", action: tools.presentScreenInspector)
                     .keyboardShortcut("i", modifiers: AppShortcut.modifiers)
 
-                if model.screenInspectorCoordinator.isVisible {
-                    Button("Close Screen Inspector", action: model.closeScreenInspector)
+                if tools.screenInspectorCoordinator.isVisible {
+                    Button("Close Screen Inspector", action: tools.closeScreenInspector)
                 }
 
                 Divider()
@@ -122,21 +127,21 @@ private struct CaptureCommands: Commands {
             }
 
             Menu("Timer") {
-                CaptureTimerMenuContent(model: model)
+                CaptureTimerMenuContent(capture: capture)
             }
 
             Menu("Screenshot Capture Settings") {
-                ScreenshotCaptureSettingsMenuContent(model: model)
+                ScreenshotCaptureSettingsMenuContent(capture: capture)
             }
 
             Menu("Region Capture Settings") {
-                RegionCaptureSettingsMenuContent(model: model)
+                RegionCaptureSettingsMenuContent(capture: capture)
             }
         }
     }
 
     private func showMainWindow() {
-        model.prepareForMainWindowPresentation()
+        workflowCoordinator.prepareForMainWindowPresentation()
         openWindow(id: AppSceneID.mainWindow)
         NSApp.activate(ignoringOtherApps: true)
         NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.mainWindow })?.makeKeyAndOrderFront(nil)
@@ -149,24 +154,32 @@ private struct CaptureCommands: Commands {
     }
 
     private func showCapturePresetsSettings() {
-        model.prepareForCapturePresetsSettingsPresentation()
+        lifecycle.selectedSettingsTab = .presets
         openSettings()
         NSApp.activate(ignoringOtherApps: true)
     }
 
     private func screenInspectorBinding<Value>(_ keyPath: WritableKeyPath<ScreenInspectorPreferences, Value>) -> Binding<Value> {
         Binding(
-            get: { model.screenInspectorPreferences[keyPath: keyPath] },
+            get: { tools.screenInspectorPreferences[keyPath: keyPath] },
             set: { newValue in
-                var preferences = model.screenInspectorPreferences
+                var preferences = tools.screenInspectorPreferences
                 preferences[keyPath: keyPath] = newValue
-                model.screenInspectorPreferences = preferences
+                tools.screenInspectorPreferences = preferences
             }
         )
     }
 
     private var screenInspectorZoomBinding: Binding<ScreenInspectorZoomLevel> {
         screenInspectorBinding(\.zoomLevel)
+    }
+
+    private var isCaptureOrRecordingActive: Bool {
+        capture.isWorking || isRecordingVideo
+    }
+
+    private var isRecordingVideo: Bool {
+        video.activeVideoRecording != nil
     }
 }
 
@@ -197,7 +210,10 @@ private struct AppLifecycleCommands: Commands {
 }
 
 private struct HelpCommands: Commands {
-    @ObservedObject var model: AppModel
+    @ObservedObject var lifecycle: AppLifecycleModel
+    let capabilities: AppCapabilitySnapshot
+    let requestOnboardingPresentation: () -> Void
+    let checkForProUpdates: () -> Void
     @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
@@ -205,14 +221,14 @@ private struct HelpCommands: Commands {
             Button("\(AppBranding.displayName) Help", action: showHelpWindow)
                 .keyboardShortcut("/", modifiers: [.command, .shift])
 
-            Button("Show Onboarding", action: model.requestOnboardingPresentation)
+            Button("Show Onboarding", action: requestOnboardingPresentation)
 
-            if model.capabilities.isEnabled(.proUpdateCheck) {
+            if capabilities.isEnabled(.proUpdateCheck) {
                 Button(
-                    model.isCheckingProUpdates ? "Checking for Pro Updates..." : "Check for Pro Updates...",
-                    action: model.checkForProUpdates
+                    lifecycle.isCheckingProUpdates ? "Checking for Pro Updates..." : "Check for Pro Updates...",
+                    action: checkForProUpdates
                 )
-                .disabled(model.isCheckingProUpdates)
+                .disabled(lifecycle.isCheckingProUpdates)
             }
 
             Divider()
@@ -243,33 +259,35 @@ private struct HelpCommands: Commands {
 }
 
 private struct DocumentCommands: Commands {
-    @ObservedObject var model: AppModel
+    @ObservedObject var capture: CaptureWorkflowModel
+    @ObservedObject var documents: DocumentWorkflowModel
+    @ObservedObject var video: VideoWorkflowModel
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
-            Button("Open…", action: model.openDocumentPanel)
+            Button("Open…", action: documents.openDocumentPanel)
                 .keyboardShortcut("o", modifiers: .command)
-                .disabled(!model.canOpenDocument)
+                .disabled(!canOpenDocument)
 
-            Button("Import Image…", action: model.importImagePanel)
-                .disabled(!model.canOpenDocument)
+            Button("Import Image…", action: documents.importImagePanel)
+                .disabled(!canOpenDocument)
         }
 
         CommandGroup(replacing: .saveItem) {
-            Button("Save", action: model.saveDocument)
+            Button("Save", action: documents.saveDocument)
                 .keyboardShortcut("s", modifiers: .command)
-                .disabled(!model.canSaveDocument)
+                .disabled(!canSaveDocument)
 
-            Button("Save As…", action: model.saveDocumentAs)
+            Button("Save As…", action: documents.saveDocumentAs)
                 .keyboardShortcut("S", modifiers: [.command, .shift])
-                .disabled(!model.canSaveDocument)
+                .disabled(!canSaveDocument)
         }
 
         CommandGroup(after: .importExport) {
             Menu("Export") {
-                if model.videoEditorController != nil {
-                    Button("Export \(model.videoExportPreferences.menuLabel)…") {
-                        model.exportVideo(using: model.defaultVideoExportRequest)
+                if documents.videoEditorController != nil {
+                    Button("Export \(video.exportPreferences.menuLabel)…") {
+                        video.exportVideo(using: video.defaultExportRequest)
                     }
 
                     Divider()
@@ -277,7 +295,7 @@ private struct DocumentCommands: Commands {
                     Menu("MP4 Quality") {
                         ForEach(VideoExportQualityPreset.allCases) { preset in
                             Button(preset.label) {
-                                model.exportVideo(using: VideoExportRequest(format: .mp4, target: .quality(preset)))
+                                video.exportVideo(using: VideoExportRequest(format: .mp4, target: .quality(preset)))
                             }
                         }
                     }
@@ -285,7 +303,7 @@ private struct DocumentCommands: Commands {
                     Menu("MP4 Size Limit") {
                         ForEach(VideoExportSizeLimit.allCases) { sizeLimit in
                             Button(sizeLimit.label) {
-                                model.exportVideo(using: VideoExportRequest(format: .mp4, target: .sizeLimit(sizeLimit)))
+                                video.exportVideo(using: VideoExportRequest(format: .mp4, target: .sizeLimit(sizeLimit)))
                             }
                         }
                     }
@@ -293,41 +311,51 @@ private struct DocumentCommands: Commands {
                     Menu("Animated Loops") {
                         ForEach(VideoExportQualityPreset.allCases) { preset in
                             Button("GIF • \(preset.label)") {
-                                model.exportVideo(using: VideoExportRequest(format: .gif, target: .quality(preset)))
+                                video.exportVideo(using: VideoExportRequest(format: .gif, target: .quality(preset)))
                             }
 
                             Button("APNG • \(preset.label)") {
-                                model.exportVideo(using: VideoExportRequest(format: .apng, target: .quality(preset)))
+                                video.exportVideo(using: VideoExportRequest(format: .apng, target: .quality(preset)))
                             }
                         }
                     }
 
                 } else {
                     Button("Export PNG…") {
-                        model.exportAnnotatedImage(as: .png)
+                        documents.exportAnnotatedImage(as: .png)
                     }
 
                     Button("Export JPEG…") {
-                        model.exportAnnotatedImage(as: .jpeg)
+                        documents.exportAnnotatedImage(as: .jpeg)
                     }
-                    .disabled(model.editorController?.requiresPNGForFaithfulExport ?? false)
+                    .disabled(documents.editorController?.requiresPNGForFaithfulExport ?? false)
 
                     Button("Export PDF…") {
-                        model.exportAnnotatedImage(as: .pdf)
+                        documents.exportAnnotatedImage(as: .pdf)
                     }
-                    .disabled(model.editorController?.requiresPNGForFaithfulExport ?? false)
+                    .disabled(documents.editorController?.requiresPNGForFaithfulExport ?? false)
                 }
             }
-            .disabled(model.editorController == nil && model.videoEditorController == nil)
+            .disabled(documents.editorController == nil && documents.videoEditorController == nil)
 
-            Button("Share…", action: model.shareAnnotatedImage)
-                .disabled(model.editorController == nil)
+            Button("Share…", action: documents.shareAnnotatedImage)
+                .disabled(documents.editorController == nil)
         }
+    }
+
+    private var canOpenDocument: Bool {
+        !capture.isWorking && video.activeVideoRecording == nil && !capture.isConnectedDeviceSessionActive
+    }
+
+    private var canSaveDocument: Bool {
+        (documents.editorController != nil || documents.videoEditorController != nil)
+            && !capture.isWorking
+            && video.activeVideoRecording == nil
     }
 }
 
 private struct PasteboardCommands: Commands {
-    @ObservedObject var model: AppModel
+    @ObservedObject var documents: DocumentWorkflowModel
 
     var body: some Commands {
         CommandGroup(replacing: .pasteboard) {
@@ -356,7 +384,7 @@ private struct PasteboardCommands: Commands {
             return
         }
 
-        model.copyCurrentAnnotatedImageToClipboard()
+        documents.copyCurrentAnnotatedImageToClipboard()
     }
 
     private func paste() {
@@ -364,7 +392,7 @@ private struct PasteboardCommands: Commands {
             return
         }
 
-        _ = model.editorController?.addImageOverlayFromPasteboard()
+        _ = documents.editorController?.addImageOverlayFromPasteboard()
     }
 
     private func selectAll() {
@@ -378,7 +406,8 @@ private struct PasteboardCommands: Commands {
 }
 
 private struct EditorCommands: Commands {
-    @ObservedObject var model: AppModel
+    @ObservedObject var documents: DocumentWorkflowModel
+    let capabilities: AppCapabilitySnapshot
     @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
@@ -386,68 +415,68 @@ private struct EditorCommands: Commands {
             Menu("Arrange") {
                 Button("Show Layers", action: showLayersWindow)
                     .keyboardShortcut("l", modifiers: [.command, .shift])
-                    .disabled(model.editorController == nil)
+                    .disabled(documents.editorController == nil)
 
-                if model.capabilities.isEnabled(.uiMap) {
+                if capabilities.isEnabled(.uiMap) {
                     Button("Show UI Map", action: showUIMapWindow)
                         .keyboardShortcut("u", modifiers: [.command, .shift])
-                        .disabled(model.editorController?.uiMapSnapshot == nil)
+                        .disabled(documents.editorController?.uiMapSnapshot == nil)
                 }
 
                 Divider()
 
                 Button("Bring Forward") {
-                    model.editorController?.bringForward()
+                    documents.editorController?.bringForward()
                 }
                 .keyboardShortcut("]", modifiers: .command)
-                .disabled(model.editorController?.canBringForward != true)
+                .disabled(documents.editorController?.canBringForward != true)
 
                 Button("Send Backward") {
-                    model.editorController?.sendBackward()
+                    documents.editorController?.sendBackward()
                 }
                 .keyboardShortcut("[", modifiers: .command)
-                .disabled(model.editorController?.canSendBackward != true)
+                .disabled(documents.editorController?.canSendBackward != true)
 
                 Divider()
 
                 Button("Bring to Front") {
-                    model.editorController?.sendToFront()
+                    documents.editorController?.sendToFront()
                 }
                 .keyboardShortcut("]", modifiers: [.command, .option])
-                .disabled(model.editorController == nil)
+                .disabled(documents.editorController == nil)
 
                 Button("Send to Back") {
-                    model.editorController?.sendToBack()
+                    documents.editorController?.sendToBack()
                 }
                 .keyboardShortcut("[", modifiers: [.command, .option])
-                .disabled(model.editorController == nil)
+                .disabled(documents.editorController == nil)
             }
-            .disabled(model.editorController == nil)
+            .disabled(documents.editorController == nil)
 
             Divider()
 
             Button("Group") {
-                model.editorController?.groupSelected()
+                documents.editorController?.groupSelected()
             }
             .keyboardShortcut("g", modifiers: .command)
-            .disabled(model.editorController?.canGroupSelection != true)
+            .disabled(documents.editorController?.canGroupSelection != true)
 
             Button("Ungroup") {
-                model.editorController?.ungroupSelected()
+                documents.editorController?.ungroupSelected()
             }
             .keyboardShortcut("g", modifiers: [.command, .shift])
-            .disabled(model.editorController?.canUngroupSelection != true)
+            .disabled(documents.editorController?.canUngroupSelection != true)
 
             Divider()
 
             Button("Delete", action: deleteSelection)
                 .keyboardShortcut(.delete, modifiers: [])
-                .disabled(model.editorController?.selectedCount == 0)
+                .disabled(documents.editorController?.selectedCount == 0)
         }
     }
 
     private func deleteSelection() {
-        model.editorController?.deleteSelected()
+        documents.editorController?.deleteSelected()
     }
 
     private func showLayersWindow() {
@@ -464,14 +493,14 @@ private struct EditorCommands: Commands {
 }
 
 private struct ReferenceCommands: Commands {
-    @ObservedObject var model: AppModel
+    @ObservedObject var documents: DocumentWorkflowModel
     @ObservedObject var floatingReferences: FloatingReferenceCoordinator
 
     var body: some Commands {
         CommandMenu("Reference") {
-            Button("Float Current Screenshot", action: model.floatCurrentEditorReference)
+            Button("Float Current Screenshot", action: documents.floatCurrentEditorReference)
                 .keyboardShortcut("f", modifiers: [.command, .shift])
-                .disabled(model.editorController == nil)
+                .disabled(documents.editorController == nil)
 
             Divider()
 
@@ -491,14 +520,48 @@ struct SnipSnipSnipApp: App {
     init() {
         let model = AppModel()
         _model = StateObject(wrappedValue: model)
-        MenuBarStatusController.shared.configure(with: model)
-        AutomationAppleScriptBridge.configure(model: model)
+        MenuBarStatusController.shared.configure(
+            lifecycle: model.lifecycle,
+            capture: model.capture,
+            clipboard: model.clipboard,
+            video: model.video,
+            tools: model.tools,
+            floatingReferences: model.documents.floatingReferenceCoordinator,
+            capabilities: model.capabilities,
+            workflowCoordinator: model.workflowCoordinator,
+            consumeOnboardingWindowPresentationFlag: model.lifecycle.consumeOnboardingWindowPresentationFlag,
+            consumeMainWindowPresentationFlag: model.lifecycle.consumeMainWindowPresentationFlag
+        )
+        AutomationAppleScriptBridge.configure(
+            automation: model.automation,
+            automationService: model.automationService
+        )
     }
 
     var body: some Scene {
         Window(AppBranding.displayName, id: AppSceneID.mainWindow) {
             FirstMouseHostingContainer {
-                ContentView(model: model)
+                ContentView(
+                    lifecycle: model.lifecycle,
+                    capture: model.capture,
+                    permissions: model.permissions,
+                    documents: model.documents,
+                    clipboard: model.clipboard,
+                    video: model.video,
+                    capabilities: model.capabilities,
+                    workflowCoordinator: model.workflowCoordinator,
+                    dismissWelcomeCard: model.lifecycle.dismissWelcomeCard,
+                    presentWindowQuickCaptureMenu: {
+                        WindowCaptureQuickMenuPresenter.shared.present(
+                            capture: model.capture,
+                            video: model.video,
+                            capabilities: model.capabilities
+                        )
+                    },
+                    performAutomationRequest: { request in
+                        _ = await model.automationService.perform(request)
+                    }
+                )
             }
         }
         .windowStyle(.hiddenTitleBar)
@@ -509,16 +572,53 @@ struct SnipSnipSnipApp: App {
         .commands {
             AppInfoCommands()
             AppLifecycleCommands()
-            HelpCommands(model: model)
-            DocumentCommands(model: model)
-            PasteboardCommands(model: model)
-            EditorCommands(model: model)
-            ReferenceCommands(model: model, floatingReferences: model.floatingReferenceCoordinator)
-            CaptureCommands(model: model)
+            HelpCommands(
+                lifecycle: model.lifecycle,
+                capabilities: model.capabilities,
+                requestOnboardingPresentation: {
+                    model.workflowCoordinator.prepareForMainWindowPresentation()
+                    model.lifecycle.requestOnboardingPresentation()
+                },
+                checkForProUpdates: model.lifecycle.checkForProUpdates
+            )
+            DocumentCommands(
+                capture: model.capture,
+                documents: model.documents,
+                video: model.video
+            )
+            PasteboardCommands(documents: model.documents)
+            EditorCommands(documents: model.documents, capabilities: model.capabilities)
+            ReferenceCommands(
+                documents: model.documents,
+                floatingReferences: model.documents.floatingReferenceCoordinator
+            )
+            CaptureCommands(
+                lifecycle: model.lifecycle,
+                capture: model.capture,
+                video: model.video,
+                tools: model.tools,
+                capabilities: model.capabilities,
+                workflowCoordinator: model.workflowCoordinator
+            )
         }
 
         Window("Welcome to \(AppBranding.displayName)", id: AppSceneID.onboardingWindow) {
-            OnboardingView(model: model)
+            OnboardingView(
+                lifecycle: model.lifecycle,
+                capture: model.capture,
+                permissions: model.permissions,
+                capabilities: model.capabilities,
+                skipOnboarding: {
+                    model.lifecycle.skipOnboarding(
+                        requestMainWindowPresentation: model.workflowCoordinator.requestMainWindowPresentation
+                    )
+                },
+                completeOnboarding: {
+                    model.lifecycle.completeOnboarding(
+                        requestMainWindowPresentation: model.workflowCoordinator.requestMainWindowPresentation
+                    )
+                }
+            )
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 980, height: 700)
@@ -531,21 +631,38 @@ struct SnipSnipSnipApp: App {
         .defaultSize(width: 920, height: 760)
 
         Window("Layers", id: AppSceneID.layersWindow) {
-            LayersWindowView(model: model)
+            LayersWindowView(documents: model.documents)
         }
         .defaultSize(width: 360, height: 520)
         .windowResizability(.contentSize)
         .restorationBehavior(.disabled)
 
         Window("UI Map", id: AppSceneID.uiMapWindow) {
-            UIMapWindowView(model: model)
+            UIMapWindowView(documents: model.documents, capabilities: model.capabilities)
         }
         .defaultSize(width: 640, height: 560)
         .windowResizability(.contentSize)
         .restorationBehavior(.disabled)
 
         Settings {
-            CaptureAutomationSettingsView(model: model)
+            CaptureAutomationSettingsView(
+                lifecycle: model.lifecycle,
+                capture: model.capture,
+                permissions: model.permissions,
+                documents: model.documents,
+                clipboard: model.clipboard,
+                video: model.video,
+                archive: model.archive,
+                tools: model.tools,
+                capabilities: model.capabilities,
+                clock: model.environment.systemServices.clock,
+                requestOnboardingPresentation: {
+                    model.workflowCoordinator.prepareForMainWindowPresentation()
+                    model.lifecycle.requestOnboardingPresentation()
+                },
+                checkForProUpdates: model.lifecycle.checkForProUpdates,
+                resetPreferencesToDefaults: model.workflowCoordinator.resetPreferencesToDefaults
+            )
         }
     }
 }

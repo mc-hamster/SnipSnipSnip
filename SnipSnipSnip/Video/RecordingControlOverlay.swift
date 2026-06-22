@@ -277,20 +277,22 @@ private struct RecordingControlOverlayView: View {
                     .contentTransition(.numericText())
 
                 HStack(spacing: 10) {
-                    Toggle("System", isOn: Binding(
-                        get: { model.recordsSystemAudio },
-                        set: { model.setRecordsSystemAudio($0) }
-                    ))
-                    .toggleStyle(.switch)
-                    .controlSize(.mini)
+                    RecordingAudioToggle(
+                        title: "System Audio",
+                        isOn: Binding(
+                            get: { model.recordsSystemAudio },
+                            set: { model.setRecordsSystemAudio($0) }
+                        )
+                    )
                     .help("Include or mute system audio for this recording only.")
 
-                    Toggle("Mic", isOn: Binding(
-                        get: { model.recordsMicrophone },
-                        set: { model.setRecordsMicrophone($0) }
-                    ))
-                    .toggleStyle(.switch)
-                    .controlSize(.mini)
+                    RecordingAudioToggle(
+                        title: "Mic",
+                        isOn: Binding(
+                            get: { model.recordsMicrophone },
+                            set: { model.setRecordsMicrophone($0) }
+                        )
+                    )
                     .help("Include or mute microphone narration for this recording only.")
                 }
 
@@ -332,5 +334,34 @@ private struct RecordingControlOverlayView: View {
                 .fill(model.isPaused ? Color.yellow : Color.red)
                 .frame(width: 11, height: 11)
         }
+    }
+}
+
+private struct RecordingAudioToggle: View {
+    let title: String
+    @Binding var isOn: Bool
+
+    private var stateColor: Color {
+        isOn ? .green : .secondary
+    }
+
+    var body: some View {
+        Toggle(title, isOn: $isOn)
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .tint(isOn ? .green : .gray)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(stateColor)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background(
+                Capsule()
+                    .fill(stateColor.opacity(isOn ? 0.18 : 0.12))
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(stateColor.opacity(isOn ? 0.45 : 0.26), lineWidth: 1)
+            )
+            .animation(.easeInOut(duration: 0.16), value: isOn)
     }
 }

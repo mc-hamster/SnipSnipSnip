@@ -1,7 +1,6 @@
 import AVFoundation
 import CoreGraphics
 import Foundation
-import ScreenCaptureKit
 import UniformTypeIdentifiers
 
 nonisolated enum VideoRecordingKind: String, Codable, Equatable {
@@ -80,7 +79,7 @@ nonisolated enum VideoRecordingQuality: String, CaseIterable, Codable, Identifia
         }
     }
 
-    var captureResolution: SCCaptureResolutionType {
+    var captureResolution: VideoRecordingCaptureResolution {
         switch self {
         case .compact:
             return .nominal
@@ -90,6 +89,12 @@ nonisolated enum VideoRecordingQuality: String, CaseIterable, Codable, Identifia
             return .best
         }
     }
+}
+
+nonisolated enum VideoRecordingCaptureResolution: Equatable, Sendable {
+    case nominal
+    case automatic
+    case best
 }
 
 nonisolated enum VideoRecordingFullscreenDisplayMode: String, CaseIterable, Codable, Identifiable {

@@ -3,66 +3,81 @@ import Combine
 import SwiftUI
 
 struct ContentView: View {
-    @ObservedObject var model: AppModel
+    @ObservedObject var lifecycle: AppLifecycleModel
+    @ObservedObject var capture: CaptureWorkflowModel
+    @ObservedObject var permissions: PermissionWorkflowModel
+    @ObservedObject var documents: DocumentWorkflowModel
+    @ObservedObject var clipboard: ClipboardWorkflowModel
+    @ObservedObject var video: VideoWorkflowModel
+    let capabilities: AppCapabilitySnapshot
+    let workflowCoordinator: AppWorkflowCoordinator
+    let dismissWelcomeCard: () -> Void
+    let presentWindowQuickCaptureMenu: () -> Void
+    let performAutomationRequest: (AutomationRequest) async -> Void
+    @Environment(\.openURL) private var openURL
 
     private let windowRefreshTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    private var isRecordingVideo: Bool {
+        video.activeVideoRecording != nil
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
-            if let videoController = model.videoEditorController {
+            if let videoController = documents.videoEditorController {
                 VideoEditorToolbarView(
                     controller: videoController,
-                    documentFilename: model.currentDocumentFilename,
-                    hasUnsavedChanges: model.hasUnsavedChanges,
-                    exportPreferences: model.videoExportPreferences,
-                    onBack: model.closeEditor,
-                    onExportRequest: model.exportVideo(using:),
-                    dragOutPayloadProvider: model.promisedVideoPayload
+                    documentFilename: documents.currentDocumentFilename,
+                    hasUnsavedChanges: documents.hasUnsavedChanges,
+                    exportPreferences: video.exportPreferences,
+                    onBack: documents.closeEditor,
+                    onExportRequest: video.exportVideo(using:),
+                    dragOutPayloadProvider: video.promisedVideoPayload
                 )
                 Divider()
-            } else if model.editorController != nil {
+            } else if documents.editorController != nil {
                 EditorToolbarView(
-                    controller: model.editorController,
-                    onBack: model.closeEditor,
-                    onFloatReference: model.floatCurrentEditorReference,
-                    onExportPNG: { model.exportAnnotatedImage(as: .png) },
-                    onExportJPEG: { model.exportAnnotatedImage(as: .jpeg) },
-                    onExportPDF: { model.exportAnnotatedImage(as: .pdf) },
-                    onCopyStyled: model.copyCurrentEditorImageToClipboard,
-                    onCopyPlain: model.copyCurrentPlainEditorImageToClipboard,
-                    onShare: model.shareAnnotatedImage,
-                    dragOutPayloadProvider: model.promisedAnnotatedImagePayload
+                    controller: documents.editorController,
+                    onBack: documents.closeEditor,
+                    onFloatReference: documents.floatCurrentEditorReference,
+                    onExportPNG: { documents.exportAnnotatedImage(as: .png) },
+                    onExportJPEG: { documents.exportAnnotatedImage(as: .jpeg) },
+                    onExportPDF: { documents.exportAnnotatedImage(as: .pdf) },
+                    onCopyStyled: documents.copyCurrentEditorImageToClipboard,
+                    onCopyPlain: documents.copyCurrentPlainEditorImageToClipboard,
+                    onShare: documents.shareAnnotatedImage,
+                    dragOutPayloadProvider: documents.promisedAnnotatedImagePayload
                 )
                 Divider()
             }
 
             Group {
-                if let editorController = model.editorController {
+                if let editorController = documents.editorController {
                     EditorView(
                         controller: editorController,
-                        historyEntries: model.historyEntries,
-                        recentSnipEntries: model.recentSnipEntries,
-                        captureHistoryEntries: model.allCaptureHistoryEntries,
-                        recycleBinEntries: model.recycleBinEntries,
-                        captureSearchQuery: $model.captureSearchQuery,
-                        captureHistorySearchResultsLabel: model.captureHistorySearchResultsLabel,
+                        historyEntries: documents.historyEntries,
+                        recentSnipEntries: documents.recentSnipEntries,
+                        captureHistoryEntries: documents.allCaptureHistoryEntries,
+                        recycleBinEntries: documents.recycleBinEntries,
+                        captureSearchQuery: captureHistorySearchBinding,
+                        captureHistorySearchResultsLabel: documents.captureHistorySearchResultsLabel,
                         historyActions: EditorHistoryActions(
-                            onRestoreHistoryEntry: model.restoreHistoryEntry,
-                            onRestoreRecentSnipEntry: model.restoreRecentSnipEntry,
-                            onFloatHistoryEntry: model.floatHistoryReference,
-                            onDeleteHistoryEntry: model.deleteHistoryEntry,
-                            onDeleteAllHistoryEntries: model.deleteAllHistoryEntries,
-                            onDeleteRecentSnipEntry: model.deleteRecentSnipEntry,
-                            onDeleteAllRecentSnipEntries: model.deleteAllRecentSnipEntries,
-                            onRestoreRecycledHistoryEntry: model.restoreRecycledHistoryEntry,
-                            onPermanentlyDeleteRecycledHistoryEntry: model.permanentlyDeleteRecycledHistoryEntry,
-                            onEmptyRecycleBin: model.emptyRecycleBin
+                            onRestoreHistoryEntry: documents.restoreHistoryEntry,
+                            onRestoreRecentSnipEntry: documents.restoreRecentSnipEntry,
+                            onFloatHistoryEntry: documents.floatHistoryReference,
+                            onDeleteHistoryEntry: documents.deleteHistoryEntry,
+                            onDeleteAllHistoryEntries: documents.deleteAllHistoryEntries,
+                            onDeleteRecentSnipEntry: documents.deleteRecentSnipEntry,
+                            onDeleteAllRecentSnipEntries: documents.deleteAllRecentSnipEntries,
+                            onRestoreRecycledHistoryEntry: documents.restoreRecycledHistoryEntry,
+                            onPermanentlyDeleteRecycledHistoryEntry: documents.permanentlyDeleteRecycledHistoryEntry,
+                            onEmptyRecycleBin: documents.emptyRecycleBin
                         )
                     )
                     .id(ObjectIdentifier(editorController))
-                } else if let videoController = model.videoEditorController {
+                } else if let videoController = documents.videoEditorController {
                     VideoEditorView(controller: videoController)
                 } else {
                     emptyState
@@ -70,82 +85,82 @@ struct ContentView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .confirmationDialog("Save changes before continuing?", isPresented: $model.isShowingUnsavedChangesPrompt, titleVisibility: .visible) {
-            Button("Save", action: model.confirmSaveBeforeContinuing)
-            Button("Discard Changes", role: .destructive, action: model.discardChangesAndContinue)
-            Button("Cancel", role: .cancel, action: model.cancelPendingEditorAction)
+        .confirmationDialog("Save changes before continuing?", isPresented: $documents.isShowingUnsavedChangesPrompt, titleVisibility: .visible) {
+            Button("Save", action: documents.confirmSaveBeforeContinuing)
+            Button("Discard Changes", role: .destructive, action: documents.discardChangesAndContinue)
+            Button("Cancel", role: .cancel, action: documents.cancelPendingEditorAction)
         } message: {
             Text("The current \(AppBranding.displayName) document has unsaved changes.")
         }
-        .sheet(isPresented: $model.isShowingWindowPicker) {
+        .sheet(isPresented: $capture.isShowingWindowPicker) {
             CaptureWindowPickerView(
-                windows: model.availableWindows,
+                windows: capture.availableWindows,
                 onSelect: { window in
-                    switch model.windowPickerMode {
+                    switch capture.windowPickerMode {
                     case .videoRecording:
-                        model.recordWindow(window)
+                        video.recordWindow(window)
                     case .capturePresetReplacement(let presetID):
-                        model.isShowingWindowPicker = false
-                        model.replaceWindowTargetAndCapturePreset(id: presetID, with: window)
+                        capture.isShowingWindowPicker = false
+                        capture.replaceWindowTargetAndCapturePreset(id: presetID, with: window)
                     case .screenshot:
-                        model.captureWindow(window)
+                        capture.captureWindow(window)
                     }
-                    model.windowPickerMode = .screenshot
+                    capture.windowPickerMode = .screenshot
                 },
                 onPickOnScreen: {
-                    switch model.windowPickerMode {
+                    switch capture.windowPickerMode {
                     case .videoRecording:
-                        model.pickWindowOnScreenForVideoRecording()
+                        video.pickWindowOnScreenForVideoRecording()
                     case .capturePresetReplacement(let presetID):
-                        model.pickWindowOnScreenForPresetReplacement(id: presetID)
+                        capture.pickWindowOnScreenForPresetReplacement(id: presetID)
                     case .screenshot:
-                        model.pickWindowOnScreen()
+                        capture.pickWindowOnScreen()
                     }
-                    model.windowPickerMode = .screenshot
+                    capture.windowPickerMode = .screenshot
                 },
                 onCancel: {
-                    model.isShowingWindowPicker = false
-                    model.windowPickerMode = .screenshot
+                    capture.isShowingWindowPicker = false
+                    capture.windowPickerMode = .screenshot
                 }
             )
         }
-        .sheet(isPresented: $model.isShowingCapturePresetNamingSheet) {
-            CapturePresetNamingSheetView(model: model)
+        .sheet(isPresented: capturePresetNamingSheetBinding) {
+            CapturePresetNamingSheetView(capture: capture)
                 .frame(width: 420)
         }
-        .alert("Presentation Mode is Experimental", isPresented: $model.isShowingPresentationExperimentalNotice) {
+        .alert("Presentation Mode is Experimental", isPresented: $lifecycle.isShowingPresentationExperimentalNotice) {
             Button("Join Discord") {
-                NSWorkspace.shared.open(AppLinks.presentationFeedbackDiscord)
+                openURL(AppLinks.presentationFeedbackDiscord)
             }
             Button("OK", role: .cancel) {}
         } message: {
             Text("Presentation mode is still experimental. Join our Discord to share feedback about the feature.")
         }
         .alert("Capture Error", isPresented: Binding(get: {
-            model.errorMessage != nil
+            lifecycle.errorMessage != nil
         }, set: { value in
             if !value {
-                model.dismissError()
+                lifecycle.dismissError()
             }
         })) {
             Button("OK", role: .cancel) {
-                model.dismissError()
+                lifecycle.dismissError()
             }
         } message: {
-            Text(model.errorMessage ?? "")
+            Text(lifecycle.errorMessage ?? "")
         }
         .task {
-            model.refreshPermissions()
-            model.refreshAvailableWindows()
+            permissions.refreshPermissions()
+            capture.refreshAvailableWindows()
             handlePendingDocumentOpenRequests()
             handlePendingPasteboardImageImportRequests()
             handlePendingAutomationRequests()
         }
         .onAppear {
-            model.mainWindowDidAppear()
+            workflowCoordinator.mainWindowDidAppear()
         }
         .onDisappear {
-            model.mainWindowDidDisappear()
+            workflowCoordinator.mainWindowDidDisappear()
         }
         .onReceive(NotificationCenter.default.publisher(for: .sssPendingDocumentURLsDidChange)) { _ in
             handlePendingDocumentOpenRequests()
@@ -161,21 +176,21 @@ struct ContentView: View {
                 return
             }
 
-            guard !model.isInteractiveCaptureActive else {
+            guard !capture.isInteractiveCaptureActive else {
                 return
             }
 
-            model.refreshPermissions()
+            permissions.refreshPermissions()
 
-            guard model.autoRefreshWindowsEnabled,
-                  model.editorController == nil,
-                  !model.isWorking,
-                  !model.isShowingWindowPicker,
-                  model.permissionStatus.hasScreenRecording else {
+            guard capture.autoRefreshWindowsEnabled,
+                  documents.editorController == nil,
+                  !capture.isWorking,
+                  !capture.isShowingWindowPicker,
+                  permissions.permissionStatus.hasScreenRecording else {
                 return
             }
 
-            model.refreshAvailableWindows(
+            capture.refreshAvailableWindows(
                 includeThumbnails: true,
                 allowsCancellingPendingThumbnailRefresh: false
             )
@@ -262,11 +277,11 @@ struct ContentView: View {
                     tint: permissionStatusTint
                 )
 
-                if model.capabilities.isEnabled(.uiMap), shouldShowHeaderUIMapStatus {
+                if capabilities.isEnabled(.uiMap), shouldShowHeaderUIMapStatus {
                     headerUIMapStatusChip
                 }
 
-                if model.isWorking || model.isRecordingVideo {
+                if capture.isWorking || isRecordingVideo {
                     headerWorkingChip
                 }
             }
@@ -278,11 +293,11 @@ struct ContentView: View {
                     tint: permissionStatusTint
                 )
 
-                if model.capabilities.isEnabled(.uiMap), shouldShowHeaderUIMapStatus {
+                if capabilities.isEnabled(.uiMap), shouldShowHeaderUIMapStatus {
                     headerUIMapStatusChip
                 }
 
-                if model.isWorking || model.isRecordingVideo {
+                if capture.isWorking || isRecordingVideo {
                     headerWorkingChip
                 }
             }
@@ -306,17 +321,17 @@ struct ContentView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    captureButton(title: "Region", systemImage: "selection.pin.in.out", action: model.captureRegion)
-                    captureButton(title: "Full", systemImage: "macwindow", action: model.captureCurrentDisplay)
+                    captureButton(title: "Region", systemImage: "selection.pin.in.out", action: capture.captureRegion)
+                    captureButton(title: "Full", systemImage: "macwindow", action: capture.captureCurrentDisplay)
                     captureButton(title: "Window", systemImage: "rectangle.on.rectangle", action: captureWindowFromHeader)
                 }
 
                 HStack(spacing: 8) {
-                    if model.capabilities.isEnabled(.scrollingCapture) {
-                        captureButton(title: "Scroll", systemImage: "arrow.down.to.line", action: model.captureScrollingArea)
+                    if capabilities.isEnabled(.scrollingCapture) {
+                        captureButton(title: "Scroll", systemImage: "arrow.down.to.line", action: capture.captureScrollingArea)
                     }
-                    captureButton(title: "Repeat", systemImage: "arrow.clockwise", action: model.repeatLastCapture)
-                        .disabled(!model.canRepeatLastCapture)
+                    captureButton(title: "Repeat", systemImage: "arrow.clockwise", action: capture.repeatLastCapture)
+                        .disabled(!capture.canRepeatLastCapture)
                     capturePresetsMenu
                     recordButton
                 }
@@ -328,23 +343,23 @@ struct ContentView: View {
         HStack(spacing: 8) {
             ProgressView()
                 .controlSize(.small)
-            Text(model.workingMessage)
+            Text(lifecycle.workingMessage)
                 .font(.caption.weight(.medium))
-                .foregroundStyle(model.isRecordingVideo ? .red : .secondary)
+                .foregroundStyle(isRecordingVideo ? .red : .secondary)
                 .lineLimit(1)
         }
     }
 
     private var headerPrimaryActionButtons: some View {
         Group {
-            captureButton(title: "Region", systemImage: "selection.pin.in.out", action: model.captureRegion)
-            captureButton(title: "Full", systemImage: "macwindow", action: model.captureCurrentDisplay)
+            captureButton(title: "Region", systemImage: "selection.pin.in.out", action: capture.captureRegion)
+            captureButton(title: "Full", systemImage: "macwindow", action: capture.captureCurrentDisplay)
             captureButton(title: "Window", systemImage: "rectangle.on.rectangle", action: captureWindowFromHeader)
-            if model.capabilities.isEnabled(.scrollingCapture) {
-                captureButton(title: "Scroll", systemImage: "arrow.down.to.line", action: model.captureScrollingArea)
+            if capabilities.isEnabled(.scrollingCapture) {
+                captureButton(title: "Scroll", systemImage: "arrow.down.to.line", action: capture.captureScrollingArea)
             }
-            captureButton(title: "Repeat", systemImage: "arrow.clockwise", action: model.repeatLastCapture)
-                .disabled(!model.canRepeatLastCapture)
+            captureButton(title: "Repeat", systemImage: "arrow.clockwise", action: capture.repeatLastCapture)
+                .disabled(!capture.canRepeatLastCapture)
             capturePresetsMenu
             recordButton
         }
@@ -352,7 +367,7 @@ struct ContentView: View {
 
     private var capturePresetsMenu: some View {
         Menu {
-            CapturePresetMenuContent(model: model)
+            CapturePresetMenuContent(capture: capture, video: video, lifecycle: lifecycle)
         } label: {
             Label("Presets", systemImage: "star")
         }
@@ -366,8 +381,15 @@ struct ContentView: View {
         }
     }
 
+    private var capturePresetNamingSheetBinding: Binding<Bool> {
+        Binding(
+            get: { capture.isShowingCapturePresetNamingSheet },
+            set: { capture.isShowingCapturePresetNamingSheet = $0 }
+        )
+    }
+
     private var headerAutoCopyToggle: some View {
-        Toggle("Auto Copy", isOn: $model.autoCopyEnabled)
+        Toggle("Auto Copy", isOn: $clipboard.autoCopyEnabled)
             .toggleStyle(.switch)
             .controlSize(.small)
             .font(.subheadline.weight(.semibold))
@@ -401,14 +423,14 @@ struct ContentView: View {
                 missingPermissionRow(requirement)
             }
 
-            if let guide = model.permissionSetupGuide {
+            if let guide = permissions.permissionSetupGuide {
                 PermissionSetupGuideView(
                     guide: guide,
-                    onOpenSettings: model.openPermissionSettingsFromGuide,
-                    onRevealApp: model.revealAppForPermissionSetup,
-                    onCopyPath: model.copyAppPathForPermissionSetup,
-                    onCheckAgain: model.checkPermissionSetupGuideStatus,
-                    onDone: model.dismissPermissionSetupGuide
+                    onOpenSettings: permissions.openPermissionSettingsFromGuide,
+                    onRevealApp: permissions.revealAppForPermissionSetup,
+                    onCopyPath: permissions.copyAppPathForPermissionSetup,
+                    onCheckAgain: permissions.checkPermissionSetupGuideStatus,
+                    onDone: permissions.dismissPermissionSetupGuide
                 )
             }
         }
@@ -422,19 +444,19 @@ struct ContentView: View {
             ProgressView()
                 .controlSize(.small)
 
-            Text(model.workingMessage)
+            Text(lifecycle.workingMessage)
                 .font(.caption.weight(.medium))
-                .foregroundStyle(model.isRecordingVideo ? .red : .secondary)
+                .foregroundStyle(isRecordingVideo ? .red : .secondary)
                 .lineLimit(1)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .glassEffect(.regular.tint(model.isRecordingVideo ? .red : nil), in: .capsule)
+        .glassEffect(.regular.tint(isRecordingVideo ? .red : nil), in: .capsule)
     }
 
     private var headerUIMapStatusChip: some View {
         Group {
-            if model.editorController?.isProcessingUIMap == true {
+            if documents.editorController?.isProcessingUIMap == true {
                 HStack(spacing: 6) {
                     ProgressView()
                         .controlSize(.mini)
@@ -491,9 +513,9 @@ struct ContentView: View {
         ) {
             VStack(alignment: .leading, spacing: 16) {
                 quickStartStep(
-                    systemImage: model.permissionStatus.hasScreenRecording ? "checkmark.shield" : "hand.raised.fill",
+                    systemImage: permissions.permissionStatus.hasScreenRecording ? "checkmark.shield" : "hand.raised.fill",
                     title: "Set Up Capture Permissions",
-                    detail: model.permissionStatus.hasScreenRecording
+                    detail: permissions.permissionStatus.hasScreenRecording
                         ? allowedPermissionsDetail
                         : permissionCalloutSummary
                 )
@@ -511,19 +533,19 @@ struct ContentView: View {
                 )
 
                 HStack(spacing: 10) {
-                    if !model.permissionStatus.hasScreenRecording {
-                        Button("Continue", action: model.requestScreenRecordingAccess)
+                    if !permissions.permissionStatus.hasScreenRecording {
+                        Button("Continue", action: permissions.requestScreenRecordingAccess)
                             .buttonStyle(SSSChromeButtonStyle())
                             .help("Continue to the macOS Screen Recording permission prompt for \(AppBranding.displayName).")
                     }
 
-                    Button("Dismiss", action: model.dismissWelcomeCard)
+                    Button("Dismiss", action: dismissWelcomeCard)
                         .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
                         .help("Hide this quick-start card.")
 
                     Spacer(minLength: 8)
 
-                    Text(model.autoCopyEnabled ? "Auto Copy is enabled by default." : "Auto Copy is currently off.")
+                    Text(clipboard.autoCopyEnabled ? "Auto Copy is enabled by default." : "Auto Copy is currently off.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -559,57 +581,57 @@ struct ContentView: View {
         ) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 10) {
-                    Button("Pick On Screen", action: model.pickWindowOnScreen)
+                    Button("Pick On Screen", action: capture.pickWindowOnScreen)
                         .buttonStyle(SSSChromeButtonStyle())
                         .help("Hide this window and choose a window directly from an on-screen overlay.")
 
-                    Button("Capture Frontmost", action: model.captureFrontmostWindow)
+                    Button("Capture Frontmost", action: capture.captureFrontmostWindow)
                         .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
                         .help("Capture the frontmost shareable window immediately.")
 
-                    Button("Refresh", action: model.refreshAvailableWindowsOrRequestAccess)
+                    Button("Refresh", action: capture.refreshAvailableWindowsOrRequestAccess)
                         .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
                         .help(
-                            model.permissionStatus.hasScreenRecording
+                            permissions.permissionStatus.hasScreenRecording
                             ? "Reload the list of available windows."
                             : "Continue to the macOS Screen Recording permission prompt before window thumbnails can be shown."
                         )
 
                     Spacer(minLength: 8)
 
-                    Toggle("Auto Refresh", isOn: $model.autoRefreshWindowsEnabled)
+                    Toggle("Auto Refresh", isOn: $capture.autoRefreshWindowsEnabled)
                         .toggleStyle(.switch)
                         .controlSize(.small)
                         .fixedSize()
                         .help("Refresh the available window list automatically while this view is visible. When off, \(AppBranding.displayName) still refreshes once when the app returns to the foreground.")
                 }
 
-                if !model.permissionStatus.hasScreenRecording {
+                if !permissions.permissionStatus.hasScreenRecording {
                     Text("Screen Recording access is required before window thumbnails can be shown.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
 
-                    Button("Continue", action: model.requestScreenRecordingAccess)
+                    Button("Continue", action: permissions.requestScreenRecordingAccess)
                         .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
                         .help("Continue to the macOS Screen Recording permission prompt for \(AppBranding.displayName).")
-                } else if model.isLoadingWindowChoices && model.availableWindows.isEmpty {
+                } else if capture.isLoadingWindowChoices && capture.availableWindows.isEmpty {
                     HStack(spacing: 10) {
                         ProgressView()
                         Text("Loading available windows…")
                             .foregroundStyle(.secondary)
                     }
-                } else if model.availableWindows.isEmpty {
+                } else if capture.availableWindows.isEmpty {
             Text("No shareable windows are currently available. Open an app window, then refresh.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 } else {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(alignment: .top, spacing: 14) {
-                            ForEach(model.availableWindows) { window in
+                            ForEach(capture.availableWindows) { window in
                                 CaptureWindowTileView(window: window) {
-                                    model.captureWindow(window)
+                                    capture.captureWindow(window)
                                 }
-                                .id("\(window.id)-\(model.windowThumbnailRefreshGeneration)")
+                                .id("\(window.id)-\(capture.windowThumbnailRefreshGeneration)")
                             }
                         }
                         .padding(.vertical, 2)
@@ -648,11 +670,11 @@ struct ContentView: View {
                     }
 
                     HStack(spacing: 10) {
-                        Button("Restore", action: model.restorePendingRecovery)
+                        Button("Restore", action: documents.restorePendingRecovery)
                             .buttonStyle(SSSChromeButtonStyle())
                             .help("Open the most recent autosaved session in the editor.")
 
-                        Button("Dismiss", action: model.dismissPendingRecovery)
+                        Button("Dismiss", action: documents.dismissPendingRecovery)
                             .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
                             .help("Ignore this recovery session and remove the pending recovery prompt.")
                     }
@@ -668,14 +690,14 @@ struct ContentView: View {
             detail: "Search labels, document names, annotations, and recognized text across captures, including recent unsaved snips."
         ) {
             VStack(alignment: .leading, spacing: 14) {
-                TextField("Search captures", text: $model.captureSearchQuery)
+                TextField("Search captures", text: captureHistorySearchBinding)
                     .textFieldStyle(.roundedBorder)
 
                 Text(captureHistoryResultsLabel)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 
-                if model.allCaptureHistoryEntries.isEmpty {
+                if documents.allCaptureHistoryEntries.isEmpty {
                     Text("Capture history search appears here after you have autosaves, recent snips, or saved checkpoints to search.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -684,7 +706,7 @@ struct ContentView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(Array(visibleCaptureHistoryEntries.prefix(8))) { entry in
+                    ForEach(Swift.Array(visibleCaptureHistoryEntries.prefix(8))) { (entry: DocumentHistoryEntry) in
                         HStack(alignment: .top, spacing: 14) {
                             DocumentPreviewThumbnailView(
                                 packageURL: entry.packageURL,
@@ -717,13 +739,13 @@ struct ContentView: View {
 
                             VStack(spacing: 8) {
                                 Button("Open") {
-                                    model.restoreHistoryEntry(entry)
+                                    documents.restoreHistoryEntry(entry)
                                 }
                                 .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
                                 .help("Open this capture in the editor.")
 
                                 Button(role: .destructive) {
-                                    model.deleteCaptureHistorySession(entry)
+                                    documents.deleteCaptureHistorySession(entry)
                                 } label: {
                                     Label("Delete", systemImage: "trash")
                                 }
@@ -738,11 +760,11 @@ struct ContentView: View {
     }
 
     private var visibleCaptureHistoryEntries: [DocumentHistoryEntry] {
-        latestEntriesBySession(from: model.filteredCaptureHistoryEntries)
+        latestEntriesBySession(from: documents.filteredCaptureHistoryEntries)
     }
 
     private var captureHistoryResultsLabel: String {
-        let query = model.captureSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query = documents.captureSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         let count = visibleCaptureHistoryEntries.count
 
         guard !query.isEmpty else {
@@ -752,8 +774,18 @@ struct ContentView: View {
         return count == 1 ? "1 capture for \"\(query)\"" : "\(count) captures for \"\(query)\""
     }
 
+    private var captureHistorySearchBinding: Binding<String> {
+        Binding(
+            get: { documents.captureSearchQuery },
+            set: { newValue in
+                documents.captureSearchQuery = newValue
+                documents.scheduleIndexedCaptureHistorySearch()
+            }
+        )
+    }
+
     private func checkpointCountLabel(for entry: DocumentHistoryEntry) -> String {
-        let count = model.allCaptureHistoryEntries.filter { $0.sessionID == entry.sessionID }.count
+        let count = documents.allCaptureHistoryEntries.filter { $0.sessionID == entry.sessionID }.count
         return count == 1 ? "1 checkpoint" : "\(count) checkpoints"
     }
 
@@ -773,19 +805,19 @@ struct ContentView: View {
         ) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Text(model.recycleBinEntries.isEmpty ? "No deleted snips." : "\(model.recycleBinEntries.count) deleted snip\(model.recycleBinEntries.count == 1 ? "" : "s") available to restore.")
+                    Text(documents.recycleBinEntries.isEmpty ? "No deleted snips." : "\(documents.recycleBinEntries.count) deleted snip\(documents.recycleBinEntries.count == 1 ? "" : "s") available to restore.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
 
                     Spacer(minLength: 12)
 
-                    Button("Empty Now", role: .destructive, action: model.emptyRecycleBin)
+                    Button("Empty Now", role: .destructive, action: documents.emptyRecycleBin)
                         .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-                        .disabled(model.recycleBinEntries.isEmpty)
+                        .disabled(documents.recycleBinEntries.isEmpty)
                         .help("Permanently delete every item currently in the recycle bin.")
                 }
 
-                ForEach(Array(model.recycleBinEntries.prefix(6))) { entry in
+                ForEach(Array(documents.recycleBinEntries.prefix(6))) { entry in
                     HStack(alignment: .top, spacing: 14) {
                         DocumentPreviewThumbnailView(
                             packageURL: entry.packageURL,
@@ -806,7 +838,7 @@ struct ContentView: View {
                         Spacer(minLength: 8)
 
                         Button("Restore") {
-                            model.restoreRecycledHistoryEntry(entry)
+                            documents.restoreRecycledHistoryEntry(entry)
                         }
                         .buttonStyle(SSSChromeButtonStyle())
                         .help("Restore this deleted snip and open it in the editor.")
@@ -871,25 +903,25 @@ struct ContentView: View {
         }
         .buttonStyle(SSSChromeButtonStyle())
         .controlSize(.small)
-        .disabled(model.isWorking || model.isRecordingVideo)
+        .disabled(capture.isWorking || isRecordingVideo)
         .help(captureButtonHelpText(for: title))
     }
 
     private func captureWindowFromHeader() {
-        WindowCaptureQuickMenuPresenter.shared.present(for: model)
+        presentWindowQuickCaptureMenu()
     }
 
     private var recordButton: some View {
         Menu {
-            Button("Record Region", action: model.recordRegion)
-                .disabled(model.isConnectedDeviceSessionActive)
-            Button("Record Window", action: model.presentVideoWindowPicker)
-                .disabled(model.isConnectedDeviceSessionActive)
-            Button("Record Fullscreen", action: model.recordCurrentDisplay)
-                .disabled(model.isConnectedDeviceSessionActive)
-            if model.capabilities.isEnabled(.connectedDeviceCapture) {
+            Button("Record Region", action: video.recordRegion)
+                .disabled(capture.isConnectedDeviceSessionActive)
+            Button("Record Window", action: video.presentVideoWindowPicker)
+                .disabled(capture.isConnectedDeviceSessionActive)
+            Button("Record Fullscreen", action: video.recordCurrentDisplay)
+                .disabled(capture.isConnectedDeviceSessionActive)
+            if capabilities.isEnabled(.connectedDeviceCapture) {
                 Menu("Record Connected Device") {
-                    ConnectedDeviceCaptureMenuContent(model: model, mode: .recording)
+                    ConnectedDeviceCaptureMenuContent(capture: capture, mode: .recording)
                 }
             }
         } label: {
@@ -898,7 +930,7 @@ struct ContentView: View {
         .buttonStyle(SSSChromeButtonStyle(tint: .red))
         .controlSize(.small)
         .tint(.red)
-        .disabled(model.isWorking || model.isRecordingVideo)
+        .disabled(capture.isWorking || isRecordingVideo)
         .help("Start a screen video recording.")
     }
 
@@ -929,7 +961,7 @@ struct ContentView: View {
         case "Full", "Fullscreen":
             return "Capture the full desktop across connected displays."
         case "Window":
-            if model.capabilities.isEnabled(.uiMap), model.uiMapEnabled {
+            if capabilities.isEnabled(.uiMap), capture.uiMapEnabled {
                 return "Open quick window capture choices. UI Map enabled for Window captures."
             }
 
@@ -948,11 +980,11 @@ struct ContentView: View {
             return "Ready"
         }
 
-        if !model.permissionStatus.hasScreenRecording {
+        if !permissions.permissionStatus.hasScreenRecording {
             return "Access Needed"
         }
 
-        return model.capabilities.isEnabled(.scrollingCapture) ? "Scroll Access Needed" : "Access Needed"
+        return capabilities.isEnabled(.scrollingCapture) ? "Scroll Access Needed" : "Access Needed"
     }
 
     private var permissionStatusSystemImage: String {
@@ -964,11 +996,11 @@ struct ContentView: View {
     }
 
     private var headerCaptureReady: Bool {
-        model.permissionStatus.hasScreenRecording
+        permissions.permissionStatus.hasScreenRecording
     }
 
     private var shouldShowHeaderUIMapStatus: Bool {
-        guard let controller = model.editorController else {
+        guard let controller = documents.editorController else {
             return false
         }
 
@@ -980,7 +1012,7 @@ struct ContentView: View {
     }
 
     private var uiMapStatusTitle: String {
-        if model.editorController?.isProcessingUIMap == true {
+        if documents.editorController?.isProcessingUIMap == true {
             return "UI Map Processing"
         }
 
@@ -988,11 +1020,11 @@ struct ContentView: View {
     }
 
     private var uiMapStatusTint: Color {
-        model.editorController?.isProcessingUIMap == true ? .orange : .blue
+        documents.editorController?.isProcessingUIMap == true ? .orange : .blue
     }
 
     private var uiMapStatusHelp: String {
-        if model.editorController?.isProcessingUIMap == true {
+        if documents.editorController?.isProcessingUIMap == true {
             return "Window UI Map metadata is being captured in the background."
         }
 
@@ -1000,7 +1032,7 @@ struct ContentView: View {
     }
 
     private var headerMissingRequirements: [CapturePermissionRequirement] {
-        model.permissionStatus.hasScreenRecording ? [] : [.screenRecording]
+        permissions.permissionStatus.hasScreenRecording ? [] : [.screenRecording]
     }
 
     private var permissionCalloutSummary: String {
@@ -1010,11 +1042,11 @@ struct ContentView: View {
             return "Screen Recording is required for captures, recordings, and live window thumbnails."
         }
 
-        if model.capabilities.isEnabled(.scrollingCapture), missingRequirements == [.accessibility] {
+        if capabilities.isEnabled(.scrollingCapture), missingRequirements == [.accessibility] {
             return "Accessibility is required for Scrolling Capture so \(AppBranding.displayName) can scroll the selected app while capturing."
         }
 
-        if model.capabilities.isEnabled(.scrollingCapture) {
+        if capabilities.isEnabled(.scrollingCapture) {
             return "Screen Recording is required for captures. Accessibility is also required for Scrolling Capture."
         }
 
@@ -1026,7 +1058,7 @@ struct ContentView: View {
             return
         }
 
-        model.requestPermission(requirement)
+        permissions.requestPermission(requirement)
     }
 
     private func missingPermissionRow(_ requirement: CapturePermissionRequirement) -> some View {
@@ -1049,14 +1081,14 @@ struct ContentView: View {
             Spacer(minLength: 8)
 
             Button("Continue") {
-                model.requestPermission(requirement)
+                permissions.requestPermission(requirement)
             }
             .buttonStyle(SSSChromeButtonStyle())
             .controlSize(.small)
             .help("Continue to the macOS \(requirement.title) permission prompt for \(AppBranding.displayName).")
 
             Button("Help") {
-                model.presentPermissionSetupGuide(for: requirement)
+                permissions.presentPermissionSetupGuide(for: requirement)
             }
             .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
             .controlSize(.small)
@@ -1076,10 +1108,10 @@ struct ContentView: View {
         }
 
         if urls.count > 1 {
-            model.errorMessage = "\(AppBranding.displayName) can only open or import one file at a time. Opened \(firstURL.lastPathComponent)."
+            lifecycle.errorMessage = "\(AppBranding.displayName) can only open or import one file at a time. Opened \(firstURL.lastPathComponent)."
         }
 
-        model.openExternalFile(at: firstURL)
+        documents.openExternalFile(at: firstURL)
     }
 
     private func handlePendingPasteboardImageImportRequests() {
@@ -1090,10 +1122,10 @@ struct ContentView: View {
         }
 
         if requests.count > 1 {
-            model.errorMessage = "\(AppBranding.displayName) can only import one shared image at a time."
+            lifecycle.errorMessage = "\(AppBranding.displayName) can only import one shared image at a time."
         }
 
-        model.importImageFromPasteboard(
+        documents.importImageFromPasteboard(
             named: firstRequest.pasteboardName,
             sourceName: firstRequest.sourceName
         )
@@ -1107,21 +1139,21 @@ struct ContentView: View {
 
         Task { @MainActor in
             for request in requests {
-                _ = await model.automationService.perform(request)
+                await performAutomationRequest(request)
             }
         }
     }
 
     private var quickStartDetail: String {
-        if model.capabilities.isEnabled(.scrollingCapture) && model.capabilities.isEnabled(.uiMap) {
+        if capabilities.isEnabled(.scrollingCapture) && capabilities.isEnabled(.uiMap) {
             return "\(AppBranding.displayName) lives in the menu bar. Screen Recording enables capture pixels. Accessibility is only needed for Scrolling Capture and Window UI Map."
         }
 
-        if model.capabilities.isEnabled(.uiMap) {
+        if capabilities.isEnabled(.uiMap) {
             return "\(AppBranding.displayName) lives in the menu bar. Screen Recording enables capture pixels. Accessibility is only needed for Window UI Map."
         }
 
-        if model.capabilities.isEnabled(.scrollingCapture) {
+        if capabilities.isEnabled(.scrollingCapture) {
             return "\(AppBranding.displayName) lives in the menu bar. Screen Recording enables capture pixels. Accessibility is only needed for Scrolling Capture."
         }
 
@@ -1129,15 +1161,15 @@ struct ContentView: View {
     }
 
     private var allowedPermissionsDetail: String {
-        if model.capabilities.isEnabled(.scrollingCapture) && model.capabilities.isEnabled(.uiMap) {
+        if capabilities.isEnabled(.scrollingCapture) && capabilities.isEnabled(.uiMap) {
             return "Screen Recording is enabled. Accessibility can be allowed later for Scrolling Capture and Window UI Map."
         }
 
-        if model.capabilities.isEnabled(.uiMap) {
+        if capabilities.isEnabled(.uiMap) {
             return "Screen Recording is enabled. Accessibility can be allowed later for Window UI Map."
         }
 
-        if model.capabilities.isEnabled(.scrollingCapture) {
+        if capabilities.isEnabled(.scrollingCapture) {
             return "Screen Recording is enabled. Accessibility can be allowed later for Scrolling Capture."
         }
 
@@ -1293,7 +1325,7 @@ private struct PermissionSetupGuideView: View {
 }
 
 private struct CapturePresetNamingSheetView: View {
-    @ObservedObject var model: AppModel
+    @ObservedObject var capture: CaptureWorkflowModel
     @Environment(\.dismiss) private var dismiss
     @FocusState private var isNameFocused: Bool
 
@@ -1309,7 +1341,7 @@ private struct CapturePresetNamingSheetView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            TextField("Preset name", text: $model.capturePresetNameDraft)
+            TextField("Preset name", text: $capture.capturePresetNameDraft)
                 .textFieldStyle(.roundedBorder)
                 .focused($isNameFocused)
                 .onSubmit(save)
@@ -1318,7 +1350,7 @@ private struct CapturePresetNamingSheetView: View {
                 Spacer()
 
                 Button("Cancel") {
-                    model.cancelSavingCapturePreset()
+                    capture.cancelSavingCapturePreset()
                     dismiss()
                 }
                 .keyboardShortcut(.cancelAction)
@@ -1337,13 +1369,7 @@ private struct CapturePresetNamingSheetView: View {
     }
 
     private func save() {
-        model.commitCapturePresetName()
+        capture.commitCapturePresetName()
         dismiss()
-    }
-}
-
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView(model: AppModel())
     }
 }

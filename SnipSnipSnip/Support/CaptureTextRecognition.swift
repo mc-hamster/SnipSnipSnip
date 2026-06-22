@@ -58,10 +58,18 @@ final class CaptureTextRecognitionCoordinator {
     private static let recognitionDelayNanoseconds: UInt64 = 1_500_000_000
 
     private let recognizer: any CaptureTextRecognizing
+    private let files: any FileSystemServicing
+    private let scheduler: any Scheduling
     private var activeTasks: [URL: Task<Void, Never>] = [:]
 
-    init(recognizer: any CaptureTextRecognizing = VisionCaptureTextRecognizer()) {
+    init(
+        recognizer: any CaptureTextRecognizing = VisionCaptureTextRecognizer(),
+        files: any FileSystemServicing = SystemFileService(),
+        scheduler: any Scheduling = SystemScheduler()
+    ) {
         self.recognizer = recognizer
+        self.files = files
+        self.scheduler = scheduler
     }
 
     deinit {
@@ -71,7 +79,7 @@ final class CaptureTextRecognitionCoordinator {
     func recognizeText(
         for entry: DocumentHistoryEntry,
         image: CGImage,
-        includeUIMapSearchText: Bool = BuildTargetCapabilityProvider().currentSnapshot().isEnabled(.uiMap),
+        includeUIMapSearchText: Bool,
         didUpdate: @escaping @MainActor (String) -> Void
     ) {
         guard activeTasks[entry.packageURL] == nil else {
@@ -80,13 +88,15 @@ final class CaptureTextRecognitionCoordinator {
 
         let packageURL = entry.packageURL
         let recognizer = self.recognizer
+        let files = self.files
+        let scheduler = self.scheduler
         activeTasks[packageURL] = Task { @MainActor [weak self, image, packageURL, didUpdate] in
             defer {
                 self?.activeTasks[packageURL] = nil
             }
 
             do {
-                try await Task.sleep(nanoseconds: Self.recognitionDelayNanoseconds)
+                try await scheduler.sleep(nanoseconds: Self.recognitionDelayNanoseconds)
             } catch {
                 return
             }
@@ -101,7 +111,8 @@ final class CaptureTextRecognitionCoordinator {
                 return try? SSSDocumentPackage.updateRecognizedText(
                     recognizedText,
                     in: packageURL,
-                    includeUIMapSearchText: includeUIMapSearchText
+                    includeUIMapSearchText: includeUIMapSearchText,
+                    files: files
                 )
             }
 

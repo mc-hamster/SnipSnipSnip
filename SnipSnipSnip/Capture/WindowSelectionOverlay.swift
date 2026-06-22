@@ -2,10 +2,6 @@ import AppKit
 import CoreGraphics
 import OSLog
 
-#if !APP_STORE_BUILD
-import ApplicationServices
-#endif
-
 private enum WindowPickerDiagnostics {
     nonisolated private static let logger = Logger(
         subsystem: "com.oontz.SnipSnipSnip",
@@ -28,17 +24,23 @@ final class WindowSelectionSession: NSObject {
     private let snapshot: DesktopCompositeSnapshot
     private let windows: [CaptureWindowSummary]
     private let capabilities: AppCapabilitySnapshot
+    private let accessibility: any AccessibilityPlatform
+    private let screens: any ScreenTopologyProviding
     private var continuation: CheckedContinuation<CaptureWindowSummary?, Never>?
     private var overlayWindows: [WindowSelectionWindow] = []
 
     init(
         snapshot: DesktopCompositeSnapshot,
         windows: [CaptureWindowSummary],
-        capabilities: AppCapabilitySnapshot = BuildTargetCapabilityProvider().currentSnapshot()
+        capabilities: AppCapabilitySnapshot,
+        accessibility: any AccessibilityPlatform = LiveAccessibilityPlatform(),
+        screens: any ScreenTopologyProviding = SystemScreenTopologyService()
     ) {
         self.snapshot = snapshot
         self.windows = windows
         self.capabilities = capabilities
+        self.accessibility = accessibility
+        self.screens = screens
     }
 
     func begin() async -> CaptureWindowSummary? {
@@ -90,7 +92,9 @@ final class WindowSelectionSession: NSObject {
                 displayPreview: displayPreview,
                 windows: displayWindows,
                 desktopFrame: snapshot.globalFrame,
-                capabilities: capabilities
+                capabilities: capabilities,
+                accessibility: accessibility,
+                screens: screens
             ) { [weak self] window in
                 self?.finish(with: window)
             }
@@ -119,6 +123,8 @@ private final class WindowSelectionWindow: NSWindow {
         windows: [CaptureWindowSummary],
         desktopFrame: CGRect,
         capabilities: AppCapabilitySnapshot,
+        accessibility: any AccessibilityPlatform,
+        screens: any ScreenTopologyProviding,
         onComplete: @escaping (CaptureWindowSummary?) -> Void
     ) {
         self.displayFrame = displayPreview.snapshot.overlayFrame
@@ -143,6 +149,8 @@ private final class WindowSelectionWindow: NSWindow {
             desktopFrame: desktopFrame,
             displayFrame: displayFrame,
             capabilities: capabilities,
+            accessibility: accessibility,
+            screens: screens,
             onComplete: onComplete
         )
         makeFirstResponder(contentView)
@@ -159,6 +167,8 @@ private final class WindowSelectionView: NSView {
     private let desktopFrame: CGRect
     private let displayFrame: CGRect
     private let capabilities: AppCapabilitySnapshot
+    private let accessibility: any AccessibilityPlatform
+    private let screens: any ScreenTopologyProviding
     private let onComplete: (CaptureWindowSummary?) -> Void
     private var hoveredWindowID: CGWindowID?
     // Screen-space (AppKit) rect of the hovered window, refreshed each mouseMoved.
@@ -171,15 +181,19 @@ private final class WindowSelectionView: NSView {
         desktopFrame: CGRect,
         displayFrame: CGRect,
         capabilities: AppCapabilitySnapshot,
+        accessibility: any AccessibilityPlatform,
+        screens: any ScreenTopologyProviding,
         onComplete: @escaping (CaptureWindowSummary?) -> Void
     ) {
         self.windows = windows
         self.displayTransform = displayPreview.snapshot.captureDisplayTransform
         self.capabilities = capabilities
+        self.accessibility = accessibility
+        self.screens = screens
 #if APP_STORE_BUILD
         self.accessibilityTransform = nil
 #else
-        self.accessibilityTransform = Self.makeAccessibilityTransform(for: displayPreview.snapshot)
+        self.accessibilityTransform = Self.makeAccessibilityTransform(for: displayPreview.snapshot, screens: screens)
 #endif
         self.desktopFrame = desktopFrame.standardized
         self.displayFrame = displayFrame
@@ -503,24 +517,19 @@ private final class WindowSelectionView: NSView {
         at screenPoint: CGPoint,
         boundsSources: WindowBoundsSources
     ) -> (window: CaptureWindowSummary, screenRect: CGRect)? {
-        guard AXIsProcessTrusted() else {
+        guard accessibility.isProcessTrusted() else {
             return nil
         }
 
-        let systemElement = AXUIElementCreateSystemWide()
+        let systemElement = accessibility.systemWideElement()
         var resolvedAccessibilityPoint: CGPoint?
-        var resolvedWindowElement: AXUIElement?
+        var resolvedWindowElement: AccessibilityElementHandle?
 
         for accessibilityPoint in accessibilityHitTestPoints(forOverlayScreenPoint: screenPoint) {
-            var hitElement: AXUIElement?
-            let hitError = AXUIElementCopyElementAtPosition(
-                systemElement,
-                Float(accessibilityPoint.x),
-                Float(accessibilityPoint.y),
-                &hitElement
-            )
+            let hitResult = accessibility.element(at: accessibilityPoint, from: systemElement)
+            let hitElement = hitResult.element
 
-            guard hitError == .success,
+            guard hitResult.status == .success,
                   let hitElement,
                   let windowElement = accessibilityWindowElement(startingAt: hitElement) else {
                 continue
@@ -568,24 +577,22 @@ private final class WindowSelectionView: NSView {
     }
 
     private func resolveAccessibilityMatchedWindow(
-        for windowElement: AXUIElement,
+        for windowElement: AccessibilityElementHandle,
         at screenPoint: CGPoint,
         accessibilityRect: CGRect?,
         boundsSources: WindowBoundsSources
     ) -> CaptureWindowSummary? {
-        var windowID = CGWindowID(0)
-        if _AXUIElementGetWindow(windowElement, &windowID) == .success,
-           windowID != 0,
-           let matched = windows.first(where: { $0.id == windowID }) {
+        if let identity = accessibility.windowIdentity(for: windowElement),
+           let matched = windows.first(where: { $0.id == identity.windowID }) {
             return matched
         }
 
-        var ownerPID = pid_t(0)
-        guard AXUIElementGetPid(windowElement, &ownerPID) == .success else {
+        let ownerResult = accessibility.processIdentifier(for: windowElement)
+        guard ownerResult.status == .success else {
             return nil
         }
 
-        let candidates = windows.filter { $0.ownerPID == ownerPID }
+        let candidates = windows.filter { $0.ownerPID == ownerResult.processID }
         guard !candidates.isEmpty else {
             return nil
         }
@@ -646,13 +653,14 @@ private final class WindowSelectionView: NSView {
         return intersectionArea / baseline
     }
 
-    private func accessibilityWindowElement(startingAt element: AXUIElement) -> AXUIElement? {
-        var current: AXUIElement? = element
-        var visited = Set<CFHashCode>()
+    private func accessibilityWindowElement(
+        startingAt element: AccessibilityElementHandle
+    ) -> AccessibilityElementHandle? {
+        var current: AccessibilityElementHandle? = element
+        var visited = Set<AccessibilityElementHandle>()
 
         while let candidate = current {
-            let identifier = CFHash(candidate)
-            guard visited.insert(identifier).inserted else {
+            guard visited.insert(candidate).inserted else {
                 return nil
             }
 
@@ -670,7 +678,7 @@ private final class WindowSelectionView: NSView {
         return nil
     }
 
-    private func accessibilityRole(of element: AXUIElement) -> String? {
+    private func accessibilityRole(of element: AccessibilityElementHandle) -> String? {
         attribute("AXRole", from: element) as? String
     }
 
@@ -688,7 +696,7 @@ private final class WindowSelectionView: NSView {
         return points
     }
 
-    private func accessibilityAppKitScreenRect(of element: AXUIElement) -> CGRect? {
+    private func accessibilityAppKitScreenRect(of element: AccessibilityElementHandle) -> CGRect? {
         guard let accessibilityRect = accessibilityFrame(of: element) else {
             return nil
         }
@@ -705,63 +713,33 @@ private final class WindowSelectionView: NSView {
             ).gscIntegralStandardized
         }
 
-        let desktopFrame = NSScreen.screens.reduce(CGRect.null) { partialResult, screen in
+        let desktopFrame = screens.screens.reduce(CGRect.null) { partialResult, screen in
             partialResult.union(screen.frame)
         }.standardized
         return gscAppKitScreenRect(fromCGWindowBounds: accessibilityRect, desktopFrame: desktopFrame)
     }
 
-    private func accessibilityFrame(of element: AXUIElement) -> CGRect? {
-        guard let positionObject = attribute("AXPosition", from: element),
-              let sizeObject = attribute("AXSize", from: element) else {
-            return nil
-        }
-
-        let positionCFValue = positionObject as CFTypeRef
-        let sizeCFValue = sizeObject as CFTypeRef
-
-        guard CFGetTypeID(positionCFValue) == AXValueGetTypeID(),
-              CFGetTypeID(sizeCFValue) == AXValueGetTypeID() else {
-            return nil
-        }
-
-        let positionValue = positionCFValue as! AXValue
-        let sizeValue = sizeCFValue as! AXValue
-        var position = CGPoint.zero
-        var size = CGSize.zero
-
-        guard AXValueGetValue(positionValue, .cgPoint, &position),
-              AXValueGetValue(sizeValue, .cgSize, &size) else {
-            return nil
-        }
-
-        return CGRect(origin: position, size: size).gscIntegralStandardized
+    private func accessibilityFrame(of element: AccessibilityElementHandle) -> CGRect? {
+        accessibility.frame(of: element)?.gscIntegralStandardized
     }
 
-    private func attribute(_ name: String, from element: AXUIElement) -> AnyObject? {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else {
-            return nil
-        }
-
-        return value as AnyObject?
+    private func attribute(_ name: String, from element: AccessibilityElementHandle) -> Any? {
+        let result = accessibility.copyAttribute(name, from: element)
+        return result.status == .success ? result.value : nil
     }
 
-    private func elementAttribute(_ name: String, from element: AXUIElement) -> AXUIElement? {
-        guard let value = attribute(name, from: element) else {
-            return nil
-        }
-
-        let cfValue = value as CFTypeRef
-        guard CFGetTypeID(cfValue) == AXUIElementGetTypeID() else {
-            return nil
-        }
-
-        return unsafeDowncast(value, to: AXUIElement.self)
+    private func elementAttribute(
+        _ name: String,
+        from element: AccessibilityElementHandle
+    ) -> AccessibilityElementHandle? {
+        attribute(name, from: element) as? AccessibilityElementHandle
     }
 
-    private static func makeAccessibilityTransform(for snapshot: DisplaySnapshot) -> CaptureAccessibilityTransform? {
-        guard let screen = NSScreen.screens.first(where: { $0.gscDisplayID == snapshot.displayID }) else {
+    private static func makeAccessibilityTransform(
+        for snapshot: DisplaySnapshot,
+        screens: any ScreenTopologyProviding
+    ) -> CaptureAccessibilityTransform? {
+        guard let screen = screens.screen(withDisplayID: snapshot.displayID) else {
             return nil
         }
 
@@ -852,8 +830,8 @@ private func resolvedTopmostWindow(
         }
 }
 
-private func visibleWindowBoundsSources() -> WindowBoundsSources {
-    visibleWindowBoundsSources(desktopFrame: NSScreen.screens.reduce(CGRect.null) { partialResult, screen in
+private func visibleWindowBoundsSources(screens: any ScreenTopologyProviding = SystemScreenTopologyService()) -> WindowBoundsSources {
+    visibleWindowBoundsSources(desktopFrame: screens.screens.reduce(CGRect.null) { partialResult, screen in
         partialResult.union(screen.frame)
     })
 }
@@ -889,8 +867,3 @@ private func rawWindowBoundsByID(from windowInfo: [[String: Any]], desktopFrame:
         )
     }
 }
-
-#if !APP_STORE_BUILD
-@_silgen_name("_AXUIElementGetWindow")
-private func _AXUIElementGetWindow(_ element: AXUIElement, _ windowID: UnsafeMutablePointer<CGWindowID>) -> AXError
-#endif

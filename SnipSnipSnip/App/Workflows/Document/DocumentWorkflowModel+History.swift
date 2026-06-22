@@ -1,7 +1,44 @@
-import AppKit
+import CoreGraphics
 import Foundation
 
-extension AppModel {
+extension DocumentWorkflowModel {
+    func handleIncompatibleRecoveryEntriesOnLaunch() {
+        let incompatibleEntries = recoveryStore.incompatibleHistoryEntries()
+
+        guard !incompatibleEntries.isEmpty else {
+            return
+        }
+
+        let didContinue = incompatibleDocumentCoordinator.handleIncompatibleFiles(
+            incompatibleEntries.map(\.packageURL),
+            sourceDescription: "archive history",
+            presentError: present
+        ) {
+            try self.recoveryStore.purgeHistoryEntriesAfterExternalRemoval(incompatibleEntries)
+        }
+
+        guard didContinue else {
+            return
+        }
+
+        reloadRecoveryPresentationStateFromStore()
+    }
+
+    func reloadRecoveryPresentationStateFromStore() {
+        pendingRecoverySession = recoveryStore.latestPendingRecovery()
+        allCaptureHistoryEntries = recoveryStore.allHistoryEntries(limit: DocumentWorkflowConstants.captureHistoryLimit)
+        recentSnipEntries = recoveryStore.pendingRecoveryEntries(limit: DocumentWorkflowConstants.recentSnipLimit)
+        recycleBinEntries = recoveryStore.recycledHistoryEntries(limit: DocumentWorkflowConstants.recycleBinLimit)
+
+        if let currentRecoverySessionID {
+            historyEntries = recoveryStore.historyEntries(for: currentRecoverySessionID)
+        } else {
+            historyEntries = []
+        }
+
+        scheduleIndexedCaptureHistorySearch()
+    }
+
     func initialCaptureHistoryIndexImage(for controller: EditorController) -> CGImage {
         controller.capture.image
     }
@@ -29,14 +66,14 @@ extension AppModel {
 
         guard !query.isEmpty else {
             pendingCaptureHistorySearchTask = nil
-            allCaptureHistoryEntries = recoveryStore.allHistoryEntries(limit: Self.captureHistoryLimit)
+            allCaptureHistoryEntries = recoveryStore.allHistoryEntries(limit: DocumentWorkflowConstants.captureHistoryLimit)
             return
         }
 
         let store = recoveryStore
-        let searchLimit = Self.captureHistorySearchLimit
+        let searchLimit = DocumentWorkflowConstants.captureHistorySearchLimit
         pendingCaptureHistorySearchTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 180_000_000)
+            try? await self?.systemServices.scheduler.sleep(nanoseconds: 180_000_000)
 
             guard !Task.isCancelled else {
                 return
@@ -60,33 +97,6 @@ extension AppModel {
         }
     }
 
-    func handleGlobalHotKeyAction(_ action: GlobalHotKeyAction) {
-        guard !isWorking, !isRecordingVideo else {
-            presentBusyHotKeyFeedback()
-            return
-        }
-
-        switch action {
-        case .region:
-            captureRegion()
-        case .window:
-            presentWindowPicker()
-        case .fullscreen:
-            captureCurrentDisplay()
-        case .frontmostWindow:
-            captureFrontmostWindow()
-        case .repeatLastCapture:
-            repeatLastCapture()
-        case .screenInspector:
-            toggleScreenInspector()
-        }
-    }
-
-    private func presentBusyHotKeyFeedback() {
-        workingMessage = isRecordingVideo ? "Recording in progress" : "Capture already in progress"
-        NSSound.beep()
-    }
-
     func indexCurrentCaptureIfNeeded(using controller: EditorController) {
         guard let currentRecoverySessionID,
               let entry = recoveryStore.historyEntries(for: currentRecoverySessionID).first else {
@@ -101,6 +111,38 @@ extension AppModel {
         ) { [weak self] searchableText in
             self?.applyRecognizedSearchText(searchableText, to: entry)
         }
+    }
+
+    func currentProtectedTemporaryVideoURLs() -> [URL] {
+        [videoEditorController?.recording.sourceURL, activeVideoRecording?.session.outputURL]
+            .compactMap { $0 }
+            .filter { TemporaryVideoMediaManager.isOwnedTemporaryMediaURL($0, files: systemServices.files) }
+    }
+
+    func currentOwnedTemporaryVideoSourceURL(replacingWith newSourceURL: URL?) -> URL? {
+        guard let currentSourceURL = videoEditorController?.recording.sourceURL,
+              TemporaryVideoMediaManager.isOwnedTemporaryMediaURL(currentSourceURL, files: systemServices.files) else {
+            return nil
+        }
+
+        guard currentSourceURL.standardizedFileURL != newSourceURL?.standardizedFileURL else {
+            return nil
+        }
+
+        return currentSourceURL
+    }
+
+    func cleanupTemporaryVideoSourceIfNeeded(previousSourceURL: URL?) {
+        guard let previousSourceURL,
+              TemporaryVideoMediaManager.isOwnedTemporaryMediaURL(previousSourceURL, files: systemServices.files) else {
+            return
+        }
+
+        try? systemServices.files.removeItem(at: previousSourceURL)
+    }
+
+    func cleanupTemporaryVideoSourceIfNeeded(_ previousSourceURL: URL?) {
+        cleanupTemporaryVideoSourceIfNeeded(previousSourceURL: previousSourceURL)
     }
 
     private func filteredEntries(from entries: [DocumentHistoryEntry]) -> [DocumentHistoryEntry] {
@@ -119,39 +161,9 @@ extension AppModel {
                 checkpointID: entry.id,
                 searchableText: searchableText
             )
+            refreshRecoveryPresentationState()
         } catch {
             present(error)
-            return
-        }
-
-        historyEntries = updatingSearchableText(in: historyEntries, for: entry, searchableText: searchableText)
-        allCaptureHistoryEntries = updatingSearchableText(in: allCaptureHistoryEntries, for: entry, searchableText: searchableText)
-        recentSnipEntries = updatingSearchableText(in: recentSnipEntries, for: entry, searchableText: searchableText)
-        scheduleIndexedCaptureHistorySearch()
-
-        if let pendingRecoverySession,
-           pendingRecoverySession.latestEntry.id == entry.id,
-           pendingRecoverySession.latestEntry.sessionID == entry.sessionID {
-            let updatedEntry = pendingRecoverySession.latestEntry.updating(searchableText: searchableText)
-            self.pendingRecoverySession = PendingRecoverySession(
-                id: pendingRecoverySession.id,
-                title: pendingRecoverySession.title,
-                latestEntry: updatedEntry
-            )
-        }
-    }
-
-    private func updatingSearchableText(
-        in entries: [DocumentHistoryEntry],
-        for targetEntry: DocumentHistoryEntry,
-        searchableText: String
-    ) -> [DocumentHistoryEntry] {
-        entries.map { entry in
-            guard entry.id == targetEntry.id, entry.sessionID == targetEntry.sessionID else {
-                return entry
-            }
-
-            return entry.updating(searchableText: searchableText)
         }
     }
 }

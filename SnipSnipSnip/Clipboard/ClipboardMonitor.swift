@@ -22,7 +22,8 @@ enum ClipboardPasteboardReader {
     static func sourceApp(
         forPasteboardTypeNames typeNames: [String],
         explicitSourceIdentifier: String?,
-        fallbackSourceApp: ClipboardSourceApp?
+        fallbackSourceApp: ClipboardSourceApp?,
+        workspace: any WorkspaceServicing
     ) -> ClipboardSourceApp? {
         if let explicitSourceIdentifier {
             let sourceIdentifier = explicitSourceIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -30,7 +31,7 @@ enum ClipboardPasteboardReader {
                 return nil
             }
 
-            return sourceApp(forSourceIdentifier: sourceIdentifier)
+            return sourceApp(forSourceIdentifier: sourceIdentifier, workspace: workspace)
         }
 
         if typeNames.contains(remoteClipboardTypeName) {
@@ -44,20 +45,20 @@ enum ClipboardPasteboardReader {
     }
 
     @MainActor
-    static func readGeneralPasteboard(
+    static func readPasteboard(
+        _ pasteboard: any PasteboardServicing,
         sourceApp: ClipboardSourceApp?,
         preferences: ClipboardPreferences
     ) -> ClipboardPasteboardSnapshot? {
-        let pasteboard = NSPasteboard.general
-        let typeNames = pasteboard.types?.map(\.rawValue) ?? []
+        let typeNames = pasteboard.typeNames
 
         guard !containsSensitiveOrTransientType(typeNames),
               !preferences.ignores(sourceApp) else {
             return nil
         }
 
-        if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
-           !urls.isEmpty {
+        let urls = pasteboard.fileAndWebURLs()
+        if !urls.isEmpty {
             let fileURLs = urls.filter(\.isFileURL)
             let webURLs = urls.filter(isWebURL)
 
@@ -153,7 +154,8 @@ enum ClipboardPasteboardReader {
         ["http", "https", "mailto"].contains(url.scheme?.localizedLowercase ?? "")
     }
 
-    private static func urlTitle(from pasteboard: NSPasteboard) -> String? {
+    @MainActor
+    private static func urlTitle(from pasteboard: any PasteboardServicing) -> String? {
         [
             "public.url-name",
             "Apple URL name pasteboard type"
@@ -164,8 +166,11 @@ enum ClipboardPasteboardReader {
         .first { !$0.isEmpty }
     }
 
-    private static func sourceApp(forSourceIdentifier sourceIdentifier: String) -> ClipboardSourceApp {
-        let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: sourceIdentifier)
+    private static func sourceApp(
+        forSourceIdentifier sourceIdentifier: String,
+        workspace: any WorkspaceServicing
+    ) -> ClipboardSourceApp {
+        let appURL = workspace.applicationURL(forBundleIdentifier: sourceIdentifier)
         let bundle = appURL.flatMap(Bundle.init(url:))
         let displayName = bundle?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
             ?? bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String
@@ -188,17 +193,25 @@ enum ClipboardPasteboardSnapshot: Equatable {
 @MainActor
 final class ClipboardMonitor {
     private let store: ClipboardHistoryStore
+    private let pasteboard: any PasteboardServicing
+    private let workspace: any WorkspaceServicing
     private var timer: Timer?
     private var observedChangeCount: Int
 
-    init(store: ClipboardHistoryStore) {
+    init(
+        store: ClipboardHistoryStore,
+        pasteboard: any PasteboardServicing = SystemPasteboardService(),
+        workspace: any WorkspaceServicing = SystemWorkspaceService()
+    ) {
         self.store = store
-        observedChangeCount = NSPasteboard.general.changeCount
+        self.pasteboard = pasteboard
+        self.workspace = workspace
+        observedChangeCount = pasteboard.changeCount
     }
 
     func start(preferences: ClipboardPreferences) {
         stop()
-        observedChangeCount = NSPasteboard.general.changeCount
+        observedChangeCount = pasteboard.changeCount
 
         guard preferences.isEnabled else {
             return
@@ -229,17 +242,16 @@ final class ClipboardMonitor {
     }
 
     func markCurrentPasteboardChangeAsHandled() {
-        observedChangeCount = NSPasteboard.general.changeCount
+        observedChangeCount = pasteboard.changeCount
     }
 
     private func poll(preferences: ClipboardPreferences) {
-        let pasteboard = NSPasteboard.general
         guard pasteboard.changeCount != observedChangeCount else {
             return
         }
 
         observedChangeCount = pasteboard.changeCount
-        let typeNames = pasteboard.types?.map(\.rawValue) ?? []
+        let typeNames = pasteboard.typeNames
         let hasExplicitSource = typeNames.contains(ClipboardPasteboardReader.sourceTypeName)
         let explicitSourceIdentifier = hasExplicitSource
             ? (pasteboard.string(forType: NSPasteboard.PasteboardType(ClipboardPasteboardReader.sourceTypeName)) ?? "")
@@ -247,11 +259,13 @@ final class ClipboardMonitor {
         let sourceApp = ClipboardPasteboardReader.sourceApp(
             forPasteboardTypeNames: typeNames,
             explicitSourceIdentifier: explicitSourceIdentifier,
-            fallbackSourceApp: Self.currentSourceApp()
+            fallbackSourceApp: Self.currentSourceApp(workspace: workspace),
+            workspace: workspace
         )
         let sanitizedPreferences = preferences.sanitized()
 
-        guard let snapshot = ClipboardPasteboardReader.readGeneralPasteboard(
+        guard let snapshot = ClipboardPasteboardReader.readPasteboard(
+            pasteboard,
             sourceApp: sourceApp,
             preferences: sanitizedPreferences
         ) else {
@@ -282,8 +296,8 @@ final class ClipboardMonitor {
         }
     }
 
-    private static func currentSourceApp() -> ClipboardSourceApp? {
-        guard let app = NSWorkspace.shared.frontmostApplication else {
+    private static func currentSourceApp(workspace: any WorkspaceServicing) -> ClipboardSourceApp? {
+        guard let app = workspace.frontmostApplication else {
             return nil
         }
 

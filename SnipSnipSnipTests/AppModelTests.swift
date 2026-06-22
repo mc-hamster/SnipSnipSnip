@@ -13,7 +13,7 @@ final class AppModelTests: XCTestCase {
         defaults: UserDefaults,
         permissionStatus: CapturePermissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
     ) -> AppEnvironment {
-        AppEnvironment(defaults: defaults, permissionStatusProvider: { permissionStatus })
+        AppEnvironment(defaults: defaults, permissions: TestCapturePermissionService(status: permissionStatus))
     }
 
     private func makeHistoryEntry(
@@ -62,20 +62,20 @@ final class AppModelTests: XCTestCase {
             shouldStartArchiveMaintenance: false
         )
 
-        model.uiMapEnabled = true
-        XCTAssertEqual(model.screenshotCapturePermissionRequirements, [.screenRecording])
-        XCTAssertEqual(model.screenshotCapturePermissionRequirements(for: .region(.zero)), [.screenRecording])
-        XCTAssertEqual(model.screenshotCapturePermissionRequirements(for: .fullscreen), [.screenRecording])
-        XCTAssertEqual(model.screenshotCapturePermissionRequirements(for: .scrolling(.zero)), [.screenRecording])
-        XCTAssertEqual(model.screenshotCapturePermissionRequirements(for: .connectedDevice(ConnectedAppleDevice(id: "fixture", name: "iPhone", modelName: nil))), [.screenRecording])
-        XCTAssertEqual(model.screenshotCapturePermissionRequirements(for: .frontmostWindow), [.screenRecording, .accessibility])
-        XCTAssertEqual(model.screenshotCapturePermissionRequirements(for: .window(makeCaptureWindow(id: 1))), [.screenRecording, .accessibility])
-        XCTAssertEqual(model.screenshotCaptureFeatureName(for: .window(makeCaptureWindow(id: 1))), "Window Capture with UI Map")
+        model.capture.uiMapEnabled = true
+        XCTAssertEqual(model.capture.screenshotCapturePermissionRequirements(for: .fullscreen), [.screenRecording])
+        XCTAssertEqual(model.capture.screenshotCapturePermissionRequirements(for: .region(.zero)), [.screenRecording])
+        XCTAssertEqual(model.capture.screenshotCapturePermissionRequirements(for: .fullscreen), [.screenRecording])
+        XCTAssertEqual(model.capture.screenshotCapturePermissionRequirements(for: .scrolling(.zero)), [.screenRecording])
+        XCTAssertEqual(model.capture.screenshotCapturePermissionRequirements(for: .connectedDevice(ConnectedAppleDevice(id: "fixture", name: "iPhone", modelName: nil))), [.screenRecording])
+        XCTAssertEqual(model.capture.screenshotCapturePermissionRequirements(for: .frontmostWindow), [.screenRecording, .accessibility])
+        XCTAssertEqual(model.capture.screenshotCapturePermissionRequirements(for: .window(makeCaptureWindow(id: 1))), [.screenRecording, .accessibility])
+        XCTAssertEqual(model.capture.screenshotCaptureFeatureName(for: .window(makeCaptureWindow(id: 1))), "Window Capture with UI Map")
 
-        model.uiMapEnabled = false
-        XCTAssertEqual(model.screenshotCapturePermissionRequirements, [.screenRecording])
-        XCTAssertEqual(model.screenshotCaptureFeatureName, "Capture")
-        XCTAssertEqual(model.screenshotCapturePermissionRequirements(for: .window(makeCaptureWindow(id: 1))), [.screenRecording])
+        model.capture.uiMapEnabled = false
+        XCTAssertEqual(model.capture.screenshotCapturePermissionRequirements(for: .fullscreen), [.screenRecording])
+        XCTAssertEqual(model.capture.screenshotCaptureFeatureName(for: .fullscreen), "Capture")
+        XCTAssertEqual(model.capture.screenshotCapturePermissionRequirements(for: .window(makeCaptureWindow(id: 1))), [.screenRecording])
     }
 
     func testPresetRunOptionsDriveWindowUIMapPermissionRequirements() {
@@ -91,22 +91,22 @@ final class AppModelTests: XCTestCase {
             shouldStartArchiveMaintenance: false
         )
         let windowRequest = LastCaptureRequest.window(makeCaptureWindow(id: 1))
-        let expectedUIMapRequirements: [CapturePermissionRequirement] = FeatureFlags.uiMapEnabled
+        let expectedUIMapRequirements: [CapturePermissionRequirement] = model.capabilities.isEnabled(.uiMap)
             ? [.screenRecording, .accessibility]
             : [.screenRecording]
 
-        model.uiMapEnabled = false
+        model.capture.uiMapEnabled = false
         XCTAssertEqual(
-            model.screenshotCapturePermissionRequirements(
+            model.capture.screenshotCapturePermissionRequirements(
                 for: windowRequest,
                 runOptions: CaptureRunOptions(windowUIMapEnabled: true)
             ),
             expectedUIMapRequirements
         )
 
-        model.uiMapEnabled = true
+        model.capture.uiMapEnabled = true
         XCTAssertEqual(
-            model.screenshotCapturePermissionRequirements(
+            model.capture.screenshotCapturePermissionRequirements(
                 for: windowRequest,
                 runOptions: CaptureRunOptions(windowUIMapEnabled: false)
             ),
@@ -128,7 +128,7 @@ final class AppModelTests: XCTestCase {
         )
         let controller = retainForTestLifetime(EditorController(capture: makeCapturedScreenshot(), defaults: defaults))
 
-        model.installEditorController(
+        model.documents.installEditorController(
             controller,
             documentURL: nil,
             savedSession: nil,
@@ -156,7 +156,7 @@ final class AppModelTests: XCTestCase {
         )
         let restartedController = retainForTestLifetime(EditorController(capture: makeCapturedScreenshot(), defaults: defaults))
 
-        restartedModel.installEditorController(
+        restartedModel.documents.installEditorController(
             restartedController,
             documentURL: nil,
             savedSession: nil,
@@ -189,23 +189,23 @@ final class AppModelTests: XCTestCase {
             regionPreferences: regionPreferences,
             windowUIMapEnabled: true
         )
-        model.lastCaptureRequest = .region(CGRect(x: 10, y: 20, width: 300, height: 200))
-        model.lastCaptureRunOptions = options
+        model.capture.lastCaptureRequest = .region(CGRect(x: 10, y: 20, width: 300, height: 200))
+        model.capture.lastCaptureRunOptions = options
 
-        model.beginSavingLastCaptureAsPreset()
-        XCTAssertTrue(model.isShowingCapturePresetNamingSheet)
-        model.capturePresetNameDraft = ""
-        model.commitCapturePresetName()
+        model.capture.beginSavingLastCaptureAsPreset()
+        XCTAssertTrue(model.capture.isShowingCapturePresetNamingSheet)
+        model.capture.capturePresetNameDraft = ""
+        model.capture.commitCapturePresetName()
 
-        XCTAssertEqual(model.capturePresets.count, 1)
-        XCTAssertEqual(model.capturePresets[0].name, "Region 300 x 200")
-        XCTAssertEqual(model.capturePresets[0].options, options)
+        XCTAssertEqual(model.capture.capturePresets.count, 1)
+        XCTAssertEqual(model.capture.capturePresets[0].name, "Region 300 x 200")
+        XCTAssertEqual(model.capture.capturePresets[0].options, options)
 
-        model.beginSavingLastCaptureAsPreset()
-        model.capturePresetNameDraft = "Region 300 x 200"
-        model.commitCapturePresetName()
+        model.capture.beginSavingLastCaptureAsPreset()
+        model.capture.capturePresetNameDraft = "Region 300 x 200"
+        model.capture.commitCapturePresetName()
 
-        XCTAssertEqual(model.capturePresets.map(\.name), ["Region 300 x 200", "Region 300 x 200 2"])
+        XCTAssertEqual(model.capture.capturePresets.map(\.name), ["Region 300 x 200", "Region 300 x 200 2"])
 
         let reloaded = AppModel(
             defaults: defaults,
@@ -215,8 +215,8 @@ final class AppModelTests: XCTestCase {
             shouldStartArchiveMaintenance: false
         )
 
-        XCTAssertEqual(reloaded.capturePresets.map(\.name), ["Region 300 x 200", "Region 300 x 200 2"])
-        XCTAssertEqual(reloaded.capturePresets.first?.options, options)
+        XCTAssertEqual(reloaded.capture.capturePresets.map(\.name), ["Region 300 x 200", "Region 300 x 200 2"])
+        XCTAssertEqual(reloaded.capture.capturePresets.first?.options, options)
     }
 
     func testResetPreferencesToDefaultsClearsCapturePresets() {
@@ -231,17 +231,17 @@ final class AppModelTests: XCTestCase {
             shouldCheckCompatibilityOnLaunch: false,
             shouldStartArchiveMaintenance: false
         )
-        model.lastCaptureRequest = .fullscreen
-        model.lastCaptureRunOptions = CaptureRunOptions(captureDelay: .threeSeconds)
-        model.beginSavingLastCaptureAsPreset()
-        model.commitCapturePresetName()
+        model.capture.lastCaptureRequest = .fullscreen
+        model.capture.lastCaptureRunOptions = CaptureRunOptions(captureDelay: .threeSeconds)
+        model.capture.beginSavingLastCaptureAsPreset()
+        model.capture.commitCapturePresetName()
 
-        XCTAssertFalse(model.capturePresets.isEmpty)
+        XCTAssertFalse(model.capture.capturePresets.isEmpty)
 
         model.resetPreferencesToDefaults()
 
-        XCTAssertTrue(model.capturePresets.isEmpty)
-        XCTAssertTrue(AppModel.loadCapturePresets(from: defaults).isEmpty)
+        XCTAssertTrue(model.capture.capturePresets.isEmpty)
+        XCTAssertTrue(AppPreferenceStores(storage: defaults).capture.loadCapturePresets().isEmpty)
     }
 
     func testEverydayWorkflowPreferencesDefaultPersistAndReset() {
@@ -311,7 +311,7 @@ final class AppModelTests: XCTestCase {
             return .cancel
         }
 
-        XCTAssertTrue(model.handleEditableRedactionSaveIfNeeded(for: controller))
+        XCTAssertTrue(model.documents.handleEditableRedactionSaveIfNeeded(for: controller))
         XCTAssertEqual(promptCount, 0)
     }
 
@@ -337,8 +337,8 @@ final class AppModelTests: XCTestCase {
             return .saveEditable
         }
 
-        XCTAssertTrue(model.handleEditableRedactionSaveIfNeeded(for: controller))
-        XCTAssertTrue(model.handleEditableRedactionSaveIfNeeded(for: controller))
+        XCTAssertTrue(model.documents.handleEditableRedactionSaveIfNeeded(for: controller))
+        XCTAssertTrue(model.documents.handleEditableRedactionSaveIfNeeded(for: controller))
         XCTAssertEqual(promptCount, 1)
     }
 
@@ -363,8 +363,8 @@ final class AppModelTests: XCTestCase {
             decisions.removeFirst()
         }
 
-        XCTAssertFalse(model.handleEditableRedactionSaveIfNeeded(for: controller))
-        XCTAssertFalse(model.handleEditableRedactionSaveIfNeeded(for: controller))
+        XCTAssertFalse(model.documents.handleEditableRedactionSaveIfNeeded(for: controller))
+        XCTAssertFalse(model.documents.handleEditableRedactionSaveIfNeeded(for: controller))
         XCTAssertTrue(decisions.isEmpty)
     }
 
@@ -394,7 +394,7 @@ final class AppModelTests: XCTestCase {
             return .cancel
         }
 
-        let didSave = await model.saveDocument(controller, to: outputURL)
+        let didSave = await model.documents.saveDocument(controller, to: outputURL)
 
         XCTAssertTrue(didSave)
         XCTAssertEqual(promptCount, 0)
@@ -412,7 +412,7 @@ final class AppModelTests: XCTestCase {
             shouldCheckCompatibilityOnLaunch: false,
             shouldStartArchiveMaintenance: false
         )
-        model.uiMapEnabled = true
+        model.capture.uiMapEnabled = true
         model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
 
         let window = makeCaptureWindow(id: 5)
@@ -420,18 +420,18 @@ final class AppModelTests: XCTestCase {
             kind: .window,
             sourceWindowIdentity: CaptureSourceWindowIdentity(window: window)
         )
-        XCTAssertTrue(model.uiMapCaptureEligibility(for: eligibleWindowCapture).shouldCapture)
+        XCTAssertTrue(model.capture.uiMapCaptureEligibility(for: eligibleWindowCapture).shouldCapture)
 
         let windowWithoutIdentity = makeCapturedScreenshot(kind: .window)
-        XCTAssertFalse(model.uiMapCaptureEligibility(for: windowWithoutIdentity).shouldCapture)
-        XCTAssertEqual(model.uiMapCaptureEligibility(for: windowWithoutIdentity).skipReason, "window capture has no source window identity")
+        XCTAssertFalse(model.capture.uiMapCaptureEligibility(for: windowWithoutIdentity).shouldCapture)
+        XCTAssertEqual(model.capture.uiMapCaptureEligibility(for: windowWithoutIdentity).skipReason, "window capture has no source window identity")
 
         let regionCapture = makeCapturedScreenshot(kind: .region)
-        XCTAssertFalse(model.uiMapCaptureEligibility(for: regionCapture).shouldCapture)
-        XCTAssertEqual(model.uiMapCaptureEligibility(for: regionCapture).skipReason, "UI Map is limited to Window captures")
+        XCTAssertFalse(model.capture.uiMapCaptureEligibility(for: regionCapture).shouldCapture)
+        XCTAssertEqual(model.capture.uiMapCaptureEligibility(for: regionCapture).skipReason, "UI Map is limited to Window captures")
 
         model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false)
-        let missingAccessibilityEligibility = model.uiMapCaptureEligibility(for: eligibleWindowCapture)
+        let missingAccessibilityEligibility = model.capture.uiMapCaptureEligibility(for: eligibleWindowCapture)
         XCTAssertFalse(missingAccessibilityEligibility.shouldCapture)
         XCTAssertTrue(missingAccessibilityEligibility.needsAccessibilityAccess)
     }
@@ -484,7 +484,7 @@ final class AppModelTests: XCTestCase {
         ]
         let startingGeneration = model.windowThumbnailRefreshGeneration
 
-        await model.loadAvailableWindows(requestAccessIfNeeded: false, presentPicker: false, showErrors: false, includeThumbnails: true)
+        await model.capture.loadAvailableWindows(requestAccessIfNeeded: false, presentPicker: false, showErrors: false, includeThumbnails: true)
 
         let immediateRequests = await captureService.includeThumbnailRequests()
         XCTAssertEqual(immediateRequests.first, false)
@@ -527,12 +527,12 @@ final class AppModelTests: XCTestCase {
         model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
         model.availableWindows = [makeCaptureWindow(id: 1, thumbnailSize: CGSize(width: 20, height: 20))]
 
-        await model.loadAvailableWindows(requestAccessIfNeeded: false, presentPicker: false, showErrors: false, includeThumbnails: true)
+        await model.capture.loadAvailableWindows(requestAccessIfNeeded: false, presentPicker: false, showErrors: false, includeThumbnails: true)
         await waitUntil {
             await captureService.includeThumbnailRequests().count == 2
         }
 
-        model.refreshAvailableWindows(
+        model.capture.refreshAvailableWindows(
             includeThumbnails: true,
             allowsCancellingPendingThumbnailRefresh: false
         )
@@ -570,7 +570,7 @@ final class AppModelTests: XCTestCase {
         model.autoRefreshWindowsEnabled = false
         model.availableWindows = [makeCaptureWindow(id: 1, thumbnailSize: CGSize(width: 20, height: 20))]
 
-        model.handleApplicationDidBecomeActive()
+        model.workflowCoordinator.handleApplicationDidBecomeActive()
 
         await waitUntil {
             await captureService.includeThumbnailRequests().count == 1
@@ -598,7 +598,7 @@ final class AppModelTests: XCTestCase {
         )
         defaults.set(try JSONEncoder().encode(preferences), forKey: AppModelPreferenceKey.screenRulerPreferences)
 
-        let loadedPreferences = AppModel.loadScreenRulerPreferences(from: defaults)
+        let loadedPreferences = AppPreferenceStores(storage: defaults).screenTools.loadRulerPreferences()
 
         XCTAssertEqual(loadedPreferences.opacity, 1)
         XCTAssertEqual(loadedPreferences.tickSpacing, 4)
@@ -625,7 +625,7 @@ final class AppModelTests: XCTestCase {
         ]
         defaults.set(try JSONSerialization.data(withJSONObject: legacyPayload), forKey: AppModelPreferenceKey.screenRulerPreferences)
 
-        let loadedPreferences = AppModel.loadScreenRulerPreferences(from: defaults)
+        let loadedPreferences = AppPreferenceStores(storage: defaults).screenTools.loadRulerPreferences()
 
         XCTAssertEqual(loadedPreferences.opacity, 0.74)
         XCTAssertEqual(loadedPreferences.tickSpacing, 18)
@@ -755,14 +755,15 @@ final class AppModelTests: XCTestCase {
         )
         model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false)
 
-        model.refreshPermissions()
+        model.permissions.refreshPermissions()
 
         await waitUntil {
             model.permissionStatus == CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: false)
         }
 
-        XCTAssertFalse(model.permissionStatus.isCaptureReady(for: .release))
-        XCTAssertEqual(model.permissionStatus.missingRequirements(for: .release), [.screenRecording])
+        let releaseCapabilities = BuildTargetCapabilityProvider().snapshot(for: .release)
+        XCTAssertFalse(model.permissionStatus.isCaptureReady(for: releaseCapabilities))
+        XCTAssertEqual(model.permissionStatus.missingRequirements(for: releaseCapabilities), [.screenRecording])
     }
 
     func testRequestScreenRecordingAccessOpensSettingsWhenPermissionStillMissing() async {
@@ -803,7 +804,7 @@ final class AppModelTests: XCTestCase {
         )
         model.permissionStatus = CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: false)
 
-        model.requestPermission(.screenRecording)
+        model.permissions.requestPermission(.screenRecording)
 
         XCTAssertTrue(recorder.didRequestScreenRecordingAccess())
         XCTAssertEqual(model.permissionSetupGuide?.requirement, .screenRecording)
@@ -855,7 +856,7 @@ final class AppModelTests: XCTestCase {
         )
         model.permissionStatus = CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: false)
 
-        model.refreshAvailableWindowsOrRequestAccess()
+        model.capture.refreshAvailableWindowsOrRequestAccess()
 
         XCTAssertTrue(recorder.didRequestScreenRecordingAccess())
         let requests = await captureService.includeThumbnailRequests()
@@ -905,7 +906,7 @@ final class AppModelTests: XCTestCase {
         )
         model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false)
 
-        model.refreshAvailableWindowsOrRequestAccess()
+        model.capture.refreshAvailableWindowsOrRequestAccess()
 
         await waitUntil {
             let requests = await captureService.includeThumbnailRequests()
@@ -965,7 +966,7 @@ final class AppModelTests: XCTestCase {
         )
         model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false)
 
-        model.present(ScreenCaptureError.permissionDenied)
+        model.capture.present(ScreenCaptureError.permissionDenied)
 
         XCTAssertEqual(
             model.permissionStatus,
@@ -988,10 +989,10 @@ final class AppModelTests: XCTestCase {
             shouldStartArchiveMaintenance: false
         )
 
-        model.updateEditorCropOutsideOverlayAlpha(0.32)
+        model.documents.updateEditorCropOutsideOverlayAlpha(0.32)
 
-        XCTAssertEqual(model.editorCropOutsideOverlayAlpha, 0.32, accuracy: 0.001)
-        XCTAssertEqual(model.editorCropOutsideOverlayDimmingDescription, "32% dimming")
+        XCTAssertEqual(model.documents.editorCropOutsideOverlayAlpha, 0.32, accuracy: 0.001)
+        XCTAssertEqual(model.documents.editorCropOutsideOverlayDimmingDescription, "32% dimming")
     }
 
     func testDocumentHistoryEntryHistorySummarySkipsGenericCaptureLabels() {
@@ -1058,15 +1059,15 @@ final class AppModelTests: XCTestCase {
             shouldStartArchiveMaintenance: false
         )
 
-        model.updateEditorCropOutsideOverlayAlpha(0.72)
+        model.documents.updateEditorCropOutsideOverlayAlpha(0.72)
         model.screenshotIncludesCursor = true
-        XCTAssertEqual(model.editorCropOutsideOverlayAlpha, 0.72, accuracy: 0.001)
+        XCTAssertEqual(model.documents.editorCropOutsideOverlayAlpha, 0.72, accuracy: 0.001)
 
         model.resetPreferencesToDefaults()
 
-        XCTAssertEqual(model.editorCropOutsideOverlayAlpha, AppModel.defaultEditorCropOutsideOverlayAlpha, accuracy: 0.001)
-        XCTAssertEqual(model.editorCropOutsideOverlayDimmingDescription, "80% dimming")
-        XCTAssertEqual(model.editorOutOfCapturePatternSettings, .default)
+        XCTAssertEqual(model.documents.editorCropOutsideOverlayAlpha, AppPreferenceDefaults.editorCropOutsideOverlayAlpha, accuracy: 0.001)
+        XCTAssertEqual(model.documents.editorCropOutsideOverlayDimmingDescription, "80% dimming")
+        XCTAssertEqual(model.documents.editorOutOfCapturePatternSettings, .default)
         XCTAssertFalse(model.screenshotIncludesCursor)
     }
 
@@ -1105,7 +1106,7 @@ final class AppModelTests: XCTestCase {
 
         XCTAssertEqual(reloaded.uiMapPinnedOverlayDefaults, configuredOptions)
 
-        try reloaded.completeCapture(
+        try reloaded.capture.completeCapture(
             makeCapturedScreenshot(),
             request: .region(.zero),
             isPrivateCapture: true,
@@ -1222,7 +1223,7 @@ final class AppModelTests: XCTestCase {
             shouldStartArchiveMaintenance: false
         )
 
-        model.updateEditorOutOfCapturePatternSettings(
+        model.documents.updateEditorOutOfCapturePatternSettings(
             EditorOutOfCapturePatternSettings(
                 isEnabled: false,
                 spacing: 4,
@@ -1232,11 +1233,11 @@ final class AppModelTests: XCTestCase {
             )
         )
 
-        XCTAssertFalse(model.editorOutOfCapturePatternSettings.isEnabled)
-        XCTAssertEqual(model.editorOutOfCapturePatternSettings.spacing, 16, accuracy: 0.001)
-        XCTAssertEqual(model.editorOutOfCapturePatternSettings.lineOpacity, 0.9, accuracy: 0.001)
-        XCTAssertEqual(model.editorOutOfCapturePatternSettings.dotOpacity, 0.05, accuracy: 0.001)
-        XCTAssertEqual(model.editorOutOfCapturePatternSettings.dotDiameter, 12, accuracy: 0.001)
+        XCTAssertFalse(model.documents.editorOutOfCapturePatternSettings.isEnabled)
+        XCTAssertEqual(model.documents.editorOutOfCapturePatternSettings.spacing, 16, accuracy: 0.001)
+        XCTAssertEqual(model.documents.editorOutOfCapturePatternSettings.lineOpacity, 0.9, accuracy: 0.001)
+        XCTAssertEqual(model.documents.editorOutOfCapturePatternSettings.dotOpacity, 0.05, accuracy: 0.001)
+        XCTAssertEqual(model.documents.editorOutOfCapturePatternSettings.dotDiameter, 12, accuracy: 0.001)
 
         let reloadedModel = AppModel(
             defaults: defaults,
@@ -1324,7 +1325,7 @@ final class AppModelTests: XCTestCase {
         )
         let controller = EditorController(capture: capture, session: session)
 
-        let indexedImage = model.initialCaptureHistoryIndexImage(for: controller)
+        let indexedImage = model.documents.initialCaptureHistoryIndexImage(for: controller)
 
         XCTAssertEqual(indexedImage.width, image.width)
         XCTAssertEqual(indexedImage.height, image.height)
@@ -1462,7 +1463,7 @@ final class AppModelTests: XCTestCase {
             )
         )
 
-        model.loadDocument(from: packageURL)
+        model.documents.loadDocument(from: packageURL)
 
         XCTAssertTrue(didTerminate)
         XCTAssertNil(model.editorController)

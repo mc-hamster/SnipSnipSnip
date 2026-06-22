@@ -2,12 +2,25 @@ import AppKit
 import SwiftUI
 
 struct CaptureAutomationSettingsView: View {
-    @ObservedObject var model: AppModel
+    @ObservedObject var lifecycle: AppLifecycleModel
+    @ObservedObject var capture: CaptureWorkflowModel
+    @ObservedObject var permissions: PermissionWorkflowModel
+    @ObservedObject var documents: DocumentWorkflowModel
+    @ObservedObject var clipboard: ClipboardWorkflowModel
+    @ObservedObject var video: VideoWorkflowModel
+    @ObservedObject var archive: ArchiveWorkflowModel
+    @ObservedObject var tools: ToolWorkflowModel
+    let capabilities: AppCapabilitySnapshot
+    let clock: any ClockProviding
+    let requestOnboardingPresentation: () -> Void
+    let checkForProUpdates: () -> Void
+    let resetPreferencesToDefaults: () -> Void
     @State private var isShowingResetDefaultsConfirmation = false
     @State private var launchAtLoginErrorMessage: String?
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
-        TabView(selection: $model.selectedSettingsTab) {
+        TabView(selection: $lifecycle.selectedSettingsTab) {
             SettingsTabContainer(
                 title: "General",
                 summary: "Capture shortcuts, naming defaults, and editor behavior stay together here."
@@ -16,65 +29,65 @@ struct CaptureAutomationSettingsView: View {
                     Toggle("Launch \(AppBranding.displayName) at Login", isOn: launchAtLoginBinding)
 
                     HStack {
-                        Label("Status", systemImage: model.launchAtLoginStatus.systemImage)
+                        Label("Status", systemImage: lifecycle.launchAtLoginStatus.systemImage)
                         Spacer(minLength: 12)
-                        Text(model.launchAtLoginStatus.stateLabel)
+                        Text(lifecycle.launchAtLoginStatus.stateLabel)
                             .foregroundStyle(launchAtLoginStatusColor)
                     }
 
-                    SettingsHelpText(model.launchAtLoginStatus.detail)
+                    SettingsHelpText(lifecycle.launchAtLoginStatus.detail)
 
-                    if model.launchAtLoginStatus.needsSystemSettingsApproval || model.launchAtLoginStatus == .unavailable {
-                        Button("Open Login Items in System Settings", action: model.openLaunchAtLoginSettings)
+                    if lifecycle.launchAtLoginStatus.needsSystemSettingsApproval || lifecycle.launchAtLoginStatus == .unavailable {
+                        Button("Open Login Items in System Settings", action: lifecycle.openLaunchAtLoginSettings)
                     }
 
-                    Toggle("Confirm Before Quitting", isOn: $model.confirmsBeforeQuitting)
+                    Toggle("Confirm Before Quitting", isOn: $lifecycle.confirmsBeforeQuitting)
                     SettingsHelpText("\(AppBranding.displayName) minimizes on Command-Q so the menu bar icon and shortcuts stay available. The menu bar Quit command asks before exiting unless this is turned off.")
                 }
 
                 Section("Help & Onboarding") {
-                    Button("Show Onboarding Again", action: model.requestOnboardingPresentation)
+                    Button("Show Onboarding Again", action: requestOnboardingPresentation)
                     Button("Open Support Page") {
-                        NSWorkspace.shared.open(AppLinks.support)
+                        openURL(AppLinks.support)
                     }
 
-                    if model.capabilities.isEnabled(.proUpdateCheck) {
+                    if capabilities.isEnabled(.proUpdateCheck) {
                         Button(
-                            model.isCheckingProUpdates ? "Checking for Pro Updates..." : "Check for Pro Updates...",
-                            action: model.checkForProUpdates
+                            lifecycle.isCheckingProUpdates ? "Checking for Pro Updates..." : "Check for Pro Updates...",
+                            action: checkForProUpdates
                         )
-                        .disabled(model.isCheckingProUpdates)
+                        .disabled(lifecycle.isCheckingProUpdates)
                     }
 
-                    SettingsHelpText(model.capabilities.isEnabled(.proUpdateCheck)
+                    SettingsHelpText(capabilities.isEnabled(.proUpdateCheck)
                         ? "Replay onboarding whenever you want a guided walkthrough. Support requests and feature requests start from the support page. Pro update checks read the latest GitHub release and send you there to download the newest package."
                         : "Replay onboarding whenever you want a guided walkthrough. Support requests and feature requests start from the support page.")
                 }
 
                 Section("Screenshot Capture") {
-                    Toggle("Include Cursor as Editable Overlay", isOn: $model.screenshotIncludesCursor)
+                    Toggle("Include Cursor as Editable Overlay", isOn: $capture.screenshotIncludesCursor)
                     SettingsHelpText("When enabled, region, window, frontmost-window, fullscreen, and repeat screenshots add the current cursor as a movable, resizable, removable overlay. Scrolling Capture always excludes the cursor while stitching.")
 
                     Toggle("Enable Precision Region Controls", isOn: regionCaptureBinding(\.advancedControlsEnabled))
                     SettingsHelpText("Keep this off for the fastest drag-to-capture workflow. When enabled, region capture pauses after dragging so you can resize, type dimensions, lock aspect ratio, nudge with arrow keys, then press Return to capture.")
 
-                    Picker("Fullscreen Screenshot", selection: $model.screenshotFullscreenDisplayMode) {
+                    Picker("Fullscreen Screenshot", selection: $capture.screenshotFullscreenDisplayMode) {
                         ForEach(ScreenshotFullscreenDisplayMode.allCases) { mode in
                             Text(mode.label).tag(mode)
                         }
                     }
 
-                    if model.screenshotFullscreenDisplayMode == .selectedDisplay {
+                    if capture.screenshotFullscreenDisplayMode == .selectedDisplay {
                         Picker("Selected Display", selection: selectedScreenshotDisplayIDBinding) {
-                            ForEach(availableDisplayOptions(preferredID: model.selectedScreenshotFullscreenDisplayID)) { option in
+                            ForEach(availableDisplayOptions(preferredID: capture.selectedScreenshotFullscreenDisplayID)) { option in
                                 Text(option.name).tag(Optional(option.id))
                             }
                         }
                     }
 
-                    SettingsHelpText(model.screenshotFullscreenDisplayMode.detail)
+                    SettingsHelpText(capture.screenshotFullscreenDisplayMode.detail)
 
-                    if model.capabilities.isEnabled(.uiMap) {
+                    if capabilities.isEnabled(.uiMap) {
                         Toggle("Enable UI Map for Window captures", isOn: uiMapBinding)
                         SettingsHelpText("Save available names, roles, identifiers, and locations of visible interface elements when capturing a window. Region, fullscreen, scrolling, recording, and connected-device captures do not include UI Map metadata.")
 
@@ -98,7 +111,7 @@ struct CaptureAutomationSettingsView: View {
 
                         SettingsHelpText("Choose which details are shown by default when pinned UI Map elements are rendered on copied, shared, or exported screenshots.")
 
-                        if model.windowUIMapNeedsAccessibilityAccess {
+                        if capture.windowUIMapNeedsAccessibilityAccess {
                             HStack(alignment: .firstTextBaseline) {
                                 Label("Window UI Map needs Accessibility access before metadata can be captured.", systemImage: "lock.trianglebadge.exclamationmark.fill")
                                     .foregroundStyle(.orange)
@@ -106,7 +119,7 @@ struct CaptureAutomationSettingsView: View {
                                 Spacer()
 
                                 Button("Continue") {
-                                    model.requestAccessibilityAccess()
+                                    permissions.requestAccessibilityAccess()
                                 }
                             }
                         }
@@ -114,8 +127,8 @@ struct CaptureAutomationSettingsView: View {
                 }
 
                 Section("Screen Ruler") {
-                    if model.screenRulerCoordinator.hasActiveRulers {
-                        Button("Close All Screen Rulers", action: model.closeAllScreenRulers)
+                    if tools.screenRulerCoordinator.hasActiveRulers {
+                        Button("Close All Screen Rulers", action: tools.closeAllScreenRulers)
                     }
 
                     Toggle("Show Mouse Distance", isOn: screenRulerBinding(\.showsMouseDistance))
@@ -152,7 +165,7 @@ struct CaptureAutomationSettingsView: View {
                     HStack {
                         Text("Opacity")
                         Spacer(minLength: 12)
-                        Text(model.screenRulerPreferences.opacityDescription)
+                        Text(tools.screenRulerPreferences.opacityDescription)
                             .foregroundStyle(.secondary)
                     }
 
@@ -161,24 +174,24 @@ struct CaptureAutomationSettingsView: View {
                     HStack {
                         Text("Tick Spacing")
                         Spacer(minLength: 12)
-                        Text(model.screenRulerPreferences.tickSpacingDescription)
+                        Text(tools.screenRulerPreferences.tickSpacingDescription)
                             .foregroundStyle(.secondary)
                     }
 
                     Slider(value: screenRulerTickSpacingBinding, in: 4...50, step: 1)
 
                     Stepper(value: screenRulerMajorTickBinding, in: 2...20, step: 1) {
-                        Text("Major Tick Every: \(model.screenRulerPreferences.majorTickEvery)")
+                        Text("Major Tick Every: \(tools.screenRulerPreferences.majorTickEvery)")
                     }
 
                     SettingsHelpText("Screen rulers are floating, resizable overlays. Click a ruler once to cycle through tick edge and zero-origin combinations, or set the default horizontal and vertical ruler positions here. Visible rulers are included in screenshots when the captured area contains them.")
                 }
 
                 Section("Screen Inspector") {
-                    Button(model.screenInspectorCoordinator.isVisible ? "Show Screen Inspector" : "Open Screen Inspector", action: model.presentScreenInspector)
+                    Button(tools.screenInspectorCoordinator.isVisible ? "Show Screen Inspector" : "Open Screen Inspector", action: tools.presentScreenInspector)
 
-                    if model.screenInspectorCoordinator.isVisible {
-                        Button("Close Screen Inspector", action: model.closeScreenInspector)
+                    if tools.screenInspectorCoordinator.isVisible {
+                        Button("Close Screen Inspector", action: tools.closeScreenInspector)
                     }
 
                     Picker("Zoom Level", selection: screenInspectorBinding(\.zoomLevel)) {
@@ -195,13 +208,13 @@ struct CaptureAutomationSettingsView: View {
                 }
 
                 Section("Naming") {
-                    TextField("Filename Template", text: $model.screenshotFilenameTemplate)
+                    TextField("Filename Template", text: $capture.screenshotFilenameTemplate)
 
                     SettingsHelpText("Filename tokens: {kind}, {source}, {width}, {height}, {format}, and date patterns such as {yyyy-MM-dd-HH-mm-ss}.")
                 }
 
                 Section("Export & Sharing") {
-                    Picker("Screenshot Format", selection: $model.screenshotDragOutFormat) {
+                    Picker("Screenshot Format", selection: $capture.screenshotDragOutFormat) {
                         ForEach(ImageExportFormat.allCases) { format in
                             Text(format.label).tag(format)
                         }
@@ -211,7 +224,7 @@ struct CaptureAutomationSettingsView: View {
                         HStack {
                             Text("JPEG Quality")
                             Spacer(minLength: 12)
-                            Text("\(Int(round(model.screenshotJPEGQuality * 100)))%")
+                            Text("\(Int(round(capture.screenshotJPEGQuality * 100)))%")
                                 .foregroundStyle(.secondary)
                         }
 
@@ -226,7 +239,7 @@ struct CaptureAutomationSettingsView: View {
                         HStack {
                             Text("Crop Outside Dimming")
                             Spacer(minLength: 12)
-                            Text(model.editorCropOutsideOverlayDimmingDescription)
+                            Text(documents.editorCropOutsideOverlayDimmingDescription)
                                 .foregroundStyle(.secondary)
                         }
 
@@ -241,42 +254,42 @@ struct CaptureAutomationSettingsView: View {
                         HStack {
                             Text("Pattern Spacing")
                             Spacer(minLength: 12)
-                            Text(model.editorOutOfCapturePatternSettings.spacingDescription)
+                            Text(documents.editorOutOfCapturePatternSettings.spacingDescription)
                                 .foregroundStyle(.secondary)
                         }
 
                         Slider(value: outOfCapturePatternSpacingBinding, in: 16...96, step: 1)
-                            .disabled(!model.editorOutOfCapturePatternSettings.isEnabled)
+                            .disabled(!documents.editorOutOfCapturePatternSettings.isEnabled)
 
                         HStack {
                             Text("Line Opacity")
                             Spacer(minLength: 12)
-                            Text(model.editorOutOfCapturePatternSettings.lineOpacityDescription)
+                            Text(documents.editorOutOfCapturePatternSettings.lineOpacityDescription)
                                 .foregroundStyle(.secondary)
                         }
 
                         Slider(value: outOfCapturePatternLineOpacityBinding, in: 0.05...0.9, step: 0.01)
-                            .disabled(!model.editorOutOfCapturePatternSettings.isEnabled)
+                            .disabled(!documents.editorOutOfCapturePatternSettings.isEnabled)
 
                         HStack {
                             Text("Dot Size")
                             Spacer(minLength: 12)
-                            Text(model.editorOutOfCapturePatternSettings.dotDiameterDescription)
+                            Text(documents.editorOutOfCapturePatternSettings.dotDiameterDescription)
                                 .foregroundStyle(.secondary)
                         }
 
                         Slider(value: outOfCapturePatternDotDiameterBinding, in: 2...12, step: 1)
-                            .disabled(!model.editorOutOfCapturePatternSettings.isEnabled)
+                            .disabled(!documents.editorOutOfCapturePatternSettings.isEnabled)
 
                         HStack {
                             Text("Dot Opacity")
                             Spacer(minLength: 12)
-                            Text(model.editorOutOfCapturePatternSettings.dotOpacityDescription)
+                            Text(documents.editorOutOfCapturePatternSettings.dotOpacityDescription)
                                 .foregroundStyle(.secondary)
                         }
 
                         Slider(value: outOfCapturePatternDotOpacityBinding, in: 0.05...1, step: 0.01)
-                            .disabled(!model.editorOutOfCapturePatternSettings.isEnabled)
+                            .disabled(!documents.editorOutOfCapturePatternSettings.isEnabled)
 
                         SettingsHelpText("The crosshatch marks canvas space outside the original captured image. It is editor-only and is never included when copying, exporting, sharing, or saving rendered output.")
                     }
@@ -289,17 +302,17 @@ struct CaptureAutomationSettingsView: View {
                             Text("Scenes Folder")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.secondary)
-                            Text(model.presentationScenesRootDescription)
+                            Text(documents.presentationScenesRootDescription)
                                 .font(.footnote)
                                 .textSelection(.enabled)
                         }
 
                         HStack {
-                            Button("Choose Scenes Folder...", action: model.choosePresentationScenesRoot)
-                            Button("Reveal Scenes Folder", action: model.revealPresentationScenesRoot)
-                            Button("Reset to Default Folder", action: model.resetPresentationScenesRootToDefault)
-                                .disabled(model.usesDefaultPresentationScenesRoot)
-                            Button("Reload Scenes", action: model.reloadPresentationScenes)
+                            Button("Choose Scenes Folder...", action: documents.choosePresentationScenesRoot)
+                            Button("Reveal Scenes Folder", action: documents.revealPresentationScenesRoot)
+                            Button("Reset to Default Folder", action: documents.resetPresentationScenesRootToDefault)
+                                .disabled(documents.usesDefaultPresentationScenesRoot)
+                            Button("Reload Scenes", action: documents.reloadPresentationScenes)
                         }
 
                         SettingsHelpText("Presentation Scenes are SVG files. \(AppBranding.displayName) manages shipped examples in Bundled and reads custom scenes from User inside this folder.")
@@ -318,11 +331,11 @@ struct CaptureAutomationSettingsView: View {
                 Section("Capture Presets") {
                     SettingsHelpText("Presets rerun a saved screenshot target with the timer, cursor, display, region, and Window UI Map options captured when the preset was created.")
 
-                    if model.capturePresets.isEmpty {
+                    if capture.capturePresets.isEmpty {
                         SettingsHelpText("Capture a screenshot, then choose Presets > Save Last Capture as Preset to add it here.")
                     } else {
                         VStack(alignment: .leading, spacing: 10) {
-                            ForEach(model.capturePresets) { preset in
+                            ForEach(capture.capturePresets) { preset in
                                 capturePresetRow(preset)
                             }
                         }
@@ -353,7 +366,7 @@ struct CaptureAutomationSettingsView: View {
                 }
 
                 Section("Editor Shortcuts") {
-                    Toggle("Enable Single-Key Tool Shortcuts", isOn: $model.editorSingleKeyToolShortcutsEnabled)
+                    Toggle("Enable Single-Key Tool Shortcuts", isOn: $documents.editorSingleKeyToolShortcutsEnabled)
                     SettingsHelpText("Single-key tool shortcuts work only when the screenshot canvas has focus and text entry is not active.")
                 }
 
@@ -378,7 +391,7 @@ struct CaptureAutomationSettingsView: View {
                         }
                     }
 
-                    SettingsHelpText(model.videoRecordingPreferences.quality.detail)
+                    SettingsHelpText(video.recordingPreferences.quality.detail)
 
                     Picker("Frame Rate", selection: videoPreferenceBinding(\.frameRate)) {
                         ForEach(VideoRecordingFrameRate.allCases) { frameRate in
@@ -394,9 +407,9 @@ struct CaptureAutomationSettingsView: View {
                         }
                     }
 
-                    if model.videoRecordingPreferences.fullscreenDisplayMode == .selectedDisplay {
+                    if video.recordingPreferences.fullscreenDisplayMode == .selectedDisplay {
                         Picker("Selected Display", selection: selectedRecordingDisplayIDBinding) {
-                            ForEach(availableDisplayOptions(preferredID: model.videoRecordingPreferences.selectedFullscreenDisplayID)) { option in
+                            ForEach(availableDisplayOptions(preferredID: video.recordingPreferences.selectedFullscreenDisplayID)) { option in
                                 Text(option.name).tag(Optional(option.id))
                             }
                         }
@@ -427,58 +440,58 @@ struct CaptureAutomationSettingsView: View {
                         Text("Location")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
-                        Text(model.archiveLocationDescription)
+                        Text(archive.archiveLocationDescription)
                             .font(.footnote)
                             .textSelection(.enabled)
                     }
 
                     HStack {
-                        Button("Choose Location…", action: model.chooseArchiveLocation)
+                        Button("Choose Location…", action: archive.chooseArchiveLocation)
 
-                        Button("Use Default Location", action: model.resetArchiveLocationToDefault)
-                            .disabled(model.usesDefaultArchiveLocation)
+                        Button("Use Default Location", action: archive.resetArchiveLocationToDefault)
+                            .disabled(archive.usesDefaultArchiveLocation)
 
-                        Button("Open in Finder", action: model.openArchiveLocationInFinder)
+                        Button("Open in Finder", action: archive.openArchiveLocationInFinder)
                     }
 
                     Stepper(value: Binding(get: {
-                        model.archiveMaximumSizeMB
+                        archive.maximumSizeMB
                     }, set: { value in
-                        model.updateArchiveMaximumSizeMB(value)
-                    }), in: AppModel.minimumArchiveMaximumSizeMB...10_240, step: 100) {
-                        Text("Max Archive Size: \(model.archiveMaximumSizeMB) MB")
+                        archive.updateArchiveMaximumSizeMB(value)
+                    }), in: ArchiveWorkflowConstants.minimumMaximumSizeMB...10_240, step: 100) {
+                        Text("Max Archive Size: \(archive.maximumSizeMB) MB")
                     }
 
                     HStack {
                         Text("Current Size")
                         Spacer(minLength: 12)
-                        Text(model.archiveSizeLabel)
+                        Text(archive.archiveSizeLabel)
                             .foregroundStyle(.secondary)
                     }
 
-                    Button("Clear Archive", role: .destructive, action: model.clearArchive)
+                    Button("Clear Archive", role: .destructive, action: archive.clearArchive)
 
                     SettingsHelpText("\(AppBranding.displayName) periodically trims the oldest archived checkpoints until the archive is back under the configured limit.")
                 }
 
                 Section("Recycle Bin") {
                     Stepper(value: Binding(get: {
-                        model.recycleBinRetentionDays
+                        archive.recycleBinRetentionDays
                     }, set: { value in
-                        model.updateRecycleBinRetentionDays(value)
-                    }), in: AppModel.minimumRecycleBinRetentionDays...30, step: 1) {
-                        Text("Empty Deleted Snips After: \(model.recycleBinRetentionDays) day\(model.recycleBinRetentionDays == 1 ? "" : "s")")
+                        archive.updateRecycleBinRetentionDays(value)
+                    }), in: ArchiveWorkflowConstants.minimumRecycleBinRetentionDays...30, step: 1) {
+                        Text("Empty Deleted Snips After: \(archive.recycleBinRetentionDays) day\(archive.recycleBinRetentionDays == 1 ? "" : "s")")
                     }
 
                     HStack {
                         Text("Deleted Items")
                         Spacer(minLength: 12)
-                        Text("\(model.recycleBinEntries.count)")
+                        Text("\(documents.recycleBinEntries.count)")
                             .foregroundStyle(.secondary)
                     }
 
-                    Button("Empty Now", role: .destructive, action: model.emptyRecycleBin)
-                        .disabled(model.recycleBinEntries.isEmpty)
+                    Button("Empty Now", role: .destructive, action: documents.emptyRecycleBin)
+                        .disabled(documents.recycleBinEntries.isEmpty)
 
                     SettingsHelpText("Deleted snips move to the recycle bin first. The scheduled cleanup permanently removes items after the configured retention period; the default is 2 days.")
                 }
@@ -494,36 +507,36 @@ struct CaptureAutomationSettingsView: View {
             ) {
                 Section("History") {
                     Toggle("Enable Clipboard History", isOn: Binding(get: {
-                        model.clipboardPreferences.isEnabled
+                        clipboard.preferences.isEnabled
                     }, set: { value in
-                        model.updateClipboardHistoryEnabled(value)
+                        clipboard.updateClipboardHistoryEnabled(value)
                     }))
 
                     Stepper(value: Binding(get: {
-                        model.clipboardPreferences.maxItemCount
+                        clipboard.preferences.maxItemCount
                     }, set: { value in
-                        model.updateClipboardMaxItemCount(value)
+                        clipboard.updateClipboardMaxItemCount(value)
                     }), in: 10...1_000, step: 10) {
-                        Text("Maximum Items: \(model.clipboardPreferences.maxItemCount)")
+                        Text("Maximum Items: \(clipboard.preferences.maxItemCount)")
                     }
 
                     Stepper(value: Binding(get: {
-                        model.clipboardPreferences.maxStorageMB
+                        clipboard.preferences.maxStorageMB
                     }, set: { value in
-                        model.updateClipboardMaxStorageMB(value)
+                        clipboard.updateClipboardMaxStorageMB(value)
                     }), in: 25...5_120, step: 25) {
-                        Text("Maximum Storage: \(model.clipboardPreferences.maxStorageMB) MB")
+                        Text("Maximum Storage: \(clipboard.preferences.maxStorageMB) MB")
                     }
 
                     HStack {
                         Text("Saved Items")
                         Spacer(minLength: 12)
-                        Text("\(model.clipboardHistoryItems.count)")
+                        Text("\(clipboard.clipboardHistoryItems.count)")
                             .foregroundStyle(.secondary)
                     }
 
-                    Button("Clear Clipboard History", role: .destructive, action: model.clearClipboardHistory)
-                        .disabled(model.clipboardHistoryItems.isEmpty)
+                    Button("Clear Clipboard History", role: .destructive, action: clipboard.clearClipboardHistory)
+                        .disabled(clipboard.clipboardHistoryItems.isEmpty)
 
                     SettingsHelpText("Clipboard history is local to this Mac. Non-private \(AppBranding.displayName) screenshots are added to this timeline even when Auto Copy is off. Private Capture stays out of clipboard history.")
                 }
@@ -533,27 +546,27 @@ struct CaptureAutomationSettingsView: View {
 
                     HStack(spacing: 10) {
                         Menu("Ignore Running App") {
-                            if model.clipboardRunningAppIgnoreCandidates.isEmpty {
+                            if clipboard.clipboardRunningAppIgnoreCandidates.isEmpty {
                                 Text("No available running apps")
                             } else {
-                                ForEach(model.clipboardRunningAppIgnoreCandidates) { app in
+                                ForEach(clipboard.clipboardRunningAppIgnoreCandidates) { app in
                                     Button(app.name) {
-                                        model.addIgnoredClipboardApp(app)
+                                        clipboard.addIgnoredClipboardApp(app)
                                     }
                                 }
                             }
                         }
 
-                        Button("Choose App...", action: model.chooseIgnoredClipboardApp)
+                        Button("Choose App...", action: clipboard.chooseIgnoredClipboardApp)
                     }
 
-                    if !model.clipboardRecentSourceAppIgnoreCandidates.isEmpty {
+                    if !clipboard.clipboardRecentSourceAppIgnoreCandidates.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Recent Sources")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.secondary)
 
-                            ForEach(model.clipboardRecentSourceAppIgnoreCandidates.prefix(5)) { app in
+                            ForEach(clipboard.clipboardRecentSourceAppIgnoreCandidates.prefix(5)) { app in
                                 HStack {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(app.name)
@@ -565,7 +578,7 @@ struct CaptureAutomationSettingsView: View {
                                     Spacer(minLength: 12)
 
                                     Button("Ignore") {
-                                        model.addIgnoredClipboardApp(app)
+                                        clipboard.addIgnoredClipboardApp(app)
                                     }
                                 }
                             }
@@ -579,7 +592,7 @@ struct CaptureAutomationSettingsView: View {
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
 
-                        ForEach(model.clipboardPreferences.ignoredApps) { app in
+                        ForEach(clipboard.preferences.ignoredApps) { app in
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(app.name)
@@ -591,13 +604,13 @@ struct CaptureAutomationSettingsView: View {
                                 Spacer(minLength: 12)
 
                                 Button("Remove") {
-                                    model.removeIgnoredClipboardApp(app)
+                                    clipboard.removeIgnoredClipboardApp(app)
                                 }
                             }
                         }
                     }
 
-                    Button("Restore Default Ignored Apps", action: model.resetIgnoredClipboardApps)
+                    Button("Restore Default Ignored Apps", action: clipboard.resetIgnoredClipboardApps)
                 }
             }
             .tabItem {
@@ -611,21 +624,28 @@ struct CaptureAutomationSettingsView: View {
             ) {
                 Section("Private Capture") {
                     Toggle("Private Capture", isOn: privateCaptureBinding)
-                        .disabled(!model.canChangePrivateCapture)
+                        .disabled(!capture.canChangePrivateCapture)
 
                     SettingsHelpText("Private Capture keeps the current capture out of archive history, recycle bin retention, and background OCR indexing. You can still explicitly save or export the result. The setting is locked while a capture or recording is active so the in-progress capture uses the privacy choice it started with.")
                 }
 
                 Section("Permission Diagnostics") {
-                    PermissionStatusRow(requirement: .screenRecording, model: model)
-                    if model.capabilities.isEnabled(.scrollingCapture) {
-                        PermissionStatusRow(requirement: .accessibility, model: model)
+                    PermissionStatusRow(requirement: .screenRecording, permissions: permissions)
+                    if capabilities.isEnabled(.scrollingCapture) {
+                        PermissionStatusRow(requirement: .accessibility, permissions: permissions)
                     }
 
-                    Button("Export Diagnostics…", action: model.exportSupportDiagnostics)
+                    Button("Export Diagnostics…") {
+                        SupportDiagnosticsExporter.export(
+                            snapshot: supportDiagnosticsSnapshot,
+                            clock: clock
+                        ) { error in
+                            lifecycle.errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                        }
+                    }
 
                     SettingsHelpText(
-                        model.capabilities.isEnabled(.scrollingCapture)
+                        capabilities.isEnabled(.scrollingCapture)
                             ? "Accessibility is only required for Scrolling Capture. Region, Window, Fullscreen, editor OCR, export, and annotation tools do not depend on Accessibility. Diagnostics export sanitized app, permission, display, storage, and status details without screenshots, clipboard contents, OCR text, annotations, or document data."
                             : "Screen Recording is the only privacy permission required for screenshot pixels, live window thumbnails, and screen recording in this build. Diagnostics export sanitized app, permission, display, storage, and status details without screenshots, clipboard contents, OCR text, annotations, or document data."
                     )
@@ -635,7 +655,7 @@ struct CaptureAutomationSettingsView: View {
                     Button("Reset All Settings to Defaults", role: .destructive) {
                         isShowingResetDefaultsConfirmation = true
                     }
-                    .disabled(!model.canResetPreferencesToDefaults)
+                    .disabled(!canResetPreferencesToDefaults)
 
                     SettingsHelpText("This restores capture, shortcuts, recording, export and sharing, archive, recycle-bin, naming, and privacy settings to their default values. It does not delete archived captures or recycle-bin items.")
                 }
@@ -647,7 +667,7 @@ struct CaptureAutomationSettingsView: View {
         }
         .frame(width: 700, height: 560)
         .task {
-            model.refreshLaunchAtLoginStatus()
+            lifecycle.refreshLaunchAtLoginStatus()
         }
         .alert("Couldn't Update Launch at Login", isPresented: Binding(get: {
             launchAtLoginErrorMessage != nil
@@ -661,7 +681,7 @@ struct CaptureAutomationSettingsView: View {
             }
 
             Button("Open Login Items") {
-                model.openLaunchAtLoginSettings()
+                lifecycle.openLaunchAtLoginSettings()
                 launchAtLoginErrorMessage = nil
             }
         } message: {
@@ -669,7 +689,7 @@ struct CaptureAutomationSettingsView: View {
         }
         .confirmationDialog("Reset all settings to defaults?", isPresented: $isShowingResetDefaultsConfirmation, titleVisibility: .visible) {
             Button("Reset All Settings", role: .destructive) {
-                model.resetPreferencesToDefaults()
+                resetPreferencesToDefaults()
             }
 
             Button("Cancel", role: .cancel) {}
@@ -678,30 +698,52 @@ struct CaptureAutomationSettingsView: View {
         }
     }
 
+    private var supportDiagnosticsSnapshot: SupportDiagnosticsSnapshot {
+        SupportDiagnosticsSnapshot.make(
+            capabilities: capabilities,
+            permissions: capture.dependencies.systemServices.permissions,
+            systemServices: capture.dependencies.systemServices,
+            lifecycle: lifecycle,
+            permissionWorkflow: permissions,
+            capture: capture,
+            documents: documents,
+            clipboard: clipboard,
+            video: video,
+            archive: archive
+        )
+    }
+
+    private var canResetPreferencesToDefaults: Bool {
+        !capture.isWorking
+            && !capture.isShowingWindowPicker
+            && video.activeVideoRecording == nil
+            && !capture.isConnectedDeviceSessionActive
+    }
+
     private func automationBinding<Value>(_ keyPath: WritableKeyPath<CaptureAutomationPreferences, Value>) -> Binding<Value> {
         Binding(
-            get: { model.automationPreferences[keyPath: keyPath] },
+            get: { capture.automationPreferences[keyPath: keyPath] },
             set: { newValue in
-                var preferences = model.automationPreferences
+                var preferences = capture.automationPreferences
                 preferences[keyPath: keyPath] = newValue
-                model.automationPreferences = preferences
+                capture.automationPreferences = preferences
             }
         )
     }
 
     private func automationHotKeyBinding(for action: GlobalHotKeyAction) -> Binding<GlobalHotKeyKey> {
         Binding(
-            get: { model.automationPreferences.key(for: action) },
+            get: { capture.automationPreferences.key(for: action) },
             set: { newKey in
-                var preferences = model.automationPreferences
+                var preferences = capture.automationPreferences
                 preferences.setKey(newKey, for: action)
-                model.automationPreferences = preferences
+                capture.automationPreferences = preferences
             }
         )
     }
 
     private func capturePresetRow(_ preset: CapturePreset) -> some View {
-        let index = model.capturePresets.firstIndex(where: { $0.id == preset.id }) ?? 0
+        let index = capture.capturePresets.firstIndex(where: { $0.id == preset.id }) ?? 0
 
         return HStack(alignment: .firstTextBaseline, spacing: 8) {
             VStack(alignment: .leading, spacing: 4) {
@@ -716,7 +758,7 @@ struct CaptureAutomationSettingsView: View {
             Spacer(minLength: 8)
 
             Button {
-                model.moveCapturePreset(id: preset.id, offset: -1)
+                capture.moveCapturePreset(id: preset.id, offset: -1)
             } label: {
                 Image(systemName: "arrow.up")
             }
@@ -724,15 +766,15 @@ struct CaptureAutomationSettingsView: View {
             .disabled(index == 0)
 
             Button {
-                model.moveCapturePreset(id: preset.id, offset: 1)
+                capture.moveCapturePreset(id: preset.id, offset: 1)
             } label: {
                 Image(systemName: "arrow.down")
             }
             .help("Move preset down.")
-            .disabled(index >= model.capturePresets.count - 1)
+            .disabled(index >= capture.capturePresets.count - 1)
 
             Button(role: .destructive) {
-                model.deleteCapturePreset(id: preset.id)
+                capture.deleteCapturePreset(id: preset.id)
             } label: {
                 Image(systemName: "trash")
             }
@@ -743,59 +785,59 @@ struct CaptureAutomationSettingsView: View {
     private func capturePresetNameBinding(for id: CapturePreset.ID) -> Binding<String> {
         Binding(
             get: {
-                model.capturePresets.first(where: { $0.id == id })?.name ?? ""
+                capture.capturePresets.first(where: { $0.id == id })?.name ?? ""
             },
             set: { newValue in
-                model.renameCapturePreset(id: id, to: newValue)
+                capture.renameCapturePreset(id: id, to: newValue)
             }
         )
     }
 
     private func regionCaptureBinding<Value>(_ keyPath: WritableKeyPath<RegionCapturePreferences, Value>) -> Binding<Value> {
         Binding(
-            get: { model.regionCapturePreferences[keyPath: keyPath] },
+            get: { capture.regionCapturePreferences[keyPath: keyPath] },
             set: { newValue in
-                var preferences = model.regionCapturePreferences
+                var preferences = capture.regionCapturePreferences
                 preferences[keyPath: keyPath] = newValue
-                model.regionCapturePreferences = preferences
+                capture.regionCapturePreferences = preferences
             }
         )
     }
 
     private var privateCaptureBinding: Binding<Bool> {
         Binding(
-            get: { model.privateCaptureEnabled },
+            get: { capture.privateCaptureEnabled },
             set: { newValue in
-                model.updatePrivateCaptureEnabled(newValue)
+                capture.updatePrivateCaptureEnabled(newValue)
             }
         )
     }
 
     private var uiMapBinding: Binding<Bool> {
         Binding(
-            get: { model.uiMapEnabled },
+            get: { capture.uiMapEnabled },
             set: { newValue in
-                model.updateUIMapEnabled(newValue)
+                capture.updateUIMapEnabled(newValue)
             }
         )
     }
 
     private func uiMapPinnedOverlayDefaultsBinding(_ keyPath: WritableKeyPath<UIMapOverlayOptions, Bool>) -> Binding<Bool> {
         Binding(
-            get: { model.uiMapPinnedOverlayDefaults[keyPath: keyPath] },
+            get: { documents.uiMapPinnedOverlayDefaults[keyPath: keyPath] },
             set: { newValue in
-                var options = model.uiMapPinnedOverlayDefaults
+                var options = documents.uiMapPinnedOverlayDefaults
                 options[keyPath: keyPath] = newValue
-                model.uiMapPinnedOverlayDefaults = options
+                documents.uiMapPinnedOverlayDefaults = options
             }
         )
     }
 
     private var launchAtLoginBinding: Binding<Bool> {
         Binding(
-            get: { model.launchAtLoginStatus.prefersEnabledToggle },
+            get: { lifecycle.launchAtLoginStatus.prefersEnabledToggle },
             set: { newValue in
-                let result = model.updateLaunchAtLoginEnabled(newValue)
+                let result = lifecycle.updateLaunchAtLoginEnabled(newValue)
 
                 if case let .failed(message) = result {
                     launchAtLoginErrorMessage = message
@@ -805,7 +847,7 @@ struct CaptureAutomationSettingsView: View {
     }
 
     private var launchAtLoginStatusColor: Color {
-        switch model.launchAtLoginStatus {
+        switch lifecycle.launchAtLoginStatus {
         case .disabled:
             return .secondary
         case .enabled:
@@ -819,145 +861,145 @@ struct CaptureAutomationSettingsView: View {
 
     private func videoPreferenceBinding<Value>(_ keyPath: WritableKeyPath<VideoRecordingPreferences, Value>) -> Binding<Value> {
         Binding(
-            get: { model.videoRecordingPreferences[keyPath: keyPath] },
+            get: { video.recordingPreferences[keyPath: keyPath] },
             set: { newValue in
-                var preferences = model.videoRecordingPreferences
+                var preferences = video.recordingPreferences
                 preferences[keyPath: keyPath] = newValue
-                model.videoRecordingPreferences = preferences
+                video.recordingPreferences = preferences
             }
         )
     }
 
     private func screenRulerBinding<Value>(_ keyPath: WritableKeyPath<ScreenRulerPreferences, Value>) -> Binding<Value> {
         Binding(
-            get: { model.screenRulerPreferences[keyPath: keyPath] },
+            get: { tools.screenRulerPreferences[keyPath: keyPath] },
             set: { newValue in
-                var preferences = model.screenRulerPreferences
+                var preferences = tools.screenRulerPreferences
                 preferences[keyPath: keyPath] = newValue
-                model.screenRulerPreferences = preferences
+                tools.screenRulerPreferences = preferences
             }
         )
     }
 
     private func screenInspectorBinding<Value>(_ keyPath: WritableKeyPath<ScreenInspectorPreferences, Value>) -> Binding<Value> {
         Binding(
-            get: { model.screenInspectorPreferences[keyPath: keyPath] },
+            get: { tools.screenInspectorPreferences[keyPath: keyPath] },
             set: { newValue in
-                var preferences = model.screenInspectorPreferences
+                var preferences = tools.screenInspectorPreferences
                 preferences[keyPath: keyPath] = newValue
-                model.screenInspectorPreferences = preferences
+                tools.screenInspectorPreferences = preferences
             }
         )
     }
 
     private var screenRulerOpacityBinding: Binding<Double> {
         Binding(
-            get: { model.screenRulerPreferences.opacity },
+            get: { tools.screenRulerPreferences.opacity },
             set: { newValue in
-                var preferences = model.screenRulerPreferences
+                var preferences = tools.screenRulerPreferences
                 preferences.opacity = newValue
-                model.screenRulerPreferences = preferences
+                tools.screenRulerPreferences = preferences
             }
         )
     }
 
     private var screenRulerTickSpacingBinding: Binding<Double> {
         Binding(
-            get: { Double(model.screenRulerPreferences.tickSpacing) },
+            get: { Double(tools.screenRulerPreferences.tickSpacing) },
             set: { newValue in
-                var preferences = model.screenRulerPreferences
+                var preferences = tools.screenRulerPreferences
                 preferences.tickSpacing = CGFloat(newValue)
-                model.screenRulerPreferences = preferences
+                tools.screenRulerPreferences = preferences
             }
         )
     }
 
     private var screenRulerMajorTickBinding: Binding<Int> {
         Binding(
-            get: { model.screenRulerPreferences.majorTickEvery },
+            get: { tools.screenRulerPreferences.majorTickEvery },
             set: { newValue in
-                var preferences = model.screenRulerPreferences
+                var preferences = tools.screenRulerPreferences
                 preferences.majorTickEvery = newValue
-                model.screenRulerPreferences = preferences
+                tools.screenRulerPreferences = preferences
             }
         )
     }
 
     private var cropOutsideOverlayAlphaBinding: Binding<Double> {
         Binding(
-            get: { Double(model.editorCropOutsideOverlayAlpha) },
+            get: { Double(documents.editorCropOutsideOverlayAlpha) },
             set: { newValue in
-                model.updateEditorCropOutsideOverlayAlpha(CGFloat(newValue))
+                documents.updateEditorCropOutsideOverlayAlpha(CGFloat(newValue))
             }
         )
     }
 
     private var outOfCapturePatternEnabledBinding: Binding<Bool> {
         Binding(
-            get: { model.editorOutOfCapturePatternSettings.isEnabled },
+            get: { documents.editorOutOfCapturePatternSettings.isEnabled },
             set: { newValue in
-                var settings = model.editorOutOfCapturePatternSettings
+                var settings = documents.editorOutOfCapturePatternSettings
                 settings.isEnabled = newValue
-                model.updateEditorOutOfCapturePatternSettings(settings)
+                documents.updateEditorOutOfCapturePatternSettings(settings)
             }
         )
     }
 
     private var outOfCapturePatternSpacingBinding: Binding<Double> {
         Binding(
-            get: { Double(model.editorOutOfCapturePatternSettings.spacing) },
+            get: { Double(documents.editorOutOfCapturePatternSettings.spacing) },
             set: { newValue in
-                var settings = model.editorOutOfCapturePatternSettings
+                var settings = documents.editorOutOfCapturePatternSettings
                 settings.spacing = CGFloat(newValue)
-                model.updateEditorOutOfCapturePatternSettings(settings)
+                documents.updateEditorOutOfCapturePatternSettings(settings)
             }
         )
     }
 
     private var outOfCapturePatternLineOpacityBinding: Binding<Double> {
         Binding(
-            get: { Double(model.editorOutOfCapturePatternSettings.lineOpacity) },
+            get: { Double(documents.editorOutOfCapturePatternSettings.lineOpacity) },
             set: { newValue in
-                var settings = model.editorOutOfCapturePatternSettings
+                var settings = documents.editorOutOfCapturePatternSettings
                 settings.lineOpacity = CGFloat(newValue)
-                model.updateEditorOutOfCapturePatternSettings(settings)
+                documents.updateEditorOutOfCapturePatternSettings(settings)
             }
         )
     }
 
     private var outOfCapturePatternDotOpacityBinding: Binding<Double> {
         Binding(
-            get: { Double(model.editorOutOfCapturePatternSettings.dotOpacity) },
+            get: { Double(documents.editorOutOfCapturePatternSettings.dotOpacity) },
             set: { newValue in
-                var settings = model.editorOutOfCapturePatternSettings
+                var settings = documents.editorOutOfCapturePatternSettings
                 settings.dotOpacity = CGFloat(newValue)
-                model.updateEditorOutOfCapturePatternSettings(settings)
+                documents.updateEditorOutOfCapturePatternSettings(settings)
             }
         )
     }
 
     private var outOfCapturePatternDotDiameterBinding: Binding<Double> {
         Binding(
-            get: { Double(model.editorOutOfCapturePatternSettings.dotDiameter) },
+            get: { Double(documents.editorOutOfCapturePatternSettings.dotDiameter) },
             set: { newValue in
-                var settings = model.editorOutOfCapturePatternSettings
+                var settings = documents.editorOutOfCapturePatternSettings
                 settings.dotDiameter = CGFloat(newValue)
-                model.updateEditorOutOfCapturePatternSettings(settings)
+                documents.updateEditorOutOfCapturePatternSettings(settings)
             }
         )
     }
 
     private var screenshotJPEGQualityBinding: Binding<Double> {
         Binding(
-            get: { Double(model.screenshotJPEGQuality) },
-            set: { model.screenshotJPEGQuality = CGFloat($0) }
+            get: { Double(capture.screenshotJPEGQuality) },
+            set: { capture.screenshotJPEGQuality = CGFloat($0) }
         )
     }
 
     private var selectedScreenshotDisplayIDBinding: Binding<UInt32?> {
         Binding(
             get: {
-                let selectedID = model.selectedScreenshotFullscreenDisplayID
+                let selectedID = capture.selectedScreenshotFullscreenDisplayID
                 let options = availableDisplayOptions(preferredID: selectedID)
                 if let selectedID,
                    options.contains(where: { $0.id == selectedID }) {
@@ -967,7 +1009,7 @@ struct CaptureAutomationSettingsView: View {
                 return options.first?.id
             },
             set: { newValue in
-                model.selectedScreenshotFullscreenDisplayID = newValue
+                capture.selectedScreenshotFullscreenDisplayID = newValue
             }
         )
     }
@@ -975,7 +1017,7 @@ struct CaptureAutomationSettingsView: View {
     private var selectedRecordingDisplayIDBinding: Binding<UInt32?> {
         Binding(
             get: {
-                let selectedID = model.videoRecordingPreferences.selectedFullscreenDisplayID
+                let selectedID = video.recordingPreferences.selectedFullscreenDisplayID
                 let options = availableDisplayOptions(preferredID: selectedID)
                 if let selectedID,
                    options.contains(where: { $0.id == selectedID }) {
@@ -985,9 +1027,9 @@ struct CaptureAutomationSettingsView: View {
                 return options.first?.id
             },
             set: { newValue in
-                var preferences = model.videoRecordingPreferences
+                var preferences = video.recordingPreferences
                 preferences.selectedFullscreenDisplayID = newValue
-                model.videoRecordingPreferences = preferences
+                video.recordingPreferences = preferences
             }
         )
     }
@@ -1088,10 +1130,10 @@ private struct SettingsHelpText: View {
 
 private struct PermissionStatusRow: View {
     let requirement: CapturePermissionRequirement
-    @ObservedObject var model: AppModel
+    @ObservedObject var permissions: PermissionWorkflowModel
 
     private var hasAccess: Bool {
-        model.permissionStatus.hasAccess(to: requirement)
+        permissions.permissionStatus.hasAccess(to: requirement)
     }
 
     var body: some View {
@@ -1102,15 +1144,15 @@ private struct PermissionStatusRow: View {
                 .foregroundStyle(hasAccess ? .green : .orange)
             Button(hasAccess ? "Open Settings" : "Continue") {
                 if hasAccess {
-                    model.openPermissionSettings(requirement)
+                    permissions.openPermissionSettings(requirement)
                 } else {
-                    model.requestPermission(requirement)
+                    permissions.requestPermission(requirement)
                 }
             }
 
             if !hasAccess {
                 Button("Help") {
-                    model.presentPermissionSetupGuide(for: requirement)
+                    permissions.presentPermissionSetupGuide(for: requirement)
                 }
             }
         }

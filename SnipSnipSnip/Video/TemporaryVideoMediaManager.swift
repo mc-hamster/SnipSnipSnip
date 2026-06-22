@@ -5,21 +5,30 @@ nonisolated enum TemporaryVideoMediaManager {
     static let exportAttemptPrefix = "SnipSnipSnip-export-"
     private static let ownedFileExtensions: Set<String> = ["mp4", "mov"]
 
-    static func recordingOutputURL(fileManager: FileManager = .default, format: VideoExportFormat = .mp4) -> URL {
-        fileManager.temporaryDirectory
+    static func recordingOutputURL(
+        files: any FileSystemServicing = SystemFileService(),
+        format: VideoExportFormat = .mp4
+    ) -> URL {
+        files.temporaryDirectory
             .appendingPathComponent("\(recordingPrefix)\(UUID().uuidString)")
             .appendingPathExtension(format.fileExtension)
     }
 
-    static func exportAttemptURL(fileManager: FileManager = .default, format: VideoExportFormat) -> URL {
-        fileManager.temporaryDirectory
+    static func exportAttemptURL(
+        files: any FileSystemServicing = SystemFileService(),
+        format: VideoExportFormat
+    ) -> URL {
+        files.temporaryDirectory
             .appendingPathComponent("\(exportAttemptPrefix)\(UUID().uuidString)")
             .appendingPathExtension(format.fileExtension)
     }
 
-    static func isOwnedTemporaryMediaURL(_ url: URL, fileManager: FileManager = .default) -> Bool {
+    static func isOwnedTemporaryMediaURL(
+        _ url: URL,
+        files: any FileSystemServicing = SystemFileService()
+    ) -> Bool {
         let standardizedURL = url.standardizedFileURL
-        let temporaryDirectoryURL = fileManager.temporaryDirectory.standardizedFileURL
+        let temporaryDirectoryURL = files.temporaryDirectory.standardizedFileURL
 
         guard standardizedURL.deletingLastPathComponent() == temporaryDirectoryURL else {
             return false

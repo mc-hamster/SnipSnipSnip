@@ -2,7 +2,6 @@ import AppKit
 import Combine
 import Carbon
 import CoreGraphics
-@preconcurrency import ScreenCaptureKit
 import SwiftUI
 
 @MainActor
@@ -39,17 +38,23 @@ final class ScreenInspectorCoordinator: ObservableObject {
     private var preferences: ScreenInspectorPreferences
     private var onPreferencesChange: (ScreenInspectorPreferences) -> Void
     private var onSnip: (ScreenInspectorSample) -> Void
+    private let capturePlatform: any ScreenCapturePlatform
+    private let screens: any ScreenTopologyProviding
     private var eventHandlerRef: EventHandlerRef?
     private var hotKeyRefs: [Shortcut: EventHotKeyRef] = [:]
 
     init(
         preferences: ScreenInspectorPreferences = .default,
+        capturePlatform: any ScreenCapturePlatform = LiveScreenCapturePlatform(),
+        screens: any ScreenTopologyProviding = SystemScreenTopologyService(),
         onPreferencesChange: @escaping (ScreenInspectorPreferences) -> Void = { _ in },
         onSnip: @escaping (ScreenInspectorSample) -> Void = { _ in }
     ) {
         self.preferences = preferences.sanitized()
         self.onPreferencesChange = onPreferencesChange
         self.onSnip = onSnip
+        self.capturePlatform = capturePlatform
+        self.screens = screens
     }
 
     func setPreferencesChangeHandler(_ handler: @escaping (ScreenInspectorPreferences) -> Void) {
@@ -88,9 +93,14 @@ final class ScreenInspectorCoordinator: ObservableObject {
             return
         }
 
-        let model = ScreenInspectorWindowModel(preferences: preferences, onSnip: { [weak self] sample in
-            self?.onSnip(sample)
-        })
+        let model = ScreenInspectorWindowModel(
+            preferences: preferences,
+            capturePlatform: capturePlatform,
+            screens: screens,
+            onSnip: { [weak self] sample in
+                self?.onSnip(sample)
+            }
+        )
         let controller = ScreenInspectorWindowController(
             model: model,
             onPreferencesChange: { [weak self] preferences in
@@ -228,7 +238,7 @@ final class ScreenInspectorWindowModel: ObservableObject {
     @Published var isFrozen = false
     @Published private(set) var measurement: ScreenInspectorMeasurement?
 
-    private let sampler = ScreenInspectorSampler()
+    private let sampler: ScreenInspectorSampler
     private let onSnip: (ScreenInspectorSample) -> Void
     private var timer: Timer?
     private var pendingSampleTask: Task<Void, Never>?
@@ -236,8 +246,14 @@ final class ScreenInspectorWindowModel: ObservableObject {
     private var measurementStart: CGPoint?
     private var isMeasurementLocked = false
 
-    init(preferences: ScreenInspectorPreferences, onSnip: @escaping (ScreenInspectorSample) -> Void = { _ in }) {
+    init(
+        preferences: ScreenInspectorPreferences,
+        capturePlatform: any ScreenCapturePlatform = LiveScreenCapturePlatform(),
+        screens: any ScreenTopologyProviding = SystemScreenTopologyService(),
+        onSnip: @escaping (ScreenInspectorSample) -> Void = { _ in }
+    ) {
         self.preferences = preferences.sanitized()
+        self.sampler = ScreenInspectorSampler(platform: capturePlatform, screens: screens)
         self.onSnip = onSnip
     }
 
@@ -746,6 +762,17 @@ private struct MeasurementOverlay: Shape {
 }
 
 private final class ScreenInspectorSampler {
+    private let platform: any ScreenCapturePlatform
+    private let screens: any ScreenTopologyProviding
+
+    init(
+        platform: any ScreenCapturePlatform = LiveScreenCapturePlatform(),
+        screens: any ScreenTopologyProviding = SystemScreenTopologyService()
+    ) {
+        self.platform = platform
+        self.screens = screens
+    }
+
     func sample(
         around appKitLocation: CGPoint,
         zoomLevel: ScreenInspectorZoomLevel,
@@ -755,8 +782,8 @@ private final class ScreenInspectorSampler {
             return nil
         }
 
-        let screen = NSScreen.screens.first { $0.frame.insetBy(dx: -1, dy: -1).contains(appKitLocation) }
-        let screenScale = screen?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1
+        let screen = screens.screens.first { $0.frame.insetBy(dx: -1, dy: -1).contains(appKitLocation) }
+        let screenScale = screen?.backingScaleFactor ?? screens.mainScreen?.backingScaleFactor ?? 1
         let cursorPixelLocation = screen.map { screen in
             let pixelWidth = screen.frame.width * screenScale
             let pixelHeight = screen.frame.height * screenScale
@@ -778,27 +805,12 @@ private final class ScreenInspectorSampler {
             height: samplePointSize.height
         ).integral
 
-        let configuration = SCScreenshotConfiguration()
-        configuration.width = samplePixelWidth
-        configuration.height = samplePixelHeight
-        configuration.showsCursor = false
-        configuration.dynamicRange = .sdr
-
-        let image = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CGImage, Error>) in
-            SCScreenshotManager.captureScreenshot(rect: captureRect, configuration: configuration) { output, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-
-                guard let image = output?.sdrImage else {
-                    continuation.resume(throwing: ScreenCaptureError.windowImageUnavailable)
-                    return
-                }
-
-                continuation.resume(returning: image)
-            }
-        }
+        let image = try await platform.captureScreenshot(
+            ScreenCaptureRequest(
+                target: .screenRect(captureRect),
+                configuration: ScreenCaptureConfiguration(width: samplePixelWidth, height: samplePixelHeight)
+            )
+        )
 
         let color = centerPixelColor(in: image) ?? ScreenInspectorPixelColor(red: 0, green: 0, blue: 0, alpha: 0)
         return ScreenInspectorSample(image: image, cursorLocation: cursorPixelLocation, sourceRect: captureRect, color: color)

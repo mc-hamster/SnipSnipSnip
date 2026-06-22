@@ -1,5 +1,126 @@
 import AppKit
 import Foundation
+import UniformTypeIdentifiers
+
+@MainActor
+enum SupportDiagnosticsExporter {
+    static func export(
+        snapshot: SupportDiagnosticsSnapshot,
+        clock: any ClockProviding,
+        presentError: (Error) -> Void
+    ) {
+        let diagnostics = SupportDiagnosticsBuilder.make(snapshot: snapshot, generatedAt: clock.now())
+        let panel = NSSavePanel()
+        panel.title = "Export Diagnostics"
+        panel.nameFieldStringValue = "SnipSnipSnip-Diagnostics-\(diagnosticsTimestamp(clock: clock)).json"
+        panel.allowedContentTypes = [.json]
+        panel.canCreateDirectories = true
+
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+
+        do {
+            try diagnostics.jsonData().write(to: url, options: .atomic)
+        } catch {
+            presentError(error)
+        }
+    }
+
+    private static func diagnosticsTimestamp(clock: any ClockProviding) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd-HH-mm-ss"
+        return formatter.string(from: clock.now())
+    }
+}
+
+@MainActor
+struct SupportDiagnosticsSnapshot {
+    let capabilities: AppCapabilitySnapshot
+    let permissionStatus: CapturePermissionStatus
+    let missingPermissionRequirements: [CapturePermissionRequirement]
+    let displays: [ScreenDisplaySnapshot]
+    let mainDisplayID: CGDirectDisplayID?
+    let archiveMaximumSizeMB: Int
+    let archiveCurrentSizeLabel: String
+    let archiveUsesDefaultLocation: Bool
+    let recycleBinItemCount: Int
+    let recycleBinRetentionDays: Int
+    let clipboardHistoryEnabled: Bool
+    let clipboardItemCount: Int
+    let clipboardMaximumItems: Int
+    let clipboardMaximumStorageMB: Int
+    let hasScreenshotEditor: Bool
+    let annotationCount: Int
+    let selectedAnnotationCount: Int
+    let hasVideoEditor: Bool
+    let isRecordingVideo: Bool
+    let activeVideoRecordingKind: String?
+    let connectedDeviceFeatureEnabled: Bool
+    let listedDeviceCount: Int
+    let previewSessionActive: Bool
+    let isLoadingDevices: Bool
+    let connectedDeviceEmptyStateMessage: String?
+    let appError: String?
+    let editorError: String?
+    let videoError: String?
+    let launchAtLoginStatus: String
+    let workingMessage: String?
+
+    static func make(
+        capabilities: AppCapabilitySnapshot,
+        permissions: any CapturePermissionServicing,
+        systemServices: AppSystemServices,
+        lifecycle: AppLifecycleModel,
+        permissionWorkflow: PermissionWorkflowModel,
+        capture: CaptureWorkflowModel,
+        documents: DocumentWorkflowModel,
+        clipboard: ClipboardWorkflowModel,
+        video: VideoWorkflowModel,
+        archive: ArchiveWorkflowModel
+    ) -> SupportDiagnosticsSnapshot {
+        let permissionStatus = permissionWorkflow.permissionStatus
+        let missingRequirements = permissions.availableSetupRequirements().filter {
+            !permissionStatus.hasAccess(to: $0)
+        }
+        let editorController = documents.editorController
+        let videoEditorController = documents.videoEditorController
+
+        return SupportDiagnosticsSnapshot(
+            capabilities: capabilities,
+            permissionStatus: permissionStatus,
+            missingPermissionRequirements: missingRequirements,
+            displays: systemServices.screens.screens,
+            mainDisplayID: systemServices.screens.mainScreen?.displayID,
+            archiveMaximumSizeMB: archive.maximumSizeMB,
+            archiveCurrentSizeLabel: archive.archiveSizeLabel,
+            archiveUsesDefaultLocation: archive.usesDefaultArchiveLocation,
+            recycleBinItemCount: documents.recycleBinEntries.count,
+            recycleBinRetentionDays: archive.recycleBinRetentionDays,
+            clipboardHistoryEnabled: clipboard.preferences.isEnabled,
+            clipboardItemCount: clipboard.items.count,
+            clipboardMaximumItems: clipboard.preferences.maxItemCount,
+            clipboardMaximumStorageMB: clipboard.preferences.maxStorageMB,
+            hasScreenshotEditor: editorController != nil,
+            annotationCount: editorController?.snapshot.annotations.count ?? 0,
+            selectedAnnotationCount: editorController?.selectedCount ?? 0,
+            hasVideoEditor: videoEditorController != nil,
+            isRecordingVideo: video.activeVideoRecording != nil,
+            activeVideoRecordingKind: video.activeVideoRecording == nil ? nil : "active",
+            connectedDeviceFeatureEnabled: capabilities.isEnabled(.connectedDeviceCapture),
+            listedDeviceCount: capture.connectedDevices.count,
+            previewSessionActive: capture.isConnectedDeviceSessionActive,
+            isLoadingDevices: capture.isLoadingConnectedDevices,
+            connectedDeviceEmptyStateMessage: capture.connectedDeviceEmptyStateMessage,
+            appError: lifecycle.errorMessage,
+            editorError: editorController?.errorMessage,
+            videoError: videoEditorController?.errorMessage,
+            launchAtLoginStatus: lifecycle.launchAtLoginStatus.stateLabel,
+            workingMessage: capture.isWorking ? lifecycle.workingMessage : nil
+        )
+    }
+}
 
 struct SupportDiagnostics: Codable, Equatable {
     struct AppInfo: Codable, Equatable {
@@ -100,18 +221,18 @@ struct SupportDiagnostics: Codable, Equatable {
 
 enum SupportDiagnosticsBuilder {
     @MainActor
-    static func make(model: AppModel, generatedAt: Date = Date()) -> SupportDiagnostics {
+    static func make(snapshot: SupportDiagnosticsSnapshot, generatedAt: Date = Date()) -> SupportDiagnostics {
         SupportDiagnostics(
             generatedAt: generatedAt,
             app: appInfo(),
             system: systemInfo(),
-            features: featureInfo(from: model.capabilities),
-            permissions: permissionInfo(from: model),
-            displays: displayInfo(),
-            storage: storageInfo(from: model),
-            editor: editorInfo(from: model),
-            connectedDevice: connectedDeviceInfo(from: model),
-            recentStatus: recentStatusInfo(from: model)
+            features: featureInfo(from: snapshot.capabilities),
+            permissions: permissionInfo(from: snapshot),
+            displays: displayInfo(from: snapshot),
+            storage: storageInfo(from: snapshot),
+            editor: editorInfo(from: snapshot),
+            connectedDevice: connectedDeviceInfo(from: snapshot),
+            recentStatus: recentStatusInfo(from: snapshot)
         )
     }
 
@@ -144,24 +265,24 @@ enum SupportDiagnosticsBuilder {
     }
 
     @MainActor
-    private static func permissionInfo(from model: AppModel) -> SupportDiagnostics.PermissionInfo {
-        SupportDiagnostics.PermissionInfo(
-            screenRecording: model.permissionStatus.hasScreenRecording,
-            accessibility: model.permissionStatus.hasAccessibility,
-            captureReady: model.permissionStatus.isCaptureReady,
-            missingRequirements: model.permissionStatus.missingRequirements.map(\.title)
+    private static func permissionInfo(from snapshot: SupportDiagnosticsSnapshot) -> SupportDiagnostics.PermissionInfo {
+        return SupportDiagnostics.PermissionInfo(
+            screenRecording: snapshot.permissionStatus.hasScreenRecording,
+            accessibility: snapshot.permissionStatus.hasAccessibility,
+            captureReady: snapshot.missingPermissionRequirements.isEmpty,
+            missingRequirements: snapshot.missingPermissionRequirements.map(\.title)
         )
     }
 
     @MainActor
-    private static func displayInfo() -> SupportDiagnostics.DisplayInfo {
-        let displays = NSScreen.screens.enumerated().map { index, screen in
+    private static func displayInfo(from snapshot: SupportDiagnosticsSnapshot) -> SupportDiagnostics.DisplayInfo {
+        let displays = snapshot.displays.enumerated().map { index, display in
             SupportDiagnostics.DisplayInfo.Display(
                 index: index + 1,
-                pixelWidth: Int((screen.frame.width * screen.backingScaleFactor).rounded()),
-                pixelHeight: Int((screen.frame.height * screen.backingScaleFactor).rounded()),
-                scale: Double(screen.backingScaleFactor),
-                isMain: screen == NSScreen.main
+                pixelWidth: Int((display.frame.width * display.backingScaleFactor).rounded()),
+                pixelHeight: Int((display.frame.height * display.backingScaleFactor).rounded()),
+                scale: Double(display.backingScaleFactor),
+                isMain: display.displayID == snapshot.mainDisplayID
             )
         }
 
@@ -169,51 +290,51 @@ enum SupportDiagnosticsBuilder {
     }
 
     @MainActor
-    private static func storageInfo(from model: AppModel) -> SupportDiagnostics.StorageInfo {
+    private static func storageInfo(from snapshot: SupportDiagnosticsSnapshot) -> SupportDiagnostics.StorageInfo {
         SupportDiagnostics.StorageInfo(
-            archiveMaximumSizeMB: model.archiveMaximumSizeMB,
-            archiveCurrentSizeLabel: model.archiveSizeLabel,
-            archiveUsesDefaultLocation: model.usesDefaultArchiveLocation,
-            recycleBinItemCount: model.recycleBinEntries.count,
-            recycleBinRetentionDays: model.recycleBinRetentionDays,
-            clipboardHistoryEnabled: model.clipboardPreferences.isEnabled,
-            clipboardItemCount: model.clipboardHistoryItems.count,
-            clipboardMaximumItems: model.clipboardPreferences.maxItemCount,
-            clipboardMaximumStorageMB: model.clipboardPreferences.maxStorageMB
+            archiveMaximumSizeMB: snapshot.archiveMaximumSizeMB,
+            archiveCurrentSizeLabel: snapshot.archiveCurrentSizeLabel,
+            archiveUsesDefaultLocation: snapshot.archiveUsesDefaultLocation,
+            recycleBinItemCount: snapshot.recycleBinItemCount,
+            recycleBinRetentionDays: snapshot.recycleBinRetentionDays,
+            clipboardHistoryEnabled: snapshot.clipboardHistoryEnabled,
+            clipboardItemCount: snapshot.clipboardItemCount,
+            clipboardMaximumItems: snapshot.clipboardMaximumItems,
+            clipboardMaximumStorageMB: snapshot.clipboardMaximumStorageMB
         )
     }
 
     @MainActor
-    private static func editorInfo(from model: AppModel) -> SupportDiagnostics.EditorInfo {
+    private static func editorInfo(from snapshot: SupportDiagnosticsSnapshot) -> SupportDiagnostics.EditorInfo {
         SupportDiagnostics.EditorInfo(
-            hasScreenshotEditor: model.editorController != nil,
-            annotationCount: model.editorController?.snapshot.annotations.count ?? 0,
-            selectedAnnotationCount: model.editorController?.selectedCount ?? 0,
-            hasVideoEditor: model.videoEditorController != nil,
-            isRecordingVideo: model.isRecordingVideo,
-            activeVideoRecordingKind: model.activeVideoRecording == nil ? nil : "active"
+            hasScreenshotEditor: snapshot.hasScreenshotEditor,
+            annotationCount: snapshot.annotationCount,
+            selectedAnnotationCount: snapshot.selectedAnnotationCount,
+            hasVideoEditor: snapshot.hasVideoEditor,
+            isRecordingVideo: snapshot.isRecordingVideo,
+            activeVideoRecordingKind: snapshot.activeVideoRecordingKind
         )
     }
 
     @MainActor
-    private static func connectedDeviceInfo(from model: AppModel) -> SupportDiagnostics.ConnectedDeviceInfo {
+    private static func connectedDeviceInfo(from snapshot: SupportDiagnosticsSnapshot) -> SupportDiagnostics.ConnectedDeviceInfo {
         SupportDiagnostics.ConnectedDeviceInfo(
-            featureEnabled: model.capabilities.isEnabled(.connectedDeviceCapture),
-            listedDeviceCount: model.connectedDevices.count,
-            previewSessionActive: model.isConnectedDeviceSessionActive,
-            isLoadingDevices: model.isLoadingConnectedDevices,
-            emptyStateMessage: sanitizedStatus(model.connectedDeviceEmptyStateMessage)
+            featureEnabled: snapshot.connectedDeviceFeatureEnabled,
+            listedDeviceCount: snapshot.listedDeviceCount,
+            previewSessionActive: snapshot.previewSessionActive,
+            isLoadingDevices: snapshot.isLoadingDevices,
+            emptyStateMessage: sanitizedStatus(snapshot.connectedDeviceEmptyStateMessage)
         )
     }
 
     @MainActor
-    private static func recentStatusInfo(from model: AppModel) -> SupportDiagnostics.RecentStatusInfo {
+    private static func recentStatusInfo(from snapshot: SupportDiagnosticsSnapshot) -> SupportDiagnostics.RecentStatusInfo {
         SupportDiagnostics.RecentStatusInfo(
-            appError: sanitizedStatus(model.errorMessage),
-            editorError: sanitizedStatus(model.editorController?.errorMessage),
-            videoError: sanitizedStatus(model.videoEditorController?.errorMessage),
-            launchAtLoginStatus: model.launchAtLoginStatus.stateLabel,
-            workingMessage: model.isWorking ? sanitizedStatus(model.workingMessage) : nil
+            appError: sanitizedStatus(snapshot.appError),
+            editorError: sanitizedStatus(snapshot.editorError),
+            videoError: sanitizedStatus(snapshot.videoError),
+            launchAtLoginStatus: snapshot.launchAtLoginStatus,
+            workingMessage: sanitizedStatus(snapshot.workingMessage)
         )
     }
 

@@ -1,10 +1,9 @@
 import AppKit
 import Foundation
-import UniformTypeIdentifiers
 
-extension AppModel {
+extension ClipboardWorkflowModel {
     var clipboardHistoryItems: [ClipboardItem] {
-        clipboardHistoryStore.items
+        items
     }
 
     static func loadClipboardPreferences(from defaults: UserDefaults) -> ClipboardPreferences {
@@ -12,33 +11,33 @@ extension AppModel {
     }
 
     func persistClipboardPreferences() {
-        preferenceStores.clipboard.savePreferences(clipboardPreferences)
+        preferenceStore.savePreferences(preferences)
     }
 
     func showClipboardManager() {
-        if clipboardManagerWindowController == nil {
-            clipboardManagerWindowController = ClipboardManagerWindowController(model: self)
-        }
-
-        clipboardManagerWindowController?.show()
+        dependencies.managerPresenter.showClipboardManager(
+            clipboard: self,
+            workspace: dependencies.systemServices.workspace,
+            bundleIdentifier: dependencies.systemServices.bundle.bundleIdentifier
+        )
     }
 
     func updateClipboardHistoryEnabled(_ isEnabled: Bool) {
-        var preferences = clipboardPreferences
+        var preferences = preferences
         preferences.isEnabled = isEnabled
-        clipboardPreferences = preferences
+        self.preferences = preferences
     }
 
     func updateClipboardMaxItemCount(_ value: Int) {
-        var preferences = clipboardPreferences
+        var preferences = preferences
         preferences.maxItemCount = value
-        clipboardPreferences = preferences
+        self.preferences = preferences
     }
 
     func updateClipboardMaxStorageMB(_ value: Int) {
-        var preferences = clipboardPreferences
+        var preferences = preferences
         preferences.maxStorageMB = value
-        clipboardPreferences = preferences
+        self.preferences = preferences
     }
 
     func addIgnoredClipboardApp(match: String) {
@@ -55,7 +54,7 @@ extension AppModel {
             return
         }
 
-        var preferences = clipboardPreferences
+        var preferences = preferences
         let existingMatches = Set(preferences.ignoredApps.map { $0.match.localizedLowercase })
         guard !existingMatches.contains(normalizedMatch.localizedLowercase) else {
             return
@@ -66,13 +65,14 @@ extension AppModel {
             name: normalizedName.isEmpty ? normalizedMatch : normalizedName,
             match: normalizedMatch
         ))
-        clipboardPreferences = preferences
+        self.preferences = preferences
     }
 
     var clipboardRunningAppIgnoreCandidates: [ClipboardIgnoredApp] {
-        let candidates = NSWorkspace.shared.runningApplications.compactMap { app -> ClipboardIgnoredApp? in
+        let currentBundleIdentifier = dependencies.systemServices.bundle.bundleIdentifier
+        let candidates = dependencies.systemServices.workspace.runningApplications.compactMap { app -> ClipboardIgnoredApp? in
             guard app.activationPolicy == .regular,
-                  app.bundleIdentifier != Bundle.main.bundleIdentifier else {
+                  app.bundleIdentifier != currentBundleIdentifier else {
                 return nil
             }
 
@@ -91,9 +91,10 @@ extension AppModel {
     }
 
     var clipboardRecentSourceAppIgnoreCandidates: [ClipboardIgnoredApp] {
+        let currentBundleIdentifier = dependencies.systemServices.bundle.bundleIdentifier
         let candidates = clipboardHistoryItems.compactMap { item -> ClipboardIgnoredApp? in
             guard let sourceApp = item.sourceApp,
-                  sourceApp.bundleIdentifier != Bundle.main.bundleIdentifier else {
+                  sourceApp.bundleIdentifier != currentBundleIdentifier else {
                 return nil
             }
 
@@ -105,45 +106,27 @@ extension AppModel {
     }
 
     func chooseIgnoredClipboardApp() {
-        let panel = NSOpenPanel()
-        panel.title = "Choose App to Ignore"
-        panel.prompt = "Ignore"
-        panel.message = "Choose an app. \(AppBranding.displayName) will skip clipboard history entries copied from it."
-        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
-        panel.allowedContentTypes = [.applicationBundle]
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        panel.canChooseFiles = true
-
-        guard panel.runModal() == .OK,
-              let appURL = panel.url else {
+        guard let app = dependencies.ignoredAppPresenter.selectIgnoredClipboardApp() else {
             return
         }
 
-        let bundle = Bundle(url: appURL)
-        let displayName = bundle?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
-            ?? bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String
-            ?? appURL.deletingPathExtension().lastPathComponent
-        addIgnoredClipboardApp(
-            name: displayName,
-            match: bundle?.bundleIdentifier ?? displayName
-        )
+        addIgnoredClipboardApp(app)
     }
 
     func removeIgnoredClipboardApp(_ app: ClipboardIgnoredApp) {
-        var preferences = clipboardPreferences
+        var preferences = preferences
         preferences.ignoredApps.removeAll { $0.id == app.id }
-        clipboardPreferences = preferences
+        self.preferences = preferences
     }
 
     func resetIgnoredClipboardApps() {
-        var preferences = clipboardPreferences
+        var preferences = preferences
         preferences.ignoredApps = ClipboardPreferences.defaultIgnoredApps
-        clipboardPreferences = preferences
+        self.preferences = preferences
     }
 
     private func filteredClipboardIgnoreCandidates(_ candidates: [ClipboardIgnoredApp]) -> [ClipboardIgnoredApp] {
-        let ignoredMatches = Set(clipboardPreferences.ignoredApps.map(\.id))
+        let ignoredMatches = Set(preferences.ignoredApps.map(\.id))
         var seenMatches = Set<String>()
 
         return candidates
@@ -157,67 +140,63 @@ extension AppModel {
     }
 
     func clearUnpinnedClipboardItems() {
-        clipboardHistoryStore.clearUnpinned()
+        historyStore.clearUnpinned()
     }
 
     func clearClipboardHistory() {
-        clipboardHistoryStore.clearAll()
+        historyStore.clearAll()
     }
 
     func togglePinnedClipboardItem(_ item: ClipboardItem) {
-        clipboardHistoryStore.togglePinned(item)
+        historyStore.togglePinned(item)
     }
 
     func deleteClipboardItem(_ item: ClipboardItem) {
-        clipboardHistoryStore.delete(item)
+        historyStore.delete(item)
     }
 
     func clipboardPreviewImage(for item: ClipboardItem) -> NSImage? {
-        clipboardHistoryStore.image(for: item)
+        historyStore.image(for: item)
     }
 
     func copyClipboardItem(_ item: ClipboardItem, plainTextOnly: Bool = false) {
-        writeClipboardItemToPasteboard(item, plainTextOnly: plainTextOnly)
+        copyItem(item, plainTextOnly: plainTextOnly)
     }
 
     func copyClipboardItemAsPlainText(_ item: ClipboardItem) {
-        guard item.supportsPlainTextSanitization else {
-            return
-        }
-
-        writeClipboardItemToPasteboard(item, plainTextOnly: true)
+        copyItemAsPlainText(item)
     }
 
     func pasteClipboardItem(_ item: ClipboardItem) {
-        writeClipboardItemToPasteboard(item, plainTextOnly: false)
-        clipboardManagerWindowController?.activatePreviousApplicationForPaste()
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-            Self.sendPasteKeystroke()
-        }
+        pasteItem(
+            item,
+            activatePreviousApplication: { [weak self] in
+                self?.dependencies.managerPresenter.activatePreviousApplicationForPaste()
+            },
+            sendPasteKeystroke: Self.sendPasteKeystroke
+        )
     }
 
     func pasteClipboardItemAsPlainText(_ item: ClipboardItem) {
-        guard item.supportsPlainTextSanitization else {
-            return
-        }
-
-        writeClipboardItemToPasteboard(item, plainTextOnly: true)
-        clipboardManagerWindowController?.activatePreviousApplicationForPaste()
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-            Self.sendPasteKeystroke()
-        }
+        pasteItem(
+            item,
+            plainTextOnly: true,
+            activatePreviousApplication: { [weak self] in
+                self?.dependencies.managerPresenter.activatePreviousApplicationForPaste()
+            },
+            sendPasteKeystroke: Self.sendPasteKeystroke
+        )
     }
 
     func openClipboardSnip(_ item: ClipboardItem) {
         guard case let .snip(_, sessionID, _) = item.kind,
-              let sessionID else {
+              let sessionID,
+              let documents else {
             return
         }
 
-        refreshRecoveryPresentationState()
-        let candidates = allCaptureHistoryEntries + recentSnipEntries + historyEntries
+        documents.refreshRecoveryPresentationState()
+        let candidates = documents.allCaptureHistoryEntries + documents.recentSnipEntries + documents.historyEntries
         guard let entry = candidates
             .filter({ $0.sessionID == sessionID })
             .sorted(by: { $0.savedAt > $1.savedAt })
@@ -225,7 +204,7 @@ extension AppModel {
             return
         }
 
-        restoreHistoryEntry(entry)
+        documents.restoreHistoryEntry(entry)
     }
 
     func recordClipboardSnip(
@@ -233,23 +212,23 @@ extension AppModel {
         searchableText: String = "",
         sessionID: UUID? = nil
     ) {
-        guard clipboardPreferences.isEnabled,
+        guard preferences.isEnabled,
               let image = controller.exportedImage(),
               let pngData = try? ImageExporter.pngData(for: image) else {
             return
         }
 
-        let title = recoverySessionTitle(for: controller, documentURL: currentDocumentURL)
+        let title = documents?.recoverySessionTitle(for: controller, documentURL: documents?.currentDocumentURL) ?? controller.capture.sourceName
         let searchText = [title, searchableText, controller.capture.sourceName]
             .filter { !$0.isEmpty }
             .joined(separator: " ")
 
-        clipboardHistoryStore.recordSnip(
+        historyStore.recordSnip(
             pngData: pngData,
             title: title,
             searchableText: searchText,
             sessionID: sessionID,
-            preferences: clipboardPreferences
+            preferences: preferences
         )
     }
 
@@ -258,12 +237,12 @@ extension AppModel {
         searchableText: String = "",
         sessionID: UUID? = nil
     ) {
-        guard clipboardPreferences.isEnabled else {
+        guard preferences.isEnabled else {
             return
         }
 
-        let preferences = clipboardPreferences
-        let title = recoverySessionTitle(for: controller, documentURL: currentDocumentURL)
+        let preferences = preferences
+        let title = documents?.recoverySessionTitle(for: controller, documentURL: documents?.currentDocumentURL) ?? controller.capture.sourceName
         let searchText = [title, searchableText, controller.capture.sourceName]
             .filter { !$0.isEmpty }
             .joined(separator: " ")
@@ -278,11 +257,11 @@ extension AppModel {
             do {
                 let pngData = try await ClipboardSnipRenderer.renderPNGData(from: renderInput)
 
-                guard let self, self.clipboardPreferences.isEnabled else {
+                guard let self, self.preferences.isEnabled else {
                     return
                 }
 
-                self.clipboardHistoryStore.recordSnip(
+                self.historyStore.recordSnip(
                     pngData: pngData,
                     title: title,
                     searchableText: searchText,
@@ -293,35 +272,6 @@ extension AppModel {
                 // Clipboard history is auxiliary; capture should remain successful.
             }
         }
-    }
-
-    private func writeClipboardItemToPasteboard(_ item: ClipboardItem, plainTextOnly: Bool) {
-        if plainTextOnly, item.plainTextValue == nil {
-            return
-        }
-
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-
-        if plainTextOnly, let text = item.plainTextValue {
-            pasteboard.setString(text, forType: .string)
-            clipboardMonitor.markCurrentPasteboardChangeAsHandled()
-            return
-        }
-
-        switch item.kind {
-        case let .text(text), let .link(text):
-            pasteboard.setString(text, forType: .string)
-        case let .fileURLs(paths):
-            let urls = paths.map { URL(fileURLWithPath: $0) }
-            pasteboard.writeObjects(urls as [NSURL])
-        case .image, .snip:
-            if let data = clipboardHistoryStore.dataForPasteboard(for: item) {
-                pasteboard.setData(data, forType: .png)
-            }
-        }
-
-        clipboardMonitor.markCurrentPasteboardChangeAsHandled()
     }
 
     private static func sendPasteKeystroke() {

@@ -1,11 +1,11 @@
 import SwiftUI
 
 struct LayersWindowView: View {
-    @ObservedObject var model: AppModel
+    @ObservedObject var documents: DocumentWorkflowModel
 
     var body: some View {
         Group {
-            if let controller = model.editorController {
+            if let controller = documents.editorController {
                 LayersListView(controller: controller)
             } else {
                 LayersEmptyStateView(

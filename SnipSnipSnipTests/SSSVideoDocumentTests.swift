@@ -484,8 +484,8 @@ final class SSSVideoDocumentTests: XCTestCase {
             try? FileManager.default.removeItem(at: recoveryRoot)
         }
 
-        model.installVideoController(controller, documentURL: nil, savedSession: nil)
-        model.discardCurrentDocument()
+        model.documents.installVideoController(controller, documentURL: nil, savedSession: nil)
+        model.documents.discardCurrentDocument()
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: sourceURL.path))
         XCTAssertNil(model.videoEditorController)
@@ -512,9 +512,9 @@ final class SSSVideoDocumentTests: XCTestCase {
             try? FileManager.default.removeItem(at: sourceURL)
         }
 
-        model.installVideoController(controller, documentURL: nil, savedSession: nil)
+        model.documents.installVideoController(controller, documentURL: nil, savedSession: nil)
 
-        let didSave = await model.saveVideoDocument(controller, to: packageURL)
+        let didSave = await model.documents.saveVideoDocument(controller, to: packageURL)
 
         XCTAssertTrue(didSave, model.errorMessage ?? "Expected video document save to succeed")
         XCTAssertFalse(FileManager.default.fileExists(atPath: sourceURL.path))

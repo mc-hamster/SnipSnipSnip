@@ -145,7 +145,7 @@ final class EditorController: ObservableObject {
     @Published var cropAspectRatioPreset: CropAspectRatioPreset = .freeform
     private(set) var viewport: EditorViewport
     @Published var persistenceRevision = 0
-    @Published private(set) var cropOutsideOverlayAlpha: CGFloat = AppModel.defaultEditorCropOutsideOverlayAlpha
+    @Published private(set) var cropOutsideOverlayAlpha: CGFloat = AppPreferenceDefaults.editorCropOutsideOverlayAlpha
     @Published private(set) var outOfCapturePatternSettings: EditorOutOfCapturePatternSettings = .default
     @Published var selectedUIMapElementID: UUID?
     @Published private(set) var hoveredUIMapElementID: UUID?
@@ -200,7 +200,7 @@ final class EditorController: ObservableObject {
     init(
         capture: CapturedScreenshot,
         defaults: UserDefaults = .standard,
-        capabilities: AppCapabilitySnapshot = BuildTargetCapabilityProvider().currentSnapshot(),
+        capabilities: AppCapabilitySnapshot,
         textRecognizer: any CaptureTextRecognizing = VisionCaptureTextRecognizer(),
         uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions()
     ) {
@@ -250,7 +250,7 @@ final class EditorController: ObservableObject {
         capture: CapturedScreenshot,
         session: EditorDocumentSession,
         defaults: UserDefaults = .standard,
-        capabilities: AppCapabilitySnapshot = BuildTargetCapabilityProvider().currentSnapshot(),
+        capabilities: AppCapabilitySnapshot,
         textRecognizer: any CaptureTextRecognizing = VisionCaptureTextRecognizer(),
         uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions()
     ) {

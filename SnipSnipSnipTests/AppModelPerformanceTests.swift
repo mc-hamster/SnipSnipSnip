@@ -30,13 +30,13 @@ final class AppModelPerformanceTests: XCTestCase {
         let controller = EditorController(capture: makeCapturedScreenshot())
         model.editorController = controller
 
-        model.scheduleAutosave(for: controller)
+        model.documents.scheduleAutosave(for: controller)
         XCTAssertNotNil(model.pendingAutosaveTask)
 
-        let suspension = model.suspendEditorAutosaveForInteractiveCapture()
+        let suspension = model.capture.suspendEditorAutosaveForInteractiveCapture()
         XCTAssertNil(model.pendingAutosaveTask)
 
-        model.resumeEditorAutosaveAfterInteractiveCapture(suspension)
+        model.capture.resumeEditorAutosaveAfterInteractiveCapture(suspension)
         XCTAssertNotNil(model.pendingAutosaveTask)
 
         model.pendingAutosaveTask?.cancel()
@@ -45,8 +45,6 @@ final class AppModelPerformanceTests: XCTestCase {
     }
 
     func testHideAndRestoreAppWindowRoundTripsVisibleMainWindow() {
-        let model = makeModel()
-        Self.retainedModels.append(model)
         let window = retainForTestLifetime(VisibilityTrackingWindow(
             contentRect: CGRect(x: 0, y: 0, width: 480, height: 320),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -58,11 +56,17 @@ final class AppModelPerformanceTests: XCTestCase {
 
         XCTAssertTrue(window.isVisible)
 
-        let hiddenWindow = model.hideAppWindowIfNeeded(in: [window])
-        XCTAssertTrue(hiddenWindow === window)
+        let presenter = LiveAppWindowPresenter(
+            requestMainWindowPresentation: {},
+            windowProvider: { [window] },
+            keyWindowProvider: { nil },
+            mainWindowProvider: { nil }
+        )
+        let hiddenWindow = presenter.hideAppWindowIfNeeded()
+        XCTAssertNotNil(hiddenWindow)
         XCTAssertFalse(window.isVisible)
 
-        model.restoreAppWindowIfNeeded(hiddenWindow)
+        presenter.restoreAppWindowIfNeeded(hiddenWindow)
         XCTAssertTrue(window.isVisible)
 
         window.orderOut(nil)
@@ -162,7 +166,7 @@ final class AppModelPerformanceTests: XCTestCase {
         let expectation = expectation(description: "capture completed")
 
         Task.detached {
-            await model.performCapture(request: request, minimizeAppWindow: minimizeAppWindow, action)
+            await model.capture.performCapture(request: request, minimizeAppWindow: minimizeAppWindow, action)
             await model.waitForPendingRecoveryWriteTasks()
             expectation.fulfill()
         }
@@ -174,7 +178,7 @@ final class AppModelPerformanceTests: XCTestCase {
         let expectation = expectation(description: "window picker loaded")
 
         Task.detached {
-            await model.loadAvailableWindows(requestAccessIfNeeded: false, presentPicker: false, showErrors: false, includeThumbnails: includeThumbnails)
+            await model.capture.loadAvailableWindows(requestAccessIfNeeded: false, presentPicker: false, showErrors: false, includeThumbnails: includeThumbnails)
             expectation.fulfill()
         }
 
@@ -186,7 +190,7 @@ final class AppModelPerformanceTests: XCTestCase {
         Self.retainedModels.append(model)
 
         let elapsed = await PerformanceBudgetTimer.measure {
-            await model.performCapture(request: .fullscreen, minimizeAppWindow: false) {
+            await model.capture.performCapture(request: .fullscreen, minimizeAppWindow: false) {
                 try await model.captureService.captureCurrentDisplay()
             }
             await model.waitForPendingRecoveryWriteTasks()

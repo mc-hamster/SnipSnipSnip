@@ -120,17 +120,33 @@ private struct OnboardingLayoutMetrics {
 struct OnboardingView: View {
     private static let windowCornerRadius: CGFloat = 14
 
-    @ObservedObject var model: AppModel
+    @ObservedObject var lifecycle: AppLifecycleModel
+    @ObservedObject var capture: CaptureWorkflowModel
+    @ObservedObject var permissions: PermissionWorkflowModel
     private let capabilities: AppCapabilitySnapshot
+    private let skipOnboardingAction: () -> Void
+    private let completeOnboardingAction: () -> Void
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openURL) private var openURL
 
     @State private var selectedStep: OnboardingStep = .welcome
     @State private var launchAtLoginErrorMessage: String?
 
-    init(model: AppModel, capabilities: AppCapabilitySnapshot? = nil) {
-        self.model = model
-        self.capabilities = capabilities ?? model.capabilities
+    init(
+        lifecycle: AppLifecycleModel,
+        capture: CaptureWorkflowModel,
+        permissions: PermissionWorkflowModel,
+        capabilities: AppCapabilitySnapshot,
+        skipOnboarding: @escaping () -> Void,
+        completeOnboarding: @escaping () -> Void
+    ) {
+        self.lifecycle = lifecycle
+        self.capture = capture
+        self.permissions = permissions
+        self.capabilities = capabilities
+        self.skipOnboardingAction = skipOnboarding
+        self.completeOnboardingAction = completeOnboarding
     }
 
     var body: some View {
@@ -159,8 +175,8 @@ struct OnboardingView: View {
         }
         .frame(minWidth: 920, minHeight: 640)
         .task {
-            model.refreshPermissions()
-            model.refreshLaunchAtLoginStatus()
+            permissions.refreshPermissions()
+            lifecycle.refreshLaunchAtLoginStatus()
         }
         .alert("Couldn't Update Launch at Login", isPresented: Binding(get: {
             launchAtLoginErrorMessage != nil
@@ -174,7 +190,7 @@ struct OnboardingView: View {
             }
 
             Button("Open Login Items") {
-                model.openLaunchAtLoginSettings()
+                lifecycle.openLaunchAtLoginSettings()
                 launchAtLoginErrorMessage = nil
             }
         } message: {
@@ -422,7 +438,7 @@ struct OnboardingView: View {
             }
 
             actionGroup {
-                Button("Continue", action: model.requestMissingCapturePermissions)
+                Button("Continue", action: permissions.requestNextMissingSetupRequirement)
                     .buttonStyle(SSSChromeButtonStyle())
 
                 Button("Open Help Guide") {
@@ -456,14 +472,14 @@ struct OnboardingView: View {
                     .toggleStyle(.switch)
                     .controlSize(.large)
 
-                if model.windowUIMapNeedsAccessibilityAccess {
+                if capture.windowUIMapNeedsAccessibilityAccess {
                     VStack(alignment: .leading, spacing: 10) {
                         Label("Window UI Map needs Accessibility access before metadata can be captured.", systemImage: "lock.trianglebadge.exclamationmark.fill")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.orange)
 
                         Button("Continue") {
-                            model.requestAccessibilityAccess()
+                            permissions.requestAccessibilityAccess()
                         }
                         .buttonStyle(SSSChromeButtonStyle(tint: .orange))
                     }
@@ -508,20 +524,20 @@ struct OnboardingView: View {
                     .controlSize(.large)
 
                 HStack {
-                    Label(model.launchAtLoginStatus.stateLabel, systemImage: model.launchAtLoginStatus.systemImage)
+                    Label(lifecycle.launchAtLoginStatus.stateLabel, systemImage: lifecycle.launchAtLoginStatus.systemImage)
                         .font(.headline.weight(.semibold))
                         .foregroundStyle(launchAtLoginColor)
 
                     Spacer(minLength: 12)
                 }
 
-                Text(model.launchAtLoginStatus.detail)
+                Text(lifecycle.launchAtLoginStatus.detail)
                     .font(.body)
                     .foregroundStyle(.white.opacity(0.8))
                     .fixedSize(horizontal: false, vertical: true)
 
-                if model.launchAtLoginStatus.needsSystemSettingsApproval || model.launchAtLoginStatus == .unavailable {
-                    Button("Open Login Items in System Settings", action: model.openLaunchAtLoginSettings)
+                if lifecycle.launchAtLoginStatus.needsSystemSettingsApproval || lifecycle.launchAtLoginStatus == .unavailable {
+                    Button("Open Login Items in System Settings", action: lifecycle.openLaunchAtLoginSettings)
                         .buttonStyle(SSSChromeButtonStyle(tint: .orange))
                 }
             }
@@ -569,12 +585,12 @@ struct OnboardingView: View {
                 .buttonStyle(SSSChromeButtonStyle())
 
                 Button("Open Support Page") {
-                    NSWorkspace.shared.open(AppLinks.support)
+                    openURL(AppLinks.support)
                 }
                 .buttonStyle(SSSChromeButtonStyle(tint: .pink))
 
                 Button("Open Website") {
-                    NSWorkspace.shared.open(AppLinks.website)
+                    openURL(AppLinks.website)
                 }
                 .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
             }
@@ -679,7 +695,7 @@ struct OnboardingView: View {
         requirement: CapturePermissionRequirement,
         metrics: OnboardingLayoutMetrics
     ) -> some View {
-        let hasAccess = model.permissionStatus.hasAccess(to: requirement)
+        let hasAccess = permissions.permissionStatus.hasAccess(to: requirement)
 
         return VStack(alignment: .leading, spacing: 12) {
             ViewThatFits(in: .horizontal) {
@@ -733,9 +749,9 @@ struct OnboardingView: View {
     private func permissionButton(requirement: CapturePermissionRequirement, hasAccess: Bool) -> some View {
         Button(hasAccess ? "Open Settings" : "Continue") {
             if hasAccess {
-                model.openPermissionSettings(requirement)
+                permissions.openPermissionSettings(requirement)
             } else {
-                model.requestPermission(requirement)
+                permissions.requestPermission(requirement)
             }
         }
         .buttonStyle(SSSChromeButtonStyle(tint: hasAccess ? .secondary : .orange))
@@ -813,9 +829,9 @@ struct OnboardingView: View {
 
     private var launchAtLoginBinding: Binding<Bool> {
         Binding(
-            get: { model.launchAtLoginStatus.prefersEnabledToggle },
+            get: { lifecycle.launchAtLoginStatus.prefersEnabledToggle },
             set: { newValue in
-                let result = model.updateLaunchAtLoginEnabled(newValue)
+                let result = lifecycle.updateLaunchAtLoginEnabled(newValue)
 
                 if case let .failed(message) = result {
                     launchAtLoginErrorMessage = message
@@ -826,15 +842,15 @@ struct OnboardingView: View {
 
     private var uiMapBinding: Binding<Bool> {
         Binding(
-            get: { model.uiMapEnabled },
+            get: { capture.uiMapEnabled },
             set: { newValue in
-                model.updateUIMapEnabled(newValue)
+                capture.updateUIMapEnabled(newValue)
             }
         )
     }
 
     private var launchAtLoginColor: Color {
-        switch model.launchAtLoginStatus {
+        switch lifecycle.launchAtLoginStatus {
         case .disabled:
             return .secondary
         case .enabled:
@@ -877,12 +893,12 @@ struct OnboardingView: View {
     }
 
     private func skipOnboarding() {
-        model.skipOnboarding()
+        skipOnboardingAction()
         dismiss()
     }
 
     private func completeOnboarding() {
-        model.completeOnboarding()
+        completeOnboardingAction()
         dismiss()
     }
 }

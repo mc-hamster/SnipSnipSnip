@@ -153,12 +153,19 @@ enum ImageExporter {
         try encodedData(for: image, plan: encodingPlan(for: format, options: options.sanitized))
     }
 
-    static func copyToClipboard(_ image: CGImage) throws {
-        try copyPNGDataToClipboard(pngData(for: image))
+    @MainActor
+    static func copyToClipboard(
+        _ image: CGImage,
+        pasteboard: any PasteboardServicing = SystemPasteboardService()
+    ) throws {
+        try copyPNGDataToClipboard(pngData(for: image), pasteboard: pasteboard)
     }
 
-    static func copyPNGDataToClipboard(_ data: Data) throws {
-        let pasteboard = NSPasteboard.general
+    @MainActor
+    static func copyPNGDataToClipboard(
+        _ data: Data,
+        pasteboard: any PasteboardServicing = SystemPasteboardService()
+    ) throws {
         pasteboard.clearContents()
         pasteboard.setData(data, forType: .png)
     }

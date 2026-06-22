@@ -1,16 +1,8 @@
+import AppKit
 import Foundation
 
-extension AppModel: AutomationHost, AutomationOutputPort {
-    var automationService: AppAutomationService {
-        if let service = cachedAutomationService {
-            return service
-        }
-
-        let service = AppAutomationService(host: self)
-        cachedAutomationService = service
-        return service
-    }
-
+@MainActor
+extension CaptureWorkflowModel {
     var automationCapabilities: AutomationCapabilities {
         AutomationCapabilities(
             supportsURLScheme: true,
@@ -18,18 +10,19 @@ extension AppModel: AutomationHost, AutomationOutputPort {
             supportsCLI: true,
             supportsCapturePresets: true,
             supportsPrivateCapture: true,
-            supportsUIMap: capabilities.isEnabled(.uiMap),
-            supportsScrollingCapture: capabilities.isEnabled(.scrollingCapture),
-            supportsConnectedDeviceCapture: capabilities.isEnabled(.connectedDeviceCapture),
-            supportsCurrentEditorExport: editorController != nil
+            supportsUIMap: dependencies.capabilities.isEnabled(.uiMap),
+            supportsScrollingCapture: dependencies.capabilities.isEnabled(.scrollingCapture),
+            supportsConnectedDeviceCapture: dependencies.capabilities.isEnabled(.connectedDeviceCapture),
+            supportsCurrentEditorExport: documents?.activeCaptureEditorController != nil
         )
     }
 
     var automationPermissionSummary: AutomationPermissionSummary {
-        refreshPermissions()
+        dependencies.permissions.refreshPermissions()
+        let status = dependencies.permissions.permissionStatus
         return AutomationPermissionSummary(
-            hasScreenRecording: permissionStatus.hasScreenRecording,
-            hasAccessibility: permissionStatus.hasAccessibility,
+            hasScreenRecording: status.hasScreenRecording,
+            hasAccessibility: status.hasAccessibility,
             hasMicrophone: false
         )
     }
@@ -47,37 +40,14 @@ extension AppModel: AutomationHost, AutomationOutputPort {
         }
     }
 
-    var automationCurrentEditorController: EditorController? {
-        editorController
-    }
-
-    var automationImageExportOptions: ImageExportOptions {
-        screenshotImageExportOptions
-    }
-
-    func requestAutomationEditorPresentation() {
-        requestMainWindowPresentation()
-    }
-
-    func markAutomationPasteboardChangeAsHandled() {
-        clipboardMonitor.markCurrentPasteboardChangeAsHandled()
-    }
-
-    func saveAutomationDocument(_ controller: EditorController, to url: URL) async -> Bool {
-        await saveDocument(controller, to: url)
-    }
-
-    func floatAutomationReference() {
-        floatCurrentEditorReference()
-    }
-}
-
-extension AppModel {
     func runAutomationPreset(
         _ command: RunPresetAutomationCommand,
         request: AutomationRequest
     ) async -> AutomationResultEnvelope {
-        guard !isWorking, !isRecordingVideo, !isConnectedDeviceSessionActive else {
+        guard let automationCoordinator else {
+            return .failure(requestID: request.id, code: .internalError, message: "Automation workflow is not available.")
+        }
+        guard !isWorking, video?.isRecording != true, !isConnectedDeviceSessionActive else {
             return .failure(requestID: request.id, code: .busy, message: "SnipSnipSnip is already working.")
         }
 
@@ -95,7 +65,7 @@ extension AppModel {
                     if request.interactionPolicy == .never {
                         throw AutomationExecutionError(code: .targetUnavailable, message: "The preset's saved window is not available.")
                     }
-                    capturePreset(preset)
+                    automationCoordinator.capturePreset(preset)
                     return acceptedInteractiveResult(requestID: request.id, kind: "preset", warning: "The preset needs a replacement window. SnipSnipSnip opened its normal replacement workflow.")
                 }
                 try await automationCaptureWindow(resolvedWindow, runOptions: preset.options, request: request)
@@ -105,7 +75,7 @@ extension AppModel {
                 try await automationCaptureFullscreen(runOptions: preset.options, request: request)
             }
 
-            return await automationResultAfterCurrentEditorOutput(request: request, kind: preset.target.automationKind, sourceName: preset.name)
+            return await automationCoordinator.automationResultAfterCurrentEditorOutput(request, preset.target.automationKind, preset.name)
         } catch let error as AutomationExecutionError {
             return .failure(requestID: request.id, code: error.code, message: error.message)
         } catch {
@@ -118,7 +88,10 @@ extension AppModel {
         _ command: CaptureAutomationCommand,
         request: AutomationRequest
     ) async -> AutomationResultEnvelope {
-        guard !isWorking, !isRecordingVideo, !isConnectedDeviceSessionActive else {
+        guard let automationCoordinator else {
+            return .failure(requestID: request.id, code: .internalError, message: "Automation workflow is not available.")
+        }
+        guard !isWorking, video?.isRecording != true, !isConnectedDeviceSessionActive else {
             return .failure(requestID: request.id, code: .busy, message: "SnipSnipSnip is already working.")
         }
 
@@ -128,18 +101,18 @@ extension AppModel {
             switch command.target {
             case .fullscreen:
                 try await automationCaptureFullscreen(runOptions: runOptions, request: request)
-                return await automationResultAfterCurrentEditorOutput(request: request, kind: "fullscreen", sourceName: editorController?.capture.sourceName)
+                return await automationCoordinator.automationResultAfterCurrentEditorOutput(request, "fullscreen", documents?.activeCaptureEditorController?.capture.sourceName)
             case .frontmostWindow:
                 try await automationCaptureFrontmostWindow(runOptions: runOptions, request: request)
-                return await automationResultAfterCurrentEditorOutput(request: request, kind: "frontmostWindow", sourceName: editorController?.capture.sourceName)
+                return await automationCoordinator.automationResultAfterCurrentEditorOutput(request, "frontmostWindow", documents?.activeCaptureEditorController?.capture.sourceName)
             case .region(let selector):
                 try await automationCaptureRegion(selector.rect, runOptions: runOptions, request: request)
-                return await automationResultAfterCurrentEditorOutput(request: request, kind: "region", sourceName: editorController?.capture.sourceName)
+                return await automationCoordinator.automationResultAfterCurrentEditorOutput(request, "region", documents?.activeCaptureEditorController?.capture.sourceName)
             case .interactiveRegion:
-                beginRegionCapture()
+                automationCoordinator.beginRegionCapture()
                 return acceptedInteractiveResult(requestID: request.id, kind: "interactiveRegion", warning: nil)
             case .interactiveWindow:
-                presentWindowPicker()
+                automationCoordinator.presentWindowPicker()
                 return acceptedInteractiveResult(requestID: request.id, kind: "interactiveWindow", warning: nil)
             }
         } catch let error as AutomationExecutionError {
@@ -151,35 +124,15 @@ extension AppModel {
     }
 
     func repeatLastAutomationCapture(_ request: AutomationRequest) async -> AutomationResultEnvelope {
-        guard canRepeatLastCapture else {
+        guard let automationCoordinator else {
+            return .failure(requestID: request.id, code: .internalError, message: "Automation workflow is not available.")
+        }
+        guard automationCoordinator.canRepeatLastCapture() else {
             return .failure(requestID: request.id, code: .targetUnavailable, message: "There is no repeatable last capture.")
         }
 
-        repeatLastCapture()
+        automationCoordinator.repeatLastCapture()
         return acceptedInteractiveResult(requestID: request.id, kind: "repeatLastCapture", warning: "Repeat last capture uses the normal app workflow and may finish after this automation result is returned.")
-    }
-
-    func openAutomationDocument(
-        _ command: OpenDocumentAutomationCommand,
-        request: AutomationRequest
-    ) async -> AutomationResultEnvelope {
-        guard FileManager.default.fileExists(atPath: command.url.path) else {
-            return .failure(requestID: request.id, code: .targetUnavailable, message: "Document does not exist.")
-        }
-
-        openDocument(at: command.url)
-        return await automationResultAfterCurrentEditorOutput(request: request, kind: "openDocument", sourceName: command.url.lastPathComponent)
-    }
-
-    func exportCurrentAutomationDocument(
-        _ command: ExportCurrentAutomationCommand,
-        request: AutomationRequest
-    ) async -> AutomationResultEnvelope {
-        var exportRequest = request
-        if case .appDefault = exportRequest.output {
-            exportRequest.output = .saveFile(AutomationFileOutput(url: nil, format: command.format))
-        }
-        return await automationResultAfterCurrentEditorOutput(request: exportRequest, kind: "exportCurrent", sourceName: editorController?.capture.sourceName)
     }
 
     private func automationCaptureFullscreen(
@@ -187,7 +140,7 @@ extension AppModel {
         request: AutomationRequest
     ) async throws {
         try await automationWithPrivateCapture(request.privacy.privateCapture) {
-            await performCapture(request: .fullscreen, minimizeAppWindow: true, runOptions: runOptions) {
+            await performCapture(request: .fullscreen, minimizeAppWindow: true, runOptions: runOptions) { [captureService] in
                 try await captureService.captureFullscreen(
                     mode: runOptions.fullscreenDisplayMode,
                     selectedDisplayID: runOptions.selectedFullscreenDisplayID
@@ -201,7 +154,7 @@ extension AppModel {
         request: AutomationRequest
     ) async throws {
         try await automationWithPrivateCapture(request.privacy.privateCapture) {
-            await performCapture(request: .frontmostWindow, minimizeAppWindow: true, runOptions: runOptions) {
+            await performCapture(request: .frontmostWindow, minimizeAppWindow: true, runOptions: runOptions) { [captureService] in
                 let window = try await captureService.frontmostWindow()
                 return try await captureService.captureWindow(window)
             }
@@ -214,7 +167,7 @@ extension AppModel {
         request: AutomationRequest
     ) async throws {
         try await automationWithPrivateCapture(request.privacy.privateCapture) {
-            await performCapture(request: .window(window), minimizeAppWindow: true, runOptions: runOptions) {
+            await performCapture(request: .window(window), minimizeAppWindow: true, runOptions: runOptions) { [captureService] in
                 try await captureService.captureWindow(window)
             }
         }
@@ -226,13 +179,16 @@ extension AppModel {
         request: AutomationRequest
     ) async throws {
         try await automationWithPrivateCapture(request.privacy.privateCapture) {
-            await performCapture(request: .region(rect), minimizeAppWindow: true, runOptions: runOptions) {
+            await performCapture(request: .region(rect), minimizeAppWindow: true, runOptions: runOptions) { [captureService] in
                 try await captureService.captureRegion(in: rect)
             }
         }
     }
 
     private func automationWithPrivateCapture(_ privateCapture: Bool, _ operation: () async throws -> Void) async throws {
+        guard automationCoordinator != nil else {
+            throw AutomationExecutionError(code: .internalError, message: "Automation workflow is not available.")
+        }
         let previous = privateCaptureEnabled
         if privateCapture {
             privateCaptureEnabled = true
@@ -241,26 +197,6 @@ extension AppModel {
             privateCaptureEnabled = previous
         }
         try await operation()
-    }
-
-    private func automationResultAfterCurrentEditorOutput(
-        request: AutomationRequest,
-        kind: String,
-        sourceName: String?
-    ) async -> AutomationResultEnvelope {
-        do {
-            let outputs = try await AutomationOutputService(port: self).write(request.output)
-            return .success(
-                requestID: request.id,
-                payload: .capture(AutomationCaptureSummary(kind: kind, sourceName: sourceName, acceptedInteractiveWorkflow: false)),
-                outputs: outputs.isEmpty ? [.init(kind: .none)] : outputs
-            )
-        } catch let error as AutomationExecutionError {
-            return .failure(requestID: request.id, code: error.code, message: error.message)
-        } catch {
-            present(error)
-            return .failure(requestID: request.id, code: .outputFailed, message: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
-        }
     }
 
     private func acceptedInteractiveResult(requestID: UUID, kind: String, warning: String?) -> AutomationResultEnvelope {
@@ -333,21 +269,6 @@ private extension CapturePresetTarget {
             return "frontmostWindow"
         case .fullscreen:
             return "fullscreen"
-        }
-    }
-}
-
-extension ImageExportFormat {
-    init?(automationFormat: AutomationExportFormat) {
-        switch automationFormat {
-        case .png:
-            self = .png
-        case .jpeg:
-            self = .jpeg
-        case .pdf:
-            self = .pdf
-        case .sss:
-            return nil
         }
     }
 }

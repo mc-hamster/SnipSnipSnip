@@ -46,7 +46,13 @@ struct ScrollingCaptureProgress: Equatable, Sendable {
 }
 
 struct ScrollingCaptureService {
-    var captureService: any ScreenCaptureServiceType = ScreenCaptureService()
+    var captureService: any ScreenCaptureServiceType
+    let permissions: any CapturePermissionServicing
+
+    init(captureService: any ScreenCaptureServiceType, permissions: any CapturePermissionServicing) {
+        self.captureService = captureService
+        self.permissions = permissions
+    }
 
     func capture(
         request: ScrollingCaptureRequest,

@@ -73,7 +73,7 @@ nonisolated enum SSSDocumentPackage {
         session: EditorDocumentSession,
         recognizedText: String? = nil,
         uiMap: UIMapSnapshot? = nil,
-        includeUIMapSearchText: Bool = BuildTargetCapabilityProvider().currentSnapshot().isEnabled(.uiMap)
+        includeUIMapSearchText: Bool
     ) -> String {
         let annotationText = annotationSearchText(for: session)
         return buildSearchableText(
@@ -87,7 +87,7 @@ nonisolated enum SSSDocumentPackage {
     nonisolated static func searchableText(
         for document: EditableScreenshotDocument,
         recognizedText: String? = nil,
-        includeUIMapSearchText: Bool = BuildTargetCapabilityProvider().currentSnapshot().isEnabled(.uiMap)
+        includeUIMapSearchText: Bool
     ) -> String {
         searchableText(
             sourceName: document.capture.sourceName,
@@ -103,10 +103,10 @@ nonisolated enum SSSDocumentPackage {
         previewImage: CGImage,
         to url: URL,
         baseImageStorage: BaseImageStorage = .embedded,
-        includeUIMapSearchText: Bool = BuildTargetCapabilityProvider().currentSnapshot().isEnabled(.uiMap)
+        includeUIMapSearchText: Bool,
+        files: any FileSystemServicing = SystemFileService()
     ) throws {
-        let fileManager = FileManager.default
-        let temporaryDirectoryURL = fileManager.temporaryDirectory
+        let temporaryDirectoryURL = files.temporaryDirectory
             .appendingPathComponent("\(temporaryDirectoryPrefix)\(UUID().uuidString)", isDirectory: true)
         let previewData = try ImageExporter.pngData(for: previewImage)
         let baseImageAssetName: String
@@ -120,13 +120,13 @@ nonisolated enum SSSDocumentPackage {
             baseImageAssetName = assetName
             embeddedBaseImageData = nil
 
-            if !fileManager.fileExists(atPath: fileURL.path) {
+            if !files.fileExists(atPath: fileURL.path) {
                 let baseImageData = try ImageExporter.pngData(for: document.capture.image)
-                try fileManager.createDirectory(
+                try files.createDirectory(
                     at: fileURL.deletingLastPathComponent(),
                     withIntermediateDirectories: true
                 )
-                try baseImageData.write(to: fileURL, options: .atomic)
+                try files.writeData(baseImageData, to: fileURL, options: .atomic)
             }
         }
 
@@ -161,40 +161,40 @@ nonisolated enum SSSDocumentPackage {
         let manifestData = try encoder.encode(manifest)
 
         defer {
-            try? fileManager.removeItem(at: temporaryDirectoryURL)
+            try? files.removeItem(at: temporaryDirectoryURL)
         }
 
-        try? fileManager.removeItem(at: temporaryDirectoryURL)
-        try fileManager.createDirectory(at: temporaryDirectoryURL, withIntermediateDirectories: false, attributes: nil)
-        try manifestData.write(to: temporaryDirectoryURL.appendingPathComponent(manifestFilename), options: .atomic)
+        try? files.removeItem(at: temporaryDirectoryURL)
+        try files.createDirectory(at: temporaryDirectoryURL, withIntermediateDirectories: false)
+        try files.writeData(manifestData, to: temporaryDirectoryURL.appendingPathComponent(manifestFilename), options: .atomic)
         if let embeddedBaseImageData {
-            try embeddedBaseImageData.write(to: temporaryDirectoryURL.appendingPathComponent(baseImageFilename), options: .atomic)
+            try files.writeData(embeddedBaseImageData, to: temporaryDirectoryURL.appendingPathComponent(baseImageFilename), options: .atomic)
         }
-        try writeImageOverlayAssets(from: document.session, to: temporaryDirectoryURL)
-        try previewData.write(to: temporaryDirectoryURL.appendingPathComponent(previewImageFilename), options: .atomic)
+        try writeImageOverlayAssets(from: document.session, to: temporaryDirectoryURL, files: files)
+        try files.writeData(previewData, to: temporaryDirectoryURL.appendingPathComponent(previewImageFilename), options: .atomic)
 
-        if fileManager.fileExists(atPath: url.path) {
-            _ = try fileManager.replaceItemAt(url, withItemAt: temporaryDirectoryURL)
+        if files.fileExists(atPath: url.path) {
+            try files.replaceItemAt(url, withItemAt: temporaryDirectoryURL)
         } else {
-            try fileManager.moveItem(at: temporaryDirectoryURL, to: url)
+            try files.moveItem(at: temporaryDirectoryURL, to: url)
         }
     }
 
-    nonisolated static func load(from url: URL) throws -> EditableScreenshotDocument {
-        let fileManager = FileManager.default
-        var isDirectory = ObjCBool(false)
-
-        guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+    nonisolated static func load(
+        from url: URL,
+        files: any FileSystemServicing = SystemFileService()
+    ) throws -> EditableScreenshotDocument {
+        guard files.directoryExists(at: url) else {
             throw SSSDocumentError.invalidPackage
         }
 
         let manifestURL = url.appendingPathComponent(manifestFilename)
 
-        guard fileManager.fileExists(atPath: manifestURL.path) else {
+        guard files.fileExists(atPath: manifestURL.path) else {
             throw SSSDocumentError.missingManifest
         }
 
-        let manifestHeader = try loadManifestHeader(from: manifestURL)
+        let manifestHeader = try loadManifestHeader(from: manifestURL, files: files)
 
         guard manifestHeader.formatIdentifier == formatIdentifier else {
             throw SSSDocumentError.unsupportedFormatIdentifier(manifestHeader.formatIdentifier)
@@ -204,22 +204,22 @@ nonisolated enum SSSDocumentPackage {
             throw SSSDocumentError.unsupportedFormatVersion(manifestHeader.formatVersion)
         }
 
-        let manifest = try loadManifest(from: manifestURL)
+        let manifest = try loadManifest(from: manifestURL, files: files)
 
         let baseImageURL = assetURL(named: manifest.assets.baseImage, in: url)
 
-        guard fileManager.fileExists(atPath: baseImageURL.path) else {
+        guard files.fileExists(atPath: baseImageURL.path) else {
             throw SSSDocumentError.missingBaseImage
         }
 
-        let baseImageData = try Data(contentsOf: baseImageURL)
+        let baseImageData = try files.readData(from: baseImageURL)
 
         guard let imageSource = CGImageSourceCreateWithData(baseImageData as CFData, nil),
               let baseImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
             throw SSSDocumentError.invalidImageData
         }
 
-        let imageOverlays = try loadImageOverlayAssets(manifest.assets.imageOverlays ?? [], from: url)
+        let imageOverlays = try loadImageOverlayAssets(manifest.assets.imageOverlays ?? [], from: url, files: files)
         let capture = try manifest.capture.capturedScreenshot(
             with: baseImage,
             coordinateContract: manifest.coordinateContract
@@ -228,18 +228,19 @@ nonisolated enum SSSDocumentPackage {
         return EditableScreenshotDocument(capture: capture, session: session)
     }
 
-    nonisolated static func compatibilityStatus(at url: URL) -> PackageCompatibilityStatus {
-        let fileManager = FileManager.default
+    nonisolated static func compatibilityStatus(
+        at url: URL,
+        files: any FileSystemServicing = SystemFileService()
+    ) -> PackageCompatibilityStatus {
         let manifestURL = url.appendingPathComponent(manifestFilename)
-        var isDirectory = ObjCBool(false)
 
-        guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue,
-              fileManager.fileExists(atPath: manifestURL.path) else {
+        guard files.directoryExists(at: url),
+              files.fileExists(atPath: manifestURL.path) else {
             return .invalidManifest
         }
 
         do {
-            let manifestHeader = try loadManifestHeader(from: manifestURL)
+            let manifestHeader = try loadManifestHeader(from: manifestURL, files: files)
 
             guard manifestHeader.formatIdentifier == formatIdentifier else {
                 return .unsupportedFormatIdentifier(manifestHeader.formatIdentifier)
@@ -255,27 +256,36 @@ nonisolated enum SSSDocumentPackage {
         }
     }
 
-    nonisolated static func previewAssetURL(in packageURL: URL) -> URL? {
+    nonisolated static func previewAssetURL(
+        in packageURL: URL,
+        files: any FileSystemServicing = SystemFileService()
+    ) -> URL? {
         let manifestURL = packageURL.appendingPathComponent(manifestFilename)
-        let assetName = (try? loadManifest(from: manifestURL).assets.previewImage) ?? previewImageFilename
+        let assetName = (try? loadManifest(from: manifestURL, files: files).assets.previewImage) ?? previewImageFilename
         let previewURL = assetURL(named: assetName, in: packageURL)
-        return FileManager.default.fileExists(atPath: previewURL.path) ? previewURL : nil
+        return files.fileExists(atPath: previewURL.path) ? previewURL : nil
     }
 
-    nonisolated static func loadPreviewImage(from url: URL) throws -> CGImage? {
-        guard let previewURL = previewAssetURL(in: url) else {
+    nonisolated static func loadPreviewImage(
+        from url: URL,
+        files: any FileSystemServicing = SystemFileService()
+    ) throws -> CGImage? {
+        guard let previewURL = previewAssetURL(in: url, files: files) else {
             return nil
         }
 
         return try loadImage(from: previewURL)
     }
 
-    nonisolated static func loadDisplayPreview(from url: URL) throws -> DisplayPreview? {
-        if let storedPreview = try loadStoredDisplayPreview(from: url, maxPixelDimension: nil) {
+    nonisolated static func loadDisplayPreview(
+        from url: URL,
+        files: any FileSystemServicing = SystemFileService()
+    ) throws -> DisplayPreview? {
+        if let storedPreview = try loadStoredDisplayPreview(from: url, maxPixelDimension: nil, files: files) {
             return storedPreview
         }
 
-        let document = try load(from: url)
+        let document = try load(from: url, files: files)
 
         let pinnedUIMapElements = document.session.currentSnapshot.pinnedUIMapElementIDs.compactMap {
             document.capture.uiMap?.element(matching: $0)
@@ -296,19 +306,23 @@ nonisolated enum SSSDocumentPackage {
             return DisplayPreview(image: renderedPreview, source: "rerendered-package")
         }
 
-        if let storedPreview = try loadPreviewImage(from: url) {
+        if let storedPreview = try loadPreviewImage(from: url, files: files) {
             return DisplayPreview(image: storedPreview, source: "stored-preview-fallback")
         }
 
         return nil
     }
 
-    nonisolated static func loadThumbnailDisplayPreview(from url: URL, maxPixelDimension: Int) throws -> DisplayPreview? {
-        if let storedPreview = try loadStoredDisplayPreview(from: url, maxPixelDimension: maxPixelDimension) {
+    nonisolated static func loadThumbnailDisplayPreview(
+        from url: URL,
+        maxPixelDimension: Int,
+        files: any FileSystemServicing = SystemFileService()
+    ) throws -> DisplayPreview? {
+        if let storedPreview = try loadStoredDisplayPreview(from: url, maxPixelDimension: maxPixelDimension, files: files) {
             return storedPreview
         }
 
-        guard let displayPreview = try loadDisplayPreview(from: url) else {
+        guard let displayPreview = try loadDisplayPreview(from: url, files: files) else {
             return nil
         }
 
@@ -318,10 +332,13 @@ nonisolated enum SSSDocumentPackage {
         )
     }
 
-    nonisolated static func loadSearchableText(from packageURL: URL) -> String {
+    nonisolated static func loadSearchableText(
+        from packageURL: URL,
+        files: any FileSystemServicing = SystemFileService()
+    ) -> String {
         let manifestURL = packageURL.appendingPathComponent(manifestFilename)
 
-        guard let manifest = try? loadManifest(from: manifestURL) else {
+        guard let manifest = try? loadManifest(from: manifestURL, files: files) else {
             return ""
         }
 
@@ -331,10 +348,11 @@ nonisolated enum SSSDocumentPackage {
     nonisolated static func updateRecognizedText(
         _ recognizedText: String?,
         in packageURL: URL,
-        includeUIMapSearchText: Bool = BuildTargetCapabilityProvider().currentSnapshot().isEnabled(.uiMap)
+        includeUIMapSearchText: Bool,
+        files: any FileSystemServicing = SystemFileService()
     ) throws -> String {
         let manifestURL = packageURL.appendingPathComponent(manifestFilename)
-        var manifest = try loadManifest(from: manifestURL)
+        var manifest = try loadManifest(from: manifestURL, files: files)
         let annotationText = manifest.metadata?.search?.annotationText ?? ""
         let searchableText = buildSearchableText(
             sourceName: manifest.capture.sourceName,
@@ -351,15 +369,18 @@ nonisolated enum SSSDocumentPackage {
             )
         )
 
-        try saveManifest(manifest, to: manifestURL)
+        try saveManifest(manifest, to: manifestURL, files: files)
         return searchableText
     }
 
-    nonisolated private static func loadManifest(from manifestURL: URL) throws -> DocumentManifest {
+    nonisolated private static func loadManifest(
+        from manifestURL: URL,
+        files: any FileSystemServicing
+    ) throws -> DocumentManifest {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
 
-        let manifestData = try Data(contentsOf: manifestURL)
+        let manifestData = try files.readData(from: manifestURL)
 
         do {
             return try decoder.decode(DocumentManifest.self, from: manifestData)
@@ -368,20 +389,27 @@ nonisolated enum SSSDocumentPackage {
         }
     }
 
-    nonisolated private static func loadManifestHeader(from manifestURL: URL) throws -> DocumentManifestHeader {
+    nonisolated private static func loadManifestHeader(
+        from manifestURL: URL,
+        files: any FileSystemServicing
+    ) throws -> DocumentManifestHeader {
         do {
-            return try JSONDecoder().decode(DocumentManifestHeader.self, from: Data(contentsOf: manifestURL))
+            return try JSONDecoder().decode(DocumentManifestHeader.self, from: files.readData(from: manifestURL))
         } catch {
             throw SSSDocumentError.invalidManifest
         }
     }
 
-    nonisolated private static func saveManifest(_ manifest: DocumentManifest, to manifestURL: URL) throws {
+    nonisolated private static func saveManifest(
+        _ manifest: DocumentManifest,
+        to manifestURL: URL,
+        files: any FileSystemServicing
+    ) throws {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         let data = try encoder.encode(manifest)
-        try data.write(to: manifestURL, options: .atomic)
+        try files.writeData(data, to: manifestURL, options: .atomic)
     }
 
     nonisolated private static func imageOverlayAssetRecords(in session: EditorDocumentSession) -> [ImageOverlayAssetRecord] {
@@ -394,7 +422,11 @@ nonisolated enum SSSDocumentPackage {
         }
     }
 
-    nonisolated private static func writeImageOverlayAssets(from session: EditorDocumentSession, to packageURL: URL) throws {
+    nonisolated private static func writeImageOverlayAssets(
+        from session: EditorDocumentSession,
+        to packageURL: URL,
+        files: any FileSystemServicing
+    ) throws {
         let overlays = imageOverlayShapes(in: session)
 
         guard !overlays.isEmpty else {
@@ -402,13 +434,13 @@ nonisolated enum SSSDocumentPackage {
         }
 
         let directoryURL = packageURL.appendingPathComponent(imageOverlayAssetsDirectoryName, isDirectory: true)
-        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        try files.createDirectory(at: directoryURL, withIntermediateDirectories: true)
 
         var writtenIDs: Set<UUID> = []
         for shape in overlays where !writtenIDs.contains(shape.assetID) {
             writtenIDs.insert(shape.assetID)
             let data = try ImageExporter.pngData(for: shape.image)
-            try data.write(to: directoryURL.appendingPathComponent("\(shape.assetID.uuidString).png"), options: .atomic)
+            try files.writeData(data, to: directoryURL.appendingPathComponent("\(shape.assetID.uuidString).png"), options: .atomic)
         }
     }
 
@@ -431,7 +463,11 @@ nonisolated enum SSSDocumentPackage {
         return overlays
     }
 
-    nonisolated private static func loadImageOverlayAssets(_ records: [ImageOverlayAssetRecord], from packageURL: URL) throws -> [UUID: CGImage] {
+    nonisolated private static func loadImageOverlayAssets(
+        _ records: [ImageOverlayAssetRecord],
+        from packageURL: URL,
+        files: any FileSystemServicing
+    ) throws -> [UUID: CGImage] {
         var images: [UUID: CGImage] = [:]
 
         for record in records {
@@ -447,12 +483,16 @@ nonisolated enum SSSDocumentPackage {
         return URL(fileURLWithPath: (path as NSString).standardizingPath)
     }
 
-    nonisolated private static func loadStoredDisplayPreview(from url: URL, maxPixelDimension: Int?) throws -> DisplayPreview? {
-        guard let previewURL = previewAssetURL(in: url) else {
+    nonisolated private static func loadStoredDisplayPreview(
+        from url: URL,
+        maxPixelDimension: Int?,
+        files: any FileSystemServicing
+    ) throws -> DisplayPreview? {
+        guard let previewURL = previewAssetURL(in: url, files: files) else {
             return nil
         }
 
-        let manifest = try loadManifest(from: url.appendingPathComponent(manifestFilename))
+        let manifest = try loadManifest(from: url.appendingPathComponent(manifestFilename), files: files)
         let expectedSize = ScreenshotPresentationRenderer.outputSize(
             for: manifest.session.currentSnapshot.cropRect.cgRect.gscIntegralStandardized.size,
             presentation: manifest.session.currentSnapshot.presentation?.screenshotPresentation ?? .plain

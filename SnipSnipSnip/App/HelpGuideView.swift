@@ -54,7 +54,7 @@ struct HelpGuideView: View {
     @State private var searchText = ""
     private let capabilities: AppCapabilitySnapshot
 
-    init(capabilities: AppCapabilitySnapshot = BuildTargetCapabilityProvider().currentSnapshot()) {
+    init(capabilities: AppCapabilitySnapshot) {
         self.capabilities = capabilities
     }
 
@@ -462,14 +462,14 @@ struct HelpGuideView: View {
                             title: "Start and control a recording",
                             steps: [
                                 "Choose Record Region, Record Window, or Record Fullscreen.",
-                                "Region and Pick On Screen recording start from the live desktop selection overlay, with the live loupe available while you aim.",
+                                "Record Region and Pick On Screen recording start from the live desktop selection overlay, with the live loupe available while you aim. Drag to choose a custom region, or click a window to record the whole window.",
                                 "Use the floating recording control to Pause, Resume, or Stop.",
                                 "When the recording finishes, use the video editor to review and trim the result."
                             ]
                         ),
                         HelpArticleSection(
                             title: "Choose recording options",
-                            body: "Open Settings > Recording to set the default quality, frame rate, fullscreen display mode, cursor visibility, click rings, system audio, and microphone narration. During an active recording, use the floating recording control to turn system audio or microphone narration on or off for that recording only."
+                            body: "Open Settings > Recording to set the default quality, frame rate, fullscreen display mode, cursor visibility, click rings, system audio, and microphone narration. During an active recording, use the floating recording control's color-coded System Audio and Mic switches to turn those sources on or off for that recording only."
                         ),
                     ] + (connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(

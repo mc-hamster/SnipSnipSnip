@@ -38,7 +38,7 @@ final class SupportDiagnosticsTests: XCTestCase {
         ]
 
         let diagnostics = SupportDiagnosticsBuilder.make(
-            model: model,
+            snapshot: supportDiagnosticsSnapshot(from: model),
             generatedAt: Date(timeIntervalSince1970: 1_700_000_100)
         )
 
@@ -50,7 +50,7 @@ final class SupportDiagnosticsTests: XCTestCase {
         XCTAssertEqual(diagnostics.connectedDevice.listedDeviceCount, 1)
         XCTAssertEqual(diagnostics.connectedDevice.previewSessionActive, false)
         XCTAssertEqual(diagnostics.connectedDevice.emptyStateMessage, "Unlock [path].")
-        XCTAssertEqual(diagnostics.recentStatus.launchAtLoginStatus, model.launchAtLoginStatus.stateLabel)
+        XCTAssertEqual(diagnostics.recentStatus.launchAtLoginStatus, model.lifecycle.launchAtLoginStatus.stateLabel)
     }
 
     func testBuilderSanitizesStatusStringsAndOmitsSensitiveContent() throws {
@@ -66,7 +66,7 @@ final class SupportDiagnosticsTests: XCTestCase {
         model.workingMessage = "Writing /private/tmp/SnipSnipSnip/session/file.sss"
         model.isWorking = true
 
-        let diagnostics = SupportDiagnosticsBuilder.make(model: model)
+        let diagnostics = SupportDiagnosticsBuilder.make(snapshot: supportDiagnosticsSnapshot(from: model))
         let json = String(data: try diagnostics.jsonData(), encoding: .utf8)!
 
         XCTAssertFalse(json.contains("/Users/example"))
@@ -89,6 +89,21 @@ final class SupportDiagnosticsTests: XCTestCase {
             recoveryStore: recoveryStore,
             shouldCheckCompatibilityOnLaunch: false,
             shouldStartArchiveMaintenance: false
+        )
+    }
+
+    private func supportDiagnosticsSnapshot(from model: AppModel) -> SupportDiagnosticsSnapshot {
+        SupportDiagnosticsSnapshot.make(
+            capabilities: model.capabilities,
+            permissions: model.environment.permissions,
+            systemServices: model.environment.systemServices,
+            lifecycle: model.lifecycle,
+            permissionWorkflow: model.permissions,
+            capture: model.capture,
+            documents: model.documents,
+            clipboard: model.clipboard,
+            video: model.video,
+            archive: model.archive
         )
     }
 }

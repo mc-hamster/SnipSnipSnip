@@ -126,7 +126,8 @@ final class ClipboardHistoryStoreTests: XCTestCase {
         let sourceApp = ClipboardPasteboardReader.sourceApp(
             forPasteboardTypeNames: ["public.utf8-plain-text", ClipboardPasteboardReader.remoteClipboardTypeName],
             explicitSourceIdentifier: nil,
-            fallbackSourceApp: fallback
+            fallbackSourceApp: fallback,
+            workspace: TestWorkspaceService()
         )
 
         XCTAssertEqual(sourceApp?.name, "Universal Clipboard")
@@ -142,7 +143,8 @@ final class ClipboardHistoryStoreTests: XCTestCase {
                 ClipboardPasteboardReader.sourceTypeName
             ],
             explicitSourceIdentifier: "com.apple.Safari",
-            fallbackSourceApp: fallback
+            fallbackSourceApp: fallback,
+            workspace: TestWorkspaceService()
         )
 
         XCTAssertEqual(sourceApp?.bundleIdentifier, "com.apple.Safari")

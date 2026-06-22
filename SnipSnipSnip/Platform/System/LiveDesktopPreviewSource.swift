@@ -108,7 +108,7 @@ final class LiveDesktopPreviewSource {
     }
 
     private func fetchShareableContent() async throws -> SCShareableContent {
-        let result: ShareableContentResult = try await withCheckedThrowingContinuation { continuation in
+        let result: LiveDesktopPreviewShareableContentResult = try await withCheckedThrowingContinuation { continuation in
             SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: true) { content, error in
                 if let error {
                     continuation.resume(throwing: error)
@@ -120,12 +120,15 @@ final class LiveDesktopPreviewSource {
                     return
                 }
 
-                continuation.resume(returning: ShareableContentResult(content: content))
+                continuation.resume(returning: LiveDesktopPreviewShareableContentResult(content: content))
             }
         }
-
         return result.content
     }
+}
+
+nonisolated private struct LiveDesktopPreviewShareableContentResult: @unchecked Sendable {
+    let content: SCShareableContent
 }
 
 private final class LiveDesktopPreviewSession: NSObject, SCStreamOutput {
@@ -239,8 +242,4 @@ private final class LiveDesktopPreviewSession: NSObject, SCStreamOutput {
 nonisolated private struct LiveDesktopPreviewFrame: @unchecked Sendable {
     let displayID: CGDirectDisplayID
     let image: CGImage
-}
-
-nonisolated private struct ShareableContentResult: @unchecked Sendable {
-    let content: SCShareableContent
 }

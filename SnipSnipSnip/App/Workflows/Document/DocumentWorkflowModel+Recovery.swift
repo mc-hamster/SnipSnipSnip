@@ -1,6 +1,6 @@
 import Foundation
 
-extension AppModel {
+extension DocumentWorkflowModel {
     func restorePendingRecovery() {
         guard let pendingRecoverySession else {
             return
@@ -146,9 +146,9 @@ extension AppModel {
         let request = RecoveryPresentationRefreshRequest(
             store: recoveryStore,
             currentSessionID: currentRecoverySessionID,
-            captureHistoryLimit: Self.captureHistoryLimit,
-            recentSnipLimit: Self.recentSnipLimit,
-            recycleBinLimit: Self.recycleBinLimit
+            captureHistoryLimit: DocumentWorkflowConstants.captureHistoryLimit,
+            recentSnipLimit: DocumentWorkflowConstants.recentSnipLimit,
+            recycleBinLimit: DocumentWorkflowConstants.recycleBinLimit
         )
 
         pendingRecoveryRefreshTask = Task { @MainActor [weak self] in
@@ -171,7 +171,7 @@ extension AppModel {
     func scheduleAutosave(for controller: EditorController) {
         pendingAutosaveTask?.cancel()
 
-        guard interactiveCaptureAutosaveSuspensionDepth == 0 else {
+        guard !isInteractiveCaptureAutosaveSuspended else {
             pendingAutosaveTask = nil
             return
         }
@@ -189,7 +189,7 @@ extension AppModel {
 
         pendingAutosaveTask = Task { @MainActor [weak self, weak controller] in
             do {
-                try await Task.sleep(nanoseconds: Self.autosaveDebounceNanoseconds)
+                try await self?.systemServices.scheduler.sleep(nanoseconds: DocumentWorkflowConstants.autosaveDebounceNanoseconds)
             } catch {
                 return
             }
@@ -219,6 +219,63 @@ extension AppModel {
         currentDocumentURL == nil || AutosaveState(controller: controller, documentURL: currentDocumentURL) != savedEditorAutosaveState
     }
 
+    func suspendAutosaveForInteractiveCapture() -> InteractiveCaptureAutosaveSuspension {
+        let suspension = InteractiveCaptureAutosaveSuspension(
+            editorControllerID: editorController.map(ObjectIdentifier.init)
+        )
+        pendingAutosaveTask?.cancel()
+        pendingAutosaveTask = nil
+        return suspension
+    }
+
+    func resumeAutosaveAfterInteractiveCapture(_ suspension: InteractiveCaptureAutosaveSuspension) {
+        guard let controller = editorController,
+              suspension.editorControllerID == ObjectIdentifier(controller),
+              shouldAutosave(for: controller) else {
+            return
+        }
+
+        scheduleAutosave(for: controller)
+    }
+
+    func prepareForArchiveClear() async {
+        pendingAutosaveTask?.cancel()
+        pendingAutosaveTask = nil
+
+        let pendingWriteTasks = Array(pendingRecoveryWriteTasks.values)
+        pendingRecoveryWriteTasks.removeAll()
+        pendingWriteTasks.forEach { $0.cancel() }
+
+        for task in pendingWriteTasks {
+            await task.value
+        }
+    }
+
+    func rebindRecoveryStore(_ store: DocumentRecoveryStore) {
+        pendingAutosaveTask?.cancel()
+        pendingAutosaveTask = nil
+        pendingRecoveryRefreshTask?.cancel()
+        pendingRecoveryRefreshTask = nil
+        pendingCaptureHistorySearchTask?.cancel()
+        pendingCaptureHistorySearchTask = nil
+        pendingRecoveryWriteTasks.values.forEach { $0.cancel() }
+        pendingRecoveryWriteTasks.removeAll()
+        lastAutosavedState = nil
+        recoveryStore = store
+    }
+
+    func reseedRecoverySessionAfterArchiveChange() {
+        guard let controller = editorController else {
+            currentRecoverySessionID = nil
+            refreshRecoveryPresentationState()
+            return
+        }
+
+        currentRecoverySessionID = createRecoverySessionIfNeeded(for: controller, documentURL: currentDocumentURL)
+        refreshRecoveryPresentationState()
+        recordRecoveryCheckpoint(for: controller, label: hasUnsavedChanges ? "Autosave" : "Saved", pendingRecovery: hasUnsavedChanges)
+    }
+
     func recordRecoveryCheckpoint(for controller: EditorController, label: String, pendingRecovery: Bool) {
         guard let currentRecoverySessionID else {
             return
@@ -226,7 +283,7 @@ extension AppModel {
 
         controller.commitPendingTextEdits()
 
-        let taskID = UUID()
+        let taskID = systemServices.ids.uuid()
         let controllerID = ObjectIdentifier(controller)
         let autosaveState = AutosaveState(controller: controller, documentURL: currentDocumentURL)
         let payload = RecoveryCheckpointWritePayload(

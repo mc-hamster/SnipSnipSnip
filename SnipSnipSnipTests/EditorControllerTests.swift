@@ -120,7 +120,7 @@ final class EditorControllerTests: XCTestCase {
         let controller = makeController(snapshot: snapshot, defaults: defaults)
         let documentURL = rootURL.appendingPathComponent("TypingBenchmark.sss")
 
-        model.installEditorController(controller, documentURL: documentURL, savedSession: controller.documentSession)
+        model.documents.installEditorController(controller, documentURL: documentURL, savedSession: controller.documentSession)
 
         var currentText = controller.selectedText
         let elapsed = ContinuousClock().measure {
@@ -134,7 +134,7 @@ final class EditorControllerTests: XCTestCase {
         XCTAssertLessThan(elapsed, .seconds(1))
         XCTAssertTrue(model.hasUnsavedChanges)
 
-        model.resetEditorSessionState()
+        model.documents.resetEditorSessionState()
         try? FileManager.default.removeItem(at: rootURL)
     }
 
@@ -1117,7 +1117,7 @@ final class EditorControllerTests: XCTestCase {
         model.uiMapEnabled = true
         model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
 
-        try model.completeCapture(
+        try model.capture.completeCapture(
             makeCapturedScreenshot(
                 image: makeCoordinateImage(width: 64, height: 48),
                 kind: .window,
@@ -1136,7 +1136,7 @@ final class EditorControllerTests: XCTestCase {
         XCTAssertFalse(model.editorController?.isProcessingUIMap == true)
         XCTAssertEqual(uiMapCaptureService.captureCallCount, 1)
 
-        model.resetEditorSessionState()
+        model.documents.resetEditorSessionState()
         try? FileManager.default.removeItem(at: rootURL)
     }
 
@@ -1156,7 +1156,7 @@ final class EditorControllerTests: XCTestCase {
         model.uiMapEnabled = true
         model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
 
-        try model.completeCapture(
+        try model.capture.completeCapture(
             makeCapturedScreenshot(image: makeCoordinateImage(width: 64, height: 48)),
             request: .region(CGRect(x: 0, y: 0, width: 64, height: 48)),
             isPrivateCapture: false
@@ -1166,7 +1166,7 @@ final class EditorControllerTests: XCTestCase {
         XCTAssertFalse(model.editorController?.isProcessingUIMap == true)
         XCTAssertEqual(uiMapCaptureService.captureCallCount, 0)
 
-        model.resetEditorSessionState()
+        model.documents.resetEditorSessionState()
         try? FileManager.default.removeItem(at: rootURL)
     }
 
@@ -1185,7 +1185,7 @@ final class EditorControllerTests: XCTestCase {
         model.autoCopyEnabled = false
         model.uiMapEnabled = false
 
-        try model.completeCapture(
+        try model.capture.completeCapture(
             makeCapturedScreenshot(image: makeCoordinateImage(width: 64, height: 48)),
             request: .region(CGRect(x: 0, y: 0, width: 64, height: 48)),
             isPrivateCapture: false
@@ -1194,7 +1194,7 @@ final class EditorControllerTests: XCTestCase {
         XCTAssertNil(model.editorController?.capture.uiMap)
         XCTAssertEqual(uiMapCaptureService.captureCallCount, 0)
 
-        model.resetEditorSessionState()
+        model.documents.resetEditorSessionState()
         try? FileManager.default.removeItem(at: rootURL)
     }
 
@@ -1219,7 +1219,7 @@ final class EditorControllerTests: XCTestCase {
         model.uiMapEnabled = true
         model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
 
-        try model.completeCapture(
+        try model.capture.completeCapture(
             makeCapturedScreenshot(
                 image: makeCoordinateImage(width: 64, height: 48),
                 kind: .window,
@@ -1233,7 +1233,7 @@ final class EditorControllerTests: XCTestCase {
         XCTAssertEqual(model.editorController?.capture.uiMap, existingUIMap)
         XCTAssertEqual(uiMapCaptureService.captureCallCount, 0)
 
-        model.resetEditorSessionState()
+        model.documents.resetEditorSessionState()
         try? FileManager.default.removeItem(at: rootURL)
     }
 
@@ -1263,7 +1263,7 @@ final class EditorControllerTests: XCTestCase {
         model.uiMapEnabled = true
         model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
 
-        try model.completeCapture(
+        try model.capture.completeCapture(
             makeCapturedScreenshot(
                 image: makeCoordinateImage(width: 64, height: 48),
                 kind: .window,
@@ -1283,7 +1283,7 @@ final class EditorControllerTests: XCTestCase {
             "No UI Map metadata was available for this window."
         )
 
-        model.resetEditorSessionState()
+        model.documents.resetEditorSessionState()
     }
 
     @MainActor
@@ -1498,7 +1498,7 @@ final class EditorControllerTests: XCTestCase {
         model.autoCopyEnabled = false
         model.privateCaptureEnabled = true
 
-        try model.completeCapture(
+        try model.capture.completeCapture(
             makeCapturedScreenshot(image: makeCoordinateImage(width: 32, height: 24)),
             request: .region(CGRect(x: 0, y: 0, width: 32, height: 24)),
             isPrivateCapture: true
@@ -1509,7 +1509,7 @@ final class EditorControllerTests: XCTestCase {
         XCTAssertTrue(store.allHistoryEntries().isEmpty)
         XCTAssertTrue(store.recycledHistoryEntries().isEmpty)
 
-        model.resetEditorSessionState()
+        model.documents.resetEditorSessionState()
         try? FileManager.default.removeItem(at: rootURL)
     }
 
@@ -1522,7 +1522,7 @@ final class EditorControllerTests: XCTestCase {
         model.autoCopyEnabled = false
         model.privateCaptureEnabled = true
 
-        try model.completeCapture(
+        try model.capture.completeCapture(
             makeCapturedScreenshot(image: makeCoordinateImage(width: 32, height: 24)),
             request: .region(CGRect(x: 0, y: 0, width: 32, height: 24)),
             isPrivateCapture: false
@@ -1531,7 +1531,7 @@ final class EditorControllerTests: XCTestCase {
         XCTAssertNotNil(model.editorController)
         XCTAssertNotNil(model.currentRecoverySessionID)
 
-        model.resetEditorSessionState()
+        model.documents.resetEditorSessionState()
         try? FileManager.default.removeItem(at: rootURL)
     }
 
@@ -1541,19 +1541,19 @@ final class EditorControllerTests: XCTestCase {
         let model = retainForTestLifetime(AppModel(defaults: defaults, shouldCheckCompatibilityOnLaunch: false))
         model.privateCaptureEnabled = false
 
-        let latchedPrivateCapture = model.beginCapturePrivacyLock()
-        model.updatePrivateCaptureEnabled(true)
+        let latchedPrivateCapture = model.capture.beginCapturePrivacyLock()
+        model.capture.updatePrivateCaptureEnabled(true)
 
         XCTAssertFalse(latchedPrivateCapture)
         XCTAssertFalse(model.privateCaptureEnabled)
-        XCTAssertFalse(model.canChangePrivateCapture)
+        XCTAssertFalse(model.capture.canChangePrivateCapture)
         XCTAssertNotNil(model.errorMessage)
 
-        model.endCapturePrivacyLock()
-        model.dismissError()
-        model.updatePrivateCaptureEnabled(true)
+        model.capture.endCapturePrivacyLock()
+        model.lifecycle.dismissError()
+        model.capture.updatePrivateCaptureEnabled(true)
 
-        XCTAssertTrue(model.canChangePrivateCapture)
+        XCTAssertTrue(model.capture.canChangePrivateCapture)
         XCTAssertTrue(model.privateCaptureEnabled)
         XCTAssertNil(model.errorMessage)
     }
@@ -1562,7 +1562,7 @@ final class EditorControllerTests: XCTestCase {
     func testAppModelDoesNotPresentCancellationErrors() {
         let model = retainForTestLifetime(AppModel(defaults: makeTestDefaults(), shouldCheckCompatibilityOnLaunch: false))
 
-        model.present(CancellationError())
+        model.capture.present(CancellationError())
 
         XCTAssertNil(model.errorMessage)
     }
@@ -1916,7 +1916,7 @@ final class EditorControllerTests: XCTestCase {
         XCTAssertTrue(controller.viewport.canScrollHorizontally)
         XCTAssertTrue(controller.viewport.canScrollVertically)
         XCTAssertTrue(presentation.showsFocusedCropChrome)
-        XCTAssertEqual(presentation.overlayAlpha, AppModel.defaultEditorCropOutsideOverlayAlpha, accuracy: 0.001)
+        XCTAssertEqual(presentation.overlayAlpha, AppPreferenceDefaults.editorCropOutsideOverlayAlpha, accuracy: 0.001)
         XCTAssertEqual(presentation.cropRect, expectedCropRect)
     }
 
@@ -1961,7 +1961,7 @@ final class EditorControllerTests: XCTestCase {
         }
 
         XCTAssertTrue(presentation.showsFocusedCropChrome)
-        XCTAssertEqual(presentation.overlayAlpha, AppModel.defaultEditorCropOutsideOverlayAlpha, accuracy: 0.001)
+        XCTAssertEqual(presentation.overlayAlpha, AppPreferenceDefaults.editorCropOutsideOverlayAlpha, accuracy: 0.001)
         XCTAssertGreaterThan(controller.viewport.zoomScale, 1, "Zoomed fit should focus on the cropped area, not the full image")
     }
 

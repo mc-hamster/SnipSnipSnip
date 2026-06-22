@@ -1,8 +1,4 @@
-import AVFoundation
-import CoreMediaIO
-import CoreGraphics
 import Foundation
-import IOKit
 
 nonisolated struct ConnectedAppleDevice: Identifiable, Equatable, Sendable {
     let id: String
@@ -89,9 +85,14 @@ nonisolated protocol ConnectedDeviceCaptureServiceType: Sendable {
 
 nonisolated struct ConnectedDeviceCaptureService: ConnectedDeviceCaptureServiceType {
     private let capabilities: AppCapabilitySnapshot
+    private let platform: any ConnectedDevicePlatform
 
-    init(capabilities: AppCapabilitySnapshot = BuildTargetCapabilityProvider().currentSnapshot()) {
+    init(
+        capabilities: AppCapabilitySnapshot,
+        platform: any ConnectedDevicePlatform
+    ) {
         self.capabilities = capabilities
+        self.platform = platform
     }
 
     func listDevices() async -> [ConnectedAppleDevice] {
@@ -99,11 +100,7 @@ nonisolated struct ConnectedDeviceCaptureService: ConnectedDeviceCaptureServiceT
             return []
         }
 
-#if APP_STORE_BUILD
-        return []
-#else
-        return await ConnectedDeviceAVFoundationBridge.listDevices()
-#endif
+        return await platform.listDevices()
     }
 
     func unavailableReason() async -> ConnectedDeviceCaptureError {
@@ -111,11 +108,7 @@ nonisolated struct ConnectedDeviceCaptureService: ConnectedDeviceCaptureServiceT
             return .publicScreenCaptureUnavailable
         }
 
-#if APP_STORE_BUILD
-        return .publicScreenCaptureUnavailable
-#else
-        return await ConnectedDeviceAVFoundationBridge.unavailableReason()
-#endif
+        return await platform.unavailableReason()
     }
 
     func videoAuthorizationStatus() async -> ConnectedDeviceVideoAuthorizationStatus {
@@ -123,11 +116,7 @@ nonisolated struct ConnectedDeviceCaptureService: ConnectedDeviceCaptureServiceT
             return .denied
         }
 
-#if APP_STORE_BUILD
-        return .denied
-#else
-        return ConnectedDeviceAVFoundationBridge.videoAuthorizationStatus()
-#endif
+        return await platform.videoAuthorizationStatus()
     }
 
     func makePreviewSession(
@@ -138,11 +127,7 @@ nonisolated struct ConnectedDeviceCaptureService: ConnectedDeviceCaptureServiceT
             throw ConnectedDeviceCaptureError.publicScreenCaptureUnavailable
         }
 
-#if APP_STORE_BUILD
-        throw ConnectedDeviceCaptureError.publicScreenCaptureUnavailable
-#else
-        return try await ConnectedDeviceAVFoundationBridge.makePreviewSession(for: device, preferences: preferences)
-#endif
+        return try await platform.makePreviewSession(for: device, preferences: preferences)
     }
 }
 
@@ -151,232 +136,3 @@ nonisolated enum ConnectedDeviceCaptureMenu {
     static let emptyStateMessage = ConnectedDeviceCaptureError.noConnectedDevice.errorDescription
         ?? "No iPhone or iPad connected."
 }
-
-#if !APP_STORE_BUILD
-nonisolated private enum ConnectedDeviceAVFoundationBridge {
-    static func listDevices() async -> [ConnectedAppleDevice] {
-        guard hasRequiredBundleCaptureConfiguration else {
-            return []
-        }
-
-        enableWiredScreenCaptureDevices()
-
-        return captureDevices().map { device in
-            ConnectedAppleDevice(
-                id: device.uniqueID,
-                name: device.localizedName,
-                modelName: device.modelID.isEmpty ? nil : device.modelID
-            )
-        }
-    }
-
-    static func unavailableReason() async -> ConnectedDeviceCaptureError {
-        if let error = missingBundleCaptureConfigurationError {
-            return error
-        }
-
-        enableWiredScreenCaptureDevices()
-
-        switch videoAuthorizationStatus() {
-        case .denied:
-            return .cameraPermissionDenied
-        case .authorized:
-            break
-        case .notDetermined:
-            if usbConnectedMobileDevices().isEmpty, captureDevices().isEmpty {
-                return .noConnectedDevice
-            }
-
-            return .cameraPermissionNotDetermined
-        }
-
-        if let usbDevice = usbConnectedMobileDevices().first {
-            return .usbDeviceStreamUnavailable(usbDevice.displayName)
-        }
-
-        return .noConnectedDevice
-    }
-
-    static func videoAuthorizationStatus() -> ConnectedDeviceVideoAuthorizationStatus {
-        switch AVCaptureDevice.authorizationStatus(for: .video) {
-        case .authorized:
-            return .authorized
-        case .notDetermined:
-            return .notDetermined
-        case .denied, .restricted:
-            return .denied
-        @unknown default:
-            return .denied
-        }
-    }
-
-    static func makePreviewSession(
-        for device: ConnectedAppleDevice,
-        preferences: VideoRecordingPreferences
-    ) async throws -> ConnectedDevicePreviewSession {
-        if let error = missingBundleCaptureConfigurationError {
-            throw error
-        }
-
-        enableWiredScreenCaptureDevices()
-
-        guard await ensureVideoAccess() else {
-            throw ConnectedDeviceCaptureError.cameraPermissionDenied
-        }
-
-        guard let captureDevice = captureDevices().first(where: { $0.uniqueID == device.id }) else {
-            throw ConnectedDeviceCaptureError.deviceDisconnected(device.displayName)
-        }
-
-        return try ConnectedDevicePreviewSession(
-            device: device,
-            captureDevice: captureDevice,
-            preferences: preferences
-        )
-    }
-
-    private static func ensureVideoAccess() async -> Bool {
-        switch AVCaptureDevice.authorizationStatus(for: .video) {
-        case .authorized:
-            return true
-        case .notDetermined:
-            return await AVCaptureDevice.requestAccess(for: .video)
-        case .denied, .restricted:
-            return false
-        @unknown default:
-            return false
-        }
-    }
-
-    private static var hasRequiredBundleCaptureConfiguration: Bool {
-        missingBundleCaptureConfigurationError == nil
-    }
-
-    private static var missingBundleCaptureConfigurationError: ConnectedDeviceCaptureError? {
-        let requiredKeys = [
-            "NSCameraUsageDescription",
-            "NSCameraUseExternalDeviceType",
-            "NSCameraUseContinuityCameraDeviceType",
-        ]
-        let missingKeys = requiredKeys.filter { key in
-            Bundle.main.object(forInfoDictionaryKey: key) == nil
-        }
-
-        guard !missingKeys.isEmpty else {
-            return nil
-        }
-
-        return .missingCaptureConfiguration(missingKeys)
-    }
-
-    private static func captureDevices() -> [AVCaptureDevice] {
-        enableWiredScreenCaptureDevices()
-
-        let muxedDevices = discoverySession(mediaType: .muxed).devices
-        let namedMobileVideoDevices = discoverySession(mediaType: .video).devices
-            .filter { device in
-                let foldedName = device.localizedName.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-                return foldedName.contains("iphone") || foldedName.contains("ipad")
-            }
-
-        return (muxedDevices + namedMobileVideoDevices).stableUniquedByUniqueID()
-    }
-
-    private static func discoverySession(mediaType: AVMediaType) -> AVCaptureDevice.DiscoverySession {
-        AVCaptureDevice.DiscoverySession(
-            deviceTypes: [.external, .continuityCamera],
-            mediaType: mediaType,
-            position: .unspecified
-        )
-    }
-
-    private static func enableWiredScreenCaptureDevices() {
-        var propertyAddress = CMIOObjectPropertyAddress(
-            mSelector: CMIOObjectPropertySelector(kCMIOHardwarePropertyAllowScreenCaptureDevices),
-            mScope: CMIOObjectPropertyScope(kCMIOObjectPropertyScopeGlobal),
-            mElement: CMIOObjectPropertyElement(kCMIOObjectPropertyElementMain)
-        )
-        var allow: UInt32 = 1
-
-        _ = CMIOObjectSetPropertyData(
-            CMIOObjectID(kCMIOObjectSystemObject),
-            &propertyAddress,
-            0,
-            nil,
-            UInt32(MemoryLayout<UInt32>.size),
-            &allow
-        )
-    }
-
-    private static func usbConnectedMobileDevices() -> [ConnectedAppleDevice] {
-        guard let matching = IOServiceMatching("IOUSBHostDevice") else {
-            return []
-        }
-
-        var iterator: io_iterator_t = 0
-        guard IOServiceGetMatchingServices(kIOMainPortDefault, matching, &iterator) == KERN_SUCCESS else {
-            return []
-        }
-        defer { IOObjectRelease(iterator) }
-
-        var devices: [ConnectedAppleDevice] = []
-        var service = IOIteratorNext(iterator)
-
-        while service != 0 {
-            defer { IOObjectRelease(service) }
-
-            if let device = connectedAppleMobileDevice(from: service) {
-                devices.append(device)
-            }
-
-            service = IOIteratorNext(iterator)
-        }
-
-        return devices
-    }
-
-    private static func connectedAppleMobileDevice(from service: io_object_t) -> ConnectedAppleDevice? {
-        let vendorID = registryNumber("idVendor", from: service)?.intValue
-        guard vendorID == 1452 else {
-            return nil
-        }
-
-        let productName = registryString("USB Product Name", from: service)
-            ?? registryString("kUSBProductString", from: service)
-            ?? "Apple mobile device"
-        let foldedName = productName.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-        guard foldedName.contains("iphone") || foldedName.contains("ipad") else {
-            return nil
-        }
-
-        let serial = registryString("USB Serial Number", from: service)
-            ?? registryString("kUSBSerialNumberString", from: service)
-            ?? UUID().uuidString
-
-        return ConnectedAppleDevice(id: "usb:\(serial)", name: productName)
-    }
-
-    private static func registryString(_ key: String, from service: io_object_t) -> String? {
-        IORegistryEntryCreateCFProperty(service, key as CFString, kCFAllocatorDefault, 0)?
-            .takeRetainedValue() as? String
-    }
-
-    private static func registryNumber(_ key: String, from service: io_object_t) -> NSNumber? {
-        IORegistryEntryCreateCFProperty(service, key as CFString, kCFAllocatorDefault, 0)?
-            .takeRetainedValue() as? NSNumber
-    }
-}
-
-private extension Array where Element == AVCaptureDevice {
-    nonisolated func stableUniquedByUniqueID() -> [AVCaptureDevice] {
-        var seenIDs: Set<String> = []
-        var uniqueDevices: [AVCaptureDevice] = []
-
-        for device in self where seenIDs.insert(device.uniqueID).inserted {
-            uniqueDevices.append(device)
-        }
-
-        return uniqueDevices
-    }
-}
-#endif

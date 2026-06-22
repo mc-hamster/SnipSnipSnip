@@ -1,10 +1,7 @@
-import AppKit
 import AVFoundation
-import AVFAudio
 import CoreMedia
 import Foundation
 import os
-@preconcurrency import ScreenCaptureKit
 
 enum ScreenRecordingError: LocalizedError {
     case permissionDenied
@@ -51,8 +48,37 @@ enum ScreenRecordingError: LocalizedError {
 }
 
 struct ScreenRecordingService {
+    let permissions: any CapturePermissionServicing
+    let platform: any ScreenRecordingPlatform
+    let capturePlatform: any ScreenCapturePlatform
+    let workspace: any WorkspaceServicing
+    let screens: any ScreenTopologyProviding
+    let files: any FileSystemServicing
+    let mouse: any MouseLocationProviding
+    let clock: any ClockProviding
+
+    init(
+        permissions: any CapturePermissionServicing,
+        platform: any ScreenRecordingPlatform,
+        capturePlatform: any ScreenCapturePlatform,
+        workspace: any WorkspaceServicing,
+        screens: any ScreenTopologyProviding,
+        files: any FileSystemServicing,
+        mouse: any MouseLocationProviding,
+        clock: any ClockProviding
+    ) {
+        self.permissions = permissions
+        self.platform = platform
+        self.capturePlatform = capturePlatform
+        self.workspace = workspace
+        self.screens = screens
+        self.files = files
+        self.mouse = mouse
+        self.clock = clock
+    }
+
     func startFullscreenRecording(preferences: VideoRecordingPreferences) async throws -> ScreenRecordingSession {
-        guard CapturePermissionStatus.current().hasScreenRecording else {
+        guard permissions.currentStatus().hasScreenRecording else {
             throw ScreenRecordingError.permissionDenied
         }
 
@@ -65,11 +91,9 @@ struct ScreenRecordingService {
             mode: preferences.fullscreenDisplayMode,
             selectedDisplayID: preferences.selectedFullscreenDisplayID
         )
-        let filter = fullscreenTarget.filter
         let sourceRect = fullscreenTarget.bounds.gscIntegralStandardized
         let configuration = streamConfiguration(
-            for: filter,
-            sourceRect: fullscreenTarget.sourceRect,
+            for: fullscreenTarget.target,
             fallbackBounds: sourceRect,
             preferences: preferences
         )
@@ -78,14 +102,14 @@ struct ScreenRecordingService {
             kind: .fullscreen,
             sourceName: fullscreenTarget.sourceName,
             bounds: sourceRect,
-            filter: filter,
+            target: fullscreenTarget.target,
             configuration: configuration,
             preferences: preferences
         )
     }
 
     func startRegionRecording(in region: CGRect, preferences: VideoRecordingPreferences) async throws -> ScreenRecordingSession {
-        guard CapturePermissionStatus.current().hasScreenRecording else {
+        guard permissions.currentStatus().hasScreenRecording else {
             throw ScreenRecordingError.permissionDenied
         }
 
@@ -108,19 +132,20 @@ struct ScreenRecordingService {
             throw ScreenRecordingError.currentDisplayUnavailable
         }
 
-        let filter = displayRecordingFilter(for: display, content: content)
-        filter.includeMenuBar = true
-        let displaySnapshot = DisplaySnapshot(
-            displayID: display.displayID,
-            name: displayName(for: display.displayID),
-            frame: display.frame,
-            scale: 1
+        let sourceRect = regionRecordingSourceRect(for: normalizedRegion, in: display)
+        let target = ScreenRecordingTarget(
+            source: .display(
+                display.displayID,
+                excludingProcessID: ProcessInfo.processInfo.processIdentifier,
+                includeMenuBar: true
+            ),
+            contentBounds: display.frame.gscIntegralStandardized,
+            pointPixelScale: display.scale,
+            sourceRect: sourceRect
         )
-        let sourceRect = regionRecordingSourceRect(for: normalizedRegion, in: displaySnapshot)
 
         let configuration = streamConfiguration(
-            for: filter,
-            sourceRect: sourceRect,
+            for: target,
             fallbackBounds: normalizedRegion,
             preferences: preferences
         )
@@ -129,7 +154,7 @@ struct ScreenRecordingService {
             kind: .region,
             sourceName: "Region",
             bounds: normalizedRegion,
-            filter: filter,
+            target: target,
             configuration: configuration,
             preferences: preferences
         )
@@ -140,7 +165,7 @@ struct ScreenRecordingService {
     }
 
     func startWindowRecording(_ window: CaptureWindowSummary, preferences: VideoRecordingPreferences) async throws -> ScreenRecordingSession {
-        guard CapturePermissionStatus.current().hasScreenRecording else {
+        guard permissions.currentStatus().hasScreenRecording else {
             throw ScreenRecordingError.permissionDenied
         }
 
@@ -148,31 +173,42 @@ struct ScreenRecordingService {
 
         let content = try await fetchShareableContent()
 
-        guard let sourceWindow = content.windows.first(where: { $0.windowID == window.id }) else {
+        guard let sourceWindow = content.windows.first(where: { $0.id == window.id }) else {
             throw ScreenRecordingError.noWindowsAvailable
         }
 
-        let filter = SCContentFilter(desktopIndependentWindow: sourceWindow)
+        let target = ScreenRecordingTarget(
+            source: .window(sourceWindow.id),
+            contentBounds: sourceWindow.frame.gscIntegralStandardized,
+            pointPixelScale: displayScale(forCaptureFrame: sourceWindow.frame, displays: content.displays),
+            sourceRect: nil
+        )
         let configuration = streamConfiguration(
-            for: filter,
-            sourceRect: nil,
+            for: target,
             fallbackBounds: sourceWindow.frame,
             preferences: preferences
         )
-        configuration.ignoreShadowsSingleWindow = false
 
         return try await startRecording(
             kind: .window,
             sourceName: window.displayTitle,
             bounds: sourceWindow.frame.gscIntegralStandardized,
-            filter: filter,
+            target: target,
             configuration: configuration,
             preferences: preferences
         )
     }
 
     func resolveWindowTarget(_ window: CaptureWindowSummary) async throws -> CaptureWindowSummary {
-        let captureService = ScreenCaptureService()
+        let captureService = ScreenCaptureService(
+            permissions: permissions,
+            platform: capturePlatform,
+            workspace: workspace,
+            screens: screens,
+            mouse: mouse,
+            windowFocus: NullApplicationWindowFocusService(),
+            clock: clock
+        )
         return try await captureService.resolveWindowTarget(window)
     }
 
@@ -180,11 +216,11 @@ struct ScreenRecordingService {
         kind: VideoRecordingKind,
         sourceName: String,
         bounds: CGRect,
-        filter: SCContentFilter,
-        configuration: SCStreamConfiguration,
+        target: ScreenRecordingTarget,
+        configuration: ScreenRecordingConfiguration,
         preferences: VideoRecordingPreferences
     ) async throws -> ScreenRecordingSession {
-        let outputURL = TemporaryVideoMediaManager.recordingOutputURL()
+        let outputURL = TemporaryVideoMediaManager.recordingOutputURL(files: files)
 
         try VideoStorageGuardrails.ensureCanStartRecording(
             width: configuration.width,
@@ -192,72 +228,62 @@ struct ScreenRecordingService {
             preferences: preferences
         )
 
+        let platformSession = try await platform.makeSession(target: target, configuration: configuration)
         let session = ScreenRecordingSession(
-            filter: filter,
+            platformSession: platformSession,
             configuration: configuration,
             outputURL: outputURL,
             kind: kind,
             sourceName: sourceName,
             bounds: bounds,
-            preferences: preferences
+            preferences: preferences,
+            platform: platform,
+            files: files,
+            clock: clock
         )
         try session.startRecordingSegment()
-        try await session.stream.startCapture()
+        try await platformSession.startCapture()
         session.markCaptureStarted()
         return session
     }
 
     private func streamConfiguration(
-        for filter: SCContentFilter,
-        sourceRect: CGRect?,
+        for target: ScreenRecordingTarget,
         fallbackBounds: CGRect,
         preferences: VideoRecordingPreferences
-    ) -> SCStreamConfiguration {
-        let configuration = SCStreamConfiguration()
-        let pointPixelScale = max(CGFloat(filter.pointPixelScale), 1)
+    ) -> ScreenRecordingConfiguration {
+        let pointPixelScale = max(target.pointPixelScale, 1)
         let outputScale = preferences.quality.outputScale(for: pointPixelScale)
-        let contentBounds = sourceRect ?? filter.contentRect.gscIntegralStandardized
+        let contentBounds = target.sourceRect ?? target.contentBounds.gscIntegralStandardized
         let resolvedBounds = contentBounds.width > 0 && contentBounds.height > 0
             ? contentBounds
             : fallbackBounds.gscIntegralStandardized
 
-        if let sourceRect {
-            configuration.sourceRect = sourceRect.gscIntegralStandardized
-        }
-
-        configuration.width = max(Int((resolvedBounds.width * outputScale).rounded(.up)), 1)
-        configuration.height = max(Int((resolvedBounds.height * outputScale).rounded(.up)), 1)
-        configuration.minimumFrameInterval = preferences.frameRate.frameInterval
-        configuration.queueDepth = 5
-        configuration.captureResolution = preferences.quality.captureResolution
-        configuration.showsCursor = preferences.showsCursor
-        configuration.showMouseClicks = preferences.showsMouseClicks
-        configuration.capturesAudio = preferences.recordsSystemAudio
-        configuration.captureMicrophone = preferences.recordsMicrophone
-        configuration.excludesCurrentProcessAudio = true
-        configuration.sampleRate = 48_000
-        configuration.channelCount = 2
-        configuration.captureDynamicRange = .SDR
-        return configuration
+        return ScreenRecordingConfiguration(
+            width: max(Int((resolvedBounds.width * outputScale).rounded(.up)), 1),
+            height: max(Int((resolvedBounds.height * outputScale).rounded(.up)), 1),
+            minimumFrameInterval: preferences.frameRate.frameInterval,
+            captureResolution: preferences.quality.captureResolution,
+            showsCursor: preferences.showsCursor,
+            showsMouseClicks: preferences.showsMouseClicks,
+            capturesAudio: preferences.recordsSystemAudio,
+            capturesMicrophone: preferences.recordsMicrophone
+        )
     }
 
-    private func fetchShareableContent() async throws -> SCShareableContent {
-        let result: ShareableContentResult = try await withCheckedThrowingContinuation { continuation in
-            SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: true) { content, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-
-                guard let content else {
-                    continuation.resume(throwing: ScreenRecordingError.noDisplays)
-                    return
-                }
-
-                continuation.resume(returning: ShareableContentResult(content: content))
-            }
+    private func fetchShareableContent() async throws -> ScreenContentSnapshot {
+        let content = try await platform.shareableContent()
+        let displays = content.displays.map { display in
+            let screen = screens.screen(withDisplayID: display.displayID)
+            return DisplaySnapshot(
+                displayID: display.displayID,
+                name: screen?.name ?? display.name,
+                frame: display.frame,
+                overlayFrame: screen?.frame ?? display.overlayFrame,
+                scale: screen?.backingScaleFactor ?? display.scale
+            )
         }
-        return result.content
+        return ScreenContentSnapshot(displays: displays, windows: content.windows, applications: content.applications)
     }
 
     private func requestMicrophoneAccessIfNeeded(_ preferences: VideoRecordingPreferences) async throws {
@@ -265,42 +291,21 @@ struct ScreenRecordingService {
             return
         }
 
-        try await ScreenRecordingAudioPermission.requestMicrophoneAccess()
+        try await platform.requestMicrophoneAccess()
     }
 
-    private func currentDisplay(in displays: [SCDisplay]) -> SCDisplay? {
-        let mouseLocation = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first { $0.frame.contains(mouseLocation) } ?? NSScreen.main
-        let displayID = screen?.gscDisplayID
+    private func currentDisplay(in displays: [DisplaySnapshot]) -> DisplaySnapshot? {
+        let mouseLocation = mouse.appKitGlobalLocation
+        let screen = screens.screen(containing: mouseLocation) ?? screens.mainScreen
+        let displayID = screen?.displayID
 
         return displays.first { display in
             display.displayID == displayID
         }
     }
 
-    private func currentApplication(in content: SCShareableContent) -> SCRunningApplication? {
-        let currentPID = ProcessInfo.processInfo.processIdentifier
-        return content.applications.first { $0.processID == currentPID }
-    }
-
-    private func displayRecordingFilter(for display: SCDisplay, content: SCShareableContent) -> SCContentFilter {
-        let currentPID = ProcessInfo.processInfo.processIdentifier
-        let excludedApplications = content.applications.filter { $0.processID == currentPID }
-
-        if excludedApplications.isEmpty {
-            let excludedWindows = content.windows.filter { $0.owningApplication?.processID == currentPID }
-            return SCContentFilter(display: display, excludingWindows: excludedWindows)
-        }
-
-        return SCContentFilter(
-            display: display,
-            excludingApplications: excludedApplications,
-            exceptingWindows: []
-        )
-    }
-
     private func resolveFullscreenTarget(
-        content: SCShareableContent,
+        content: ScreenContentSnapshot,
         mode: VideoRecordingFullscreenDisplayMode,
         selectedDisplayID: UInt32?
     ) throws -> FullscreenRecordingTarget {
@@ -313,13 +318,10 @@ struct ScreenRecordingService {
             guard let display = currentDisplay(in: content.displays) ?? content.displays.first else {
                 throw ScreenRecordingError.currentDisplayUnavailable
             }
-            let filter = displayRecordingFilter(for: display, content: content)
-            filter.includeMenuBar = true
             return FullscreenRecordingTarget(
-                filter: filter,
+                target: displayRecordingTarget(for: display, sourceRect: nil),
                 bounds: display.frame.gscIntegralStandardized,
-                sourceRect: nil,
-                sourceName: displayName(for: display.displayID)
+                sourceName: display.name
             )
         case .selectedDisplay:
             let display = content.displays.first(where: { $0.displayID == selectedDisplayID })
@@ -329,21 +331,15 @@ struct ScreenRecordingService {
                 throw ScreenRecordingError.selectedDisplayUnavailable
             }
 
-            let filter = displayRecordingFilter(for: display, content: content)
-            filter.includeMenuBar = true
             return FullscreenRecordingTarget(
-                filter: filter,
+                target: displayRecordingTarget(for: display, sourceRect: nil),
                 bounds: display.frame.gscIntegralStandardized,
-                sourceRect: nil,
-                sourceName: displayName(for: display.displayID)
+                sourceName: display.name
             )
         case .allDisplays:
             guard let anchorDisplay = currentDisplay(in: content.displays) ?? content.displays.first else {
                 throw ScreenRecordingError.currentDisplayUnavailable
             }
-
-            let filter = displayRecordingFilter(for: anchorDisplay, content: content)
-            filter.includeMenuBar = true
 
             let unionBounds = content.displays
                 .map(\.frame)
@@ -353,113 +349,100 @@ struct ScreenRecordingService {
                 .gscIntegralStandardized
 
             return FullscreenRecordingTarget(
-                filter: filter,
+                target: displayRecordingTarget(for: anchorDisplay, sourceRect: unionBounds),
                 bounds: unionBounds,
-                sourceRect: unionBounds,
-                sourceName: content.displays.count == 1 ? displayName(for: anchorDisplay.displayID) : "All Displays"
+                sourceName: content.displays.count == 1 ? anchorDisplay.name : "All Displays"
             )
         }
     }
 
-    private func displayName(for displayID: CGDirectDisplayID) -> String {
-        NSScreen.screens.first(where: { $0.gscDisplayID == displayID })?.gscDisplayName ?? "Display"
+    private func displayRecordingTarget(for display: DisplaySnapshot, sourceRect: CGRect?) -> ScreenRecordingTarget {
+        ScreenRecordingTarget(
+            source: .display(
+                display.displayID,
+                excludingProcessID: ProcessInfo.processInfo.processIdentifier,
+                includeMenuBar: true
+            ),
+            contentBounds: display.frame.gscIntegralStandardized,
+            pointPixelScale: display.scale,
+            sourceRect: sourceRect?.gscIntegralStandardized
+        )
     }
-}
 
-private enum ScreenRecordingAudioPermission {
-    static func requestMicrophoneAccess() async throws {
-        switch AVAudioApplication.shared.recordPermission {
-        case .granted:
-            return
-        case .denied:
-            throw ScreenRecordingError.microphonePermissionDenied
-        case .undetermined:
-            let granted = await withCheckedContinuation { continuation in
-                AVAudioApplication.requestRecordPermission { granted in
-                    continuation.resume(returning: granted)
-                }
-            }
-
-            if !granted {
-                throw ScreenRecordingError.microphonePermissionDenied
-            }
-        @unknown default:
-            throw ScreenRecordingError.microphonePermissionDenied
+    private func displayScale(forCaptureFrame frame: CGRect, displays: [DisplaySnapshot]) -> CGFloat {
+        let scales = displays.compactMap { display -> CGFloat? in
+            display.frame.intersects(frame) ? display.scale : nil
         }
+
+        return max(scales.max() ?? 2, 1)
     }
 }
 
 private struct FullscreenRecordingTarget {
-    let filter: SCContentFilter
+    let target: ScreenRecordingTarget
     let bounds: CGRect
-    let sourceRect: CGRect?
     let sourceName: String
-}
-
-nonisolated private struct ShareableContentResult: @unchecked Sendable {
-    let content: SCShareableContent
 }
 
 @MainActor
 final class RecordingOutputCompletionTracker {
-    private var outputURLByOutputID: [ObjectIdentifier: URL] = [:]
-    private var continuationsByOutputID: [ObjectIdentifier: [CheckedContinuation<Void, Error>]] = [:]
-    private var resultsByOutputID: [ObjectIdentifier: Result<Void, Error>] = [:]
+    private var outputURLByToken: [ScreenRecordingSegmentToken: URL] = [:]
+    private var continuationsByToken: [ScreenRecordingSegmentToken: [CheckedContinuation<Void, Error>]] = [:]
+    private var resultsByToken: [ScreenRecordingSegmentToken: Result<Void, Error>] = [:]
 
-    func track(outputID: ObjectIdentifier, outputURL: URL) {
-        outputURLByOutputID[outputID] = outputURL
+    func track(token: ScreenRecordingSegmentToken, outputURL: URL) {
+        outputURLByToken[token] = outputURL
     }
 
-    func wait(for outputID: ObjectIdentifier) async throws {
-        if let result = resultsByOutputID[outputID] {
+    func wait(for token: ScreenRecordingSegmentToken) async throws {
+        if let result = resultsByToken[token] {
             try result.get()
             return
         }
 
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            if let result = resultsByOutputID[outputID] {
+            if let result = resultsByToken[token] {
                 continuation.resume(with: result)
                 return
             }
 
-            continuationsByOutputID[outputID, default: []].append(continuation)
+            continuationsByToken[token, default: []].append(continuation)
         }
     }
 
-    func finish(outputID: ObjectIdentifier, result: Result<Void, Error>) -> URL? {
-        guard resultsByOutputID[outputID] == nil else {
+    func finish(token: ScreenRecordingSegmentToken, result: Result<Void, Error>) -> URL? {
+        guard resultsByToken[token] == nil else {
             return nil
         }
 
-        resultsByOutputID[outputID] = result
-        let continuations = continuationsByOutputID.removeValue(forKey: outputID) ?? []
+        resultsByToken[token] = result
+        let continuations = continuationsByToken.removeValue(forKey: token) ?? []
         continuations.forEach { $0.resume(with: result) }
 
         guard case .success = result else {
             return nil
         }
 
-        return outputURLByOutputID[outputID]
+        return outputURLByToken[token]
     }
 
     func finishAll(with result: Result<Void, Error>) {
-        let pendingOutputIDs = Set(outputURLByOutputID.keys).union(continuationsByOutputID.keys)
+        let pendingTokens = Set(outputURLByToken.keys).union(continuationsByToken.keys)
 
-        for outputID in pendingOutputIDs {
-            _ = finish(outputID: outputID, result: result)
+        for token in pendingTokens {
+            _ = finish(token: token, result: result)
         }
     }
 
     var trackedOutputURLs: [URL] {
-        Array(outputURLByOutputID.values)
+        Array(outputURLByToken.values)
     }
 }
 
 @MainActor
-final class ScreenRecordingSession: NSObject, SCRecordingOutputDelegate, SCStreamDelegate, SCStreamOutput {
+final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
     private static let logger = Logger(subsystem: "com.oontz.SnipSnipSnip", category: "ScreenRecording")
 
-    private(set) var stream: SCStream!
     let outputURL: URL
     private(set) var isPaused = false
 
@@ -467,26 +450,31 @@ final class ScreenRecordingSession: NSObject, SCRecordingOutputDelegate, SCStrea
     private let sourceName: String
     private let bounds: CGRect
     private var preferences: VideoRecordingPreferences
-    private let configuration: SCStreamConfiguration
+    private var configuration: ScreenRecordingConfiguration
+    private let platformSession: any ScreenRecordingPlatformSession
+    private let platform: any ScreenRecordingPlatform
+    private let files: any FileSystemServicing
+    private let clock: any ClockProviding
     private let recordingWidth: Int
     private let recordingHeight: Int
     private let startedAt: Date
-    private var activeRecordingOutput: SCRecordingOutput?
+    private var activeSegmentToken: ScreenRecordingSegmentToken?
     private var segmentOutputURLs: [URL] = []
     private let completionTracker = RecordingOutputCompletionTracker()
     private var didStop = false
     private var isCaptureRunning = false
-    private let sampleOutputQueue = DispatchQueue(label: "com.oontz.SnipSnipSnip.ScreenRecordingSampleOutput")
-    private var didAttachSampleOutput = false
 
     init(
-        filter: SCContentFilter,
-        configuration: SCStreamConfiguration,
+        platformSession: any ScreenRecordingPlatformSession,
+        configuration: ScreenRecordingConfiguration,
         outputURL: URL,
         kind: VideoRecordingKind,
         sourceName: String,
         bounds: CGRect,
-        preferences: VideoRecordingPreferences
+        preferences: VideoRecordingPreferences,
+        platform: any ScreenRecordingPlatform,
+        files: any FileSystemServicing,
+        clock: any ClockProviding
     ) {
         self.outputURL = outputURL
         self.kind = kind
@@ -494,41 +482,22 @@ final class ScreenRecordingSession: NSObject, SCRecordingOutputDelegate, SCStrea
         self.bounds = bounds
         self.preferences = preferences
         self.configuration = configuration
+        self.platformSession = platformSession
+        self.platform = platform
+        self.files = files
+        self.clock = clock
         self.recordingWidth = configuration.width
         self.recordingHeight = configuration.height
-        self.startedAt = Date()
-        super.init()
-        self.stream = SCStream(filter: filter, configuration: configuration, delegate: self)
+        self.startedAt = clock.now()
+        platformSession.setEventSink(self)
     }
 
     func startRecordingSegment() throws {
-        try ensureSampleOutputAttached()
-
-        let recordingConfiguration = SCRecordingOutputConfiguration()
-        let segmentOutputURL = TemporaryVideoMediaManager.recordingOutputURL()
-        recordingConfiguration.outputURL = segmentOutputURL
-        recordingConfiguration.outputFileType = .mp4
-        recordingConfiguration.videoCodecType = .h264
-
-        guard recordingConfiguration.availableOutputFileTypes.contains(.mp4),
-              recordingConfiguration.availableVideoCodecTypes.contains(.h264) else {
-            throw ScreenRecordingError.unsupportedRecordingFormat
-        }
-
-        let recordingOutput = SCRecordingOutput(configuration: recordingConfiguration, delegate: self)
-        try stream.addRecordingOutput(recordingOutput)
-        activeRecordingOutput = recordingOutput
-        completionTracker.track(outputID: ObjectIdentifier(recordingOutput), outputURL: segmentOutputURL)
+        let segmentOutputURL = TemporaryVideoMediaManager.recordingOutputURL(files: files)
+        let token = try platformSession.startRecordingSegment(to: segmentOutputURL)
+        activeSegmentToken = token
+        completionTracker.track(token: token, outputURL: segmentOutputURL)
         isPaused = false
-    }
-
-    private func ensureSampleOutputAttached() throws {
-        guard !didAttachSampleOutput else {
-            return
-        }
-
-        try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: sampleOutputQueue)
-        didAttachSampleOutput = true
     }
 
     func pause() async throws {
@@ -536,18 +505,18 @@ final class ScreenRecordingSession: NSObject, SCRecordingOutputDelegate, SCStrea
             throw ScreenRecordingError.recordingAlreadyStopped
         }
 
-        guard !isPaused, let recordingOutput = activeRecordingOutput else {
+        guard !isPaused, let activeSegmentToken else {
             return
         }
 
         if isCaptureRunning {
-            try await stream.stopCapture()
+            try await platformSession.stopCapture()
             isCaptureRunning = false
         }
 
-        try await waitForRecordingOutputToFinish(recordingOutput)
-        try? stream.removeRecordingOutput(recordingOutput)
-        activeRecordingOutput = nil
+        try await waitForRecordingOutputToFinish(activeSegmentToken)
+        try? platformSession.removeRecordingSegment(activeSegmentToken)
+        self.activeSegmentToken = nil
         isPaused = true
     }
 
@@ -561,7 +530,7 @@ final class ScreenRecordingSession: NSObject, SCRecordingOutputDelegate, SCStrea
         }
 
         try startRecordingSegment()
-        try await stream.startCapture()
+        try await platformSession.startCapture()
         isCaptureRunning = true
     }
 
@@ -571,7 +540,7 @@ final class ScreenRecordingSession: NSObject, SCRecordingOutputDelegate, SCStrea
         }
 
         if recordsMicrophone {
-            try await ScreenRecordingAudioPermission.requestMicrophoneAccess()
+            try await platform.requestMicrophoneAccess()
         }
 
         guard recordsSystemAudio != preferences.recordsSystemAudio
@@ -580,8 +549,8 @@ final class ScreenRecordingSession: NSObject, SCRecordingOutputDelegate, SCStrea
         }
 
         configuration.capturesAudio = recordsSystemAudio
-        configuration.captureMicrophone = recordsMicrophone
-        try await stream.updateConfiguration(configuration)
+        configuration.capturesMicrophone = recordsMicrophone
+        try await platformSession.updateConfiguration(configuration)
         preferences.recordsSystemAudio = recordsSystemAudio
         preferences.recordsMicrophone = recordsMicrophone
     }
@@ -592,20 +561,20 @@ final class ScreenRecordingSession: NSObject, SCRecordingOutputDelegate, SCStrea
         }
 
         didStop = true
-        let recordingOutput = activeRecordingOutput
+        let activeSegmentToken = activeSegmentToken
 
         // Keep the recording output attached until the stream is fully stopping so
-        // ScreenCaptureKit does not keep delivering frames to a removed output.
+        // the capture backend does not keep delivering frames to a removed output.
         if isCaptureRunning {
-            try await stream.stopCapture()
+            try await platformSession.stopCapture()
             isCaptureRunning = false
         }
 
-        if let recordingOutput {
-            try await waitForRecordingOutputToFinish(recordingOutput)
+        if let activeSegmentToken {
+            try await waitForRecordingOutputToFinish(activeSegmentToken)
         }
 
-        activeRecordingOutput = nil
+        self.activeSegmentToken = nil
         isPaused = false
         let finalizedOutputURL = try await finalizeOutputURL()
         let duration = await recordingDuration(from: finalizedOutputURL)
@@ -621,9 +590,8 @@ final class ScreenRecordingSession: NSObject, SCRecordingOutputDelegate, SCStrea
         )
     }
 
-    private func waitForRecordingOutputToFinish(_ recordingOutput: SCRecordingOutput) async throws {
-        let outputID = ObjectIdentifier(recordingOutput)
-        try await completionTracker.wait(for: outputID)
+    private func waitForRecordingOutputToFinish(_ token: ScreenRecordingSegmentToken) async throws {
+        try await completionTracker.wait(for: token)
     }
 
     private func finalizeOutputURL() async throws -> URL {
@@ -635,14 +603,14 @@ final class ScreenRecordingSession: NSObject, SCRecordingOutputDelegate, SCStrea
         Self.logger.notice("Finalize recording with \(self.segmentOutputURLs.count, privacy: .public) segment(s)")
 
         if segmentOutputURLs.count == 1, let singleSegmentURL = segmentOutputURLs.first {
-            try? FileManager.default.removeItem(at: outputURL)
+            try? files.removeItem(at: outputURL)
             if singleSegmentURL.standardizedFileURL != outputURL.standardizedFileURL {
-                try FileManager.default.moveItem(at: singleSegmentURL, to: outputURL)
+                try files.moveItem(at: singleSegmentURL, to: outputURL)
             }
             return outputURL
         }
 
-        try? FileManager.default.removeItem(at: outputURL)
+        try? files.removeItem(at: outputURL)
         do {
             try await mergeSegments(at: segmentOutputURLs, to: outputURL)
         } catch {
@@ -655,7 +623,7 @@ final class ScreenRecordingSession: NSObject, SCRecordingOutputDelegate, SCStrea
 
         // Best-effort cleanup of intermediate segments after merge.
         for segmentURL in segmentOutputURLs {
-            try? FileManager.default.removeItem(at: segmentURL)
+            try? files.removeItem(at: segmentURL)
         }
 
         return outputURL
@@ -671,7 +639,7 @@ final class ScreenRecordingSession: NSObject, SCRecordingOutputDelegate, SCStrea
             }
         }
 
-        return max(Date().timeIntervalSince(startedAt), 0)
+        return max(clock.now().timeIntervalSince(startedAt), 0)
     }
 
     private func mergeSegments(at segmentURLs: [URL], to outputURL: URL) async throws {
@@ -766,7 +734,7 @@ final class ScreenRecordingSession: NSObject, SCRecordingOutputDelegate, SCStrea
                     "Merge export failed preset=\(preset, privacy: .public) domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public) description=\(nsError.localizedDescription, privacy: .public)"
                 )
                 lastError = error
-                try? FileManager.default.removeItem(at: outputURL)
+                try? files.removeItem(at: outputURL)
             }
         }
 
@@ -777,34 +745,29 @@ final class ScreenRecordingSession: NSObject, SCRecordingOutputDelegate, SCStrea
         throw ScreenRecordingError.recordingFailed("The merged recording could not be exported.")
     }
 
-    nonisolated func recordingOutputDidFinishRecording(_ recordingOutput: SCRecordingOutput) {
-        Task { @MainActor [weak self] in
-            self?.resumeFinishContinuation(for: recordingOutput, with: .success(()))
+    func recordingPlatformSession(
+        _ session: any ScreenRecordingPlatformSession,
+        didFinishSegment token: ScreenRecordingSegmentToken
+    ) {
+        resumeFinishContinuation(for: token, with: .success(()))
+    }
+
+    func recordingPlatformSession(
+        _ session: any ScreenRecordingPlatformSession,
+        segment token: ScreenRecordingSegmentToken,
+        didFailWith error: Error
+    ) {
+        resumeFinishContinuation(for: token, with: .failure(error))
+    }
+
+    func recordingPlatformSession(_ session: any ScreenRecordingPlatformSession, didStopWith error: Error) {
+        if !didStop {
+            resumeAllFinishContinuations(with: .failure(error))
         }
     }
 
-    nonisolated func recordingOutput(_ recordingOutput: SCRecordingOutput, didFailWithError error: any Error) {
-        Task { @MainActor [weak self] in
-            self?.resumeFinishContinuation(for: recordingOutput, with: .failure(error))
-        }
-    }
-
-    nonisolated func stream(_ stream: SCStream, didStopWithError error: any Error) {
-        Task { @MainActor [weak self] in
-            guard let self else {
-                return
-            }
-
-            if !self.didStop {
-                self.resumeAllFinishContinuations(with: .failure(error))
-            }
-        }
-    }
-
-    private func resumeFinishContinuation(for recordingOutput: SCRecordingOutput, with result: Result<Void, Error>) {
-        let outputID = ObjectIdentifier(recordingOutput)
-
-        if let outputURL = completionTracker.finish(outputID: outputID, result: result) {
+    private func resumeFinishContinuation(for token: ScreenRecordingSegmentToken, with result: Result<Void, Error>) {
+        if let outputURL = completionTracker.finish(token: token, result: result) {
             segmentOutputURLs.append(outputURL)
         }
     }
@@ -830,8 +793,4 @@ final class ScreenRecordingSession: NSObject, SCRecordingOutputDelegate, SCStrea
         ([outputURL] + segmentOutputURLs + completionTracker.trackedOutputURLs).map(\.standardizedFileURL)
     }
 
-    nonisolated func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-        // RecordingOutput handles persisted media. Keep this sink attached so the
-        // stream has an active output target and does not spam dropped-frame logs.
-    }
 }

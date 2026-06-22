@@ -5,31 +5,73 @@ struct AppEnvironment {
     let defaults: UserDefaults
     let capabilities: AppCapabilitySnapshot
     let preferenceStores: AppPreferenceStores
-    private let permissionStatusProvider: @MainActor () -> CapturePermissionStatus
+    let systemServices: AppSystemServices
+    var permissions: any CapturePermissionServicing { systemServices.permissions }
 
     init(
         defaults: UserDefaults = .standard,
         buildTarget: BuildTarget = .current,
         capabilityProvider: any AppCapabilityProvider = BuildTargetCapabilityProvider(),
-        permissionStatusProvider: @escaping @MainActor () -> CapturePermissionStatus = {
-            CapturePermissionStatus.current()
-        }
+        permissions: (any CapturePermissionServicing)? = nil,
+        systemServices: AppSystemServices? = nil
     ) {
         self.defaults = defaults
-        self.capabilities = capabilityProvider.snapshot(for: buildTarget)
+        let capabilities = capabilityProvider.snapshot(for: buildTarget)
+        self.capabilities = capabilities
         self.preferenceStores = AppPreferenceStores(storage: defaults)
-        self.permissionStatusProvider = permissionStatusProvider
+        let resolvedPermissions = permissions ?? SystemCapturePermissionService(capabilities: capabilities)
+        self.systemServices = systemServices ?? AppSystemServices.live(permissions: resolvedPermissions)
     }
 
-    func currentPermissionStatus() -> CapturePermissionStatus {
-        permissionStatusProvider()
+    func makeScreenCaptureService() -> ScreenCaptureService {
+        ScreenCaptureService(
+            permissions: permissions,
+            platform: systemServices.screenCapturePlatform,
+            workspace: systemServices.workspace,
+            screens: systemServices.screens,
+            mouse: systemServices.mouse,
+            windowFocus: systemServices.windowFocus,
+            clock: systemServices.clock
+        )
+    }
+
+    func makeScreenRecordingService() -> ScreenRecordingService {
+        ScreenRecordingService(
+            permissions: permissions,
+            platform: systemServices.screenRecordingPlatform,
+            capturePlatform: systemServices.screenCapturePlatform,
+            workspace: systemServices.workspace,
+            screens: systemServices.screens,
+            files: systemServices.files,
+            mouse: systemServices.mouse,
+            clock: systemServices.clock
+        )
+    }
+
+    func makeScrollingCaptureService(captureService: any ScreenCaptureServiceType) -> ScrollingCaptureService {
+        ScrollingCaptureService(
+            captureService: captureService,
+            permissions: permissions,
+            accessibility: systemServices.accessibility,
+            screens: systemServices.screens,
+            scheduler: systemServices.scheduler,
+            clock: systemServices.clock
+        )
     }
 
     func makeUIMapCaptureService() -> any UIMapCaptureServiceType {
-        AccessibilityUIMapCaptureService(capabilities: capabilities)
+        AccessibilityUIMapCaptureService(
+            capabilities: capabilities,
+            accessibility: systemServices.accessibility,
+            screens: systemServices.screens,
+            clock: systemServices.clock
+        )
     }
 
     func makeConnectedDeviceCaptureService() -> any ConnectedDeviceCaptureServiceType {
-        ConnectedDeviceCaptureService(capabilities: capabilities)
+        ConnectedDeviceCaptureService(
+            capabilities: capabilities,
+            platform: systemServices.connectedDevicePlatform
+        )
     }
 }

@@ -3,6 +3,368 @@ import Foundation
 import XCTest
 @testable import SnipSnipSnip
 
+let testCapabilities = BuildTargetCapabilityProvider().snapshot(for: .dev)
+
+nonisolated struct StaticAppCapabilityProvider: AppCapabilityProvider {
+    let capabilitySnapshot: AppCapabilitySnapshot
+
+    func snapshot(for target: BuildTarget) -> AppCapabilitySnapshot {
+        capabilitySnapshot
+    }
+}
+
+nonisolated struct TestCapturePermissionService: CapturePermissionServicing {
+    var statusProvider: @Sendable () -> CapturePermissionStatus = {
+        CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
+    }
+    var screenRecordingVerifier: @Sendable () async -> Bool = { true }
+    var requestHandler: @Sendable (CapturePermissionRequirement) -> Bool = { _ in true }
+    var settingsHandler: @Sendable (CapturePermissionRequirement) -> Void = { _ in }
+    var canRequestHandler: @Sendable (CapturePermissionRequirement) -> Bool = { _ in true }
+    var failureDetector: @Sendable (Error) -> Bool = { error in
+        ScreenCapturePermissions.indicatesScreenRecordingPermissionFailure(error)
+    }
+    var appName = "SnipSnipSnip"
+    var appPath = "/Applications/SnipSnipSnip.app"
+
+    init(
+        status: CapturePermissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
+    ) {
+        self.statusProvider = { status }
+    }
+
+    init(
+        statusProvider: @escaping @Sendable () -> CapturePermissionStatus,
+        screenRecordingVerifier: @escaping @Sendable () async -> Bool = { true },
+        requestHandler: @escaping @Sendable (CapturePermissionRequirement) -> Bool = { _ in true },
+        settingsHandler: @escaping @Sendable (CapturePermissionRequirement) -> Void = { _ in },
+        canRequestHandler: @escaping @Sendable (CapturePermissionRequirement) -> Bool = { _ in true },
+        failureDetector: @escaping @Sendable (Error) -> Bool = { error in
+            ScreenCapturePermissions.indicatesScreenRecordingPermissionFailure(error)
+        },
+        appName: String = "SnipSnipSnip",
+        appPath: String = "/Applications/SnipSnipSnip.app"
+    ) {
+        self.statusProvider = statusProvider
+        self.screenRecordingVerifier = screenRecordingVerifier
+        self.requestHandler = requestHandler
+        self.settingsHandler = settingsHandler
+        self.canRequestHandler = canRequestHandler
+        self.failureDetector = failureDetector
+        self.appName = appName
+        self.appPath = appPath
+    }
+
+    var currentAppName: String { appName }
+    var currentAppPath: String { appPath }
+
+    func currentStatus() -> CapturePermissionStatus {
+        statusProvider()
+    }
+
+    func availableSetupRequirements() -> [CapturePermissionRequirement] {
+        CapturePermissionRequirement.availableCases(for: testCapabilities)
+    }
+
+    func canRequest(_ requirement: CapturePermissionRequirement) -> Bool {
+        canRequestHandler(requirement)
+    }
+
+    @discardableResult
+    func requestAccess(for requirement: CapturePermissionRequirement) -> Bool {
+        requestHandler(requirement)
+    }
+
+    func verifyScreenRecordingAccess() async -> Bool {
+        await screenRecordingVerifier()
+    }
+
+    func openSystemSettings(for requirement: CapturePermissionRequirement) {
+        settingsHandler(requirement)
+    }
+
+    func revealCurrentAppInFinder() {}
+
+    func copyCurrentAppPathToPasteboard() {}
+
+    func indicatesScreenRecordingPermissionFailure(_ error: Error) -> Bool {
+        failureDetector(error)
+    }
+}
+
+nonisolated struct TestWorkspaceService: WorkspaceServicing {
+    var frontmostApplicationProcessIdentifier: pid_t?
+    var frontmostApplication: WorkspaceRunningApplicationSnapshot?
+    var runningApplications: [WorkspaceRunningApplicationSnapshot] = []
+    var applicationURLsByBundleIdentifier: [String: URL] = [:]
+    var openedURLs: @Sendable (URL) -> Void = { _ in }
+    var revealedURLs: @Sendable ([URL]) -> Void = { _ in }
+
+    func applicationURL(forBundleIdentifier bundleIdentifier: String) -> URL? {
+        applicationURLsByBundleIdentifier[bundleIdentifier]
+    }
+
+    func open(_ url: URL) {
+        openedURLs(url)
+    }
+
+    func activateApplication(processIdentifier: pid_t) {}
+
+    func activateFileViewerSelecting(_ urls: [URL]) {
+        revealedURLs(urls)
+    }
+}
+
+nonisolated struct TestMouseLocationService: MouseLocationProviding {
+    var appKitGlobalLocation: CGPoint = .zero
+}
+
+nonisolated struct TestApplicationWindowFocusService: ApplicationWindowFocusProviding {
+    var displayID: CGDirectDisplayID?
+
+    func preferredDisplayID() async -> CGDirectDisplayID? {
+        displayID
+    }
+}
+
+nonisolated struct TestScreenTopologyService: ScreenTopologyProviding {
+    var screens: [ScreenDisplaySnapshot] = []
+    var mainScreen: ScreenDisplaySnapshot?
+
+    func screen(containing point: CGPoint) -> ScreenDisplaySnapshot? {
+        screens.first { $0.frame.contains(point) }
+    }
+
+    func screen(withDisplayID displayID: CGDirectDisplayID) -> ScreenDisplaySnapshot? {
+        screens.first { $0.displayID == displayID }
+    }
+}
+
+nonisolated struct TestClock: ClockProviding {
+    var date = Date(timeIntervalSince1970: 1_700_000_000)
+
+    func now() -> Date {
+        date
+    }
+}
+
+nonisolated struct TestScreenCapturePlatform: ScreenCapturePlatform {
+    var content = ScreenContentSnapshot(displays: [], windows: [], applications: [])
+    var imageProvider: @Sendable (ScreenCaptureRequest) throws -> CGImage = { request in
+        makeCoordinateImage(
+            width: request.configuration.width,
+            height: request.configuration.height,
+            pattern: .weighted(xMultiplier: 3, yMultiplier: 5, includeBlueSum: true)
+        )
+    }
+
+    func shareableContent() async throws -> ScreenContentSnapshot {
+        content
+    }
+
+    func captureScreenshot(_ request: ScreenCaptureRequest) async throws -> CGImage {
+        try imageProvider(request)
+    }
+}
+
+@MainActor
+final class TestScreenRecordingPlatformSession: ScreenRecordingPlatformSession {
+    private weak var eventSink: (any ScreenRecordingPlatformEventSink)?
+    private(set) var isCapturing = false
+    private(set) var configurationUpdates: [ScreenRecordingConfiguration] = []
+    private(set) var segmentOutputURLs: [ScreenRecordingSegmentToken: URL] = [:]
+
+    func setEventSink(_ sink: (any ScreenRecordingPlatformEventSink)?) {
+        eventSink = sink
+    }
+
+    func startCapture() async throws {
+        isCapturing = true
+    }
+
+    func stopCapture() async throws {
+        isCapturing = false
+    }
+
+    func updateConfiguration(_ configuration: ScreenRecordingConfiguration) async throws {
+        configurationUpdates.append(configuration)
+    }
+
+    func startRecordingSegment(to outputURL: URL) throws -> ScreenRecordingSegmentToken {
+        let token = ScreenRecordingSegmentToken()
+        segmentOutputURLs[token] = outputURL
+        return token
+    }
+
+    func removeRecordingSegment(_ token: ScreenRecordingSegmentToken) throws {
+        segmentOutputURLs[token] = nil
+    }
+
+    func finish(_ token: ScreenRecordingSegmentToken) {
+        eventSink?.recordingPlatformSession(self, didFinishSegment: token)
+    }
+
+    func fail(_ token: ScreenRecordingSegmentToken, error: Error) {
+        eventSink?.recordingPlatformSession(self, segment: token, didFailWith: error)
+    }
+}
+
+nonisolated struct TestScreenRecordingPlatform: ScreenRecordingPlatform {
+    var content = ScreenContentSnapshot(displays: [], windows: [], applications: [])
+    var microphoneAccess: @Sendable () async throws -> Void = {}
+    var makeSessionHandler: @MainActor (
+        ScreenRecordingTarget,
+        ScreenRecordingConfiguration
+    ) async throws -> any ScreenRecordingPlatformSession = { _, _ in
+        TestScreenRecordingPlatformSession()
+    }
+
+    func shareableContent() async throws -> ScreenContentSnapshot {
+        content
+    }
+
+    func requestMicrophoneAccess() async throws {
+        try await microphoneAccess()
+    }
+
+    @MainActor
+    func makeSession(
+        target: ScreenRecordingTarget,
+        configuration: ScreenRecordingConfiguration
+    ) async throws -> any ScreenRecordingPlatformSession {
+        try await makeSessionHandler(target, configuration)
+    }
+}
+
+extension ScreenCaptureService {
+    nonisolated init() {
+        self.init(permissions: TestCapturePermissionService())
+    }
+
+    nonisolated init(permissions: any CapturePermissionServicing) {
+        self.init(
+            permissions: permissions,
+            platform: TestScreenCapturePlatform(),
+            workspace: TestWorkspaceService(),
+            screens: TestScreenTopologyService(),
+            mouse: TestMouseLocationService(),
+            windowFocus: TestApplicationWindowFocusService(),
+            clock: TestClock()
+        )
+    }
+}
+
+extension ScreenRecordingService {
+    @MainActor
+    init() {
+        self.init(permissions: TestCapturePermissionService())
+    }
+
+    @MainActor
+    init(permissions: any CapturePermissionServicing) {
+        self.init(
+            permissions: permissions,
+            platform: TestScreenRecordingPlatform(),
+            capturePlatform: TestScreenCapturePlatform(),
+            workspace: TestWorkspaceService(),
+            screens: TestScreenTopologyService(),
+            files: SystemFileService(),
+            mouse: TestMouseLocationService(),
+            clock: TestClock()
+        )
+    }
+}
+
+extension AccessibilityUIMapCaptureService {
+    nonisolated init() {
+        self.init(capabilities: testCapabilities)
+    }
+}
+
+extension EditorController {
+    convenience init(
+        capture: CapturedScreenshot,
+        defaults: UserDefaults = .standard,
+        textRecognizer: any CaptureTextRecognizing = VisionCaptureTextRecognizer(),
+        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions()
+    ) {
+        self.init(
+            capture: capture,
+            defaults: defaults,
+            capabilities: testCapabilities,
+            textRecognizer: textRecognizer,
+            uiMapOverlayOptions: uiMapOverlayOptions
+        )
+    }
+
+    convenience init(
+        capture: CapturedScreenshot,
+        session: EditorDocumentSession,
+        defaults: UserDefaults = .standard,
+        textRecognizer: any CaptureTextRecognizing = VisionCaptureTextRecognizer(),
+        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions()
+    ) {
+        self.init(
+            capture: capture,
+            session: session,
+            defaults: defaults,
+            capabilities: testCapabilities,
+            textRecognizer: textRecognizer,
+            uiMapOverlayOptions: uiMapOverlayOptions
+        )
+    }
+}
+
+extension SSSDocumentPackage {
+    static func save(
+        document: EditableScreenshotDocument,
+        previewImage: CGImage,
+        to url: URL,
+        baseImageStorage: BaseImageStorage = .embedded
+    ) throws {
+        try save(
+            document: document,
+            previewImage: previewImage,
+            to: url,
+            baseImageStorage: baseImageStorage,
+            includeUIMapSearchText: testCapabilities.isEnabled(.uiMap)
+        )
+    }
+
+    static func updateRecognizedText(_ recognizedText: String?, in packageURL: URL) throws -> String {
+        try updateRecognizedText(
+            recognizedText,
+            in: packageURL,
+            includeUIMapSearchText: testCapabilities.isEnabled(.uiMap)
+        )
+    }
+}
+
+extension DocumentRecoveryStore {
+    func saveCheckpoint(
+        sessionID: UUID,
+        title: String,
+        sourceDocumentURL: URL?,
+        label: String,
+        document: EditableScreenshotDocument,
+        previewImage: CGImage,
+        pendingRecovery: Bool,
+        hasUnsavedChanges: Bool
+    ) throws {
+        try saveCheckpoint(
+            sessionID: sessionID,
+            title: title,
+            sourceDocumentURL: sourceDocumentURL,
+            label: label,
+            document: document,
+            previewImage: previewImage,
+            pendingRecovery: pendingRecovery,
+            hasUnsavedChanges: hasUnsavedChanges,
+            includeUIMapSearchText: testCapabilities.isEnabled(.uiMap)
+        )
+    }
+}
+
 nonisolated struct PixelSample: Equatable {
     let red: UInt8
     let green: UInt8

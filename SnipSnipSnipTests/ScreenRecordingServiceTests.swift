@@ -6,6 +6,22 @@ import XCTest
 final class ScreenRecordingServiceTests: XCTestCase {
     private struct ExpectedFailure: Error {}
 
+    func testFullscreenRecordingDeniesBeforeFetchingSystemContentWhenScreenRecordingPermissionMissing() async {
+        let service = ScreenRecordingService(
+            permissions: TestCapturePermissionService(
+                status: CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: true)
+            )
+        )
+
+        do {
+            _ = try await service.startFullscreenRecording(preferences: VideoRecordingPreferences())
+            XCTFail("Expected fullscreen recording to fail without Screen Recording permission.")
+        } catch ScreenRecordingError.permissionDenied {
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testRegionRecordingSourceRectUsesDisplayLocalCrop() {
         let service = ScreenRecordingService()
         let display = DisplaySnapshot(
@@ -25,24 +41,24 @@ final class ScreenRecordingServiceTests: XCTestCase {
 
     func testRecordingOutputCompletionTrackerResumesAllWaitersForOutput() async throws {
         let tracker = RecordingOutputCompletionTracker()
-        let outputID = ObjectIdentifier(NSObject())
+        let token = ScreenRecordingSegmentToken()
         let outputURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("segment-\(UUID().uuidString).mp4")
 
-        tracker.track(outputID: outputID, outputURL: outputURL)
+        tracker.track(token: token, outputURL: outputURL)
 
         let firstWaiter = Task { @MainActor in
-            try await tracker.wait(for: outputID)
+            try await tracker.wait(for: token)
             return 1
         }
         let secondWaiter = Task { @MainActor in
-            try await tracker.wait(for: outputID)
+            try await tracker.wait(for: token)
             return 2
         }
 
         await Task.yield()
 
         XCTAssertEqual(
-            tracker.finish(outputID: outputID, result: .success(()))?.standardizedFileURL,
+            tracker.finish(token: token, result: .success(()))?.standardizedFileURL,
             outputURL.standardizedFileURL
         )
 
@@ -55,13 +71,13 @@ final class ScreenRecordingServiceTests: XCTestCase {
 
     func testRecordingOutputCompletionTrackerPropagatesFailureToPendingAndFutureWaiters() async {
         let tracker = RecordingOutputCompletionTracker()
-        let outputID = ObjectIdentifier(NSObject())
+        let token = ScreenRecordingSegmentToken()
         let outputURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("segment-\(UUID().uuidString).mp4")
 
-        tracker.track(outputID: outputID, outputURL: outputURL)
+        tracker.track(token: token, outputURL: outputURL)
 
         let waiter = Task { @MainActor in
-            try await tracker.wait(for: outputID)
+            try await tracker.wait(for: token)
         }
 
         await Task.yield()
@@ -76,7 +92,7 @@ final class ScreenRecordingServiceTests: XCTestCase {
         }
 
         do {
-            try await tracker.wait(for: outputID)
+            try await tracker.wait(for: token)
             XCTFail("Expected subsequent waiters to receive the stored failure result.")
         } catch is ExpectedFailure {
         } catch {

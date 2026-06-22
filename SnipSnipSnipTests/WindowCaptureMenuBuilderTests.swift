@@ -4,30 +4,21 @@ import XCTest
 
 @MainActor
 final class WindowCaptureMenuBuilderTests: XCTestCase {
-    private func makeModel(
+    private func makeContext(
         windows: [CaptureWindowSummary] = [],
-        isWorking: Bool = false
-    ) -> AppModel {
-        let suiteName = "WindowCaptureMenuBuilderTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-
-        let model = AppModel(
-            defaults: defaults,
-            recoveryStore: DocumentRecoveryStore(baseURL: nil),
-            captureService: ScreenCaptureService(),
-            shouldCheckCompatibilityOnLaunch: false,
-            shouldStartArchiveMaintenance: false
+        isActionEnabled: Bool = true,
+        isUIMapEnabled: Bool = false
+    ) -> WindowCaptureMenuContext {
+        WindowCaptureMenuContext(
+            windows: windows,
+            isActionEnabled: isActionEnabled,
+            isUIMapEnabled: isUIMapEnabled
         )
-        model.availableWindows = windows
-        model.isWorking = isWorking
-        return retainForTestLifetime(model)
     }
 
     func testQuickMenuIncludesPickSuggestedWindowsAndMoreWindows() {
         let windows = (1...6).map { makeWindow(id: $0) }
-        let model = makeModel(windows: windows)
-        let menu = buildMenu(for: model)
+        let menu = buildMenu(context: makeContext(windows: windows))
 
         XCTAssertEqual(menu.items.first?.title, "Pick On Screen")
         XCTAssertEqual(menu.items.last?.title, "More Windows…")
@@ -38,24 +29,22 @@ final class WindowCaptureMenuBuilderTests: XCTestCase {
     }
 
     func testQuickMenuKeepsPickAndMoreWindowsWhenNoWindowsAreLoaded() {
-        let model = makeModel()
-        let menu = buildMenu(for: model)
+        let menu = buildMenu(context: makeContext())
 
         XCTAssertEqual(menu.items.map(\.title), ["Pick On Screen", "", "More Windows…"])
     }
 
     func testQuickMenuDisablesActionsWhileCaptureIsWorking() {
-        let model = makeModel(windows: [makeWindow(id: 1)], isWorking: true)
-        let menu = buildMenu(for: model)
+        let menu = buildMenu(context: makeContext(windows: [makeWindow(id: 1)], isActionEnabled: false))
         let actionItems = menu.items.filter { !$0.isSeparatorItem }
 
         XCTAssertFalse(actionItems.isEmpty)
         XCTAssertTrue(actionItems.allSatisfy { !$0.isEnabled })
     }
 
-    private func buildMenu(for model: AppModel) -> NSMenu {
+    private func buildMenu(context: WindowCaptureMenuContext) -> NSMenu {
         WindowCaptureMenuBuilder.makeMenu(
-            for: model,
+            context: context,
             target: self,
             pickOnScreenAction: #selector(pickWindowOnScreen),
             captureWindowAction: #selector(captureWindow(_:)),

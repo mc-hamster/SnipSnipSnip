@@ -14,7 +14,16 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     private let timerMenu = NSMenu(title: "Timer")
     private let regionCaptureSettingsMenu = NSMenu(title: "Region Capture Settings")
     private var cancellables: Set<AnyCancellable> = []
-    private weak var model: AppModel?
+    private weak var lifecycle: AppLifecycleModel?
+    private weak var capture: CaptureWorkflowModel?
+    private weak var clipboard: ClipboardWorkflowModel?
+    private weak var video: VideoWorkflowModel?
+    private weak var tools: ToolWorkflowModel?
+    private weak var floatingReferences: FloatingReferenceCoordinator?
+    private weak var workflowCoordinator: AppWorkflowCoordinator?
+    private var capabilities: AppCapabilitySnapshot?
+    private var consumeOnboardingWindowPresentationFlag: (() -> Bool)?
+    private var consumeMainWindowPresentationFlag: (() -> Bool)?
     private var openMainWindowAction: (() -> Void)?
     private var openOnboardingWindowAction: (() -> Void)?
     private var openCapturePresetsSettingsAction: (() -> Void)?
@@ -52,22 +61,42 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         statusItem.menu = menu
     }
 
-    func configure(with model: AppModel) {
-        guard self.model !== model else {
+    func configure(
+        lifecycle: AppLifecycleModel,
+        capture: CaptureWorkflowModel,
+        clipboard: ClipboardWorkflowModel,
+        video: VideoWorkflowModel,
+        tools: ToolWorkflowModel,
+        floatingReferences: FloatingReferenceCoordinator,
+        capabilities: AppCapabilitySnapshot,
+        workflowCoordinator: AppWorkflowCoordinator,
+        consumeOnboardingWindowPresentationFlag: @escaping () -> Bool,
+        consumeMainWindowPresentationFlag: @escaping () -> Bool
+    ) {
+        guard self.lifecycle !== lifecycle || self.capture !== capture else {
             return
         }
 
-        self.model = model
+        self.lifecycle = lifecycle
+        self.capture = capture
+        self.clipboard = clipboard
+        self.video = video
+        self.tools = tools
+        self.floatingReferences = floatingReferences
+        self.capabilities = capabilities
+        self.workflowCoordinator = workflowCoordinator
+        self.consumeOnboardingWindowPresentationFlag = consumeOnboardingWindowPresentationFlag
+        self.consumeMainWindowPresentationFlag = consumeMainWindowPresentationFlag
         cancellables.removeAll()
 
-        model.$mainWindowPresentationRequest
+        lifecycle.$mainWindowPresentationRequest
             .dropFirst()
             .sink { [weak self] _ in
                 self?.performOpenMainWindow()
             }
             .store(in: &cancellables)
 
-        model.$onboardingPresentationRequest
+        lifecycle.$onboardingPresentationRequest
             .dropFirst()
             .sink { [weak self] _ in
                 self?.performOpenOnboardingWindow()
@@ -81,7 +110,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             .store(in: &cancellables)
 
         rebuildMainMenu()
-        model.refreshAvailableWindows(includeThumbnails: true)
+        capture.refreshAvailableWindows(includeThumbnails: true)
     }
 
     func setWindowActions(
@@ -99,7 +128,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         switch menu {
         case self.menu:
             rebuildMainMenu()
-            model?.refreshAvailableWindows(includeThumbnails: true)
+            capture?.refreshAvailableWindows(includeThumbnails: true)
         case windowCaptureMenu:
             rebuildWindowCaptureMenu()
         case capturePresetsMenu:
@@ -118,23 +147,23 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     }
 
     @objc private func captureRegion() {
-        performMenuAction { $0.captureRegion() }
+        performMenuAction { [weak self] in self?.capture?.captureRegion() }
     }
 
     @objc private func captureCurrentDisplay() {
-        performMenuAction { $0.captureCurrentDisplay() }
+        performMenuAction { [weak self] in self?.capture?.captureCurrentDisplay() }
     }
 
     @objc private func captureFrontmostWindow() {
-        performMenuAction { $0.captureFrontmostWindow() }
+        performMenuAction { [weak self] in self?.capture?.captureFrontmostWindow() }
     }
 
     @objc private func captureScrollingArea() {
-        performMenuAction { $0.captureScrollingArea() }
+        performMenuAction { [weak self] in self?.capture?.captureScrollingArea() }
     }
 
     @objc private func repeatLastCapture() {
-        performMenuAction { $0.repeatLastCapture() }
+        performMenuAction { [weak self] in self?.capture?.repeatLastCapture() }
     }
 
     @objc private func capturePreset(_ sender: NSMenuItem) {
@@ -142,11 +171,11 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             return
         }
 
-        performMenuAction { $0.capturePreset(id: presetID) }
+        performMenuAction { [weak self] in self?.capture?.capturePreset(id: presetID) }
     }
 
     @objc private func saveLastCaptureAsPreset() {
-        performMenuAction { $0.beginSavingLastCaptureAsPreset() }
+        performMenuAction { [weak self] in self?.capture?.beginSavingLastCaptureAsPreset() }
     }
 
     @objc private func manageCapturePresets() {
@@ -154,99 +183,99 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     }
 
     @objc private func recordRegion() {
-        performMenuAction { $0.recordRegion() }
+        performMenuAction { [weak self] in self?.video?.recordRegion() }
     }
 
     @objc private func presentVideoWindowPicker() {
-        performMenuAction { $0.presentVideoWindowPicker() }
+        performMenuAction { [weak self] in self?.video?.presentVideoWindowPicker() }
     }
 
     @objc private func recordCurrentDisplay() {
-        performMenuAction { $0.recordCurrentDisplay() }
+        performMenuAction { [weak self] in self?.video?.recordCurrentDisplay() }
     }
 
     @objc private func stopVideoRecording() {
-        performMenuAction { $0.stopVideoRecording() }
+        performMenuAction { [weak self] in self?.video?.stopVideoRecording() }
     }
 
     @objc private func openMainWindow() {
-        performMenuAction { [weak self] model in
-            model.prepareForMainWindowPresentation()
+        performMenuAction { [weak self] in
+            self?.workflowCoordinator?.prepareForMainWindowPresentation()
             self?.performOpenMainWindow()
         }
     }
 
     @objc private func openClipboardHistory() {
-        model?.showClipboardManager()
+        clipboard?.showClipboardManager()
     }
 
     @objc private func addHorizontalScreenRuler() {
-        model?.presentScreenRuler(.horizontal)
+        tools?.presentScreenRuler(.horizontal)
         rebuildMainMenu()
     }
 
     @objc private func addVerticalScreenRuler() {
-        model?.presentScreenRuler(.vertical)
+        tools?.presentScreenRuler(.vertical)
         rebuildMainMenu()
     }
 
     @objc private func openScreenInspector() {
-        model?.presentScreenInspector()
+        tools?.presentScreenInspector()
         rebuildMainMenu()
     }
 
     @objc private func toggleAutoCopy() {
-        guard let model else {
+        guard let clipboard else {
             return
         }
 
-        model.autoCopyEnabled.toggle()
+        clipboard.autoCopyEnabled.toggle()
         rebuildMainMenu()
     }
 
     @objc private func toggleGlobalHotkeys() {
-        guard let model else {
+        guard let capture else {
             return
         }
 
-        var preferences = model.automationPreferences
+        var preferences = capture.automationPreferences
         preferences.globalHotkeysEnabled.toggle()
-        model.automationPreferences = preferences
+        capture.automationPreferences = preferences
         rebuildMainMenu()
     }
 
     @objc private func toggleScreenshotCursor() {
-        guard let model else {
+        guard let capture else {
             return
         }
 
-        model.screenshotIncludesCursor.toggle()
+        capture.screenshotIncludesCursor.toggle()
         rebuildMainMenu()
     }
 
     @objc private func toggleUIMap() {
-        guard let model else {
+        guard let capture else {
             return
         }
 
-        model.updateUIMapEnabled(!model.uiMapEnabled)
+        capture.updateUIMapEnabled(!capture.uiMapEnabled)
         rebuildMainMenu()
     }
 
     @objc private func setTimerOff() {
-        model?.captureDelay = .immediate
+        capture?.captureDelay = .immediate
     }
 
     @objc private func setTimerThreeSeconds() {
-        model?.captureDelay = .threeSeconds
+        capture?.captureDelay = .threeSeconds
     }
 
     @objc private func setTimerFiveSeconds() {
-        model?.captureDelay = .fiveSeconds
+        capture?.captureDelay = .fiveSeconds
     }
 
     @objc private func setTimerTenSeconds() {
-        model?.captureDelay = .tenSeconds
+        capture?.captureDelay = .tenSeconds
     }
 
     @objc private func setRegionOverlayCrosshair() {
@@ -268,7 +297,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     }
 
     @objc private func pickWindowOnScreen() {
-        performMenuAction { $0.pickWindowOnScreen() }
+        performMenuAction { [weak self] in self?.capture?.pickWindowOnScreen() }
     }
 
     @objc private func captureWindow(_ sender: NSMenuItem) {
@@ -276,25 +305,25 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             return
         }
 
-        performMenuAction { $0.captureWindow(window) }
+        performMenuAction { [weak self] in self?.capture?.captureWindow(window) }
     }
 
     @objc private func presentWindowPicker() {
-        performMenuAction { $0.presentWindowPicker() }
+        performMenuAction { [weak self] in self?.capture?.presentWindowPicker() }
     }
 
     @objc private func closeAllFloatingReferences() {
-        model?.floatingReferenceCoordinator.closeAll()
+        floatingReferences?.closeAll()
         rebuildMainMenu()
     }
 
     @objc private func closeAllScreenRulers() {
-        model?.closeAllScreenRulers()
+        tools?.closeAllScreenRulers()
         rebuildMainMenu()
     }
 
     @objc private func toggleScreenInspector() {
-        model?.toggleScreenInspector()
+        tools?.toggleScreenInspector()
         rebuildMainMenu()
     }
 
@@ -309,7 +338,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     }
 
     private var confirmsBeforeQuitting: Bool {
-        model?.confirmsBeforeQuitting ?? true
+        lifecycle?.confirmsBeforeQuitting ?? true
     }
 
     private func confirmQuitApplication() -> Bool {
@@ -328,14 +357,14 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         }
 
         if alert.suppressionButton?.state == .on {
-            model?.confirmsBeforeQuitting = false
+            lifecycle?.confirmsBeforeQuitting = false
         }
 
         return true
     }
 
     private func rebuildMainMenu() {
-        guard let model else {
+        guard let lifecycle, let capture, let clipboard, let floatingReferences, let capabilities else {
             return
         }
 
@@ -346,14 +375,14 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             systemImage: "selection.pin.in.out",
             action: #selector(captureRegion),
             keyEquivalent: "1",
-            enabled: !isCaptureActionDisabled(for: model)
+            enabled: !isCaptureActionDisabled
         ))
 
         let windowCaptureItem = NSMenuItem(title: "Window Capture", action: nil, keyEquivalent: "2")
         windowCaptureItem.keyEquivalentModifierMask = captureShortcutModifiers
         windowCaptureItem.image = NSImage(systemSymbolName: "rectangle.on.rectangle", accessibilityDescription: nil)
         windowCaptureItem.submenu = windowCaptureMenu
-        windowCaptureItem.isEnabled = !isCaptureActionDisabled(for: model)
+        windowCaptureItem.isEnabled = !isCaptureActionDisabled
         menu.addItem(windowCaptureItem)
 
         menu.addItem(captureItem(
@@ -361,7 +390,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             systemImage: "macwindow",
             action: #selector(captureCurrentDisplay),
             keyEquivalent: "3",
-            enabled: !isCaptureActionDisabled(for: model)
+            enabled: !isCaptureActionDisabled
         ))
 
         menu.addItem(captureItem(
@@ -369,15 +398,15 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             systemImage: "macwindow.on.rectangle",
             action: #selector(captureFrontmostWindow),
             keyEquivalent: "4",
-            enabled: !isCaptureActionDisabled(for: model)
+            enabled: !isCaptureActionDisabled
         ))
 
-        if model.capabilities.isEnabled(.scrollingCapture) {
+        if capabilities.isEnabled(.scrollingCapture) {
             menu.addItem(actionItem(
                 title: "Scrolling Capture",
                 systemImage: "arrow.down.to.line",
                 action: #selector(captureScrollingArea),
-                enabled: !isCaptureActionDisabled(for: model)
+                enabled: !isCaptureActionDisabled
             ))
         }
 
@@ -387,7 +416,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             action: #selector(repeatLastCapture),
             keyEquivalent: "r",
             keyModifiers: captureShortcutModifiers,
-            enabled: !isCaptureActionDisabled(for: model) && model.canRepeatLastCapture
+            enabled: !isCaptureActionDisabled && capture.canRepeatLastCapture
         ))
 
         menu.addItem(.separator())
@@ -441,7 +470,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        if model.floatingReferenceCoordinator.hasActiveReferences {
+        if floatingReferences.hasActiveReferences {
             menu.addItem(actionItem(
                 title: "Close All Floating References",
                 systemImage: "xmark.rectangle",
@@ -460,18 +489,18 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         menu.addItem(toggleItem(
             title: "Include Cursor in Screenshots",
             action: #selector(toggleScreenshotCursor),
-            isOn: model.screenshotIncludesCursor,
+            isOn: capture.screenshotIncludesCursor,
             enabled: true,
             toolTip: "Add the cursor as an editable overlay in screenshots. Scrolling Capture always excludes it."
         ))
 
-        if model.capabilities.isEnabled(.uiMap) {
+        if capabilities.isEnabled(.uiMap) {
             menu.addItem(toggleItem(
                 title: "Include UI Map for Window Captures",
                 action: #selector(toggleUIMap),
-                isOn: model.uiMapEnabled,
+                isOn: capture.uiMapEnabled,
                 enabled: true,
-                toolTip: model.windowUIMapNeedsAccessibilityAccess
+                toolTip: capture.windowUIMapNeedsAccessibilityAccess
                     ? "Allow Accessibility access before Window UI Map metadata can be captured."
                     : "Save available names, roles, identifiers, and locations of visible interface elements when capturing a window."
             ))
@@ -484,7 +513,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         menu.addItem(toggleItem(
             title: "Auto Copy",
             action: #selector(toggleAutoCopy),
-            isOn: model.autoCopyEnabled,
+            isOn: clipboard.autoCopyEnabled,
             enabled: true,
             toolTip: "Automatically copy the current rendered snip to the clipboard after each capture and after editor changes."
         ))
@@ -494,7 +523,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         menu.addItem(toggleItem(
             title: "Global Hotkeys",
             action: #selector(toggleGlobalHotkeys),
-            isOn: model.automationPreferences.globalHotkeysEnabled,
+            isOn: capture.automationPreferences.globalHotkeysEnabled,
             enabled: true,
             toolTip: "Register capture hotkeys while \(AppBranding.displayName) is not frontmost."
         ))
@@ -502,10 +531,10 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
         menu.addItem(actionItem(title: "Quit \(AppBranding.displayName)", systemImage: nil, action: #selector(quitApplication), enabled: true))
 
-        if model.isWorking || model.isRecordingVideo {
+        if isCaptureActionDisabled {
             menu.addItem(.separator())
 
-            let workingItem = NSMenuItem(title: model.workingMessage, action: nil, keyEquivalent: "")
+            let workingItem = NSMenuItem(title: lifecycle.workingMessage, action: nil, keyEquivalent: "")
             workingItem.image = NSImage(systemSymbolName: "hourglass", accessibilityDescription: nil)
             workingItem.isEnabled = false
             menu.addItem(workingItem)
@@ -519,13 +548,17 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     }
 
     private func rebuildWindowCaptureMenu() {
-        guard let model else {
+        guard let capture, let capabilities else {
             return
         }
 
         WindowCaptureMenuBuilder.populate(
             windowCaptureMenu,
-            for: model,
+            context: WindowCaptureMenuContext(
+                windows: capture.availableWindows,
+                isActionEnabled: !isCaptureActionDisabled,
+                isUIMapEnabled: capabilities.isEnabled(.uiMap) && capture.uiMapEnabled
+            ),
             target: self,
             pickOnScreenAction: #selector(pickWindowOnScreen),
             captureWindowAction: #selector(captureWindow(_:)),
@@ -535,12 +568,8 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     }
 
     private func rebuildVideoRecordingMenu() {
-        guard let model else {
-            return
-        }
-
         videoRecordingMenu.removeAllItems()
-        let isDisabled = isCaptureActionDisabled(for: model)
+        let isDisabled = isCaptureActionDisabled
 
         videoRecordingMenu.addItem(actionItem(
             title: "Record Region",
@@ -563,7 +592,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             enabled: !isDisabled
         ))
 
-        if model.isRecordingVideo {
+        if isRecordingVideo {
             videoRecordingMenu.addItem(.separator())
             videoRecordingMenu.addItem(actionItem(
                 title: "Stop Recording",
@@ -575,7 +604,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     }
 
     private func rebuildScreenRulerMenu() {
-        guard let model else {
+        guard let tools else {
             return
         }
 
@@ -595,7 +624,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         verticalRulerItem.image = verticalRulerMenuImage()
         screenRulerMenu.addItem(verticalRulerItem)
 
-        if model.screenRulerCoordinator.hasActiveRulers {
+        if tools.screenRulerCoordinator.hasActiveRulers {
             screenRulerMenu.addItem(.separator())
             screenRulerMenu.addItem(actionItem(
                 title: "Close All Screen Rulers",
@@ -607,19 +636,19 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     }
 
     private func rebuildCapturePresetsMenu() {
-        guard let model else {
+        guard let capture else {
             return
         }
 
         capturePresetsMenu.removeAllItems()
 
-        let isEnabled = !isCaptureActionDisabled(for: model)
-        if model.capturePresets.isEmpty {
+        let isEnabled = !isCaptureActionDisabled
+        if capture.capturePresets.isEmpty {
             let emptyItem = NSMenuItem(title: "No Presets", action: nil, keyEquivalent: "")
             emptyItem.isEnabled = false
             capturePresetsMenu.addItem(emptyItem)
         } else {
-            for preset in model.capturePresets {
+            for preset in capture.capturePresets {
                 let item = actionItem(
                     title: capturePresetMenuTitle(preset.name),
                     systemImage: nil,
@@ -636,7 +665,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             title: "Save Last Capture as Preset...",
             systemImage: "plus",
             action: #selector(saveLastCaptureAsPreset),
-            enabled: isEnabled && model.canSaveLastCaptureAsPreset
+            enabled: isEnabled && capture.canSaveLastCaptureAsPreset
         ))
 
         capturePresetsMenu.addItem(actionItem(
@@ -657,25 +686,25 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     }
 
     private func rebuildTimerMenu() {
-        guard let model else {
+        guard let capture else {
             return
         }
 
         timerMenu.removeAllItems()
-        timerMenu.addItem(timerItem(title: CaptureDelay.immediate.label, action: #selector(setTimerOff), isSelected: model.captureDelay == .immediate))
-        timerMenu.addItem(timerItem(title: CaptureDelay.threeSeconds.label, action: #selector(setTimerThreeSeconds), isSelected: model.captureDelay == .threeSeconds))
-        timerMenu.addItem(timerItem(title: CaptureDelay.fiveSeconds.label, action: #selector(setTimerFiveSeconds), isSelected: model.captureDelay == .fiveSeconds))
-        timerMenu.addItem(timerItem(title: CaptureDelay.tenSeconds.label, action: #selector(setTimerTenSeconds), isSelected: model.captureDelay == .tenSeconds))
+        timerMenu.addItem(timerItem(title: CaptureDelay.immediate.label, action: #selector(setTimerOff), isSelected: capture.captureDelay == .immediate))
+        timerMenu.addItem(timerItem(title: CaptureDelay.threeSeconds.label, action: #selector(setTimerThreeSeconds), isSelected: capture.captureDelay == .threeSeconds))
+        timerMenu.addItem(timerItem(title: CaptureDelay.fiveSeconds.label, action: #selector(setTimerFiveSeconds), isSelected: capture.captureDelay == .fiveSeconds))
+        timerMenu.addItem(timerItem(title: CaptureDelay.tenSeconds.label, action: #selector(setTimerTenSeconds), isSelected: capture.captureDelay == .tenSeconds))
     }
 
     private func rebuildRegionCaptureSettingsMenu() {
-        guard let model else {
+        guard let capture else {
             return
         }
 
         regionCaptureSettingsMenu.removeAllItems()
 
-        let overlayMode = model.regionCapturePreferences.overlayMode
+        let overlayMode = capture.regionCapturePreferences.overlayMode
         regionCaptureSettingsMenu.addItem(timerItem(title: RegionCaptureOverlayMode.crosshair.label, action: #selector(setRegionOverlayCrosshair), isSelected: overlayMode == .crosshair))
         regionCaptureSettingsMenu.addItem(timerItem(title: RegionCaptureOverlayMode.magnifyingGlass.label, action: #selector(setRegionOverlayMagnifier), isSelected: overlayMode == .magnifyingGlass))
         regionCaptureSettingsMenu.addItem(timerItem(title: RegionCaptureOverlayMode.crosshairAndMagnifyingGlass.label, action: #selector(setRegionOverlayCrosshairAndMagnifier), isSelected: overlayMode == .crosshairAndMagnifyingGlass))
@@ -684,7 +713,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         regionCaptureSettingsMenu.addItem(toggleItem(
             title: "Always Capture on Mouse Up",
             action: #selector(toggleAlwaysCaptureOnMouseUp),
-            isOn: !model.regionCapturePreferences.showsActionControls,
+            isOn: !capture.regionCapturePreferences.showsActionControls,
             enabled: true,
             toolTip: "Capture the selected region immediately when you release the mouse instead of showing Capture and Cancel buttons."
         ))
@@ -770,13 +799,13 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     }
 
     private func updateRegionCapturePreferences(_ update: (inout RegionCapturePreferences) -> Void) {
-        guard let model else {
+        guard let capture else {
             return
         }
 
-        var preferences = model.regionCapturePreferences
+        var preferences = capture.regionCapturePreferences
         update(&preferences)
-        model.regionCapturePreferences = preferences
+        capture.regionCapturePreferences = preferences
     }
 
     private func performOpenMainWindow() {
@@ -788,32 +817,30 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     }
 
     private func performInitialWindowPresentationIfNeeded() {
-        guard let model, openMainWindowAction != nil, openOnboardingWindowAction != nil else {
+        guard openMainWindowAction != nil, openOnboardingWindowAction != nil else {
             return
         }
 
-        if model.consumeOnboardingWindowPresentationFlag() {
+        if consumeOnboardingWindowPresentationFlag?() == true {
             performOpenOnboardingWindow()
             return
         }
 
-        if model.consumeMainWindowPresentationFlag() {
+        if consumeMainWindowPresentationFlag?() == true {
             performOpenMainWindow()
         }
     }
 
-    private func performMenuAction(_ action: @escaping (AppModel) -> Void) {
-        DispatchQueue.main.async { [weak self] in
-            guard let model = self?.model else {
-                return
-            }
-
-            action(model)
-        }
+    private func performMenuAction(_ action: @MainActor @escaping () -> Void) {
+        DispatchQueue.main.async(execute: action)
     }
 
-    private func isCaptureActionDisabled(for model: AppModel) -> Bool {
-        model.isWorking || model.isRecordingVideo
+    private var isCaptureActionDisabled: Bool {
+        capture?.isWorking == true || isRecordingVideo
+    }
+
+    private var isRecordingVideo: Bool {
+        video?.activeVideoRecording != nil
     }
 
     private var captureShortcutModifiers: NSEvent.ModifierFlags {
