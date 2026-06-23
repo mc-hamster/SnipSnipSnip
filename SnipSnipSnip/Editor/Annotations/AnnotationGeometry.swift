@@ -37,7 +37,12 @@ nonisolated enum AnnotationGeometry {
         case let .highlight(shape):
             return .highlight(HighlightShape(rect: transformRect(shape.rect)))
         case let .text(shape):
-            return .text(TextShape(rect: transformRect(shape.rect), text: shape.text, alignment: shape.alignment))
+            return .text(TextShape(
+                rect: transformRect(shape.rect),
+                text: shape.text,
+                alignment: shape.alignment,
+                automaticallySizesToText: shape.automaticallySizesToText
+            ))
         case let .callout(shape):
             return .callout(CalloutShape(
                 rect: transformRect(shape.rect),

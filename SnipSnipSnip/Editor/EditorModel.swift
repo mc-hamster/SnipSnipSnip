@@ -692,6 +692,7 @@ nonisolated struct TextShape: Equatable {
     var rect: CGRect
     var text: String
     var alignment: TextAlignmentMode = .left
+    var automaticallySizesToText: Bool = true
 }
 
 nonisolated struct HighlightShape: Equatable {
@@ -961,6 +962,7 @@ nonisolated struct Annotation: Identifiable, Equatable {
             to: newSelectionBounds
         )
         return scaled(from: resizeReferenceRect, to: newResizeReferenceBounds)
+            .disablingAutomaticTextSizing()
     }
 
     func resized(to rect: CGRect) -> Annotation {
@@ -983,17 +985,14 @@ nonisolated struct Annotation: Identifiable, Equatable {
         switch kind {
         case let .text(shape):
             let fittedRect = refittingBounds
-                ? gscFittedTextRect(
-                    for: text,
-                    currentRect: shape.rect,
-                    font: NSFont.systemFont(ofSize: style.fontSize, weight: .semibold),
-                    horizontalPadding: 24,
-                    verticalPadding: 20,
-                    minSize: CGSize(width: 180, height: 60),
-                    maxWidth: 520
-                )
+                ? fittedTextRect(for: text, shape: shape)
                 : shape.rect.gscIntegralStandardized
-            copy.kind = .text(TextShape(rect: fittedRect, text: text, alignment: shape.alignment))
+            copy.kind = .text(TextShape(
+                rect: fittedRect,
+                text: text,
+                alignment: shape.alignment,
+                automaticallySizesToText: shape.automaticallySizesToText
+            ))
         case let .callout(shape):
             let fittedRect: CGRect
 
@@ -1076,7 +1075,12 @@ nonisolated struct Annotation: Identifiable, Equatable {
 
         switch kind {
         case let .text(shape):
-            copy.kind = .text(TextShape(rect: shape.rect, text: shape.text, alignment: alignment))
+            copy.kind = .text(TextShape(
+                rect: shape.rect,
+                text: shape.text,
+                alignment: alignment,
+                automaticallySizesToText: shape.automaticallySizesToText
+            ))
         case let .callout(shape):
             copy.kind = .callout(CalloutShape(
                 rect: shape.rect,
@@ -1091,6 +1095,47 @@ nonisolated struct Annotation: Identifiable, Equatable {
         }
 
         return copy
+    }
+
+    func disablingAutomaticTextSizing() -> Annotation {
+        guard case let .text(shape) = kind else {
+            return self
+        }
+
+        var copy = self
+        copy.kind = .text(TextShape(
+            rect: shape.rect,
+            text: shape.text,
+            alignment: shape.alignment,
+            automaticallySizesToText: false
+        ))
+        return copy
+    }
+
+    private func fittedTextRect(for text: String, shape: TextShape) -> CGRect {
+        let font = NSFont.systemFont(ofSize: style.fontSize, weight: .semibold)
+
+        if shape.automaticallySizesToText {
+            return gscSnugTextRect(
+                for: text,
+                origin: shape.rect.origin,
+                font: font,
+                horizontalPadding: 24,
+                verticalPadding: 20,
+                minSize: CGSize(width: 44, height: 34),
+                maxWidth: 520
+            )
+        }
+
+        return gscFittedTextRect(
+            for: text,
+            currentRect: shape.rect,
+            font: font,
+            horizontalPadding: 24,
+            verticalPadding: 20,
+            minSize: shape.rect.size,
+            maxWidth: 520
+        )
     }
 
     func updatingCalloutNumber(_ number: Int) -> Annotation {
@@ -1208,10 +1253,19 @@ nonisolated struct Annotation: Identifiable, Equatable {
     }
 
     nonisolated static func makeText(at point: CGPoint, style: AnnotationStyle = .default(for: .text)) -> Annotation {
-        Annotation(
+        let rect = gscSnugTextRect(
+            for: "Text",
+            origin: point,
+            font: NSFont.systemFont(ofSize: style.fontSize, weight: .semibold),
+            horizontalPadding: 24,
+            verticalPadding: 20,
+            minSize: CGSize(width: 44, height: 34),
+            maxWidth: 520
+        )
+        return Annotation(
             id: UUID(),
             groupID: nil,
-            kind: .text(TextShape(rect: CGRect(x: point.x, y: point.y, width: 260, height: 80), text: "Text", alignment: .left)),
+            kind: .text(TextShape(rect: rect, text: "Text", alignment: .left, automaticallySizesToText: true)),
             style: style
         )
     }

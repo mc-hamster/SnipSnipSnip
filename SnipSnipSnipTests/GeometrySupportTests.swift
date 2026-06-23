@@ -727,6 +727,53 @@ final class GeometrySupportTests: XCTestCase {
 
         XCTAssertGreaterThan(rect.height, 119)
     }
+
+    func testSnugTextRectCountsTrailingNewLineAsVisibleLine() {
+        let font = NSFont.systemFont(ofSize: 24, weight: .semibold)
+        let singleLine = gscSnugTextRect(
+            for: "Line 1",
+            origin: CGPoint(x: 20, y: 20),
+            font: font,
+            horizontalPadding: 24,
+            verticalPadding: 20,
+            minSize: CGSize(width: 44, height: 34),
+            maxWidth: 520
+        )
+        let pendingSecondLine = gscSnugTextRect(
+            for: "Line 1\n",
+            origin: CGPoint(x: 20, y: 20),
+            font: font,
+            horizontalPadding: 24,
+            verticalPadding: 20,
+            minSize: CGSize(width: 44, height: 34),
+            maxWidth: 520
+        )
+
+        XCTAssertGreaterThan(pendingSecondLine.height, singleLine.height + font.pointSize * 0.5)
+    }
+
+    func testSnugTextRectHorizontalSlack() {
+        let font = NSFont.systemFont(ofSize: 24, weight: .semibold)
+        let text = "The rightmost word"
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineBreakMode = .byWordWrapping
+        let rawLineWidth = NSString(string: text).size(withAttributes: [
+            .font: font,
+            .paragraphStyle: paragraphStyle
+        ]).width
+
+        let rect = gscSnugTextRect(
+            for: text,
+            origin: CGPoint(x: 20, y: 20),
+            font: font,
+            horizontalPadding: 24,
+            verticalPadding: 20,
+            minSize: CGSize(width: 44, height: 34),
+            maxWidth: 520
+        )
+
+        XCTAssertGreaterThan(rect.width, ceil(rawLineWidth) + 24)
+    }
 }
 
 private func makeAutoCropFixtureImage(

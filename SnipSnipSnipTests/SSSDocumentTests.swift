@@ -236,7 +236,7 @@ final class SSSDocumentTests: XCTestCase {
         try? FileManager.default.removeItem(at: packageURL)
     }
 
-    func testPackageRoundTripsTextAlignment() throws {
+    func testPackageRoundTripsTextAlignmentAndAutoSizing() throws {
         let baseImage = makeCoordinateImage(width: 40, height: 30, pattern: .weighted(xMultiplier: 5, yMultiplier: 7, includeBlueSum: true))
         let capture = makeCapturedScreenshot(
             image: baseImage,
@@ -258,6 +258,10 @@ final class SSSDocumentTests: XCTestCase {
 
         XCTAssertEqual(loaded.session.currentSnapshot.annotations[0].textAlignmentMode, .center)
         XCTAssertEqual(loaded.session.currentSnapshot.annotations[1].textAlignmentMode, .right)
+        guard case let .text(loadedText) = loaded.session.currentSnapshot.annotations[0].kind else {
+            return XCTFail("Expected loaded text annotation")
+        }
+        XCTAssertTrue(loadedText.automaticallySizesToText)
 
         try? FileManager.default.removeItem(at: packageURL)
     }

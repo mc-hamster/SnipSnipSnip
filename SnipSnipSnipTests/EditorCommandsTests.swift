@@ -72,6 +72,62 @@ final class EditorCommandsTests: XCTestCase {
         }
     }
 
+    func testAutoSizedTextAnnotationFitsSnuglyToTypedText() {
+        let annotation = Annotation.makeText(at: CGPoint(x: 20, y: 30))
+            .updatingText("A much wider label")
+        let wideBounds = annotation.boundingRect
+        let updated = annotation.updatingText("Hi")
+
+        switch updated.kind {
+        case let .text(shape):
+            XCTAssertEqual(shape.text, "Hi")
+            XCTAssertTrue(shape.automaticallySizesToText)
+            XCTAssertLessThan(shape.rect.width, wideBounds.width)
+            XCTAssertEqual(shape.rect.origin, CGPoint(x: 20, y: 30))
+        default:
+            XCTFail("Expected a text annotation")
+        }
+    }
+
+    func testAutoSizedTextAnnotationShowsPendingNewLine() {
+        let annotation = Annotation.makeText(at: CGPoint(x: 20, y: 30))
+            .updatingText("Line 1")
+        let updated = annotation.updatingText("Line 1\n")
+
+        XCTAssertGreaterThan(updated.boundingRect.height, annotation.boundingRect.height)
+    }
+
+    func testAutoSizedTextAnnotationShowsTypedSecondLineBeforeNextReturn() {
+        let annotation = Annotation.makeText(at: CGPoint(x: 20, y: 30))
+            .updatingText("Line 1\n1234")
+        let pendingThirdLine = annotation.updatingText("Line 1\n1234\n")
+
+        XCTAssertEqual(annotation.boundingRect.origin, CGPoint(x: 20, y: 30))
+        XCTAssertGreaterThan(annotation.boundingRect.height, 70)
+        XCTAssertGreaterThan(pendingThirdLine.boundingRect.height, annotation.boundingRect.height)
+    }
+
+    func testManuallyResizedTextAnnotationKeepsUserSizeWhileTyping() {
+        let annotation = Annotation.makeText(at: CGPoint(x: 20, y: 30))
+            .updatingText("Hi")
+        let originalBounds = annotation.boundingRect
+        let resizedBounds = gscSignedScaleBounds(
+            for: originalBounds,
+            handle: .right,
+            point: CGPoint(x: originalBounds.maxX + 180, y: originalBounds.midY)
+        )
+        let manuallySized = annotation.scaledForSingleSelectionResize(from: originalBounds, to: resizedBounds)
+        let updated = manuallySized.updatingText("Short")
+
+        switch updated.kind {
+        case let .text(shape):
+            XCTAssertFalse(shape.automaticallySizesToText)
+            XCTAssertEqual(shape.rect.width, manuallySized.boundingRect.width)
+        default:
+            XCTFail("Expected a text annotation")
+        }
+    }
+
     func testUpdatingCalloutAlignmentPreservesCalloutContent() {
         let annotation = Annotation.makeCallout(at: CGPoint(x: 30, y: 40), number: 4).updatingText("Review this")
         let updated = annotation.updatingTextAlignment(.right)

@@ -906,6 +906,7 @@ nonisolated private struct AnnotationRecord: Codable {
     var end: PointRecord?
     var points: [PointRecord]?
     var text: String?
+    var automaticallySizesToText: Bool?
     var number: Int?
     var textAlignment: String?
     var arrowHeadStyle: String?
@@ -934,6 +935,7 @@ nonisolated private struct AnnotationRecord: Codable {
         end = nil
         points = nil
         text = nil
+        automaticallySizesToText = nil
         number = nil
         textAlignment = nil
         arrowHeadStyle = nil
@@ -989,6 +991,7 @@ nonisolated private struct AnnotationRecord: Codable {
             kind = "text"
             rect = RectRecord(shape.rect)
             text = shape.text
+            automaticallySizesToText = shape.automaticallySizesToText
             textAlignment = shape.alignment.rawValue
         case let .callout(shape):
             kind = "callout"
@@ -1067,7 +1070,12 @@ nonisolated private struct AnnotationRecord: Codable {
             guard let rect, let text else {
                 throw SSSDocumentError.invalidManifest
             }
-            annotationKind = .text(TextShape(rect: rect.cgRect, text: text, alignment: TextAlignmentMode(rawValue: textAlignment ?? "left") ?? .left))
+            annotationKind = .text(TextShape(
+                rect: rect.cgRect,
+                text: text,
+                alignment: TextAlignmentMode(rawValue: textAlignment ?? "left") ?? .left,
+                automaticallySizesToText: automaticallySizesToText ?? false
+            ))
         case "callout":
             guard let rect, let number, let text else {
                 throw SSSDocumentError.invalidManifest

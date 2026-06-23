@@ -652,6 +652,36 @@ nonisolated func gscArrowLabelOffset(angle: CGFloat, distance: CGFloat, placeAbo
     return CGPoint(x: normal.x * distance * multiplier, y: normal.y * distance * multiplier)
 }
 
+private nonisolated func gscTextMeasurementString(for text: String) -> String {
+    guard !text.isEmpty else {
+        return " "
+    }
+
+    return text.hasSuffix("\n") || text.hasSuffix("\r") ? text + " " : text
+}
+
+private nonisolated func gscTextLayoutBounds(
+    for text: String,
+    width: CGFloat,
+    attributes: [NSAttributedString.Key: Any]
+) -> CGRect {
+    let textStorage = NSTextStorage(string: text, attributes: attributes)
+    let layoutManager = NSLayoutManager()
+    let textContainer = NSTextContainer(size: CGSize(width: max(width, 1), height: .greatestFiniteMagnitude))
+    textContainer.lineFragmentPadding = 0
+    textContainer.maximumNumberOfLines = 0
+
+    layoutManager.addTextContainer(textContainer)
+    textStorage.addLayoutManager(layoutManager)
+    layoutManager.ensureLayout(for: textContainer)
+
+    return layoutManager.usedRect(for: textContainer)
+}
+
+private nonisolated func gscTextHorizontalLayoutSlack(for font: NSFont) -> CGFloat {
+    ceil(max(font.pointSize * 0.35, font.descender.magnitude, 8))
+}
+
 nonisolated func gscFittedTextRect(
     for text: String,
     currentRect: CGRect,
@@ -662,7 +692,7 @@ nonisolated func gscFittedTextRect(
     maxWidth: CGFloat
 ) -> CGRect {
     let normalizedRect = currentRect.standardized
-    let displayText = text.isEmpty ? " " : text
+    let displayText = gscTextMeasurementString(for: text)
     let paragraphStyle = NSMutableParagraphStyle()
     paragraphStyle.lineBreakMode = .byWordWrapping
 
@@ -672,14 +702,15 @@ nonisolated func gscFittedTextRect(
     ]
 
     let singleLineSize = NSString(string: displayText).size(withAttributes: attributes)
+    let horizontalSlack = gscTextHorizontalLayoutSlack(for: font)
     let targetWidth = min(
-        max(normalizedRect.width, ceil(singleLineSize.width) + horizontalPadding, minSize.width),
+        max(normalizedRect.width, ceil(singleLineSize.width) + horizontalPadding + horizontalSlack, minSize.width),
         maxWidth
     )
 
-    let textBounds = NSString(string: displayText).boundingRect(
-        with: CGSize(width: max(targetWidth - horizontalPadding, 1), height: .greatestFiniteMagnitude),
-        options: [.usesLineFragmentOrigin, .usesFontLeading],
+    let textBounds = gscTextLayoutBounds(
+        for: displayText,
+        width: targetWidth - horizontalPadding - horizontalSlack,
         attributes: attributes
     )
 
@@ -692,6 +723,46 @@ nonisolated func gscFittedTextRect(
     return CGRect(
         x: normalizedRect.minX,
         y: normalizedRect.minY,
+        width: targetWidth,
+        height: targetHeight
+    ).gscIntegralStandardized
+}
+
+nonisolated func gscSnugTextRect(
+    for text: String,
+    origin: CGPoint,
+    font: NSFont,
+    horizontalPadding: CGFloat,
+    verticalPadding: CGFloat,
+    minSize: CGSize,
+    maxWidth: CGFloat
+) -> CGRect {
+    let displayText = gscTextMeasurementString(for: text)
+    let paragraphStyle = NSMutableParagraphStyle()
+    paragraphStyle.lineBreakMode = .byWordWrapping
+
+    let attributes: [NSAttributedString.Key: Any] = [
+        .font: font,
+        .paragraphStyle: paragraphStyle
+    ]
+
+    let explicitLines = displayText.components(separatedBy: .newlines)
+    let widestLine = explicitLines
+        .map { NSString(string: $0.isEmpty ? " " : $0).size(withAttributes: attributes).width }
+        .max() ?? 0
+    let horizontalSlack = gscTextHorizontalLayoutSlack(for: font)
+    let targetWidth = min(max(ceil(widestLine) + horizontalPadding + horizontalSlack, minSize.width), maxWidth)
+    let textBounds = gscTextLayoutBounds(
+        for: displayText,
+        width: targetWidth - horizontalPadding - horizontalSlack,
+        attributes: attributes
+    )
+    let renderSlack = ceil(max(font.descender.magnitude, 4))
+    let targetHeight = max(ceil(textBounds.height) + verticalPadding + renderSlack, minSize.height)
+
+    return CGRect(
+        x: origin.x,
+        y: origin.y,
         width: targetWidth,
         height: targetHeight
     ).gscIntegralStandardized
