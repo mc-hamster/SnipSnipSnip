@@ -261,12 +261,14 @@ final class AppModelTests: XCTestCase {
         XCTAssertNil(model.selectedScreenshotFullscreenDisplayID)
         XCTAssertEqual(model.screenshotJPEGQuality, ImageExportOptions.default.jpegQuality)
         XCTAssertTrue(model.editorSingleKeyToolShortcutsEnabled)
+        XCTAssertEqual(model.editorStartupToolPreference, .lastUsed)
         XCTAssertFalse(model.regionCapturePreferences.advancedControlsEnabled)
 
         model.screenshotFullscreenDisplayMode = .selectedDisplay
         model.selectedScreenshotFullscreenDisplayID = 42
         model.screenshotJPEGQuality = 0.66
         model.editorSingleKeyToolShortcutsEnabled = false
+        model.editorStartupToolPreference = .tool(.arrow)
         var regionPreferences = model.regionCapturePreferences
         regionPreferences.advancedControlsEnabled = true
         model.regionCapturePreferences = regionPreferences
@@ -283,6 +285,7 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(reloaded.selectedScreenshotFullscreenDisplayID, 42)
         XCTAssertEqual(reloaded.screenshotJPEGQuality, 0.66, accuracy: 0.001)
         XCTAssertFalse(reloaded.editorSingleKeyToolShortcutsEnabled)
+        XCTAssertEqual(reloaded.editorStartupToolPreference, .tool(.arrow))
         XCTAssertTrue(reloaded.regionCapturePreferences.advancedControlsEnabled)
 
         reloaded.resetPreferencesToDefaults()
@@ -291,7 +294,64 @@ final class AppModelTests: XCTestCase {
         XCTAssertNil(reloaded.selectedScreenshotFullscreenDisplayID)
         XCTAssertEqual(reloaded.screenshotJPEGQuality, ImageExportOptions.default.jpegQuality)
         XCTAssertTrue(reloaded.editorSingleKeyToolShortcutsEnabled)
+        XCTAssertEqual(reloaded.editorStartupToolPreference, .lastUsed)
         XCTAssertFalse(reloaded.regionCapturePreferences.advancedControlsEnabled)
+    }
+
+    func testEditorStartupToolPreferenceAppliesConfiguredToolToInstalledController() {
+        let suiteName = "AppModelTests.editorStartupToolConfigured"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        model.editorStartupToolPreference = .tool(.text)
+
+        let controller = EditorController(capture: makeCapturedScreenshot(), defaults: defaults)
+        model.documents.installEditorController(
+            controller,
+            documentURL: nil,
+            savedSession: nil,
+            shouldCreateRecoverySession: false
+        )
+
+        XCTAssertEqual(controller.activeTool, .text)
+    }
+
+    func testEditorStartupToolPreferenceUsesLastSelectedToolbarTool() {
+        let suiteName = "AppModelTests.editorStartupToolLastUsed"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+
+        let firstController = EditorController(capture: makeCapturedScreenshot(), defaults: defaults)
+        model.documents.installEditorController(
+            firstController,
+            documentURL: nil,
+            savedSession: nil,
+            shouldCreateRecoverySession: false
+        )
+        firstController.activateToolbarTool(.arrow)
+
+        let secondController = EditorController(capture: makeCapturedScreenshot(), defaults: defaults)
+        model.documents.installEditorController(
+            secondController,
+            documentURL: nil,
+            savedSession: nil,
+            shouldCreateRecoverySession: false
+        )
+
+        XCTAssertEqual(secondController.activeTool, .arrow)
     }
 
     func testEditableRedactionSaveGateSkipsPromptWithoutRedactions() {

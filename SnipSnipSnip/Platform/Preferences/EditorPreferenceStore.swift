@@ -11,6 +11,10 @@ nonisolated struct EditorPreferenceStore {
         key: AppModelPreferenceKey.uiMapPinnedOverlayDefaults,
         defaultValue: UIMapOverlayOptions()
     )
+    private let startupToolPreference = CodablePreference<EditorStartupToolPreference>(
+        key: AppModelPreferenceKey.editorStartupToolPreference,
+        defaultValue: .default
+    )
 
     init(storage: PreferenceStorage) {
         self.storage = storage
@@ -22,6 +26,32 @@ nonisolated struct EditorPreferenceStore {
 
     func saveSingleKeyToolShortcutsEnabled(_ enabled: Bool) {
         storage.set(enabled, forKey: AppModelPreferenceKey.editorSingleKeyToolShortcutsEnabled)
+    }
+
+    func loadStartupToolPreference() -> EditorStartupToolPreference {
+        startupToolPreference.load(from: storage).sanitized
+    }
+
+    func saveStartupToolPreference(_ preference: EditorStartupToolPreference) {
+        startupToolPreference.save(preference.sanitized, to: storage)
+    }
+
+    func loadLastUsedTool() -> EditorTool? {
+        guard let rawValue = storage.string(forKey: AppModelPreferenceKey.editorLastUsedTool),
+              let tool = EditorTool(rawValue: rawValue),
+              tool.isStartupDefaultOption else {
+            return nil
+        }
+
+        return tool
+    }
+
+    func saveLastUsedTool(_ tool: EditorTool) {
+        guard tool.isStartupDefaultOption else {
+            return
+        }
+
+        storage.set(tool.rawValue, forKey: AppModelPreferenceKey.editorLastUsedTool)
     }
 
     func loadCropOutsideOverlayAlpha() -> CGFloat {

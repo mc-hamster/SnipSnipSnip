@@ -11,7 +11,7 @@ private struct EditorToolMetadata {
     let defaultStyle: AnnotationStyle
 }
 
-nonisolated enum EditorTool: String, CaseIterable, Identifiable {
+nonisolated enum EditorTool: String, CaseIterable, Codable, Identifiable {
     case select
     case uiMapInspect
     case rectangle
@@ -260,6 +260,67 @@ nonisolated enum EditorTool: String, CaseIterable, Identifiable {
                 defaultRedactionMode: nil,
                 defaultStyle: AnnotationStyle(strokeColor: .rectangleStroke, fillColor: .clear, lineWidth: 4, fontSize: 0, effectRadius: 0)
             )
+        }
+    }
+}
+
+nonisolated extension EditorTool {
+    static let startupDefaultTools: [EditorTool] = allCases.filter(\.isStartupDefaultOption)
+
+    var isStartupDefaultOption: Bool {
+        switch self {
+        case .uiMapInspect, .colorPicker:
+            return false
+        case .select, .rectangle, .ellipse, .line, .arrow, .freehand, .highlighter, .highlight, .text, .callout, .measure, .spotlight, .ocrText, .blur, .pixelate, .redact, .crop:
+            return true
+        }
+    }
+}
+
+nonisolated enum EditorStartupToolPreference: Codable, Equatable, Hashable, Identifiable {
+    case lastUsed
+    case tool(EditorTool)
+
+    static let `default`: EditorStartupToolPreference = .lastUsed
+
+    var id: String {
+        switch self {
+        case .lastUsed:
+            return "lastUsed"
+        case let .tool(tool):
+            return "tool.\(tool.rawValue)"
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .lastUsed:
+            return "Last Used"
+        case let .tool(tool):
+            return tool.label
+        }
+    }
+
+    var sanitized: EditorStartupToolPreference {
+        switch self {
+        case .lastUsed:
+            return .lastUsed
+        case let .tool(tool) where tool.isStartupDefaultOption:
+            return .tool(tool)
+        case .tool:
+            return .tool(.select)
+        }
+    }
+
+    func resolvedTool(lastUsedTool: EditorTool?) -> EditorTool {
+        switch self {
+        case .lastUsed:
+            guard let lastUsedTool, lastUsedTool.isStartupDefaultOption else {
+                return .select
+            }
+            return lastUsedTool
+        case let .tool(tool):
+            return tool.isStartupDefaultOption ? tool : .select
         }
     }
 }

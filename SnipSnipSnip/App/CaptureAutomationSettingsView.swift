@@ -126,6 +126,18 @@ struct CaptureAutomationSettingsView: View {
                     }
                 }
 
+                Section("Editor") {
+                    Picker("Default Tool", selection: $documents.editorStartupToolPreference) {
+                        Text(EditorStartupToolPreference.default.label).tag(EditorStartupToolPreference.default)
+                        Divider()
+                        ForEach(EditorTool.startupDefaultTools) { tool in
+                            Text(tool.label).tag(EditorStartupToolPreference.tool(tool))
+                        }
+                    }
+
+                    SettingsHelpText("Choose Last Used to start each new editor session with the tool you selected most recently, or choose a specific tool to always start there.")
+                }
+
                 Section("Screen Ruler") {
                     if tools.screenRulerCoordinator.hasActiveRulers {
                         Button("Close All Screen Rulers", action: tools.closeAllScreenRulers)

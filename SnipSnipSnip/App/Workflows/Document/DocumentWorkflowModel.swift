@@ -46,6 +46,18 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
             editorController?.editorSingleKeyToolShortcutsEnabled = editorSingleKeyToolShortcutsEnabled
         }
     }
+    @Published var editorStartupToolPreference: EditorStartupToolPreference {
+        didSet {
+            let sanitizedPreference = editorStartupToolPreference.sanitized
+            guard sanitizedPreference == editorStartupToolPreference else {
+                editorStartupToolPreference = sanitizedPreference
+                return
+            }
+
+            preferenceStore.saveStartupToolPreference(editorStartupToolPreference)
+            applyStartupToolPreference(to: editorController)
+        }
+    }
     @Published var editorCropOutsideOverlayAlpha: CGFloat {
         didSet {
             let clampedAlpha = EditorPreferenceStore.clampedCropOutsideOverlayAlpha(editorCropOutsideOverlayAlpha)
@@ -120,6 +132,7 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
         self.recentSnipEntries = recentSnipEntries
         self.recycleBinEntries = recycleBinEntries
         self.editorSingleKeyToolShortcutsEnabled = preferenceStore.loadSingleKeyToolShortcutsEnabled()
+        self.editorStartupToolPreference = preferenceStore.loadStartupToolPreference()
         self.editorCropOutsideOverlayAlpha = preferenceStore.loadCropOutsideOverlayAlpha()
         self.editorOutOfCapturePatternSettings = preferenceStore.loadOutOfCapturePatternSettings()
         self.presentationScenesRootURL = preferenceStore.loadPresentationScenesRootURL()
@@ -224,13 +237,6 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
         if persists {
             preferenceStore.savePresentationScenesRootURL(standardizedURL)
         }
-    }
-
-    private func applyEditorPreferences(to controller: EditorController?) {
-        controller?.editorSingleKeyToolShortcutsEnabled = editorSingleKeyToolShortcutsEnabled
-        controller?.updateCropOutsideOverlayAlpha(editorCropOutsideOverlayAlpha)
-        controller?.updateOutOfCapturePatternSettings(editorOutOfCapturePatternSettings)
-        controller?.updatePresentationScenesRootURL(presentationScenesRootURL)
     }
 
 }

@@ -348,6 +348,11 @@ extension AppModel {
         set { documents.editorSingleKeyToolShortcutsEnabled = newValue }
     }
 
+    var editorStartupToolPreference: EditorStartupToolPreference {
+        get { documents.editorStartupToolPreference }
+        set { documents.editorStartupToolPreference = newValue }
+    }
+
     var editorCropOutsideOverlayAlpha: CGFloat {
         documents.editorCropOutsideOverlayAlpha
     }

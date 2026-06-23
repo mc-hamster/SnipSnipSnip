@@ -500,7 +500,7 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Choose a tool",
-                            body: "The toolbar includes Select, Rectangle, Ellipse, Line, Arrow, Freehand, Highlighter, Highlight Box, Text, Callout, Ruler, Spotlight, Copy Text, Redaction, Import Image, and Presentation. Presentation switches to a final-export styling workspace without changing the screenshot annotation tools. For Window captures with UI Map metadata, the lower toolbar also includes Show UI Map and Pin UI Map."
+                            body: "The toolbar includes Select, Rectangle, Ellipse, Line, Arrow, Freehand, Highlighter, Highlight Box, Text, Callout, Ruler, Spotlight, Copy Text, Redaction, Import Image, and Presentation. Presentation switches to a final-export styling workspace without changing the screenshot annotation tools. In Settings > General > Editor, choose whether new editor sessions start with Last Used or a specific default tool. For Window captures with UI Map metadata, the lower toolbar also includes Show UI Map and Pin UI Map."
                         ),
                         HelpArticleSection(
                             title: "Select and arrange annotations",

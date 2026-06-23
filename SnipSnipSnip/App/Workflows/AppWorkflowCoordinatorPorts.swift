@@ -156,6 +156,7 @@ extension CaptureWorkflowModel: CoordinatorCapturePort {
 extension DocumentWorkflowModel: CoordinatorDocumentPort {
     func resetDocumentPreferencesToDefaults() {
         editorSingleKeyToolShortcutsEnabled = true
+        editorStartupToolPreference = .default
         updateEditorCropOutsideOverlayAlpha(AppPreferenceDefaults.editorCropOutsideOverlayAlpha)
         updateEditorOutOfCapturePatternSettings(.default)
         resetPresentationScenesRootToDefault()

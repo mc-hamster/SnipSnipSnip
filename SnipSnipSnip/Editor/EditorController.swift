@@ -175,6 +175,7 @@ final class EditorController: ObservableObject {
     private let initialSnapshot: EditorSnapshot
     let defaults: UserDefaults
     let capabilities: AppCapabilitySnapshot
+    var toolbarToolActivationHandler: ((EditorTool) -> Void)?
     private var preferredRedactionMode: RedactionMode
 
     private var undoStack: [EditorSnapshot] = []
@@ -1132,6 +1133,7 @@ final class EditorController: ObservableObject {
             selectedUIMapElementID = nil
             hoveredUIMapElementID = nil
             activeTool = preferredRedactionMode.editorTool
+            toolbarToolActivationHandler?(activeTool)
             invalidateCanvas()
             return
         }
@@ -1143,6 +1145,7 @@ final class EditorController: ObservableObject {
                 activeTool = .select
                 selectedUIMapElementID = nil
                 hoveredUIMapElementID = nil
+                toolbarToolActivationHandler?(activeTool)
                 invalidateCanvas()
                 return
             }
@@ -1158,6 +1161,7 @@ final class EditorController: ObservableObject {
         }
 
         activeTool = tool
+        toolbarToolActivationHandler?(activeTool)
         invalidateCanvas()
     }
 

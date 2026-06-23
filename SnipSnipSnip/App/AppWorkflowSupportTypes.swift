@@ -117,6 +117,8 @@ nonisolated enum AppModelPreferenceKey {
     static let selectedScreenshotFullscreenDisplayID = "appModel.selectedScreenshotFullscreenDisplayID"
     static let screenshotJPEGQuality = "appModel.screenshotJPEGQuality"
     static let editorSingleKeyToolShortcutsEnabled = "appModel.editorSingleKeyToolShortcutsEnabled"
+    static let editorStartupToolPreference = "appModel.editorStartupToolPreference"
+    static let editorLastUsedTool = "appModel.editorLastUsedTool"
     static let completedOnboardingVersion = "appModel.completedOnboardingVersion"
     static let editorCropOutsideOverlayAlpha = "appModel.editorCropOutsideOverlayAlpha"
     static let editorOutOfCapturePatternSettings = "appModel.editorOutOfCapturePatternSettings"

@@ -35,6 +35,38 @@ extension DocumentWorkflowModel {
         editorOutOfCapturePatternSettings = sanitizedSettings
     }
 
+    func applyEditorPreferences(to controller: EditorController?) {
+        controller?.editorSingleKeyToolShortcutsEnabled = editorSingleKeyToolShortcutsEnabled
+        controller?.updateCropOutsideOverlayAlpha(editorCropOutsideOverlayAlpha)
+        controller?.updateOutOfCapturePatternSettings(editorOutOfCapturePatternSettings)
+        controller?.updatePresentationScenesRootURL(presentationScenesRootURL)
+        applyStartupToolPreference(to: controller)
+        controller?.toolbarToolActivationHandler = { [weak self] tool in
+            self?.recordLastUsedEditorTool(tool)
+        }
+    }
+
+    func applyStartupToolPreference(to controller: EditorController?) {
+        guard let controller else {
+            return
+        }
+
+        let startupTool = editorStartupToolPreference.resolvedTool(lastUsedTool: preferenceStore.loadLastUsedTool())
+        guard startupTool != controller.activeTool else {
+            return
+        }
+
+        controller.activeTool = startupTool
+    }
+
+    private func recordLastUsedEditorTool(_ tool: EditorTool) {
+        guard tool.isStartupDefaultOption else {
+            return
+        }
+
+        preferenceStore.saveLastUsedTool(tool)
+    }
+
     func choosePresentationScenesRoot() {
         guard let selectedURL = dependencies.panels.selectPresentationScenesRoot(initialDirectory: presentationScenesRootURL) else {
             return
