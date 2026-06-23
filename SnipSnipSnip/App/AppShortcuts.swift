@@ -27,6 +27,7 @@ enum AppShortcut {
             ShortcutCatalogEntry(keys: "Command-Z", action: "Undo"),
             ShortcutCatalogEntry(keys: "Shift-Command-Z", action: "Redo"),
             ShortcutCatalogEntry(keys: "Command-A", action: "Select all annotations"),
+            ShortcutCatalogEntry(keys: "Shift-Command-A", action: "Unselect annotations"),
             ShortcutCatalogEntry(keys: "Delete", action: "Delete selection"),
             ShortcutCatalogEntry(keys: "Shift-Command-F", action: "Float current screenshot"),
             ShortcutCatalogEntry(keys: "Arrow Keys", action: "Nudge selected annotations 1 px"),

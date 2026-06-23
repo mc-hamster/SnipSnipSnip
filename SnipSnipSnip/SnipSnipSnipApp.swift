@@ -372,6 +372,10 @@ private struct PasteboardCommands: Commands {
 
             Button("Select All", action: selectAll)
                 .keyboardShortcut("a", modifiers: .command)
+
+            Button("Unselect", action: unselect)
+                .keyboardShortcut("a", modifiers: [.command, .shift])
+                .disabled(documents.editorController?.hasSelection != true)
         }
     }
 
@@ -397,6 +401,10 @@ private struct PasteboardCommands: Commands {
 
     private func selectAll() {
         _ = sendAction(#selector(NSText.selectAll(_:)))
+    }
+
+    private func unselect() {
+        documents.editorController?.clearSelection()
     }
 
     @discardableResult

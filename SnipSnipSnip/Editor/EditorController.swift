@@ -313,6 +313,10 @@ final class EditorController: ObservableObject {
         snapshot.selectedAnnotationIDs.count
     }
 
+    var hasSelection: Bool {
+        selectedCount > 0 || selectedUIMapElementID != nil
+    }
+
     var canGroupSelection: Bool {
         selectedAnnotations.count > 1
     }
@@ -658,6 +662,18 @@ final class EditorController: ObservableObject {
             selectedUIMapElementID = nil
         }
         execute(SetSelectionCommand(annotationIDs: updatedSelection), undoable: false)
+        invalidateCanvas()
+    }
+
+    func clearSelection() {
+        guard !snapshot.selectedAnnotationIDs.isEmpty || selectedUIMapElementID != nil else {
+            return
+        }
+
+        if selectedUIMapElementID != nil {
+            selectedUIMapElementID = nil
+        }
+        execute(SetSelectionCommand(annotationIDs: []), undoable: false)
         invalidateCanvas()
     }
 

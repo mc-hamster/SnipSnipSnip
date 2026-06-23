@@ -504,7 +504,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Select and arrange annotations",
-                            body: "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. Snap guides appear while drawing, moving, and resizing."
+                            body: "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing, moving, and resizing."
                         ),
                         HelpArticleSection(
                             title: "Use the inspector",

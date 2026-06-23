@@ -457,6 +457,25 @@ final class EditorControllerTests: XCTestCase {
         XCTAssertTrue(controller.snapshot.selectedAnnotationIDs.isEmpty)
     }
 
+    func testClearSelectionClearsAnnotationsAndUIMapElement() {
+        let annotation = Annotation.makeRectangle(in: CGRect(x: 10, y: 10, width: 40, height: 30))
+        let uiMapElementID = UUID()
+        let snapshot = makeEditorSnapshot(
+            annotations: [annotation],
+            selectedAnnotationIDs: [annotation.id]
+        )
+        let controller = makeController(snapshot: snapshot)
+        controller.selectedUIMapElementID = uiMapElementID
+
+        XCTAssertTrue(controller.hasSelection)
+
+        controller.clearSelection()
+
+        XCTAssertFalse(controller.hasSelection)
+        XCTAssertTrue(controller.snapshot.selectedAnnotationIDs.isEmpty)
+        XCTAssertNil(controller.selectedUIMapElementID)
+    }
+
     @MainActor
     func testSelectedAnnotationBodyCanMoveWhileRectangleToolIsActive() {
         let annotation = Annotation.makeRectangle(in: CGRect(x: 30, y: 30, width: 50, height: 40))
@@ -505,6 +524,29 @@ final class EditorControllerTests: XCTestCase {
 
         XCTAssertEqual(controller.snapshot.annotations.count, 1)
         XCTAssertEqual(controller.snapshot.annotations.first?.editorTool, .rectangle)
+    }
+
+    @MainActor
+    func testSelectToolEmptyClickClearsSelection() {
+        let annotation = Annotation.makeRectangle(in: CGRect(x: 30, y: 30, width: 50, height: 40))
+        let snapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 160, height: 120),
+            annotations: [annotation],
+            selectedAnnotationIDs: [annotation.id]
+        )
+        let controller = makeController(snapshot: snapshot)
+        controller.activeTool = .select
+
+        let (_, overlay, window) = makeCanvasHarness(
+            controller: controller,
+            frame: CGRect(x: 0, y: 0, width: 640, height: 480)
+        )
+        let clickPoint = viewPoint(for: CGPoint(x: 140, y: 100), controller: controller)
+
+        sendMouseEvent(.leftMouseDown, at: clickPoint, to: overlay, in: window, eventNumber: 1)
+        sendMouseEvent(.leftMouseUp, at: clickPoint, to: overlay, in: window, eventNumber: 2)
+
+        XCTAssertTrue(controller.snapshot.selectedAnnotationIDs.isEmpty)
     }
 
     @MainActor

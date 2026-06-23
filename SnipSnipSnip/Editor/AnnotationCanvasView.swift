@@ -1151,16 +1151,16 @@ private final class AnnotationCanvasOverlayView: NSView {
         }
 
         let cropRect = controller.snapshot.cropRect.gscIntegralStandardized
+        if !additive && !toggle {
+            controller.clearSelection()
+        }
+
         if cropRect.contains(point) {
             interactionState.beginCropMove(anchor: point, originalBounds: cropRect)
             cropHUDDocumentPoint = point
             canvasView?.updateDraftCropMask(interactionState.draftCropRect)
             needsDisplay = true
             return
-        }
-
-        if !additive && !toggle {
-            controller.select(annotationIDs: [])
         }
 
         interactionState.beginMarquee(at: point, additive: additive || toggle)
@@ -1592,7 +1592,7 @@ private final class AnnotationCanvasOverlayView: NSView {
         case let .select(ids, additive):
             controller.select(annotationIDs: ids, additive: additive)
         case .clearSelection:
-            controller.select(annotationIDs: [])
+            controller.clearSelection()
         case let .crop(rect):
             if case let .resizingCrop(originalBounds, _) = activeDragMode {
                 controller.commitPreviewedCropRect(rect, originalRect: originalBounds)
