@@ -328,39 +328,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     }
 
     @objc private func quitApplication() {
-        if confirmsBeforeQuitting {
-            guard confirmQuitApplication() else {
-                return
-            }
-        }
-
-        NSApp.terminate(nil)
-    }
-
-    private var confirmsBeforeQuitting: Bool {
-        lifecycle?.confirmsBeforeQuitting ?? true
-    }
-
-    private func confirmQuitApplication() -> Bool {
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = "Quit \(AppBranding.displayName)?"
-        alert.informativeText = "To keep capture shortcuts, clipboard history, and the menu bar icon ready, let \(AppBranding.displayName) run in the background."
-        alert.addButton(withTitle: "Run in Background")
-        alert.addButton(withTitle: "Quit")
-        alert.showsSuppressionButton = true
-        alert.suppressionButton?.title = "Don't ask me again"
-
-        let response = alert.runModal()
-        guard response == .alertSecondButtonReturn else {
-            return false
-        }
-
-        if alert.suppressionButton?.state == .on {
-            lifecycle?.confirmsBeforeQuitting = false
-        }
-
-        return true
+        AppTerminationController.shared.requestQuit()
     }
 
     private func rebuildMainMenu() {

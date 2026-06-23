@@ -9,7 +9,7 @@ enum AppShortcut {
             ShortcutCatalogEntry(keys: "Command-Shift-O", action: "Open SnipSnipSnip"),
             ShortcutCatalogEntry(keys: "Command-Shift-/", action: "Open Help"),
             ShortcutCatalogEntry(keys: "Command-W", action: "Minimize current SnipSnipSnip window"),
-            ShortcutCatalogEntry(keys: "Command-Q", action: "Minimize current SnipSnipSnip window"),
+            ShortcutCatalogEntry(keys: "Command-Q", action: "Quit or run in background"),
             ShortcutCatalogEntry(keys: "Command-S", action: "Save"),
             ShortcutCatalogEntry(keys: "Shift-Command-S", action: "Save As"),
             ShortcutCatalogEntry(keys: "Command-C", action: "Copy rendered screenshot"),

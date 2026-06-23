@@ -129,6 +129,10 @@ final class AppOpenBridge: NSObject, NSApplicationDelegate {
         self.localEventMonitor = nil
     }
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        AppTerminationController.shared.applicationShouldTerminate()
+    }
+
     func application(_ sender: NSApplication, openFile filename: String) -> Bool {
         PendingDocumentOpenRequests.enqueue([URL(fileURLWithPath: filename)])
         return true
@@ -177,7 +181,11 @@ final class AppOpenBridge: NSObject, NSApplicationDelegate {
             return nil
         }
 
-        Self.minimizeActiveWindow()
+        if shortcut == "q" {
+            AppTerminationController.shared.requestQuit()
+        } else {
+            Self.minimizeActiveWindow()
+        }
         return nil
     }
 }

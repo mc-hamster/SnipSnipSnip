@@ -1,0 +1,77 @@
+import AppKit
+
+@MainActor
+final class AppTerminationController {
+    static let shared = AppTerminationController()
+
+    private weak var lifecycle: AppLifecycleModel?
+    private var isPerformingConfirmedTermination = false
+
+    private init() {}
+
+    func configure(lifecycle: AppLifecycleModel) {
+        self.lifecycle = lifecycle
+    }
+
+    func requestQuit() {
+        guard shouldQuitAfterConfirmation() else {
+            runInBackground()
+            return
+        }
+
+        performConfirmedTermination()
+    }
+
+    func applicationShouldTerminate() -> NSApplication.TerminateReply {
+        guard !isPerformingConfirmedTermination else {
+            isPerformingConfirmedTermination = false
+            return .terminateNow
+        }
+
+        guard shouldQuitAfterConfirmation() else {
+            runInBackground()
+            return .terminateCancel
+        }
+
+        return .terminateNow
+    }
+
+    private func shouldQuitAfterConfirmation() -> Bool {
+        guard lifecycle?.confirmsBeforeQuitting ?? true else {
+            return true
+        }
+
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Quit \(AppBranding.displayName)?"
+        alert.informativeText = "To keep capture shortcuts, clipboard history, and the menu bar icon ready, let \(AppBranding.displayName) run in the background."
+        alert.addButton(withTitle: "Run in Background")
+        alert.addButton(withTitle: "Quit")
+        alert.showsSuppressionButton = true
+        alert.suppressionButton?.title = "Don't ask me again"
+
+        let response = alert.runModal()
+        guard response == .alertSecondButtonReturn else {
+            return false
+        }
+
+        if alert.suppressionButton?.state == .on {
+            lifecycle?.confirmsBeforeQuitting = false
+        }
+
+        return true
+    }
+
+    private func runInBackground() {
+        if let window = NSApp.keyWindow ?? NSApp.mainWindow {
+            window.performMiniaturize(nil)
+        } else {
+            NSApp.hide(nil)
+        }
+    }
+
+    private func performConfirmedTermination() {
+        isPerformingConfirmedTermination = true
+        NSApp.terminate(nil)
+    }
+}

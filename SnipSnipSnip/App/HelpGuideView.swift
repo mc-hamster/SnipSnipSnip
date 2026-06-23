@@ -102,7 +102,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Keep running in the background",
-                            body: "Command-Q minimizes SnipSnipSnip instead of quitting so the menu bar icon and shortcuts stay available. The menu bar Quit command asks before exiting; choose Run in Background to keep SnipSnipSnip available, or Quit to close the app."
+                            body: "Command-Q and Quit SnipSnipSnip show the same confirmation before exiting. Choose Run in Background to keep the menu bar icon, shortcuts, and clipboard history available, or Quit to close the app."
                         ),
                         HelpArticleSection(
                             title: "Open an existing image",

@@ -203,7 +203,7 @@ private struct AppInfoCommands: Commands {
 private struct AppLifecycleCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .appTermination) {
-            Button("Minimize \(AppBranding.displayName)", action: AppOpenBridge.minimizeActiveWindow)
+            Button("Quit \(AppBranding.displayName)", action: AppTerminationController.shared.requestQuit)
                 .keyboardShortcut("q", modifiers: [.command])
         }
     }
@@ -528,6 +528,7 @@ struct SnipSnipSnipApp: App {
     init() {
         let model = AppModel()
         _model = StateObject(wrappedValue: model)
+        AppTerminationController.shared.configure(lifecycle: model.lifecycle)
         MenuBarStatusController.shared.configure(
             lifecycle: model.lifecycle,
             capture: model.capture,

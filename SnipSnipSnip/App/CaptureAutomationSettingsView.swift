@@ -42,7 +42,7 @@ struct CaptureAutomationSettingsView: View {
                     }
 
                     Toggle("Confirm Before Quitting", isOn: $lifecycle.confirmsBeforeQuitting)
-                    SettingsHelpText("\(AppBranding.displayName) minimizes on Command-Q so the menu bar icon and shortcuts stay available. The menu bar Quit command asks before exiting unless this is turned off.")
+                    SettingsHelpText("Command-Q and Quit \(AppBranding.displayName) ask whether to run in the background or quit so the menu bar icon, shortcuts, and clipboard history stay available unless this is turned off.")
                 }
 
                 Section("Help & Onboarding") {
