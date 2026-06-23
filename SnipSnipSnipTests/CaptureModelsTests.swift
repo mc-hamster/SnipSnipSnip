@@ -357,6 +357,63 @@ final class CaptureModelsTests: XCTestCase {
         XCTAssertEqual(capture.attachingCursorOverlay(nil).sourceWindowIdentity, identity)
     }
 
+    func testWindowCaptureRequestsImageWithoutWindowShadow() async throws {
+        let recorder = CaptureRequestRecorder()
+        let windowFrame = CGRect(x: 80, y: 120, width: 640, height: 420)
+        let platform = TestScreenCapturePlatform(
+            content: ScreenContentSnapshot(
+                displays: [
+                    DisplaySnapshot(
+                        displayID: 1,
+                        name: "Display",
+                        frame: CGRect(x: 0, y: 0, width: 1440, height: 900),
+                        scale: 2
+                    )
+                ],
+                windows: [
+                    ScreenWindowSnapshot(
+                        id: 42,
+                        ownerName: "Preview",
+                        ownerPID: 123,
+                        bundleIdentifier: "com.apple.Preview",
+                        title: "Mockup",
+                        frame: windowFrame,
+                        layer: 0,
+                        isOnScreen: true
+                    )
+                ],
+                applications: []
+            ),
+            imageProvider: { request in
+                recorder.record(request)
+                return makeCoordinateImage(
+                    width: request.configuration.width,
+                    height: request.configuration.height
+                )
+            }
+        )
+        let service = ScreenCaptureService(
+            permissions: TestCapturePermissionService(),
+            platform: platform,
+            workspace: TestWorkspaceService(),
+            screens: TestScreenTopologyService(),
+            mouse: TestMouseLocationService(),
+            windowFocus: TestApplicationWindowFocusService(),
+            clock: TestClock()
+        )
+
+        let capture = try await service.captureWindow(makeCaptureWindow(id: 42, frame: windowFrame))
+
+        let request = try XCTUnwrap(recorder.recordedRequests.first)
+        XCTAssertEqual(request.target, .window(42))
+        XCTAssertTrue(request.configuration.ignoreShadows)
+        XCTAssertTrue(request.configuration.ignoreClipping)
+        XCTAssertEqual(request.configuration.width, 1280)
+        XCTAssertEqual(request.configuration.height, 840)
+        XCTAssertEqual(capture.kind, .window)
+        XCTAssertEqual(capture.sourceRect, windowFrame)
+    }
+
     func testCursorCaptureGeometryMapsScreenHotspotIntoDocumentPixels() {
         let rect = CursorCaptureGeometry.overlayRect(
             cursorCaptureGlobalLocation: CGPoint(x: 150, y: 260),
@@ -546,5 +603,22 @@ final class CaptureModelsTests: XCTestCase {
             gscPreferredHighlightRect(primary: primary, alternate: alternate),
             primary
         )
+    }
+}
+
+private final class CaptureRequestRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var requests: [ScreenCaptureRequest] = []
+
+    var recordedRequests: [ScreenCaptureRequest] {
+        lock.lock()
+        defer { lock.unlock() }
+        return requests
+    }
+
+    func record(_ request: ScreenCaptureRequest) {
+        lock.lock()
+        defer { lock.unlock() }
+        requests.append(request)
     }
 }

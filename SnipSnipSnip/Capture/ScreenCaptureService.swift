@@ -494,7 +494,9 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
                 target: .window(sourceWindow.id),
                 configuration: ScreenCaptureConfiguration(
                     width: max(Int((sourceWindow.frame.width * scale).rounded(.up)), 1),
-                    height: max(Int((sourceWindow.frame.height * scale).rounded(.up)), 1)
+                    height: max(Int((sourceWindow.frame.height * scale).rounded(.up)), 1),
+                    ignoreShadows: true,
+                    ignoreClipping: true
                 )
             )
         )
