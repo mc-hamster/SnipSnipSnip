@@ -99,6 +99,44 @@ final class AppTerminationControllerTests: XCTestCase {
         XCTAssertEqual(appKitReply, .terminateNow)
     }
 
+    func testRestartWithoutConfirmationRelaunchesAndBypassesQuitConfirmation() {
+        let lifecycle = makeLifecycle()
+        let controllerBox = TerminationControllerBox()
+        var confirmationCalls = 0
+        var relaunchCalls = 0
+        var terminationCalls = 0
+        var appKitReply: NSApplication.TerminateReply?
+
+        let controller = AppTerminationController(
+            confirmationHandler: { _ in
+                confirmationCalls += 1
+                return AppTerminationController.QuitConfirmationResult(
+                    shouldQuit: false,
+                    suppressFutureConfirmations: false
+                )
+            },
+            backgroundHandler: {
+                XCTFail("Restart must not send the app to the background.")
+            },
+            terminationHandler: {
+                terminationCalls += 1
+                appKitReply = controllerBox.controller.applicationShouldTerminate()
+            },
+            relaunchHandler: {
+                relaunchCalls += 1
+            }
+        )
+        controllerBox.controller = controller
+        controller.configure(lifecycle: lifecycle)
+
+        controller.requestRestartWithoutConfirmation()
+
+        XCTAssertEqual(confirmationCalls, 0)
+        XCTAssertEqual(relaunchCalls, 1)
+        XCTAssertEqual(terminationCalls, 1)
+        XCTAssertEqual(appKitReply, .terminateNow)
+    }
+
     func testConfirmedQuitCanSuppressFutureConfirmations() {
         let lifecycle = makeLifecycle(confirmsBeforeQuitting: true)
         let controller = AppTerminationController(

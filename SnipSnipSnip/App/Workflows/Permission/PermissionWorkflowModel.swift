@@ -18,8 +18,22 @@ final class PermissionWorkflowModel: ObservableObject, PermissionGatekeeping {
     }
 
     @Published var permissionSetupGuide: PermissionSetupGuide?
+    @Published var screenRecordingSetupNeedsAttention = false
+    @Published var activePermissionRequest: CapturePermissionRequirement? {
+        didSet {
+            guard oldValue != activePermissionRequest else {
+                return
+            }
+
+            updateActivePermissionPolling()
+        }
+    }
+
+    var activePermissionPollingTask: Task<Void, Never>?
     var pendingScreenRecordingPermissionVerificationTask: Task<Void, Never>?
     var screenRecordingPermissionVerificationGeneration = 0
+    var hasVerifiedScreenRecordingAccess = false
+    var screenRecordingSetupStartedThisRun = false
 
     init(
         dependencies: PermissionWorkflowDependencies,
@@ -27,5 +41,11 @@ final class PermissionWorkflowModel: ObservableObject, PermissionGatekeeping {
     ) {
         self.dependencies = dependencies
         self.permissionStatus = permissionStatus ?? dependencies.permissions.currentStatus()
+        hasVerifiedScreenRecordingAccess = self.permissionStatus.hasScreenRecording
+    }
+
+    deinit {
+        activePermissionPollingTask?.cancel()
+        pendingScreenRecordingPermissionVerificationTask?.cancel()
     }
 }

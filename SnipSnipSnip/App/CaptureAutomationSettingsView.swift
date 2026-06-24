@@ -121,6 +121,7 @@ struct CaptureAutomationSettingsView: View {
                                 Button("Continue") {
                                     permissions.requestAccessibilityAccess()
                                 }
+                                .disabled(permissions.activePermissionRequest != nil)
                             }
                         }
                     }
@@ -1161,6 +1162,7 @@ private struct PermissionStatusRow: View {
                     permissions.requestPermission(requirement)
                 }
             }
+            .disabled(!hasAccess && permissions.activePermissionRequest != nil)
 
             if !hasAccess {
                 Button("Help") {

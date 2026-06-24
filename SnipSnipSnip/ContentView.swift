@@ -415,6 +415,7 @@ struct ContentView: View {
                     Button("Continue", action: requestNextHeaderPermission)
                         .buttonStyle(SSSChromeButtonStyle())
                         .controlSize(.small)
+                        .disabled(permissions.activePermissionRequest != nil)
                         .help("Continue to the next missing macOS privacy permission for \(AppBranding.displayName).")
                 }
             }
@@ -536,6 +537,7 @@ struct ContentView: View {
                     if !permissions.permissionStatus.hasScreenRecording {
                         Button("Continue", action: permissions.requestScreenRecordingAccess)
                             .buttonStyle(SSSChromeButtonStyle())
+                            .disabled(permissions.activePermissionRequest != nil)
                             .help("Continue to the macOS Screen Recording permission prompt for \(AppBranding.displayName).")
                     }
 
@@ -613,6 +615,7 @@ struct ContentView: View {
 
                     Button("Continue", action: permissions.requestScreenRecordingAccess)
                         .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                        .disabled(permissions.activePermissionRequest != nil)
                         .help("Continue to the macOS Screen Recording permission prompt for \(AppBranding.displayName).")
                 } else if capture.isLoadingWindowChoices && capture.availableWindows.isEmpty {
                     HStack(spacing: 10) {
@@ -1038,6 +1041,11 @@ struct ContentView: View {
     private var permissionCalloutSummary: String {
         let missingRequirements = headerMissingRequirements
 
+        if permissions.screenRecordingSetupNeedsAttention,
+           missingRequirements == [.screenRecording] {
+            return "Restart \(AppBranding.displayName) to finish applying Screen Recording access."
+        }
+
         if missingRequirements == [.screenRecording] {
             return "Screen Recording is required for captures, recordings, and live window thumbnails."
         }
@@ -1080,19 +1088,36 @@ struct ContentView: View {
 
             Spacer(minLength: 8)
 
-            Button("Continue") {
-                permissions.requestPermission(requirement)
-            }
-            .buttonStyle(SSSChromeButtonStyle())
-            .controlSize(.small)
-            .help("Continue to the macOS \(requirement.title) permission prompt for \(AppBranding.displayName).")
+            if requirement == .screenRecording,
+               permissions.screenRecordingSetupNeedsAttention {
+                Button("Restart") {
+                    AppTerminationController.shared.requestRestartWithoutConfirmation()
+                }
+                .buttonStyle(SSSChromeButtonStyle())
+                .controlSize(.small)
+                .help("Restart \(AppBranding.displayName) without the normal quit confirmation so macOS applies Screen Recording access.")
 
-            Button("Help") {
-                permissions.presentPermissionSetupGuide(for: requirement)
+                Button("Check Again") {
+                    permissions.checkPermissionSetupGuideStatus()
+                }
+                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .controlSize(.small)
+            } else {
+                Button("Continue") {
+                    permissions.requestPermission(requirement)
+                }
+                .buttonStyle(SSSChromeButtonStyle())
+                .controlSize(.small)
+                .disabled(permissions.activePermissionRequest != nil)
+                .help("Continue to the macOS \(requirement.title) permission prompt for \(AppBranding.displayName).")
+
+                Button("Help") {
+                    permissions.presentPermissionSetupGuide(for: requirement)
+                }
+                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .controlSize(.small)
+                .help("Show manual setup steps below if macOS does not list \(AppBranding.displayName).")
             }
-            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-            .controlSize(.small)
-            .help("Show manual setup steps below if macOS does not list \(AppBranding.displayName).")
         }
     }
 
@@ -1252,7 +1277,7 @@ private struct PermissionSetupGuideView: View {
                 setupStep(firstSetupStep)
                 setupStep("If \(guide.appName) is listed, turn it on.")
                 setupStep("If it is still not listed, click the + button and choose the app shown below. Development builds may live inside Xcode DerivedData, so adding the exact running app matters.")
-                setupStep("Return here and click Check Again.")
+                setupStep(finalSetupStep)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -1304,9 +1329,18 @@ private struct PermissionSetupGuideView: View {
     private var firstSetupStep: String {
         switch guide.requirement {
         case .screenRecording:
-            return "Open System Settings to Privacy & Security > Screen Recording."
+            return "Use the macOS prompt's Open System Settings button, or click Open Settings here to go to Privacy & Security > Screen Recording."
         case .accessibility:
-            return "Click Continue to trigger the macOS Accessibility prompt. Then use the prompt's Open System Settings button, or click Open Settings here to go to Privacy & Security > Accessibility."
+            return "Use the macOS prompt's Open System Settings button, or click Open Settings here to go to Privacy & Security > Accessibility."
+        }
+    }
+
+    private var finalSetupStep: String {
+        switch guide.requirement {
+        case .screenRecording:
+            return "Return here and click Check Again. If macOS still cannot give this running copy access, restart \(AppBranding.displayName) when prompted."
+        case .accessibility:
+            return "Return here and click Check Again."
         }
     }
 

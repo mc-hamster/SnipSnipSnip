@@ -3,10 +3,10 @@ import SwiftUI
 
 private enum OnboardingStep: Int, CaseIterable, Identifiable {
     case welcome
-    case permissions
     case uiMap
     case startup
     case support
+    case permissions
 
     var id: Int { rawValue }
 
@@ -37,7 +37,11 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
             return "Capture faster, edit immediately, and keep recovery close by."
         case .permissions:
             if capabilities.isEnabled(.scrollingCapture) {
-                return "Set up capture pixels and scrolling capture with one-time macOS permissions."
+                return "Set up capture pixels and scrolling capture, then see which permissions are asked later."
+            }
+
+            if capabilities.isEnabled(.uiMap) {
+                return "Set up capture pixels, live window thumbnails, recording, and optional Window UI Map access."
             }
 
             if capabilities.isEnabled(.connectedDeviceCapture) {
@@ -433,13 +437,23 @@ struct OnboardingView: View {
     private func permissionsStep(metrics: OnboardingLayoutMetrics) -> some View {
         VStack(alignment: .leading, spacing: metrics.cardSpacing) {
             permissionCard(requirement: .screenRecording, metrics: metrics)
-            if capabilities.isEnabled(.scrollingCapture) {
+            if shouldIncludeAccessibilityPermissionInOnboarding {
                 permissionCard(requirement: .accessibility, metrics: metrics)
             }
 
+            deferredPermissionNotes(metrics: metrics)
+
             actionGroup {
-                Button("Continue", action: permissions.requestNextMissingSetupRequirement)
+                if permissions.screenRecordingSetupNeedsAttention {
+                    Button(AppBranding.branded("Restart SnipSnipSnip"), action: restartAfterPermissionSetup)
+                        .buttonStyle(SSSChromeButtonStyle(tint: .orange))
+                } else {
+                    Button("Set Up Next") {
+                        permissions.requestNextMissingSetupRequirement(in: onboardingPermissionRequirements)
+                    }
                     .buttonStyle(SSSChromeButtonStyle())
+                    .disabled(permissions.activePermissionRequest != nil)
+                }
 
                 Button("Open Help Guide") {
                     openWindow(id: AppSceneID.helpWindow)
@@ -474,14 +488,9 @@ struct OnboardingView: View {
 
                 if capture.windowUIMapNeedsAccessibilityAccess {
                     VStack(alignment: .leading, spacing: 10) {
-                        Label("Window UI Map needs Accessibility access before metadata can be captured.", systemImage: "lock.trianglebadge.exclamationmark.fill")
+                        Label("Window UI Map will add Accessibility to the next permissions step.", systemImage: "lock.trianglebadge.exclamationmark.fill")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.orange)
-
-                        Button("Continue") {
-                            permissions.requestAccessibilityAccess()
-                        }
-                        .buttonStyle(SSSChromeButtonStyle(tint: .orange))
                     }
                     .padding(14)
                     .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -610,13 +619,9 @@ struct OnboardingView: View {
 
                 Spacer(minLength: 16)
 
-                HStack(spacing: 10) {
-                    Button("Skip", action: skipOnboarding)
-                        .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-
-                    Button(AppBranding.branded(selectedStep == visibleSteps.last ? "Open SnipSnipSnip" : "Continue"), action: moveForward)
-                        .buttonStyle(SSSChromeButtonStyle(tint: selectedStep.accent))
-                }
+                Button(AppBranding.branded(primaryFooterTitle), action: primaryFooterAction)
+                    .buttonStyle(SSSChromeButtonStyle(tint: selectedStep.accent))
+                    .disabled(isPrimaryFooterDisabled)
             }
 
             VStack(alignment: .leading, spacing: 12) {
@@ -627,14 +632,37 @@ struct OnboardingView: View {
                 HStack(spacing: 10) {
                     Spacer(minLength: 0)
 
-                    Button("Skip", action: skipOnboarding)
-                        .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-
-                    Button(AppBranding.branded(selectedStep == visibleSteps.last ? "Open SnipSnipSnip" : "Continue"), action: moveForward)
+                    Button(AppBranding.branded(primaryFooterTitle), action: primaryFooterAction)
                         .buttonStyle(SSSChromeButtonStyle(tint: selectedStep.accent))
+                        .disabled(isPrimaryFooterDisabled)
                 }
             }
         }
+    }
+
+    private var primaryFooterTitle: String {
+        if selectedStep == .permissions,
+           permissions.screenRecordingSetupNeedsAttention {
+            return "Restart SnipSnipSnip"
+        }
+
+        return selectedStep == visibleSteps.last ? "Open SnipSnipSnip" : "Next"
+    }
+
+    private var isPrimaryFooterDisabled: Bool {
+        selectedStep == .permissions
+            && permissions.activePermissionRequest != nil
+            && !permissions.screenRecordingSetupNeedsAttention
+    }
+
+    private func primaryFooterAction() {
+        if selectedStep == .permissions,
+           permissions.screenRecordingSetupNeedsAttention {
+            restartAfterPermissionSetup()
+            return
+        }
+
+        moveForward()
     }
 
     private func onboardingFeatureCard(
@@ -695,7 +723,9 @@ struct OnboardingView: View {
         requirement: CapturePermissionRequirement,
         metrics: OnboardingLayoutMetrics
     ) -> some View {
-        let hasAccess = permissions.permissionStatus.hasAccess(to: requirement)
+        let needsAttention = permissionNeedsAttention(requirement)
+        let hasAccess = !needsAttention && permissions.permissionStatus.hasAccess(to: requirement)
+        let isWaiting = !needsAttention && permissions.activePermissionRequest == requirement
 
         return VStack(alignment: .leading, spacing: 12) {
             ViewThatFits(in: .horizontal) {
@@ -704,12 +734,16 @@ struct OnboardingView: View {
 
                     Spacer(minLength: 12)
 
-                    permissionButton(requirement: requirement, hasAccess: hasAccess)
+                    if !hasAccess {
+                        permissionActions(requirement: requirement, isWaiting: isWaiting, needsAttention: needsAttention)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
                     permissionHeader(requirement: requirement, hasAccess: hasAccess)
-                    permissionButton(requirement: requirement, hasAccess: hasAccess)
+                    if !hasAccess {
+                        permissionActions(requirement: requirement, isWaiting: isWaiting, needsAttention: needsAttention)
+                    }
                 }
             }
 
@@ -717,6 +751,13 @@ struct OnboardingView: View {
                 .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.74))
                 .fixedSize(horizontal: false, vertical: true)
+
+            if let followUpText = permissionFollowUpText(for: requirement, isWaiting: isWaiting, needsAttention: needsAttention) {
+                Label(followUpText, systemImage: needsAttention ? "arrow.clockwise.circle.fill" : "gearshape.fill")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(needsAttention ? .orange : .white.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(metrics.featureCardPadding)
         .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -727,34 +768,195 @@ struct OnboardingView: View {
     }
 
     private func permissionHeader(requirement: CapturePermissionRequirement, hasAccess: Bool) -> some View {
-        HStack(alignment: .center, spacing: 12) {
+        let statusLabel = permissionStatusLabel(for: requirement, hasAccess: hasAccess)
+        let statusColor = permissionStatusColor(for: requirement, hasAccess: hasAccess)
+
+        return HStack(alignment: .center, spacing: 12) {
             Image(systemName: requirement.systemImage)
                 .font(.title2.weight(.semibold))
-                .foregroundStyle(hasAccess ? .green : .orange)
+                .foregroundStyle(statusColor)
                 .frame(width: 36, height: 36)
-                .background((hasAccess ? Color.green : Color.orange).opacity(0.14), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(statusColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(requirement.title)
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(.white)
 
-                Text(hasAccess ? "Allowed" : "Missing")
+                Text(statusLabel)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(hasAccess ? .green : .orange)
+                    .foregroundStyle(statusColor)
             }
         }
     }
 
-    private func permissionButton(requirement: CapturePermissionRequirement, hasAccess: Bool) -> some View {
-        Button(hasAccess ? "Open Settings" : "Continue") {
-            if hasAccess {
-                permissions.openPermissionSettings(requirement)
-            } else {
+    @ViewBuilder
+    private func permissionActions(
+        requirement: CapturePermissionRequirement,
+        isWaiting: Bool,
+        needsAttention: Bool
+    ) -> some View {
+        if needsAttention {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) {
+                    restartPermissionButton()
+                    checkAgainButton(tint: .secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    restartPermissionButton()
+                    checkAgainButton(tint: .secondary)
+                }
+            }
+        } else if isWaiting {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) {
+                    checkAgainButton(tint: .orange)
+                    Button("Open Settings") {
+                        permissions.openPermissionSettings(requirement)
+                    }
+                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    checkAgainButton(tint: .orange)
+                    Button("Open Settings") {
+                        permissions.openPermissionSettings(requirement)
+                    }
+                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                }
+            }
+        } else {
+            Button("Set Up") {
                 permissions.requestPermission(requirement)
             }
+            .buttonStyle(SSSChromeButtonStyle(tint: .orange))
+            .disabled(permissions.activePermissionRequest != nil)
         }
-        .buttonStyle(SSSChromeButtonStyle(tint: hasAccess ? .secondary : .orange))
+    }
+
+    private func restartPermissionButton() -> some View {
+        Button(AppBranding.branded("Restart SnipSnipSnip"), action: restartAfterPermissionSetup)
+            .buttonStyle(SSSChromeButtonStyle(tint: .orange))
+    }
+
+    private func checkAgainButton(tint: Color) -> some View {
+        Button("Check Again") {
+            permissions.checkPermissionSetupGuideStatus()
+        }
+        .buttonStyle(SSSChromeButtonStyle(tint: tint))
+    }
+
+    private func permissionNeedsAttention(_ requirement: CapturePermissionRequirement) -> Bool {
+        requirement == .screenRecording && permissions.screenRecordingSetupNeedsAttention
+    }
+
+    private func permissionStatusLabel(for requirement: CapturePermissionRequirement, hasAccess: Bool) -> String {
+        if hasAccess {
+            return "Allowed"
+        }
+
+        if permissions.activePermissionRequest == requirement {
+            return "Waiting for Settings"
+        }
+
+        if permissionNeedsAttention(requirement) {
+            return "Restart Required"
+        }
+
+        return "Missing"
+    }
+
+    private func permissionStatusColor(for requirement: CapturePermissionRequirement, hasAccess: Bool) -> Color {
+        if hasAccess {
+            return .green
+        }
+
+        if permissions.activePermissionRequest == requirement || permissionNeedsAttention(requirement) {
+            return .orange
+        }
+
+        return .orange
+    }
+
+    private func permissionFollowUpText(
+        for requirement: CapturePermissionRequirement,
+        isWaiting: Bool,
+        needsAttention: Bool
+    ) -> String? {
+        guard requirement == .screenRecording else {
+            return nil
+        }
+
+        if needsAttention {
+            return "macOS has not given this running copy Screen Recording access yet. Restart \(AppBranding.displayName) to finish applying the permission."
+        }
+
+        if isWaiting {
+            return "Use the macOS prompt or System Settings to turn on \(AppBranding.displayName), then return here. \(AppBranding.displayName) checks again when this window becomes active."
+        }
+
+        return nil
+    }
+
+    private func deferredPermissionNotes(metrics: OnboardingLayoutMetrics) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Asked Only When Used")
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(.white)
+
+            Text("These do not appear during onboarding. macOS asks later if you enable the matching workflow.")
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.76))
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 10) {
+                if capabilities.isEnabled(.connectedDeviceCapture) {
+                    deferredPermissionRow(
+                        title: "Camera",
+                        detail: "Connected iPhone or iPad preview, screenshots, and recordings.",
+                        systemImage: "camera.fill"
+                    )
+                }
+
+                deferredPermissionRow(
+                    title: "Microphone",
+                    detail: "Video recording only when microphone narration is enabled.",
+                    systemImage: "mic.fill"
+                )
+
+                deferredPermissionRow(
+                    title: "System Audio",
+                    detail: "Video recording only when system audio capture is enabled.",
+                    systemImage: "speaker.wave.2.fill"
+                )
+            }
+        }
+        .padding(metrics.featureCardPadding)
+        .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.10), lineWidth: 0.75)
+        }
+    }
+
+    private func deferredPermissionRow(title: String, detail: String, systemImage: String) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+
+                Text(detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } icon: {
+            Image(systemName: systemImage)
+                .foregroundStyle(.white.opacity(0.82))
+        }
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func permissionDescription(for requirement: CapturePermissionRequirement) -> String {
@@ -762,11 +964,11 @@ struct OnboardingView: View {
         case .screenRecording:
             return "Required for capture pixels, live window thumbnails, fullscreen capture, and video recording."
         case .accessibility:
-            if capabilities.isEnabled(.scrollingCapture) && capabilities.isEnabled(.uiMap) {
+            if capabilities.isEnabled(.scrollingCapture) && capabilities.isEnabled(.uiMap) && capture.uiMapEnabled {
                 return "Required only for Scrolling Capture and Window UI Map. Region and Fullscreen captures do not require Accessibility because of UI Map."
             }
 
-            if capabilities.isEnabled(.uiMap) {
+            if capabilities.isEnabled(.uiMap) && capture.uiMapEnabled {
                 return "Required only for Window UI Map. Region and Fullscreen captures do not require Accessibility because of UI Map."
             }
 
@@ -775,27 +977,27 @@ struct OnboardingView: View {
     }
 
     private var permissionsSummaryText: String {
-        if capabilities.isEnabled(.scrollingCapture) && capabilities.isEnabled(.uiMap) {
-            return "Screen Recording is required for pixels and live window thumbnails. Accessibility is only required for Scrolling Capture and Window UI Map."
+        if capabilities.isEnabled(.scrollingCapture) && capabilities.isEnabled(.uiMap) && capture.uiMapEnabled {
+            return "Screen Recording is required for pixels and live window thumbnails. Accessibility is only required for Scrolling Capture and Window UI Map. \(deferredPermissionSummaryText)"
         }
 
-        if capabilities.isEnabled(.uiMap) {
-            return "Screen Recording is required for pixels and live window thumbnails. Accessibility is only required for Window UI Map."
+        if capabilities.isEnabled(.uiMap) && capture.uiMapEnabled {
+            return "Screen Recording is required for pixels and live window thumbnails. Accessibility is only required for Window UI Map. \(deferredPermissionSummaryText)"
         }
 
         if capabilities.isEnabled(.scrollingCapture) {
-            if capabilities.isEnabled(.connectedDeviceCapture) {
-                return "Screen Recording is required for pixels and live window thumbnails. Accessibility is only required for Scrolling Capture. Connected-device preview asks for Camera access only when you start using an iPhone or iPad screen stream."
-            }
-
-            return "Screen Recording is required for pixels and live window thumbnails. Accessibility is only required for Scrolling Capture."
+            return "Screen Recording is required for pixels and live window thumbnails. Accessibility is only required for Scrolling Capture. \(deferredPermissionSummaryText)"
         }
 
+        return "Screen Recording is required for pixels, live window thumbnails, and recording. \(deferredPermissionSummaryText)"
+    }
+
+    private var deferredPermissionSummaryText: String {
         if capabilities.isEnabled(.connectedDeviceCapture) {
-            return "Screen Recording is required for pixels, live window thumbnails, and recording. Connected-device preview asks for Camera access only when you start using an iPhone or iPad screen stream."
+            return "Camera, Microphone, and System Audio are asked later only when their matching capture or recording source is used."
         }
 
-        return "Screen Recording is required for pixels, live window thumbnails, and recording."
+        return "Microphone and System Audio are asked later only when their matching recording source is used."
     }
 
     private func shortcutRow(key: String, action: String) -> some View {
@@ -844,7 +1046,7 @@ struct OnboardingView: View {
         Binding(
             get: { capture.uiMapEnabled },
             set: { newValue in
-                capture.updateUIMapEnabled(newValue)
+                capture.updateUIMapEnabled(newValue, requestAccessIfNeeded: false)
             }
         )
     }
@@ -860,6 +1062,19 @@ struct OnboardingView: View {
         case .unavailable:
             return .red
         }
+    }
+
+    private var shouldIncludeAccessibilityPermissionInOnboarding: Bool {
+        capabilities.isEnabled(.scrollingCapture)
+            || (capabilities.isEnabled(.uiMap) && capture.uiMapEnabled)
+    }
+
+    private var onboardingPermissionRequirements: [CapturePermissionRequirement] {
+        var requirements: [CapturePermissionRequirement] = [.screenRecording]
+        if shouldIncludeAccessibilityPermissionInOnboarding {
+            requirements.append(.accessibility)
+        }
+        return requirements
     }
 
     private var visibleSteps: [OnboardingStep] {
@@ -895,6 +1110,11 @@ struct OnboardingView: View {
     private func skipOnboarding() {
         skipOnboardingAction()
         dismiss()
+    }
+
+    private func restartAfterPermissionSetup() {
+        completeOnboardingAction()
+        AppTerminationController.shared.requestRestartWithoutConfirmation()
     }
 
     private func completeOnboarding() {

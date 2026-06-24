@@ -12,22 +12,26 @@ final class AppTerminationController {
     typealias QuitConfirmationHandler = @MainActor (AppLifecycleModel?) -> QuitConfirmationResult
     typealias BackgroundHandler = @MainActor () -> Void
     typealias TerminationHandler = @MainActor () -> Void
+    typealias RelaunchHandler = @MainActor () -> Void
 
     private weak var lifecycle: AppLifecycleModel?
     private let confirmationHandler: QuitConfirmationHandler
     private let backgroundHandler: BackgroundHandler
     private let terminationHandler: TerminationHandler
+    private let relaunchHandler: RelaunchHandler
     private var isPresentingQuitConfirmation = false
     private var isPerformingConfirmedTermination = false
 
     init(
         confirmationHandler: @escaping QuitConfirmationHandler = AppTerminationController.presentQuitConfirmation,
         backgroundHandler: @escaping BackgroundHandler = AppTerminationController.runApplicationInBackground,
-        terminationHandler: @escaping TerminationHandler = AppTerminationController.terminateApplication
+        terminationHandler: @escaping TerminationHandler = AppTerminationController.terminateApplication,
+        relaunchHandler: @escaping RelaunchHandler = AppTerminationController.relaunchApplication
     ) {
         self.confirmationHandler = confirmationHandler
         self.backgroundHandler = backgroundHandler
         self.terminationHandler = terminationHandler
+        self.relaunchHandler = relaunchHandler
     }
 
     func configure(lifecycle: AppLifecycleModel) {
@@ -44,6 +48,15 @@ final class AppTerminationController {
             return
         }
 
+        performConfirmedTermination()
+    }
+
+    func requestRestartWithoutConfirmation() {
+        guard !isPresentingQuitConfirmation else {
+            return
+        }
+
+        relaunchHandler()
         performConfirmedTermination()
     }
 
@@ -125,5 +138,16 @@ final class AppTerminationController {
 
     private static func terminateApplication() {
         NSApp.terminate(nil)
+    }
+
+    private static func relaunchApplication() {
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        configuration.createsNewApplicationInstance = true
+
+        NSWorkspace.shared.openApplication(
+            at: Bundle.main.bundleURL,
+            configuration: configuration
+        )
     }
 }

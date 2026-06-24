@@ -73,4 +73,20 @@ final class CapturePermissionStatusTests: XCTestCase {
             [.screenRecording]
         )
     }
+
+    func testMissingRequirementsDoNotRequireAccessibilityForOptionalUIMap() {
+        let uiMapCapabilities = AppCapabilitySnapshot(
+            buildTarget: .dev,
+            enabledCapabilities: [.screenRecording, .uiMap]
+        )
+
+        XCTAssertEqual(
+            CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: false).missingRequirements(for: uiMapCapabilities),
+            [.screenRecording]
+        )
+        XCTAssertEqual(
+            CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false).missingRequirements(for: uiMapCapabilities),
+            []
+        )
+    }
 }

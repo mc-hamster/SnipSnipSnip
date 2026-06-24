@@ -26,6 +26,7 @@ enum PermissionGateResult {
 protocol PermissionGatekeeping: AnyObject {
     var permissionStatus: CapturePermissionStatus { get }
     var permissionSetupGuide: PermissionSetupGuide? { get }
+    var activePermissionRequest: CapturePermissionRequirement? { get }
 
     func refreshPermissions()
     func preflight(_ requirements: [CapturePermissionRequirement], featureName: String) -> PermissionGateResult

@@ -50,6 +50,9 @@ Notes:
   - Some privacy resets may require quitting SnipSnipSnip first. Accessibility
     and Screen Recording prompts usually appear again on the next app launch or
     first protected capture attempt.
+  - If SnipSnipSnip is running, this script requests a normal quit and clicks
+    the in-app Quit confirmation with System Events when the dialog appears.
+    This avoids sending SIGTERM/SIGKILL into Xcode debug sessions.
   - macOS does not provide a narrow public command for removing only one app's
     background-item/login-item record. Use --reset-background-items only on a
     throwaway test Mac or when a broad reset is acceptable.
@@ -144,6 +147,78 @@ remove_glob_matches() {
 
   if [[ "$found" == false ]]; then
     debug "[skip] no matches for $(quote_path "$pattern")"
+  fi
+}
+
+osascript_escape() {
+  local value="$1"
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  printf '%s' "$value"
+}
+
+click_quit_confirmation() {
+  local escaped_app_name
+  escaped_app_name="$(osascript_escape "$app_name")"
+
+  osascript <<EOF
+tell application "System Events"
+  if not (exists process "$escaped_app_name") then return
+  tell process "$escaped_app_name"
+    repeat 20 times
+      repeat with candidateWindow in windows
+        if exists button "Quit" of candidateWindow then
+          click button "Quit" of candidateWindow
+          return
+        end if
+      end repeat
+      delay 0.25
+    end repeat
+  end tell
+end tell
+EOF
+}
+
+quit_running_app() {
+  if ! pgrep -x "$app_name" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if [[ "$mode" == "dry-run" ]]; then
+    log "Requesting normal quit for running $app_name and clicking the confirmation if it appears."
+    run_cmd defaults write "$bundle_id" SSSConfirmsBeforeQuitting -bool false
+    run_cmd osascript -e "tell application id \"$bundle_id\" to quit"
+    log "[dry-run] System Events would click the in-app Quit button if the confirmation appears."
+    return 0
+  fi
+
+  log "Requesting normal quit for running $app_name."
+  defaults write "$bundle_id" SSSConfirmsBeforeQuitting -bool false >/dev/null 2>&1 || true
+
+  osascript -e "tell application id \"$bundle_id\" to quit" >/dev/null 2>&1 &
+  local quit_request_pid=$!
+
+  sleep 0.75
+  if pgrep -x "$app_name" >/dev/null 2>&1; then
+    if ! click_quit_confirmation >/dev/null 2>&1; then
+      log "Could not click the quit confirmation with System Events."
+      log "Grant Accessibility to the terminal app running this script, or close $app_name manually and rerun Clean Sweep."
+      return 1
+    fi
+  fi
+
+  wait "$quit_request_pid" >/dev/null 2>&1 || true
+
+  local attempts=0
+  while pgrep -x "$app_name" >/dev/null 2>&1 && ((attempts < 20)); do
+    sleep 0.25
+    attempts=$((attempts + 1))
+  done
+
+  if pgrep -x "$app_name" >/dev/null 2>&1; then
+    log "$app_name is still running after the quit request."
+    log "Close it manually and rerun Clean Sweep, or turn off Confirm Before Quitting in the app before running this script."
+    return 1
   fi
 }
 
@@ -249,13 +324,7 @@ log "Bundle ID: $bundle_id"
 log "Share extension ID: $share_extension_bundle_id"
 log ""
 
-if pgrep -x "$app_name" >/dev/null 2>&1; then
-  log "Quitting $app_name before cleanup."
-  run_cmd osascript -e "tell application id \"$bundle_id\" to quit" || true
-  if [[ "$mode" == "apply" ]]; then
-    sleep 1
-  fi
-fi
+quit_running_app
 
 log "Deleting preferences."
 delete_defaults_domain "$bundle_id"

@@ -67,7 +67,7 @@ extension CaptureWorkflowModel {
         pendingPermissionCommand.command.perform(on: self)
     }
 
-    func updateUIMapEnabled(_ enabled: Bool) {
+    func updateUIMapEnabled(_ enabled: Bool, requestAccessIfNeeded: Bool = true) {
         guard dependencies.capabilities.isEnabled(.uiMap) else {
             uiMapEnabled = false
             return
@@ -75,7 +75,7 @@ extension CaptureWorkflowModel {
 
         uiMapEnabled = enabled
 
-        if enabled {
+        if enabled && requestAccessIfNeeded {
             dependencies.permissions.refreshPermissions()
 
             if !dependencies.permissions.permissionStatus.hasAccessibility {

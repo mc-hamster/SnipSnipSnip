@@ -8,6 +8,12 @@ Developer-only utilities that are not part of the SnipSnipSnip app target.
 onboarding tests. It deletes app-owned preferences/support/cache/container
 files and resets macOS privacy decisions with `tccutil`.
 
+If SnipSnipSnip is running, the script requests a normal app quit and clicks the
+in-app `Quit` confirmation with System Events when the dialog appears. This
+keeps Xcode debug sessions out of signal handling while still allowing
+hands-off cleanup. If macOS blocks the click, grant Accessibility to the
+terminal app running the script or close SnipSnipSnip manually and rerun.
+
 Dry-run first:
 
 ```sh

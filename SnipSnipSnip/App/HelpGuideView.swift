@@ -76,7 +76,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "First launch onboarding",
                             steps: [
-                                "The first launch opens a guided onboarding flow with capture basics, permissions, UI Map disclosure when available, launch-at-login, and support links.",
+                                "The first launch opens a guided onboarding flow with capture basics, UI Map disclosure when available, launch-at-login, support links, and permissions as the final step.",
                                 "You can skip at any point and still start capturing immediately.",
                                 "Open Settings > General > Show Onboarding Again any time to replay it."
                             ]
@@ -133,19 +133,19 @@ struct HelpGuideView: View {
                             title: "Screen Recording",
                             body: "Required for screenshot pixels, live window thumbnails, and screen recording. If it is missing, captures can be blank and window previews may not appear.",
                             steps: [
-                                "Click Continue beside Screen Recording in SnipSnipSnip. If macOS does not show a prompt, SnipSnipSnip opens the Screen Recording settings pane.",
+                                "Click Set Up beside Screen Recording in SnipSnipSnip. If macOS does not show a prompt, SnipSnipSnip opens the Screen Recording settings pane.",
                                 "Allow SnipSnipSnip in System Settings > Privacy & Security > Screen Recording.",
-                                "Quit and reopen SnipSnipSnip if macOS asks you to."
+                                "If SnipSnipSnip shows Restart Required, use Restart SnipSnipSnip so macOS applies Screen Recording access without the normal quit confirmation."
                             ]
                         ),
                         HelpArticleSection(
                             title: "Audio permissions",
-                            body: "Microphone and system audio permissions are optional. macOS asks for them only when the matching recording source is enabled."
+                            body: "Microphone and system audio permissions are optional and are not part of onboarding setup. macOS asks for Microphone only when microphone narration is enabled for a recording, and asks for system audio only when system audio capture is enabled."
                         )
                     ] + (connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(
                             title: "Camera",
-                            body: "Required only when you start a connected iPhone or iPad preview, screenshot, or recording. macOS exposes trusted iPhone and iPad screens as video sources, so the system permission is named Camera even though SnipSnipSnip is using it for the connected-device screen stream."
+                            body: "Required only when you start a connected iPhone or iPad preview, screenshot, or recording, and it is not part of onboarding setup. macOS exposes trusted iPhone and iPad screens as video sources, so the system permission is named Camera even though SnipSnipSnip is using it for the connected-device screen stream."
                         )
                     ] : []) + (scrollingCaptureEnabled || uiMapEnabled
                         ? [
@@ -157,7 +157,7 @@ struct HelpGuideView: View {
                                         ? "Required for Window capture when Enable UI Map for Window captures is on. SnipSnipSnip uses it to read visible interface element names, roles, identifiers, and locations from the selected window during a user-initiated Window capture."
                                         : "Required only for Scrolling Capture. SnipSnipSnip uses it to scroll the selected app while collecting segments.",
                                 steps: [
-                                    "Click Continue beside Accessibility in SnipSnipSnip.",
+                                    "Click Set Up beside Accessibility in SnipSnipSnip.",
                                     "Allow SnipSnipSnip in System Settings > Privacy & Security > Accessibility.",
                                     "If SnipSnipSnip is not listed, open the setup guide, choose Reveal App, and add that exact app with the + button."
                                 ]
@@ -837,7 +837,7 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Blank captures or missing thumbnails",
-                            body: "Allow Screen Recording permission for SnipSnipSnip, then quit and reopen the app if macOS asks you to."
+                            body: "Click Set Up for Screen Recording, use the macOS prompt or Open Settings to allow SnipSnipSnip, then return and click Check Again. If System Settings shows SnipSnipSnip enabled but the app still cannot capture, SnipSnipSnip shows Restart Required; use Restart SnipSnipSnip so macOS applies the new Screen Recording access."
                         ),
                         HelpArticleSection(
                             title: "A window is missing",
