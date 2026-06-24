@@ -1,4 +1,5 @@
 import AVFAudio
+import AudioToolbox
 import CoreMedia
 import Foundation
 @preconcurrency import ScreenCaptureKit
@@ -64,6 +65,16 @@ nonisolated struct ScreenRecordingSegmentToken: Hashable, Sendable {
     init() {}
 }
 
+nonisolated enum ScreenRecordingAudioSource: Sendable {
+    case system
+    case microphone
+}
+
+nonisolated struct ScreenRecordingAudioLevels: Equatable, Sendable {
+    var system: Double = 0
+    var microphone: Double = 0
+}
+
 @MainActor
 protocol ScreenRecordingPlatformEventSink: AnyObject {
     func recordingPlatformSession(
@@ -76,6 +87,19 @@ protocol ScreenRecordingPlatformEventSink: AnyObject {
         didFailWith error: Error
     )
     func recordingPlatformSession(_ session: any ScreenRecordingPlatformSession, didStopWith error: Error)
+    func recordingPlatformSession(
+        _ session: any ScreenRecordingPlatformSession,
+        didUpdateAudioLevel level: Double,
+        source: ScreenRecordingAudioSource
+    )
+}
+
+extension ScreenRecordingPlatformEventSink {
+    func recordingPlatformSession(
+        _ session: any ScreenRecordingPlatformSession,
+        didUpdateAudioLevel level: Double,
+        source: ScreenRecordingAudioSource
+    ) {}
 }
 
 @MainActor
@@ -136,7 +160,7 @@ struct LiveScreenRecordingPlatform: ScreenRecordingPlatform {
         return LiveScreenRecordingPlatformSession(
             filter: filter,
             target: target,
-            configuration: Self.streamConfiguration(from: configuration, target: target)
+            configuration: configuration
         )
     }
 
@@ -226,12 +250,21 @@ private final class LiveScreenRecordingPlatformSession: NSObject, ScreenRecordin
     private weak var eventSink: (any ScreenRecordingPlatformEventSink)?
     private var outputByToken: [ScreenRecordingSegmentToken: SCRecordingOutput] = [:]
     private var tokenByOutputID: [ObjectIdentifier: ScreenRecordingSegmentToken] = [:]
-    private var didAttachSampleOutput = false
+    private var configuration: ScreenRecordingConfiguration
+    private var didAttachScreenOutput = false
+    private var didAttachAudioOutput = false
+    private var didAttachMicrophoneOutput = false
+    private var lastAudioLevelUpdateBySource: [ScreenRecordingAudioSource: Date] = [:]
 
-    init(filter: SCContentFilter, target: ScreenRecordingTarget, configuration: SCStreamConfiguration) {
+    init(filter: SCContentFilter, target: ScreenRecordingTarget, configuration: ScreenRecordingConfiguration) {
         self.target = target
+        self.configuration = configuration
         super.init()
-        self.stream = SCStream(filter: filter, configuration: configuration, delegate: self)
+        self.stream = SCStream(
+            filter: filter,
+            configuration: LiveScreenRecordingPlatform.streamConfiguration(from: configuration, target: target),
+            delegate: self
+        )
     }
 
     func setEventSink(_ sink: (any ScreenRecordingPlatformEventSink)?) {
@@ -247,13 +280,17 @@ private final class LiveScreenRecordingPlatformSession: NSObject, ScreenRecordin
     }
 
     func updateConfiguration(_ configuration: ScreenRecordingConfiguration) async throws {
-        try await stream.updateConfiguration(
-            LiveScreenRecordingPlatform.streamConfiguration(from: configuration, target: target)
-        )
+        if configuration.capturesAudio || configuration.capturesMicrophone {
+            try ensureSampleOutputsAttached(for: configuration)
+        }
+
+        try await stream.updateConfiguration(LiveScreenRecordingPlatform.streamConfiguration(from: configuration, target: target))
+        try removeDisabledSampleOutputs(for: configuration)
+        self.configuration = configuration
     }
 
     func startRecordingSegment(to outputURL: URL) throws -> ScreenRecordingSegmentToken {
-        try ensureSampleOutputAttached()
+        try ensureSampleOutputsAttached(for: configuration)
 
         let recordingConfiguration = SCRecordingOutputConfiguration()
         recordingConfiguration.outputURL = outputURL
@@ -281,13 +318,33 @@ private final class LiveScreenRecordingPlatformSession: NSObject, ScreenRecordin
         try stream.removeRecordingOutput(output)
     }
 
-    private func ensureSampleOutputAttached() throws {
-        guard !didAttachSampleOutput else {
-            return
+    private func ensureSampleOutputsAttached(for configuration: ScreenRecordingConfiguration) throws {
+        if !didAttachScreenOutput {
+            try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: Self.sampleOutputQueue)
+            didAttachScreenOutput = true
         }
 
-        try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: Self.sampleOutputQueue)
-        didAttachSampleOutput = true
+        if configuration.capturesAudio, !didAttachAudioOutput {
+            try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: Self.sampleOutputQueue)
+            didAttachAudioOutput = true
+        }
+
+        if configuration.capturesMicrophone, !didAttachMicrophoneOutput {
+            try stream.addStreamOutput(self, type: .microphone, sampleHandlerQueue: Self.sampleOutputQueue)
+            didAttachMicrophoneOutput = true
+        }
+    }
+
+    private func removeDisabledSampleOutputs(for configuration: ScreenRecordingConfiguration) throws {
+        if !configuration.capturesAudio, didAttachAudioOutput {
+            try stream.removeStreamOutput(self, type: .audio)
+            didAttachAudioOutput = false
+        }
+
+        if !configuration.capturesMicrophone, didAttachMicrophoneOutput {
+            try stream.removeStreamOutput(self, type: .microphone)
+            didAttachMicrophoneOutput = false
+        }
     }
 
     nonisolated func recordingOutputDidFinishRecording(_ recordingOutput: SCRecordingOutput) {
@@ -320,8 +377,158 @@ private final class LiveScreenRecordingPlatformSession: NSObject, ScreenRecordin
     }
 
     nonisolated func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-        // RecordingOutput handles persisted media. Keep this sink attached so the
-        // stream has an active output target and does not spam dropped-frame logs.
+        guard let source = ScreenRecordingAudioSource(streamOutputType: type),
+              let level = Self.audioLevel(from: sampleBuffer) else {
+            // RecordingOutput handles persisted media. Keep this sink attached so the
+            // stream has an active output target and does not spam dropped-frame logs.
+            return
+        }
+
+        Task { @MainActor [weak self] in
+            guard let self,
+                  self.shouldPublishAudioLevel(for: source) else {
+                return
+            }
+
+            self.eventSink?.recordingPlatformSession(self, didUpdateAudioLevel: level, source: source)
+        }
+    }
+
+    private func shouldPublishAudioLevel(for source: ScreenRecordingAudioSource) -> Bool {
+        let now = Date()
+        let minimumInterval: TimeInterval = 1.0 / 24.0
+        if let previous = lastAudioLevelUpdateBySource[source],
+           now.timeIntervalSince(previous) < minimumInterval {
+            return false
+        }
+
+        lastAudioLevelUpdateBySource[source] = now
+        return true
+    }
+
+    nonisolated private static func audioLevel(from sampleBuffer: CMSampleBuffer) -> Double? {
+        guard sampleBuffer.isValid,
+              CMSampleBufferDataIsReady(sampleBuffer),
+              let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer),
+              let streamDescription = CMAudioFormatDescriptionGetStreamBasicDescription(formatDescription)?.pointee else {
+            return nil
+        }
+
+        var audioBufferListSize = 0
+        var blockBuffer: CMBlockBuffer?
+        var status = CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(
+            sampleBuffer,
+            bufferListSizeNeededOut: &audioBufferListSize,
+            bufferListOut: nil,
+            bufferListSize: 0,
+            blockBufferAllocator: kCFAllocatorDefault,
+            blockBufferMemoryAllocator: kCFAllocatorDefault,
+            flags: 0,
+            blockBufferOut: &blockBuffer
+        )
+
+        guard status == noErr, audioBufferListSize > 0 else {
+            return nil
+        }
+
+        let audioBufferListPointer = UnsafeMutableRawPointer.allocate(
+            byteCount: audioBufferListSize,
+            alignment: MemoryLayout<AudioBufferList>.alignment
+        )
+        defer {
+            audioBufferListPointer.deallocate()
+        }
+
+        status = CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(
+            sampleBuffer,
+            bufferListSizeNeededOut: nil,
+            bufferListOut: audioBufferListPointer.assumingMemoryBound(to: AudioBufferList.self),
+            bufferListSize: audioBufferListSize,
+            blockBufferAllocator: kCFAllocatorDefault,
+            blockBufferMemoryAllocator: kCFAllocatorDefault,
+            flags: 0,
+            blockBufferOut: &blockBuffer
+        )
+
+        guard status == noErr else {
+            return nil
+        }
+
+        let buffers = UnsafeMutableAudioBufferListPointer(
+            audioBufferListPointer.assumingMemoryBound(to: AudioBufferList.self)
+        )
+        let rms = rootMeanSquareLevel(
+            in: buffers,
+            streamDescription: streamDescription
+        )
+
+        guard rms.isFinite, rms > 0 else {
+            return 0
+        }
+
+        let decibels = 20 * log10(rms)
+        return min(max((decibels + 60) / 60, 0), 1)
+    }
+
+    nonisolated private static func rootMeanSquareLevel(
+        in buffers: UnsafeMutableAudioBufferListPointer,
+        streamDescription: AudioStreamBasicDescription
+    ) -> Double {
+        let formatFlags = streamDescription.mFormatFlags
+        let bitsPerChannel = Int(streamDescription.mBitsPerChannel)
+        let isFloat = (formatFlags & kAudioFormatFlagIsFloat) != 0
+        let isSignedInteger = (formatFlags & kAudioFormatFlagIsSignedInteger) != 0
+        var squaredSum = 0.0
+        var sampleCount = 0
+
+        for buffer in buffers {
+            guard let data = buffer.mData, buffer.mDataByteSize > 0 else {
+                continue
+            }
+
+            let byteCount = Int(buffer.mDataByteSize)
+            if isFloat, bitsPerChannel == 32 {
+                let values = data.bindMemory(to: Float.self, capacity: byteCount / MemoryLayout<Float>.stride)
+                for index in 0..<(byteCount / MemoryLayout<Float>.stride) {
+                    let sample = Double(values[index])
+                    squaredSum += sample * sample
+                    sampleCount += 1
+                }
+            } else if isSignedInteger, bitsPerChannel == 16 {
+                let values = data.bindMemory(to: Int16.self, capacity: byteCount / MemoryLayout<Int16>.stride)
+                for index in 0..<(byteCount / MemoryLayout<Int16>.stride) {
+                    let sample = Double(values[index]) / Double(Int16.max)
+                    squaredSum += sample * sample
+                    sampleCount += 1
+                }
+            } else if isSignedInteger, bitsPerChannel == 32 {
+                let values = data.bindMemory(to: Int32.self, capacity: byteCount / MemoryLayout<Int32>.stride)
+                for index in 0..<(byteCount / MemoryLayout<Int32>.stride) {
+                    let sample = Double(values[index]) / Double(Int32.max)
+                    squaredSum += sample * sample
+                    sampleCount += 1
+                }
+            }
+        }
+
+        guard sampleCount > 0 else {
+            return 0
+        }
+
+        return sqrt(squaredSum / Double(sampleCount))
+    }
+}
+
+private extension ScreenRecordingAudioSource {
+    nonisolated init?(streamOutputType: SCStreamOutputType) {
+        switch streamOutputType {
+        case .audio:
+            self = .system
+        case .microphone:
+            self = .microphone
+        default:
+            return nil
+        }
     }
 }
 

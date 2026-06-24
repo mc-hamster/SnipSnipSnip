@@ -8,6 +8,7 @@ final class RecordingControlOverlayModel: ObservableObject {
     @Published private(set) var isPaused: Bool
     @Published private(set) var preferences: VideoRecordingPreferences
     @Published private(set) var audioToggleErrorMessage: String?
+    @Published private(set) var audioLevels = ScreenRecordingAudioLevels()
 
     let title: String
     let sourceLabel: String
@@ -92,6 +93,15 @@ final class RecordingControlOverlayModel: ObservableObject {
         preferences.recordsMicrophone
     }
 
+    func audioLevel(for source: ScreenRecordingAudioSource) -> Double {
+        switch source {
+        case .system:
+            return recordsSystemAudio && !isPaused ? audioLevels.system : 0
+        case .microphone:
+            return recordsMicrophone && !isPaused ? audioLevels.microphone : 0
+        }
+    }
+
     func setRecordsSystemAudio(_ recordsSystemAudio: Bool) {
         updateAudioOptions(
             recordsSystemAudio: recordsSystemAudio,
@@ -119,7 +129,22 @@ final class RecordingControlOverlayModel: ObservableObject {
         }
 
         isPaused = paused
+        if paused {
+            audioLevels = ScreenRecordingAudioLevels()
+        }
         tick()
+    }
+
+    func updateAudioLevels(_ levels: ScreenRecordingAudioLevels) {
+        guard !isPaused else {
+            audioLevels = ScreenRecordingAudioLevels()
+            return
+        }
+
+        audioLevels = ScreenRecordingAudioLevels(
+            system: preferences.recordsSystemAudio ? levels.system : 0,
+            microphone: preferences.recordsMicrophone ? levels.microphone : 0
+        )
     }
 
     private func updateAudioOptions(recordsSystemAudio: Bool, recordsMicrophone: Bool) {
@@ -131,6 +156,10 @@ final class RecordingControlOverlayModel: ObservableObject {
         let previousPreferences = preferences
         preferences.recordsSystemAudio = recordsSystemAudio
         preferences.recordsMicrophone = recordsMicrophone
+        audioLevels = ScreenRecordingAudioLevels(
+            system: recordsSystemAudio ? audioLevels.system : 0,
+            microphone: recordsMicrophone ? audioLevels.microphone : 0
+        )
         audioToggleErrorMessage = nil
         audioOptionsTask?.cancel()
         audioOptionsTask = Task { @MainActor [weak self] in
@@ -184,7 +213,7 @@ final class RecordingControlOverlay {
             audioOptionsAction: audioOptionsAction
         )
         panel = NSPanel(
-            contentRect: CGRect(x: 0, y: 0, width: 560, height: 126),
+            contentRect: CGRect(x: 0, y: 0, width: 590, height: 136),
             styleMask: [.nonactivatingPanel, .hudWindow],
             backing: .buffered,
             defer: false
@@ -218,13 +247,17 @@ final class RecordingControlOverlay {
         model.updatePausedState(paused)
     }
 
+    func updateAudioLevels(_ levels: ScreenRecordingAudioLevels) {
+        model.updateAudioLevels(levels)
+    }
+
     private func positionPanel() {
         let screenFrame = NSScreen.main?.visibleFrame ?? NSScreen.screens.first?.visibleFrame ?? .zero
         let frame = CGRect(
-            x: screenFrame.midX - 280,
-            y: screenFrame.maxY - 148,
-            width: 560,
-            height: 126
+            x: screenFrame.midX - 295,
+            y: screenFrame.maxY - 158,
+            width: 590,
+            height: 136
         )
         panel.setFrame(frame, display: true)
     }
@@ -276,9 +309,12 @@ private struct RecordingControlOverlayView: View {
                     .font(.system(.title2, design: .monospaced).weight(.bold))
                     .contentTransition(.numericText())
 
-                HStack(spacing: 10) {
-                    RecordingAudioToggle(
+                HStack(alignment: .top, spacing: 10) {
+                    RecordingAudioSourceControl(
                         title: "System Audio",
+                        level: model.audioLevel(for: .system),
+                        isEnabled: model.recordsSystemAudio && !model.isPaused,
+                        tint: .green,
                         isOn: Binding(
                             get: { model.recordsSystemAudio },
                             set: { model.setRecordsSystemAudio($0) }
@@ -286,8 +322,11 @@ private struct RecordingControlOverlayView: View {
                     )
                     .help("Include or mute system audio for this recording only.")
 
-                    RecordingAudioToggle(
+                    RecordingAudioSourceControl(
                         title: "Mic",
+                        level: model.audioLevel(for: .microphone),
+                        isEnabled: model.recordsMicrophone && !model.isPaused,
+                        tint: .cyan,
                         isOn: Binding(
                             get: { model.recordsMicrophone },
                             set: { model.setRecordsMicrophone($0) }
@@ -303,7 +342,7 @@ private struct RecordingControlOverlayView: View {
                             .lineLimit(1)
                             .frame(width: 104)
                     }
-                    .buttonStyle(.glass)
+                    .buttonStyle(RecordingControlButtonStyle(tint: model.isPaused ? .green : .yellow))
                     .controlSize(.small)
                     .help(model.isPaused ? "Resume the recording." : "Pause the recording.")
 
@@ -313,14 +352,14 @@ private struct RecordingControlOverlayView: View {
                             .lineLimit(1)
                             .frame(width: 72)
                     }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(RecordingControlButtonStyle(tint: .red, isProminent: true))
                     .controlSize(.small)
                     .help("Stop and save the recording.")
                 }
             }
         }
         .padding(16)
-        .frame(width: 560, height: 126)
+        .frame(width: 590, height: 136)
         .sssGlassSurface(cornerRadius: 20)
     }
 
@@ -334,6 +373,67 @@ private struct RecordingControlOverlayView: View {
                 .fill(model.isPaused ? Color.yellow : Color.red)
                 .frame(width: 11, height: 11)
         }
+    }
+}
+
+private struct RecordingAudioSourceControl: View {
+    let title: String
+    let level: Double
+    let isEnabled: Bool
+    let tint: Color
+    @Binding var isOn: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            RecordingAudioToggle(title: title, isOn: $isOn)
+
+            RecordingAudioMeter(
+                level: level,
+                isEnabled: isEnabled,
+                tint: tint
+            )
+        }
+    }
+}
+
+private struct RecordingAudioMeter: View {
+    let level: Double
+    let isEnabled: Bool
+    let tint: Color
+
+    private var clampedLevel: Double {
+        min(max(level, 0), 1)
+    }
+
+    private var meterColor: Color {
+        isEnabled ? tint : .secondary
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(meterColor.opacity(isEnabled ? 0.16 : 0.10))
+
+                Capsule()
+                    .fill(meterColor.opacity(isEnabled ? 0.78 : 0.24))
+                    .frame(width: max(proxy.size.width * clampedLevel, 3))
+            }
+        }
+        .frame(width: 112, height: 6)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(
+            Capsule()
+                .fill(meterColor.opacity(isEnabled ? 0.12 : 0.08))
+        )
+        .overlay(
+            Capsule()
+                .strokeBorder(meterColor.opacity(isEnabled ? 0.28 : 0.16), lineWidth: 1)
+        )
+        .accessibilityLabel("Audio signal level")
+        .animation(.easeOut(duration: 0.12), value: clampedLevel)
+        .animation(.easeInOut(duration: 0.16), value: isEnabled)
     }
 }
 
@@ -363,5 +463,30 @@ private struct RecordingAudioToggle: View {
                     .strokeBorder(stateColor.opacity(isOn ? 0.45 : 0.26), lineWidth: 1)
             )
             .animation(.easeInOut(duration: 0.16), value: isOn)
+    }
+}
+
+private struct RecordingControlButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    let tint: Color
+    var isProminent = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.caption.weight(.bold))
+            .foregroundStyle(isEnabled ? tint : Color.secondary.opacity(0.6))
+            .padding(.horizontal, 4)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(tint.opacity(isEnabled ? (isProminent ? 0.24 : 0.18) : 0.08))
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(tint.opacity(isEnabled ? (isProminent ? 0.62 : 0.48) : 0.18), lineWidth: 1)
+            )
+            .shadow(color: tint.opacity(isEnabled ? (isProminent ? 0.18 : 0.10) : 0), radius: 6, y: 2)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .contentShape(Capsule())
     }
 }

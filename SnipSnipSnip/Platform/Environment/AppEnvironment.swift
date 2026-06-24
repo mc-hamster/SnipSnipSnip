@@ -49,6 +49,12 @@ struct AppEnvironment {
     }
 
     func makeScrollingCaptureService(captureService: any ScreenCaptureServiceType) -> ScrollingCaptureService {
+#if APP_STORE_BUILD
+        ScrollingCaptureService(
+            captureService: captureService,
+            permissions: permissions
+        )
+#else
         ScrollingCaptureService(
             captureService: captureService,
             permissions: permissions,
@@ -57,6 +63,7 @@ struct AppEnvironment {
             scheduler: systemServices.scheduler,
             clock: systemServices.clock
         )
+#endif
     }
 
     func makeUIMapCaptureService() -> any UIMapCaptureServiceType {

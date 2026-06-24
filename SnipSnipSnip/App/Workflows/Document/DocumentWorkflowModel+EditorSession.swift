@@ -396,15 +396,18 @@ extension DocumentWorkflowModel {
 
     func resizeMainWindowForEditorContentIfNeeded(animated: Bool = true) {
         let imagePixelSize: CGSize
+        let contentKind: DocumentWindowContentKind
         if let editorController {
             imagePixelSize = editorController.capture.pixelSize
+            contentKind = .screenshot
         } else if let videoController = videoEditorController {
             imagePixelSize = videoController.recording.bounds.size
+            contentKind = .video
         } else {
             return
         }
 
-        guard dependencies.windowPresenter.resizeMainWindowForContent(pixelSize: imagePixelSize, animated: animated) else {
+        guard dependencies.windowPresenter.resizeMainWindowForContent(pixelSize: imagePixelSize, kind: contentKind, animated: animated) else {
             return
         }
 

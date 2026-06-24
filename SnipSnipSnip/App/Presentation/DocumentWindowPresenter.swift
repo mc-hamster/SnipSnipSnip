@@ -23,7 +23,7 @@ struct LiveDocumentWindowPresenter: DocumentWindowPresenting {
         }
     }
 
-    func resizeMainWindowForContent(pixelSize: CGSize, animated: Bool) -> Bool {
+    func resizeMainWindowForContent(pixelSize: CGSize, kind: DocumentWindowContentKind, animated: Bool) -> Bool {
         guard let window = mainWindow,
               let screenContext = screenContext(for: window) else {
             return false
@@ -38,7 +38,13 @@ struct LiveDocumentWindowPresenter: DocumentWindowPresenting {
         let chromeWidth: CGFloat = 300 + 30
         let chromeHeight: CGFloat = 150
 
-        let minSize = CGSize(width: 900, height: 600)
+        let minSize: CGSize
+        switch kind {
+        case .screenshot:
+            minSize = CGSize(width: 900, height: 600)
+        case .video:
+            minSize = CGSize(width: 1200, height: 780)
+        }
         let maxSize = screenContext.visibleFrame.size
 
         let targetWidth = min(max(imagePointSize.width + chromeWidth, minSize.width), maxSize.width)

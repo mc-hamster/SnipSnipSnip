@@ -11,9 +11,15 @@ protocol DocumentPanelPresenting {
 }
 
 @MainActor
+enum DocumentWindowContentKind {
+    case screenshot
+    case video
+}
+
+@MainActor
 protocol DocumentWindowPresenting {
     func syncMainWindowDocumentState(documentURL: URL?, hasUnsavedChanges: Bool, title: String)
-    func resizeMainWindowForContent(pixelSize: CGSize, animated: Bool) -> Bool
+    func resizeMainWindowForContent(pixelSize: CGSize, kind: DocumentWindowContentKind, animated: Bool) -> Bool
 }
 
 @MainActor

@@ -463,6 +463,8 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
     private let completionTracker = RecordingOutputCompletionTracker()
     private var didStop = false
     private var isCaptureRunning = false
+    private var audioLevels = ScreenRecordingAudioLevels()
+    var audioLevelHandler: ((ScreenRecordingAudioLevels) -> Void)?
 
     init(
         platformSession: any ScreenRecordingPlatformSession,
@@ -518,6 +520,7 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
         try? platformSession.removeRecordingSegment(activeSegmentToken)
         self.activeSegmentToken = nil
         isPaused = true
+        resetAudioLevels()
     }
 
     func resume() async throws {
@@ -548,11 +551,33 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
             return
         }
 
+        let wasCapturing = isCaptureRunning
+        if wasCapturing, let activeSegmentToken {
+            try await platformSession.stopCapture()
+            isCaptureRunning = false
+            try await waitForRecordingOutputToFinish(activeSegmentToken)
+            try? platformSession.removeRecordingSegment(activeSegmentToken)
+            self.activeSegmentToken = nil
+        }
+
         configuration.capturesAudio = recordsSystemAudio
         configuration.capturesMicrophone = recordsMicrophone
         try await platformSession.updateConfiguration(configuration)
         preferences.recordsSystemAudio = recordsSystemAudio
         preferences.recordsMicrophone = recordsMicrophone
+        if !recordsSystemAudio {
+            audioLevels.system = 0
+        }
+        if !recordsMicrophone {
+            audioLevels.microphone = 0
+        }
+        audioLevelHandler?(audioLevels)
+
+        if wasCapturing {
+            try startRecordingSegment()
+            try await platformSession.startCapture()
+            isCaptureRunning = true
+        }
     }
 
     func stop() async throws -> CapturedVideoRecording {
@@ -576,6 +601,7 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
 
         self.activeSegmentToken = nil
         isPaused = false
+        resetAudioLevels()
         let finalizedOutputURL = try await finalizeOutputURL()
         let duration = await recordingDuration(from: finalizedOutputURL)
 
@@ -766,6 +792,27 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
         }
     }
 
+    func recordingPlatformSession(
+        _ session: any ScreenRecordingPlatformSession,
+        didUpdateAudioLevel level: Double,
+        source: ScreenRecordingAudioSource
+    ) {
+        guard isCaptureRunning, !isPaused, !didStop else {
+            return
+        }
+
+        switch source {
+        case .system where preferences.recordsSystemAudio:
+            audioLevels.system = level
+        case .microphone where preferences.recordsMicrophone:
+            audioLevels.microphone = level
+        default:
+            return
+        }
+
+        audioLevelHandler?(audioLevels)
+    }
+
     private func resumeFinishContinuation(for token: ScreenRecordingSegmentToken, with result: Result<Void, Error>) {
         if let outputURL = completionTracker.finish(token: token, result: result) {
             segmentOutputURLs.append(outputURL)
@@ -778,6 +825,11 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
 
     func markCaptureStarted() {
         isCaptureRunning = true
+    }
+
+    private func resetAudioLevels() {
+        audioLevels = ScreenRecordingAudioLevels()
+        audioLevelHandler?(audioLevels)
     }
 
     func checkStoragePressure() throws {

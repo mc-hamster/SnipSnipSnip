@@ -329,26 +329,31 @@ extension VideoWorkflowModel {
         title: String,
         hiddenWindow: AppWindowVisibilityToken?
     ) -> ActiveVideoRecording {
-        ActiveVideoRecording(
+        let overlay = RecordingControlOverlay(
+            title: title,
+            sourceLabel: title.replacingOccurrences(of: "Recording ", with: ""),
+            preferences: recordingPreferences,
+            isPaused: session.isPaused,
+            pauseResumeAction: { [weak self] in
+                self?.toggleVideoRecordingPauseResume()
+            },
+            stopAction: { [weak self] in
+                self?.stopVideoRecording()
+            },
+            audioOptionsAction: { [weak session] recordsSystemAudio, recordsMicrophone in
+                try await session?.updateAudioOptions(
+                    recordsSystemAudio: recordsSystemAudio,
+                    recordsMicrophone: recordsMicrophone
+                )
+            }
+        )
+        session.audioLevelHandler = { [weak overlay] levels in
+            overlay?.updateAudioLevels(levels)
+        }
+
+        return ActiveVideoRecording(
             session: session,
-            overlay: RecordingControlOverlay(
-                title: title,
-                sourceLabel: title.replacingOccurrences(of: "Recording ", with: ""),
-                preferences: recordingPreferences,
-                isPaused: session.isPaused,
-                pauseResumeAction: { [weak self] in
-                    self?.toggleVideoRecordingPauseResume()
-                },
-                stopAction: { [weak self] in
-                    self?.stopVideoRecording()
-                },
-                audioOptionsAction: { [weak session] recordsSystemAudio, recordsMicrophone in
-                    try await session?.updateAudioOptions(
-                        recordsSystemAudio: recordsSystemAudio,
-                        recordsMicrophone: recordsMicrophone
-                    )
-                }
-            ),
+            overlay: overlay,
             hiddenWindow: hiddenWindow
         )
     }

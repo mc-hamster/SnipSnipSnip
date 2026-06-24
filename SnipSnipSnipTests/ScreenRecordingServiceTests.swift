@@ -99,4 +99,49 @@ final class ScreenRecordingServiceTests: XCTestCase {
             XCTFail("Received unexpected error: \(error)")
         }
     }
+
+    func testUpdatingAudioOptionsWhileCapturingRotatesRecordingSegment() async throws {
+        let platformSession = TestScreenRecordingPlatformSession()
+        let outputURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("recording-\(UUID().uuidString).mp4")
+        let initialPreferences = VideoRecordingPreferences()
+        let initialConfiguration = ScreenRecordingConfiguration(
+            width: 1280,
+            height: 720,
+            minimumFrameInterval: initialPreferences.frameRate.frameInterval,
+            captureResolution: initialPreferences.quality.captureResolution,
+            showsCursor: true,
+            showsMouseClicks: true,
+            capturesAudio: false,
+            capturesMicrophone: false
+        )
+        let session = ScreenRecordingSession(
+            platformSession: platformSession,
+            configuration: initialConfiguration,
+            outputURL: outputURL,
+            kind: .fullscreen,
+            sourceName: "Display",
+            bounds: CGRect(x: 0, y: 0, width: 1280, height: 720),
+            preferences: initialPreferences,
+            platform: TestScreenRecordingPlatform(),
+            files: SystemFileService(),
+            clock: TestClock()
+        )
+
+        try session.startRecordingSegment()
+        let firstToken = try XCTUnwrap(platformSession.segmentOutputURLs.keys.first)
+        try await platformSession.startCapture()
+        session.markCaptureStarted()
+
+        let updateTask = Task { @MainActor in
+            try await session.updateAudioOptions(recordsSystemAudio: true, recordsMicrophone: false)
+        }
+        await Task.yield()
+        platformSession.finish(firstToken)
+        try await updateTask.value
+
+        XCTAssertEqual(platformSession.configurationUpdates.map(\.capturesAudio), [true])
+        XCTAssertTrue(platformSession.isCapturing)
+        XCTAssertFalse(platformSession.segmentOutputURLs.keys.contains(firstToken))
+        XCTAssertEqual(platformSession.segmentOutputURLs.count, 1)
+    }
 }
