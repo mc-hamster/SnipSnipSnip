@@ -156,6 +156,54 @@ final class GeometrySupportTests: XCTestCase {
         XCTAssertEqual(mapped, CGRect(x: 40, y: 45, width: 60, height: 30))
     }
 
+    func testLiveDesktopPreviewRegionCentersAndClampsSourceRect() {
+        let display = DisplaySnapshot(
+            displayID: 1,
+            name: "Display",
+            frame: CGRect(x: 100, y: 200, width: 3840, height: 2160),
+            scale: 2
+        )
+
+        let centered = LiveDesktopPreviewRegionGeometry.centeredSourceRect(
+            around: CGPoint(x: 2000, y: 1200),
+            in: display,
+            preferredSideLength: 640
+        )
+        let edge = LiveDesktopPreviewRegionGeometry.centeredSourceRect(
+            around: CGPoint(x: 110, y: 210),
+            in: display,
+            preferredSideLength: 640
+        )
+
+        XCTAssertEqual(centered, CGRect(x: 1580, y: 680, width: 640, height: 640))
+        XCTAssertEqual(edge, CGRect(x: 0, y: 0, width: 640, height: 640))
+    }
+
+    func testLiveDesktopPreviewRegionMapsLoupeRectIntoNativeFramePixels() {
+        let display = DisplaySnapshot(
+            displayID: 1,
+            name: "Display",
+            frame: CGRect(x: 100, y: 200, width: 1000, height: 800),
+            overlayFrame: CGRect(x: 0, y: 0, width: 1000, height: 800),
+            scale: 2
+        )
+        let image = makeSolidImage(width: 1280, height: 1280, color: PixelSample(red: 0, green: 0, blue: 0, alpha: 255))
+        let frame = LiveDesktopPreviewFrame(
+            displayID: 1,
+            image: image,
+            sourceRect: CGRect(x: 260, y: 160, width: 640, height: 640),
+            sourceGlobalRect: CGRect(x: 360, y: 360, width: 640, height: 640)
+        )
+
+        let sourceRect = LiveDesktopPreviewRegionGeometry.appKitSourceRect(
+            fromOverlayLocalRect: CGRect(x: 480, y: 380, width: 20, height: 20),
+            display: display,
+            frame: frame
+        )
+
+        XCTAssertEqual(sourceRect, CGRect(x: 440, y: 800, width: 40, height: 40))
+    }
+
     func testCenteredCropRectKeepsRequestedAreaAroundPoint() {
         let crop = gscCenteredCropRect(
             around: CGPoint(x: 60, y: 40),

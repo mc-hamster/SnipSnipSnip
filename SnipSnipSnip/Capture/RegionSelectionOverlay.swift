@@ -1342,6 +1342,15 @@ private final class RegionSelectionCursorOverlayView: RegionSelectionPassThrough
         self.selectionRect = selectionRect
         self.isActivelyDraggingSelection = isActivelyDraggingSelection
 
+        if overlayMode.showsMagnifyingGlass,
+           let cursorGlobalPoint,
+           displayPreview.snapshot.frame.contains(cursorGlobalPoint) {
+            livePreviewSource?.updateFocus(
+                displayID: displayPreview.snapshot.displayID,
+                cursorGlobalPoint: cursorGlobalPoint
+            )
+        }
+
         dirtyRects.append(contentsOf: dirtyRectsForCursor(at: cursorGlobalPoint))
 
         for rect in dirtyRects {
@@ -1409,19 +1418,34 @@ private final class RegionSelectionCursorOverlayView: RegionSelectionPassThrough
     }
 
     private func drawLoupe(at localPoint: CGPoint) {
-        guard bounds.contains(localPoint) else {
+        guard bounds.contains(localPoint),
+              let cursorGlobalPoint else {
             return
         }
 
-        let previewImage = livePreviewSource?.image(for: displayPreview.snapshot.displayID) ?? fallbackImage
-        let previewTransform = CapturePreviewTransform(
-            displayTransform: displayPreview.snapshot.captureDisplayTransform,
-            previewPixelSize: CGSize(width: previewImage.width, height: previewImage.height)
-        )
-
         let cropSize: CGFloat = 20
         let logicalCropRect = gscCenteredCropRect(around: localPoint, size: cropSize, within: bounds)
-        let imageSourceRect = previewTransform.appKitSourceRect(fromOverlayLocalRect: logicalCropRect)
+        let previewFrame = livePreviewSource?.frame(for: displayPreview.snapshot.displayID)
+        let previewImage: CGImage
+        let imageSourceRect: CGRect
+
+        if let previewFrame,
+           previewFrame.sourceGlobalRect.contains(cursorGlobalPoint),
+           let roiSourceRect = LiveDesktopPreviewRegionGeometry.appKitSourceRect(
+                fromOverlayLocalRect: logicalCropRect,
+                display: displayPreview.snapshot,
+                frame: previewFrame
+           ) {
+            previewImage = previewFrame.image
+            imageSourceRect = roiSourceRect
+        } else {
+            previewImage = fallbackImage
+            let previewTransform = CapturePreviewTransform(
+                displayTransform: displayPreview.snapshot.captureDisplayTransform,
+                previewPixelSize: CGSize(width: previewImage.width, height: previewImage.height)
+            )
+            imageSourceRect = previewTransform.appKitSourceRect(fromOverlayLocalRect: logicalCropRect)
+        }
 
         let loupeRect = loupeRect(at: localPoint)
         let imageRect = loupeRect.insetBy(dx: 10, dy: 10)

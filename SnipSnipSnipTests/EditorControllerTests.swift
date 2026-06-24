@@ -1785,7 +1785,7 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
-    func testCropHandleResizePreviewsCropBeforeMouseUpAndCommitsSingleUndoStep() {
+    func testCropHandleResizeKeepsDraftLocalBeforeMouseUpAndCommitsSingleUndoStep() {
         let controller = makeController(
             snapshot: makeEditorSnapshot(cropRect: CGRect(x: 20, y: 15, width: 80, height: 60)),
             captureSize: CGSize(width: 160, height: 120)
@@ -1798,14 +1798,18 @@ final class EditorControllerTests: XCTestCase {
         let crop = controller.snapshot.cropRect.gscIntegralStandardized
         let bottomRightHandle = cropHandleViewPoint(for: .bottomRight, cropRect: crop, controller: controller)
         let expandedPoint = viewPoint(for: CGPoint(x: 140, y: 100), controller: controller)
+        let initialCanvasRevision = controller.canvasRevision
 
         sendMouseEvent(.leftMouseDown, at: bottomRightHandle, to: overlay, in: window, eventNumber: 1)
         sendMouseEvent(.leftMouseDragged, at: expandedPoint, to: overlay, in: window, eventNumber: 2)
 
-        XCTAssertEqual(controller.snapshot.cropRect, CGRect(x: 20, y: 15, width: 120, height: 85))
+        XCTAssertEqual(controller.snapshot.cropRect, CGRect(x: 20, y: 15, width: 80, height: 60))
+        XCTAssertEqual(controller.canvasRevision, initialCanvasRevision)
 
         sendMouseEvent(.leftMouseUp, at: expandedPoint, to: overlay, in: window, eventNumber: 3)
 
+        XCTAssertEqual(controller.snapshot.cropRect, CGRect(x: 20, y: 15, width: 120, height: 85))
+        XCTAssertGreaterThan(controller.canvasRevision, initialCanvasRevision)
         XCTAssertTrue(controller.canUndo)
         XCTAssertTrue(controller.viewport.canScrollHorizontally)
         XCTAssertTrue(controller.viewport.canScrollVertically)
@@ -1877,7 +1881,7 @@ final class EditorControllerTests: XCTestCase {
         sendMouseEvent(.leftMouseDown, at: bottomRightHandle, to: overlay, in: window, eventNumber: 1)
         sendMouseEvent(.leftMouseDragged, at: expandedPoint, to: overlay, in: window, eventNumber: 2)
 
-        XCTAssertEqual(controller.snapshot.cropRect, CGRect(x: 20, y: 15, width: 85, height: 85))
+        XCTAssertEqual(controller.snapshot.cropRect, CGRect(x: 20, y: 15, width: 80, height: 60))
 
         sendMouseEvent(.leftMouseUp, at: expandedPoint, to: overlay, in: window, eventNumber: 3)
         XCTAssertEqual(controller.snapshot.cropRect, CGRect(x: 20, y: 15, width: 85, height: 85))

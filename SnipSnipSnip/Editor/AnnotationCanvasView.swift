@@ -898,9 +898,6 @@ private final class AnnotationCanvasOverlayView: NSView {
                 cropAspectRatio: controller.cropAspectRatioPreset.ratio,
                 styleProvider: controller.style(for:)
             )
-            if let draftCropRect = interactionState.draftCropRect {
-                controller.previewCropRect(draftCropRect)
-            }
             canvasView?.updateDraftCropMask(interactionState.draftCropRect)
             needsDisplay = true
             return
