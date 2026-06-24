@@ -156,27 +156,25 @@ final class GeometrySupportTests: XCTestCase {
         XCTAssertEqual(mapped, CGRect(x: 40, y: 45, width: 60, height: 30))
     }
 
-    func testLiveDesktopPreviewRegionCentersAndClampsSourceRect() {
+    func testLiveDesktopPreviewRegionBuildsCursorCaptureRequest() {
         let display = DisplaySnapshot(
             displayID: 1,
             name: "Display",
-            frame: CGRect(x: 100, y: 200, width: 3840, height: 2160),
+            frame: CGRect(x: 100, y: 200, width: 1000, height: 800),
+            overlayFrame: CGRect(x: 0, y: 0, width: 1000, height: 800),
             scale: 2
         )
 
-        let centered = LiveDesktopPreviewRegionGeometry.centeredSourceRect(
-            around: CGPoint(x: 2000, y: 1200),
+        let request = LiveDesktopPreviewRegionGeometry.captureRequest(
+            around: CGPoint(x: 420, y: 360),
             in: display,
-            preferredSideLength: 640
-        )
-        let edge = LiveDesktopPreviewRegionGeometry.centeredSourceRect(
-            around: CGPoint(x: 110, y: 210),
-            in: display,
-            preferredSideLength: 640
+            cropLogicalSize: 20
         )
 
-        XCTAssertEqual(centered, CGRect(x: 1580, y: 680, width: 640, height: 640))
-        XCTAssertEqual(edge, CGRect(x: 0, y: 0, width: 640, height: 640))
+        XCTAssertEqual(request?.displayID, 1)
+        XCTAssertEqual(request?.sourceRect, CGRect(x: 310, y: 150, width: 20, height: 20))
+        XCTAssertEqual(request?.sourceGlobalRect, CGRect(x: 410, y: 350, width: 20, height: 20))
+        XCTAssertEqual(request?.outputPixelSize, CGSize(width: 40, height: 40))
     }
 
     func testLiveDesktopPreviewRegionMapsLoupeRectIntoNativeFramePixels() {
@@ -191,7 +189,6 @@ final class GeometrySupportTests: XCTestCase {
         let frame = LiveDesktopPreviewFrame(
             displayID: 1,
             image: image,
-            sourceRect: CGRect(x: 260, y: 160, width: 640, height: 640),
             sourceGlobalRect: CGRect(x: 360, y: 360, width: 640, height: 640)
         )
 

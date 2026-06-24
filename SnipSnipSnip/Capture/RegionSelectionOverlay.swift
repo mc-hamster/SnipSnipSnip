@@ -28,13 +28,10 @@ final class RegionSelectionSession: NSObject {
 
     func begin() async -> RegionCaptureSelection? {
         if preferences.overlayMode.showsMagnifyingGlass {
-            let livePreviewSource = LiveDesktopPreviewSource(displays: snapshot.displays)
-            do {
-                try await livePreviewSource.start()
-                self.livePreviewSource = livePreviewSource
-            } catch {
-                self.livePreviewSource = nil
-            }
+            self.livePreviewSource = LiveDesktopPreviewSource(
+                displays: snapshot.displays,
+                initialFocusPoint: captureGlobalPointFromAppKitScreenPoint(NSEvent.mouseLocation)
+            )
         }
 
         return await withTaskCancellationHandler {
@@ -85,6 +82,7 @@ final class RegionSelectionSession: NSObject {
             to: captureGlobalPointFromAppKitScreenPoint(NSEvent.mouseLocation),
             eventTimestamp: nil
         )
+        startLivePreviewIfNeeded()
     }
 
     private func setCaptureCursorHidden(_ hidden: Bool) {
@@ -109,6 +107,14 @@ final class RegionSelectionSession: NSObject {
             await livePreviewSource?.stop()
         }
         continuation?.resume(returning: selection)
+    }
+
+    private func startLivePreviewIfNeeded() {
+        guard let livePreviewSource else {
+            return
+        }
+
+        livePreviewSource.start()
     }
 
     private func installEventMonitor(for coordinator: RegionSelectionCoordinator) {
@@ -227,6 +233,7 @@ private final class RegionSelectionWindow: NSWindow {
 
         isOpaque = false
         backgroundColor = .clear
+        sharingType = .none
         level = .screenSaver
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         ignoresMouseEvents = false
@@ -505,11 +512,7 @@ private final class RegionSelectionCoordinator {
         case 36, 76:
             confirmRegionCapture()
         case 53:
-            if selectionRect != nil {
-                cancelSelection()
-            } else {
-                onComplete(nil)
-            }
+            onComplete(nil)
         default:
             break
         }
@@ -790,9 +793,12 @@ private final class RegionSelectionView: NSView, NSTextFieldDelegate {
         let captureAimingCursorPoint = coordinator.showsCaptureAimingUI
             ? coordinator.cursorGlobalPoint
             : nil
+        let loupeExclusionRect = captureAimingCursorPoint
+            .flatMap { localLoupeExclusionRect(forCaptureGlobalPoint: $0) }
         crosshairOverlayView?.refresh(
             cursorGlobalPoint: captureAimingCursorPoint,
-            isActivelyDraggingSelection: isActivelyDraggingSelection
+            isActivelyDraggingSelection: isActivelyDraggingSelection,
+            loupeExclusionRect: loupeExclusionRect
         )
         cursorOverlayView.refresh(
             cursorGlobalPoint: captureAimingCursorPoint,
@@ -951,6 +957,17 @@ private final class RegionSelectionView: NSView, NSTextFieldDelegate {
         }
 
         return false
+    }
+
+    private func localLoupeExclusionRect(forCaptureGlobalPoint globalPoint: CGPoint) -> CGRect? {
+        guard coordinator.preferences.overlayMode.showsCrosshair,
+              coordinator.preferences.overlayMode.showsMagnifyingGlass,
+              displayPreview.snapshot.frame.contains(globalPoint) else {
+            return nil
+        }
+
+        let localPoint = overlayLocalPoint(fromCaptureGlobalPoint: globalPoint, display: displayPreview.snapshot)
+        return RegionSelectionLoupeGeometry.loupeRect(at: localPoint, in: bounds)
     }
 
     @objc
@@ -1197,7 +1214,10 @@ private final class RegionSelectionCrosshairOverlayView: RegionSelectionPassThro
     private let horizontalHighlightLine = CALayer()
     private let verticalShadowLine = CALayer()
     private let verticalHighlightLine = CALayer()
+    private let loupeExclusionMask = CAShapeLayer()
     private var cursorGlobalPoint: CGPoint?
+    private var isActivelyDraggingSelection = false
+    private var loupeExclusionRect: CGRect?
 
     init(displayPreview: DisplayPreview) {
         self.displayPreview = displayPreview
@@ -1222,15 +1242,17 @@ private final class RegionSelectionCrosshairOverlayView: RegionSelectionPassThro
         true
     }
 
-    func refresh(cursorGlobalPoint: CGPoint?, isActivelyDraggingSelection: Bool) {
-        guard self.cursorGlobalPoint != cursorGlobalPoint else {
-            if isActivelyDraggingSelection {
-                hideLines()
-            }
+    func refresh(cursorGlobalPoint: CGPoint?, isActivelyDraggingSelection: Bool, loupeExclusionRect: CGRect?) {
+        guard self.cursorGlobalPoint != cursorGlobalPoint ||
+                self.isActivelyDraggingSelection != isActivelyDraggingSelection ||
+                self.loupeExclusionRect != loupeExclusionRect else {
             return
         }
 
         self.cursorGlobalPoint = cursorGlobalPoint
+        self.isActivelyDraggingSelection = isActivelyDraggingSelection
+        self.loupeExclusionRect = loupeExclusionRect
+        updateLoupeExclusionMask(loupeExclusionRect)
 
         guard let cursorGlobalPoint, !isActivelyDraggingSelection else {
             hideLines()
@@ -1279,6 +1301,27 @@ private final class RegionSelectionCrosshairOverlayView: RegionSelectionPassThro
         horizontalHighlightLine.isHidden = true
         verticalShadowLine.isHidden = true
         verticalHighlightLine.isHidden = true
+        CATransaction.commit()
+    }
+
+    private func updateLoupeExclusionMask(_ rect: CGRect?) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+
+        guard let rect, !rect.isNull, !rect.isEmpty else {
+            layer?.mask = nil
+            CATransaction.commit()
+            return
+        }
+
+        let maskPath = CGMutablePath()
+        maskPath.addRect(bounds)
+        maskPath.addRoundedRect(in: rect.insetBy(dx: -2, dy: -2), cornerWidth: 20, cornerHeight: 20)
+        loupeExclusionMask.frame = bounds
+        loupeExclusionMask.path = maskPath
+        loupeExclusionMask.fillRule = .evenOdd
+        layer?.mask = loupeExclusionMask
+
         CATransaction.commit()
     }
 
@@ -1418,8 +1461,7 @@ private final class RegionSelectionCursorOverlayView: RegionSelectionPassThrough
     }
 
     private func drawLoupe(at localPoint: CGPoint) {
-        guard bounds.contains(localPoint),
-              let cursorGlobalPoint else {
+        guard bounds.contains(localPoint) else {
             return
         }
 
@@ -1430,6 +1472,7 @@ private final class RegionSelectionCursorOverlayView: RegionSelectionPassThrough
         let imageSourceRect: CGRect
 
         if let previewFrame,
+           let cursorGlobalPoint,
            previewFrame.sourceGlobalRect.contains(cursorGlobalPoint),
            let roiSourceRect = LiveDesktopPreviewRegionGeometry.appKitSourceRect(
                 fromOverlayLocalRect: logicalCropRect,
@@ -1492,22 +1535,7 @@ private final class RegionSelectionCursorOverlayView: RegionSelectionPassThrough
     }
 
     private func loupeRect(at localPoint: CGPoint) -> CGRect {
-        let loupeSize = CGSize(width: 132, height: 156)
-        let horizontalPadding: CGFloat = 18
-        let verticalPadding: CGFloat = 18
-        let preferredX = localPoint.x < bounds.midX
-            ? localPoint.x + 32
-            : localPoint.x - loupeSize.width - 32
-        let preferredY = localPoint.y < bounds.midY
-            ? localPoint.y + 28
-            : localPoint.y - loupeSize.height - 28
-
-        let origin = CGPoint(
-            x: min(max(preferredX, horizontalPadding), bounds.maxX - loupeSize.width - horizontalPadding),
-            y: min(max(preferredY, verticalPadding), bounds.maxY - loupeSize.height - verticalPadding)
-        )
-
-        return CGRect(origin: origin, size: loupeSize)
+        RegionSelectionLoupeGeometry.loupeRect(at: localPoint, in: bounds)
     }
 
     private func drawLoupeCrosshair(in imageRect: CGRect) {
@@ -1551,6 +1579,27 @@ private final class RegionSelectionCursorOverlayView: RegionSelectionPassThrough
                 .font: NSFont.monospacedSystemFont(ofSize: 10, weight: .semibold)
             ]
         )
+    }
+}
+
+private enum RegionSelectionLoupeGeometry {
+    static func loupeRect(at localPoint: CGPoint, in bounds: CGRect) -> CGRect {
+        let loupeSize = CGSize(width: 132, height: 156)
+        let horizontalPadding: CGFloat = 18
+        let verticalPadding: CGFloat = 18
+        let preferredX = localPoint.x < bounds.midX
+            ? localPoint.x + 32
+            : localPoint.x - loupeSize.width - 32
+        let preferredY = localPoint.y < bounds.midY
+            ? localPoint.y + 28
+            : localPoint.y - loupeSize.height - 28
+
+        let origin = CGPoint(
+            x: min(max(preferredX, horizontalPadding), bounds.maxX - loupeSize.width - horizontalPadding),
+            y: min(max(preferredY, verticalPadding), bounds.maxY - loupeSize.height - verticalPadding)
+        )
+
+        return CGRect(origin: origin, size: loupeSize)
     }
 }
 

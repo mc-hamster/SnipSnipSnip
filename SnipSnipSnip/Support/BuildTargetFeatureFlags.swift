@@ -41,6 +41,7 @@ nonisolated enum BuildTargetFeatureMatrix {
         .dev: [
           .connectedDeviceCapture,
           .uiMap,
+          .scrollingCapture,
         ],
         .internalTesting: [],
         .externalTesting: [],
