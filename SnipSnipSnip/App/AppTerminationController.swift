@@ -4,16 +4,41 @@ import AppKit
 final class AppTerminationController {
     static let shared = AppTerminationController()
 
+    struct QuitConfirmationResult: Equatable {
+        var shouldQuit: Bool
+        var suppressFutureConfirmations: Bool
+    }
+
+    typealias QuitConfirmationHandler = @MainActor (AppLifecycleModel?) -> QuitConfirmationResult
+    typealias BackgroundHandler = @MainActor () -> Void
+    typealias TerminationHandler = @MainActor () -> Void
+
     private weak var lifecycle: AppLifecycleModel?
+    private let confirmationHandler: QuitConfirmationHandler
+    private let backgroundHandler: BackgroundHandler
+    private let terminationHandler: TerminationHandler
+    private var isPresentingQuitConfirmation = false
     private var isPerformingConfirmedTermination = false
 
-    private init() {}
+    init(
+        confirmationHandler: @escaping QuitConfirmationHandler = AppTerminationController.presentQuitConfirmation,
+        backgroundHandler: @escaping BackgroundHandler = AppTerminationController.runApplicationInBackground,
+        terminationHandler: @escaping TerminationHandler = AppTerminationController.terminateApplication
+    ) {
+        self.confirmationHandler = confirmationHandler
+        self.backgroundHandler = backgroundHandler
+        self.terminationHandler = terminationHandler
+    }
 
     func configure(lifecycle: AppLifecycleModel) {
         self.lifecycle = lifecycle
     }
 
     func requestQuit() {
+        guard !isPresentingQuitConfirmation else {
+            return
+        }
+
         guard shouldQuitAfterConfirmation() else {
             runInBackground()
             return
@@ -26,6 +51,10 @@ final class AppTerminationController {
         guard !isPerformingConfirmedTermination else {
             isPerformingConfirmedTermination = false
             return .terminateNow
+        }
+
+        guard !isPresentingQuitConfirmation else {
+            return .terminateCancel
         }
 
         guard shouldQuitAfterConfirmation() else {
@@ -41,6 +70,22 @@ final class AppTerminationController {
             return true
         }
 
+        isPresentingQuitConfirmation = true
+        defer { isPresentingQuitConfirmation = false }
+
+        let result = confirmationHandler(lifecycle)
+        guard result.shouldQuit else {
+            return false
+        }
+
+        if result.suppressFutureConfirmations {
+            lifecycle?.confirmsBeforeQuitting = false
+        }
+
+        return true
+    }
+
+    private static func presentQuitConfirmation(_: AppLifecycleModel?) -> QuitConfirmationResult {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "Quit \(AppBranding.displayName)?"
@@ -52,17 +97,20 @@ final class AppTerminationController {
 
         let response = alert.runModal()
         guard response == .alertSecondButtonReturn else {
-            return false
+            return QuitConfirmationResult(shouldQuit: false, suppressFutureConfirmations: false)
         }
 
-        if alert.suppressionButton?.state == .on {
-            lifecycle?.confirmsBeforeQuitting = false
-        }
-
-        return true
+        return QuitConfirmationResult(
+            shouldQuit: true,
+            suppressFutureConfirmations: alert.suppressionButton?.state == .on
+        )
     }
 
     private func runInBackground() {
+        backgroundHandler()
+    }
+
+    private static func runApplicationInBackground() {
         if let window = NSApp.keyWindow ?? NSApp.mainWindow {
             window.performMiniaturize(nil)
         } else {
@@ -72,6 +120,10 @@ final class AppTerminationController {
 
     private func performConfirmedTermination() {
         isPerformingConfirmedTermination = true
+        terminationHandler()
+    }
+
+    private static func terminateApplication() {
         NSApp.terminate(nil)
     }
 }
