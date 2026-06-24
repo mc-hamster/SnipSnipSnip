@@ -1,8 +1,21 @@
 import AppKit
+import OSLog
 
 @MainActor
 final class AppTerminationController {
     static let shared = AppTerminationController()
+    nonisolated private static let logger = Logger(
+        subsystem: "com.oontz.SnipSnipSnip",
+        category: "AppTermination"
+    )
+    nonisolated private static let restartLauncherScript = """
+    app_path=$1
+    parent_pid=$2
+    while kill -0 "$parent_pid" 2>/dev/null; do
+      sleep 0.1
+    done
+    /usr/bin/open -n "$app_path"
+    """
 
     struct QuitConfirmationResult: Equatable {
         var shouldQuit: Bool
@@ -141,6 +154,22 @@ final class AppTerminationController {
     }
 
     private static func relaunchApplication() {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/nohup")
+        process.arguments = restartLauncherArguments(
+            appPath: Bundle.main.bundleURL.path,
+            processID: getpid()
+        )
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+
+        do {
+            try process.run()
+            return
+        } catch {
+            logger.error("Failed to launch restart helper: \(error.localizedDescription, privacy: .public)")
+        }
+
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
         configuration.createsNewApplicationInstance = true
@@ -149,5 +178,16 @@ final class AppTerminationController {
             at: Bundle.main.bundleURL,
             configuration: configuration
         )
+    }
+
+    nonisolated static func restartLauncherArguments(appPath: String, processID: pid_t) -> [String] {
+        [
+            "/bin/sh",
+            "-c",
+            restartLauncherScript,
+            "restart",
+            appPath,
+            String(processID)
+        ]
     }
 }

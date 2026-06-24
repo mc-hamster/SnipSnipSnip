@@ -137,6 +137,21 @@ final class AppTerminationControllerTests: XCTestCase {
         XCTAssertEqual(appKitReply, .terminateNow)
     }
 
+    func testRestartLauncherWaitsForCurrentProcessBeforeOpeningNewInstance() {
+        let arguments = AppTerminationController.restartLauncherArguments(
+            appPath: "/Applications/Fixture.app",
+            processID: 12345
+        )
+
+        XCTAssertEqual(arguments[0], "/bin/sh")
+        XCTAssertEqual(arguments[1], "-c")
+        XCTAssertTrue(arguments[2].contains("while kill -0 \"$parent_pid\""))
+        XCTAssertTrue(arguments[2].contains("/usr/bin/open -n \"$app_path\""))
+        XCTAssertEqual(arguments[3], "restart")
+        XCTAssertEqual(arguments[4], "/Applications/Fixture.app")
+        XCTAssertEqual(arguments[5], "12345")
+    }
+
     func testConfirmedQuitCanSuppressFutureConfirmations() {
         let lifecycle = makeLifecycle(confirmsBeforeQuitting: true)
         let controller = AppTerminationController(
