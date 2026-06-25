@@ -77,7 +77,7 @@ struct HelpGuideView: View {
                             title: "First launch onboarding",
                             steps: [
                                 "The first launch opens a guided onboarding flow with capture basics, UI Map disclosure when available, launch-at-login, support links, and permissions as the final step.",
-                                "You can skip at any point and still start capturing immediately.",
+                                "Screen Recording must be set up before onboarding can be skipped or completed because macOS requires it for screenshot pixels and live window thumbnails.",
                                 "Open Settings > General > Show Onboarding Again any time to replay it."
                             ]
                         ),
@@ -135,7 +135,7 @@ struct HelpGuideView: View {
                             steps: [
                                 "Click Set Up beside Screen Recording in SnipSnipSnip. If macOS does not show a prompt, SnipSnipSnip opens the Screen Recording settings pane.",
                                 "Allow SnipSnipSnip in System Settings > Privacy & Security > Screen Recording.",
-                                "If SnipSnipSnip shows Restart Required, use Restart SnipSnipSnip so macOS applies Screen Recording access without the normal quit confirmation."
+                                "If SnipSnipSnip shows Restart Required, finish any remaining onboarding permission first if you want it ready too, then use Restart SnipSnipSnip so macOS applies Screen Recording access without the normal quit confirmation."
                             ]
                         ),
                         HelpArticleSection(
@@ -837,7 +837,7 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Blank captures or missing thumbnails",
-                            body: "Click Set Up for Screen Recording, use the macOS prompt or Open Settings to allow SnipSnipSnip, then return and click Check Again. If System Settings shows SnipSnipSnip enabled but the app still cannot capture, SnipSnipSnip shows Restart Required; use Restart SnipSnipSnip so macOS applies the new Screen Recording access."
+                            body: "Click Set Up for Screen Recording, use the macOS prompt or Open Settings to allow SnipSnipSnip, then return and click Check Again. If System Settings shows SnipSnipSnip enabled but the app still cannot capture, SnipSnipSnip shows Restart Required. During onboarding, finish any remaining permission first if you want it ready too, then use Restart SnipSnipSnip so macOS applies the new Screen Recording access."
                         ),
                         HelpArticleSection(
                             title: "A window is missing",

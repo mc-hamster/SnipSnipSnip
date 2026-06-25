@@ -5,7 +5,7 @@ import OSLog
 final class AppTerminationController {
     static let shared = AppTerminationController()
     nonisolated private static let logger = Logger(
-        subsystem: "com.oontz.SnipSnipSnip",
+        subsystem: Bundle.main.bundleIdentifier ?? "SnipSnipSnip",
         category: "AppTermination"
     )
     nonisolated private static let restartLauncherScript = """
@@ -66,9 +66,11 @@ final class AppTerminationController {
 
     func requestRestartWithoutConfirmation() {
         guard !isPresentingQuitConfirmation else {
+            Self.logger.info("Restart request ignored because quit confirmation is already visible")
             return
         }
 
+        Self.logger.info("Restart without confirmation requested")
         relaunchHandler()
         performConfirmedTermination()
     }
@@ -165,6 +167,9 @@ final class AppTerminationController {
 
         do {
             try process.run()
+            logger.info(
+                "Restart helper launched appPath=\(Bundle.main.bundleURL.path, privacy: .public) currentPID=\(getpid(), privacy: .public)"
+            )
             return
         } catch {
             logger.error("Failed to launch restart helper: \(error.localizedDescription, privacy: .public)")
@@ -178,6 +183,7 @@ final class AppTerminationController {
             at: Bundle.main.bundleURL,
             configuration: configuration
         )
+        logger.info("Restart fallback requested through NSWorkspace appPath=\(Bundle.main.bundleURL.path, privacy: .public)")
     }
 
     nonisolated static func restartLauncherArguments(appPath: String, processID: pid_t) -> [String] {

@@ -133,6 +133,7 @@ struct OnboardingView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var selectedStep: OnboardingStep = .welcome
     @State private var launchAtLoginErrorMessage: String?
@@ -179,8 +180,22 @@ struct OnboardingView: View {
         }
         .frame(minWidth: 920, minHeight: 640)
         .task {
-            permissions.refreshPermissions()
+            refreshOnboardingPermissions()
             lifecycle.refreshLaunchAtLoginStatus()
+        }
+        .onChange(of: selectedStep) { _, _ in
+            Task { @MainActor in
+                refreshOnboardingPermissions()
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else {
+                return
+            }
+
+            Task { @MainActor in
+                refreshOnboardingPermissions()
+            }
         }
         .alert("Couldn't Update Launch at Login", isPresented: Binding(get: {
             launchAtLoginErrorMessage != nil
@@ -242,8 +257,7 @@ struct OnboardingView: View {
 
                 Spacer(minLength: 20)
 
-                Button("Skip for Now", action: skipOnboarding)
-                    .buttonStyle(SSSChromeButtonStyle(tint: .white))
+                skipOnboardingButton
             }
 
             VStack(alignment: .leading, spacing: 14) {
@@ -252,10 +266,17 @@ struct OnboardingView: View {
                 HStack {
                     Spacer(minLength: 0)
 
-                    Button("Skip for Now", action: skipOnboarding)
-                        .buttonStyle(SSSChromeButtonStyle(tint: .white))
+                    skipOnboardingButton
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var skipOnboardingButton: some View {
+        if canBypassOnboarding {
+            Button("Skip for Now", action: skipOnboarding)
+                .buttonStyle(SSSChromeButtonStyle(tint: .white))
         }
     }
 
@@ -312,7 +333,7 @@ struct OnboardingView: View {
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(.white)
 
-            Text("Onboarding is skippable, and every step can be revisited later from Settings > General.")
+            Text("After Screen Recording is set up, onboarding can be skipped and every step can be revisited later from Settings > General.")
                 .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.78))
                 .fixedSize(horizontal: false, vertical: true)
@@ -439,6 +460,13 @@ struct OnboardingView: View {
             permissionCard(requirement: .screenRecording, metrics: metrics)
             if shouldIncludeAccessibilityPermissionInOnboarding {
                 permissionCard(requirement: .accessibility, metrics: metrics)
+            }
+
+            if let restartSummaryText = permissionRestartSummaryText {
+                Label(restartSummaryText, systemImage: "arrow.clockwise.circle.fill")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             deferredPermissionNotes(metrics: metrics)
@@ -642,23 +670,38 @@ struct OnboardingView: View {
 
     private var primaryFooterTitle: String {
         if selectedStep == .permissions,
+           permissions.screenRecordingSetupNeedsAttention,
+           permissions.activePermissionRequest != nil {
+            return "Waiting for Settings"
+        }
+
+        if selectedStep == .permissions,
            permissions.screenRecordingSetupNeedsAttention {
             return "Restart SnipSnipSnip"
+        }
+
+        if selectedStep == .permissions,
+           !permissions.permissionStatus.hasScreenRecording {
+            return "Set Up Screen Recording"
         }
 
         return selectedStep == visibleSteps.last ? "Open SnipSnipSnip" : "Next"
     }
 
     private var isPrimaryFooterDisabled: Bool {
-        selectedStep == .permissions
-            && permissions.activePermissionRequest != nil
-            && !permissions.screenRecordingSetupNeedsAttention
+        selectedStep == .permissions && permissions.activePermissionRequest != nil
     }
 
     private func primaryFooterAction() {
         if selectedStep == .permissions,
            permissions.screenRecordingSetupNeedsAttention {
             restartAfterPermissionSetup()
+            return
+        }
+
+        if selectedStep == .permissions,
+           !permissions.permissionStatus.hasScreenRecording {
+            permissions.requestPermission(.screenRecording)
             return
         }
 
@@ -889,6 +932,10 @@ struct OnboardingView: View {
         }
 
         if needsAttention {
+            if hasRemainingPermissionSetupBeforeRestart {
+                return "Screen Recording will be available after restart. You can finish \(accessibilityPermissionPurposeText) first, then restart once."
+            }
+
             return "macOS has not given this running copy Screen Recording access yet. Restart \(AppBranding.displayName) to finish applying the permission."
         }
 
@@ -897,6 +944,40 @@ struct OnboardingView: View {
         }
 
         return nil
+    }
+
+    private var permissionRestartSummaryText: String? {
+        guard permissions.screenRecordingSetupNeedsAttention else {
+            return nil
+        }
+
+        if hasRemainingPermissionSetupBeforeRestart {
+            return "Screen Recording is ready to apply after restart. Finish Accessibility now if you want \(accessibilityPermissionPurposeText) ready too, then restart once."
+        }
+
+        return "Restart \(AppBranding.displayName) to finish applying Screen Recording access."
+    }
+
+    private var hasRemainingPermissionSetupBeforeRestart: Bool {
+        onboardingPermissionRequirements.contains { requirement in
+            requirement != .screenRecording && !permissions.permissionStatus.hasAccess(to: requirement)
+        }
+    }
+
+    private var accessibilityPermissionPurposeText: String {
+        let includesScrollingCapture = capabilities.isEnabled(.scrollingCapture)
+        let includesUIMap = capabilities.isEnabled(.uiMap) && capture.uiMapEnabled
+
+        switch (includesUIMap, includesScrollingCapture) {
+        case (true, true):
+            return "Window UI Map and Scrolling Capture"
+        case (true, false):
+            return "Window UI Map"
+        case (false, true):
+            return "Scrolling Capture"
+        case (false, false):
+            return "Accessibility workflows"
+        }
     }
 
     private func deferredPermissionNotes(metrics: OnboardingLayoutMetrics) -> some View {
@@ -1081,6 +1162,14 @@ struct OnboardingView: View {
         OnboardingStep.visibleCases(for: capabilities)
     }
 
+    private var canBypassOnboarding: Bool {
+        permissions.permissionStatus.hasScreenRecording
+    }
+
+    private func refreshOnboardingPermissions() {
+        permissions.refreshPermissions()
+    }
+
     private func moveBack() {
         let steps = visibleSteps
         guard let currentIndex = steps.firstIndex(of: selectedStep),
@@ -1108,6 +1197,11 @@ struct OnboardingView: View {
     }
 
     private func skipOnboarding() {
+        guard canBypassOnboarding else {
+            selectedStep = .permissions
+            return
+        }
+
         skipOnboardingAction()
         dismiss()
     }
@@ -1118,6 +1212,11 @@ struct OnboardingView: View {
     }
 
     private func completeOnboarding() {
+        guard canBypassOnboarding else {
+            selectedStep = .permissions
+            return
+        }
+
         completeOnboardingAction()
         dismiss()
     }

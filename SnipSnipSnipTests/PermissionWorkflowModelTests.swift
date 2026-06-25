@@ -95,6 +95,21 @@ final class PermissionWorkflowModelTests: XCTestCase {
         XCTAssertEqual(workflow.permissionStatus, CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true))
     }
 
+    func testPassiveRefreshDoesNotProbeMissingScreenRecordingPermission() async {
+        let permissions = MutablePermissionService(
+            status: CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: true),
+            screenRecordingVerifier: { true }
+        )
+        let workflow = makeWorkflow(permissions: permissions)
+
+        workflow.refreshPermissions()
+
+        XCTAssertEqual(permissions.screenRecordingVerifierCallCount(), 0)
+        XCTAssertTrue(permissions.requestedRequirements().isEmpty)
+        XCTAssertTrue(permissions.openedSettingsRequirements().isEmpty)
+        XCTAssertEqual(workflow.permissionStatus, CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: true))
+    }
+
     func testScreenRecordingProbeDoesNotPublishStaleMissingBeforeVerifierCompletes() async {
         let verifier = DeferredBoolVerifier()
         let permissions = MutablePermissionService(
@@ -442,6 +457,7 @@ private final class MutablePermissionService: CapturePermissionServicing, @unche
     private let verifier: @Sendable () async -> Bool
     private var requested: [CapturePermissionRequirement] = []
     private var openedSettings: [CapturePermissionRequirement] = []
+    private var verifierCallCount = 0
 
     init(
         status: CapturePermissionStatus,
@@ -480,7 +496,10 @@ private final class MutablePermissionService: CapturePermissionServicing, @unche
     }
 
     func verifyScreenRecordingAccess() async -> Bool {
-        await verifier()
+        lock.withLock {
+            verifierCallCount += 1
+        }
+        return await verifier()
     }
 
     func openSystemSettings(for requirement: CapturePermissionRequirement) {
@@ -503,6 +522,10 @@ private final class MutablePermissionService: CapturePermissionServicing, @unche
 
     func openedSettingsRequirements() -> [CapturePermissionRequirement] {
         lock.withLock { openedSettings }
+    }
+
+    func screenRecordingVerifierCallCount() -> Int {
+        lock.withLock { verifierCallCount }
     }
 }
 
