@@ -998,6 +998,7 @@ nonisolated private struct AnnotationRecord: Codable {
             rect = RectRecord(shape.rect)
             number = shape.number
             text = shape.text
+            automaticallySizesToText = shape.automaticallySizesToText
             textAlignment = shape.alignment.rawValue
             calloutStyle = shape.style.rawValue
             leaderPoint = shape.leaderPoint.map(PointRecord.init)
@@ -1086,7 +1087,8 @@ nonisolated private struct AnnotationRecord: Codable {
                 text: text,
                 alignment: TextAlignmentMode(rawValue: textAlignment ?? "left") ?? .left,
                 style: CalloutVisualStyle(rawValue: calloutStyle ?? "filled") ?? .filled,
-                leaderPoint: leaderPoint?.cgPoint
+                leaderPoint: leaderPoint?.cgPoint,
+                automaticallySizesToText: automaticallySizesToText ?? false
             ))
         case "measurement":
             guard let start, let end else {

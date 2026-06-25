@@ -329,6 +329,84 @@ private final class AnnotationCanvasStableContentView: NSView {
 }
 
 private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate {
+    private enum EditableTextContext {
+        case text(annotation: Annotation, shape: TextShape)
+        case callout(annotation: Annotation, shape: CalloutShape)
+
+        init?(annotation: Annotation) {
+            switch annotation.kind {
+            case let .text(shape):
+                self = .text(annotation: annotation, shape: shape)
+            case let .callout(shape):
+                self = .callout(annotation: annotation, shape: shape)
+            default:
+                return nil
+            }
+        }
+
+        var annotation: Annotation {
+            switch self {
+            case let .text(annotation, _):
+                return annotation
+            case let .callout(annotation, _):
+                return annotation
+            }
+        }
+
+        var documentRect: CGRect {
+            switch self {
+            case let .text(_, shape):
+                return shape.rect
+            case let .callout(_, shape):
+                return shape.rect
+            }
+        }
+
+        var text: String {
+            switch self {
+            case let .text(_, shape):
+                return shape.text
+            case let .callout(_, shape):
+                return shape.text
+            }
+        }
+
+        var alignment: TextAlignmentMode {
+            switch self {
+            case let .text(_, shape):
+                return shape.alignment
+            case let .callout(_, shape):
+                return shape.alignment
+            }
+        }
+
+        var automaticallySizesToText: Bool {
+            switch self {
+            case let .text(_, shape):
+                return shape.automaticallySizesToText
+            case let .callout(_, shape):
+                return shape.automaticallySizesToText
+            }
+        }
+
+        var placeholderText: String {
+            switch self {
+            case .text:
+                return "Text"
+            case let .callout(_, shape):
+                return "Callout \(shape.number)"
+            }
+        }
+
+        var isPlainText: Bool {
+            if case .text = self {
+                return true
+            }
+
+            return false
+        }
+    }
+
     var controller: EditorController {
         didSet {
             guard controller !== oldValue else {
@@ -375,10 +453,9 @@ private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate 
 
     override func layout() {
         super.layout()
-        textView.frame = bounds.insetBy(dx: textInsetX, dy: textInsetY)
-        if let annotation = editableTextAnnotation,
-           case let .text(shape) = annotation.kind {
-            configureTextContainer(for: shape)
+        if let context = editableTextContext {
+            textView.frame = textViewFrame(in: bounds, context: context)
+            configureTextContainer()
         }
     }
 
@@ -388,34 +465,41 @@ private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate 
             return
         }
 
-        annotation.style.fillColor.nsColor.setFill()
-        NSBezierPath(roundedRect: bounds, xRadius: cornerRadius, yRadius: cornerRadius).fill()
+        switch annotation.kind {
+        case .text:
+            annotation.style.fillColor.nsColor.setFill()
+            NSBezierPath(roundedRect: bounds, xRadius: cornerRadius, yRadius: cornerRadius).fill()
+        case let .callout(shape):
+            drawCalloutBackground(shape, annotation: annotation)
+        default:
+            break
+        }
     }
 
     func synchronize() {
-        guard let annotation = editableTextAnnotation,
-              case let .text(shape) = annotation.kind,
-              let projectedRect = projectedTextRect(for: shape.rect)
+        guard let context = editableTextContext,
+              let projectedRect = projectedTextRect(for: context.documentRect)
         else {
             endEditingIfNeeded()
             return
         }
 
+        let annotation = context.annotation
         let didChangeAnnotation = editingAnnotationID != annotation.id
         editingAnnotationID = annotation.id
         isHidden = false
         frame = projectedRect.integral
-        layer?.cornerRadius = cornerRadius
-        configureTextView(for: annotation, shape: shape)
-        fitFrameToText(shape.text, annotation: annotation, shape: shape)
+        layer?.cornerRadius = context.isPlainText ? cornerRadius : 0
+        configureTextView(for: context)
+        fitFrameToText(context.text, context: context)
         needsDisplay = true
 
         if didChangeAnnotation, window?.firstResponder !== textView {
             window?.makeFirstResponder(textView)
-            if shape.text == "Text" {
-                textView.setSelectedRange(NSRange(location: 0, length: (shape.text as NSString).length))
+            if context.text == context.placeholderText {
+                textView.setSelectedRange(NSRange(location: 0, length: (context.text as NSString).length))
             } else {
-                textView.setSelectedRange(NSRange(location: (shape.text as NSString).length, length: 0))
+                textView.setSelectedRange(NSRange(location: (context.text as NSString).length, length: 0))
             }
         }
     }
@@ -427,19 +511,18 @@ private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate 
             return
         }
 
-        guard let annotation = editableTextAnnotation,
-              case let .text(shape) = annotation.kind else {
+        guard let context = editableTextContext else {
             return
         }
 
-        fitFrameToText(textView.string, annotation: annotation, shape: shape)
+        applyLiveTextAttributes(for: context)
+        fitFrameToText(textView.string, context: context)
         controller.updateText(textView.string)
     }
 
     func textView(_ textView: NSTextView, shouldChangeTextIn affectedCharRange: NSRange, replacementString: String?) -> Bool {
         guard !isSynchronizing,
-              let annotation = editableTextAnnotation,
-              case let .text(shape) = annotation.kind,
+              let context = editableTextContext,
               let replacementString else {
             return true
         }
@@ -451,19 +534,24 @@ private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate 
         }
 
         let proposedText = currentText.replacingCharacters(in: affectedCharRange, with: replacementString)
-        fitFrameToText(proposedText, annotation: annotation, shape: shape)
+        applyLiveTextAttributes(for: context)
+        fitFrameToText(proposedText, context: context)
         return true
     }
 
-    private var editableTextAnnotation: Annotation? {
+    private var editableTextContext: EditableTextContext? {
         guard let annotation = controller.selectedAnnotation,
               controller.selectedAnnotations.count == 1,
               annotation.rotationDegrees == 0,
-              case .text = annotation.kind else {
+              let context = EditableTextContext(annotation: annotation) else {
             return nil
         }
 
-        return annotation
+        return context
+    }
+
+    private var editableTextAnnotation: Annotation? {
+        editableTextContext?.annotation
     }
 
     private func projectedTextRect(for documentRect: CGRect) -> CGRect? {
@@ -484,117 +572,274 @@ private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate 
         .destinationRect(fromDocumentRect: documentRect)
     }
 
-    private func configureTextView(for annotation: Annotation, shape: TextShape) {
+    private func configureTextView(for context: EditableTextContext) {
         let selectedRange = textView.selectedRange()
-        let attributes = textAttributes(for: annotation, shape: shape)
+        let attributes = textAttributes(for: context)
+        let text = context.text
 
         isSynchronizing = true
         defer {
             isSynchronizing = false
         }
 
-        if textView.string != shape.text {
-            textView.textStorage?.setAttributedString(NSAttributedString(string: shape.text, attributes: attributes))
+        if textView.string != text {
+            textView.textStorage?.setAttributedString(NSAttributedString(string: text, attributes: attributes))
             textView.setSelectedRange(NSRange(
-                location: min(selectedRange.location, (shape.text as NSString).length),
-                length: min(selectedRange.length, max((shape.text as NSString).length - min(selectedRange.location, (shape.text as NSString).length), 0))
+                location: min(selectedRange.location, (text as NSString).length),
+                length: min(selectedRange.length, max((text as NSString).length - min(selectedRange.location, (text as NSString).length), 0))
             ))
         } else {
             textView.textStorage?.setAttributes(
                 attributes,
-                range: NSRange(location: 0, length: (shape.text as NSString).length)
+                range: NSRange(location: 0, length: (text as NSString).length)
             )
         }
 
         textView.typingAttributes = attributes
-        textView.alignment = shape.alignment.nsTextAlignment
-        configureTextContainer(for: shape)
+        textView.font = attributes[.font] as? NSFont
+        textView.alignment = context.alignment.nsTextAlignment
+        textView.frame = textViewFrame(in: bounds, context: context)
+        configureTextContainer()
         needsLayout = true
     }
 
-    private func fitFrameToText(_ text: String, annotation: Annotation, shape: TextShape) {
-        let fittedRect = fittedTextRect(for: text, annotation: annotation, shape: shape)
+    private func applyLiveTextAttributes(for context: EditableTextContext) {
+        let attributes = textAttributes(for: context)
+        let selectedRange = textView.selectedRange()
+        let textLength = (textView.string as NSString).length
+
+        isSynchronizing = true
+        defer {
+            isSynchronizing = false
+        }
+
+        if textLength > 0 {
+            textView.textStorage?.setAttributes(attributes, range: NSRange(location: 0, length: textLength))
+        }
+        textView.typingAttributes = attributes
+        textView.font = attributes[.font] as? NSFont
+        textView.alignment = context.alignment.nsTextAlignment
+        textView.setSelectedRange(NSRange(
+            location: min(selectedRange.location, textLength),
+            length: min(selectedRange.length, max(textLength - min(selectedRange.location, textLength), 0))
+        ))
+    }
+
+    private func fitFrameToText(_ text: String, context: EditableTextContext) {
+        let fittedRect = fittedTextRect(for: text, context: context)
         guard let projectedRect = projectedTextRect(for: fittedRect) else {
             return
         }
 
-        frame = projectedRect.integral
-        textView.frame = bounds.insetBy(dx: textInsetX, dy: textInsetY)
-        configureTextContainer(for: shape)
-        growFrameToFitLiveText(text, attributes: textAttributes(for: annotation, shape: shape), shape: shape)
+        frame = liveFittedOverlayRect(
+            for: text,
+            projectedRect: projectedRect,
+            context: context
+        )
+        textView.frame = textViewFrame(in: bounds, context: context)
+        configureTextContainer()
+        layoutLiveTextIfNeeded()
         needsDisplay = true
     }
 
-    private func fittedTextRect(for text: String, annotation: Annotation, shape: TextShape) -> CGRect {
-        let font = NSFont.systemFont(ofSize: annotation.style.fontSize, weight: .semibold)
+    private func fittedTextRect(for text: String, context: EditableTextContext) -> CGRect {
+        let font = NSFont.systemFont(ofSize: context.annotation.style.fontSize, weight: .semibold)
 
-        if shape.automaticallySizesToText {
-            return gscSnugTextRect(
+        switch context {
+        case let .text(_, shape):
+            if shape.automaticallySizesToText {
+                let fittedRect = gscSnugTextRect(
+                    for: text,
+                    origin: shape.rect.origin,
+                    font: font,
+                    horizontalPadding: 24,
+                    verticalPadding: 20,
+                    minSize: CGSize(width: 44, height: 34),
+                    maxWidth: maximumAutoTextWidth(for: shape)
+                )
+
+                return gscTextRectPositionedWithinBounds(fittedRect, bounds: controller.snapshot.cropRect)
+            }
+
+            return gscFittedTextRect(
                 for: text,
-                origin: shape.rect.origin,
+                currentRect: shape.rect,
                 font: font,
                 horizontalPadding: 24,
                 verticalPadding: 20,
-                minSize: CGSize(width: 44, height: 34),
-                maxWidth: 520
+                minSize: shape.rect.size,
+                maxWidth: max(maximumAutoTextWidth(for: shape), shape.rect.width)
+            )
+        case let .callout(_, shape):
+            let minSize = CGSize(width: 194, height: 72)
+            if shape.automaticallySizesToText {
+                let fittedRect = gscSnugCalloutRect(
+                    for: text,
+                    origin: shape.rect.origin,
+                    font: font,
+                    textHorizontalPadding: 40,
+                    textVerticalPadding: 24,
+                    badgeAllowance: calloutBadgeAllowance,
+                    minSize: minSize,
+                    maxWidth: maximumAutoCalloutWidth(for: shape)
+                )
+
+                return gscTextRectPositionedWithinBounds(fittedRect, bounds: controller.snapshot.cropRect)
+            }
+
+            return gscFittedCalloutRect(
+                for: text,
+                currentRect: shape.rect,
+                font: font,
+                textHorizontalPadding: 40,
+                textVerticalPadding: 24,
+                badgeAllowance: calloutBadgeAllowance,
+                minSize: minSize,
+                maxWidth: max(maximumAutoCalloutWidth(for: shape), shape.rect.width)
             )
         }
+    }
 
-        return gscFittedTextRect(
-            for: text,
-            currentRect: shape.rect,
-            font: font,
-            horizontalPadding: 24,
-            verticalPadding: 20,
-            minSize: shape.rect.size,
-            maxWidth: 520
+    private func maximumAutoTextWidth(for shape: TextShape) -> CGFloat {
+        gscAutoTextMaxWidth(
+            originX: shape.rect.minX,
+            within: controller.snapshot.cropRect,
+            minWidth: 44
         )
     }
 
-    private func textAttributes(for annotation: Annotation, shape: TextShape) -> [NSAttributedString.Key: Any] {
+    private func maximumAutoCalloutWidth(for shape: CalloutShape) -> CGFloat {
+        gscAutoTextMaxWidth(
+            originX: shape.rect.minX,
+            within: controller.snapshot.cropRect,
+            minWidth: 194
+        )
+    }
+
+    private func textAttributes(for context: EditableTextContext) -> [NSAttributedString.Key: Any] {
         let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.alignment = shape.alignment.nsTextAlignment
+        paragraphStyle.alignment = context.alignment.nsTextAlignment
         paragraphStyle.lineBreakMode = .byWordWrapping
 
         return [
-            .font: NSFont.systemFont(ofSize: annotation.style.fontSize * displayScale, weight: .semibold),
-            .foregroundColor: annotation.style.strokeColor.nsColor,
+            .font: NSFont.systemFont(ofSize: context.annotation.style.fontSize * displayScale, weight: .semibold),
+            .foregroundColor: context.annotation.style.strokeColor.nsColor,
             .paragraphStyle: paragraphStyle
         ]
     }
 
-    private func growFrameToFitLiveText(
-        _ text: String,
-        attributes: [NSAttributedString.Key: Any],
-        shape: TextShape
-    ) {
-        let contentWidth = max(textView.bounds.width, 1)
-        let requiredContentHeight = measuredTextHeight(
-            for: text,
-            width: contentWidth,
-            attributes: attributes
-        )
-        let requiredHeight = ceil(requiredContentHeight + textInsetY * 2 + liveTextVerticalSlack)
+    private func liveFittedOverlayRect(
+        for text: String,
+        projectedRect: CGRect,
+        context: EditableTextContext
+    ) -> CGRect {
+        let attributes = textAttributes(for: context)
+        let font = attributes[.font] as? NSFont
+        let minOverlaySize = minimumOverlaySize(for: context)
+        var overlayRect = projectedRect.standardized
 
-        guard requiredHeight > bounds.height else {
-            layoutLiveTextIfNeeded()
-            return
+        if context.automaticallySizesToText {
+            let maxOverlayWidth = max(maximumOverlayWidth(for: context), minOverlaySize.width)
+            let maxContentWidth = max(textContentWidth(forOverlayWidth: maxOverlayWidth, height: max(overlayRect.height, minOverlaySize.height), context: context), 1)
+            let minContentWidth = max(textContentWidth(forOverlayWidth: minOverlaySize.width, height: minOverlaySize.height, context: context), 1)
+            let unwrappedContentWidth = ceil(
+                liveTextLayoutMetrics(for: text, width: 100_000, attributes: attributes).usedRect.width
+            ) + liveTextHorizontalLayoutSlack(for: font)
+            let targetContentWidth = unwrappedContentWidth <= maxContentWidth
+                ? max(unwrappedContentWidth, minContentWidth)
+                : maxContentWidth
+
+            overlayRect.size.width = min(
+                max(overlayWidth(forTextContentWidth: targetContentWidth, height: max(overlayRect.height, minOverlaySize.height), context: context), minOverlaySize.width),
+                maxOverlayWidth
+            )
+            overlayRect = positionLiveOverlayRectWithinCrop(overlayRect)
         }
 
-        frame.size.height = requiredHeight
-        textView.frame = bounds.insetBy(dx: textInsetX, dy: textInsetY)
-        configureTextContainer(for: shape)
-        layoutLiveTextIfNeeded()
+        let contentWidth = max(textContentWidth(forOverlayWidth: overlayRect.width, height: max(overlayRect.height, minOverlaySize.height), context: context), 1)
+        let textMetrics = liveTextLayoutMetrics(for: text, width: contentWidth, attributes: attributes)
+        let targetHeight = ceil(textMetrics.usedRect.height)
+            + verticalTextPadding(for: context)
+            + liveTextVerticalLayoutSlack(for: font)
+        overlayRect.size.height = max(overlayRect.height, targetHeight, minOverlaySize.height)
+
+        if context.automaticallySizesToText {
+            overlayRect = positionLiveOverlayRectWithinCrop(overlayRect)
+        }
+
+        return overlayRect.integral
     }
 
-    private func measuredTextHeight(
+    private func minimumOverlaySize(for context: EditableTextContext) -> CGSize {
+        switch context {
+        case .text:
+            return CGSize(width: 44 * displayScale, height: 34 * displayScale)
+        case .callout:
+            return CGSize(width: 194 * displayScale, height: 72 * displayScale)
+        }
+    }
+
+    private func maximumOverlayWidth(for context: EditableTextContext) -> CGFloat {
+        switch context {
+        case let .text(_, shape):
+            return maximumAutoTextWidth(for: shape) * displayScale
+        case let .callout(_, shape):
+            return maximumAutoCalloutWidth(for: shape) * displayScale
+        }
+    }
+
+    private func textContentWidth(forOverlayWidth overlayWidth: CGFloat, height: CGFloat, context: EditableTextContext) -> CGFloat {
+        switch context {
+        case .text:
+            return overlayWidth - textInsetX * 2
+        case .callout:
+            let badgeDiameter = calloutBadgeDiameter(forHeight: height)
+            return overlayWidth - badgeDiameter + calloutBadgeOverlap - calloutTextInsetX * 2
+        }
+    }
+
+    private func overlayWidth(forTextContentWidth contentWidth: CGFloat, height: CGFloat, context: EditableTextContext) -> CGFloat {
+        switch context {
+        case .text:
+            return contentWidth + textInsetX * 2
+        case .callout:
+            let badgeDiameter = calloutBadgeDiameter(forHeight: height)
+            return contentWidth + badgeDiameter - calloutBadgeOverlap + calloutTextInsetX * 2
+        }
+    }
+
+    private func verticalTextPadding(for context: EditableTextContext) -> CGFloat {
+        switch context {
+        case .text:
+            return textInsetY * 2
+        case .callout:
+            return calloutTextInsetY * 2
+        }
+    }
+
+    private func positionLiveOverlayRectWithinCrop(_ rect: CGRect) -> CGRect {
+        guard let cropRect = projectedTextRect(for: controller.snapshot.cropRect) else {
+            return rect.integral
+        }
+
+        return gscTextRectPositionedWithinBounds(rect, bounds: cropRect)
+    }
+
+    private func liveTextLayoutMetrics(
         for text: String,
         width: CGFloat,
         attributes: [NSAttributedString.Key: Any]
-    ) -> CGFloat {
-        let textStorage = NSTextStorage(string: measurementText(for: text), attributes: attributes)
+    ) -> (usedRect: CGRect, lineCount: Int) {
+        let textStorage = NSTextStorage(
+            string: liveTextMeasurementString(for: text),
+            attributes: attributes
+        )
         let layoutManager = NSLayoutManager()
-        let textContainer = NSTextContainer(size: CGSize(width: max(width, 1), height: .greatestFiniteMagnitude))
+        let textContainer = NSTextContainer(
+            size: CGSize(width: max(width, 1), height: liveTextMeasurementHeight)
+        )
+
+        layoutManager.usesFontLeading = textView.layoutManager?.usesFontLeading ?? true
         textContainer.lineFragmentPadding = 0
         textContainer.maximumNumberOfLines = 0
         textContainer.lineBreakMode = .byWordWrapping
@@ -603,15 +848,29 @@ private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate 
         textStorage.addLayoutManager(layoutManager)
         layoutManager.ensureLayout(for: textContainer)
 
-        return ceil(layoutManager.usedRect(for: textContainer).height)
+        let glyphRange = layoutManager.glyphRange(for: textContainer)
+        var lineCount = 0
+        layoutManager.enumerateLineFragments(forGlyphRange: glyphRange) { _, _, _, _, _ in
+            lineCount += 1
+        }
+
+        return (layoutManager.usedRect(for: textContainer), max(lineCount, 1))
     }
 
-    private func measurementText(for text: String) -> String {
+    private func liveTextMeasurementString(for text: String) -> String {
         guard !text.isEmpty else {
             return " "
         }
 
         return text.hasSuffix("\n") || text.hasSuffix("\r") ? text + " " : text
+    }
+
+    private func liveTextHorizontalLayoutSlack(for font: NSFont?) -> CGFloat {
+        max((font?.pointSize ?? 0) * 0.06, displayScale, 0.75)
+    }
+
+    private func liveTextVerticalLayoutSlack(for font: NSFont?) -> CGFloat {
+        ceil(max((font?.pointSize ?? 0) * 0.12, (font?.descender.magnitude ?? 0) * 0.5, 2 * displayScale, 1))
     }
 
     private func layoutLiveTextIfNeeded() {
@@ -622,14 +881,100 @@ private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate 
         textView.layoutManager?.ensureLayout(for: textContainer)
     }
 
-    private func configureTextContainer(for _: TextShape) {
+    private func configureTextContainer() {
         textView.textContainerInset = .zero
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.heightTracksTextView = false
         textView.textContainer?.containerSize = CGSize(
             width: max(textView.bounds.width, 1),
-            height: .greatestFiniteMagnitude
+            height: liveTextMeasurementHeight
         )
+    }
+
+    private func textViewFrame(in localBounds: CGRect, context: EditableTextContext) -> CGRect {
+        switch context {
+        case .text:
+            return localBounds.insetBy(dx: textInsetX, dy: textInsetY)
+        case .callout:
+            return calloutBodyRect(in: localBounds).insetBy(dx: calloutTextInsetX, dy: calloutTextInsetY)
+        }
+    }
+
+    private func drawCalloutBackground(_ shape: CalloutShape, annotation: Annotation) {
+        let bodyRect = calloutBodyRect(in: bounds)
+        let badgeRect = calloutBadgeRect(in: bounds)
+        let bodyPath = NSBezierPath(
+            roundedRect: bodyRect,
+            xRadius: calloutBodyCornerRadius,
+            yRadius: calloutBodyCornerRadius
+        )
+
+        if shape.style == .filled {
+            annotation.style.fillColor.nsColor.setFill()
+            bodyPath.fill()
+        } else {
+            annotation.style.fillColor.withAlpha(0.18).nsColor.setFill()
+            bodyPath.fill()
+            annotation.style.strokeColor.nsColor.setStroke()
+            bodyPath.lineWidth = max(annotation.style.lineWidth * displayScale, 2 * displayScale)
+            bodyPath.stroke()
+        }
+
+        let badgePath = NSBezierPath(ovalIn: badgeRect)
+        if shape.style == .filled {
+            annotation.style.fillColor.nsColor.setFill()
+            badgePath.fill()
+        } else {
+            annotation.style.strokeColor.nsColor.setStroke()
+            annotation.style.fillColor.withAlpha(0.12).nsColor.setFill()
+            badgePath.lineWidth = max(annotation.style.lineWidth * displayScale, 2 * displayScale)
+            badgePath.fill()
+            badgePath.stroke()
+        }
+
+        let numberText = NSAttributedString(
+            string: "\(shape.number)",
+            attributes: [
+                .font: NSFont.monospacedDigitSystemFont(
+                    ofSize: max(annotation.style.fontSize * displayScale - 2 * displayScale, 16 * displayScale),
+                    weight: .bold
+                ),
+                .foregroundColor: annotation.style.strokeColor.nsColor
+            ]
+        )
+        let numberSize = numberText.size()
+        numberText.draw(
+            at: CGPoint(
+                x: badgeRect.midX - numberSize.width / 2,
+                y: badgeRect.midY - numberSize.height / 2
+            )
+        )
+    }
+
+    private func calloutBadgeRect(in localBounds: CGRect) -> CGRect {
+        let alignedBounds = localBounds.integral
+        let diameter = calloutBadgeDiameter(forHeight: alignedBounds.height)
+        return CGRect(
+            x: alignedBounds.minX + 10 * displayScale,
+            y: alignedBounds.midY - diameter / 2,
+            width: diameter,
+            height: diameter
+        )
+    }
+
+    private func calloutBodyRect(in localBounds: CGRect) -> CGRect {
+        let alignedBounds = localBounds.integral
+        let badgeRect = calloutBadgeRect(in: alignedBounds)
+        return CGRect(
+            x: badgeRect.maxX - calloutBadgeOverlap,
+            y: alignedBounds.minY,
+            width: max(alignedBounds.width - badgeRect.width + calloutBadgeOverlap, 1),
+            height: alignedBounds.height
+        )
+    }
+
+    private func calloutBadgeDiameter(forHeight height: CGFloat) -> CGFloat {
+        min(max(height - 18 * displayScale, 32 * displayScale), 48 * displayScale)
     }
 
     #if DEBUG
@@ -691,12 +1036,32 @@ private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate 
         10 * displayScale
     }
 
-    private var liveTextVerticalSlack: CGFloat {
-        max(ceil(4 * displayScale), 1)
+    private var calloutTextInsetX: CGFloat {
+        20 * displayScale
+    }
+
+    private var calloutTextInsetY: CGFloat {
+        12 * displayScale
+    }
+
+    private var calloutBadgeOverlap: CGFloat {
+        8 * displayScale
+    }
+
+    private var calloutBadgeAllowance: CGFloat {
+        40
     }
 
     private var cornerRadius: CGFloat {
         12 * displayScale
+    }
+
+    private var calloutBodyCornerRadius: CGFloat {
+        16 * displayScale
+    }
+
+    private var liveTextMeasurementHeight: CGFloat {
+        100_000
     }
 }
 
@@ -780,6 +1145,10 @@ final class AnnotationCanvasView: NSView {
     }
 
     #if DEBUG
+    var debugInteractionOverlayView: NSView {
+        overlayView
+    }
+
     var debugTextEditorOverlayState: AnnotationTextEditorOverlayDebugState? {
         textEditorOverlayView.debugState
     }

@@ -678,6 +678,7 @@ private nonisolated func gscTextLayoutMetrics(
     let textContainer = NSTextContainer(size: CGSize(width: max(width, 1), height: .greatestFiniteMagnitude))
     textContainer.lineFragmentPadding = 0
     textContainer.maximumNumberOfLines = 0
+    textContainer.lineBreakMode = .byWordWrapping
 
     layoutManager.addTextContainer(textContainer)
     textStorage.addLayoutManager(layoutManager)
@@ -696,67 +697,57 @@ private nonisolated func gscTextHorizontalLayoutSlack(for font: NSFont) -> CGFlo
     ceil(max(font.pointSize * 0.12, 2))
 }
 
-private nonisolated func gscUnwrappedTextWidth(
+private nonisolated func gscUnwrappedTextContentWidth(
     for text: String,
     attributes: [NSAttributedString.Key: Any]
 ) -> CGFloat {
-    gscTextLayoutBounds(
-        for: text.isEmpty ? " " : text,
-        width: 100_000,
-        attributes: attributes
-    ).width
+    gscTextLayoutMetrics(for: text, width: 100_000, attributes: attributes).bounds.width
 }
 
 private nonisolated func gscTextVerticalLayoutSlack(for font: NSFont) -> CGFloat {
     ceil(max(font.pointSize * 0.12, font.descender.magnitude * 0.5, 2))
 }
 
-private nonisolated func gscSnugTextWidth(
-    for displayText: String,
-    attributes: [NSAttributedString.Key: Any],
-    horizontalPadding: CGFloat,
-    minSize: CGSize,
-    maxWidth: CGFloat,
-    font: NSFont
+nonisolated func gscAutoTextMaxWidth(
+    originX: CGFloat,
+    within bounds: CGRect,
+    minWidth: CGFloat,
+    preferredMaxWidth: CGFloat = 520
 ) -> CGFloat {
-    let explicitLines = displayText.components(separatedBy: .newlines)
-    let widestUnwrappedLine = explicitLines
-        .map { gscUnwrappedTextWidth(for: $0, attributes: attributes) }
-        .max() ?? 0
-    let horizontalSlack = gscTextHorizontalLayoutSlack(for: font)
-    let unwrappedTargetWidth = max(ceil(widestUnwrappedLine) + horizontalPadding + horizontalSlack, minSize.width)
-
-    guard unwrappedTargetWidth > maxWidth else {
-        return unwrappedTargetWidth
+    let normalizedBounds = bounds.standardized
+    guard normalizedBounds.width > 0 else {
+        return minWidth
     }
 
-    let minContentWidth = max(minSize.width - horizontalPadding, 1)
-    let maxContentWidth = max(maxWidth - horizontalPadding, minContentWidth)
-    let targetLineCount = gscTextLayoutMetrics(
-        for: displayText,
-        width: maxContentWidth,
-        attributes: attributes
-    ).lineCount
-    var lowerWidth = minContentWidth
-    var upperWidth = maxContentWidth
+    return max(min(normalizedBounds.width, preferredMaxWidth), minWidth)
+}
 
-    for _ in 0..<12 {
-        let midpoint = (lowerWidth + upperWidth) / 2
-        let lineCount = gscTextLayoutMetrics(
-            for: displayText,
-            width: midpoint,
-            attributes: attributes
-        ).lineCount
-
-        if lineCount <= targetLineCount {
-            upperWidth = midpoint
-        } else {
-            lowerWidth = midpoint
-        }
+nonisolated func gscTextRectPositionedWithinBounds(_ rect: CGRect, bounds: CGRect) -> CGRect {
+    let normalizedBounds = bounds.standardized
+    guard normalizedBounds.width > 0, normalizedBounds.height > 0 else {
+        return rect.gscIntegralStandardized
     }
 
-    let contentWidth = min(ceil(upperWidth + horizontalSlack), maxContentWidth)
-    return min(max(contentWidth + horizontalPadding, minSize.width), maxWidth)
+    var positioned = rect.standardized
+
+    if positioned.width >= normalizedBounds.width {
+        positioned.origin.x = normalizedBounds.minX
+        positioned.size.width = normalizedBounds.width
+    } else if positioned.minX < normalizedBounds.minX {
+        positioned.origin.x += normalizedBounds.minX - positioned.minX
+    } else if positioned.maxX > normalizedBounds.maxX {
+        positioned.origin.x -= positioned.maxX - normalizedBounds.maxX
+    }
+
+    if positioned.height >= normalizedBounds.height {
+        positioned.origin.y = normalizedBounds.minY
+    } else if positioned.minY < normalizedBounds.minY {
+        positioned.origin.y += normalizedBounds.minY - positioned.minY
+    } else if positioned.maxY > normalizedBounds.maxY {
+        positioned.origin.y -= positioned.maxY - normalizedBounds.maxY
+    }
+
+    return positioned.gscIntegralStandardized
 }
 
 nonisolated func gscFittedTextRect(
@@ -818,27 +809,92 @@ nonisolated func gscSnugTextRect(
         .paragraphStyle: paragraphStyle
     ]
 
-    let targetWidth = gscSnugTextWidth(
-        for: displayText,
-        attributes: attributes,
-        horizontalPadding: horizontalPadding,
-        minSize: minSize,
-        maxWidth: maxWidth,
-        font: font
-    )
-    let textBounds = gscTextLayoutBounds(
-        for: displayText,
-        width: targetWidth - horizontalPadding,
-        attributes: attributes
-    )
+    let horizontalSlack = gscTextHorizontalLayoutSlack(for: font)
+    let maxContentWidth = max(maxWidth - horizontalPadding, 1)
+    let minContentWidth = max(minSize.width - horizontalPadding, 1)
+    let unwrappedContentWidth = ceil(gscUnwrappedTextContentWidth(for: displayText, attributes: attributes)) + horizontalSlack
+    let targetContentWidth = unwrappedContentWidth <= maxContentWidth
+        ? max(unwrappedContentWidth, minContentWidth)
+        : maxContentWidth
+    let targetWidth = min(max(targetContentWidth + horizontalPadding, minSize.width), maxWidth)
     let renderSlack = gscTextVerticalLayoutSlack(for: font)
-    let targetHeight = max(ceil(textBounds.height) + verticalPadding + renderSlack, minSize.height)
+    let textMetrics = gscTextLayoutMetrics(
+        for: displayText,
+        width: targetContentWidth,
+        attributes: attributes,
+    )
+    let targetHeight = max(ceil(textMetrics.bounds.height) + verticalPadding + renderSlack, minSize.height)
 
     return CGRect(
         x: origin.x,
         y: origin.y,
         width: targetWidth,
         height: targetHeight
+    ).gscIntegralStandardized
+}
+
+nonisolated func gscSnugCalloutRect(
+    for text: String,
+    origin: CGPoint,
+    font: NSFont,
+    textHorizontalPadding: CGFloat,
+    textVerticalPadding: CGFloat,
+    badgeAllowance: CGFloat,
+    minSize: CGSize,
+    maxWidth: CGFloat
+) -> CGRect {
+    let bodyMinWidth = max(minSize.width - badgeAllowance, 1)
+    let bodyMaxWidth = max(maxWidth - badgeAllowance, bodyMinWidth)
+    let fittedBodyRect = gscSnugTextRect(
+        for: text,
+        origin: origin,
+        font: font,
+        horizontalPadding: textHorizontalPadding,
+        verticalPadding: textVerticalPadding,
+        minSize: CGSize(width: bodyMinWidth, height: minSize.height),
+        maxWidth: bodyMaxWidth
+    )
+
+    return CGRect(
+        x: origin.x,
+        y: origin.y,
+        width: min(max(fittedBodyRect.width + badgeAllowance, minSize.width), maxWidth),
+        height: max(fittedBodyRect.height, minSize.height)
+    ).gscIntegralStandardized
+}
+
+nonisolated func gscFittedCalloutRect(
+    for text: String,
+    currentRect: CGRect,
+    font: NSFont,
+    textHorizontalPadding: CGFloat,
+    textVerticalPadding: CGFloat,
+    badgeAllowance: CGFloat,
+    minSize: CGSize,
+    maxWidth: CGFloat
+) -> CGRect {
+    let normalizedRect = currentRect.standardized
+    let bodyWidth = max(normalizedRect.width - badgeAllowance, minSize.width - badgeAllowance, 1)
+    let fittedBodyRect = gscFittedTextRect(
+        for: text,
+        currentRect: CGRect(
+            x: normalizedRect.minX,
+            y: normalizedRect.minY,
+            width: bodyWidth,
+            height: normalizedRect.height
+        ),
+        font: font,
+        horizontalPadding: textHorizontalPadding,
+        verticalPadding: textVerticalPadding,
+        minSize: CGSize(width: bodyWidth, height: max(normalizedRect.height, minSize.height)),
+        maxWidth: max(maxWidth - badgeAllowance, bodyWidth)
+    )
+
+    return CGRect(
+        x: normalizedRect.minX,
+        y: normalizedRect.minY,
+        width: min(max(bodyWidth + badgeAllowance, minSize.width), maxWidth),
+        height: max(fittedBodyRect.height, minSize.height)
     ).gscIntegralStandardized
 }
 

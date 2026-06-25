@@ -175,7 +175,34 @@ final class EditorControllerTests: XCTestCase {
             let state = try XCTUnwrap(canvas.debugTextEditorOverlayState)
 
             XCTAssertEqual(state.text, typedText)
-            assertLiveTextOverlayIsSnug(state, file: #filePath, line: #line)
+            if !typedText.contains("\n"), state.lineFragmentCount > 1 {
+                let selectedAnnotation = try XCTUnwrap(controller.selectedAnnotation)
+                guard case let .text(shape) = selectedAnnotation.kind else {
+                    return XCTFail("Expected selected text annotation")
+                }
+                let expectedWidth = gscAutoTextMaxWidth(
+                    originX: shape.rect.minX,
+                    within: controller.snapshot.cropRect,
+                    minWidth: 44
+                )
+                XCTAssertEqual(shape.rect.width, expectedWidth, accuracy: 1)
+                XCTAssertGreaterThanOrEqual(
+                    state.textViewFrame.width - ceil(state.usedTextRect.width),
+                    -1,
+                    "\(state)",
+                    file: #filePath,
+                    line: #line
+                )
+                XCTAssertGreaterThanOrEqual(
+                    state.textViewFrame.height - ceil(state.usedTextRect.height),
+                    -1,
+                    "\(state)",
+                    file: #filePath,
+                    line: #line
+                )
+            } else {
+                assertLiveTextOverlayIsSnug(state, file: #filePath, line: #line)
+            }
         }
     }
 
@@ -210,6 +237,212 @@ final class EditorControllerTests: XCTestCase {
             )
             assertLiveTextOverlayHugsText(state, file: #filePath, line: #line)
         }
+    }
+
+    @MainActor
+    func testClickCreatedTextEditorKeepsSixCharacterWordOnOneLine() throws {
+        let controller = makeController(
+            snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 130, height: 90)),
+            captureSize: CGSize(width: 130, height: 90)
+        )
+        controller.activeTool = .text
+        let (canvas, overlay, window) = makeCanvasHarness(
+            controller: controller,
+            frame: CGRect(x: 0, y: 0, width: 130, height: 90)
+        )
+        let clickPoint = viewPoint(for: CGPoint(x: 20, y: 20), controller: controller)
+
+        sendMouseEvent(.leftMouseDown, at: clickPoint, to: overlay, in: window, eventNumber: 1)
+        canvas.debugInsertTextIntoTextEditorOverlay("asdfas")
+        canvas.layoutSubtreeIfNeeded()
+
+        let state = try XCTUnwrap(canvas.debugTextEditorOverlayState)
+
+        XCTAssertEqual(state.text, "asdfas")
+        XCTAssertEqual(
+            state.lineFragmentCount,
+            1,
+            "A short click-created text annotation should expand before it wraps. \(state)",
+            file: #filePath,
+            line: #line
+        )
+        assertLiveTextOverlayHugsText(state, file: #filePath, line: #line)
+    }
+
+    @MainActor
+    func testLiveTextEditorOverlayWrapsAtPreferredMaxWhileTyping() throws {
+        let text = Annotation.makeText(at: CGPoint(x: 40, y: 40))
+            .updatingText("Text")
+        let snapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 900, height: 240),
+            annotations: [text],
+            selectedAnnotationIDs: [text.id]
+        )
+        let controller = makeController(snapshot: snapshot, captureSize: CGSize(width: 900, height: 240))
+        let (canvas, _, _) = makeCanvasHarness(
+            controller: controller,
+            frame: CGRect(x: 0, y: 0, width: 900, height: 240)
+        )
+        let typedText = Array(repeating: "0123456789", count: 12).joined(separator: " ")
+
+        canvas.debugInsertTextIntoTextEditorOverlay(typedText)
+        canvas.layoutSubtreeIfNeeded()
+
+        let state = try XCTUnwrap(canvas.debugTextEditorOverlayState)
+
+        XCTAssertEqual(state.text, typedText)
+        XCTAssertGreaterThan(
+            state.lineFragmentCount,
+            1,
+            "Long live-edited text should wrap before focus changes. \(state)",
+            file: #filePath,
+            line: #line
+        )
+        XCTAssertLessThanOrEqual(state.overlayFrame.width, ceil(520 * state.displayScale) + 1)
+        XCTAssertLessThanOrEqual(state.overlayFrame.maxX, viewRect(for: snapshot.cropRect, controller: controller).maxX + 1)
+        XCTAssertGreaterThanOrEqual(
+            state.textViewFrame.width - ceil(state.usedTextRect.width),
+            -1,
+            "\(state)",
+            file: #filePath,
+            line: #line
+        )
+        XCTAssertGreaterThanOrEqual(
+            state.textViewFrame.height - ceil(state.usedTextRect.height),
+            -1,
+            "\(state)",
+            file: #filePath,
+            line: #line
+        )
+    }
+
+    @MainActor
+    func testClickCreatedCalloutEditorKeepsSixCharacterWordOnOneLine() throws {
+        let controller = makeController(
+            snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 260, height: 140)),
+            captureSize: CGSize(width: 260, height: 140)
+        )
+        controller.activeTool = .callout
+        let (canvas, overlay, window) = makeCanvasHarness(
+            controller: controller,
+            frame: CGRect(x: 0, y: 0, width: 260, height: 140)
+        )
+        let clickPoint = viewPoint(for: CGPoint(x: 20, y: 20), controller: controller)
+
+        sendMouseEvent(.leftMouseDown, at: clickPoint, to: overlay, in: window, eventNumber: 1)
+        canvas.debugInsertTextIntoTextEditorOverlay("asdfas")
+        canvas.layoutSubtreeIfNeeded()
+
+        let state = try XCTUnwrap(canvas.debugTextEditorOverlayState)
+
+        XCTAssertEqual(state.text, "asdfas")
+        XCTAssertEqual(
+            state.lineFragmentCount,
+            1,
+            "A short click-created callout should expand before it wraps. \(state)",
+            file: #filePath,
+            line: #line
+        )
+        XCTAssertGreaterThanOrEqual(state.textViewFrame.width - ceil(state.usedTextRect.width), -1, "\(state)")
+        XCTAssertGreaterThanOrEqual(state.textViewFrame.height - ceil(state.usedTextRect.height), -1, "\(state)")
+    }
+
+    @MainActor
+    func testLiveCalloutEditorOverlayWrapsAtPreferredMaxWhileTyping() throws {
+        let callout = Annotation.makeCallout(at: CGPoint(x: 40, y: 40), number: 1)
+            .updatingText("Callout 1")
+        let snapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 900, height: 260),
+            annotations: [callout],
+            selectedAnnotationIDs: [callout.id]
+        )
+        let controller = makeController(snapshot: snapshot, captureSize: CGSize(width: 900, height: 260))
+        let (canvas, _, _) = makeCanvasHarness(
+            controller: controller,
+            frame: CGRect(x: 0, y: 0, width: 900, height: 260)
+        )
+        let typedText = Array(repeating: "0123456789", count: 12).joined(separator: " ")
+
+        canvas.debugInsertTextIntoTextEditorOverlay(typedText)
+        canvas.layoutSubtreeIfNeeded()
+
+        let state = try XCTUnwrap(canvas.debugTextEditorOverlayState)
+        let selectedAnnotation = try XCTUnwrap(controller.selectedAnnotation)
+
+        XCTAssertEqual(state.text, typedText)
+        XCTAssertGreaterThan(
+            state.lineFragmentCount,
+            1,
+            "Long live-edited callout text should wrap before focus changes. \(state)",
+            file: #filePath,
+            line: #line
+        )
+        XCTAssertLessThanOrEqual(state.overlayFrame.width, ceil(520 * state.displayScale) + 1)
+        XCTAssertLessThanOrEqual(state.overlayFrame.maxX, viewRect(for: snapshot.cropRect, controller: controller).maxX + 1)
+        XCTAssertGreaterThanOrEqual(state.textViewFrame.width - ceil(state.usedTextRect.width), -1, "\(state)")
+        XCTAssertGreaterThanOrEqual(state.textViewFrame.height - ceil(state.usedTextRect.height), -1, "\(state)")
+
+        guard case let .callout(shape) = selectedAnnotation.kind else {
+            return XCTFail("Expected selected callout annotation")
+        }
+        XCTAssertTrue(shape.automaticallySizesToText)
+        XCTAssertLessThanOrEqual(shape.rect.width, 520)
+    }
+
+    @MainActor
+    func testManuallySizedLiveCalloutEditorKeepsWidthWhenTypingWraps() throws {
+        let manualRect = CGRect(x: 40, y: 40, width: 220, height: 72)
+        let callout = Annotation(
+            id: UUID(),
+            groupID: nil,
+            kind: .callout(CalloutShape(
+                rect: manualRect,
+                number: 1,
+                text: "kljkasdkfj",
+                alignment: .left,
+                style: .filled,
+                leaderPoint: CGPoint(x: 24, y: 32),
+                automaticallySizesToText: false
+            )),
+            style: .default(for: .callout)
+        )
+        let snapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 360, height: 220),
+            annotations: [callout],
+            selectedAnnotationIDs: [callout.id]
+        )
+        let controller = makeController(snapshot: snapshot, captureSize: CGSize(width: 360, height: 220))
+
+        guard case let .callout(initialShape) = controller.selectedAnnotation?.kind else {
+            return XCTFail("Expected selected callout annotation")
+        }
+        XCTAssertEqual(initialShape.rect.width, manualRect.width)
+
+        let (canvas, _, _) = makeCanvasHarness(
+            controller: controller,
+            frame: CGRect(x: 0, y: 0, width: 360, height: 220)
+        )
+
+        controller.updateText("kljkasdkfj kljasdl 0123456789 0123456789")
+        canvas.layoutSubtreeIfNeeded()
+
+        let state = try XCTUnwrap(canvas.debugTextEditorOverlayState)
+        let bounds = try XCTUnwrap(controller.selectedAnnotation?.boundingRect)
+        guard case let .callout(shape) = controller.selectedAnnotation?.kind else {
+            return XCTFail("Expected selected callout annotation")
+        }
+
+        XCTAssertFalse(shape.automaticallySizesToText)
+        XCTAssertEqual(shape.rect.width, manualRect.width, "\(shape)")
+        XCTAssertEqual(
+            state.overlayFrame.width,
+            viewRect(for: shape.rect, controller: controller).integral.width,
+            "\(shape)"
+        )
+        XCTAssertGreaterThan(bounds.height, manualRect.height)
+        XCTAssertGreaterThan(shape.rect.height, manualRect.height)
+        XCTAssertGreaterThanOrEqual(state.textViewFrame.width - ceil(state.usedTextRect.width), -1, "\(state)")
+        XCTAssertGreaterThanOrEqual(state.textViewFrame.height - ceil(state.usedTextRect.height), -1, "\(state)")
     }
 
     @MainActor
@@ -2373,14 +2606,11 @@ final class EditorControllerTests: XCTestCase {
         let canvas = retainForTestLifetime(AnnotationCanvasView(controller: controller))
         let window = retainForTestLifetime(NSWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false))
         window.contentView = canvas
-        canvas.frame = window.contentView?.bounds ?? frame
+        canvas.frame = CGRect(origin: .zero, size: frame.size)
+        controller.updateViewportCanvasSize(canvas.bounds.size)
         canvas.layoutSubtreeIfNeeded()
 
-        guard let overlay = canvas.subviews.last else {
-            fatalError("Expected annotation overlay view")
-        }
-
-        return (canvas, overlay, window)
+        return (canvas, canvas.debugInteractionOverlayView, window)
     }
 
     private func viewPoint(for documentPoint: CGPoint, controller: EditorController) -> CGPoint {

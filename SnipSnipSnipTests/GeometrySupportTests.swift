@@ -870,7 +870,34 @@ final class GeometrySupportTests: XCTestCase {
         XCTAssertLessThanOrEqual(rect.height, ceil(measuredHeight + verticalPadding + 4))
     }
 
-    func testSnugTextRectKeepsWrappedTextSnugAfterWrapping() {
+    func testSnugTextRectUsesFullMaxWidthAfterTextWrapsAtMaxWidth() {
+        let font = NSFont.systemFont(ofSize: 28, weight: .semibold)
+        let text = "hello how are you"
+        let horizontalPadding: CGFloat = 24
+        let verticalPadding: CGFloat = 20
+        let maxWidth: CGFloat = 180
+        let maxContentWidth = maxWidth - horizontalPadding
+        let rect = gscSnugTextRect(
+            for: text,
+            origin: CGPoint(x: 20, y: 20),
+            font: font,
+            horizontalPadding: horizontalPadding,
+            verticalPadding: verticalPadding,
+            minSize: CGSize(width: 44, height: 34),
+            maxWidth: maxWidth
+        )
+        let measuredBounds = measuredTextBounds(
+            for: text,
+            width: maxContentWidth,
+            font: font
+        )
+        let verticalSlack = ceil(max(font.pointSize * 0.12, font.descender.magnitude * 0.5, 2))
+
+        XCTAssertEqual(rect.width, maxWidth)
+        XCTAssertEqual(rect.height, ceil(measuredBounds.height) + verticalPadding + verticalSlack, accuracy: 1)
+    }
+
+    func testSnugTextRectKeepsFullWidthAfterWrapping() {
         let font = NSFont.systemFont(ofSize: 24, weight: .semibold)
         let wrappedText = "lkajsdf laksjdflk"
         let longerWrappedText = wrappedText + " lkajsdflk"
@@ -894,9 +921,34 @@ final class GeometrySupportTests: XCTestCase {
             maxWidth: maxWidth
         )
 
-        XCTAssertLessThan(rect.width, maxWidth)
+        XCTAssertEqual(rect.width, maxWidth)
         XCTAssertLessThanOrEqual(longerRect.width, maxWidth)
         XCTAssertGreaterThanOrEqual(longerRect.height, rect.height)
+    }
+
+    func testAutoTextMaxWidthUsesPreferredCapInsteadOfOriginRemainder() {
+        let smallCropRect = CGRect(x: 0, y: 0, width: 130, height: 90)
+        let wideCropRect = CGRect(x: 0, y: 0, width: 900, height: 240)
+
+        XCTAssertEqual(
+            gscAutoTextMaxWidth(originX: 90, within: smallCropRect, minWidth: 44),
+            smallCropRect.width
+        )
+        XCTAssertEqual(
+            gscAutoTextMaxWidth(originX: 760, within: wideCropRect, minWidth: 44),
+            520
+        )
+    }
+
+    func testTextRectPositionedWithinBoundsShiftsWithoutShrinking() {
+        let cropRect = CGRect(x: 0, y: 0, width: 130, height: 90)
+        let rect = CGRect(x: 20, y: 20, width: 114, height: 42)
+
+        let positioned = gscTextRectPositionedWithinBounds(rect, bounds: cropRect)
+
+        XCTAssertEqual(positioned.width, 114)
+        XCTAssertEqual(positioned.minX, 16)
+        XCTAssertEqual(positioned.maxX, cropRect.maxX)
     }
 
     func testSnugTextRectHorizontalSlack() {
@@ -924,6 +976,10 @@ final class GeometrySupportTests: XCTestCase {
 }
 
 private func measuredTextHeight(for text: String, width: CGFloat, font: NSFont) -> CGFloat {
+    ceil(measuredTextBounds(for: text, width: width, font: font).height)
+}
+
+private func measuredTextBounds(for text: String, width: CGFloat, font: NSFont) -> CGRect {
     let paragraphStyle = NSMutableParagraphStyle()
     paragraphStyle.lineBreakMode = .byWordWrapping
     let textStorage = NSTextStorage(string: text, attributes: [
@@ -939,7 +995,7 @@ private func measuredTextHeight(for text: String, width: CGFloat, font: NSFont) 
     textStorage.addLayoutManager(layoutManager)
     layoutManager.ensureLayout(for: textContainer)
 
-    return ceil(layoutManager.usedRect(for: textContainer).height)
+    return layoutManager.usedRect(for: textContainer)
 }
 
 private func widestUnwrappedLineWidth(for text: String, font: NSFont) -> CGFloat {

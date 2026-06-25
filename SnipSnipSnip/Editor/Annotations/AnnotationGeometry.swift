@@ -50,7 +50,8 @@ nonisolated enum AnnotationGeometry {
                 text: shape.text,
                 alignment: shape.alignment,
                 style: shape.style,
-                leaderPoint: shape.leaderPoint.map(transformPoint)
+                leaderPoint: shape.leaderPoint.map(transformPoint),
+                automaticallySizesToText: shape.automaticallySizesToText
             ))
         case let .measurement(shape):
             return .measurement(MeasurementShape(

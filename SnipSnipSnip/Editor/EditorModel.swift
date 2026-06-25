@@ -767,6 +767,7 @@ nonisolated struct CalloutShape: Equatable {
     var alignment: TextAlignmentMode = .left
     var style: CalloutVisualStyle = .filled
     var leaderPoint: CGPoint?
+    var automaticallySizesToText: Bool = true
 }
 
 nonisolated enum CalloutVisualStyle: String, CaseIterable, Identifiable {
@@ -1040,13 +1041,23 @@ nonisolated struct Annotation: Identifiable, Equatable {
         updatingText(text, refittingBounds: true)
     }
 
-    func updatingText(_ text: String, refittingBounds: Bool = true) -> Annotation {
+    func updatingText(
+        _ text: String,
+        refittingBounds: Bool = true,
+        maximumAutoTextWidth: CGFloat? = nil,
+        autoTextBounds: CGRect? = nil
+    ) -> Annotation {
         var copy = self
 
         switch kind {
         case let .text(shape):
             let fittedRect = refittingBounds
-                ? fittedTextRect(for: text, shape: shape)
+                ? fittedTextRect(
+                    for: text,
+                    shape: shape,
+                    maximumAutoTextWidth: maximumAutoTextWidth,
+                    autoTextBounds: autoTextBounds
+                )
                 : shape.rect.gscIntegralStandardized
             copy.kind = .text(TextShape(
                 rect: fittedRect,
@@ -1058,27 +1069,12 @@ nonisolated struct Annotation: Identifiable, Equatable {
             let fittedRect: CGRect
 
             if refittingBounds {
-                let bodyRect = CGRect(
-                    x: shape.rect.minX,
-                    y: shape.rect.minY,
-                    width: max(shape.rect.width - 54, 140),
-                    height: shape.rect.height
-                )
-                let fittedBodyRect = gscFittedTextRect(
+                fittedRect = fittedCalloutRect(
                     for: text,
-                    currentRect: bodyRect,
-                    font: NSFont.systemFont(ofSize: style.fontSize, weight: .semibold),
-                    horizontalPadding: 40,
-                    verticalPadding: 24,
-                    minSize: CGSize(width: 140, height: 72),
-                    maxWidth: 420
+                    shape: shape,
+                    maximumAutoTextWidth: maximumAutoTextWidth,
+                    autoTextBounds: autoTextBounds
                 )
-                fittedRect = CGRect(
-                    x: shape.rect.minX,
-                    y: shape.rect.minY,
-                    width: fittedBodyRect.width + 54,
-                    height: max(fittedBodyRect.height, 72)
-                ).gscIntegralStandardized
             } else {
                 fittedRect = shape.rect.gscIntegralStandardized
             }
@@ -1089,7 +1085,8 @@ nonisolated struct Annotation: Identifiable, Equatable {
                 text: text,
                 alignment: shape.alignment,
                 style: shape.style,
-                leaderPoint: shape.leaderPoint
+                leaderPoint: shape.leaderPoint,
+                automaticallySizesToText: shape.automaticallySizesToText
             ))
         default:
             return self
@@ -1149,7 +1146,8 @@ nonisolated struct Annotation: Identifiable, Equatable {
                 text: shape.text,
                 alignment: alignment,
                 style: shape.style,
-                leaderPoint: shape.leaderPoint
+                leaderPoint: shape.leaderPoint,
+                automaticallySizesToText: shape.automaticallySizesToText
             ))
         default:
             return self
@@ -1159,33 +1157,57 @@ nonisolated struct Annotation: Identifiable, Equatable {
     }
 
     func disablingAutomaticTextSizing() -> Annotation {
-        guard case let .text(shape) = kind else {
+        switch kind {
+        case let .text(shape):
+            var copy = self
+            copy.kind = .text(TextShape(
+                rect: shape.rect,
+                text: shape.text,
+                alignment: shape.alignment,
+                automaticallySizesToText: false
+            ))
+            return copy
+        case let .callout(shape):
+            var copy = self
+            copy.kind = .callout(CalloutShape(
+                rect: shape.rect,
+                number: shape.number,
+                text: shape.text,
+                alignment: shape.alignment,
+                style: shape.style,
+                leaderPoint: shape.leaderPoint,
+                automaticallySizesToText: false
+            ))
+            return copy
+        default:
             return self
         }
-
-        var copy = self
-        copy.kind = .text(TextShape(
-            rect: shape.rect,
-            text: shape.text,
-            alignment: shape.alignment,
-            automaticallySizesToText: false
-        ))
-        return copy
     }
 
-    private func fittedTextRect(for text: String, shape: TextShape) -> CGRect {
+    private func fittedTextRect(
+        for text: String,
+        shape: TextShape,
+        maximumAutoTextWidth: CGFloat? = nil,
+        autoTextBounds: CGRect? = nil
+    ) -> CGRect {
         let font = NSFont.systemFont(ofSize: style.fontSize, weight: .semibold)
 
         if shape.automaticallySizesToText {
-            return gscSnugTextRect(
+            let fittedRect = gscSnugTextRect(
                 for: text,
                 origin: shape.rect.origin,
                 font: font,
                 horizontalPadding: 24,
                 verticalPadding: 20,
                 minSize: CGSize(width: 44, height: 34),
-                maxWidth: 520
+                maxWidth: max(maximumAutoTextWidth ?? autoTextBounds?.standardized.width ?? 520, 44)
             )
+
+            guard let autoTextBounds else {
+                return fittedRect
+            }
+
+            return gscTextRectPositionedWithinBounds(fittedRect, bounds: autoTextBounds)
         }
 
         return gscFittedTextRect(
@@ -1195,7 +1217,48 @@ nonisolated struct Annotation: Identifiable, Equatable {
             horizontalPadding: 24,
             verticalPadding: 20,
             minSize: shape.rect.size,
-            maxWidth: 520
+            maxWidth: max(maximumAutoTextWidth ?? 520, shape.rect.width)
+        )
+    }
+
+    private func fittedCalloutRect(
+        for text: String,
+        shape: CalloutShape,
+        maximumAutoTextWidth: CGFloat? = nil,
+        autoTextBounds: CGRect? = nil
+    ) -> CGRect {
+        let font = NSFont.systemFont(ofSize: style.fontSize, weight: .semibold)
+        let minSize = CGSize(width: 194, height: 72)
+        let maxWidth = max(maximumAutoTextWidth ?? autoTextBounds?.standardized.width ?? 520, minSize.width)
+
+        if shape.automaticallySizesToText {
+            let fittedRect = gscSnugCalloutRect(
+                for: text,
+                origin: shape.rect.origin,
+                font: font,
+                textHorizontalPadding: 40,
+                textVerticalPadding: 24,
+                badgeAllowance: 40,
+                minSize: minSize,
+                maxWidth: maxWidth
+            )
+
+            guard let autoTextBounds else {
+                return fittedRect
+            }
+
+            return gscTextRectPositionedWithinBounds(fittedRect, bounds: autoTextBounds)
+        }
+
+        return gscFittedCalloutRect(
+            for: text,
+            currentRect: shape.rect,
+            font: font,
+            textHorizontalPadding: 40,
+            textVerticalPadding: 24,
+            badgeAllowance: 40,
+            minSize: minSize,
+            maxWidth: max(maxWidth, shape.rect.width)
         )
     }
 
@@ -1211,7 +1274,8 @@ nonisolated struct Annotation: Identifiable, Equatable {
             text: shape.text,
             alignment: shape.alignment,
             style: shape.style,
-            leaderPoint: shape.leaderPoint
+            leaderPoint: shape.leaderPoint,
+            automaticallySizesToText: shape.automaticallySizesToText
         ))
         return copy
     }
@@ -1271,7 +1335,8 @@ nonisolated struct Annotation: Identifiable, Equatable {
             text: shape.text,
             alignment: shape.alignment,
             style: style,
-            leaderPoint: shape.leaderPoint
+            leaderPoint: shape.leaderPoint,
+            automaticallySizesToText: shape.automaticallySizesToText
         ))
         return copy
     }

@@ -262,6 +262,10 @@ final class SSSDocumentTests: XCTestCase {
             return XCTFail("Expected loaded text annotation")
         }
         XCTAssertTrue(loadedText.automaticallySizesToText)
+        guard case let .callout(loadedCallout) = loaded.session.currentSnapshot.annotations[1].kind else {
+            return XCTFail("Expected loaded callout annotation")
+        }
+        XCTAssertTrue(loadedCallout.automaticallySizesToText)
 
         try? FileManager.default.removeItem(at: packageURL)
     }

@@ -142,6 +142,72 @@ final class EditorCommandsTests: XCTestCase {
         }
     }
 
+    func testAutoSizedCalloutFitsTypedTextBeforeFocusChanges() {
+        let annotation = Annotation.makeCallout(at: CGPoint(x: 20, y: 30), number: 1)
+            .updatingText("A much wider callout label")
+        let wideBounds = annotation.boundingRect
+        let updated = annotation.updatingText(
+            "Hi",
+            maximumAutoTextWidth: 520,
+            autoTextBounds: CGRect(x: 0, y: 0, width: 800, height: 400)
+        )
+
+        switch updated.kind {
+        case let .callout(shape):
+            XCTAssertEqual(shape.text, "Hi")
+            XCTAssertTrue(shape.automaticallySizesToText)
+            XCTAssertLessThan(shape.rect.width, wideBounds.width)
+            XCTAssertEqual(shape.rect.origin, CGPoint(x: 44, y: 48))
+        default:
+            XCTFail("Expected a callout annotation")
+        }
+    }
+
+    func testAutoSizedCalloutCapsWidthAndGrowsHeightForWrappedText() {
+        let annotation = Annotation.makeCallout(at: CGPoint(x: 20, y: 30), number: 1)
+            .updatingText("Hi")
+        let wrapped = annotation.updatingText(
+            Array(repeating: "0123456789", count: 12).joined(separator: " "),
+            maximumAutoTextWidth: 320,
+            autoTextBounds: CGRect(x: 0, y: 0, width: 800, height: 400)
+        )
+
+        switch wrapped.kind {
+        case let .callout(shape):
+            XCTAssertTrue(shape.automaticallySizesToText)
+            XCTAssertLessThanOrEqual(shape.rect.width, 320)
+            XCTAssertGreaterThan(shape.rect.height, annotation.boundingRect.height)
+        default:
+            XCTFail("Expected a callout annotation")
+        }
+    }
+
+    func testManuallyResizedCalloutKeepsUserWidthWhileTyping() {
+        let annotation = Annotation.makeCallout(at: CGPoint(x: 20, y: 30), number: 1)
+            .updatingText("Hi")
+        let originalBounds = annotation.boundingRect
+        let resizedBounds = gscSignedScaleBounds(
+            for: originalBounds,
+            handle: .right,
+            point: CGPoint(x: originalBounds.maxX + 140, y: originalBounds.midY)
+        )
+        let manuallySized = annotation.scaledForSingleSelectionResize(from: originalBounds, to: resizedBounds)
+        let updated = manuallySized.updatingText("0123456789 0123456789 0123456789 0123456789")
+
+        guard case let .callout(manuallySizedShape) = manuallySized.kind else {
+            return XCTFail("Expected manually sized callout annotation")
+        }
+
+        switch updated.kind {
+        case let .callout(shape):
+            XCTAssertFalse(shape.automaticallySizesToText)
+            XCTAssertEqual(shape.rect.width, manuallySizedShape.rect.width)
+            XCTAssertGreaterThanOrEqual(shape.rect.height, manuallySizedShape.rect.height)
+        default:
+            XCTFail("Expected a callout annotation")
+        }
+    }
+
     func testUpdatingRedactionModePreservesGeometry() {
         let annotation = Annotation.makeBlur(in: CGRect(x: 10, y: 10, width: 80, height: 40))
         let updated = annotation.updatingRedactionMode(.solid)
