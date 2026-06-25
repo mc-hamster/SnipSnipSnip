@@ -2,7 +2,7 @@ import AppKit
 import CoreGraphics
 import Foundation
 import OSLog
-@preconcurrency import Vision
+import Vision
 
 private enum UIMapCaptureDiagnostics {
     nonisolated private static let logger = Logger(
@@ -20,7 +20,7 @@ private enum UIMapCaptureDiagnostics {
 }
 
 protocol UIMapCaptureServiceType: Sendable {
-    nonisolated func captureUIMap(for capture: CapturedScreenshot) -> UIMapSnapshot?
+    nonisolated func captureUIMap(for capture: CapturedScreenshot) async -> UIMapSnapshot?
 }
 
 nonisolated struct UIMapWindowRelativeMapping: Equatable {
@@ -217,7 +217,7 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
     private let captureDeadlineSeconds: TimeInterval = 2.5
     private let minimumAXWindowMatchScore: CGFloat = 0.35
 
-    nonisolated func captureUIMap(for capture: CapturedScreenshot) -> UIMapSnapshot? {
+    nonisolated func captureUIMap(for capture: CapturedScreenshot) async -> UIMapSnapshot? {
         UIMapCaptureDiagnostics.notice(
             "[UIMap] capture requested sourceName='\(capture.sourceName)' kind='\(capture.kind.rawValue)' sourceRect=\(Self.describe(capture.sourceRect)) documentRect=\(Self.describe(capture.documentRect)) pixelSize=\(Int(capture.pixelSize.width))x\(Int(capture.pixelSize.height)) featureEnabled=\(capabilities.isEnabled(.uiMap)) axTrusted=\(accessibility.isProcessTrusted())"
         )
@@ -290,7 +290,7 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
 
         let supplementedElements: [UIMapElement]
         if clock.now() < deadline {
-            supplementedElements = elementsWithTextRecognitionSupplement(
+            supplementedElements = await elementsWithTextRecognitionSupplement(
                 for: capture,
                 candidates: candidates,
                 elements: elements
@@ -328,8 +328,8 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         for capture: CapturedScreenshot,
         candidates: [WindowCandidate],
         elements: [UIMapElement]
-    ) -> [UIMapElement] {
-        guard let recognizedElements = recognizedTextElements(
+    ) async -> [UIMapElement] {
+        guard let recognizedElements = await recognizedTextElements(
             for: capture,
             candidates: candidates,
             valueDescription: "Generated from screenshot text recognition because Accessibility metadata was incomplete."
@@ -387,15 +387,15 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         for capture: CapturedScreenshot,
         candidates: [WindowCandidate],
         valueDescription: String
-    ) -> [UIMapElement]? {
-        let request = VNRecognizeTextRequest()
+    ) async -> [UIMapElement]? {
+        var request = RecognizeTextRequest(.revision3)
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
+        request.automaticallyDetectsLanguage = true
 
-        let handler = VNImageRequestHandler(cgImage: capture.image, options: [:])
-
+        let observations: [RecognizedTextObservation]
         do {
-            try handler.perform([request])
+            observations = try await ImageRequestHandler(capture.image).perform(request)
         } catch {
             UIMapCaptureDiagnostics.failure(
                 "[UIMap] text recognition failed error='\(error.localizedDescription)'"
@@ -406,7 +406,7 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         let ownerName = candidates.first?.ownerName ?? capture.sourceName
         let bundleIdentifier = candidates.first?.bundleIdentifier
         let imageSize = CGSize(width: capture.image.width, height: capture.image.height)
-        return (request.results ?? []).compactMap { observation -> UIMapElement? in
+        return observations.compactMap { observation -> UIMapElement? in
             guard let candidate = observation.topCandidates(1).first else {
                 return nil
             }
@@ -414,7 +414,7 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
             let text = CaptureTextRecognizer.normalizedRecognizedText(candidate.string)
             guard text.isUsefulUIMapRecognizedText,
                   let documentRect = UIMapTextRecognitionGeometry.documentRect(
-                    fromNormalizedBoundingBox: observation.boundingBox,
+                    fromNormalizedBoundingBox: observation.boundingBox.cgRect,
                     imageSize: imageSize,
                     documentRect: capture.documentRect
                   ) else {

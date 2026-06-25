@@ -132,7 +132,8 @@ final class AppArchitecturePlatformTests: XCTestCase {
             sourceRect: CGRect(x: 0, y: 0, width: 2, height: 2),
             capturedAt: Date()
         )
-        XCTAssertNil(environment.makeUIMapCaptureService().captureUIMap(for: disabledCapture))
+        let disabledUIMap = await environment.makeUIMapCaptureService().captureUIMap(for: disabledCapture)
+        XCTAssertNil(disabledUIMap)
 
         let connectedDevices = await environment.makeConnectedDeviceCaptureService().listDevices()
         XCTAssertTrue(connectedDevices.isEmpty)

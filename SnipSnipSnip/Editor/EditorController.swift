@@ -1640,9 +1640,8 @@ final class EditorController: ObservableObject {
                         return ""
                     }
 
-                    return try CaptureTextRecognizer.normalizedRecognizedText(
-                        textRecognizer.recognizeText(in: cropped)
-                    )
+                    let recognizedText = try await textRecognizer.recognizeText(in: cropped)
+                    return CaptureTextRecognizer.normalizedRecognizedText(recognizedText)
                 }.value
                 self?.ocrReviewText = text
             } catch {

@@ -3,19 +3,25 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class UIMapCaptureGeometryTests: XCTestCase {
-    func testCaptureServiceSkipsNonWindowCapturesBeforeAccessibilityWork() {
+    func testCaptureServiceSkipsNonWindowCapturesBeforeAccessibilityWork() async {
         let service = AccessibilityUIMapCaptureService()
 
-        XCTAssertNil(service.captureUIMap(for: makeCapturedScreenshot(kind: .region)))
-        XCTAssertNil(service.captureUIMap(for: makeCapturedScreenshot(kind: .fullscreen)))
-        XCTAssertNil(service.captureUIMap(for: makeCapturedScreenshot(kind: .scrolling)))
-        XCTAssertNil(service.captureUIMap(for: makeCapturedScreenshot(kind: .connectedDevice)))
+        let regionUIMap = await service.captureUIMap(for: makeCapturedScreenshot(kind: .region))
+        let fullscreenUIMap = await service.captureUIMap(for: makeCapturedScreenshot(kind: .fullscreen))
+        let scrollingUIMap = await service.captureUIMap(for: makeCapturedScreenshot(kind: .scrolling))
+        let connectedDeviceUIMap = await service.captureUIMap(for: makeCapturedScreenshot(kind: .connectedDevice))
+
+        XCTAssertNil(regionUIMap)
+        XCTAssertNil(fullscreenUIMap)
+        XCTAssertNil(scrollingUIMap)
+        XCTAssertNil(connectedDeviceUIMap)
     }
 
-    func testCaptureServiceSkipsWindowCaptureWithoutSourceIdentity() {
+    func testCaptureServiceSkipsWindowCaptureWithoutSourceIdentity() async {
         let service = AccessibilityUIMapCaptureService()
 
-        XCTAssertNil(service.captureUIMap(for: makeCapturedScreenshot(kind: .window)))
+        let uiMap = await service.captureUIMap(for: makeCapturedScreenshot(kind: .window))
+        XCTAssertNil(uiMap)
     }
 
     func testWindowRelativeMappingPreservesTopLeftYIntoDocumentSpace() {

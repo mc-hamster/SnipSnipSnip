@@ -2788,15 +2788,13 @@ nonisolated private final class StubTextRecognizer: CaptureTextRecognizing, @unc
     }
 
     var lastImageSize: CGSize? {
-        lock.lock()
-        defer { lock.unlock() }
-        return imageSize
+        lock.withLock { imageSize }
     }
 
-    nonisolated func recognizeText(in image: CGImage) throws -> String {
-        lock.lock()
-        imageSize = CGSize(width: image.width, height: image.height)
-        lock.unlock()
+    nonisolated func recognizeText(in image: CGImage) async throws -> String {
+        lock.withLock {
+            imageSize = CGSize(width: image.width, height: image.height)
+        }
         return text
     }
 }
@@ -2807,19 +2805,17 @@ private final class StubUIMapCaptureService: UIMapCaptureServiceType, @unchecked
     private var _captureCallCount = 0
 
     var captureCallCount: Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return _captureCallCount
+        lock.withLock { _captureCallCount }
     }
 
     init(uiMap: UIMapSnapshot?) {
         self.uiMap = uiMap
     }
 
-    nonisolated func captureUIMap(for capture: CapturedScreenshot) -> UIMapSnapshot? {
-        lock.lock()
-        _captureCallCount += 1
-        lock.unlock()
+    nonisolated func captureUIMap(for capture: CapturedScreenshot) async -> UIMapSnapshot? {
+        lock.withLock {
+            _captureCallCount += 1
+        }
         return uiMap
     }
 }

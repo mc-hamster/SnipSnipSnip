@@ -1,37 +1,37 @@
 import CoreGraphics
 import Foundation
-@preconcurrency import Vision
+import Vision
 
 nonisolated protocol CaptureTextRecognizing: Sendable {
-    nonisolated func recognizeText(in image: CGImage) throws -> String
+    nonisolated func recognizeText(in image: CGImage) async throws -> String
 }
 
 nonisolated struct VisionCaptureTextRecognizer: CaptureTextRecognizing {
-    nonisolated func recognizeText(in image: CGImage) throws -> String {
-        try CaptureTextRecognizer.recognizeText(in: image)
+    nonisolated func recognizeText(in image: CGImage) async throws -> String {
+        try await CaptureTextRecognizer.recognizeText(in: image)
     }
 }
 
 enum CaptureTextRecognizer {
-    nonisolated static func recognizeText(in image: CGImage) throws -> String {
-        let request = VNRecognizeTextRequest()
+    nonisolated static func recognizeText(in image: CGImage) async throws -> String {
+        var request = RecognizeTextRequest(.revision3)
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
+        request.automaticallyDetectsLanguage = true
 
-        let handler = VNImageRequestHandler(cgImage: image, options: [:])
-        try handler.perform([request])
+        let observations = try await ImageRequestHandler(image).perform(request)
 
-        return request.results?
+        return observations
             .compactMap { $0.topCandidates(1).first?.string }
-            .joined(separator: " ") ?? ""
+            .joined(separator: " ")
     }
 
-    nonisolated static func recognizeText(in image: CGImage, region: CGRect) throws -> String {
+    nonisolated static func recognizeText(in image: CGImage, region: CGRect) async throws -> String {
         guard let cropped = cropImage(in: image, region: region) else {
             return ""
         }
 
-        return try recognizeText(in: cropped)
+        return try await recognizeText(in: cropped)
     }
 
     nonisolated static func cropImage(in image: CGImage, region: CGRect) -> CGImage? {
@@ -102,7 +102,7 @@ final class CaptureTextRecognitionCoordinator {
             }
 
             let writeTask = Task.detached(priority: .utility) {
-                let recognizedText = (try? recognizer.recognizeText(in: image)) ?? ""
+                let recognizedText = (try? await recognizer.recognizeText(in: image)) ?? ""
 
                 guard !Task.isCancelled else {
                     return nil as String?

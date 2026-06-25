@@ -165,7 +165,7 @@ extension CaptureWorkflowModel {
 
         Task { @MainActor [weak self] in
             let uiMap = await Task.detached(priority: .userInitiated) {
-                service.captureUIMap(for: capture)
+                await service.captureUIMap(for: capture)
             }.value
 
             guard let self,
