@@ -393,7 +393,12 @@ private struct RecordingAudioSourceControl: View {
                 tint: tint
             )
         }
+        .frame(width: RecordingAudioLayout.sourceControlWidth, alignment: .leading)
     }
+}
+
+private enum RecordingAudioLayout {
+    static let sourceControlWidth: CGFloat = 136
 }
 
 private struct RecordingAudioMeter: View {
@@ -420,7 +425,8 @@ private struct RecordingAudioMeter: View {
                     .frame(width: max(proxy.size.width * clampedLevel, 3))
             }
         }
-        .frame(width: 112, height: 6)
+        .frame(maxWidth: .infinity)
+        .frame(height: 6)
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
         .background(
@@ -446,10 +452,20 @@ private struct RecordingAudioToggle: View {
     }
 
     var body: some View {
-        Toggle(title, isOn: $isOn)
-            .toggleStyle(.switch)
-            .controlSize(.mini)
-            .tint(isOn ? .green : .gray)
+        HStack(spacing: 8) {
+            Text(title)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+
+            Spacer(minLength: 4)
+
+            Toggle(title, isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .tint(isOn ? .green : .gray)
+                .accessibilityLabel(title)
+        }
             .font(.caption2.weight(.semibold))
             .foregroundStyle(stateColor)
             .padding(.horizontal, 7)

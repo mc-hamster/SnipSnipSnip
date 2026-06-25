@@ -665,6 +665,14 @@ private nonisolated func gscTextLayoutBounds(
     width: CGFloat,
     attributes: [NSAttributedString.Key: Any]
 ) -> CGRect {
+    gscTextLayoutMetrics(for: text, width: width, attributes: attributes).bounds
+}
+
+private nonisolated func gscTextLayoutMetrics(
+    for text: String,
+    width: CGFloat,
+    attributes: [NSAttributedString.Key: Any]
+) -> (bounds: CGRect, lineCount: Int) {
     let textStorage = NSTextStorage(string: text, attributes: attributes)
     let layoutManager = NSLayoutManager()
     let textContainer = NSTextContainer(size: CGSize(width: max(width, 1), height: .greatestFiniteMagnitude))
@@ -675,11 +683,80 @@ private nonisolated func gscTextLayoutBounds(
     textStorage.addLayoutManager(layoutManager)
     layoutManager.ensureLayout(for: textContainer)
 
-    return layoutManager.usedRect(for: textContainer)
+    let glyphRange = layoutManager.glyphRange(for: textContainer)
+    var lineCount = 0
+    layoutManager.enumerateLineFragments(forGlyphRange: glyphRange) { _, _, _, _, _ in
+        lineCount += 1
+    }
+
+    return (layoutManager.usedRect(for: textContainer), max(lineCount, 1))
 }
 
 private nonisolated func gscTextHorizontalLayoutSlack(for font: NSFont) -> CGFloat {
-    ceil(max(font.pointSize * 0.35, font.descender.magnitude, 8))
+    ceil(max(font.pointSize * 0.12, 2))
+}
+
+private nonisolated func gscUnwrappedTextWidth(
+    for text: String,
+    attributes: [NSAttributedString.Key: Any]
+) -> CGFloat {
+    gscTextLayoutBounds(
+        for: text.isEmpty ? " " : text,
+        width: 100_000,
+        attributes: attributes
+    ).width
+}
+
+private nonisolated func gscTextVerticalLayoutSlack(for font: NSFont) -> CGFloat {
+    ceil(max(font.pointSize * 0.12, font.descender.magnitude * 0.5, 2))
+}
+
+private nonisolated func gscSnugTextWidth(
+    for displayText: String,
+    attributes: [NSAttributedString.Key: Any],
+    horizontalPadding: CGFloat,
+    minSize: CGSize,
+    maxWidth: CGFloat,
+    font: NSFont
+) -> CGFloat {
+    let explicitLines = displayText.components(separatedBy: .newlines)
+    let widestUnwrappedLine = explicitLines
+        .map { gscUnwrappedTextWidth(for: $0, attributes: attributes) }
+        .max() ?? 0
+    let horizontalSlack = gscTextHorizontalLayoutSlack(for: font)
+    let unwrappedTargetWidth = max(ceil(widestUnwrappedLine) + horizontalPadding + horizontalSlack, minSize.width)
+
+    guard unwrappedTargetWidth > maxWidth else {
+        return unwrappedTargetWidth
+    }
+
+    let minContentWidth = max(minSize.width - horizontalPadding, 1)
+    let maxContentWidth = max(maxWidth - horizontalPadding, minContentWidth)
+    let targetLineCount = gscTextLayoutMetrics(
+        for: displayText,
+        width: maxContentWidth,
+        attributes: attributes
+    ).lineCount
+    var lowerWidth = minContentWidth
+    var upperWidth = maxContentWidth
+
+    for _ in 0..<12 {
+        let midpoint = (lowerWidth + upperWidth) / 2
+        let lineCount = gscTextLayoutMetrics(
+            for: displayText,
+            width: midpoint,
+            attributes: attributes
+        ).lineCount
+
+        if lineCount <= targetLineCount {
+            upperWidth = midpoint
+        } else {
+            lowerWidth = midpoint
+        }
+    }
+
+    let contentWidth = min(ceil(upperWidth + horizontalSlack), maxContentWidth)
+    return min(max(contentWidth + horizontalPadding, minSize.width), maxWidth)
 }
 
 nonisolated func gscFittedTextRect(
@@ -701,22 +778,17 @@ nonisolated func gscFittedTextRect(
         .paragraphStyle: paragraphStyle
     ]
 
-    let singleLineSize = NSString(string: displayText).size(withAttributes: attributes)
-    let horizontalSlack = gscTextHorizontalLayoutSlack(for: font)
-    let targetWidth = min(
-        max(normalizedRect.width, ceil(singleLineSize.width) + horizontalPadding + horizontalSlack, minSize.width),
-        maxWidth
-    )
+    let targetWidth = min(max(normalizedRect.width, minSize.width), maxWidth)
 
     let textBounds = gscTextLayoutBounds(
         for: displayText,
-        width: targetWidth - horizontalPadding - horizontalSlack,
+        width: targetWidth - horizontalPadding,
         attributes: attributes
     )
 
     // Keep a small font-derived slack so repeated explicit line breaks stay visible
     // during live preview updates instead of requiring another edit cycle to repaint in-bounds.
-    let renderSlack = ceil(max(font.descender.magnitude, 4))
+    let renderSlack = gscTextVerticalLayoutSlack(for: font)
 
     let targetHeight = max(normalizedRect.height, ceil(textBounds.height) + verticalPadding + renderSlack, minSize.height)
 
@@ -746,18 +818,20 @@ nonisolated func gscSnugTextRect(
         .paragraphStyle: paragraphStyle
     ]
 
-    let explicitLines = displayText.components(separatedBy: .newlines)
-    let widestLine = explicitLines
-        .map { NSString(string: $0.isEmpty ? " " : $0).size(withAttributes: attributes).width }
-        .max() ?? 0
-    let horizontalSlack = gscTextHorizontalLayoutSlack(for: font)
-    let targetWidth = min(max(ceil(widestLine) + horizontalPadding + horizontalSlack, minSize.width), maxWidth)
+    let targetWidth = gscSnugTextWidth(
+        for: displayText,
+        attributes: attributes,
+        horizontalPadding: horizontalPadding,
+        minSize: minSize,
+        maxWidth: maxWidth,
+        font: font
+    )
     let textBounds = gscTextLayoutBounds(
         for: displayText,
-        width: targetWidth - horizontalPadding - horizontalSlack,
+        width: targetWidth - horizontalPadding,
         attributes: attributes
     )
-    let renderSlack = ceil(max(font.descender.magnitude, 4))
+    let renderSlack = gscTextVerticalLayoutSlack(for: font)
     let targetHeight = max(ceil(textBounds.height) + verticalPadding + renderSlack, minSize.height)
 
     return CGRect(

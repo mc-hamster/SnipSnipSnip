@@ -118,7 +118,7 @@ struct CaptureAutomationSettingsView: View {
 
                                 Spacer()
 
-                                Button("Continue") {
+                                Button("Set Up") {
                                     permissions.requestAccessibilityAccess()
                                 }
                                 .disabled(permissions.activePermissionRequest != nil)
@@ -644,7 +644,7 @@ struct CaptureAutomationSettingsView: View {
 
                 Section("Permission Diagnostics") {
                     PermissionStatusRow(requirement: .screenRecording, permissions: permissions)
-                    if capabilities.isEnabled(.scrollingCapture) {
+                    if shouldShowAccessibilityPermissionDiagnostics {
                         PermissionStatusRow(requirement: .accessibility, permissions: permissions)
                     }
 
@@ -658,8 +658,8 @@ struct CaptureAutomationSettingsView: View {
                     }
 
                     SettingsHelpText(
-                        capabilities.isEnabled(.scrollingCapture)
-                            ? "Accessibility is only required for Scrolling Capture. Region, Window, Fullscreen, editor OCR, export, and annotation tools do not depend on Accessibility. Diagnostics export sanitized app, permission, display, storage, and status details without screenshots, clipboard contents, OCR text, annotations, or document data."
+                        shouldShowAccessibilityPermissionDiagnostics
+                            ? accessibilityPermissionDiagnosticsDetail
                             : "Screen Recording is the only privacy permission required for screenshot pixels, live window thumbnails, and screen recording in this build. Diagnostics export sanitized app, permission, display, storage, and status details without screenshots, clipboard contents, OCR text, annotations, or document data."
                     )
                 }
@@ -724,6 +724,26 @@ struct CaptureAutomationSettingsView: View {
             video: video,
             archive: archive
         )
+    }
+
+    private var shouldShowAccessibilityPermissionDiagnostics: Bool {
+        capabilities.isEnabled(.scrollingCapture)
+            || (capabilities.isEnabled(.uiMap) && capture.uiMapEnabled)
+    }
+
+    private var accessibilityPermissionDiagnosticsDetail: String {
+        let requirementSummary: String
+        if capabilities.isEnabled(.scrollingCapture),
+           capabilities.isEnabled(.uiMap),
+           capture.uiMapEnabled {
+            requirementSummary = "Accessibility is only required for Scrolling Capture and Window UI Map."
+        } else if capabilities.isEnabled(.uiMap), capture.uiMapEnabled {
+            requirementSummary = "Accessibility is only required for Window UI Map."
+        } else {
+            requirementSummary = "Accessibility is only required for Scrolling Capture."
+        }
+
+        return "\(requirementSummary) Region, Fullscreen, editor OCR, export, and annotation tools do not depend on Accessibility. Diagnostics export sanitized app, permission, display, storage, and status details without screenshots, clipboard contents, OCR text, annotations, or document data."
     }
 
     private var canResetPreferencesToDefaults: Bool {
@@ -1155,7 +1175,7 @@ private struct PermissionStatusRow: View {
             Spacer()
             Text(hasAccess ? "Allowed" : "Missing")
                 .foregroundStyle(hasAccess ? .green : .orange)
-            Button(hasAccess ? "Open Settings" : "Continue") {
+            Button(hasAccess ? "Manage" : "Set Up") {
                 if hasAccess {
                     permissions.openPermissionSettings(requirement)
                 } else {

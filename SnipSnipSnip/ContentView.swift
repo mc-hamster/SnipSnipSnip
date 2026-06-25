@@ -412,11 +412,11 @@ struct ContentView: View {
                 Spacer(minLength: 8)
 
                 if headerMissingRequirements.count > 1 {
-                    Button("Continue", action: requestNextHeaderPermission)
+                    Button("Set Up Next", action: requestNextHeaderPermission)
                         .buttonStyle(SSSChromeButtonStyle())
                         .controlSize(.small)
                         .disabled(permissions.activePermissionRequest != nil)
-                        .help("Continue to the next missing macOS privacy permission for \(AppBranding.displayName).")
+                        .help("Set up the next missing macOS privacy permission for \(AppBranding.displayName).")
                 }
             }
 
@@ -535,10 +535,10 @@ struct ContentView: View {
 
                 HStack(spacing: 10) {
                     if !permissions.permissionStatus.hasScreenRecording {
-                        Button("Continue", action: permissions.requestScreenRecordingAccess)
+                        Button("Set Up", action: permissions.requestScreenRecordingAccess)
                             .buttonStyle(SSSChromeButtonStyle())
                             .disabled(permissions.activePermissionRequest != nil)
-                            .help("Continue to the macOS Screen Recording permission prompt for \(AppBranding.displayName).")
+                            .help("Set up macOS Screen Recording permission for \(AppBranding.displayName).")
                     }
 
                     Button("Dismiss", action: dismissWelcomeCard)
@@ -596,7 +596,7 @@ struct ContentView: View {
                         .help(
                             permissions.permissionStatus.hasScreenRecording
                             ? "Reload the list of available windows."
-                            : "Continue to the macOS Screen Recording permission prompt before window thumbnails can be shown."
+                            : "Set up macOS Screen Recording permission before window thumbnails can be shown."
                         )
 
                     Spacer(minLength: 8)
@@ -613,10 +613,10 @@ struct ContentView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
 
-                    Button("Continue", action: permissions.requestScreenRecordingAccess)
+                    Button("Set Up", action: permissions.requestScreenRecordingAccess)
                         .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
                         .disabled(permissions.activePermissionRequest != nil)
-                        .help("Continue to the macOS Screen Recording permission prompt for \(AppBranding.displayName).")
+                        .help("Set up macOS Screen Recording permission for \(AppBranding.displayName).")
                 } else if capture.isLoadingWindowChoices && capture.availableWindows.isEmpty {
                     HStack(spacing: 10) {
                         ProgressView()
@@ -1103,13 +1103,13 @@ struct ContentView: View {
                 .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
                 .controlSize(.small)
             } else {
-                Button("Continue") {
+                Button("Set Up") {
                     permissions.requestPermission(requirement)
                 }
                 .buttonStyle(SSSChromeButtonStyle())
                 .controlSize(.small)
                 .disabled(permissions.activePermissionRequest != nil)
-                .help("Continue to the macOS \(requirement.title) permission prompt for \(AppBranding.displayName).")
+                .help("Set up macOS \(requirement.title) permission for \(AppBranding.displayName).")
 
                 Button("Help") {
                     permissions.presentPermissionSetupGuide(for: requirement)
@@ -1322,7 +1322,7 @@ private struct PermissionSetupGuideView: View {
         case .screenRecording:
             return "macOS needs this before \(AppBranding.displayName) can read screen pixels for captures, recordings, and live window thumbnails."
         case .accessibility:
-            return "macOS needs this before Scrolling Capture can scroll the selected app while \(AppBranding.displayName) captures and stitches the viewport."
+            return "macOS needs this for Accessibility workflows such as Scrolling Capture and Window UI Map."
         }
     }
 

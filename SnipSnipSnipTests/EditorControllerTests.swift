@@ -104,6 +104,184 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testLiveTextEditorOverlayStaysSnugForExplicitLineBreak() throws {
+        let text = Annotation.makeText(at: CGPoint(x: 40, y: 40))
+            .updatingText("kljkasdkfj\nkljasdl")
+        let snapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 320, height: 180),
+            annotations: [text],
+            selectedAnnotationIDs: [text.id]
+        )
+        let controller = makeController(snapshot: snapshot, captureSize: CGSize(width: 320, height: 180))
+        let (canvas, _, _) = makeCanvasHarness(
+            controller: controller,
+            frame: CGRect(x: 0, y: 0, width: 320, height: 180)
+        )
+
+        let state = try XCTUnwrap(canvas.debugTextEditorOverlayState)
+
+        assertLiveTextOverlayIsSnug(state)
+        XCTAssertEqual(state.text, "kljkasdkfj\nkljasdl")
+    }
+
+    @MainActor
+    func testLiveTextEditorOverlayHugsShortExplicitWrap() throws {
+        let text = Annotation.makeText(at: CGPoint(x: 40, y: 40))
+            .updatingText("hello how are\nyou")
+        let snapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 320, height: 180),
+            annotations: [text],
+            selectedAnnotationIDs: [text.id]
+        )
+        let controller = makeController(snapshot: snapshot, captureSize: CGSize(width: 320, height: 180))
+        let (canvas, _, _) = makeCanvasHarness(
+            controller: controller,
+            frame: CGRect(x: 0, y: 0, width: 320, height: 180)
+        )
+
+        let state = try XCTUnwrap(canvas.debugTextEditorOverlayState)
+
+        XCTAssertEqual(state.text, "hello how are\nyou")
+        XCTAssertEqual(state.lineFragmentCount, 2)
+        assertLiveTextOverlayHugsText(state)
+    }
+
+    @MainActor
+    func testLiveTextEditorOverlayRemainsSnugAcrossTypingWraps() throws {
+        let text = Annotation.makeText(at: CGPoint(x: 40, y: 40))
+            .updatingText("Text")
+        let snapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 620, height: 240),
+            annotations: [text],
+            selectedAnnotationIDs: [text.id]
+        )
+        let controller = makeController(snapshot: snapshot, captureSize: CGSize(width: 620, height: 240))
+        let (canvas, _, _) = makeCanvasHarness(
+            controller: controller,
+            frame: CGRect(x: 0, y: 0, width: 620, height: 240)
+        )
+        let typingSequence = [
+            "kljkasdkfj",
+            "kljkasdkfj kljasdl",
+            "kljkasdkfj kljasdl 0123456789",
+            "kljkasdkfj kljasdl 0123456789 0123456789 0123456789",
+            "kljkasdkfj kljasdl\n0123456789"
+        ]
+
+        for typedText in typingSequence {
+            controller.updateText(typedText)
+            canvas.layoutSubtreeIfNeeded()
+
+            let state = try XCTUnwrap(canvas.debugTextEditorOverlayState)
+
+            XCTAssertEqual(state.text, typedText)
+            assertLiveTextOverlayIsSnug(state, file: #filePath, line: #line)
+        }
+    }
+
+    @MainActor
+    func testLiveTextEditorOverlayKeepsShortIncrementalTypingOnOneLine() throws {
+        let text = Annotation.makeText(at: CGPoint(x: 40, y: 40))
+            .updatingText("Text")
+        let snapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 320, height: 180),
+            annotations: [text],
+            selectedAnnotationIDs: [text.id]
+        )
+        let controller = makeController(snapshot: snapshot, captureSize: CGSize(width: 320, height: 180))
+        let (canvas, _, _) = makeCanvasHarness(
+            controller: controller,
+            frame: CGRect(x: 0, y: 0, width: 320, height: 180)
+        )
+
+        for character in "hello how are you" {
+            canvas.debugInsertTextIntoTextEditorOverlay(String(character))
+            canvas.layoutSubtreeIfNeeded()
+
+            let state = try XCTUnwrap(canvas.debugTextEditorOverlayState)
+
+            XCTAssertEqual(state.text, String("hello how are you".prefix(state.text.count)))
+            XCTAssertEqual(
+                state.lineFragmentCount,
+                1,
+                "Short text should keep growing horizontally before it wraps. \(state)",
+                file: #filePath,
+                line: #line
+            )
+            assertLiveTextOverlayHugsText(state, file: #filePath, line: #line)
+        }
+    }
+
+    @MainActor
+    func testManuallySizedLiveTextEditorKeepsWidthWhenTypingWraps() throws {
+        let manualRect = CGRect(x: 40, y: 40, width: 140, height: 54)
+        let text = Annotation(
+            id: UUID(),
+            groupID: nil,
+            kind: .text(TextShape(
+                rect: manualRect,
+                text: "kljkasdkfj",
+                alignment: .left,
+                automaticallySizesToText: false
+            )),
+            style: .default(for: .text)
+        )
+        let snapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 320, height: 180),
+            annotations: [text],
+            selectedAnnotationIDs: [text.id]
+        )
+        let controller = makeController(snapshot: snapshot, captureSize: CGSize(width: 320, height: 180))
+
+        XCTAssertEqual(controller.selectedAnnotation?.boundingRect.width, manualRect.width)
+
+        let (canvas, _, _) = makeCanvasHarness(
+            controller: controller,
+            frame: CGRect(x: 0, y: 0, width: 320, height: 180)
+        )
+
+        controller.updateText("kljkasdkfj kljasdl 0123456789")
+        canvas.layoutSubtreeIfNeeded()
+
+        let state = try XCTUnwrap(canvas.debugTextEditorOverlayState)
+        let bounds = try XCTUnwrap(controller.selectedAnnotation?.boundingRect)
+        guard case let .text(shape) = controller.selectedAnnotation?.kind else {
+            return XCTFail("Expected selected text annotation")
+        }
+
+        XCTAssertFalse(shape.automaticallySizesToText)
+        XCTAssertEqual(shape.rect.width, manualRect.width, "\(shape)")
+        XCTAssertEqual(bounds.width, manualRect.width, "\(shape)")
+        XCTAssertEqual(
+            state.overlayFrame.width,
+            viewRect(for: shape.rect, controller: controller).integral.width,
+            "\(shape)"
+        )
+        XCTAssertGreaterThan(bounds.height, manualRect.height)
+        assertLiveTextOverlayIsSnug(state)
+    }
+
+    func testManualTextAnnotationModelKeepsWidthWhenUpdatingWrappedText() {
+        let manualRect = CGRect(x: 40, y: 40, width: 140, height: 54)
+        let text = Annotation(
+            id: UUID(),
+            groupID: nil,
+            kind: .text(TextShape(
+                rect: manualRect,
+                text: "kljkasdkfj",
+                alignment: .left,
+                automaticallySizesToText: false
+            )),
+            style: .default(for: .text)
+        )
+
+        let updated = text.updatingText("kljkasdkfj kljasdl 0123456789")
+
+        XCTAssertEqual(updated.boundingRect.width, manualRect.width)
+        XCTAssertGreaterThan(updated.boundingRect.height, manualRect.height)
+    }
+
+    @MainActor
     func testTypingWithAppModelObserverStaysResponsive() {
         let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
@@ -2090,6 +2268,67 @@ final class EditorControllerTests: XCTestCase {
         )
         let session = makeEditorDocumentSession(initialSnapshot: resolvedSnapshot, currentSnapshot: resolvedSnapshot)
         return retainForTestLifetime(EditorController(capture: resolvedCapture, session: session, defaults: defaults, textRecognizer: textRecognizer))
+    }
+
+    private func assertLiveTextOverlayIsSnug(
+        _ state: AnnotationTextEditorOverlayDebugState,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let allowedHorizontalSlack = max(ceil(18 * state.displayScale), 4)
+        let allowedVerticalSlack = max(ceil(18 * state.displayScale), 8)
+        let horizontalContentSlack = state.textViewFrame.width - ceil(state.usedTextRect.width)
+        let verticalContentSlack = state.textViewFrame.height - ceil(state.usedTextRect.height)
+        let debugDescription = """
+        text: \(state.text.debugDescription), overlay: \(state.overlayFrame), textView: \(state.textViewFrame), used: \(state.usedTextRect)
+        """
+
+        XCTAssertGreaterThanOrEqual(horizontalContentSlack, -1, debugDescription, file: file, line: line)
+        XCTAssertLessThanOrEqual(
+            horizontalContentSlack,
+            allowedHorizontalSlack,
+            "Live text overlay has too much unused horizontal space. \(debugDescription)",
+            file: file,
+            line: line
+        )
+        XCTAssertGreaterThanOrEqual(verticalContentSlack, -1, debugDescription, file: file, line: line)
+        XCTAssertLessThanOrEqual(
+            verticalContentSlack,
+            allowedVerticalSlack,
+            "Live text overlay has too much unused vertical space. \(debugDescription)",
+            file: file,
+            line: line
+        )
+    }
+
+    private func assertLiveTextOverlayHugsText(
+        _ state: AnnotationTextEditorOverlayDebugState,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let allowedSlack = max(ceil(5 * state.displayScale) + 1, 3)
+        let horizontalContentSlack = state.textViewFrame.width - ceil(state.usedTextRect.width)
+        let verticalContentSlack = state.textViewFrame.height - ceil(state.usedTextRect.height)
+        let debugDescription = """
+        text: \(state.text.debugDescription), overlay: \(state.overlayFrame), textView: \(state.textViewFrame), used: \(state.usedTextRect), lines: \(state.lineFragmentCount)
+        """
+
+        XCTAssertGreaterThanOrEqual(horizontalContentSlack, -1, debugDescription, file: file, line: line)
+        XCTAssertLessThanOrEqual(
+            horizontalContentSlack,
+            allowedSlack,
+            "Live auto-sized text overlay has too much unused horizontal space. \(debugDescription)",
+            file: file,
+            line: line
+        )
+        XCTAssertGreaterThanOrEqual(verticalContentSlack, -1, debugDescription, file: file, line: line)
+        XCTAssertLessThanOrEqual(
+            verticalContentSlack,
+            allowedSlack,
+            "Live auto-sized text overlay has too much unused vertical space. \(debugDescription)",
+            file: file,
+            line: line
+        )
     }
 
     @MainActor

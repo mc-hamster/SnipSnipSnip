@@ -22,8 +22,8 @@ final class CapturePermissionStatusTests: XCTestCase {
         )
     }
 
-    func testScrollingFeatureFlagsAreEnabledOnlyForSelfRelease() {
-        XCTAssertFalse(FeatureFlags.scrollingCaptureEnabled(for: .dev))
+    func testScrollingFeatureFlagsAreEnabledOnlyForDevAndSelfRelease() {
+        XCTAssertTrue(FeatureFlags.scrollingCaptureEnabled(for: .dev))
         XCTAssertFalse(FeatureFlags.scrollingCaptureEnabled(for: .internalTesting))
         XCTAssertFalse(FeatureFlags.scrollingCaptureEnabled(for: .externalTesting))
         XCTAssertFalse(FeatureFlags.scrollingCaptureEnabled(for: .release))

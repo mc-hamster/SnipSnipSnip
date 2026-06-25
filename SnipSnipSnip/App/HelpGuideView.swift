@@ -102,7 +102,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Keep running in the background",
-                            body: "Command-Q and Quit SnipSnipSnip show the same confirmation before exiting. Choose Run in Background to keep the menu bar icon, shortcuts, and clipboard history available, or Quit to close the app."
+                            body: "Command-Q and Quit SnipSnipSnip show the same confirmation before exiting. Choose Run in Background or press Esc to keep the menu bar icon, shortcuts, and clipboard history available, or choose Quit to close the app."
                         ),
                         HelpArticleSection(
                             title: "Open an existing image",
@@ -169,6 +169,7 @@ struct HelpGuideView: View {
                             uiMapEnabled
                                 ? "Region and Fullscreen screenshot capture do not include UI Map metadata and do not require Accessibility because of UI Map."
                                 : "Region and Fullscreen screenshot capture do not require Accessibility.",
+                            "In Settings, Set Up starts a missing permission and Manage opens System Settings for a permission that is already allowed.",
                             "Development builds launched from Xcode may need Accessibility permission for the exact app in DerivedData, not a copy in Applications."
                         ]
                         : [],
@@ -593,7 +594,7 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Add annotations",
-                            body: "Draw shapes, lines, arrows, freehand strokes, marker-style highlighter strokes, highlight boxes, rulers, spotlights, text, and callouts from the toolbar. Text boxes fit snugly while you type until you manually resize them. Import Image adds an editable overlay that can be moved, resized, rotated, faded, saved, copied, exported, and shared."
+                            body: "Draw shapes, lines, arrows, freehand strokes, marker-style highlighter strokes, highlight boxes, rulers, spotlights, text, and callouts from the toolbar. Text boxes fit snugly while you type until you manually resize them; after a manual resize, the width stays fixed and the box grows taller as text wraps. Selected text boxes can be edited in place with normal cursor movement, arrow keys, selection, and click-to-position behavior. Import Image adds an editable overlay that can be moved, resized, rotated, faded, saved, copied, exported, and shared."
                         ),
                         HelpArticleSection(
                             title: "Edit styles",

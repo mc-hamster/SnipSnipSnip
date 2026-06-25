@@ -113,7 +113,7 @@ final class AppTerminationController {
         return true
     }
 
-    private static func presentQuitConfirmation(_: AppLifecycleModel?) -> QuitConfirmationResult {
+    static func makeQuitConfirmationAlert() -> NSAlert {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "Quit \(AppBranding.displayName)?"
@@ -122,7 +122,14 @@ final class AppTerminationController {
         alert.addButton(withTitle: "Quit")
         alert.showsSuppressionButton = true
         alert.suppressionButton?.title = "Don't ask me again"
+        alert.buttons.first?.keyEquivalent = "\u{1b}"
+        alert.buttons.first?.keyEquivalentModifierMask = []
 
+        return alert
+    }
+
+    private static func presentQuitConfirmation(_: AppLifecycleModel?) -> QuitConfirmationResult {
+        let alert = makeQuitConfirmationAlert()
         let response = alert.runModal()
         guard response == .alertSecondButtonReturn else {
             return QuitConfirmationResult(shouldQuit: false, suppressFutureConfirmations: false)

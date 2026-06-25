@@ -338,6 +338,17 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
 
         menu.removeAllItems()
 
+        menu.addItem(actionItem(
+            title: "Open \(AppBranding.displayName)",
+            systemImage: "menubar.rectangle",
+            action: #selector(openMainWindow),
+            keyEquivalent: "o",
+            keyModifiers: captureShortcutModifiers,
+            enabled: true
+        ))
+
+        menu.addItem(.separator())
+
         menu.addItem(captureItem(
             title: "Region Capture",
             systemImage: "selection.pin.in.out",
@@ -403,15 +414,6 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         menu.addItem(videoRecordingItem)
 
         menu.addItem(.separator())
-
-        menu.addItem(actionItem(
-            title: "Open \(AppBranding.displayName)",
-            systemImage: "menubar.rectangle",
-            action: #selector(openMainWindow),
-            keyEquivalent: "o",
-            keyModifiers: captureShortcutModifiers,
-            enabled: true
-        ))
 
         menu.addItem(actionItem(
             title: "Clipboard History",

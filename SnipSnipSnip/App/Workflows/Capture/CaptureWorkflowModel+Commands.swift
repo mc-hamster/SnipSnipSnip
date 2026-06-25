@@ -286,17 +286,17 @@ extension CaptureWorkflowModel {
 
         if uniqueRequirements == [.accessibility] {
             if featureName == "Window Capture with UI Map" {
-                return "Window UI Map needs Accessibility access so \(AppBranding.displayName) can read visible interface element names, roles, identifiers, and locations from the selected window. If \(AppBranding.displayName) is not listed yet, click Continue once to trigger the macOS prompt, then use the setup guide to reveal and add this exact app."
+                return "Window UI Map needs Accessibility access so \(AppBranding.displayName) can read visible interface element names, roles, identifiers, and locations from the selected window. If \(AppBranding.displayName) is not listed yet, click Set Up once to trigger the macOS prompt, then use the setup guide to reveal and add this exact app."
             }
 
-            return "Scrolling Capture needs Accessibility access so \(AppBranding.displayName) can scroll the selected app while capturing. If \(AppBranding.displayName) is not listed yet, click Continue once to trigger the macOS prompt, then use the setup guide to reveal and add this exact app."
+            return "Scrolling Capture needs Accessibility access so \(AppBranding.displayName) can scroll the selected app while capturing. If \(AppBranding.displayName) is not listed yet, click Set Up once to trigger the macOS prompt, then use the setup guide to reveal and add this exact app."
         }
 
         if uniqueRequirements == [.screenRecording] {
-            return "\(featureName) needs Screen Recording access so \(AppBranding.displayName) can read pixels from the screen. Click Continue in the main window, then enable \(AppBranding.displayName) in System Settings > Privacy & Security > Screen Recording."
+            return "\(featureName) needs Screen Recording access so \(AppBranding.displayName) can read pixels from the screen. Click Set Up in the main window, then enable \(AppBranding.displayName) in System Settings > Privacy & Security > Screen Recording."
         }
 
-        return "\(featureName) needs Screen Recording access to capture pixels and Accessibility access to save visible interface element names, roles, identifiers, and locations from the selected window. Click Continue in the main window, then enable \(AppBranding.displayName) in System Settings > Privacy & Security."
+        return "\(featureName) needs Screen Recording access to capture pixels and Accessibility access to save visible interface element names, roles, identifiers, and locations from the selected window. Click Set Up in the main window, then enable \(AppBranding.displayName) in System Settings > Privacy & Security."
     }
 
     private func capturePresetRegion(

@@ -758,6 +758,21 @@ final class GeometrySupportTests: XCTestCase {
         XCTAssertGreaterThan(rect.height, 48)
     }
 
+    func testFittedTextRectKeepsManualWidthForWrappedContent() {
+        let rect = gscFittedTextRect(
+            for: "kljkasdkfj kljasdl 0123456789",
+            currentRect: CGRect(x: 20, y: 20, width: 140, height: 48),
+            font: NSFont.systemFont(ofSize: 28, weight: .semibold),
+            horizontalPadding: 24,
+            verticalPadding: 20,
+            minSize: CGSize(width: 140, height: 48),
+            maxWidth: 520
+        )
+
+        XCTAssertEqual(rect.width, 140)
+        XCTAssertGreaterThan(rect.height, 48)
+    }
+
     func testFittedTextRectAddsSlackForExplicitLineBreaks() {
         let font = NSFont.systemFont(ofSize: 28, weight: .semibold)
         let rect = gscFittedTextRect(
@@ -797,6 +812,93 @@ final class GeometrySupportTests: XCTestCase {
         XCTAssertGreaterThan(pendingSecondLine.height, singleLine.height + font.pointSize * 0.5)
     }
 
+    func testSnugTextRectTracksMeasuredWrappedHeightWithoutPhantomLine() {
+        let font = NSFont.systemFont(ofSize: 28, weight: .semibold)
+        let text = "This annotation should grow vertically as soon as it wraps into another visible line."
+        let rect = gscSnugTextRect(
+            for: text,
+            origin: CGPoint(x: 20, y: 20),
+            font: font,
+            horizontalPadding: 24,
+            verticalPadding: 20,
+            minSize: CGSize(width: 44, height: 34),
+            maxWidth: 260
+        )
+        let singleLine = gscSnugTextRect(
+            for: "Single line",
+            origin: CGPoint(x: 20, y: 20),
+            font: font,
+            horizontalPadding: 24,
+            verticalPadding: 20,
+            minSize: CGSize(width: 44, height: 34),
+            maxWidth: 260
+        )
+
+        XCTAssertGreaterThan(rect.height, singleLine.height + font.pointSize * 2)
+        let measuredHeight = measuredTextHeight(
+            for: text,
+            width: rect.width - 24,
+            font: font
+        )
+        let verticalPadding: CGFloat = 20
+        let renderSlack = ceil(max(font.pointSize * 0.35, font.descender.magnitude * 2, 8))
+        XCTAssertLessThanOrEqual(rect.height, ceil(measuredHeight + verticalPadding + renderSlack + 1))
+    }
+
+    func testSnugTextRectHugsShortExplicitWrap() {
+        let font = NSFont.systemFont(ofSize: 28, weight: .semibold)
+        let text = "hello how are\nyou"
+        let horizontalPadding: CGFloat = 24
+        let verticalPadding: CGFloat = 20
+        let rect = gscSnugTextRect(
+            for: text,
+            origin: CGPoint(x: 20, y: 20),
+            font: font,
+            horizontalPadding: horizontalPadding,
+            verticalPadding: verticalPadding,
+            minSize: CGSize(width: 44, height: 34),
+            maxWidth: 520
+        )
+        let measuredLineWidth = widestUnwrappedLineWidth(for: text, font: font)
+        let measuredHeight = measuredTextHeight(
+            for: text,
+            width: rect.width - horizontalPadding,
+            font: font
+        )
+
+        XCTAssertLessThanOrEqual(rect.width, ceil(measuredLineWidth + horizontalPadding + 4))
+        XCTAssertLessThanOrEqual(rect.height, ceil(measuredHeight + verticalPadding + 4))
+    }
+
+    func testSnugTextRectKeepsWrappedTextSnugAfterWrapping() {
+        let font = NSFont.systemFont(ofSize: 24, weight: .semibold)
+        let wrappedText = "lkajsdf laksjdflk"
+        let longerWrappedText = wrappedText + " lkajsdflk"
+        let maxWidth: CGFloat = 150
+        let rect = gscSnugTextRect(
+            for: wrappedText,
+            origin: CGPoint(x: 20, y: 20),
+            font: font,
+            horizontalPadding: 24,
+            verticalPadding: 20,
+            minSize: CGSize(width: 44, height: 34),
+            maxWidth: maxWidth
+        )
+        let longerRect = gscSnugTextRect(
+            for: longerWrappedText,
+            origin: CGPoint(x: 20, y: 20),
+            font: font,
+            horizontalPadding: 24,
+            verticalPadding: 20,
+            minSize: CGSize(width: 44, height: 34),
+            maxWidth: maxWidth
+        )
+
+        XCTAssertLessThan(rect.width, maxWidth)
+        XCTAssertLessThanOrEqual(longerRect.width, maxWidth)
+        XCTAssertGreaterThanOrEqual(longerRect.height, rect.height)
+    }
+
     func testSnugTextRectHorizontalSlack() {
         let font = NSFont.systemFont(ofSize: 24, weight: .semibold)
         let text = "The rightmost word"
@@ -819,6 +921,39 @@ final class GeometrySupportTests: XCTestCase {
 
         XCTAssertGreaterThan(rect.width, ceil(rawLineWidth) + 24)
     }
+}
+
+private func measuredTextHeight(for text: String, width: CGFloat, font: NSFont) -> CGFloat {
+    let paragraphStyle = NSMutableParagraphStyle()
+    paragraphStyle.lineBreakMode = .byWordWrapping
+    let textStorage = NSTextStorage(string: text, attributes: [
+        .font: font,
+        .paragraphStyle: paragraphStyle
+    ])
+    let layoutManager = NSLayoutManager()
+    let textContainer = NSTextContainer(size: CGSize(width: max(width, 1), height: .greatestFiniteMagnitude))
+    textContainer.lineFragmentPadding = 0
+    textContainer.maximumNumberOfLines = 0
+
+    layoutManager.addTextContainer(textContainer)
+    textStorage.addLayoutManager(layoutManager)
+    layoutManager.ensureLayout(for: textContainer)
+
+    return ceil(layoutManager.usedRect(for: textContainer).height)
+}
+
+private func widestUnwrappedLineWidth(for text: String, font: NSFont) -> CGFloat {
+    let paragraphStyle = NSMutableParagraphStyle()
+    paragraphStyle.lineBreakMode = .byWordWrapping
+    let attributes: [NSAttributedString.Key: Any] = [
+        .font: font,
+        .paragraphStyle: paragraphStyle
+    ]
+
+    return text
+        .components(separatedBy: .newlines)
+        .map { NSString(string: $0.isEmpty ? " " : $0).size(withAttributes: attributes).width }
+        .max() ?? 0
 }
 
 private func makeAutoCropFixtureImage(

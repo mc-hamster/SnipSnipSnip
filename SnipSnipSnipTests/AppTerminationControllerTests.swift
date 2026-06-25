@@ -171,6 +171,14 @@ final class AppTerminationControllerTests: XCTestCase {
         XCTAssertFalse(lifecycle.confirmsBeforeQuitting)
     }
 
+    func testQuitConfirmationMapsEscapeToRunInBackgroundAction() {
+        let alert = AppTerminationController.makeQuitConfirmationAlert()
+
+        XCTAssertEqual(alert.buttons.first?.title, "Run in Background")
+        XCTAssertEqual(alert.buttons.first?.keyEquivalent, "\u{1b}")
+        XCTAssertEqual(alert.buttons.first?.keyEquivalentModifierMask, [])
+    }
+
     private func makeLifecycle(confirmsBeforeQuitting: Bool = true) -> AppLifecycleModel {
         let suiteName = "AppTerminationControllerTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

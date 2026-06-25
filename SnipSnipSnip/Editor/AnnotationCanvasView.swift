@@ -2,6 +2,19 @@ import AppKit
 import Combine
 import SwiftUI
 
+#if DEBUG
+struct AnnotationTextEditorOverlayDebugState {
+    var overlayFrame: CGRect
+    var textViewFrame: CGRect
+    var usedTextRect: CGRect
+    var text: String
+    var lineFragmentCount: Int
+    var displayScale: CGFloat
+    var textInsetX: CGFloat
+    var textInsetY: CGFloat
+}
+#endif
+
 struct CropFocusPresentationState {
     let cropRect: CGRect
     let overlayAlpha: CGFloat
@@ -260,7 +273,7 @@ private final class AnnotationCanvasStableContentView: NSView {
 
         EditorRenderer.drawAnnotations(
             baseImage: controller.capture.image,
-            snapshot: controller.snapshot,
+            snapshot: snapshotForStableRendering,
             canvasRect: canvasRect,
             draftAnnotations: [],
             pinnedUIMapElements: controller.pinnedUIMapElements,
@@ -300,6 +313,391 @@ private final class AnnotationCanvasStableContentView: NSView {
             appearanceName: effectiveAppearance.name
         )
     }
+
+    private var snapshotForStableRendering: EditorSnapshot {
+        guard let annotation = controller.selectedAnnotation,
+              controller.selectedAnnotations.count == 1,
+              annotation.rotationDegrees == 0,
+              case .text = annotation.kind else {
+            return controller.snapshot
+        }
+
+        var snapshot = controller.snapshot
+        snapshot.annotations.removeAll { $0.id == annotation.id }
+        return snapshot
+    }
+}
+
+private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate {
+    var controller: EditorController {
+        didSet {
+            guard controller !== oldValue else {
+                return
+            }
+
+            editingAnnotationID = nil
+            synchronize()
+        }
+    }
+
+    private let textView = NSTextView(frame: .zero)
+    private var editingAnnotationID: UUID?
+    private var isSynchronizing = false
+
+    init(controller: EditorController) {
+        self.controller = controller
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.masksToBounds = true
+        textView.delegate = self
+        textView.drawsBackground = false
+        textView.isRichText = false
+        textView.importsGraphics = false
+        textView.allowsUndo = false
+        textView.isHorizontallyResizable = false
+        textView.isVerticallyResizable = false
+        textView.textContainerInset = .zero
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.maximumNumberOfLines = 0
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.heightTracksTextView = false
+        addSubview(textView)
+        isHidden = true
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    override var isFlipped: Bool {
+        true
+    }
+
+    override func layout() {
+        super.layout()
+        textView.frame = bounds.insetBy(dx: textInsetX, dy: textInsetY)
+        if let annotation = editableTextAnnotation,
+           case let .text(shape) = annotation.kind {
+            configureTextContainer(for: shape)
+        }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard let annotation = editableTextAnnotation else {
+            return
+        }
+
+        annotation.style.fillColor.nsColor.setFill()
+        NSBezierPath(roundedRect: bounds, xRadius: cornerRadius, yRadius: cornerRadius).fill()
+    }
+
+    func synchronize() {
+        guard let annotation = editableTextAnnotation,
+              case let .text(shape) = annotation.kind,
+              let projectedRect = projectedTextRect(for: shape.rect)
+        else {
+            endEditingIfNeeded()
+            return
+        }
+
+        let didChangeAnnotation = editingAnnotationID != annotation.id
+        editingAnnotationID = annotation.id
+        isHidden = false
+        frame = projectedRect.integral
+        layer?.cornerRadius = cornerRadius
+        configureTextView(for: annotation, shape: shape)
+        fitFrameToText(shape.text, annotation: annotation, shape: shape)
+        needsDisplay = true
+
+        if didChangeAnnotation, window?.firstResponder !== textView {
+            window?.makeFirstResponder(textView)
+            if shape.text == "Text" {
+                textView.setSelectedRange(NSRange(location: 0, length: (shape.text as NSString).length))
+            } else {
+                textView.setSelectedRange(NSRange(location: (shape.text as NSString).length, length: 0))
+            }
+        }
+    }
+
+    func textDidChange(_ notification: Notification) {
+        guard !isSynchronizing,
+              editingAnnotationID != nil,
+              controller.selectedAnnotation?.id == editingAnnotationID else {
+            return
+        }
+
+        guard let annotation = editableTextAnnotation,
+              case let .text(shape) = annotation.kind else {
+            return
+        }
+
+        fitFrameToText(textView.string, annotation: annotation, shape: shape)
+        controller.updateText(textView.string)
+    }
+
+    func textView(_ textView: NSTextView, shouldChangeTextIn affectedCharRange: NSRange, replacementString: String?) -> Bool {
+        guard !isSynchronizing,
+              let annotation = editableTextAnnotation,
+              case let .text(shape) = annotation.kind,
+              let replacementString else {
+            return true
+        }
+
+        let currentText = textView.string as NSString
+        guard affectedCharRange.location <= currentText.length,
+              affectedCharRange.location + affectedCharRange.length <= currentText.length else {
+            return true
+        }
+
+        let proposedText = currentText.replacingCharacters(in: affectedCharRange, with: replacementString)
+        fitFrameToText(proposedText, annotation: annotation, shape: shape)
+        return true
+    }
+
+    private var editableTextAnnotation: Annotation? {
+        guard let annotation = controller.selectedAnnotation,
+              controller.selectedAnnotations.count == 1,
+              annotation.rotationDegrees == 0,
+              case .text = annotation.kind else {
+            return nil
+        }
+
+        return annotation
+    }
+
+    private func projectedTextRect(for documentRect: CGRect) -> CGRect? {
+        let canvasRect = controller.viewport.imageRect
+        let documentBounds = controller.capture.documentRect
+
+        guard canvasRect.width > 0,
+              canvasRect.height > 0,
+              documentBounds.width > 0,
+              documentBounds.height > 0 else {
+            return nil
+        }
+
+        return DocumentProjection(
+            sourceDocumentRect: documentBounds,
+            destinationBounds: canvasRect
+        )
+        .destinationRect(fromDocumentRect: documentRect)
+    }
+
+    private func configureTextView(for annotation: Annotation, shape: TextShape) {
+        let selectedRange = textView.selectedRange()
+        let attributes = textAttributes(for: annotation, shape: shape)
+
+        isSynchronizing = true
+        defer {
+            isSynchronizing = false
+        }
+
+        if textView.string != shape.text {
+            textView.textStorage?.setAttributedString(NSAttributedString(string: shape.text, attributes: attributes))
+            textView.setSelectedRange(NSRange(
+                location: min(selectedRange.location, (shape.text as NSString).length),
+                length: min(selectedRange.length, max((shape.text as NSString).length - min(selectedRange.location, (shape.text as NSString).length), 0))
+            ))
+        } else {
+            textView.textStorage?.setAttributes(
+                attributes,
+                range: NSRange(location: 0, length: (shape.text as NSString).length)
+            )
+        }
+
+        textView.typingAttributes = attributes
+        textView.alignment = shape.alignment.nsTextAlignment
+        configureTextContainer(for: shape)
+        needsLayout = true
+    }
+
+    private func fitFrameToText(_ text: String, annotation: Annotation, shape: TextShape) {
+        let fittedRect = fittedTextRect(for: text, annotation: annotation, shape: shape)
+        guard let projectedRect = projectedTextRect(for: fittedRect) else {
+            return
+        }
+
+        frame = projectedRect.integral
+        textView.frame = bounds.insetBy(dx: textInsetX, dy: textInsetY)
+        configureTextContainer(for: shape)
+        growFrameToFitLiveText(text, attributes: textAttributes(for: annotation, shape: shape), shape: shape)
+        needsDisplay = true
+    }
+
+    private func fittedTextRect(for text: String, annotation: Annotation, shape: TextShape) -> CGRect {
+        let font = NSFont.systemFont(ofSize: annotation.style.fontSize, weight: .semibold)
+
+        if shape.automaticallySizesToText {
+            return gscSnugTextRect(
+                for: text,
+                origin: shape.rect.origin,
+                font: font,
+                horizontalPadding: 24,
+                verticalPadding: 20,
+                minSize: CGSize(width: 44, height: 34),
+                maxWidth: 520
+            )
+        }
+
+        return gscFittedTextRect(
+            for: text,
+            currentRect: shape.rect,
+            font: font,
+            horizontalPadding: 24,
+            verticalPadding: 20,
+            minSize: shape.rect.size,
+            maxWidth: 520
+        )
+    }
+
+    private func textAttributes(for annotation: Annotation, shape: TextShape) -> [NSAttributedString.Key: Any] {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = shape.alignment.nsTextAlignment
+        paragraphStyle.lineBreakMode = .byWordWrapping
+
+        return [
+            .font: NSFont.systemFont(ofSize: annotation.style.fontSize * displayScale, weight: .semibold),
+            .foregroundColor: annotation.style.strokeColor.nsColor,
+            .paragraphStyle: paragraphStyle
+        ]
+    }
+
+    private func growFrameToFitLiveText(
+        _ text: String,
+        attributes: [NSAttributedString.Key: Any],
+        shape: TextShape
+    ) {
+        let contentWidth = max(textView.bounds.width, 1)
+        let requiredContentHeight = measuredTextHeight(
+            for: text,
+            width: contentWidth,
+            attributes: attributes
+        )
+        let requiredHeight = ceil(requiredContentHeight + textInsetY * 2 + liveTextVerticalSlack)
+
+        guard requiredHeight > bounds.height else {
+            layoutLiveTextIfNeeded()
+            return
+        }
+
+        frame.size.height = requiredHeight
+        textView.frame = bounds.insetBy(dx: textInsetX, dy: textInsetY)
+        configureTextContainer(for: shape)
+        layoutLiveTextIfNeeded()
+    }
+
+    private func measuredTextHeight(
+        for text: String,
+        width: CGFloat,
+        attributes: [NSAttributedString.Key: Any]
+    ) -> CGFloat {
+        let textStorage = NSTextStorage(string: measurementText(for: text), attributes: attributes)
+        let layoutManager = NSLayoutManager()
+        let textContainer = NSTextContainer(size: CGSize(width: max(width, 1), height: .greatestFiniteMagnitude))
+        textContainer.lineFragmentPadding = 0
+        textContainer.maximumNumberOfLines = 0
+        textContainer.lineBreakMode = .byWordWrapping
+
+        layoutManager.addTextContainer(textContainer)
+        textStorage.addLayoutManager(layoutManager)
+        layoutManager.ensureLayout(for: textContainer)
+
+        return ceil(layoutManager.usedRect(for: textContainer).height)
+    }
+
+    private func measurementText(for text: String) -> String {
+        guard !text.isEmpty else {
+            return " "
+        }
+
+        return text.hasSuffix("\n") || text.hasSuffix("\r") ? text + " " : text
+    }
+
+    private func layoutLiveTextIfNeeded() {
+        guard let textContainer = textView.textContainer else {
+            return
+        }
+
+        textView.layoutManager?.ensureLayout(for: textContainer)
+    }
+
+    private func configureTextContainer(for _: TextShape) {
+        textView.textContainerInset = .zero
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.heightTracksTextView = false
+        textView.textContainer?.containerSize = CGSize(
+            width: max(textView.bounds.width, 1),
+            height: .greatestFiniteMagnitude
+        )
+    }
+
+    #if DEBUG
+    func debugInsertText(_ text: String) {
+        textView.insertText(text, replacementRange: textView.selectedRange())
+    }
+
+    var debugState: AnnotationTextEditorOverlayDebugState? {
+        guard !isHidden,
+              let textContainer = textView.textContainer else {
+            return nil
+        }
+
+        textView.layoutManager?.ensureLayout(for: textContainer)
+        let glyphRange = textView.layoutManager?.glyphRange(for: textContainer) ?? NSRange(location: 0, length: 0)
+        var lineFragmentCount = 0
+        textView.layoutManager?.enumerateLineFragments(forGlyphRange: glyphRange) { _, _, _, _, _ in
+            lineFragmentCount += 1
+        }
+
+        return AnnotationTextEditorOverlayDebugState(
+            overlayFrame: frame,
+            textViewFrame: textView.frame,
+            usedTextRect: textView.layoutManager?.usedRect(for: textContainer) ?? .zero,
+            text: textView.string,
+            lineFragmentCount: max(lineFragmentCount, 1),
+            displayScale: displayScale,
+            textInsetX: textInsetX,
+            textInsetY: textInsetY
+        )
+    }
+    #endif
+
+    private func endEditingIfNeeded() {
+        if window?.firstResponder === textView {
+            window?.makeFirstResponder(superview)
+        }
+
+        editingAnnotationID = nil
+        isHidden = true
+    }
+
+    private var displayScale: CGFloat {
+        let documentBounds = controller.capture.documentRect
+        let canvasRect = controller.viewport.imageRect
+
+        guard documentBounds.width > 0, documentBounds.height > 0 else {
+            return 1
+        }
+
+        return max(min(canvasRect.width / documentBounds.width, canvasRect.height / documentBounds.height), .leastNonzeroMagnitude)
+    }
+
+    private var textInsetX: CGFloat {
+        12 * displayScale
+    }
+
+    private var textInsetY: CGFloat {
+        10 * displayScale
+    }
+
+    private var liveTextVerticalSlack: CGFloat {
+        max(ceil(4 * displayScale), 1)
+    }
+
+    private var cornerRadius: CGFloat {
+        12 * displayScale
+    }
 }
 
 final class AnnotationCanvasView: NSView {
@@ -313,6 +711,7 @@ final class AnnotationCanvasView: NSView {
             cropMaskView.controller = controller
             stableContentView.controller = controller
             overlayView.controller = controller
+            textEditorOverlayView.controller = controller
             bindController()
         }
     }
@@ -321,6 +720,7 @@ final class AnnotationCanvasView: NSView {
     private lazy var cropMaskView = AnnotationCanvasCropMaskView(controller: controller)
     private lazy var stableContentView = AnnotationCanvasStableContentView(controller: controller)
     private lazy var overlayView = AnnotationCanvasOverlayView(controller: controller)
+    private lazy var textEditorOverlayView = AnnotationTextEditorOverlayView(controller: controller)
     private var controllerChangeObserver: AnyCancellable?
     private var displayedBaseImageCrop: CGRect?
 
@@ -334,6 +734,7 @@ final class AnnotationCanvasView: NSView {
         addSubview(cropMaskView)
         addSubview(stableContentView)
         addSubview(overlayView)
+        addSubview(textEditorOverlayView)
         bindController()
     }
 
@@ -355,6 +756,7 @@ final class AnnotationCanvasView: NSView {
         cropMaskView.frame = bounds
         stableContentView.frame = bounds
         overlayView.frame = bounds
+        textEditorOverlayView.synchronize()
         synchronizeBaseImagePresentation()
         cropMaskView.refreshAfterLayout()
         stableContentView.refreshAfterLayout()
@@ -366,6 +768,7 @@ final class AnnotationCanvasView: NSView {
         cropMaskView.controllerDidChange()
         stableContentView.controllerDidChange()
         overlayView.needsDisplay = true
+        textEditorOverlayView.synchronize()
     }
 
     var debugCommittedCropPresentation: CropFocusPresentationState? {
@@ -375,6 +778,16 @@ final class AnnotationCanvasView: NSView {
     var debugStableContentInvalidationCount: Int {
         stableContentView.debugInvalidationCount
     }
+
+    #if DEBUG
+    var debugTextEditorOverlayState: AnnotationTextEditorOverlayDebugState? {
+        textEditorOverlayView.debugState
+    }
+
+    func debugInsertTextIntoTextEditorOverlay(_ text: String) {
+        textEditorOverlayView.debugInsertText(text)
+    }
+    #endif
 
     private func bindController() {
         controllerChangeObserver = controller.$canvasRevision.sink { [weak self] _ in
@@ -389,12 +802,14 @@ final class AnnotationCanvasView: NSView {
                 self.stableContentView.controllerDidChange()
             }
             self.overlayView.controllerDidChange()
+            self.textEditorOverlayView.synchronize()
         }
 
         synchronizeBaseImagePresentation()
         cropMaskView.controllerDidChange()
         stableContentView.controllerDidChange()
         overlayView.controllerDidChange()
+        textEditorOverlayView.synchronize()
     }
 
     private func synchronizeViewportToBounds() {

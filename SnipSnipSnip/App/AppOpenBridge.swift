@@ -182,7 +182,9 @@ final class AppOpenBridge: NSObject, NSApplicationDelegate {
         }
 
         if shortcut == "q" {
-            AppTerminationController.shared.requestQuit()
+            Task { @MainActor in
+                AppTerminationController.shared.requestQuit()
+            }
         } else {
             Self.minimizeActiveWindow()
         }
