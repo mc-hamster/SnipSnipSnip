@@ -6,9 +6,9 @@ This document is the architecture and interface plan for external automation and
 the reference checklist for the v1 implementation.
 
 The goal is to create one stable automation service contract inside
-SnipSnipSnip, then expose that contract through command line, AppleScript, and
-URL scheme adapters. The adapters must not call `AppModel`, SwiftUI views, menu
-actions, or editor controllers directly.
+SnipSnipSnip, then expose that contract through command line, AppleScript, URL
+scheme, and App Intents adapters. The adapters must not call `AppModel`,
+SwiftUI views, menu actions, or editor controllers directly.
 
 Implemented v1 coverage:
 
@@ -22,6 +22,8 @@ Implemented v1 coverage:
 - AppleScript suite commands returning JSON text.
 - `snipsnipsnipctl` CLI helper source using AppleScript/Apple Events as the v1
   transport.
+- App Intents for macOS Shortcuts, Spotlight, and system automation surfaces,
+  backed by the same automation request/result contract.
 - GitHub-only sample scripts under `Docs/Automation/SampleScripts`.
 
 ## Goals
@@ -86,7 +88,7 @@ The `SnipSnipSnip/Automation` module folder has these roles:
 The dependency direction should be:
 
 ```text
-CLI / AppleScript / URL adapters
+CLI / AppleScript / URL / App Intents adapters
         |
         v
 AutomationRequestRouter
@@ -145,6 +147,7 @@ enum AutomationSourceKind: String, Codable, Sendable {
     case commandLine
     case appleScript
     case urlScheme
+    case appIntent
     case internalCommand
 }
 ```
@@ -464,13 +467,60 @@ URL best practices:
 - Include a version path (`/v1/...`) so future URL grammar can evolve.
 - Keep query values simple and percent-encoded.
 
+### App Intents / Shortcuts
+
+Register App Intents as a native macOS adapter over `AutomationService`, not as
+a separate command path. Intent types translate parameters into
+`AutomationRequest` and call a Sendable `AutomationIntentClient`. Passive
+intents summarize `AutomationResultEnvelope` responses as App Intent dialogs;
+capture and export actions complete without success dialogs unless Shortcuts is
+configured to show result UI or foreground interaction is required.
+
+macOS 26 implementation rules:
+
+- Use `supportedModes` for background/foreground behavior. Do not use the
+  deprecated `openAppWhenRun` property.
+- Passive intents such as status and preset listing support `.background`.
+- Action intents support `[.background, .foreground(.dynamic)]`.
+- Call `continueInForeground` before interactive region/window workflows,
+  repeat-last workflows, or outputs that present UI such as `openEditor` and
+  `floatReference`.
+- Register the live `AutomationIntentClient` with
+  `AppDependencyManager.shared` during app startup.
+
+Initial App Intents:
+
+- Get SnipSnipSnip Automation Status
+- List SnipSnipSnip Capture Presets
+- Run SnipSnipSnip Capture Preset
+- Capture SnipSnipSnip Fullscreen
+- Capture SnipSnipSnip Frontmost Window
+- Capture SnipSnipSnip Region
+- Capture SnipSnipSnip Window
+- Repeat Last SnipSnipSnip Capture
+- Open SnipSnipSnip Document
+- Export Current SnipSnipSnip Screenshot
+
+Supporting types:
+
+- `CapturePresetEntity` is backed by `AutomationService.listCapturePresets`.
+- App enums map Shortcuts choices to existing automation output, export format,
+  fullscreen display, delay, cursor, and UI Map values.
+- File output accepts an absolute POSIX path or `file://` URL string, then maps
+  to the existing `AutomationOutput` file validation.
+- `AppShortcutsProvider` advertises common capture phrases and uses
+  `AppIntents.AppShortcut` explicitly so it does not collide with the in-app
+  keyboard shortcut catalog.
+- Opening `.sss` documents uses `IntentFile` with the SnipSnipSnip document
+  package type.
+
 ## Permission And Privacy Rules
 
 - Never capture pixels without Screen Recording permission.
 - Never attempt scrolling capture or UI Map metadata capture without the
   Accessibility permission required by the existing feature.
-- Do not grant extra permission because a request came from CLI, AppleScript, or
-  URL.
+- Do not grant extra permission because a request came from CLI, AppleScript,
+  URL, or App Intents.
 - Do not persist screenshots, OCR text, clipboard content, annotation text, or
   UI Map content in automation logs.
 - Private Capture should be available as an automation option for screenshot
@@ -482,9 +532,15 @@ URL best practices:
 
 ## Testing Strategy
 
-- Unit-test request decoding for CLI JSON, AppleScript records, and URL paths.
+- Unit-test request decoding for CLI JSON, AppleScript records, URL paths, and
+  App Intent parameter mapping.
 - Unit-test permission preflight decisions for each capture target and output.
 - Unit-test result mapping so adapters preserve error codes.
+- Unit-test App Intent preset entity queries with a fake
+  `AutomationIntentClient`.
+- Add architecture tests that keep App Intent files behind
+  `AutomationService`/`AutomationIntentClient` and away from app/workflow
+  internals.
 - Add AppModel adapter tests for preset listing, missing preset handling,
   missing window target handling, and region fallback behavior.
 - Add no-UI tests for URL parsing that preserve the existing
@@ -496,9 +552,9 @@ URL best practices:
 
 ## Documentation And Sample Maintenance
 
-When any automation command, option, URL route, AppleScript term, result field,
-error code, or output behavior changes, update all affected contract surfaces in
-the same change:
+When any automation command, option, URL route, AppleScript term, App Intent
+action, App Entity, App Shortcut phrase, result field, error code, or output
+behavior changes, update all affected contract surfaces in the same change:
 
 - `Docs/AutomationServicePlan.md`
 - `Docs/Automation/README.md`
@@ -511,6 +567,10 @@ Sample basenames must stay procedure-stable across languages. Matching CLI,
 AppleScript, and URL sample filenames identify the same workflow. CLI and
 AppleScript samples must keep full procedure parity; URL samples must use the
 same basename for every workflow supported by the v1 URL route contract.
+
+App Intents are documented as native Shortcuts actions rather than GitHub sample
+scripts unless a new shared command, option, route, term, result field, or
+output behavior is added.
 
 ## Implementation Phases
 
@@ -569,9 +629,16 @@ same basename for every workflow supported by the v1 URL route contract.
 ### Phase 7: Documentation And Help
 
 - Complete: add user-facing automation documentation with examples.
-- Pending: add in-app Help coverage for what each interface is for when the
-  automation UI/help pass is scheduled.
+- Complete: add in-app Help coverage for Apple Shortcuts actions and how they
+  differ from keyboard shortcuts.
 - Complete: update feature planning documentation when automation ships.
+
+### Phase 8: App Intents
+
+- Complete: add App Intents as a fourth adapter over `AutomationService`.
+- Complete: register the intent client through `AppDependencyManager`.
+- Complete: add Shortcuts actions and preset entity support for existing v1
+  automation commands.
 
 ## Recommended MVP
 

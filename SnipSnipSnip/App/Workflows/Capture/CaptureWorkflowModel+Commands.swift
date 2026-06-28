@@ -115,7 +115,8 @@ extension CaptureWorkflowModel {
                 let session = RegionSelectionSession(
                     snapshot: snapshot,
                     windows: windowOptions,
-                    preferences: runOptions.regionPreferences
+                    preferences: runOptions.regionPreferences,
+                    livePreviewCapturePlatform: dependencies.systemServices.screenCapturePlatform
                 )
 
                 guard let selection = await session.begin() else {
@@ -390,7 +391,8 @@ extension CaptureWorkflowModel {
                 let session = RegionSelectionSession(
                     snapshot: snapshot,
                     preferences: fallbackPreferences,
-                    initialSelectionRect: initialRect
+                    initialSelectionRect: initialRect,
+                    livePreviewCapturePlatform: dependencies.systemServices.screenCapturePlatform
                 )
 
                 guard let selection = await session.begin() else {

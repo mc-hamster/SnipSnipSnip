@@ -3,15 +3,16 @@ import Foundation
 
 @MainActor
 extension CaptureWorkflowModel {
+    @discardableResult
     func performCapture(
         request: LastCaptureRequest,
         minimizeAppWindow: Bool = false,
         runOptions: CaptureRunOptions? = nil,
         _ action: () async throws -> CapturedScreenshot
-    ) async {
+    ) async -> Bool {
         let resolvedRunOptions = runOptions ?? currentCaptureRunOptions()
         guard ensureScreenshotCaptureAccess(for: request, runOptions: resolvedRunOptions) else {
-            return
+            return false
         }
 
         let isPrivateCapture = beginCapturePrivacyLock()
@@ -37,8 +38,10 @@ extension CaptureWorkflowModel {
             let capture = try await action()
             showCapturedFeedback()
             try completeCapture(capture, request: request, isPrivateCapture: isPrivateCapture, runOptions: resolvedRunOptions)
+            return true
         } catch {
             present(error)
+            return false
         }
     }
 

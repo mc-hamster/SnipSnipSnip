@@ -362,10 +362,6 @@ extension PermissionWorkflowModel {
             activePermissionRequest = nil
         }
 
-        if permissionSetupGuide?.requirement == .screenRecording {
-            permissionSetupGuide = nil
-        }
-
         PermissionWorkflowDiagnostics.state(
             "screenRecordingRestartRequired",
             rawStatus: dependencies.permissions.currentStatus(),

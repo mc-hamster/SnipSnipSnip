@@ -2221,6 +2221,11 @@ final class AppArchitecturePlatformTests: XCTestCase {
             contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/App/Workflows/AppWorkflowCoordinator.swift"),
             encoding: .utf8
         )
+        let appIntentSources = try productionSwiftFiles()
+            .filter { relativePath(for: $0).hasPrefix("SnipSnipSnip/Automation/AppIntents/") }
+            .sorted { relativePath(for: $0) < relativePath(for: $1) }
+            .map { try String(contentsOf: $0, encoding: .utf8) }
+            .joined(separator: "\n")
 
         XCTAssertFalse(
             FileManager.default.fileExists(atPath: appModelAutomationHostURL.path),
@@ -2274,6 +2279,28 @@ final class AppArchitecturePlatformTests: XCTestCase {
             appModel.contains("let workflowCoordinator: AppWorkflowCoordinator"),
             "AppModel should compose the explicit workflow coordinator."
         )
+        XCTAssertTrue(
+            appIntentSources.contains("AutomationRequest"),
+            "App Intents should translate into AutomationRequest instead of executing feature workflows directly."
+        )
+        XCTAssertTrue(
+            appIntentSources.contains("AutomationIntentClient"),
+            "App Intents should call automation through the intent client boundary."
+        )
+        for forbiddenFragment in [
+            "AppModel",
+            "CaptureWorkflowModel",
+            "DocumentWorkflowModel",
+            "AppWorkflowCoordinator",
+            "EditorController",
+            "ScreenCaptureService",
+            "NSApp"
+        ] {
+            XCTAssertFalse(
+                appIntentSources.contains(forbiddenFragment),
+                "App Intents should stay behind AutomationService and must not depend on \(forbiddenFragment)."
+            )
+        }
     }
 
     func testDocumentPackageUsesFileSystemPortForPackageIO() throws {

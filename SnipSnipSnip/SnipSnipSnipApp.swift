@@ -1,4 +1,5 @@
 import AppKit
+import AppIntents
 import SwiftUI
 
 private struct CaptureCommands: Commands {
@@ -545,6 +546,8 @@ struct SnipSnipSnipApp: App {
             automation: model.automation,
             automationService: model.automationService
         )
+        AutomationIntentDependencies.configure(automationService: model.automationService)
+        SnipSnipSnipAutomationShortcuts.updateAppShortcutParameters()
     }
 
     var body: some Scene {

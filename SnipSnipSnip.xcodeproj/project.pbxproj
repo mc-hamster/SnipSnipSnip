@@ -10,6 +10,7 @@
 		12F83C7C6ED5432F5C1E5562 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 01A66FD1E041A8D31B3563EB /* Cocoa.framework */; };
 		23BB43023AE9E021FF0056DD /* snipsnipsnipctl in Embed CLI Helper */ = {isa = PBXBuildFile; fileRef = F6FD52B2EF2C090434B16FBE /* snipsnipsnipctl */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		74EB5FBD5C7E7B3A3C8C980A /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F1398A41C2E4E8516FA5084 /* main.swift */; };
+		9B1A5B3C2F8A000000A95020 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9B1A5B3B2F8A000000A95020 /* AppIntents.framework */; };
 		A100000A2F84000000A95020 /* SnipSnipSnipShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A10000012F84000000A95020 /* SnipSnipSnipShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A10000102F84000000A95020 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000E2F84000000A95020 /* ShareViewController.swift */; };
 /* End PBXBuildFile section */
@@ -67,6 +68,7 @@
 		01A66FD1E041A8D31B3563EB /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		3EEB1E7A2F83676F00A95020 /* SnipSnipSnip.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnipSnipSnip.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4A0C01012F83700100A95020 /* SnipSnipSnipTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SnipSnipSnipTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9B1A5B3B2F8A000000A95020 /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
 		9F1398A41C2E4E8516FA5084 /* main.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		A10000012F84000000A95020 /* SnipSnipSnipShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SnipSnipSnipShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A100000E2F84000000A95020 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
@@ -115,6 +117,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9B1A5B3C2F8A000000A95020 /* AppIntents.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -156,6 +159,7 @@
 		85D92E70C37B68686F47FD08 /* OS X */ = {
 			isa = PBXGroup;
 			children = (
+				9B1A5B3B2F8A000000A95020 /* AppIntents.framework */,
 				01A66FD1E041A8D31B3563EB /* Cocoa.framework */,
 			);
 			name = "OS X";

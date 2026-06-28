@@ -76,6 +76,7 @@ final class AutomationWorkflowModel: AutomationHost, AutomationOutputPort {
             supportsURLScheme: true,
             supportsAppleScript: true,
             supportsCLI: true,
+            supportsAppIntents: true,
             supportsCapturePresets: false,
             supportsPrivateCapture: false,
             supportsUIMap: false,

@@ -825,9 +825,43 @@ struct HelpGuideView: View {
                     ],
                     important: [
                         "Global capture and Screen Inspector shortcuts can be customized in Settings > Shortcuts.",
-                        "Single-key editor tool shortcuts can be turned off in Settings > Shortcuts."
+                        "Single-key editor tool shortcuts can be turned off in Settings > Shortcuts.",
+                        "Apple Shortcuts actions are separate from these keyboard shortcuts and appear in the Shortcuts app."
                     ],
-                    relatedIDs: ["capture-screenshot", "edit-screenshot", "screen-inspector"]
+                    relatedIDs: ["capture-screenshot", "edit-screenshot", "screen-inspector", "automation-shortcuts"]
+                ),
+                HelpArticle(
+                    id: "automation-shortcuts",
+                    title: "Automate with Shortcuts",
+                    summary: "Run capture actions from Apple Shortcuts, Spotlight, and system automation.",
+                    sections: [
+                        HelpArticleSection(
+                            title: "Available actions",
+                            bullets: [
+                                "Get automation status and list capture presets.",
+                                "Run a capture preset by choosing a saved preset.",
+                                "Capture fullscreen, frontmost window, region, or interactive window.",
+                                "Repeat the last capture, open an editable .sss document, or export the current screenshot."
+                            ]
+                        ),
+                        HelpArticleSection(
+                            title: "Foreground actions",
+                            body: "Status and preset listing can run in the background and show Shortcuts result summaries. Capture and export actions finish without success dialogs unless Shortcuts is configured to show result UI. Interactive region and window captures, repeat-last captures, editor output, and floating references continue in SnipSnipSnip so you can choose a target or see the resulting UI."
+                        ),
+                        HelpArticleSection(
+                            title: "Output and privacy",
+                            body: "Shortcuts actions use the same automation validation as command-line, AppleScript, and URL automation. File output accepts an absolute path or file URL and still checks format and overwrite choices. Private Capture skips archive checkpoints, Recent Snips recovery, Recycle Bin retention, and background OCR indexing for that capture session."
+                        ),
+                        HelpArticleSection(
+                            title: "Script interfaces",
+                            body: "Use Apple Shortcuts actions for native macOS automation. Use the command-line helper, AppleScript suite, or URL routes from scripts and launchers when you need those interfaces directly."
+                        )
+                    ],
+                    important: [
+                        "Screen Recording permission is still required before capture actions can read pixels.",
+                        "Use rendered PNG, JPEG, PDF, or clipboard output when redactions must be flattened."
+                    ],
+                    relatedIDs: ["keyboard-shortcuts", "capture-screenshot", "privacy"]
                 ),
                 HelpArticle(
                     id: "troubleshoot-capture",
@@ -838,7 +872,7 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Blank captures or missing thumbnails",
-                            body: "Click Set Up for Screen Recording, use the macOS prompt or Open Settings to allow SnipSnipSnip, then return and click Check Again. If System Settings shows SnipSnipSnip enabled but the app still cannot capture, SnipSnipSnip shows Restart Required. During onboarding, finish any remaining permission first if you want it ready too, then use Restart SnipSnipSnip so macOS applies the new Screen Recording access."
+                            body: "Click Set Up for Screen Recording, use the macOS prompt or the Screen Recording settings pane that SnipSnipSnip opens, then return and click Check Again. If System Settings shows SnipSnipSnip enabled but the app still cannot capture, SnipSnipSnip shows Restart Required. During onboarding, finish any remaining permission first if you want it ready too, then use Restart SnipSnipSnip so macOS applies the new Screen Recording access."
                         ),
                         HelpArticleSection(
                             title: "A window is missing",

@@ -243,7 +243,8 @@ extension VideoWorkflowModel {
                     let session = RegionSelectionSession(
                         snapshot: selectionSnapshot.snapshot,
                         windows: selectionSnapshot.windows,
-                        preferences: dependencies.capture.regionCapturePreferences
+                        preferences: dependencies.capture.regionCapturePreferences,
+                        livePreviewCapturePlatform: dependencies.systemServices.screenCapturePlatform
                     )
 
                     guard let selection = await session.begin() else {

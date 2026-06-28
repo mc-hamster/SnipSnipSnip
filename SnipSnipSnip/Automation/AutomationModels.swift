@@ -5,6 +5,7 @@ nonisolated enum AutomationSourceKind: String, Codable, Equatable, Sendable {
     case commandLine
     case appleScript
     case urlScheme
+    case appIntent
     case internalCommand
 }
 
@@ -325,6 +326,7 @@ nonisolated struct AutomationCapabilities: Codable, Equatable, Sendable {
     var supportsURLScheme: Bool
     var supportsAppleScript: Bool
     var supportsCLI: Bool
+    var supportsAppIntents: Bool
     var supportsCapturePresets: Bool
     var supportsPrivateCapture: Bool
     var supportsUIMap: Bool

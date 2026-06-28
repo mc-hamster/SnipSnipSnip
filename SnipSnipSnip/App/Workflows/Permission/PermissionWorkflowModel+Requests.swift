@@ -164,8 +164,8 @@ extension PermissionWorkflowModel {
             openAccessibilitySettingsAfterPromptOpportunity()
             presentPermissionSetupGuide(for: .accessibility)
         case .screenRecording:
-            openScreenRecordingSettingsAfterPromptOpportunity()
             presentPermissionSetupGuide(for: .screenRecording)
+            openScreenRecordingSettingsAfterPromptOpportunity()
         }
     }
 
@@ -362,11 +362,16 @@ extension PermissionWorkflowModel {
 
             guard self.activePermissionRequest == .screenRecording,
                   !self.permissionStatus.hasScreenRecording else {
-                self.permissionSetupGuide = nil
+                if self.permissionStatus.hasScreenRecording {
+                    self.permissionSetupGuide = nil
+                    if self.activePermissionRequest == .screenRecording {
+                        self.activePermissionRequest = nil
+                    }
+                }
                 return
             }
 
-            self.presentPermissionSetupGuide(for: .screenRecording)
+            self.dependencies.permissions.openSystemSettings(for: .screenRecording)
         }
     }
 

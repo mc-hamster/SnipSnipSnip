@@ -1,10 +1,11 @@
 # SnipSnipSnip Automation
 
-SnipSnipSnip exposes one automation contract through three external interfaces:
-the `snipsnipsnipctl` command-line helper, AppleScript, and the
-`snipsnipsnip://` URL scheme. Use the CLI or AppleScript when callers need JSON
-results. Use URL routes for launchers, links, and other user-triggered actions
-that do not need a structured response.
+SnipSnipSnip exposes one automation contract through four external interfaces:
+the `snipsnipsnipctl` command-line helper, AppleScript, the
+`snipsnipsnip://` URL scheme, and App Intents for Apple Shortcuts and Spotlight.
+Use the CLI or AppleScript when callers need JSON results. Use URL routes for
+launchers, links, and other user-triggered actions that do not need a structured
+response. Use App Intents when users want native Shortcuts actions.
 
 ## Interface Choice
 
@@ -13,6 +14,8 @@ that do not need a structured response.
 - AppleScript: best for Shortcuts, Script Editor, Automator, and Mac apps that
   already use Apple Events.
 - URL scheme: best for links, launcher buttons, and fire-and-forget triggers.
+- App Intents: best for Apple Shortcuts, Spotlight, Siri-capable system
+  surfaces, and user-authored automations that should appear as native actions.
 
 The v1 CLI transport uses AppleScript and Apple Events. The app does not expose
 XPC or a local HTTP server in v1.
@@ -26,6 +29,8 @@ Screenshot automation follows the same macOS permissions as the app UI:
   window targeting.
 - Apple Events permission is required for `snipsnipsnipctl` because it talks to
   SnipSnipSnip through the AppleScript suite.
+- App Intents and Shortcuts use the same app permissions. Interactive actions
+  and outputs that present UI continue in SnipSnipSnip before running.
 
 Use `snipsnipsnipctl --json status` or `automation status` in AppleScript to
 preflight capabilities and permissions before running unattended scripts.
@@ -146,6 +151,44 @@ snipsnipsnip://v1/repeat-last?output=editor
 The existing `snipsnipsnip://import-pasteboard` route remains reserved for
 share-extension pasteboard imports.
 
+## App Intents / Shortcuts
+
+SnipSnipSnip registers App Intents as a native macOS automation adapter over the
+same `AutomationService` contract used by CLI, AppleScript, and URL routes.
+Status and preset-listing intents summarize results as Shortcuts dialogs instead
+of returning the full JSON envelope. Capture and export actions complete
+silently unless Shortcuts itself is configured to show result UI or the action
+needs foreground interaction.
+
+Available actions:
+
+- Get SnipSnipSnip Automation Status
+- List SnipSnipSnip Capture Presets
+- Run SnipSnipSnip Capture Preset
+- Capture SnipSnipSnip Fullscreen
+- Capture SnipSnipSnip Frontmost Window
+- Capture SnipSnipSnip Region
+- Capture SnipSnipSnip Window
+- Repeat Last SnipSnipSnip Capture
+- Open SnipSnipSnip Document
+- Export Current SnipSnipSnip Screenshot
+
+Shortcut suggestions include high-value capture actions for fullscreen, region,
+window, frontmost window, repeat last capture, and running a capture preset.
+
+Foreground/background behavior:
+
+- Passive actions such as status and preset listing run in the background.
+- Capture and export actions can run in the background when all required inputs
+  and permissions are already available.
+- Interactive region/window capture, repeat-last workflows, `openEditor`, and
+  `floatReference` outputs continue in SnipSnipSnip before completing.
+- File output accepts an absolute POSIX path such as
+  `/Users/me/Downloads/output.png` or a `file://` URL, then uses the same
+  overwrite and format validation as other automation interfaces.
+- Opening a `.sss` document uses an `IntentFile` constrained to the
+  SnipSnipSnip document package type.
+
 ## Result JSON
 
 The CLI and AppleScript interfaces return an `AutomationResultEnvelope`.
@@ -163,7 +206,14 @@ and permissions before starting a capture:
         "capabilities": {
           "supportsURLScheme": true,
           "supportsAppleScript": true,
-          "supportsCLI": true
+          "supportsCLI": true,
+          "supportsAppIntents": true,
+          "supportsCapturePresets": true,
+          "supportsPrivateCapture": true,
+          "supportsUIMap": true,
+          "supportsScrollingCapture": false,
+          "supportsConnectedDeviceCapture": false,
+          "supportsCurrentEditorExport": true
         },
         "permissions": {
           "hasScreenRecording": true,
@@ -214,8 +264,9 @@ instead of parsing human-readable messages.
 
 ## Maintenance Requirement
 
-When any automation command, option, URL route, AppleScript term, result field,
-error code, or output behavior changes, update these files in the same change:
+When any automation command, option, URL route, AppleScript term, App Intent
+action, App Entity, App Shortcut phrase, result field, error code, or output
+behavior changes, update these files in the same change:
 
 - `Docs/AutomationServicePlan.md`
 - `Docs/Automation/README.md`

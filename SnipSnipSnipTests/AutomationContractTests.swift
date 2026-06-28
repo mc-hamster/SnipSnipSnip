@@ -1,3 +1,4 @@
+import AppIntents
 import CoreGraphics
 import XCTest
 @testable import SnipSnipSnip
@@ -8,7 +9,7 @@ final class AutomationContractTests: XCTestCase {
         let outputURL = URL(fileURLWithPath: "/tmp/SnipSnipSnip-AutomationContractTests.png")
         let request = AutomationRequest(
             id: requestID,
-            source: AutomationSource(kind: .commandLine, caller: "unit-test"),
+            source: AutomationSource(kind: .appIntent, caller: "unit-test"),
             command: .capture(CaptureAutomationCommand(
                 target: .region(RegionCaptureSelector(rect: CGRect(x: 10, y: 20, width: 300, height: 200))),
                 options: CaptureAutomationOptions(delay: .seconds(3), includesCursor: true, windowUIMap: .disabled)
@@ -22,6 +23,7 @@ final class AutomationContractTests: XCTestCase {
         let decoded = try AutomationJSON.decoder.decode(AutomationRequest.self, from: data)
 
         XCTAssertEqual(decoded, request)
+        XCTAssertEqual(decoded.source.kind, .appIntent)
     }
 
     func testAutomationResultEnvelopeRoundTripsThroughCodable() throws {
@@ -30,6 +32,7 @@ final class AutomationContractTests: XCTestCase {
             supportsURLScheme: true,
             supportsAppleScript: true,
             supportsCLI: true,
+            supportsAppIntents: true,
             supportsCapturePresets: true,
             supportsPrivateCapture: true,
             supportsUIMap: false,
@@ -113,6 +116,239 @@ final class AutomationContractTests: XCTestCase {
             message: "Editable .sss output with redactions requires user confirmation."
         )
         XCTAssertEqual(error.code.rawValue, "confirmationRequired")
+    }
+
+    func testAppIntentRequestFactoryMapsExistingAutomationCommands() {
+        let presetID = UUID()
+        let outputURL = URL(fileURLWithPath: "/tmp/SnipSnipSnip-AppIntentTests.png")
+        let documentURL = URL(fileURLWithPath: "/tmp/SnipSnipSnip-AppIntentTests.sss")
+
+        let status = AutomationIntentRequestFactory.request(
+            caller: "StatusTest",
+            command: .status,
+            output: .none
+        )
+        XCTAssertEqual(status.source.kind, .appIntent)
+        XCTAssertEqual(status.command, .status)
+        XCTAssertEqual(status.output, .none)
+
+        let listPresets = AutomationIntentRequestFactory.request(
+            caller: "ListTest",
+            command: .listPresets,
+            output: .none
+        )
+        XCTAssertEqual(listPresets.command, .listPresets)
+
+        let presetOutput = AutomationIntentRequestFactory.output(
+            destination: .file,
+            filePath: documentURL.path,
+            format: .sss,
+            overwrite: true
+        )
+        let runPreset = AutomationIntentRequestFactory.request(
+            caller: "PresetTest",
+            command: .runPreset(RunPresetAutomationCommand(id: presetID)),
+            interactionPolicy: .promptIfNeeded,
+            privacy: AutomationIntentRequestFactory.privacy(privateCapture: true),
+            output: presetOutput
+        )
+        XCTAssertEqual(runPreset.source.kind, .appIntent)
+        XCTAssertEqual(runPreset.privacy.privateCapture, true)
+        XCTAssertEqual(runPreset.interactionPolicy, .promptIfNeeded)
+        XCTAssertEqual(runPreset.output, .saveEditableDocument(AutomationFileOutput(url: documentURL, format: .sss, overwrite: true)))
+
+        let captureOptions = AutomationIntentRequestFactory.captureOptions(
+            delay: .threeSeconds,
+            cursor: .include,
+            windowUIMap: .enabled
+        )
+        XCTAssertEqual(captureOptions.delay, .seconds(3))
+        XCTAssertEqual(captureOptions.includesCursor, true)
+        XCTAssertEqual(captureOptions.windowUIMap, .enabled)
+
+        let fullscreen = AutomationIntentRequestFactory.request(
+            caller: "FullscreenTest",
+            command: .capture(CaptureAutomationCommand(
+                target: .fullscreen(FullscreenCaptureTarget(displayMode: .current)),
+                options: captureOptions
+            )),
+            interactionPolicy: .promptIfNeeded,
+            output: .copyRenderedImage
+        )
+        guard case .capture(let fullscreenCommand) = fullscreen.command,
+              case .fullscreen(let fullscreenTarget) = fullscreenCommand.target else {
+            return XCTFail("Expected fullscreen capture command.")
+        }
+        XCTAssertEqual(fullscreenTarget.displayMode, .current)
+        XCTAssertEqual(fullscreen.output, .copyRenderedImage)
+
+        let frontmostWindow = AutomationIntentRequestFactory.request(
+            caller: "FrontmostTest",
+            command: .capture(CaptureAutomationCommand(target: .frontmostWindow, options: captureOptions)),
+            interactionPolicy: .promptIfNeeded,
+            output: .openEditor
+        )
+        XCTAssertEqual(frontmostWindow.command, .capture(CaptureAutomationCommand(target: .frontmostWindow, options: captureOptions)))
+
+        let fixedRegion = AutomationIntentRequestFactory.regionTarget(
+            interactive: false,
+            x: 10,
+            y: 20,
+            width: 300,
+            height: 200
+        )
+        XCTAssertEqual(fixedRegion.policy, .promptIfNeeded)
+        XCTAssertEqual(fixedRegion.target, .region(RegionCaptureSelector(rect: CGRect(x: 10, y: 20, width: 300, height: 200))))
+
+        let interactiveRegion = AutomationIntentRequestFactory.regionTarget(
+            interactive: true,
+            x: nil,
+            y: nil,
+            width: nil,
+            height: nil
+        )
+        XCTAssertEqual(interactiveRegion.policy, .requireUserSelection)
+        XCTAssertEqual(interactiveRegion.target, .interactiveRegion)
+
+        let window = AutomationIntentRequestFactory.request(
+            caller: "WindowTest",
+            command: .capture(CaptureAutomationCommand(target: .interactiveWindow, options: captureOptions)),
+            interactionPolicy: .requireUserSelection,
+            output: .floatReference
+        )
+        XCTAssertEqual(window.interactionPolicy, .requireUserSelection)
+        XCTAssertTrue(window.requiresAppIntentForeground)
+
+        let repeatLast = AutomationIntentRequestFactory.request(
+            caller: "RepeatTest",
+            command: .repeatLastCapture,
+            interactionPolicy: .promptIfNeeded,
+            output: .openEditor
+        )
+        XCTAssertEqual(repeatLast.command, .repeatLastCapture)
+        XCTAssertTrue(repeatLast.requiresAppIntentForeground)
+
+        let openDocument = AutomationIntentRequestFactory.request(
+            caller: "OpenTest",
+            command: .openDocument(OpenDocumentAutomationCommand(url: documentURL)),
+            interactionPolicy: .promptIfNeeded,
+            output: .openEditor
+        )
+        XCTAssertEqual(openDocument.command, .openDocument(OpenDocumentAutomationCommand(url: documentURL)))
+
+        let exportCurrent = AutomationIntentRequestFactory.request(
+            caller: "ExportTest",
+            command: .exportCurrent(ExportCurrentAutomationCommand(format: .png)),
+            interactionPolicy: .promptIfNeeded,
+            output: AutomationIntentRequestFactory.output(
+                destination: .file,
+                filePath: outputURL.path,
+                format: .png,
+                overwrite: true
+            )
+        )
+        XCTAssertEqual(exportCurrent.output, .saveFile(AutomationFileOutput(url: outputURL, format: .png, overwrite: true)))
+
+        XCTAssertEqual(AutomationIntentRequestFactory.fileURL(from: outputURL.path), outputURL)
+        XCTAssertEqual(AutomationIntentRequestFactory.fileURL(from: outputURL.absoluteString), outputURL)
+    }
+
+    @MainActor
+    func testCaptureFullscreenAppIntentMapsFileOutputToAutomationSaveFile() {
+        let intent = CaptureFullscreenIntent()
+        let outputURL = URL(fileURLWithPath: "/Users/jmcasler/Downloads/snip.png")
+        intent.display = .all
+        intent.output = .file
+        intent.outputFile = outputURL.path
+        intent.format = .png
+        intent.overwrite = true
+        intent.privateCapture = true
+        intent.delay = .immediate
+        intent.cursor = .exclude
+
+        let request = intent.automationRequest()
+
+        XCTAssertEqual(request.source.kind, .appIntent)
+        XCTAssertEqual(request.output, .saveFile(AutomationFileOutput(url: outputURL, format: .png, overwrite: true)))
+        XCTAssertEqual(request.privacy.privateCapture, true)
+        XCTAssertFalse(request.requiresAppIntentForeground)
+        guard case .capture(let command) = request.command,
+              case .fullscreen(let target) = command.target else {
+            return XCTFail("Expected fullscreen capture command.")
+        }
+        XCTAssertEqual(target.displayMode, .all)
+        XCTAssertEqual(command.options.delay, .immediate)
+        XCTAssertEqual(command.options.includesCursor, false)
+    }
+
+    func testAppIntentRequestFactoryKeepsValidationFailuresRepresentable() {
+        let missingFileOutput = AutomationIntentRequestFactory.output(
+            destination: .file,
+            filePath: nil,
+            format: .png,
+            overwrite: false
+        )
+        let missingFileRequest = AutomationIntentRequestFactory.request(
+            caller: "MissingFileTest",
+            command: .capture(CaptureAutomationCommand(target: .fullscreen(FullscreenCaptureTarget()))),
+            interactionPolicy: .promptIfNeeded,
+            output: missingFileOutput
+        )
+        XCTAssertEqual(missingFileRequest.validationError?.code, .invalidRequest)
+
+        let partialRegion = AutomationIntentRequestFactory.regionTarget(
+            interactive: false,
+            x: 10,
+            y: 20,
+            width: nil,
+            height: 200
+        )
+        let partialRegionRequest = AutomationIntentRequestFactory.request(
+            caller: "PartialRegionTest",
+            command: .capture(CaptureAutomationCommand(target: partialRegion.target)),
+            interactionPolicy: partialRegion.policy
+        )
+        XCTAssertEqual(partialRegionRequest.validationError?.code, .invalidRequest)
+
+        let unsupportedExport = AutomationIntentRequestFactory.request(
+            caller: "UnsupportedExportTest",
+            command: .exportCurrent(ExportCurrentAutomationCommand(format: .sss)),
+            interactionPolicy: .promptIfNeeded,
+            output: .saveEditableDocument(AutomationFileOutput(url: URL(fileURLWithPath: "/tmp/current.sss"), format: .sss))
+        )
+        XCTAssertEqual(unsupportedExport.validationError?.code, .invalidRequest)
+    }
+
+    func testCapturePresetEntityQueryUsesAutomationIntentClient() async throws {
+        let presetID = UUID()
+        let preset = AutomationPresetSummary(
+            id: presetID,
+            name: "Daily Clip",
+            target: "fullscreen",
+            targetLabel: "Fullscreen",
+            createdAt: Date(timeIntervalSince1970: 1),
+            updatedAt: Date(timeIntervalSince1970: 2)
+        )
+        let client = AutomationIntentClient(
+            performRequest: { request in
+                .success(requestID: request.id, payload: AutomationPayload.none, outputs: [.init(kind: .none)])
+            },
+            capabilitiesRequest: { requestID in
+                .success(requestID: requestID, payload: AutomationPayload.none, outputs: [.init(kind: .none)])
+            },
+            listCapturePresetsRequest: { requestID in
+                .success(requestID: requestID, payload: .presets([preset]), outputs: [.init(kind: .none)])
+            }
+        )
+        let query = CapturePresetQuery(client: client)
+
+        let suggested = try await query.suggestedEntities()
+        XCTAssertEqual(suggested, [
+            CapturePresetEntity(id: presetID, name: "Daily Clip", target: "fullscreen", targetLabel: "Fullscreen")
+        ])
+
+        let resolved = try await query.entities(for: [presetID])
+        XCTAssertEqual(resolved.map(\.id), [presetID])
     }
 
     func testURLRouterParsesEveryV1RouteAndPreservesPasteboardImportRoute() async throws {
@@ -231,6 +467,9 @@ final class AutomationContractTests: XCTestCase {
             XCTAssertTrue(text.localizedCaseInsensitiveContains("sample"))
             XCTAssertTrue(text.localizedCaseInsensitiveContains("maintain"))
         }
+        XCTAssertTrue(plan.localizedCaseInsensitiveContains("App Intents"))
+        XCTAssertTrue(readme.localizedCaseInsensitiveContains("App Intents"))
+        XCTAssertTrue(readme.contains("\"supportsAppIntents\": true"))
     }
 
     func testAutomationSampleFilenamesKeepProcedureParity() throws {

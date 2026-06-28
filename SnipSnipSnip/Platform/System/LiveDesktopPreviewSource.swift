@@ -1,5 +1,4 @@
 import AppKit
-@preconcurrency import ScreenCaptureKit
 
 @MainActor
 final class LiveDesktopPreviewSource {
@@ -14,9 +13,15 @@ final class LiveDesktopPreviewSource {
     private var refreshTask: Task<Void, Never>?
     private var isCaptureInFlight = false
     private let displaysByID: [CGDirectDisplayID: DisplaySnapshot]
+    private let capturePlatform: any ScreenCapturePlatform
 
-    init(displays: [DisplaySnapshot], initialFocusPoint: CGPoint? = nil) {
+    init(
+        displays: [DisplaySnapshot],
+        initialFocusPoint: CGPoint? = nil,
+        capturePlatform: any ScreenCapturePlatform = LiveScreenCapturePlatform()
+    ) {
         self.displaysByID = Dictionary(uniqueKeysWithValues: displays.map { ($0.displayID, $0) })
+        self.capturePlatform = capturePlatform
         if let initialFocusPoint,
            let display = displays.first(where: { $0.frame.contains(initialFocusPoint) }) {
             self.activeDisplayID = display.displayID
@@ -110,7 +115,7 @@ final class LiveDesktopPreviewSource {
         }
 
         do {
-            let image = try await Self.captureImage(for: request)
+            let image = try await captureImage(for: request)
             guard refreshTask != nil else {
                 return
             }
@@ -128,28 +133,17 @@ final class LiveDesktopPreviewSource {
         }
     }
 
-    nonisolated private static func captureImage(for request: LiveDesktopPreviewCaptureRequest) async throws -> CGImage {
-        let configuration = SCScreenshotConfiguration()
-        configuration.width = max(Int(request.outputPixelSize.width.rounded(.up)), 1)
-        configuration.height = max(Int(request.outputPixelSize.height.rounded(.up)), 1)
-        configuration.showsCursor = false
-        configuration.dynamicRange = .sdr
-
-        return try await withCheckedThrowingContinuation { continuation in
-            SCScreenshotManager.captureScreenshot(rect: request.sourceGlobalRect, configuration: configuration) { output, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-
-                guard let image = output?.sdrImage else {
-                    continuation.resume(throwing: ScreenCapturePlatformError.imageUnavailable)
-                    return
-                }
-
-                continuation.resume(returning: image)
-            }
-        }
+    private func captureImage(for request: LiveDesktopPreviewCaptureRequest) async throws -> CGImage {
+        try await capturePlatform.captureScreenshot(
+            ScreenCaptureRequest(
+                target: .screenRect(request.sourceGlobalRect),
+                configuration: ScreenCaptureConfiguration(
+                    width: Int(request.outputPixelSize.width.rounded(.up)),
+                    height: Int(request.outputPixelSize.height.rounded(.up)),
+                    showsCursor: false
+                )
+            )
+        )
     }
 }
 

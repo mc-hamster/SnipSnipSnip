@@ -7,6 +7,7 @@ final class RegionSelectionSession: NSObject {
     private let windows: [CaptureWindowSummary]
     private let preferences: RegionCapturePreferences
     private let initialSelectionRect: CGRect?
+    private let livePreviewCapturePlatform: any ScreenCapturePlatform
     private var continuation: CheckedContinuation<RegionCaptureSelection?, Never>?
     private var coordinator: RegionSelectionCoordinator?
     private var livePreviewSource: LiveDesktopPreviewSource?
@@ -18,19 +19,22 @@ final class RegionSelectionSession: NSObject {
         snapshot: DesktopCompositeSnapshot,
         windows: [CaptureWindowSummary] = [],
         preferences: RegionCapturePreferences,
-        initialSelectionRect: CGRect? = nil
+        initialSelectionRect: CGRect? = nil,
+        livePreviewCapturePlatform: any ScreenCapturePlatform = LiveScreenCapturePlatform()
     ) {
         self.snapshot = snapshot
         self.windows = windows
         self.preferences = preferences
         self.initialSelectionRect = initialSelectionRect?.gscIntegralStandardized
+        self.livePreviewCapturePlatform = livePreviewCapturePlatform
     }
 
     func begin() async -> RegionCaptureSelection? {
         if preferences.overlayMode.showsMagnifyingGlass {
             self.livePreviewSource = LiveDesktopPreviewSource(
                 displays: snapshot.displays,
-                initialFocusPoint: captureGlobalPointFromAppKitScreenPoint(NSEvent.mouseLocation)
+                initialFocusPoint: captureGlobalPointFromAppKitScreenPoint(NSEvent.mouseLocation),
+                capturePlatform: livePreviewCapturePlatform
             )
         }
 

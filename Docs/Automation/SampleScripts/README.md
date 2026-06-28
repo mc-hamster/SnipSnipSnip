@@ -1,15 +1,20 @@
 # Automation Sample Scripts
 
-These samples demonstrate every v1 automation surface exposed by SnipSnipSnip:
-CLI, AppleScript, and URL scheme.
+These samples demonstrate the script-file v1 automation surfaces exposed by
+SnipSnipSnip: CLI, AppleScript, and URL scheme. App Intents are documented as
+native Shortcuts actions in `Docs/Automation/README.md` rather than as GitHub
+sample scripts.
 
 The scripts are GitHub-only examples. They are not copied into the app bundle
 and are not part of shipped build products.
 
-Maintenance rule: maintain these samples whenever any automation command, option, URL route,
-AppleScript term, result field, error code, or output behavior changes, update
-the affected sample scripts and `Docs/Automation/README.md` in the same change.
-Keep shell samples valid with `bash -n`.
+Maintenance rule: maintain these samples whenever any shared automation command,
+option, URL route, AppleScript term, App Intent action, App Entity, App Shortcut
+phrase, result field, error code, or output behavior changes. Update the
+affected sample scripts and `Docs/Automation/README.md` in the same change.
+Do not add App Intent sample scripts unless a new shared command, option, route,
+term, result field, or output behavior requires script parity. Keep shell
+samples valid with `bash -n`.
 
 Script parity rule: the same basename identifies the same procedure across
 languages. For example, `06-capture-fullscreen-to-clipboard.sh` and
@@ -18,7 +23,8 @@ automation workflow through different interfaces. CLI and AppleScript samples
 must keep full procedure parity. URL samples must use the same basename for each
 procedure supported by v1 URL routes; URL intentionally omits file-output,
 list, open-document, export-current, and private-capture procedures because
-those are not exposed by the v1 URL contract.
+those are not exposed by the v1 URL contract. App Intents expose native
+Shortcuts actions and are not part of this filename parity matrix.
 
 Current procedure matrix:
 

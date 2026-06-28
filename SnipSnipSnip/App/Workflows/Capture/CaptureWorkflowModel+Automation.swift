@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import OSLog
 
 @MainActor
 extension CaptureWorkflowModel {
@@ -8,6 +9,7 @@ extension CaptureWorkflowModel {
             supportsURLScheme: true,
             supportsAppleScript: true,
             supportsCLI: true,
+            supportsAppIntents: true,
             supportsCapturePresets: true,
             supportsPrivateCapture: true,
             supportsUIMap: dependencies.capabilities.isEnabled(.uiMap),
@@ -88,36 +90,72 @@ extension CaptureWorkflowModel {
         _ command: CaptureAutomationCommand,
         request: AutomationRequest
     ) async -> AutomationResultEnvelope {
+        ShortcutsAutomationLog.logger.info(
+            "capture.automation start requestID=\(request.id.uuidString, privacy: .public) \(request.debugSummary, privacy: .public)"
+        )
         guard let automationCoordinator else {
+            ShortcutsAutomationLog.logger.error(
+                "capture.automation failed coordinator unavailable requestID=\(request.id.uuidString, privacy: .public)"
+            )
             return .failure(requestID: request.id, code: .internalError, message: "Automation workflow is not available.")
         }
         guard !isWorking, video?.isRecording != true, !isConnectedDeviceSessionActive else {
+            ShortcutsAutomationLog.logger.error(
+                "capture.automation busy requestID=\(request.id.uuidString, privacy: .public) isWorking=\(self.isWorking, privacy: .public) videoRecording=\(self.video?.isRecording == true, privacy: .public) connectedDevice=\(self.isConnectedDeviceSessionActive, privacy: .public)"
+            )
             return .failure(requestID: request.id, code: .busy, message: "SnipSnipSnip is already working.")
         }
 
         do {
             let runOptions = automationRunOptions(from: command.options, target: command.target)
+            ShortcutsAutomationLog.logger.info(
+                "capture.automation runOptions requestID=\(request.id.uuidString, privacy: .public) delay=\(runOptions.captureDelay.rawValue, privacy: .public) fullscreenMode=\(String(describing: runOptions.fullscreenDisplayMode), privacy: .public) cursor=\(runOptions.includesCursor, privacy: .public) uiMap=\(runOptions.windowUIMapEnabled, privacy: .public)"
+            )
 
             switch command.target {
             case .fullscreen:
                 try await automationCaptureFullscreen(runOptions: runOptions, request: request)
-                return await automationCoordinator.automationResultAfterCurrentEditorOutput(request, "fullscreen", documents?.activeCaptureEditorController?.capture.sourceName)
+                let result = await automationCoordinator.automationResultAfterCurrentEditorOutput(request, "fullscreen", documents?.activeCaptureEditorController?.capture.sourceName)
+                ShortcutsAutomationLog.logger.info(
+                    "capture.automation fullscreen result requestID=\(request.id.uuidString, privacy: .public) \(result.debugSummary, privacy: .public)"
+                )
+                return result
             case .frontmostWindow:
                 try await automationCaptureFrontmostWindow(runOptions: runOptions, request: request)
-                return await automationCoordinator.automationResultAfterCurrentEditorOutput(request, "frontmostWindow", documents?.activeCaptureEditorController?.capture.sourceName)
+                let result = await automationCoordinator.automationResultAfterCurrentEditorOutput(request, "frontmostWindow", documents?.activeCaptureEditorController?.capture.sourceName)
+                ShortcutsAutomationLog.logger.info(
+                    "capture.automation frontmostWindow result requestID=\(request.id.uuidString, privacy: .public) \(result.debugSummary, privacy: .public)"
+                )
+                return result
             case .region(let selector):
                 try await automationCaptureRegion(selector.rect, runOptions: runOptions, request: request)
-                return await automationCoordinator.automationResultAfterCurrentEditorOutput(request, "region", documents?.activeCaptureEditorController?.capture.sourceName)
+                let result = await automationCoordinator.automationResultAfterCurrentEditorOutput(request, "region", documents?.activeCaptureEditorController?.capture.sourceName)
+                ShortcutsAutomationLog.logger.info(
+                    "capture.automation region result requestID=\(request.id.uuidString, privacy: .public) \(result.debugSummary, privacy: .public)"
+                )
+                return result
             case .interactiveRegion:
+                ShortcutsAutomationLog.logger.info(
+                    "capture.automation accepted interactiveRegion requestID=\(request.id.uuidString, privacy: .public)"
+                )
                 automationCoordinator.beginRegionCapture()
                 return acceptedInteractiveResult(requestID: request.id, kind: "interactiveRegion", warning: nil)
             case .interactiveWindow:
+                ShortcutsAutomationLog.logger.info(
+                    "capture.automation accepted interactiveWindow requestID=\(request.id.uuidString, privacy: .public)"
+                )
                 automationCoordinator.presentWindowPicker()
                 return acceptedInteractiveResult(requestID: request.id, kind: "interactiveWindow", warning: nil)
             }
         } catch let error as AutomationExecutionError {
+            ShortcutsAutomationLog.logger.error(
+                "capture.automation executionError requestID=\(request.id.uuidString, privacy: .public) code=\(error.code.rawValue, privacy: .public) message=\(error.message, privacy: .public)"
+            )
             return .failure(requestID: request.id, code: error.code, message: error.message)
         } catch {
+            ShortcutsAutomationLog.logger.error(
+                "capture.automation unexpectedError requestID=\(request.id.uuidString, privacy: .public) message=\(error.localizedDescription, privacy: .public)"
+            )
             present(error)
             return .failure(requestID: request.id, code: .internalError, message: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
         }
@@ -140,12 +178,19 @@ extension CaptureWorkflowModel {
         request: AutomationRequest
     ) async throws {
         try await automationWithPrivateCapture(request.privacy.privateCapture) {
-            await performCapture(request: .fullscreen, minimizeAppWindow: true, runOptions: runOptions) { [captureService] in
+            ShortcutsAutomationLog.logger.info(
+                "capture.fullscreen start requestID=\(request.id.uuidString, privacy: .public)"
+            )
+            let didComplete = await performCapture(request: .fullscreen, minimizeAppWindow: true, runOptions: runOptions) { [captureService] in
                 try await captureService.captureFullscreen(
                     mode: runOptions.fullscreenDisplayMode,
                     selectedDisplayID: runOptions.selectedFullscreenDisplayID
                 )
             }
+            ShortcutsAutomationLog.logger.info(
+                "capture.fullscreen completed requestID=\(request.id.uuidString, privacy: .public) didComplete=\(didComplete, privacy: .public) hasEditor=\(self.documents?.activeCaptureEditorController != nil, privacy: .public)"
+            )
+            try ensureAutomationCaptureCompleted(didComplete)
         }
     }
 
@@ -154,10 +199,17 @@ extension CaptureWorkflowModel {
         request: AutomationRequest
     ) async throws {
         try await automationWithPrivateCapture(request.privacy.privateCapture) {
-            await performCapture(request: .frontmostWindow, minimizeAppWindow: true, runOptions: runOptions) { [captureService] in
+            ShortcutsAutomationLog.logger.info(
+                "capture.frontmostWindow start requestID=\(request.id.uuidString, privacy: .public)"
+            )
+            let didComplete = await performCapture(request: .frontmostWindow, minimizeAppWindow: true, runOptions: runOptions) { [captureService] in
                 let window = try await captureService.frontmostWindow()
                 return try await captureService.captureWindow(window)
             }
+            ShortcutsAutomationLog.logger.info(
+                "capture.frontmostWindow completed requestID=\(request.id.uuidString, privacy: .public) didComplete=\(didComplete, privacy: .public) hasEditor=\(self.documents?.activeCaptureEditorController != nil, privacy: .public)"
+            )
+            try ensureAutomationCaptureCompleted(didComplete)
         }
     }
 
@@ -167,9 +219,16 @@ extension CaptureWorkflowModel {
         request: AutomationRequest
     ) async throws {
         try await automationWithPrivateCapture(request.privacy.privateCapture) {
-            await performCapture(request: .window(window), minimizeAppWindow: true, runOptions: runOptions) { [captureService] in
+            ShortcutsAutomationLog.logger.info(
+                "capture.window start requestID=\(request.id.uuidString, privacy: .public)"
+            )
+            let didComplete = await performCapture(request: .window(window), minimizeAppWindow: true, runOptions: runOptions) { [captureService] in
                 try await captureService.captureWindow(window)
             }
+            ShortcutsAutomationLog.logger.info(
+                "capture.window completed requestID=\(request.id.uuidString, privacy: .public) didComplete=\(didComplete, privacy: .public) hasEditor=\(self.documents?.activeCaptureEditorController != nil, privacy: .public)"
+            )
+            try ensureAutomationCaptureCompleted(didComplete)
         }
     }
 
@@ -179,9 +238,23 @@ extension CaptureWorkflowModel {
         request: AutomationRequest
     ) async throws {
         try await automationWithPrivateCapture(request.privacy.privateCapture) {
-            await performCapture(request: .region(rect), minimizeAppWindow: true, runOptions: runOptions) { [captureService] in
+            ShortcutsAutomationLog.logger.info(
+                "capture.region start requestID=\(request.id.uuidString, privacy: .public) rect=\(rect.debugDescription, privacy: .public)"
+            )
+            let didComplete = await performCapture(request: .region(rect), minimizeAppWindow: true, runOptions: runOptions) { [captureService] in
                 try await captureService.captureRegion(in: rect)
             }
+            ShortcutsAutomationLog.logger.info(
+                "capture.region completed requestID=\(request.id.uuidString, privacy: .public) didComplete=\(didComplete, privacy: .public) hasEditor=\(self.documents?.activeCaptureEditorController != nil, privacy: .public)"
+            )
+            try ensureAutomationCaptureCompleted(didComplete)
+        }
+    }
+
+    private func ensureAutomationCaptureCompleted(_ didComplete: Bool) throws {
+        guard didComplete else {
+            ShortcutsAutomationLog.logger.error("capture.ensureCompleted failed didComplete=false")
+            throw AutomationExecutionError(code: .outputFailed, message: "Capture did not complete.")
         }
     }
 
