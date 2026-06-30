@@ -1,10 +1,10 @@
 # SnipSnipSnip Feature List
 
-Last reviewed: 2026-06-15
+Last reviewed: 2026-06-30
 
 This document is the source of truth for what SnipSnipSnip and SnipSnipSnip Pro currently ship, what is only partially complete, and what is still missing. It is based on the current app source, shipped Help content, public docs, and test suite, not on older roadmap text.
 
-SnipSnipSnip is already much larger than a screenshot MVP. It is a real screenshot app with a strong non-destructive editor and archive system, plus a usable first-generation screen recording and trim workflow. SnipSnipSnip Pro is the expanded product tier for advanced capture workflows: scrolling capture, connected iPhone/iPad screenshot capture, and UI Map capture. The strongest completed areas are screenshot capture, screenshot editing, editable document persistence, archive/history/recovery, privacy defaults, screenshot presentation styling, drag-out sharing, practical MP4/GIF/APNG recording export, and user-triggered support diagnostics export. The largest unfinished areas are Pro capture hardening, advanced video polish, automation/integrations, accessibility depth, localization, and multi-capture composition.
+SnipSnipSnip is already much larger than a screenshot MVP. It is a real screenshot app with a strong non-destructive editor and archive system, plus a usable first-generation screen recording and trim workflow. SnipSnipSnip Pro is the expanded product tier for advanced capture workflows: scrolling capture, connected iPhone/iPad screenshot capture, and UI Map capture. The strongest completed areas are screenshot capture, screenshot editing, editable document persistence, archive/history/recovery, privacy defaults, screenshot presentation styling, drag-out sharing, practical MP4/GIF/APNG recording export, first-generation automation, and user-triggered support diagnostics export. The largest unfinished areas are Pro capture hardening, advanced video polish, richer integrations and automation destinations, accessibility depth, localization, and multi-capture composition.
 
 ## Status Legend
 
@@ -17,10 +17,10 @@ SnipSnipSnip is already much larger than a screenshot MVP. It is a real screensh
 
 This revision was checked against:
 
-- App source in `SnipSnipSnip/App`, `Capture`, `Document`, `Editor`, `Export`, `Preview`, `Support`, and `Video`.
+- App source in `SnipSnipSnip/App`, `Automation`, `Capture`, `Document`, `Editor`, `Export`, `Preview`, `Support`, and `Video`.
 - Tests in `SnipSnipSnipTests`.
 - User-facing Help in `SnipSnipSnip/App/HelpGuideView.swift`.
-- Public docs in `README.md`, `sss-format.md`, `PERFORMANCE_PROFILING.md`, and `FASTLANE.md`.
+- Public docs in `README.md`, `Docs/Automation/README.md`, `Docs/AutomationServicePlan.md`, `sss-format.md`, `PERFORMANCE_PROFILING.md`, and `FASTLANE.md`.
 
 The comparison lens for the "remaining gap" column is still the premium macOS capture market: CleanShot X, Shottr, Snagit, Loom, Kap, and Screen Studio. The status markers themselves are about the SnipSnipSnip product family only.
 
@@ -61,7 +61,7 @@ The biggest unfinished areas are now clear:
 - Pro UI Map capture is implemented and intentionally Pro-only. It is still dependent on Accessibility availability and target-app AX quality, but the workflow is already user-reachable and materially different from pixel-only capture tools.
 - Screenshot presentation styling is now first-class and shipped: native Presentation Styles, SVG Presentation Scenes from a configurable scenes folder, reusable built-in and user templates, transparent/solid/gradient/spotlight/blurred backgrounds, scene-based browser/macOS/phone/tablet layouts, live preview, styled/plain copy, and rendered drag-out sharing are present. Multi-capture composition remains open.
 - Video recording is useful, but advanced post-production is still mostly `x Not done`: webcam, keystrokes, zooms, captions, aspect-ratio layouts, video overlays, speed controls, volume editing, and multi-clip editing.
-- Workflow automation now has a first-generation external contract: customizable global hotkeys, a centralized shortcuts settings tab, editor tool shortcuts, Clipboard History, a shared automation service layer, URL scheme routes, AppleScript commands, and a bundled `snipsnipsnipctl` helper exist. App Intents, cloud/upload workflows, and richer automation destinations remain absent.
+- Workflow automation now has a first-generation external contract: customizable global hotkeys, a centralized shortcuts settings tab, editor tool shortcuts, Clipboard History, a shared automation service layer, URL scheme routes, AppleScript commands, App Intents for Apple Shortcuts and Spotlight, and a bundled `snipsnipsnipctl` helper exist. Cloud/upload workflows, annotation mutation automation, video automation, and richer automation destinations remain absent.
 - Non-functional readiness is mixed: privacy is strong, docs are solid for screenshots, performance profiling and local diagnostics export exist, but accessibility depth, localization, and crash reporting are still not done.
 
 ## Functional Feature Matrix
@@ -192,7 +192,7 @@ The biggest unfinished areas are now clear:
 | Microphone narration | ✓ Done | Optional microphone recording is supported, with permission flow. | No input-device selection, levels, or cleanup tools. |
 | Floating stop overlay | ✓ Done | Recording shows a floating control excluded from the capture, displays elapsed time, and now supports Pause, Resume, and Stop. | Add keyboard stop/pause shortcuts and optional cancel-delete flow. |
 | Pause/resume recording | ✓ Done | Active recordings support pause and resume from the floating recording control. | Add manual QA coverage for long pause/resume sessions with audio enabled. |
-| Storage guardrails | ✓ Done | Temp cleanup plus minimum free-space checks exist before recording and export. | No live in-recording low-storage monitoring yet. |
+| Storage guardrails | ✓ Done | Temp cleanup plus minimum free-space checks exist before recording and export, and active recordings run live disk-pressure checks that safely stop and finalize when temporary storage drops below the safety floor. | Deeper ScreenCaptureKit stream reconstruction can still be added if macOS exposes more recoverable failure modes. |
 | GIF and APNG export | ✓ Done | The video editor can export trimmed recordings as native animated GIF or APNG loops with preset-based frame sampling and ImageIO encoding. | Tuned for short documentation/demo loops; long-form video should stay MP4. |
 | Webcam or camera overlay | x Not done | No camera or PiP layer was found. | Needed for more premium async/demo use cases. |
 | Keystroke overlay | x Not done | No keystroke visualizer exists. | Useful for tutorials and product demos. |
@@ -243,10 +243,10 @@ The biggest unfinished areas are now clear:
 | CLI automation | ✓ Done | The `snipsnipsnipctl` helper target is embedded under `Contents/Library/Helpers` and uses the AppleScript/Apple Events bridge as the v1 return-capable transport. It supports JSON output, status, preset list/run, capture, repeat, open document, export current, clipboard/editor/float/file outputs, private capture, overwrite, format, and documented exit codes. | Requires Apple Events permission and is documented for full-path invocation or user-created shell aliases rather than installing into `/usr/local/bin`. |
 | AppleScript automation | ✓ Done | `SnipSnipSnipAutomation.sdef` exposes status, preset, capture, repeat, open document, and export commands that map to the same automation contract used by CLI and app dispatch. | AppleScript returns JSON text for structured results; v1 commands are capture/export oriented and do not expose editor mutation. |
 | URL scheme automation | ✓ Done | Versioned `snipsnipsnip://v1/...` routes enqueue automation requests for status, preset run, fullscreen, frontmost-window, region, window, and repeat-last workflows. The existing `snipsnipsnip://import-pasteboard` route remains reserved for share-extension pasteboard imports. | URL automation is trigger-oriented and intentionally limited to editor, clipboard, float, and none outputs; callers needing structured results should use CLI or AppleScript. |
-| App Shortcuts or App Intents | x Not done | `AppShortcuts.swift` only defines shortcut modifiers; no App Intents implementation was found. | Add Shortcuts support only if system-level automation becomes a product priority. |
+| App Shortcuts and App Intents | ✓ Done | `SnipSnipSnip/Automation/AppIntents` registers native App Intents over the shared automation service for status, preset listing/running, fullscreen capture, frontmost-window capture, fixed or interactive region capture, interactive window capture, repeat last capture, opening `.sss` documents, and exporting the current screenshot. The app advertises common capture shortcuts for Apple Shortcuts and Spotlight, supports preset entities, maps output/file/format/delay/cursor/UI Map choices through the same validation used by CLI, AppleScript, and URL automation, and uses foreground continuation for interactive workflows and UI-presenting outputs. | V1 App Intents are capture/export oriented. They do not expose annotation mutation, scrolling capture presets, connected-device capture, video recording, cloud upload, or direct window lookup by title/name. |
 | Upload integrations | x Not done | No S3, Slack, issue tracker, webhook, or cloud destination integration exists. | Keep optional and privacy-preserving if added later. |
 | Template workflows and style presets | ~ Partial | Screenshot Presentation mode includes static built-in style templates, globally persisted user style templates with save, rename, duplicate, delete, and default-template actions, document-saved presentation variants, and SVG Presentation Scenes loaded from Bundled and User folders under a configurable scenes root. Applying a style template, scene, or variant is undoable document state; template library edits, scene folder settings, and variant-list edits are managed outside annotation editing. | Video brand templates and broader template/search/filter workflows remain open. |
-| In-app Help guide | ✓ Done | Help is rich, user-facing, and appears maintained alongside major screenshot and recording behavior. | Could add search and stronger troubleshooting diagnostics. |
+| In-app Help guide | ✓ Done | Help is rich, searchable, user-facing, and appears maintained alongside major screenshot, recording, Clipboard History, Presentation, UI Map, automation, permission, and troubleshooting behavior. | Stronger troubleshooting diagnostics and guided support flows could still be added. |
 | README and product docs | ✓ Done | `README.md` covers features, privacy, permissions, formats, and build/test instructions. | Add release/download assets and more visuals when distribution stabilizes. |
 | Public `.sss` format docs | ✓ Done | `sss-format.md` documents the screenshot package format clearly. | Keep current as format evolves. |
 | Public `.sssvideo` format docs | ✓ Done | `sssvideo-format.md` now documents the editable video package format. | Keep docs aligned with any future format version bumps. |
@@ -324,6 +324,7 @@ The biggest unfinished areas are now clear:
 - Pro UI Map is a distinctive structured screenshot workflow: it can preserve searchable interface metadata and element geometry beside the screenshot, then let users inspect, pin, export, and render those elements without flattening them into the base image.
 - Pro scrolling capture has a real service boundary with dedicated diagnostics logging, stitching logic, partial-result handling, and tests.
 - The video stack is real, not placeholder: native ScreenCaptureKit recording, editable packages, trim state, poster frames, and size-constrained MP4 exports are all present.
+- The automation stack is a real v1 external contract across App Intents, CLI, AppleScript, and URL scheme adapters, all mapped through the same validation and output behavior.
 - In-app Help is unusually complete and appears to move with the product rather than lag behind it.
 
 ## Implementation Risks And Clear Gaps
@@ -335,6 +336,7 @@ The biggest unfinished areas are now clear:
 - Global hotkeys are customizable but intentionally background-only while the app is active, which may surprise power users.
 - Clipboard History source-app filtering is inherently best-effort because macOS pasteboard changes do not always include reliable origin metadata.
 - Layer ordering commands and the standalone Layers window are shipped, including drag reorder; visibility toggles and locking are still intentionally deferred until the annotation model and package format support them.
+- Automation is shipped for capture, preset, document-open, and current-screenshot export workflows, but it is still a v1 surface and does not expose annotation mutation, video recording, connected-device capture, upload destinations, or direct window lookup.
 - `.sssvideo` documentation is now published; keep it current with schema updates.
 - Accessibility depth and localization infrastructure are both behind the rest of the product.
 - User-facing diagnostics export is shipped; crash reporting is still absent.
@@ -360,11 +362,11 @@ The biggest unfinished areas are now clear:
 - Aspect-ratio export canvases and background studio options.
 - Webcam or camera overlay.
 - Captions and transcription.
-- Video overlays, speed controls, volume editing, export cancellation, and eventually multi-clip editing if scope expands.
+- Video overlays, speed controls, volume editing, background export handling, and eventually multi-clip editing if scope expands.
 
 ### Tier 3: Workflow And Ecosystem Depth
 
-- App Intents and Shortcuts automation.
+- Deeper automation beyond the shipped v1 capture/export contract, including annotation mutation, video recording, direct window lookup, and richer output destinations.
 - Optional upload destinations and share links.
 - Collections, tags, favorites, or projects in history.
 - Stronger support workflows built on the shipped local diagnostics bundle.
@@ -390,6 +392,6 @@ The biggest unfinished areas are now clear:
 
 ## Current Product Position
 
-SnipSnipSnip is already a strong local-first screenshot product with a meaningful editor, archive system, presentation styling, and local drag-out sharing. It also has a real, useful first-generation recording stack. SnipSnipSnip Pro extends that product with advanced capture workflows: scrolling capture, connected iPhone/iPad screenshot capture, and UI Map capture. The overall product family is not yet an ultra-premium capture suite because multi-capture composition, advanced video polish, automation depth, Pro capture hardening, and support readiness are still behind the rest of the app.
+SnipSnipSnip is already a strong local-first screenshot product with a meaningful editor, archive system, presentation styling, local drag-out sharing, and first-generation automation across App Intents, CLI, AppleScript, and URL routes. It also has a real, useful first-generation recording stack. SnipSnipSnip Pro extends that product with advanced capture workflows: scrolling capture, connected iPhone/iPad screenshot capture, and UI Map capture. The overall product family is not yet an ultra-premium capture suite because multi-capture composition, advanced video polish, deeper automation and integrations, Pro capture hardening, and support readiness are still behind the rest of the app.
 
-That is now the accurate state of the product family: standard screenshot capture, editing, presentation styling, local diagnostics export, and drag-out sharing are largely real and shipped; Pro UI Map is implemented as a unique structured screenshot workflow; Pro scrolling capture and connected iPhone/iPad screenshot capture are still partial; multi-capture composition, advanced video editing, automation, localization, and accessibility depth are still not done.
+That is now the accurate state of the product family: standard screenshot capture, editing, presentation styling, local diagnostics export, automation, and drag-out sharing are largely real and shipped; Pro UI Map is implemented as a unique structured screenshot workflow; Pro scrolling capture and connected iPhone/iPad screenshot capture are still partial; multi-capture composition, advanced video editing, richer integrations, localization, and accessibility depth are still not done.
