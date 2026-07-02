@@ -113,6 +113,27 @@ final class EditorRendererTests: XCTestCase {
         XCTAssertGreaterThan(longHead, shortHead)
     }
 
+    func testLongArrowHeadLengthStaysStrokeRelative() {
+        let headLength = EditorRenderer.arrowHeadLength(bodyLength: 900, lineWidth: 5, scale: 1)
+
+        XCTAssertLessThanOrEqual(headLength, 36.001)
+    }
+
+    func testLongShallowArrowHeadStaysCompactAroundTip() {
+        let tip = CGPoint(x: 1040, y: 166)
+        let points = EditorRenderer.arrowHeadPoints(
+            tip: tip,
+            tail: CGPoint(x: 132, y: 50),
+            curvature: 0,
+            lineWidth: 5,
+            scale: 1
+        )
+
+        XCTAssertLessThanOrEqual(hypot(tip.x - points.left.x, tip.y - points.left.y), 36.001)
+        XCTAssertLessThanOrEqual(hypot(tip.x - points.right.x, tip.y - points.right.y), 36.001)
+        XCTAssertLessThanOrEqual(abs(points.left.y - points.right.y), 32.0)
+    }
+
     func testCurvedArrowHeadGeometryScalesWithZoomedPreview() {
         let base = EditorRenderer.arrowHeadPoints(
             tip: CGPoint(x: 120, y: 60),

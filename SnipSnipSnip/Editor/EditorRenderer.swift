@@ -805,13 +805,15 @@ enum EditorRenderer {
 
     nonisolated static func arrowHeadLength(bodyLength: CGFloat, lineWidth: CGFloat, scale: CGFloat) -> CGFloat {
         guard bodyLength > 0 else {
-            return max(lineWidth * 3, scaled(12, by: scale))
+            return max(lineWidth * 3.5, scaled(14, by: scale))
         }
 
-        let baseLength = max(lineWidth * 3, scaled(12, by: scale))
-        let proportionalLength = bodyLength * 0.18
+        let baseLength = max(lineWidth * 3.5, scaled(14, by: scale))
+        let proportionalLength = bodyLength * 0.14
+        let strokeRelativeCap = max(lineWidth * 7, scaled(36, by: scale))
+        let shortArrowCap = bodyLength * 0.38
 
-        return min(max(baseLength, proportionalLength), bodyLength * 0.45)
+        return min(min(max(baseLength, proportionalLength), strokeRelativeCap), shortArrowCap)
     }
 
     nonisolated static func arrowHeadPoints(
@@ -842,7 +844,7 @@ enum EditorRenderer {
         let tangentAngle = EditorRenderGeometry.arrowEndpointTangentAngle(tip: tip, tail: tail, curvature: curvature)
         let bodyLength = hypot(tip.x - tail.x, tip.y - tail.y)
         let arrowLength = arrowHeadLength(bodyLength: bodyLength, lineWidth: lineWidth, scale: scale)
-        let spread: CGFloat = .pi / 6
+        let spread: CGFloat = .pi / 7
 
         return ArrowHeadGeometry(
             tip: tip,

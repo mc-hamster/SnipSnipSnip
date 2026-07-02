@@ -51,8 +51,6 @@ final class RegionSelectionSession: NSObject {
     }
 
     private func presentOverlay() {
-        NSApp.activate(ignoringOtherApps: true)
-
         let coordinator = RegionSelectionCoordinator(
             snapshot: snapshot,
             windows: windows,
@@ -226,11 +224,11 @@ final class RegionSelectionSession: NSObject {
     }
 }
 
-private final class RegionSelectionWindow: NSWindow {
+private final class RegionSelectionWindow: NSPanel {
     init(displayPreview: DisplayPreview, coordinator: RegionSelectionCoordinator, livePreviewSource: LiveDesktopPreviewSource?) {
         super.init(
             contentRect: displayPreview.snapshot.overlayFrame,
-            styleMask: .borderless,
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
@@ -238,6 +236,9 @@ private final class RegionSelectionWindow: NSWindow {
         isOpaque = false
         backgroundColor = .clear
         sharingType = .none
+        isFloatingPanel = true
+        hidesOnDeactivate = false
+        isReleasedWhenClosed = false
         level = .screenSaver
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         ignoresMouseEvents = false

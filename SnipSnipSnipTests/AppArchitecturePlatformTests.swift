@@ -2049,6 +2049,32 @@ final class AppArchitecturePlatformTests: XCTestCase {
         )
     }
 
+    func testRegionSelectionOverlayCanPresentInsideOtherAppsFullScreenSpaces() throws {
+        let regionSelectionOverlay = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/Capture/RegionSelectionOverlay.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(
+            regionSelectionOverlay.contains("private final class RegionSelectionWindow: NSPanel"),
+            "Region selection should use a panel so it can participate in full-screen Spaces as transient capture UI."
+        )
+        XCTAssertTrue(
+            regionSelectionOverlay.contains("styleMask: [.borderless, .nonactivatingPanel]"),
+            "Region selection should not activate SnipSnipSnip before it appears over another app's full-screen Space."
+        )
+        XCTAssertTrue(
+            regionSelectionOverlay.contains("isFloatingPanel = true")
+                && regionSelectionOverlay.contains("hidesOnDeactivate = false")
+                && regionSelectionOverlay.contains("collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]"),
+            "Region selection should stay visible across Spaces, including Safari or video full screen."
+        )
+        XCTAssertFalse(
+            regionSelectionOverlay.contains("NSApp.activate"),
+            "Region selection should not eagerly activate the app; activation can be deferred until another app exits full screen."
+        )
+    }
+
     func testVideoAndConnectedDeviceBehaviorStayOutOfAppModelExtensions() throws {
         let deletedExtensionPaths = [
             "SnipSnipSnip/App/AppModel+VideoRecording.swift",
