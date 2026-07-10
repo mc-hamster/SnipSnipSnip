@@ -89,7 +89,7 @@ extension CaptureWorkflowModel {
             } catch ScrollingCaptureError.cancelled {
                 return
             } catch {
-                present(error)
+                present(error, recovering: .scrolling(region))
             }
         }
     }
@@ -117,7 +117,12 @@ extension CaptureWorkflowModel {
                     progressOverlayShown = true
                 }
 
-                progressOverlay.update(segmentCount: progress.segmentCount, capacityFraction: progress.capacityFraction, warning: progress.warning)
+                progressOverlay.update(
+                    segmentCount: progress.segmentCount,
+                    outputHeight: progress.outputHeight,
+                    capacityFraction: progress.capacityFraction,
+                    warning: progress.warning
+                )
             }
         )
 

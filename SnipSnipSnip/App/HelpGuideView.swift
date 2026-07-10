@@ -406,7 +406,11 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Use capture presets",
-                            body: "After a region, window, frontmost-window, fullscreen, or Screen Inspector snip, choose Presets > Save Last Capture as Preset to name it. Presets remember the screenshot target, timer, cursor option, fullscreen display choice, region controls, and Window UI Map option used for that capture. Private Capture stays controlled by the current Privacy setting and is not saved inside presets. Run saved presets from the main window, Capture menu, or menu bar extra. Manage names, order, and deletion in Settings > Presets. If a saved region no longer fits the current display layout, SnipSnipSnip opens the region selector with the saved size so you can reposition it. If a saved window is not available, choose a replacement window to update and run the preset."
+                            body: "After a region, window, frontmost-window, fullscreen, or Screen Inspector snip, choose Presets > Save Last Capture as Preset to create a workflow. Choose whether it opens in the editor, copies directly to the clipboard, or exports a rendered PNG, JPEG, or PDF to a folder you choose. Presets remember the screenshot target, timer, cursor option, fullscreen display choice, region controls, and Window UI Map option used for that capture. Private Capture stays controlled by the current Privacy setting and is not saved inside presets. Run saved workflows from the main window, Capture menu, or menu bar extra; favorite workflows appear first. Settings > Presets shows each workflow's target, outcome, last run, and Run button. If a saved region no longer fits the current display layout, SnipSnipSnip opens the region selector with the saved size so you can reposition it. If a saved window is not available, choose a replacement window to update and run the preset."
+                        ),
+                        HelpArticleSection(
+                            title: "Recover from a capture problem",
+                            body: "When a capture cannot finish, SnipSnipSnip keeps the selected target and shows the quickest recovery choices instead of making you start over. Depending on the issue, you can set up a missing permission, refresh or replace a window, retry the same capture, use the current display, or capture the visible area instead."
                         ),
                         HelpArticleSection(
                             title: "Include an editable cursor",
@@ -425,7 +429,7 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Before you begin",
-                            body: "Scrolling Capture requires Accessibility permission because SnipSnipSnip must scroll the selected app while it captures and stitches segments."
+                            body: "Scrolling Capture requires Accessibility permission because SnipSnipSnip must scroll the selected app while it captures and stitches segments. It works best with stable pages, documents, and lists; highly animated content, sticky overlays, and protected windows can make it less reliable."
                         ),
                         HelpArticleSection(
                             title: "Capture a scrollable area",
@@ -433,7 +437,7 @@ struct HelpGuideView: View {
                                 "Choose Scrolling Capture.",
                                 "Drag over a scrollable area within one display.",
                                 "Confirm the selected viewport.",
-                                "Wait while SnipSnipSnip scrolls and captures segments.",
+                                "Wait while SnipSnipSnip scrolls and captures segments. The progress panel shows the captured length, capacity remaining, and any quality warning.",
                                 "Press Esc to cancel, or press Return or click Done to stop early and use the segments already captured."
                             ]
                         ),
@@ -898,7 +902,7 @@ struct HelpGuideView: View {
                         ? [
                             HelpArticleSection(
                                 title: "Scrolling Capture does not start",
-                                body: "Allow Accessibility permission. If the app is not listed, use Reveal App from the setup guide and add the exact running app in System Settings."
+                                body: "Allow Accessibility permission. If the app is not listed, use Reveal App from the setup guide and add the exact running app in System Settings. If the selected area is not scrollable or stitching cannot continue, use the recovery panel to choose another area, retry, or capture the visible area instead."
                             )
                         ]
                         : []),

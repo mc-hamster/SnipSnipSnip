@@ -78,6 +78,24 @@ extension DocumentWorkflowModel {
         ImageExportOptions(jpegQuality: screenshotJPEGQuality)
     }
 
+    func exportWorkflowCapture(
+        from controller: EditorController,
+        to destination: CapturePresetExportDestination
+    ) async throws -> URL {
+        if controller.exportFormatRequiresPNG(), destination.format != .png {
+            throw ImageExportError.transparentPresentationRequiresPNG
+        }
+
+        let filename = ScreenshotFilenameTemplate(pattern: screenshotFilenameTemplate)
+            .resolvedFilename(for: controller.capture, formatExtension: destination.format.fileExtension)
+        let url = destination.folderURL
+            .appendingPathComponent(filename)
+            .appendingPathExtension(destination.format.fileExtension)
+        let image = try await controller.renderedImageForExport()
+        try await ImageExporter.write(image, format: destination.format, to: url, options: screenshotImageExportOptions)
+        return url
+    }
+
     @discardableResult
     func saveCurrentDocument() async -> Bool {
         if let controller = videoEditorController {

@@ -38,8 +38,9 @@ final class ScrollingCaptureProgressOverlay {
         show()
     }
 
-    func update(segmentCount: Int, capacityFraction: Double, warning: String?) {
+    func update(segmentCount: Int, outputHeight: Int, capacityFraction: Double, warning: String?) {
         view.segmentCount = segmentCount
+        view.outputHeight = outputHeight
         view.capacityFraction = capacityFraction
         view.warning = warning
     }
@@ -131,6 +132,9 @@ private final class ScrollingCaptureProgressView: NSView {
     var segmentCount = 1 {
         didSet { needsDisplay = true }
     }
+    var outputHeight = 0 {
+        didSet { needsDisplay = true }
+    }
     var capacityFraction: Double = 0 {
         didSet { needsDisplay = true }
     }
@@ -183,8 +187,9 @@ private final class ScrollingCaptureProgressView: NSView {
             ]
         )
 
-        // Segment count
-        NSString(string: "\(segmentCount) segment\(segmentCount == 1 ? "" : "s") captured").draw(
+        // Segment count and stitched length
+        let segmentSummary = "\(segmentCount) segment\(segmentCount == 1 ? "" : "s") • \(max(outputHeight, 0).formatted()) px captured"
+        NSString(string: segmentSummary).draw(
             in: CGRect(x: 18, y: 44, width: bounds.width - 36, height: 20),
             withAttributes: [
                 .foregroundColor: NSColor.secondaryLabelColor,
@@ -196,7 +201,7 @@ private final class ScrollingCaptureProgressView: NSView {
         drawCapacityBar(at: CGRect(x: 18, y: 70, width: bounds.width - 36, height: 7))
 
         // Keyboard hint
-        NSString(string: "Return: Done  ·  Esc: Cancel").draw(
+        NSString(string: "Scrolling…  Return: Done  ·  Esc: Cancel").draw(
             in: CGRect(x: 18, y: 85, width: bounds.width - 36, height: 18),
             withAttributes: [
                 .foregroundColor: NSColor.tertiaryLabelColor,

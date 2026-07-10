@@ -96,7 +96,20 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
                 )
             }
 
-            if clipboard?.autoCopyEnabled == true {
+            let workflowOutcome = result.workflowPreset?.outcome ?? .openInEditor
+            if workflowOutcome == .copyToClipboard {
+                documents.copyCurrentEditorImageToClipboard()
+            } else if workflowOutcome == .exportToFolder,
+                      let destination = result.workflowPreset?.exportDestination {
+                Task { @MainActor [weak lifecycle] in
+                    do {
+                        let url = try await documents.exportWorkflowCapture(from: controller, to: destination)
+                        controller.showNotice("Saved workflow capture to \(url.lastPathComponent).")
+                    } catch {
+                        lifecycle?.presentError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+                    }
+                }
+            } else if clipboard?.autoCopyEnabled == true {
                 documents.scheduleAutoCopy(for: controller)
             }
 
@@ -108,7 +121,9 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
                 capture?.noticeSkippedUIMapCapture(reason: result.uiMapSkipReason)
             }
 
-            lifecycle?.requestMainWindowPresentation()
+            if workflowOutcome == .openInEditor {
+                lifecycle?.requestMainWindowPresentation()
+            }
         case .presentError(let message):
             lifecycle?.presentError(message)
         case .requestMainWindowPresentation:
@@ -356,6 +371,7 @@ struct CaptureWorkflowResult {
     let shouldAttemptUIMapCapture: Bool
     let shouldProcessUIMap: Bool
     let uiMapSkipReason: String?
+    let workflowPreset: CapturePreset?
 }
 
 enum LifecycleWorkflowOutput {

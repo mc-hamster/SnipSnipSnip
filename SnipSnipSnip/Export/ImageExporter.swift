@@ -3,7 +3,7 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-nonisolated enum ImageExportFormat: String, CaseIterable, Identifiable {
+nonisolated enum ImageExportFormat: String, CaseIterable, Codable, Identifiable {
     case png
     case jpeg
     case pdf

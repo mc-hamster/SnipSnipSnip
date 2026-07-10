@@ -40,7 +40,7 @@ extension CaptureWorkflowModel {
             try completeCapture(capture, request: request, isPrivateCapture: isPrivateCapture, runOptions: resolvedRunOptions)
             return true
         } catch {
-            present(error)
+            present(error, recovering: request)
             return false
         }
     }

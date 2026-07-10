@@ -61,6 +61,10 @@ protocol CoordinatorDocumentPort: AnyObject {
     func installCapturedScreenshot(_ result: CaptureWorkflowResult) -> EditorController
     func scheduleAutoCopy(for controller: EditorController)
     func copyCurrentEditorImageToClipboard()
+    func exportWorkflowCapture(
+        from controller: EditorController,
+        to destination: CapturePresetExportDestination
+    ) async throws -> URL
     func cancelPendingAutoCopy()
     func installCapturedRecording(_ recording: CapturedVideoRecording)
     func refreshHistoryEntries()

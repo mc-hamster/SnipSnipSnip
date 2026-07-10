@@ -189,6 +189,9 @@ extension CaptureWorkflowModel {
             return
         }
 
+        activeWorkflowPresetID = preset.id
+        markCapturePresetRan(id: preset.id)
+
         switch preset.target {
         case .region(let region):
             capturePresetRegion(presetID: preset.id, savedRegion: region, options: preset.options)

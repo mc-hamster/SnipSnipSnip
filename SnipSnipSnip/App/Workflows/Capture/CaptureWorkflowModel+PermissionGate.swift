@@ -85,13 +85,123 @@ extension CaptureWorkflowModel {
     }
 
     func present(_ error: Error) {
+        present(error, recovering: nil)
+    }
+
+    func present(_ error: Error, recovering request: LastCaptureRequest?) {
         guard !(error is CancellationError) else {
             return
         }
 
         _ = dependencies.permissions.reconcileScreenRecordingPermissionFailureIfNeeded(after: error)
-
-        dependencies.lifecycle.presentError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+        pendingRecoveryRequest = request ?? lastCaptureRequest
+        captureRecovery = recovery(for: error)
         dependencies.lifecycle.requestMainWindowPresentation()
+    }
+
+    func dismissCaptureRecovery() {
+        captureRecovery = nil
+    }
+
+    func performCaptureRecovery(_ action: CaptureRecoveryAction) {
+        captureRecovery = nil
+
+        switch action {
+        case .retryLastCapture:
+            retryRecoveryCapture()
+        case .setUpScreenRecording:
+            dependencies.permissions.requestPermission(.screenRecording)
+        case .setUpAccessibility:
+            dependencies.permissions.requestPermission(.accessibility)
+        case .refreshWindows:
+            refreshAvailableWindows(includeThumbnails: true, allowsCancellingPendingThumbnailRefresh: true)
+        case .pickAnotherWindow:
+            presentWindowPicker()
+        case .captureFrontmostWindow:
+            captureFrontmostWindow()
+        case .useCurrentDisplay:
+            screenshotFullscreenDisplayMode = .currentDisplay
+            selectedScreenshotFullscreenDisplayID = nil
+            captureCurrentDisplay()
+        case .chooseDisplay:
+            dependencies.lifecycle.requestMainWindowPresentation()
+        case .captureVisibleArea:
+            captureRegion()
+        case .chooseAnotherArea:
+            captureScrollingArea()
+        case .openTroubleshooting:
+            break
+        }
+    }
+
+    private func retryRecoveryCapture() {
+        guard let pendingRecoveryRequest else {
+            return
+        }
+
+        self.pendingRecoveryRequest = nil
+        switch pendingRecoveryRequest {
+        case .region(let region):
+            repeatRegionCapture(region)
+        case .scrolling(let region):
+            repeatScrollingCapture(region)
+        case .window(let window):
+            repeatWindowCapture(window)
+        case .frontmostWindow:
+            captureFrontmostWindow()
+        case .fullscreen:
+            captureCurrentDisplay()
+        case .connectedDevice(let device):
+            captureConnectedDevice(device)
+        }
+    }
+
+    private func recovery(for error: Error) -> CaptureRecovery {
+        let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+
+        switch error {
+        case ScreenCaptureError.permissionDenied:
+            return CaptureRecovery(
+                title: "Screen Recording Is Needed",
+                message: message,
+                actions: [.setUpScreenRecording, .retryLastCapture]
+            )
+        case ScreenCaptureError.noWindowsAvailable, ScreenCaptureError.windowImageUnavailable:
+            return CaptureRecovery(
+                title: "That Window Is No Longer Available",
+                message: "The window may have moved, closed, or become protected. Refresh the list or choose another target.",
+                actions: [.refreshWindows, .pickAnotherWindow, .captureFrontmostWindow]
+            )
+        case ScreenCaptureError.currentDisplayUnavailable, ScreenCaptureError.noDisplays:
+            return CaptureRecovery(
+                title: "That Display Is Unavailable",
+                message: message,
+                actions: [.useCurrentDisplay, .chooseDisplay]
+            )
+        case ScrollingCaptureError.accessibilityPermissionDenied:
+            return CaptureRecovery(
+                title: "Accessibility Is Needed",
+                message: message,
+                actions: [.setUpAccessibility, .retryLastCapture]
+            )
+        case ScrollingCaptureError.noScrollableTarget:
+            return CaptureRecovery(
+                title: "Choose a Scrollable Area",
+                message: message,
+                actions: [.chooseAnotherArea, .captureVisibleArea]
+            )
+        case ScrollingCaptureError.stitchingFailed, ScrollingCaptureError.firstFrameUnavailable:
+            return CaptureRecovery(
+                title: "Scrolling Capture Could Not Finish",
+                message: message,
+                actions: [.retryLastCapture, .captureVisibleArea, .openTroubleshooting]
+            )
+        default:
+            return CaptureRecovery(
+                title: "Capture Needs Attention",
+                message: message,
+                actions: [.retryLastCapture, .openTroubleshooting]
+            )
+        }
     }
 }

@@ -289,6 +289,10 @@ nonisolated struct CapturePreset: Codable, Equatable, Identifiable {
     var name: String
     var target: CapturePresetTarget
     var options: CaptureRunOptions
+    var outcome: CapturePresetOutcome
+    var exportDestination: CapturePresetExportDestination?
+    var isFavorite: Bool
+    var lastRunAt: Date?
     var createdAt: Date
     var updatedAt: Date
 
@@ -297,6 +301,10 @@ nonisolated struct CapturePreset: Codable, Equatable, Identifiable {
         name: String,
         target: CapturePresetTarget,
         options: CaptureRunOptions,
+        outcome: CapturePresetOutcome = .openInEditor,
+        exportDestination: CapturePresetExportDestination? = nil,
+        isFavorite: Bool = false,
+        lastRunAt: Date? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -304,8 +312,30 @@ nonisolated struct CapturePreset: Codable, Equatable, Identifiable {
         self.name = name
         self.target = target
         self.options = options
+        self.outcome = outcome
+        self.exportDestination = exportDestination
+        self.isFavorite = isFavorite
+        self.lastRunAt = lastRunAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, target, options, outcome, exportDestination, isFavorite, lastRunAt, createdAt, updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        target = try container.decode(CapturePresetTarget.self, forKey: .target)
+        options = try container.decode(CaptureRunOptions.self, forKey: .options)
+        outcome = try container.decodeIfPresent(CapturePresetOutcome.self, forKey: .outcome) ?? .openInEditor
+        exportDestination = try container.decodeIfPresent(CapturePresetExportDestination.self, forKey: .exportDestination)
+        isFavorite = try container.decodeIfPresent(Bool.self, forKey: .isFavorite) ?? false
+        lastRunAt = try container.decodeIfPresent(Date.self, forKey: .lastRunAt)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
 
     var targetLabel: String {
@@ -321,6 +351,70 @@ nonisolated struct CapturePreset: Codable, Equatable, Identifiable {
             return "Fullscreen"
         }
     }
+}
+
+/// The outcome a saved capture workflow should perform once the pixels are ready.
+/// Existing presets decode as `.openInEditor`, preserving their established behavior.
+nonisolated enum CapturePresetOutcome: String, CaseIterable, Codable, Identifiable {
+    case openInEditor
+    case copyToClipboard
+    case exportToFolder
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .openInEditor:
+            return "Open in Editor"
+        case .copyToClipboard:
+            return "Copy to Clipboard"
+        case .exportToFolder:
+            return "Export to Folder"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .openInEditor:
+            return "Open the capture so you can review or annotate it."
+        case .copyToClipboard:
+            return "Copy the rendered capture and keep working in the current app."
+        case .exportToFolder:
+            return "Save a rendered image to the folder chosen for this workflow."
+        }
+    }
+}
+
+nonisolated struct CapturePresetExportDestination: Codable, Equatable {
+    var folderURL: URL
+    var format: ImageExportFormat
+
+    init(folderURL: URL, format: ImageExportFormat = .png) {
+        self.folderURL = folderURL
+        self.format = format
+    }
+}
+
+nonisolated enum CaptureRecoveryAction: Hashable {
+    case retryLastCapture
+    case setUpScreenRecording
+    case setUpAccessibility
+    case refreshWindows
+    case pickAnotherWindow
+    case captureFrontmostWindow
+    case useCurrentDisplay
+    case chooseDisplay
+    case captureVisibleArea
+    case chooseAnotherArea
+    case openTroubleshooting
+}
+
+@MainActor
+struct CaptureRecovery: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
+    let actions: [CaptureRecoveryAction]
 }
 
 nonisolated enum RegionPrecisionGeometry {

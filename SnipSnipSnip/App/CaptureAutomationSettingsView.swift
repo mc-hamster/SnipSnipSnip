@@ -783,12 +783,44 @@ struct CaptureAutomationSettingsView: View {
                 TextField("Preset name", text: capturePresetNameBinding(for: preset.id))
                     .textFieldStyle(.roundedBorder)
 
-                Text(preset.targetLabel)
+                Text("\(preset.targetLabel) • \(preset.outcome.label)\(preset.lastRunAt.map { " • Last run \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "")")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Picker("Outcome", selection: capturePresetOutcomeBinding(for: preset.id)) {
+                    ForEach(CapturePresetOutcome.allCases) { outcome in
+                        Text(outcome.label).tag(outcome)
+                    }
+                }
+                .labelsHidden()
+
+                if preset.outcome == .exportToFolder {
+                    Menu(preset.exportDestination.map { "\($0.format.label) → \($0.folderURL.lastPathComponent)" } ?? "Choose export folder") {
+                        ForEach(ImageExportFormat.allCases) { format in
+                            Button("Choose \(format.label) Folder…") {
+                                capture.chooseCapturePresetExportDestination(id: preset.id, format: format)
+                            }
+                        }
+                    }
+                    .font(.caption)
+                }
             }
 
             Spacer(minLength: 8)
+
+            Button {
+                capture.capturePreset(preset)
+            } label: {
+                Image(systemName: "play.fill")
+            }
+            .help("Run this workflow.")
+
+            Button {
+                capture.toggleCapturePresetFavorite(id: preset.id)
+            } label: {
+                Image(systemName: preset.isFavorite ? "star.fill" : "star")
+            }
+            .help(preset.isFavorite ? "Remove from favorites." : "Add to favorites.")
 
             Button {
                 capture.moveCapturePreset(id: preset.id, offset: -1)
@@ -823,6 +855,13 @@ struct CaptureAutomationSettingsView: View {
             set: { newValue in
                 capture.renameCapturePreset(id: id, to: newValue)
             }
+        )
+    }
+
+    private func capturePresetOutcomeBinding(for id: CapturePreset.ID) -> Binding<CapturePresetOutcome> {
+        Binding(
+            get: { capture.capturePresets.first(where: { $0.id == id })?.outcome ?? .openInEditor },
+            set: { capture.updateCapturePresetOutcome(id: id, outcome: $0) }
         )
     }
 

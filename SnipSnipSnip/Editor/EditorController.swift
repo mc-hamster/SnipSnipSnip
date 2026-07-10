@@ -1692,6 +1692,20 @@ final class EditorController: ObservableObject {
         copyAnnotatedImage(usingPresentation: true)
     }
 
+    func exportFormatRequiresPNG() -> Bool {
+        snapshot.presentation.requiresPNGForFaithfulExport
+    }
+
+    func renderedImageForExport() async throws -> CGImage {
+        let input = EditorExportRenderInput(
+            baseImage: capture.image,
+            snapshot: snapshot,
+            pinnedUIMapElements: pinnedUIMapElements,
+            uiMapOverlayOptions: uiMapOverlayOptions
+        )
+        return try await EditorExportRenderer.renderImage(from: input)
+    }
+
     func copyPlainAnnotatedImage() {
         copyAnnotatedImage(usingPresentation: false)
     }

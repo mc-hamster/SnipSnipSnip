@@ -110,9 +110,12 @@ final class CaptureWorkflowModel: ObservableObject, AutomationStatusPort, Captur
     }
     @Published var isShowingCapturePresetNamingSheet = false
     @Published var capturePresetNameDraft = ""
+    @Published var captureRecovery: CaptureRecovery?
     var pendingWindowThumbnailTask: Task<Void, Never>?
     var pendingPermissionCommand: PendingCapturePermissionRequest?
     var pendingCapturePresetDraft: CapturePreset?
+    var pendingRecoveryRequest: LastCaptureRequest?
+    var activeWorkflowPresetID: CapturePreset.ID?
     var capturePrivacyLockDepth = 0
     var interactiveCaptureAutosaveSuspensionDepth = 0
     var connectedDevicePreviewController: ConnectedDevicePreviewWindowController?

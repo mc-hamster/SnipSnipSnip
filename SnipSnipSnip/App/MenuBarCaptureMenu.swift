@@ -80,7 +80,10 @@ struct CapturePresetMenuContent: View {
             Text("No Presets")
                 .foregroundStyle(.secondary)
         } else {
-            ForEach(capture.capturePresets) { preset in
+            ForEach(capture.capturePresets.sorted { lhs, rhs in
+                if lhs.isFavorite != rhs.isFavorite { return lhs.isFavorite && !rhs.isFavorite }
+                return (lhs.lastRunAt ?? .distantPast) > (rhs.lastRunAt ?? .distantPast)
+            }) { preset in
                 Button(preset.name) {
                     capture.capturePreset(preset)
                 }

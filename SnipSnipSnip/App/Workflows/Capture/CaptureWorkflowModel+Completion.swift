@@ -78,8 +78,10 @@ extension CaptureWorkflowModel {
             checkpointLabel: "Capture",
             shouldAttemptUIMapCapture: shouldAttemptUIMapCapture,
             shouldProcessUIMap: shouldProcessUIMap,
-            uiMapSkipReason: uiMapEligibility.skipReason
+            uiMapSkipReason: uiMapEligibility.skipReason,
+            workflowPreset: activeWorkflowPreset
         )))
+        activeWorkflowPresetID = nil
     }
 
     func completeScreenInspectorSnip(_ sample: ScreenInspectorSample) {
@@ -115,8 +117,17 @@ extension CaptureWorkflowModel {
             checkpointLabel: "Screen Inspector",
             shouldAttemptUIMapCapture: false,
             shouldProcessUIMap: false,
-            uiMapSkipReason: nil
+            uiMapSkipReason: nil,
+            workflowPreset: nil
         )))
+    }
+
+    private var activeWorkflowPreset: CapturePreset? {
+        guard let activeWorkflowPresetID else {
+            return nil
+        }
+
+        return capturePresets.first(where: { $0.id == activeWorkflowPresetID })
     }
 
     private func currentCursorOverlay(

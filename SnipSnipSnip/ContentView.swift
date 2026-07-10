@@ -15,6 +15,7 @@ struct ContentView: View {
     let presentWindowQuickCaptureMenu: () -> Void
     let performAutomationRequest: (AutomationRequest) async -> Void
     @Environment(\.openURL) private var openURL
+    @Environment(\.openWindow) private var openWindow
 
     private let windowRefreshTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -127,6 +128,21 @@ struct ContentView: View {
         .sheet(isPresented: capturePresetNamingSheetBinding) {
             CapturePresetNamingSheetView(capture: capture)
                 .frame(width: 420)
+        }
+        .sheet(item: $capture.captureRecovery) { recovery in
+            CaptureRecoverySheetView(
+                recovery: recovery,
+                performAction: { action in
+                    if action == .openTroubleshooting {
+                        openWindow(id: AppSceneID.helpWindow)
+                        capture.dismissCaptureRecovery()
+                    } else {
+                        capture.performCaptureRecovery(action)
+                    }
+                },
+                dismiss: capture.dismissCaptureRecovery
+            )
+            .frame(width: 460)
         }
         .alert("Presentation Mode is Experimental", isPresented: $lifecycle.isShowingPresentationExperimentalNotice) {
             Button("Join Discord") {
@@ -1369,7 +1385,7 @@ private struct CapturePresetNamingSheetView: View {
                 Text("Save Capture Preset")
                     .font(.headline)
 
-                Text("Name this preset so you can run the same screenshot capture again from the Presets menu.")
+                Text("Save a repeatable capture workflow. You can open it for review, copy it, or export it directly to a folder.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1379,6 +1395,33 @@ private struct CapturePresetNamingSheetView: View {
                 .textFieldStyle(.roundedBorder)
                 .focused($isNameFocused)
                 .onSubmit(save)
+
+            Picker("When capture finishes", selection: pendingOutcomeBinding) {
+                ForEach(CapturePresetOutcome.allCases) { outcome in
+                    Text(outcome.label).tag(outcome)
+                }
+            }
+
+            Text(pendingOutcomeBinding.wrappedValue.detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if pendingOutcomeBinding.wrappedValue == .exportToFolder {
+                HStack {
+                    Text(pendingDestinationLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer()
+                    Menu("Choose Folder") {
+                        ForEach(ImageExportFormat.allCases) { format in
+                            Button("\(format.label)…") {
+                                capture.choosePendingCapturePresetExportDestination(format: format)
+                            }
+                        }
+                    }
+                }
+            }
 
             HStack(spacing: 10) {
                 Spacer()
@@ -1405,5 +1448,72 @@ private struct CapturePresetNamingSheetView: View {
     private func save() {
         capture.commitCapturePresetName()
         dismiss()
+    }
+
+    private var pendingOutcomeBinding: Binding<CapturePresetOutcome> {
+        Binding(
+            get: { capture.pendingCapturePresetDraft?.outcome ?? .openInEditor },
+            set: capture.updatePendingCapturePresetOutcome
+        )
+    }
+
+    private var pendingDestinationLabel: String {
+        guard let destination = capture.pendingCapturePresetDraft?.exportDestination else {
+            return "Choose a folder before saving this workflow."
+        }
+
+        return "\(destination.format.label) → \(destination.folderURL.lastPathComponent)"
+    }
+}
+
+private struct CaptureRecoverySheetView: View {
+    let recovery: CaptureRecovery
+    let performAction: (CaptureRecoveryAction) -> Void
+    let dismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Label(recovery.title, systemImage: "exclamationmark.triangle.fill")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.orange)
+
+            Text(recovery.message)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("Your capture settings are still in place. Choose the quickest way to continue.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 10) {
+                Button("Not Now", action: dismiss)
+                    .keyboardShortcut(.cancelAction)
+
+                Spacer()
+
+                ForEach(recovery.actions, id: \.self) { action in
+                    Button(label(for: action)) {
+                        performAction(action)
+                    }
+                    .buttonStyle(action == recovery.actions.first ? .borderedProminent : .bordered)
+                }
+            }
+        }
+        .padding(22)
+    }
+
+    private func label(for action: CaptureRecoveryAction) -> String {
+        switch action {
+        case .retryLastCapture: "Try Again"
+        case .setUpScreenRecording: "Set Up Screen Recording"
+        case .setUpAccessibility: "Set Up Accessibility"
+        case .refreshWindows: "Refresh Windows"
+        case .pickAnotherWindow: "Pick Another Window"
+        case .captureFrontmostWindow: "Capture Frontmost"
+        case .useCurrentDisplay: "Use Current Display"
+        case .chooseDisplay: "Choose Display"
+        case .captureVisibleArea: "Capture Visible Area"
+        case .chooseAnotherArea: "Choose Another Area"
+        case .openTroubleshooting: "Open Troubleshooting"
+        }
     }
 }

@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 
@@ -32,11 +33,101 @@ extension CaptureWorkflowModel {
             return
         }
 
+        guard draft.outcome != .exportToFolder || draft.exportDestination != nil else {
+            dependencies.lifecycle.presentError("Choose an export folder before saving this workflow.")
+            return
+        }
+
         let fallbackName = draft.name
         draft.name = uniqueCapturePresetName(capturePresetNameDraft, fallback: fallbackName)
         draft.updatedAt = dependencies.systemServices.clock.now()
         capturePresets.append(draft)
         cancelSavingCapturePreset()
+    }
+
+    func updatePendingCapturePresetOutcome(_ outcome: CapturePresetOutcome) {
+        guard var draft = pendingCapturePresetDraft else {
+            return
+        }
+
+        draft.outcome = outcome
+        if outcome != .exportToFolder {
+            draft.exportDestination = nil
+        }
+        pendingCapturePresetDraft = draft
+    }
+
+    func choosePendingCapturePresetExportDestination(format: ImageExportFormat) {
+        guard var draft = pendingCapturePresetDraft else {
+            return
+        }
+
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Choose Folder"
+        panel.message = "Choose where this workflow should save rendered (format.label) captures."
+
+        guard panel.runModal() == .OK, let folderURL = panel.url else {
+            return
+        }
+
+        draft.outcome = .exportToFolder
+        draft.exportDestination = CapturePresetExportDestination(folderURL: folderURL, format: format)
+        pendingCapturePresetDraft = draft
+    }
+
+    func updateCapturePresetOutcome(
+        id: CapturePreset.ID,
+        outcome: CapturePresetOutcome,
+        exportDestination: CapturePresetExportDestination? = nil
+    ) {
+        guard let index = capturePresets.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        var preset = capturePresets[index]
+        preset.outcome = outcome
+        preset.exportDestination = outcome == .exportToFolder ? (exportDestination ?? preset.exportDestination) : nil
+        preset.updatedAt = dependencies.systemServices.clock.now()
+        capturePresets[index] = preset
+    }
+
+    func chooseCapturePresetExportDestination(id: CapturePreset.ID, format: ImageExportFormat) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Choose Folder"
+        panel.message = "Choose where this workflow should save rendered (format.label) captures."
+
+        guard panel.runModal() == .OK, let folderURL = panel.url else {
+            return
+        }
+
+        updateCapturePresetOutcome(
+            id: id,
+            outcome: .exportToFolder,
+            exportDestination: CapturePresetExportDestination(folderURL: folderURL, format: format)
+        )
+    }
+
+    func toggleCapturePresetFavorite(id: CapturePreset.ID) {
+        guard let index = capturePresets.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        capturePresets[index].isFavorite.toggle()
+        capturePresets[index].updatedAt = dependencies.systemServices.clock.now()
+    }
+
+    func markCapturePresetRan(id: CapturePreset.ID) {
+        guard let index = capturePresets.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        capturePresets[index].lastRunAt = dependencies.systemServices.clock.now()
     }
 
     func renameCapturePreset(id: CapturePreset.ID, to proposedName: String) {
