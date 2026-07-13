@@ -73,11 +73,12 @@ final class ScrollingCaptureCancellation: @unchecked Sendable {
     }
 }
 
-struct ScrollingCaptureProgress: Equatable, Sendable {
+struct ScrollingCaptureProgress: @unchecked Sendable {
     let segmentCount: Int
     let outputHeight: Int
     let maxOutputHeight: Int
     let warning: String?
+    let previewImage: CGImage?
 
     /// Fraction of the maximum capture capacity consumed, clamped to 0…1.
     var capacityFraction: Double {
@@ -703,6 +704,18 @@ struct ScrollingCaptureService {
         self.stitcher = stitcher
     }
 
+    func resolveTarget(for request: ScrollingCaptureRequest) throws -> ScrollingCaptureTarget {
+        guard request.viewportRect.width > 8, request.viewportRect.height > 8 else {
+            throw ScrollingCaptureError.invalidViewport
+        }
+        guard permissions.currentStatus().hasAccessibility else {
+            throw ScrollingCaptureError.accessibilityPermissionDenied
+        }
+
+        let driver = try driverFactory(request.viewportRect)
+        return ScrollingCaptureTarget(sourceName: driver.sourceName, viewportRect: request.viewportRect)
+    }
+
     func capture(
         request: ScrollingCaptureRequest,
         cancellation: ScrollingCaptureCancellation,
@@ -782,10 +795,12 @@ struct ScrollingCaptureService {
                 segmentCount: stitched.segmentCount,
                 outputHeight: stitched.outputHeight,
                 maxOutputHeight: request.maxOutputHeight,
-                warning: nil
+                warning: nil,
+                previewImage: stitched.makeImage()
             ))
         }
 
+        do {
         for segmentIndex in 1..<request.maxSegmentCount {
             try cancellation.checkCancellation()
             if cancellation.shouldFinish() {
@@ -921,12 +936,15 @@ struct ScrollingCaptureService {
                             ScrollingCaptureDiagnostics.error("Failed to compose partial stitched image")
                             throw ScrollingCaptureError.stitchingFailed
                         }
-                        return ScrollingCaptureResult(
-                            image: outputImage,
-                            sourceViewportRect: request.viewportRect,
-                            sourceName: sourceName,
-                            capturedAt: clock.now(),
-                            warnings: warnings
+                        throw ScrollingCaptureInterruptedError(
+                            partialResult: ScrollingCaptureResult(
+                                image: outputImage,
+                                sourceViewportRect: request.viewportRect,
+                                sourceName: sourceName,
+                                capturedAt: clock.now(),
+                                warnings: warnings
+                            ),
+                            reason: "Later frames could not be stitched confidently."
                         )
                     }
 
@@ -940,9 +958,29 @@ struct ScrollingCaptureService {
                     segmentCount: stitched.segmentCount,
                     outputHeight: stitched.outputHeight,
                     maxOutputHeight: request.maxOutputHeight,
-                    warning: warnings.last
+                    warning: warnings.last,
+                    previewImage: stitched.makeImage()
                 ))
             }
+        }
+        } catch ScrollingCaptureError.cancelled {
+            throw ScrollingCaptureError.cancelled
+        } catch let interruption as ScrollingCaptureInterruptedError {
+            throw interruption
+        } catch {
+            guard let partialImage = stitched.makeImage() else {
+                throw error
+            }
+            throw ScrollingCaptureInterruptedError(
+                partialResult: ScrollingCaptureResult(
+                    image: partialImage,
+                    sourceViewportRect: request.viewportRect,
+                    sourceName: sourceName,
+                    capturedAt: clock.now(),
+                    warnings: warnings + ["Capture stopped before reaching the end."]
+                ),
+                reason: error.localizedDescription
+            )
         }
 
         guard stitched.segmentCount > 0 else {

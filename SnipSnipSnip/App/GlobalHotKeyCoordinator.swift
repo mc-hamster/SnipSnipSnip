@@ -132,14 +132,21 @@ final class GlobalHotKeyCoordinator {
     private static let eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
 
     private let actionHandler: (GlobalHotKeyAction) -> Void
+    private let presetHandler: (UUID) -> Void
     private var eventHandlerRef: EventHandlerRef?
-    private var hotKeyRefs: [GlobalHotKeyAction: EventHotKeyRef] = [:]
+    private var hotKeyRefs: [UInt32: EventHotKeyRef] = [:]
+    private var eventsByID: [UInt32: GlobalHotKeyEvent] = [:]
     private var notificationObservers: [NSObjectProtocol] = []
     private var isEnabled = false
     private var actionKeys: [GlobalHotKeyAction: GlobalHotKeyKey] = GlobalHotKeyAction.defaultKeys
+    private var presetKeys: [UUID: GlobalHotKeyKey] = [:]
 
-    init(actionHandler: @escaping (GlobalHotKeyAction) -> Void) {
+    init(
+        actionHandler: @escaping (GlobalHotKeyAction) -> Void,
+        presetHandler: @escaping (UUID) -> Void = { _ in }
+    ) {
         self.actionHandler = actionHandler
+        self.presetHandler = presetHandler
         installEventHandlerIfNeeded()
         observeApplicationActivity()
     }
@@ -163,6 +170,11 @@ final class GlobalHotKeyCoordinator {
 
     func setActionKeys(_ actionKeys: [GlobalHotKeyAction: GlobalHotKeyKey]) {
         self.actionKeys = actionKeys
+        refreshRegistrations()
+    }
+
+    func setPresetKeys(_ presetKeys: [UUID: GlobalHotKeyKey]) {
+        self.presetKeys = presetKeys
         refreshRegistrations()
     }
 
@@ -224,12 +236,15 @@ final class GlobalHotKeyCoordinator {
 
             guard status == noErr,
                   hotKeyID.signature == GlobalHotKeyCoordinator.signature,
-                  let action = GlobalHotKeyAction(rawValue: hotKeyID.id) else {
+                  let registeredEvent = coordinator.eventsByID[hotKeyID.id] else {
                 return status
             }
 
             DispatchQueue.main.async {
-                coordinator.actionHandler(action)
+                switch registeredEvent {
+                case .action(let action): coordinator.actionHandler(action)
+                case .preset(let id): coordinator.presetHandler(id)
+                }
             }
             return noErr
         }
@@ -251,28 +266,43 @@ final class GlobalHotKeyCoordinator {
         }
 
         for action in GlobalHotKeyAction.allCases {
-            var hotKeyRef: EventHotKeyRef?
-            let hotKeyID = EventHotKeyID(signature: Self.signature, id: action.rawValue)
             let key = actionKeys[action] ?? GlobalHotKeyAction.defaultKeys[action] ?? .one
-            let status = RegisterEventHotKey(
-                key.keyCode,
-                UInt32(cmdKey | shiftKey),
-                hotKeyID,
-                GetApplicationEventTarget(),
-                0,
-                &hotKeyRef
-            )
-
-            guard status == noErr, let hotKeyRef else {
-                continue
-            }
-
-            hotKeyRefs[action] = hotKeyRef
+            register(key: key, id: action.rawValue, event: .action(action))
         }
+
+        for (offset, entry) in presetKeys.sorted(by: { $0.key.uuidString < $1.key.uuidString }).enumerated() {
+            register(key: entry.value, id: UInt32(1_000 + offset), event: .preset(entry.key))
+        }
+    }
+
+    private func register(key: GlobalHotKeyKey, id: UInt32, event: GlobalHotKeyEvent) {
+        var hotKeyRef: EventHotKeyRef?
+        let hotKeyID = EventHotKeyID(signature: Self.signature, id: id)
+        let status = RegisterEventHotKey(
+            key.keyCode,
+            UInt32(cmdKey | shiftKey),
+            hotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &hotKeyRef
+        )
+
+        guard status == noErr, let hotKeyRef else {
+            return
+        }
+
+        hotKeyRefs[id] = hotKeyRef
+        eventsByID[id] = event
     }
 
     private func unregisterAllHotKeys() {
         hotKeyRefs.values.forEach { UnregisterEventHotKey($0) }
         hotKeyRefs.removeAll()
+        eventsByID.removeAll()
     }
+}
+
+private enum GlobalHotKeyEvent {
+    case action(GlobalHotKeyAction)
+    case preset(UUID)
 }

@@ -1,6 +1,54 @@
 import AppKit
 
 @MainActor
+enum ScrollingCaptureTargetConfirmation {
+    private static let showsConfirmationKey = "ScrollingCaptureShowsTargetConfirmation"
+
+    enum Choice {
+        case start
+        case chooseAnotherArea
+        case cancel
+    }
+
+    static func present(target: ScrollingCaptureTarget) -> Choice {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: showsConfirmationKey) != nil,
+           !defaults.bool(forKey: showsConfirmationKey) {
+            return .start
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = "Ready to Capture \(target.sourceName)"
+        alert.informativeText = "Selected area: \(Int(target.viewportRect.width)) × \(Int(target.viewportRect.height)) points. Scrolling Capture works best with stable pages, lists, and documents. Animated or changing content may need a seam review."
+        alert.addButton(withTitle: "Start Capture")
+        alert.addButton(withTitle: "Choose Another Area")
+        alert.addButton(withTitle: "Cancel")
+
+        let showAgainCheckbox = NSButton(
+            checkboxWithTitle: "Show this again",
+            target: nil,
+            action: nil
+        )
+        showAgainCheckbox.state = .on
+        alert.accessoryView = showAgainCheckbox
+
+        let response = alert.runModal()
+        defaults.set(showAgainCheckbox.state == .on, forKey: showsConfirmationKey)
+
+        switch response {
+        case .alertFirstButtonReturn:
+            return .start
+        case .alertSecondButtonReturn:
+            return .chooseAnotherArea
+        default:
+            return .cancel
+        }
+    }
+}
+
+@MainActor
 final class ScrollingCaptureProgressOverlay {
     private let window: NSWindow
     private let view: ScrollingCaptureProgressView
@@ -14,7 +62,7 @@ final class ScrollingCaptureProgressOverlay {
         self.onDone = onDone
         view = ScrollingCaptureProgressView(onCancel: onCancel, onDone: onDone)
         window = ScrollingCaptureProgressWindow(
-            contentRect: CGRect(x: 0, y: 0, width: 380, height: 160),
+            contentRect: CGRect(x: 0, y: 0, width: 420, height: 220),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
@@ -38,11 +86,12 @@ final class ScrollingCaptureProgressOverlay {
         show()
     }
 
-    func update(segmentCount: Int, outputHeight: Int, capacityFraction: Double, warning: String?) {
+    func update(segmentCount: Int, outputHeight: Int, capacityFraction: Double, warning: String?, previewImage: CGImage?) {
         view.segmentCount = segmentCount
         view.outputHeight = outputHeight
         view.capacityFraction = capacityFraction
         view.warning = warning
+        view.previewImage = previewImage
     }
 
     func close() {
@@ -141,6 +190,9 @@ private final class ScrollingCaptureProgressView: NSView {
     var warning: String? {
         didSet { needsDisplay = true }
     }
+    var previewImage: CGImage? {
+        didSet { needsDisplay = true }
+    }
 
     private let cancelButton = NSButton(title: "Cancel", target: nil, action: nil)
     private let doneButton = NSButton(title: "Done", target: nil, action: nil)
@@ -150,7 +202,7 @@ private final class ScrollingCaptureProgressView: NSView {
     init(onCancel: @escaping () -> Void, onDone: @escaping () -> Void) {
         self.onCancel = onCancel
         self.onDone = onDone
-        super.init(frame: CGRect(x: 0, y: 0, width: 380, height: 160))
+        super.init(frame: CGRect(x: 0, y: 0, width: 420, height: 220))
         wantsLayer = true
         configureButtons()
     }
@@ -209,15 +261,47 @@ private final class ScrollingCaptureProgressView: NSView {
             ]
         )
 
+        drawPreview(in: CGRect(x: 18, y: 108, width: 124, height: 72))
+
         if let warning {
             NSString(string: warning).draw(
-                in: CGRect(x: 18, y: 107, width: bounds.width - 36, height: 20),
+                in: CGRect(x: 154, y: 112, width: bounds.width - 172, height: 54),
                 withAttributes: [
                     .foregroundColor: NSColor.systemOrange,
                     .font: NSFont.systemFont(ofSize: 12, weight: .medium)
                 ]
             )
         }
+    }
+
+    private func drawPreview(in rect: CGRect) {
+        let frame = NSBezierPath(roundedRect: rect, xRadius: 8, yRadius: 8)
+        NSColor.controlBackgroundColor.setFill()
+        frame.fill()
+        NSColor.separatorColor.setStroke()
+        frame.stroke()
+
+        guard let previewImage else {
+            NSString(string: "Building preview…").draw(
+                in: rect.insetBy(dx: 10, dy: 25),
+                withAttributes: [
+                    .foregroundColor: NSColor.tertiaryLabelColor,
+                    .font: NSFont.systemFont(ofSize: 11)
+                ]
+            )
+            return
+        }
+
+        let imageSize = CGSize(width: previewImage.width, height: previewImage.height)
+        let scale = min(rect.width / imageSize.width, rect.height / imageSize.height)
+        let drawSize = CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
+        let drawRect = CGRect(
+            x: rect.midX - drawSize.width / 2,
+            y: rect.midY - drawSize.height / 2,
+            width: drawSize.width,
+            height: drawSize.height
+        )
+        NSGraphicsContext.current?.cgContext.draw(previewImage, in: drawRect)
     }
 
     private func drawCapacityBar(at rect: CGRect) {

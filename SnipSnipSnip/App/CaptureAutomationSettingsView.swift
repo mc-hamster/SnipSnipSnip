@@ -778,7 +778,9 @@ struct CaptureAutomationSettingsView: View {
     private func capturePresetRow(_ preset: CapturePreset) -> some View {
         let index = capture.capturePresets.firstIndex(where: { $0.id == preset.id }) ?? 0
 
-        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+        return HStack(alignment: .top, spacing: 8) {
+            CapturePresetBadge(preset: preset, size: 32)
+
             VStack(alignment: .leading, spacing: 4) {
                 TextField("Preset name", text: capturePresetNameBinding(for: preset.id))
                     .textFieldStyle(.roundedBorder)
@@ -790,6 +792,34 @@ struct CaptureAutomationSettingsView: View {
                 Picker("Outcome", selection: capturePresetOutcomeBinding(for: preset.id)) {
                     ForEach(CapturePresetOutcome.allCases) { outcome in
                         Text(outcome.label).tag(outcome)
+                    }
+                }
+                .labelsHidden()
+
+                HStack {
+                    Menu("Icon: \(preset.symbolName ?? "Default")") {
+                        Button("Default") { capture.updateCapturePresetAppearance(id: preset.id, symbolName: nil, tint: preset.tint) }
+                        ForEach(["camera.viewfinder", "macwindow", "doc.text", "ladybug", "star"], id: \.self) { symbol in
+                            Button { capture.updateCapturePresetAppearance(id: preset.id, symbolName: symbol, tint: preset.tint) } label: {
+                                Label {
+                                    Text(symbol)
+                                } icon: {
+                                    CapturePresetBadge(symbolName: symbol, tint: preset.tint, size: 18)
+                                }
+                            }
+                        }
+                    }
+                    Picker("Color", selection: capturePresetTintBinding(for: preset.id)) {
+                        ForEach(CapturePresetTint.allCases) { tint in
+                            CapturePresetTintLabel(tint: tint, symbolName: preset.symbolName)
+                                .tag(tint)
+                        }
+                    }
+                    Menu("Shortcut: \(preset.hotKey.map { "⌘⇧\($0.label)" } ?? "None")") {
+                        Button("No Shortcut") { capture.updateCapturePresetHotKey(id: preset.id, hotKey: nil) }
+                        ForEach(GlobalHotKeyKey.allCases) { key in
+                            Button("⌘⇧\(key.label)") { capture.updateCapturePresetHotKey(id: preset.id, hotKey: key) }
+                        }
                     }
                 }
                 .labelsHidden()
@@ -862,6 +892,16 @@ struct CaptureAutomationSettingsView: View {
         Binding(
             get: { capture.capturePresets.first(where: { $0.id == id })?.outcome ?? .openInEditor },
             set: { capture.updateCapturePresetOutcome(id: id, outcome: $0) }
+        )
+    }
+
+    private func capturePresetTintBinding(for id: CapturePreset.ID) -> Binding<CapturePresetTint> {
+        Binding(
+            get: { capture.capturePresets.first(where: { $0.id == id })?.tint ?? .blue },
+            set: { tint in
+                let symbol = capture.capturePresets.first(where: { $0.id == id })?.symbolName
+                capture.updateCapturePresetAppearance(id: id, symbolName: symbol, tint: tint)
+            }
         )
     }
 

@@ -291,6 +291,9 @@ nonisolated struct CapturePreset: Codable, Equatable, Identifiable {
     var options: CaptureRunOptions
     var outcome: CapturePresetOutcome
     var exportDestination: CapturePresetExportDestination?
+    var symbolName: String?
+    var tint: CapturePresetTint
+    var hotKey: GlobalHotKeyKey?
     var isFavorite: Bool
     var lastRunAt: Date?
     var createdAt: Date
@@ -303,6 +306,9 @@ nonisolated struct CapturePreset: Codable, Equatable, Identifiable {
         options: CaptureRunOptions,
         outcome: CapturePresetOutcome = .openInEditor,
         exportDestination: CapturePresetExportDestination? = nil,
+        symbolName: String? = nil,
+        tint: CapturePresetTint = .blue,
+        hotKey: GlobalHotKeyKey? = nil,
         isFavorite: Bool = false,
         lastRunAt: Date? = nil,
         createdAt: Date = Date(),
@@ -314,6 +320,9 @@ nonisolated struct CapturePreset: Codable, Equatable, Identifiable {
         self.options = options
         self.outcome = outcome
         self.exportDestination = exportDestination
+        self.symbolName = symbolName
+        self.tint = tint
+        self.hotKey = hotKey
         self.isFavorite = isFavorite
         self.lastRunAt = lastRunAt
         self.createdAt = createdAt
@@ -321,7 +330,7 @@ nonisolated struct CapturePreset: Codable, Equatable, Identifiable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, target, options, outcome, exportDestination, isFavorite, lastRunAt, createdAt, updatedAt
+        case id, name, target, options, outcome, exportDestination, symbolName, tint, hotKey, isFavorite, lastRunAt, createdAt, updatedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -332,6 +341,9 @@ nonisolated struct CapturePreset: Codable, Equatable, Identifiable {
         options = try container.decode(CaptureRunOptions.self, forKey: .options)
         outcome = try container.decodeIfPresent(CapturePresetOutcome.self, forKey: .outcome) ?? .openInEditor
         exportDestination = try container.decodeIfPresent(CapturePresetExportDestination.self, forKey: .exportDestination)
+        symbolName = try container.decodeIfPresent(String.self, forKey: .symbolName)
+        tint = try container.decodeIfPresent(CapturePresetTint.self, forKey: .tint) ?? .blue
+        hotKey = try container.decodeIfPresent(GlobalHotKeyKey.self, forKey: .hotKey)
         isFavorite = try container.decodeIfPresent(Bool.self, forKey: .isFavorite) ?? false
         lastRunAt = try container.decodeIfPresent(Date.self, forKey: .lastRunAt)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
@@ -351,6 +363,13 @@ nonisolated struct CapturePreset: Codable, Equatable, Identifiable {
             return "Fullscreen"
         }
     }
+}
+
+nonisolated enum CapturePresetTint: String, CaseIterable, Codable, Identifiable {
+    case blue, purple, pink, orange, green, gray
+
+    var id: String { rawValue }
+    var label: String { rawValue.capitalized }
 }
 
 /// The outcome a saved capture workflow should perform once the pixels are ready.
@@ -406,6 +425,7 @@ nonisolated enum CaptureRecoveryAction: Hashable {
     case chooseDisplay
     case captureVisibleArea
     case chooseAnotherArea
+    case keepPartialResult
     case openTroubleshooting
 }
 
@@ -827,6 +847,20 @@ nonisolated struct ScrollingCaptureResult {
             coordinateContract: coordinateContract,
             capturedAt: capturedAt
         )
+    }
+}
+
+nonisolated struct ScrollingCaptureTarget: Equatable, Sendable {
+    let sourceName: String
+    let viewportRect: CGRect
+}
+
+nonisolated struct ScrollingCaptureInterruptedError: LocalizedError, @unchecked Sendable {
+    let partialResult: ScrollingCaptureResult
+    let reason: String
+
+    var errorDescription: String? {
+        "Scrolling Capture stopped before it reached the end. \(reason) You can keep the useful part already captured or try another approach."
     }
 }
 

@@ -43,6 +43,7 @@ protocol CoordinatorCapturePort: AnyObject {
     func captureCurrentDisplay()
     func captureFrontmostWindow()
     func capturePreset(_ preset: CapturePreset)
+    func capturePreset(id: CapturePreset.ID)
     func refreshConnectedDevices()
     func completeScreenInspectorSnip(_ sample: ScreenInspectorSample)
     func setConnectedDeviceSessionActive(_ isActive: Bool)

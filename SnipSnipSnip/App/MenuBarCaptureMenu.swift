@@ -84,8 +84,14 @@ struct CapturePresetMenuContent: View {
                 if lhs.isFavorite != rhs.isFavorite { return lhs.isFavorite && !rhs.isFavorite }
                 return (lhs.lastRunAt ?? .distantPast) > (rhs.lastRunAt ?? .distantPast)
             }) { preset in
-                Button(preset.name) {
+                Button {
                     capture.capturePreset(preset)
+                } label: {
+                    Label {
+                        Text(preset.name + (preset.hotKey.map { "  ⌘⇧\($0.label)" } ?? ""))
+                    } icon: {
+                        CapturePresetBadge(preset: preset, size: 18)
+                    }
                 }
                 .disabled(isCaptureActionDisabled)
             }

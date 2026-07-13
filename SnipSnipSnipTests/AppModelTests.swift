@@ -1032,7 +1032,8 @@ final class AppModelTests: XCTestCase {
             model.permissionStatus,
             CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: false)
         )
-        XCTAssertEqual(model.errorMessage, ScreenCaptureError.permissionDenied.errorDescription)
+        XCTAssertEqual(model.capture.captureRecovery?.title, "Screen Recording Is Needed")
+        XCTAssertEqual(model.capture.captureRecovery?.message, ScreenCaptureError.permissionDenied.errorDescription)
     }
 
     func testEditorCropOutsideOverlayDimmingDescriptionUsesCurrentAlpha() {

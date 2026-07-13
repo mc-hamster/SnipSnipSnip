@@ -115,6 +115,7 @@ final class CaptureWorkflowModel: ObservableObject, AutomationStatusPort, Captur
     var pendingPermissionCommand: PendingCapturePermissionRequest?
     var pendingCapturePresetDraft: CapturePreset?
     var pendingRecoveryRequest: LastCaptureRequest?
+    var pendingScrollingPartialCapture: (result: ScrollingCaptureResult, isPrivateCapture: Bool)?
     var activeWorkflowPresetID: CapturePreset.ID?
     var capturePrivacyLockDepth = 0
     var interactiveCaptureAutosaveSuspensionDepth = 0

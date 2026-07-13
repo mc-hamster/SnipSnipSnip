@@ -7,6 +7,7 @@ final class AppModelRuntimeBindings {
     private let globalHotKeyCoordinator: GlobalHotKeyCoordinator
     private var applicationActivationObserver: AnyCancellable?
     private var hotKeyPreferencesObserver: AnyCancellable?
+    private var presetHotKeysObserver: AnyCancellable?
 
     init(
         capabilities: AppCapabilitySnapshot,
@@ -17,11 +18,10 @@ final class AppModelRuntimeBindings {
         shouldStartArchiveMaintenance: Bool,
         isRunningUnitTests: Bool
     ) {
-        globalHotKeyCoordinator = GlobalHotKeyCoordinator { action in
-            Task { @MainActor in
-                workflowCoordinator.handleGlobalHotKeyAction(action)
-            }
-        }
+        globalHotKeyCoordinator = GlobalHotKeyCoordinator(
+            actionHandler: { action in Task { @MainActor in workflowCoordinator.handleGlobalHotKeyAction(action) } },
+            presetHandler: { presetID in Task { @MainActor in workflowCoordinator.handleGlobalPresetHotKey(presetID) } }
+        )
 
         bindHotKeyPreferences(from: capture)
         activateStartupServices(
@@ -39,11 +39,15 @@ final class AppModelRuntimeBindings {
 
     private func bindHotKeyPreferences(from capture: CaptureWorkflowModel) {
         configureHotKeys(from: capture.automationPreferences)
+        configurePresetHotKeys(from: capture.capturePresets)
         hotKeyPreferencesObserver = capture.$automationPreferences
             .dropFirst()
             .sink { [weak self] preferences in
                 self?.configureHotKeys(from: preferences)
             }
+        presetHotKeysObserver = capture.$capturePresets
+            .dropFirst()
+            .sink { [weak self] presets in self?.configurePresetHotKeys(from: presets) }
     }
 
     private func bindExternalChangeNotifications(
@@ -79,5 +83,11 @@ final class AppModelRuntimeBindings {
     private func configureHotKeys(from preferences: CaptureAutomationPreferences) {
         globalHotKeyCoordinator.setActionKeys(preferences.actionKeys)
         globalHotKeyCoordinator.setEnabled(preferences.globalHotkeysEnabled)
+    }
+
+    private func configurePresetHotKeys(from presets: [CapturePreset]) {
+        globalHotKeyCoordinator.setPresetKeys(Dictionary(uniqueKeysWithValues: presets.compactMap { preset in
+            preset.hotKey.map { (preset.id, $0) }
+        }))
     }
 }

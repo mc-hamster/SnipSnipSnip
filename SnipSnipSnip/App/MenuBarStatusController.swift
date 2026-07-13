@@ -625,6 +625,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
                     action: #selector(capturePreset(_:)),
                     enabled: isEnabled
                 )
+                item.image = capturePresetMenuImage(for: preset)
                 item.representedObject = preset.id
                 capturePresetsMenu.addItem(item)
             }

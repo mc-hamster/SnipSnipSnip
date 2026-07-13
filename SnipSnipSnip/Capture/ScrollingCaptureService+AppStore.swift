@@ -33,11 +33,12 @@ final class ScrollingCaptureCancellation: @unchecked Sendable {
     func finish() {}
 }
 
-struct ScrollingCaptureProgress: Equatable, Sendable {
+struct ScrollingCaptureProgress: @unchecked Sendable {
     let segmentCount: Int
     let outputHeight: Int
     let maxOutputHeight: Int
     let warning: String?
+    let previewImage: CGImage?
 
     var capacityFraction: Double {
         guard maxOutputHeight > 0 else { return 0 }
@@ -52,6 +53,11 @@ struct ScrollingCaptureService {
     init(captureService: any ScreenCaptureServiceType, permissions: any CapturePermissionServicing) {
         self.captureService = captureService
         self.permissions = permissions
+    }
+
+    func resolveTarget(for request: ScrollingCaptureRequest) throws -> ScrollingCaptureTarget {
+        _ = request
+        throw ScrollingCaptureError.accessibilityPermissionDenied
     }
 
     func capture(

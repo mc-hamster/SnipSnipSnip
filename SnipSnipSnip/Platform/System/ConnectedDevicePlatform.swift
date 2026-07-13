@@ -333,6 +333,11 @@ private final class LiveConnectedDevicePreviewPlatformSession: NSObject, Connect
                 continuation.resume()
             }
         }
+
+        guard await waitForFirstFrame() else {
+            stop()
+            throw ConnectedDeviceCaptureError.noVideoFramesReceived
+        }
     }
 
     nonisolated func stop() {
@@ -567,6 +572,24 @@ private final class LiveConnectedDevicePreviewPlatformSession: NSObject, Connect
         let frameSize = latestFrameSize
         frameLock.unlock()
         return frameSize == .zero ? CGSize(width: 1, height: 1) : frameSize
+    }
+
+    private func waitForFirstFrame() async -> Bool {
+        for _ in 0..<25 {
+            if hasReceivedFrame {
+                return true
+            }
+
+            try? await Task.sleep(nanoseconds: 200_000_000)
+        }
+
+        return false
+    }
+
+    private var hasReceivedFrame: Bool {
+        frameLock.lock()
+        defer { frameLock.unlock() }
+        return latestPixelBuffer != nil
     }
 
     private static func recordingDuration(from url: URL, fallbackStart: Date) async -> TimeInterval {

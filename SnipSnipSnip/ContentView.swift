@@ -1391,10 +1391,48 @@ private struct CapturePresetNamingSheetView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            TextField("Preset name", text: $capture.capturePresetNameDraft)
-                .textFieldStyle(.roundedBorder)
-                .focused($isNameFocused)
-                .onSubmit(save)
+            HStack(spacing: 10) {
+                CapturePresetBadge(
+                    symbolName: capture.pendingCapturePresetDraft?.symbolName,
+                    tint: pendingTintBinding.wrappedValue,
+                    size: 36
+                )
+
+                TextField("Preset name", text: $capture.capturePresetNameDraft)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($isNameFocused)
+                    .onSubmit(save)
+            }
+
+            HStack {
+                Menu("Icon: \(capture.pendingCapturePresetDraft?.symbolName ?? "Default")") {
+                    Button("Default") { capture.updatePendingCapturePresetAppearance(symbolName: nil, tint: pendingTintBinding.wrappedValue) }
+                    ForEach(presetSymbols, id: \.self) { symbol in
+                        Button { capture.updatePendingCapturePresetAppearance(symbolName: symbol, tint: pendingTintBinding.wrappedValue) } label: {
+                            Label {
+                                Text(symbol)
+                            } icon: {
+                                CapturePresetBadge(symbolName: symbol, tint: pendingTintBinding.wrappedValue, size: 18)
+                            }
+                        }
+                    }
+                }
+                Picker("Color", selection: pendingTintBinding) {
+                    ForEach(CapturePresetTint.allCases) { tint in
+                        CapturePresetTintLabel(
+                            tint: tint,
+                            symbolName: capture.pendingCapturePresetDraft?.symbolName
+                        )
+                        .tag(tint)
+                    }
+                }
+                Menu("Shortcut: \(capture.pendingCapturePresetDraft?.hotKey.map { "⌘⇧\($0.label)" } ?? "None")") {
+                    Button("No Shortcut") { capture.updatePendingCapturePresetHotKey(nil) }
+                    ForEach(GlobalHotKeyKey.allCases) { key in
+                        Button("⌘⇧\(key.label)") { capture.updatePendingCapturePresetHotKey(key) }
+                    }
+                }
+            }
 
             Picker("When capture finishes", selection: pendingOutcomeBinding) {
                 ForEach(CapturePresetOutcome.allCases) { outcome in
@@ -1453,7 +1491,7 @@ private struct CapturePresetNamingSheetView: View {
     private var pendingOutcomeBinding: Binding<CapturePresetOutcome> {
         Binding(
             get: { capture.pendingCapturePresetDraft?.outcome ?? .openInEditor },
-            set: capture.updatePendingCapturePresetOutcome
+            set: { capture.updatePendingCapturePresetOutcome($0) }
         )
     }
 
@@ -1464,6 +1502,15 @@ private struct CapturePresetNamingSheetView: View {
 
         return "\(destination.format.label) → \(destination.folderURL.lastPathComponent)"
     }
+
+    private var pendingTintBinding: Binding<CapturePresetTint> {
+        Binding(
+            get: { capture.pendingCapturePresetDraft?.tint ?? .blue },
+            set: { capture.updatePendingCapturePresetAppearance(symbolName: capture.pendingCapturePresetDraft?.symbolName, tint: $0) }
+        )
+    }
+
+    private let presetSymbols = ["camera.viewfinder", "macwindow", "doc.text", "ladybug", "star"]
 }
 
 private struct CaptureRecoverySheetView: View {
@@ -1491,14 +1538,26 @@ private struct CaptureRecoverySheetView: View {
                 Spacer()
 
                 ForEach(recovery.actions, id: \.self) { action in
-                    Button(label(for: action)) {
-                        performAction(action)
-                    }
-                    .buttonStyle(action == recovery.actions.first ? .borderedProminent : .bordered)
+                    actionButton(for: action)
                 }
             }
         }
         .padding(22)
+    }
+
+    @ViewBuilder
+    private func actionButton(for action: CaptureRecoveryAction) -> some View {
+        if action == recovery.actions.first {
+            Button(label(for: action)) {
+                performAction(action)
+            }
+            .buttonStyle(.borderedProminent)
+        } else {
+            Button(label(for: action)) {
+                performAction(action)
+            }
+            .buttonStyle(.bordered)
+        }
     }
 
     private func label(for action: CaptureRecoveryAction) -> String {
@@ -1513,6 +1572,7 @@ private struct CaptureRecoverySheetView: View {
         case .chooseDisplay: "Choose Display"
         case .captureVisibleArea: "Capture Visible Area"
         case .chooseAnotherArea: "Choose Another Area"
+        case .keepPartialResult: "Keep Partial Result"
         case .openTroubleshooting: "Open Troubleshooting"
         }
     }

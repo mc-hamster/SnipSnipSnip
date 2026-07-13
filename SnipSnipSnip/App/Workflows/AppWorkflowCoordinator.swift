@@ -292,6 +292,14 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
         }
     }
 
+    func handleGlobalPresetHotKey(_ presetID: UUID) {
+        guard capture?.isWorking != true, video?.isRecording != true else {
+            lifecycle?.presentBusyHotKeyFeedback(message: video?.isRecording == true ? "Recording in progress" : "Capture already in progress")
+            return
+        }
+        capture?.capturePreset(id: presetID)
+    }
+
     var canResetPreferencesToDefaults: Bool {
         guard let capture else {
             return false

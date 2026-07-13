@@ -9,6 +9,13 @@ protocol WorkflowLifecyclePresenting: AnyObject {
     func updateWorkingMessage(_ message: String)
     func presentPresentationExperimentalNotice()
     func requestMainWindowPresentation()
+    func presentSettings(tab: AppSettingsTab)
+}
+
+extension WorkflowLifecyclePresenting {
+    func presentSettings(tab: AppSettingsTab) {
+        requestMainWindowPresentation()
+    }
 }
 
 @MainActor
@@ -124,6 +131,12 @@ final class AppLifecycleModel: ObservableObject {
 
     func requestMainWindowPresentation() {
         mainWindowPresentationRequest += 1
+    }
+
+    func presentSettings(tab: AppSettingsTab) {
+        selectedSettingsTab = tab
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
     }
 
     func completeOnboarding(requestMainWindowPresentation: () -> Void) {

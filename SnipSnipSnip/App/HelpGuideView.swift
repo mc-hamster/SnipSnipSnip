@@ -406,7 +406,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Use capture presets",
-                            body: "After a region, window, frontmost-window, fullscreen, or Screen Inspector snip, choose Presets > Save Last Capture as Preset to create a workflow. Choose whether it opens in the editor, copies directly to the clipboard, or exports a rendered PNG, JPEG, or PDF to a folder you choose. Presets remember the screenshot target, timer, cursor option, fullscreen display choice, region controls, and Window UI Map option used for that capture. Private Capture stays controlled by the current Privacy setting and is not saved inside presets. Run saved workflows from the main window, Capture menu, or menu bar extra; favorite workflows appear first. Settings > Presets shows each workflow's target, outcome, last run, and Run button. If a saved region no longer fits the current display layout, SnipSnipSnip opens the region selector with the saved size so you can reposition it. If a saved window is not available, choose a replacement window to update and run the preset."
+                            body: "After a region, window, frontmost-window, fullscreen, or Screen Inspector snip, choose Presets > Save Last Capture as Preset to create a workflow. Give it a recognizable name, icon, and color; that colored badge identifies the preset consistently in capture menus and Settings. Then choose whether it opens in the editor, copies directly to the clipboard, or exports a rendered PNG, JPEG, or PDF to a folder you choose. You can assign a Command-Shift global shortcut; SnipSnipSnip checks built-in actions and other presets before saving it. Presets remember the screenshot target, timer, cursor option, fullscreen display choice, region controls, and Window UI Map option used for that capture. Private Capture stays controlled by the current Privacy setting and is not saved inside presets. Run saved workflows from the main window, Capture menu, menu bar extra, or assigned shortcut; favorites appear first. If a saved region no longer fits the current display layout, SnipSnipSnip opens the region selector with the saved size so you can reposition it. If a saved window is not available, choose a replacement window to update and run the preset."
                         ),
                         HelpArticleSection(
                             title: "Recover from a capture problem",
@@ -435,11 +435,15 @@ struct HelpGuideView: View {
                             title: "Capture a scrollable area",
                             steps: [
                                 "Choose Scrolling Capture.",
-                                "Drag over a scrollable area within one display.",
-                                "Confirm the selected viewport.",
-                                "Wait while SnipSnipSnip scrolls and captures segments. The progress panel shows the captured length, capacity remaining, and any quality warning.",
+                                "Drag over a scrollable area within one display. The selector uses the same crosshair, live loupe, and precision-control preferences as Region Capture.",
+                                "Confirm the detected app and selected viewport, or choose another area before capture starts. Turn off Show this again if you want future scrolling captures to start immediately after selection.",
+                                "Wait while SnipSnipSnip scrolls and captures segments. The progress panel shows the captured length, capacity remaining, a stitched preview, and any quality warning.",
                                 "Press Esc to cancel, or press Return or click Done to stop early and use the segments already captured."
                             ]
+                        ),
+                        HelpArticleSection(
+                            title: "Keep useful partial results",
+                            body: "If later frames cannot be stitched or capture is interrupted after useful content was collected, choose Keep Partial Result to open what was captured. SnipSnipSnip labels it as partial and recommends reviewing seams before sharing. You can also retry the same area or capture only the visible area."
                         ),
                         HelpArticleSection(
                             title: "Best results",
@@ -902,7 +906,7 @@ struct HelpGuideView: View {
                         ? [
                             HelpArticleSection(
                                 title: "Scrolling Capture does not start",
-                                body: "Allow Accessibility permission. If the app is not listed, use Reveal App from the setup guide and add the exact running app in System Settings. If the selected area is not scrollable or stitching cannot continue, use the recovery panel to choose another area, retry, or capture the visible area instead."
+                                body: "Allow Accessibility permission. If the app is not listed, use Reveal App from the setup guide and add the exact running app in System Settings. If the Ready to Capture panel is enabled, confirm that it names the expected app. If the selected area is not scrollable or stitching cannot continue, use the recovery panel to keep a useful partial result, choose another area, retry, or capture the visible area instead."
                             )
                         ]
                         : []),

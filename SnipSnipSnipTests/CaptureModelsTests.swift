@@ -94,6 +94,9 @@ final class CaptureModelsTests: XCTestCase {
                 regionPreferences: regionPreferences,
                 windowUIMapEnabled: true
             ),
+            symbolName: "doc.text",
+            tint: .purple,
+            hotKey: .nine,
             createdAt: Date(timeIntervalSince1970: 10),
             updatedAt: Date(timeIntervalSince1970: 20)
         )
@@ -102,6 +105,23 @@ final class CaptureModelsTests: XCTestCase {
         let decoded = try JSONDecoder().decode(CapturePreset.self, from: data)
 
         XCTAssertEqual(decoded, preset)
+    }
+
+    func testLegacyCapturePresetUsesSafeWorkflowAppearanceDefaults() throws {
+        let preset = CapturePreset(name: "Legacy", target: .fullscreen, options: CaptureRunOptions())
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(preset)) as? [String: Any])
+        object.removeValue(forKey: "symbolName")
+        object.removeValue(forKey: "tint")
+        object.removeValue(forKey: "hotKey")
+
+        let decoded = try JSONDecoder().decode(
+            CapturePreset.self,
+            from: JSONSerialization.data(withJSONObject: object)
+        )
+
+        XCTAssertNil(decoded.symbolName)
+        XCTAssertEqual(decoded.tint, .blue)
+        XCTAssertNil(decoded.hotKey)
     }
 
     func testStrictSavedWindowMatchDoesNotFallBackToUnrelatedWindows() {

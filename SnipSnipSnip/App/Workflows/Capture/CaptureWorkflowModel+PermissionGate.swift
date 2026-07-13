@@ -105,6 +105,9 @@ extension CaptureWorkflowModel {
 
     func performCaptureRecovery(_ action: CaptureRecoveryAction) {
         captureRecovery = nil
+        if action != .keepPartialResult {
+            pendingScrollingPartialCapture = nil
+        }
 
         switch action {
         case .retryLastCapture:
@@ -124,13 +127,35 @@ extension CaptureWorkflowModel {
             selectedScreenshotFullscreenDisplayID = nil
             captureCurrentDisplay()
         case .chooseDisplay:
-            dependencies.lifecycle.requestMainWindowPresentation()
+            dependencies.lifecycle.presentSettings(tab: .general)
         case .captureVisibleArea:
             captureRegion()
         case .chooseAnotherArea:
+            pendingScrollingPartialCapture = nil
             captureScrollingArea()
+        case .keepPartialResult:
+            keepPendingScrollingPartialResult()
         case .openTroubleshooting:
             break
+        }
+    }
+
+    private func keepPendingScrollingPartialResult() {
+        guard let pending = pendingScrollingPartialCapture else {
+            return
+        }
+
+        pendingScrollingPartialCapture = nil
+        do {
+            try completeCapture(
+                pending.result.capturedScreenshot,
+                request: .scrolling(pending.result.sourceViewportRect),
+                isPrivateCapture: pending.isPrivateCapture
+            )
+            showCapturedFeedback()
+            dependencies.lifecycle.presentError("Partial scrolling capture kept. Review the seams before sharing.")
+        } catch {
+            present(error, recovering: .scrolling(pending.result.sourceViewportRect))
         }
     }
 
@@ -195,6 +220,12 @@ extension CaptureWorkflowModel {
                 title: "Scrolling Capture Could Not Finish",
                 message: message,
                 actions: [.retryLastCapture, .captureVisibleArea, .openTroubleshooting]
+            )
+        case let interruption as ScrollingCaptureInterruptedError:
+            return CaptureRecovery(
+                title: "Keep the Useful Part?",
+                message: interruption.errorDescription ?? interruption.reason,
+                actions: [.keepPartialResult, .retryLastCapture, .captureVisibleArea]
             )
         default:
             return CaptureRecovery(
