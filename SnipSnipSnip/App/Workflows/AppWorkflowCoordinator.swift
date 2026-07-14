@@ -87,16 +87,18 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
 
             let controller = documents.installCapturedScreenshot(result)
             capture?.recordCompletedCapture(request: result.request, runOptions: result.runOptions)
+            let workflowOutcome = result.workflowPreset?.outcome ?? .openInEditor
+            let willBeCopied = workflowOutcome == .copyToClipboard || clipboard?.autoCopyEnabled == true
 
             if !result.isPrivateCapture {
                 clipboard?.scheduleClipboardSnipRecording(
                     from: controller,
                     searchableText: result.capture.sourceName,
-                    sessionID: documents.currentRecoverySessionID
+                    sessionID: documents.currentRecoverySessionID,
+                    willBeCopied: willBeCopied
                 )
             }
 
-            let workflowOutcome = result.workflowPreset?.outcome ?? .openInEditor
             if workflowOutcome == .copyToClipboard {
                 documents.copyCurrentEditorImageToClipboard()
             } else if workflowOutcome == .exportToFolder,

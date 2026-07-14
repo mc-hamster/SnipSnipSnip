@@ -1605,6 +1605,12 @@ private final class AnnotationCanvasOverlayView: NSView {
             interactionState.beginLineDrawing(tool: .line, anchor: point)
         case .arrow:
             interactionState.beginLineDrawing(tool: .arrow, anchor: point)
+        case .statusMark:
+            interactionState.beginStatusMarkDrawing(
+                at: point,
+                within: controller.snapshot.cropRect,
+                style: controller.style(for: .statusMark)
+            )
         case .measure:
             interactionState.beginLineDrawing(tool: .measure, anchor: point)
         case .freehand:

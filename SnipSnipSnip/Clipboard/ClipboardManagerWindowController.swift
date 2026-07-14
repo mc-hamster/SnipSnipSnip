@@ -12,21 +12,12 @@ enum ClipboardManagerWindowID {
 @MainActor
 final class ClipboardManagerWindowController: NSWindowController {
     private weak var clipboard: ClipboardWorkflowModel?
-    private let workspace: any WorkspaceServicing
-    private let bundleIdentifier: String?
-    private var previousFrontmostApplicationProcessIdentifier: pid_t?
 
-    init(
-        clipboard: ClipboardWorkflowModel,
-        workspace: any WorkspaceServicing,
-        bundleIdentifier: String?
-    ) {
+    init(clipboard: ClipboardWorkflowModel) {
         self.clipboard = clipboard
-        self.workspace = workspace
-        self.bundleIdentifier = bundleIdentifier
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 620),
+            contentRect: NSRect(x: 0, y: 0, width: 820, height: 620),
             styleMask: [.titled, .closable, .resizable, .utilityWindow],
             backing: .buffered,
             defer: false
@@ -53,11 +44,6 @@ final class ClipboardManagerWindowController: NSWindowController {
             return
         }
 
-        if let frontmostApplication = workspace.frontmostApplication,
-           frontmostApplication.bundleIdentifier != bundleIdentifier {
-            previousFrontmostApplicationProcessIdentifier = frontmostApplication.processIdentifier
-        }
-
         if !window.isVisible {
             window.center()
         }
@@ -66,18 +52,18 @@ final class ClipboardManagerWindowController: NSWindowController {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    func activatePreviousApplicationForPaste() {
-        guard let previousFrontmostApplicationProcessIdentifier else {
-            return
-        }
-        workspace.activateApplication(processIdentifier: previousFrontmostApplicationProcessIdentifier)
-    }
 }
 
 struct ClipboardManagerView: View {
     @ObservedObject var clipboard: ClipboardWorkflowModel
     @State private var selectedItemID: ClipboardItem.ID?
     @FocusState private var isSearchFocused: Bool
+    @State private var timeFilter: ClipboardTimeFilter = .all
+    @State private var sourceFilter: String?
+    @State private var collectionFilter: String?
+    @State private var showsClearConfirmation = false
+    @State private var editedText = ""
+    @State private var newCollectionName = ""
 
     private var filteredItems: [ClipboardItem] {
         clipboard.clipboardHistoryItems.filter { item in
@@ -90,12 +76,42 @@ struct ClipboardManagerView: View {
                 guard item.kind.filter == clipboard.filter else { return false }
             }
 
+            if let sourceFilter,
+               item.sourceApp?.bundleIdentifier != sourceFilter,
+               item.sourceApp?.displayName != sourceFilter {
+                return false
+            }
+
+            if !timeFilter.includes(item.copiedAt) {
+                return false
+            }
+            if let collectionFilter,
+               !item.collectionNames.contains(where: { $0.localizedCaseInsensitiveCompare(collectionFilter) == .orderedSame }) {
+                return false
+            }
+
             return item.matchesSearchQuery(clipboard.searchQuery)
         }
     }
 
     private var selectedItem: ClipboardItem? {
         filteredItems.first(where: { $0.id == selectedItemID }) ?? filteredItems.first
+    }
+
+    private var sourceOptions: [(label: String, value: String)] {
+        var seen = Set<String>()
+        return clipboard.clipboardHistoryItems.compactMap { item in
+            guard let app = item.sourceApp else { return nil }
+            let value = app.bundleIdentifier ?? app.displayName
+            guard seen.insert(value).inserted else { return nil }
+            return (app.displayName, value)
+        }
+        .sorted { $0.label.localizedCaseInsensitiveCompare($1.label) == .orderedAscending }
+    }
+
+    private var collectionOptions: [String] {
+        Array(Set(clipboard.clipboardHistoryItems.flatMap(\.collectionNames)))
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
 
     var body: some View {
@@ -120,6 +136,20 @@ struct ClipboardManagerView: View {
 
             selectedItemID = ids.first
         }
+        .onChange(of: selectedItemID) { _, _ in
+            editedText = selectedItem?.plainTextValue ?? ""
+        }
+        .confirmationDialog(
+            "Clear unpinned clipboard history?",
+            isPresented: $showsClearConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Clear Unpinned History", role: .destructive) {
+                clipboard.clearUnpinnedClipboardItems()
+            }
+        } message: {
+            Text("Pinned items will be kept. This action cannot be undone.")
+        }
     }
 
     private var header: some View {
@@ -130,7 +160,7 @@ struct ClipboardManagerView: View {
                     .focused($isSearchFocused)
 
                 Button {
-                    clipboard.clearUnpinnedClipboardItems()
+                    showsClearConfirmation = true
                 } label: {
                     Image(systemName: "trash")
                 }
@@ -144,8 +174,52 @@ struct ClipboardManagerView: View {
                     Text(filter.label).tag(filter)
                 }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            .pickerStyle(.menu)
+
+            HStack(spacing: 10) {
+                Picker("When", selection: $timeFilter) {
+                    ForEach(ClipboardTimeFilter.allCases) { option in
+                        Text(option.label).tag(option)
+                    }
+                }
+                .pickerStyle(.menu)
+
+                Picker("Source", selection: $sourceFilter) {
+                    Text("All Sources").tag(String?.none)
+                    ForEach(sourceOptions, id: \.value) { option in
+                        Text(option.label).tag(Optional(option.value))
+                    }
+                }
+                .pickerStyle(.menu)
+
+                if !collectionOptions.isEmpty {
+                    Picker("Collection", selection: $collectionFilter) {
+                        Text("All Collections").tag(String?.none)
+                        ForEach(collectionOptions, id: \.self) { name in
+                            Text(name).tag(Optional(name))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+
+                Spacer()
+
+                Menu {
+                    if clipboard.isClipboardMonitoringPaused {
+                        Button("Resume Now", action: clipboard.resumeClipboardMonitoring)
+                    } else {
+                        Button("Pause for 5 Minutes") { clipboard.pauseClipboardMonitoring(for: 5 * 60) }
+                        Button("Pause for 1 Hour") { clipboard.pauseClipboardMonitoring(for: 60 * 60) }
+                        Button("Pause Until Restart") { clipboard.pauseClipboardMonitoring(for: nil) }
+                    }
+                } label: {
+                    Label(
+                        clipboard.isClipboardMonitoringPaused ? "Paused" : "Recording",
+                        systemImage: clipboard.isClipboardMonitoringPaused ? "pause.circle.fill" : "record.circle"
+                    )
+                }
+                .menuStyle(.borderlessButton)
+            }
         }
         .padding(12)
     }
@@ -167,45 +241,150 @@ struct ClipboardManagerView: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(filteredItems.enumerated()), id: \.element.id) { index, item in
-                            ClipboardItemRow(
-                                item: item,
-                                image: clipboard.clipboardPreviewImage(for: item),
-                                shortcutNumber: index < 9 ? index + 1 : nil,
-                                isSelected: selectedItemID == item.id,
-                                onCopy: { clipboard.copyClipboardItem(item) },
-                                onCopyPlainText: { clipboard.copyClipboardItemAsPlainText(item) },
-                                onPaste: { clipboard.pasteClipboardItem(item) },
-                                onPastePlainText: { clipboard.pasteClipboardItemAsPlainText(item) },
-                                onTogglePinned: { clipboard.togglePinnedClipboardItem(item) },
-                                onDelete: { clipboard.deleteClipboardItem(item) },
-                                onOpenSnip: { clipboard.openClipboardSnip(item) }
-                            )
-                            .id(item.id)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                selectedItemID = item.id
-                            }
+            HSplitView {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(Array(filteredItems.enumerated()), id: \.element.id) { index, item in
+                                ClipboardItemRow(
+                                    item: item,
+                                    image: clipboard.clipboardPreviewImage(for: item),
+                                    shortcutNumber: index < 9 ? index + 1 : nil,
+                                    isSelected: selectedItemID == item.id,
+                                    onCopy: { clipboard.copyClipboardItem(item) },
+                                    onCopyPlainText: { clipboard.copyClipboardItemAsPlainText(item) },
+                                    onTogglePinned: { clipboard.togglePinnedClipboardItem(item) },
+                                    onDelete: { clipboard.deleteClipboardItem(item) },
+                                    onOpenSnip: { clipboard.openClipboardSnip(item) }
+                                )
+                                .id(item.id)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    selectedItemID = item.id
+                                }
 
-                            if item.id != filteredItems.last?.id {
-                                Divider()
-                                    .padding(.leading, 76)
+                                if item.id != filteredItems.last?.id {
+                                    Divider()
+                                        .padding(.leading, 76)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                    }
+                    .frame(minWidth: 380)
+                    .focusable()
+                    .onMoveCommand(perform: moveSelection)
+                    .onChange(of: selectedItemID) { _, id in
+                        guard let id else { return }
+                        proxy.scrollTo(id, anchor: .center)
+                    }
+                }
+
+                detailView
+                    .frame(minWidth: 260, idealWidth: 320, maxWidth: 420, maxHeight: .infinity)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var detailView: some View {
+        if let item = selectedItem {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    if let image = clipboard.clipboardPreviewImage(for: item) {
+                        Image(nsImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxHeight: 220)
+                            .frame(maxWidth: .infinity)
+                            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+                    }
+
+                    Text(item.semanticType?.label ?? item.kind.typeLabel)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    if item.supportsPlainTextSanitization {
+                        if item.semanticType == .color, let color = Color.clipboardColor(from: editedText) {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(color)
+                                .frame(height: 64)
+                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(.separator))
+                        }
+                        TextEditor(text: $editedText)
+                            .font(.body.monospaced())
+                            .frame(minHeight: 150)
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(.separator))
+
+                        HStack {
+                            Menu("Transform") {
+                                Button("Trim Whitespace") { editedText = editedText.trimmingCharacters(in: .whitespacesAndNewlines) }
+                                Button("UPPERCASE") { editedText = editedText.uppercased() }
+                                Button("lowercase") { editedText = editedText.lowercased() }
+                                Button("Pretty Print JSON") { prettyPrintEditedJSON() }
+                            }
+                            Button("Copy Edited") { clipboard.copyEditedText(editedText) }
+                                .disabled(editedText.isEmpty)
+                        }
+                    } else if case let .fileURLs(paths) = item.kind {
+                        ForEach(paths, id: \.self) { path in
+                            Label {
+                                Text(path).textSelection(.enabled)
+                            } icon: {
+                                Image(systemName: FileManager.default.fileExists(atPath: path) ? "doc" : "exclamationmark.triangle")
+                            }
+                        }
+                        HStack {
+                            Button("Open") { clipboard.openClipboardItem(item) }
+                            Button("Reveal") { clipboard.revealClipboardFiles(item) }
+                        }
+                    } else {
+                        Text(item.searchableText)
+                            .textSelection(.enabled)
+                    }
+
+                    Divider()
+                    LabeledContent("Copied", value: item.copiedAt.formatted(date: .abbreviated, time: .standard))
+                    if let source = item.sourceApp {
+                        LabeledContent("Source", value: source.displayName)
+                    }
+                    LabeledContent("Size", value: ByteCountFormatter.string(fromByteCount: item.byteSize, countStyle: .file))
+                    if let payload = item.storedPayload {
+                        LabeledContent("Items", value: "\(payload.items.count)")
+                    }
+
+                    if !item.collectionNames.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Collections").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                            ForEach(item.collectionNames, id: \.self) { name in
+                                HStack {
+                                    Text(name)
+                                    Spacer()
+                                    Button("Remove") { clipboard.toggleClipboardCollection(name, for: item) }
+                                        .buttonStyle(.borderless)
+                                }
                             }
                         }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+
+                    HStack {
+                        TextField("Collection name", text: $newCollectionName)
+                        Button("Add") {
+                            clipboard.toggleClipboardCollection(newCollectionName, for: item)
+                            newCollectionName = ""
+                        }
+                        .disabled(newCollectionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+
+                    if case .link = item.kind {
+                        Button("Open Link") { clipboard.openClipboardItem(item) }
+                    }
                 }
-                .focusable()
-                .onMoveCommand(perform: moveSelection)
-                .onChange(of: selectedItemID) { _, id in
-                    guard let id else { return }
-                    proxy.scrollTo(id, anchor: .center)
-                }
+                .padding(16)
             }
+        } else {
+            ContentUnavailableView("No Selection", systemImage: "clipboard")
         }
     }
 
@@ -214,16 +393,18 @@ struct ClipboardManagerView: View {
             Text("\(filteredItems.count) shown")
                 .foregroundStyle(.secondary)
 
+            if let actionMessage = clipboard.actionMessage {
+                Text(actionMessage)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
             Spacer()
 
             if let selectedItem, selectedItem.supportsPlainTextSanitization {
                 Menu("Plain Text") {
                     Button("Copy Plain Text") {
                         clipboard.copyClipboardItemAsPlainText(selectedItem)
-                    }
-
-                    Button("Copy & Paste Plain Text") {
-                        clipboard.pasteClipboardItemAsPlainText(selectedItem)
                     }
                 }
                 .help("Sanitize formatting by writing only the plain text value.")
@@ -236,26 +417,31 @@ struct ClipboardManagerView: View {
             }
             .disabled(selectedItem == nil)
 
-            Button("Copy & Paste") {
-                if let selectedItem {
-                    clipboard.pasteClipboardItem(selectedItem)
-                }
-            }
-            .keyboardShortcut(.return, modifiers: [])
-            .help("Copy this item, keep Clipboard History open, return to the previous app, and send Command-V.")
-            .disabled(selectedItem == nil)
         }
         .padding(12)
     }
 
     private var shortcutHandler: some View {
-        ClipboardShortcutHandler { number in
-            guard number > 0, number <= filteredItems.count else {
-                return
+        ClipboardShortcutHandler(
+            onNumberShortcut: { number in
+                guard number > 0, number <= filteredItems.count else { return }
+                clipboard.copyClipboardItem(filteredItems[number - 1])
+            },
+            onMove: moveSelection,
+            onReturn: { modifiers in
+                guard let selectedItem else { return }
+                if modifiers.contains(.command) {
+                    clipboard.copyClipboardItem(selectedItem)
+                }
+            },
+            onEscape: {
+                if !clipboard.searchQuery.isEmpty {
+                    clipboard.searchQuery = ""
+                } else {
+                    NSApp.keyWindow?.performClose(nil)
+                }
             }
-
-            clipboard.copyClipboardItem(filteredItems[number - 1])
-        }
+        )
         .frame(width: 0, height: 0)
     }
 
@@ -278,6 +464,44 @@ struct ClipboardManagerView: View {
             break
         }
     }
+
+    private func prettyPrintEditedJSON() {
+        guard let data = editedText.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data),
+              let formatted = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]),
+              let text = String(data: formatted, encoding: .utf8) else {
+            clipboard.actionMessage = "The edited text is not valid JSON."
+            return
+        }
+        editedText = text
+    }
+}
+
+private enum ClipboardTimeFilter: String, CaseIterable, Identifiable {
+    case all, today, sevenDays, thirtyDays
+
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .all: "Any Time"
+        case .today: "Today"
+        case .sevenDays: "Last 7 Days"
+        case .thirtyDays: "Last 30 Days"
+        }
+    }
+
+    func includes(_ date: Date) -> Bool {
+        switch self {
+        case .all:
+            true
+        case .today:
+            Calendar.current.isDateInToday(date)
+        case .sevenDays:
+            date >= (Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? .distantPast)
+        case .thirtyDays:
+            date >= (Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? .distantPast)
+        }
+    }
 }
 
 private struct ClipboardItemRow: View {
@@ -287,8 +511,6 @@ private struct ClipboardItemRow: View {
     let isSelected: Bool
     let onCopy: () -> Void
     let onCopyPlainText: () -> Void
-    let onPaste: () -> Void
-    let onPastePlainText: () -> Void
     let onTogglePinned: () -> Void
     let onDelete: () -> Void
     let onOpenSnip: () -> Void
@@ -301,7 +523,7 @@ private struct ClipboardItemRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Text(item.kind.typeLabel)
+                    Text(item.semanticType?.label ?? item.kind.typeLabel)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
 
@@ -368,37 +590,21 @@ private struct ClipboardItemRow: View {
         HStack(spacing: 6) {
             copyButton
 
-            if item.supportsPlainTextSanitization {
-                Menu {
+            Menu {
+                if item.supportsPlainTextSanitization {
                     Button("Copy Plain Text", action: onCopyPlainText)
-                    Button("Copy & Paste Plain Text", action: onPastePlainText)
-                } label: {
-                    Image(systemName: "textformat")
+                    Divider()
                 }
-                .help("Sanitize formatting")
-            }
-
-            Button(action: onPaste) {
-                Image(systemName: "keyboard")
-            }
-            .help("Copy & Paste: copy this item, keep Clipboard History open, return to the previous app, and send Command-V.")
-
-            if case .snip = item.kind {
-                Button(action: onOpenSnip) {
-                    Image(systemName: "rectangle.and.pencil.and.ellipsis")
+                Button(item.isPinned ? "Unpin" : "Pin", action: onTogglePinned)
+                if case .snip = item.kind {
+                    Button("Open Snip in Editor", action: onOpenSnip)
                 }
-                .help("Open snip in editor")
+                Divider()
+                Button("Delete", role: .destructive, action: onDelete)
+            } label: {
+                Image(systemName: "ellipsis.circle")
             }
-
-            Button(action: onTogglePinned) {
-                Image(systemName: item.isPinned ? "pin.slash" : "pin")
-            }
-            .help(item.isPinned ? "Unpin" : "Pin")
-
-            Button(role: .destructive, action: onDelete) {
-                Image(systemName: "trash")
-            }
-            .help("Delete")
+            .help("More actions")
         }
         .buttonStyle(.borderless)
     }
@@ -435,22 +641,50 @@ private struct ClipboardItemRow: View {
 
 }
 
+private extension Color {
+    static func clipboardColor(from text: String) -> Color? {
+        let hex = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        guard [3, 4, 6, 8].contains(hex.count) else { return nil }
+        let expanded = hex.count <= 4 ? hex.map { "\($0)\($0)" }.joined() : hex
+        guard let value = UInt64(expanded, radix: 16) else { return nil }
+        let hasAlpha = expanded.count == 8
+        let red = Double((value >> (hasAlpha ? 24 : 16)) & 0xff) / 255
+        let green = Double((value >> (hasAlpha ? 16 : 8)) & 0xff) / 255
+        let blue = Double((value >> (hasAlpha ? 8 : 0)) & 0xff) / 255
+        let alpha = hasAlpha ? Double(value & 0xff) / 255 : 1
+        return Color(red: red, green: green, blue: blue, opacity: alpha)
+    }
+}
+
 private struct ClipboardShortcutHandler: NSViewRepresentable {
     let onNumberShortcut: (Int) -> Void
+    let onMove: (MoveCommandDirection) -> Void
+    let onReturn: (NSEvent.ModifierFlags) -> Void
+    let onEscape: () -> Void
 
     func makeNSView(context: Context) -> ClipboardShortcutView {
         let view = ClipboardShortcutView()
         view.onNumberShortcut = onNumberShortcut
+        view.onMove = onMove
+        view.onReturn = onReturn
+        view.onEscape = onEscape
         return view
     }
 
     func updateNSView(_ view: ClipboardShortcutView, context: Context) {
         view.onNumberShortcut = onNumberShortcut
+        view.onMove = onMove
+        view.onReturn = onReturn
+        view.onEscape = onEscape
     }
 }
 
 private final class ClipboardShortcutView: NSView {
     var onNumberShortcut: ((Int) -> Void)?
+    var onMove: ((MoveCommandDirection) -> Void)?
+    var onReturn: ((NSEvent.ModifierFlags) -> Void)?
+    var onEscape: (() -> Void)?
     private var monitor: Any?
 
     override func viewDidMoveToWindow() {
@@ -469,17 +703,38 @@ private final class ClipboardShortcutView: NSView {
         }
 
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self,
-                  self.window?.isKeyWindow == true,
-                  event.modifierFlags.intersection([.command, .control, .option]) == .option,
-                  let characters = event.charactersIgnoringModifiers,
-                  let number = Int(characters),
-                  (1...9).contains(number) else {
+            guard let self, self.window?.isKeyWindow == true else {
                 return event
             }
 
-            self.onNumberShortcut?(number)
-            return nil
+            let modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
+            let isEditingMultilineText = (self.window?.firstResponder as? NSTextView)?.isFieldEditor == false
+            if modifiers == .option,
+               let characters = event.charactersIgnoringModifiers,
+               let number = Int(characters),
+               (1...9).contains(number) {
+                self.onNumberShortcut?(number)
+                return nil
+            }
+
+            switch event.keyCode {
+            case 125 where modifiers.isEmpty && !isEditingMultilineText:
+                self.onMove?(.down)
+                return nil
+            case 126 where modifiers.isEmpty && !isEditingMultilineText:
+                self.onMove?(.up)
+                return nil
+            case 36 where modifiers.isEmpty && isEditingMultilineText:
+                return event
+            case 36 where modifiers.isSubset(of: [.command, .shift]):
+                self.onReturn?(modifiers)
+                return nil
+            case 53 where modifiers.isEmpty:
+                self.onEscape?()
+                return nil
+            default:
+                return event
+            }
         }
     }
 }

@@ -60,6 +60,26 @@ final class EditorCommandsTests: XCTestCase {
         XCTAssertEqual(added.nextCalloutNumber, 2)
     }
 
+    @MainActor
+    func testClickingStatusMarkPlacesDefaultSizedMark() {
+        let snapshot = makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120))
+        var interaction = AnnotationCanvasInteractionState()
+        interaction.beginStatusMarkDrawing(
+            at: CGPoint(x: 80, y: 60),
+            within: snapshot.cropRect,
+            style: .default(for: .statusMark)
+        )
+
+        guard case let .add(annotation) = interaction.finish(snapshot: snapshot),
+              case let .statusMark(shape) = annotation.kind else {
+            return XCTFail("Expected a default status mark from a click")
+        }
+
+        XCTAssertEqual(shape.rect.size, CGSize(width: 50, height: 50))
+        XCTAssertEqual(shape.rect.midX, 80, accuracy: 0.001)
+        XCTAssertEqual(shape.rect.midY, 60, accuracy: 0.001)
+    }
+
     func testUpdatingTextAnnotationReplacesDisplayedText() {
         let annotation = Annotation.makeText(at: .zero)
         let updated = annotation.updatingText("Hello")

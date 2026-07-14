@@ -29,7 +29,10 @@ struct AppModelCompositionContext {
         self.overrides = overrides
         self.configuredArchiveLocationURL = configuredArchiveLocationURL
         self.recoveryStore = recoveryStore
-        self.clipboardHistoryStore = overrides.clipboardHistoryStore ?? ClipboardHistoryStore()
+        let clipboardPreferences = preferenceStores.clipboard.loadPreferences()
+        self.clipboardHistoryStore = overrides.clipboardHistoryStore ?? ClipboardHistoryStore(
+            loadStoredHistory: clipboardPreferences.isEnabled
+        )
         self.pendingRecoverySession = pendingRecoverySession
         self.shouldPresentOnboardingWindowOnLaunch = preferenceStores.lifecycle.loadCompletedOnboardingVersion(
             currentVersion: AppLifecycleConstants.currentOnboardingVersion

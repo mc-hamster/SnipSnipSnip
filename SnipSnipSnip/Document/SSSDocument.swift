@@ -978,6 +978,9 @@ nonisolated private struct AnnotationRecord: Codable {
             arrowLabelPlacement = shape.labelPlacement.rawValue
             arrowLabelFontSize = Double(shape.labelFontSize)
             arrowLabelTextColor = shape.labelTextColor.rawValue
+        case let .statusMark(shape):
+            kind = "statusMark"
+            rect = RectRecord(shape.rect)
         case let .freehand(shape):
             kind = "freehand"
             points = shape.points.map(PointRecord.init)
@@ -1058,6 +1061,11 @@ nonisolated private struct AnnotationRecord: Codable {
                 labelTextColor: ArrowLabelTextColor(rawValue: arrowLabelTextColor ?? ArrowLabelTextColor.stroke.rawValue) ?? .stroke,
                 headShape: ArrowHeadShape(rawValue: arrowHeadShape ?? "open") ?? .open
             ))
+        case "statusMark":
+            guard let rect else {
+                throw SSSDocumentError.invalidManifest
+            }
+            annotationKind = .statusMark(StatusMarkShape(rect: rect.cgRect))
         case "freehand":
             annotationKind = .freehand(FreehandShape(points: (points ?? []).map(\.cgPoint)))
         case "highlighter":
@@ -1140,6 +1148,8 @@ nonisolated private struct StyleRecord: Codable {
     var dashStyle: String?
     var freehandSmoothing: Double?
     var freehandSimplification: Double?
+    var statusMarkSymbol: String?
+    var statusMarkVisualStyle: String?
 
     nonisolated init(_ style: AnnotationStyle) {
         strokeColor = ColorRecord(style.strokeColor)
@@ -1151,6 +1161,8 @@ nonisolated private struct StyleRecord: Codable {
         dashStyle = style.dashStyle.rawValue
         freehandSmoothing = Double(style.freehandSmoothing)
         freehandSimplification = Double(style.freehandSimplification)
+        statusMarkSymbol = style.statusMarkSymbol.rawValue
+        statusMarkVisualStyle = style.statusMarkVisualStyle.rawValue
     }
 
     nonisolated var annotationStyle: AnnotationStyle {
@@ -1163,7 +1175,9 @@ nonisolated private struct StyleRecord: Codable {
             cornerRadius: CGFloat(cornerRadius ?? 0),
             dashStyle: StrokeDashStyle(rawValue: dashStyle ?? "solid") ?? .solid,
             freehandSmoothing: CGFloat(freehandSmoothing ?? 0.65),
-            freehandSimplification: CGFloat(freehandSimplification ?? 1.5)
+            freehandSimplification: CGFloat(freehandSimplification ?? 1.5),
+            statusMarkSymbol: StatusMarkSymbol(rawValue: statusMarkSymbol ?? "checkmark") ?? .checkmark,
+            statusMarkVisualStyle: StatusMarkVisualStyle(rawValue: statusMarkVisualStyle ?? "outlined") ?? .outlined
         )
     }
 }

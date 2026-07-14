@@ -15,17 +15,21 @@ extension ClipboardWorkflowModel {
     }
 
     func showClipboardManager() {
-        dependencies.managerPresenter.showClipboardManager(
-            clipboard: self,
-            workspace: dependencies.systemServices.workspace,
-            bundleIdentifier: dependencies.systemServices.bundle.bundleIdentifier
-        )
+        dependencies.managerPresenter.showClipboardManager(clipboard: self)
     }
 
     func updateClipboardHistoryEnabled(_ isEnabled: Bool) {
+        if isEnabled {
+            historyStore.activateStorage()
+        }
+
         var preferences = preferences
         preferences.isEnabled = isEnabled
         self.preferences = preferences
+
+        if !isEnabled {
+            historyStore.deactivateStorage()
+        }
     }
 
     func updateClipboardMaxItemCount(_ value: Int) {
@@ -38,6 +42,40 @@ extension ClipboardWorkflowModel {
         var preferences = preferences
         preferences.maxStorageMB = value
         self.preferences = preferences
+    }
+
+    func updateClipboardRetentionDays(_ value: Int) {
+        var preferences = preferences
+        preferences.retentionDays = value
+        self.preferences = preferences
+    }
+
+    func updateClipboardMaxItemSizeMB(_ value: Int) {
+        var preferences = preferences
+        preferences.maxItemSizeMB = value
+        self.preferences = preferences
+    }
+
+    func updateRecordsUncopiedSnips(_ value: Bool) {
+        var preferences = preferences
+        preferences.recordsUncopiedSnips = value
+        self.preferences = preferences
+    }
+
+    func pauseClipboardMonitoring(for interval: TimeInterval?) {
+        let pauseDate = interval.map { Date().addingTimeInterval($0) } ?? .distantFuture
+        monitoringPausedUntil = pauseDate
+        monitor.pause(until: pauseDate)
+    }
+
+    func resumeClipboardMonitoring() {
+        monitoringPausedUntil = nil
+        monitor.pause(until: nil)
+    }
+
+    var isClipboardMonitoringPaused: Bool {
+        guard let monitoringPausedUntil else { return false }
+        return monitoringPausedUntil > Date()
     }
 
     func addIgnoredClipboardApp(match: String) {
@@ -151,8 +189,30 @@ extension ClipboardWorkflowModel {
         historyStore.togglePinned(item)
     }
 
+    func toggleClipboardCollection(_ collectionName: String, for item: ClipboardItem) {
+        historyStore.toggleCollection(collectionName, for: item)
+    }
+
     func deleteClipboardItem(_ item: ClipboardItem) {
         historyStore.delete(item)
+    }
+
+    func openClipboardItem(_ item: ClipboardItem) {
+        switch item.kind {
+        case let .link(urlString):
+            if let url = URL(string: urlString) {
+                dependencies.systemServices.workspace.open(url)
+            }
+        case let .fileURLs(paths):
+            paths.first.map(URL.init(fileURLWithPath:)).map(dependencies.systemServices.workspace.open)
+        case .text, .image, .snip:
+            break
+        }
+    }
+
+    func revealClipboardFiles(_ item: ClipboardItem) {
+        guard case let .fileURLs(paths) = item.kind else { return }
+        dependencies.systemServices.workspace.activateFileViewerSelecting(paths.map(URL.init(fileURLWithPath:)))
     }
 
     func clipboardPreviewImage(for item: ClipboardItem) -> NSImage? {
@@ -167,26 +227,6 @@ extension ClipboardWorkflowModel {
         copyItemAsPlainText(item)
     }
 
-    func pasteClipboardItem(_ item: ClipboardItem) {
-        pasteItem(
-            item,
-            activatePreviousApplication: { [weak self] in
-                self?.dependencies.managerPresenter.activatePreviousApplicationForPaste()
-            },
-            sendPasteKeystroke: Self.sendPasteKeystroke
-        )
-    }
-
-    func pasteClipboardItemAsPlainText(_ item: ClipboardItem) {
-        pasteItem(
-            item,
-            plainTextOnly: true,
-            activatePreviousApplication: { [weak self] in
-                self?.dependencies.managerPresenter.activatePreviousApplicationForPaste()
-            },
-            sendPasteKeystroke: Self.sendPasteKeystroke
-        )
-    }
 
     func openClipboardSnip(_ item: ClipboardItem) {
         guard case let .snip(_, sessionID, _) = item.kind,
@@ -213,6 +253,7 @@ extension ClipboardWorkflowModel {
         sessionID: UUID? = nil
     ) {
         guard preferences.isEnabled,
+              preferences.recordsUncopiedSnips,
               let image = controller.exportedImage(),
               let pngData = try? ImageExporter.pngData(for: image) else {
             return
@@ -235,9 +276,11 @@ extension ClipboardWorkflowModel {
     func scheduleClipboardSnipRecording(
         from controller: EditorController,
         searchableText: String = "",
-        sessionID: UUID? = nil
+        sessionID: UUID? = nil,
+        willBeCopied: Bool = false
     ) {
-        guard preferences.isEnabled else {
+        guard preferences.isEnabled,
+              preferences.recordsUncopiedSnips || willBeCopied else {
             return
         }
 
@@ -256,6 +299,12 @@ extension ClipboardWorkflowModel {
         Task { @MainActor [weak self] in
             do {
                 let pngData = try await ClipboardSnipRenderer.renderPNGData(from: renderInput)
+                // This result is needed before the clipboard-history record
+                // is written. Match the capture task's QoS so Vision does not
+                // introduce a priority inversion while recognizing text.
+                let recognizedText = await Task.detached(priority: .userInitiated) {
+                    ClipboardTextRecognition.recognizedText(in: pngData)
+                }.value
 
                 guard let self, self.preferences.isEnabled else {
                     return
@@ -264,7 +313,7 @@ extension ClipboardWorkflowModel {
                 self.historyStore.recordSnip(
                     pngData: pngData,
                     title: title,
-                    searchableText: searchText,
+                    searchableText: [searchText, recognizedText].filter { !$0.isEmpty }.joined(separator: " "),
                     sessionID: sessionID,
                     preferences: preferences
                 )
@@ -274,18 +323,6 @@ extension ClipboardWorkflowModel {
         }
     }
 
-    private static func sendPasteKeystroke() {
-        guard let source = CGEventSource(stateID: .hidSystemState),
-              let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: true),
-              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: false) else {
-            return
-        }
-
-        keyDown.flags = .maskCommand
-        keyUp.flags = .maskCommand
-        keyDown.post(tap: .cghidEventTap)
-        keyUp.post(tap: .cghidEventTap)
-    }
 }
 
 nonisolated private enum ClipboardSnipRenderer {

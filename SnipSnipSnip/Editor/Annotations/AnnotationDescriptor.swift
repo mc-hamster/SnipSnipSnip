@@ -20,6 +20,8 @@ nonisolated enum AnnotationDescriptorRegistry {
             return descriptor(editorTool: .line, supportsFillEditing: false)
         case .arrow:
             return descriptor(editorTool: .arrow, supportsFillEditing: false)
+        case .statusMark:
+            return descriptor(editorTool: .statusMark)
         case .freehand:
             return descriptor(editorTool: .freehand, supportsFillEditing: false)
         case .highlighter:

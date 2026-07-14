@@ -619,6 +619,7 @@ struct SnipSnipSnipApp: App {
                 lifecycle: model.lifecycle,
                 capture: model.capture,
                 permissions: model.permissions,
+                clipboard: model.clipboard,
                 capabilities: model.capabilities,
                 skipOnboarding: {
                     model.lifecycle.skipOnboarding(

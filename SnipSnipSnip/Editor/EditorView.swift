@@ -318,7 +318,7 @@ struct EditorToolbarView: View {
 }
 
 private struct ActiveEditorToolbarView: View {
-    private static let drawingTools: [EditorTool] = [.rectangle, .ellipse, .line, .arrow, .measure, .freehand, .highlighter, .highlight, .spotlight]
+    private static let drawingTools: [EditorTool] = [.rectangle, .ellipse, .line, .arrow, .statusMark, .measure, .freehand, .highlighter, .highlight, .spotlight]
     private static let textTools: [EditorTool] = [.text, .callout]
     private static let utilityTools: [EditorTool] = [.ocrText]
 

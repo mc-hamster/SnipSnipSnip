@@ -269,6 +269,8 @@ enum EditorRenderer {
                 style: rendered.style,
                 scale: renderScale
             )
+        case let .statusMark(shape):
+            drawStatusMark(in: shape.rect, style: rendered.style, scale: renderScale)
         case let .freehand(shape):
             drawFreehand(points: shape.points, style: rendered.style)
         case let .highlighter(shape):
@@ -358,6 +360,8 @@ enum EditorRenderer {
                 scale: renderScale,
                 context: context
             )
+        case let .statusMark(shape):
+            drawStatusMarkExport(in: shape.rect, style: rendered.style, scale: renderScale, context: context)
         case let .freehand(shape):
             drawFreehandExport(
                 points: shape.points,
@@ -1003,6 +1007,148 @@ enum EditorRenderer {
         if !shape.label.isEmpty {
             drawArrowLabelExport(shape, style: style, scale: scale, context: context)
         }
+    }
+
+    private static func drawStatusMark(in rect: CGRect, style: AnnotationStyle, scale: CGFloat) {
+        let badgeRect = rect.insetBy(dx: style.lineWidth / 2, dy: style.lineWidth / 2)
+        let badge = NSBezierPath(ovalIn: badgeRect)
+        var markRect = badgeRect
+        let glyphColor: RGBAColor
+
+        switch style.statusMarkVisualStyle {
+        case .outlined:
+            if style.fillColor.alpha > 0 {
+                style.fillColor.nsColor.setFill()
+                badge.fill()
+            }
+            style.strokeColor.nsColor.setStroke()
+            badge.lineWidth = style.lineWidth
+            badge.stroke()
+            glyphColor = style.strokeColor
+        case .filled:
+            let cartoonRect = badgeRect.insetBy(dx: badgeRect.width * 0.04, dy: badgeRect.height * 0.04)
+            let cartoonBadge = NSBezierPath(cgPath: cartoonBadgePath(in: cartoonRect))
+            style.strokeColor.nsColor.setFill()
+            cartoonBadge.fill()
+            markRect = cartoonRect.insetBy(dx: cartoonRect.width * 0.08, dy: cartoonRect.height * 0.08)
+            glyphColor = style.fillColor.alpha > 0 ? style.fillColor : .textForeground
+        case .sticker:
+            (style.fillColor.alpha > 0 ? style.fillColor : style.strokeColor.withAlpha(0.12)).nsColor.setFill()
+            let vintageBadge = NSBezierPath(cgPath: vintageBadgePath(in: badgeRect))
+            vintageBadge.fill()
+            style.strokeColor.nsColor.setStroke()
+            vintageBadge.lineWidth = max(style.lineWidth * 0.75, scaled(2, by: scale))
+            vintageBadge.lineJoinStyle = .round
+            vintageBadge.stroke()
+            markRect = badgeRect.insetBy(dx: badgeRect.width * 0.18, dy: badgeRect.height * 0.16)
+            glyphColor = style.strokeColor
+        }
+
+        let mark = statusMarkPath(in: markRect, symbol: style.statusMarkSymbol)
+        glyphColor.nsColor.setStroke()
+        let glyph = NSBezierPath(cgPath: mark)
+        glyph.lineWidth = max(style.lineWidth, scaled(3, by: scale))
+        glyph.lineCapStyle = .round
+        glyph.lineJoinStyle = .round
+        glyph.stroke()
+    }
+
+    nonisolated private static func drawStatusMarkExport(in rect: CGRect, style: AnnotationStyle, scale: CGFloat, context: CGContext) {
+        let badgeRect = rect.insetBy(dx: style.lineWidth / 2, dy: style.lineWidth / 2)
+        let badge = CGPath(ellipseIn: badgeRect, transform: nil)
+        var markRect = badgeRect
+        let glyphColor: RGBAColor
+
+        context.saveGState()
+        switch style.statusMarkVisualStyle {
+        case .outlined:
+            if style.fillColor.alpha > 0 {
+                context.setFillColor(style.fillColor.cgColor)
+                context.addPath(badge)
+                context.fillPath()
+            }
+            context.setStrokeColor(style.strokeColor.cgColor)
+            context.setLineWidth(style.lineWidth)
+            context.addPath(badge)
+            context.strokePath()
+            glyphColor = style.strokeColor
+        case .filled:
+            let cartoonRect = badgeRect.insetBy(dx: badgeRect.width * 0.04, dy: badgeRect.height * 0.04)
+            context.setFillColor(style.strokeColor.cgColor)
+            context.addPath(cartoonBadgePath(in: cartoonRect))
+            context.fillPath()
+            markRect = cartoonRect.insetBy(dx: cartoonRect.width * 0.08, dy: cartoonRect.height * 0.08)
+            glyphColor = style.fillColor.alpha > 0 ? style.fillColor : .textForeground
+        case .sticker:
+            context.setFillColor((style.fillColor.alpha > 0 ? style.fillColor : style.strokeColor.withAlpha(0.12)).cgColor)
+            context.addPath(vintageBadgePath(in: badgeRect))
+            context.fillPath()
+            context.setStrokeColor(style.strokeColor.cgColor)
+            context.setLineWidth(max(style.lineWidth * 0.75, scaled(2, by: scale)))
+            context.setLineJoin(.round)
+            context.addPath(vintageBadgePath(in: badgeRect))
+            context.strokePath()
+            markRect = badgeRect.insetBy(dx: badgeRect.width * 0.18, dy: badgeRect.height * 0.16)
+            glyphColor = style.strokeColor
+        }
+
+        let mark = statusMarkPath(in: markRect, symbol: style.statusMarkSymbol)
+        context.setStrokeColor(glyphColor.cgColor)
+        context.setLineWidth(max(style.lineWidth, scaled(3, by: scale)))
+        context.setLineCap(.round)
+        context.setLineJoin(.round)
+        context.addPath(mark)
+        context.strokePath()
+        context.restoreGState()
+    }
+
+    nonisolated private static func cartoonBadgePath(in rect: CGRect) -> CGPath {
+        let path = CGMutablePath()
+        let center = rect.center
+        let outerRadius = min(rect.width, rect.height) / 2
+        let innerRadius = outerRadius * 0.82
+
+        for index in 0..<16 {
+            let angle = -CGFloat.pi / 2 + CGFloat(index) * .pi / 8
+            let radius = index.isMultiple(of: 2) ? outerRadius : innerRadius
+            let point = CGPoint(x: center.x + cos(angle) * radius, y: center.y + sin(angle) * radius)
+            if index == 0 {
+                path.move(to: point)
+            } else {
+                path.addLine(to: point)
+            }
+        }
+        path.closeSubpath()
+        return path
+    }
+
+    nonisolated private static func vintageBadgePath(in rect: CGRect) -> CGPath {
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: rect.minX + rect.width * 0.16, y: rect.minY + rect.height * 0.08))
+        path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.16, y: rect.minY + rect.height * 0.08))
+        path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.06, y: rect.minY + rect.height * 0.20))
+        path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.18, y: rect.minY + rect.height * 0.70))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY - rect.height * 0.06))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.18, y: rect.minY + rect.height * 0.70))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.06, y: rect.minY + rect.height * 0.20))
+        path.closeSubpath()
+        return path
+    }
+
+    nonisolated private static func statusMarkPath(in rect: CGRect, symbol: StatusMarkSymbol) -> CGPath {
+        let path = CGMutablePath()
+        switch symbol {
+        case .checkmark:
+            path.move(to: CGPoint(x: rect.minX + rect.width * 0.22, y: rect.midY))
+            path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.43, y: rect.maxY - rect.height * 0.24))
+            path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.20, y: rect.minY + rect.height * 0.24))
+        case .xmark:
+            path.move(to: CGPoint(x: rect.minX + rect.width * 0.26, y: rect.minY + rect.height * 0.26))
+            path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.26, y: rect.maxY - rect.height * 0.26))
+            path.move(to: CGPoint(x: rect.maxX - rect.width * 0.26, y: rect.minY + rect.height * 0.26))
+            path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.26, y: rect.maxY - rect.height * 0.26))
+        }
+        return path
     }
 
     private static func drawFreehand(points: [CGPoint], style: AnnotationStyle) {

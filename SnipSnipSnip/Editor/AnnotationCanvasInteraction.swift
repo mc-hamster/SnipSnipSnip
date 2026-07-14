@@ -46,6 +46,22 @@ struct AnnotationCanvasInteractionState {
         dragMode = .drawingRect(tool: tool, anchor: anchor)
     }
 
+    /// Starts a status-mark gesture with a usable default so a click places a mark,
+    /// while a drag still replaces it with the user-drawn bounds.
+    mutating func beginStatusMarkDrawing(at point: CGPoint, within bounds: CGRect, style: AnnotationStyle) {
+        clearSnapCandidateCache()
+        dragMode = .drawingRect(tool: .statusMark, anchor: point)
+
+        let maximumSize = max(min(bounds.width, bounds.height), 1)
+        let size = min(max(44, style.lineWidth * 10), maximumSize)
+        let origin = CGPoint(
+            x: min(max(point.x - size / 2, bounds.minX), bounds.maxX - size),
+            y: min(max(point.y - size / 2, bounds.minY), bounds.maxY - size)
+        )
+        let rect = CGRect(origin: origin, size: CGSize(width: size, height: size))
+        draftAnnotations = [Annotation.makeStatusMark(in: rect, style: style)]
+    }
+
     mutating func beginLineDrawing(tool: EditorTool, anchor: CGPoint) {
         clearSnapCandidateCache()
         dragMode = .drawingLine(tool: tool, anchor: anchor)
@@ -168,6 +184,11 @@ struct AnnotationCanvasInteractionState {
         snapshot: EditorSnapshot,
         styleProvider: (EditorTool) -> AnnotationStyle
     ) {
+        // Preserve the click-placement preview through tiny pointer movement.
+        guard tool != .statusMark || hypot(point.x - anchor.x, point.y - anchor.y) >= 4 else {
+            return
+        }
+
         let resolution = gscSnapPoint(point, candidates: snapCandidates(excluding: [], snapshot: snapshot))
         let snappedPoint = resolution.point
         let rect = CGRect(

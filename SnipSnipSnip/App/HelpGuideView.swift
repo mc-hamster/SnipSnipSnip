@@ -76,7 +76,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "First launch onboarding",
                             steps: [
-                                "The first launch opens a guided onboarding flow with capture basics, UI Map disclosure when available, launch-at-login, support links, and permissions as the final step.",
+                                "The first launch opens a guided onboarding flow with capture basics, UI Map disclosure when available, launch-at-login, an optional Clipboard History choice, support links, and permissions as the final step.",
                                 "Screen Recording must be set up before onboarding can be skipped or completed because macOS requires it for screenshot pixels and live window thumbnails.",
                                 "Open Settings > General > Show Onboarding Again any time to replay it."
                             ]
@@ -260,15 +260,23 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Open clipboard history",
-                            body: "Choose Clipboard History from the menu bar icon or use Command-Shift-V. Search is focused when the floating window opens. Press Command-W to close the Clipboard History window."
+                            body: "Clipboard History is optional and off by default. Enable it during onboarding or in Settings > Clipboard, then choose Clipboard History from the menu bar icon or use Command-Shift-V. Search is focused when the floating window opens. Press Command-W to close the window."
                         ),
                         HelpArticleSection(
                             title: "What appears",
-                            body: "Clipboard History saves copied text, links, images, files, and non-private SnipSnipSnip screenshots. Snips are added even when Auto Copy is off. Private Capture screenshots are not added."
+                            body: "Clipboard History saves copied plain and rich text, links, images, PDFs, files, and non-private SnipSnipSnip screenshots. It preserves compatible original clipboard representations so normal paste can retain formatting and multi-item selections. Settings > Clipboard controls whether screenshots that were not copied are also added. Private Capture screenshots are never added."
                         ),
                         HelpArticleSection(
                             title: "Copy and paste actions",
-                            body: "Copy writes the selected item back to the system clipboard. Copy & Paste writes the item to the clipboard, keeps Clipboard History open, returns to the app that was active before Clipboard History opened, and sends Command-V. For text and links, Plain Text actions sanitize formatting by writing only the unstyled string before copying or pasting. Use Option-1 through Option-9 while the Clipboard History window is focused to copy the matching visible item."
+                            body: "Choose Copy to place the selected item on the system clipboard, then switch to the destination and paste with Command-V. Command-Return also copies the selection, and Option-1 through Option-9 copies the matching visible item. Choose Copy Plain Text when you need text without formatting."
+                        ),
+                        HelpArticleSection(
+                            title: "Find and organize items",
+                            body: "Search includes item content, source app, type, collections, link metadata, file paths, and locally recognized text inside images and screenshots. Narrow results by type, date, source app, or collection. The detail pane previews content, edits and transforms text, opens links, checks file availability, and adds named collections. Pin durable favorites for quick access."
+                        ),
+                        HelpArticleSection(
+                            title: "Pause and retention",
+                            body: "Use the Recording menu in Clipboard History or Settings > Clipboard to pause monitoring for five minutes, one hour, or until restart. Settings also controls unpinned item retention, the item and storage targets, and the maximum size accepted for a single item. Clear actions require confirmation."
                         ),
                         HelpArticleSection(
                             title: "Ignore apps",
@@ -276,7 +284,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Privacy defaults",
-                            body: "SnipSnipSnip skips concealed and transient pasteboard types and ignores Apple Passwords plus common password managers by default. Clipboard history is local to this Mac."
+                            body: "SnipSnipSnip does not monitor the clipboard or request the history key until Clipboard History is enabled. It skips concealed and transient pasteboard types and ignores Apple Passwords plus common password managers by default. History metadata and stored representations are encrypted on this Mac with a key protected by Keychain, excluded from Spotlight indexing and backup, and never uploaded by Clipboard History. Turning the feature off stops monitoring, unloads decrypted entries and previews, and keeps the encrypted history without loading it or requesting its key on the next launch. Source-app detection remains best-effort because macOS does not identify the source of every copy."
                         )
                     ],
                     important: [
@@ -509,7 +517,7 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Choose a tool",
-                            body: "The toolbar includes Select, Rectangle, Ellipse, Line, Arrow, Freehand, Highlighter, Highlight Box, Text, Callout, Ruler, Spotlight, Copy Text, Redaction, Import Image, and Presentation. Presentation switches to a final-export styling workspace without changing the screenshot annotation tools. In Settings > General > Editor, choose whether new editor sessions start with Last Used or a specific default tool. For Window captures with UI Map metadata, the lower toolbar also includes Show UI Map and Pin UI Map."
+                            body: "The toolbar includes Select, Rectangle, Ellipse, Line, Arrow, Status Mark, Freehand, Highlighter, Highlight Box, Text, Callout, Ruler, Spotlight, Copy Text, Redaction, Import Image, and Presentation. Status Mark draws a checkmark or X that can be styled in the inspector. Presentation switches to a final-export styling workspace without changing the screenshot annotation tools. In Settings > General > Editor, choose whether new editor sessions start with Last Used or a specific default tool. For Window captures with UI Map metadata, the lower toolbar also includes Show UI Map and Pin UI Map."
                         ),
                         HelpArticleSection(
                             title: "Select and arrange annotations",
@@ -602,11 +610,11 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Add annotations",
-                            body: "Draw shapes, lines, arrows, freehand strokes, marker-style highlighter strokes, highlight boxes, rulers, spotlights, text, and callouts from the toolbar. Text boxes and callouts fit snugly while you type until you manually resize them; after a manual resize, their width stays fixed and they grow taller as text wraps. Selected text boxes and callouts can be edited in place with normal cursor movement, arrow keys, selection, and click-to-position behavior. Import Image adds an editable overlay that can be moved, resized, rotated, faded, saved, copied, exported, and shared."
+                            body: "Draw shapes, lines, arrows, checkmarks and X status marks, freehand strokes, marker-style highlighter strokes, highlight boxes, rulers, spotlights, text, and callouts from the toolbar. Status Mark offers Circled, Cartoon, and Vintage treatments in the inspector, along with the standard color controls. Text boxes and callouts fit snugly while you type until you manually resize them; after a manual resize, their width stays fixed and they grow taller as text wraps. Selected text boxes and callouts can be edited in place with normal cursor movement, arrow keys, selection, and click-to-position behavior. Import Image adds an editable overlay that can be moved, resized, rotated, faded, saved, copied, exported, and shared."
                         ),
                         HelpArticleSection(
                             title: "Edit styles",
-                            body: "Use the inspector to change stroke color, fill color, line width, text size, effect strength, arrow heads, arrow labels, callout style, rectangle corners, freehand smoothing, and alignment where supported. Use the editor toolbar rotate button to turn selected annotations by 90 degrees."
+                            body: "Use the inspector to change stroke color, fill color, line width, text size, effect strength, arrow heads, arrow labels, status mark symbol and treatment, callout style, rectangle corners, freehand smoothing, and alignment where supported. Use the editor toolbar rotate button to turn selected annotations by 90 degrees."
                         ),
                         HelpArticleSection(
                             title: "Manage layers",

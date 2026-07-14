@@ -4,7 +4,7 @@ import CoreImage
 import Foundation
 
 #if !APP_STORE_BUILD
-import AVFoundation
+@preconcurrency import AVFoundation
 import CoreMediaIO
 import IOKit
 #endif
@@ -654,7 +654,7 @@ private final class LiveConnectedDevicePreviewPlatformSession: NSObject, Connect
     }
 }
 
-extension LiveConnectedDevicePreviewPlatformSession: @preconcurrency AVCaptureVideoDataOutputSampleBufferDelegate {
+nonisolated extension LiveConnectedDevicePreviewPlatformSession: AVCaptureVideoDataOutputSampleBufferDelegate {
     nonisolated func captureOutput(
         _ output: AVCaptureOutput,
         didOutput sampleBuffer: CMSampleBuffer,
@@ -673,7 +673,7 @@ extension LiveConnectedDevicePreviewPlatformSession: @preconcurrency AVCaptureVi
     }
 }
 
-extension LiveConnectedDevicePreviewPlatformSession: @preconcurrency AVCaptureFileOutputRecordingDelegate {
+nonisolated extension LiveConnectedDevicePreviewPlatformSession: AVCaptureFileOutputRecordingDelegate {
     nonisolated func fileOutput(
         _ output: AVCaptureFileOutput,
         didFinishRecordingTo outputFileURL: URL,

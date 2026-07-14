@@ -30,6 +30,8 @@ nonisolated enum AnnotationGeometry {
                 labelTextColor: shape.labelTextColor,
                 headShape: shape.headShape
             ))
+        case let .statusMark(shape):
+            return .statusMark(StatusMarkShape(rect: transformRect(shape.rect)))
         case let .freehand(shape):
             return .freehand(FreehandShape(points: shape.points.map(transformPoint)))
         case let .highlighter(shape):
@@ -78,6 +80,8 @@ nonisolated enum AnnotationGeometry {
         case let .arrow(shape):
             let lineRect = lineBounds(from: shape.start, to: shape.end, padding: 18)
             return gscBoundingRect(of: [lineRect, arrowLabelRect(for: shape)]).integral
+        case let .statusMark(shape):
+            return standardizedRect(shape.rect)
         case let .measurement(shape):
             return lineBounds(from: shape.start, to: shape.end, padding: 10)
         case let .freehand(shape):

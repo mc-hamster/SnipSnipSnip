@@ -1,3 +1,4 @@
+import CryptoKit
 import XCTest
 @testable import SnipSnipSnip
 
@@ -12,7 +13,7 @@ final class ClipboardAppModelTests: XCTestCase {
     private func makeClipboardStore(named name: String) -> ClipboardHistoryStore {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(name, isDirectory: true)
         try? FileManager.default.removeItem(at: url)
-        return ClipboardHistoryStore(baseURL: url)
+        return ClipboardHistoryStore(baseURL: url, keyProvider: ClipboardAppModelTestKeyProvider())
     }
 
     private func makeRecoveryStore(named name: String) -> DocumentRecoveryStore {
@@ -37,6 +38,16 @@ final class ClipboardAppModelTests: XCTestCase {
         }
     }
 
+    func testClipboardHistoryIsOptInByDefault() {
+        let defaults = makeDefaults(named: "ClipboardAppModelTests.optInDefault")
+        defer { defaults.removePersistentDomain(forName: "ClipboardAppModelTests.optInDefault") }
+
+        let preferences = ClipboardWorkflowModel.loadClipboardPreferences(from: defaults)
+
+        XCTAssertFalse(preferences.isEnabled)
+        XCTAssertFalse(preferences.recordsUncopiedSnips)
+    }
+
     func testCompletedCaptureRecordsSnipWhenAutoCopyIsDisabled() async throws {
         let suiteName = "ClipboardAppModelTests.autoCopyDisabled"
         let storeName = "ClipboardAppModelTests.autoCopyDisabled.store"
@@ -55,6 +66,8 @@ final class ClipboardAppModelTests: XCTestCase {
             shouldCheckCompatibilityOnLaunch: false,
             shouldStartArchiveMaintenance: false
         ))
+        model.clipboard.updateClipboardHistoryEnabled(true)
+        model.clipboard.updateRecordsUncopiedSnips(true)
 
         try model.capture.completeCapture(
             makeCapturedScreenshot(sourceName: "Timeline Source"),
@@ -92,6 +105,8 @@ final class ClipboardAppModelTests: XCTestCase {
             shouldCheckCompatibilityOnLaunch: false,
             shouldStartArchiveMaintenance: false
         ))
+        model.clipboard.updateClipboardHistoryEnabled(true)
+        model.clipboard.updateRecordsUncopiedSnips(true)
 
         try model.capture.completeCapture(
             makeCapturedScreenshot(),
@@ -101,6 +116,35 @@ final class ClipboardAppModelTests: XCTestCase {
 
         try? await Task.sleep(nanoseconds: 150_000_000)
 
+        XCTAssertTrue(model.clipboard.clipboardHistoryItems.isEmpty)
+    }
+
+    func testUncopiedScreenshotTimelineCanBeDisabled() async throws {
+        let suiteName = "ClipboardAppModelTests.uncopiedSnipsDisabled"
+        let storeName = "ClipboardAppModelTests.uncopiedSnipsDisabled.store"
+        let defaults = makeDefaults(named: suiteName)
+        defaults.set(false, forKey: AppModelPreferenceKey.autoCopyEnabled)
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+            removeClipboardStore(named: storeName)
+        }
+        let model = retainForTestLifetime(AppModel(
+            defaults: defaults,
+            recoveryStore: makeRecoveryStore(named: "ClipboardAppModelTests.uncopiedSnipsDisabled.recovery"),
+            clipboardHistoryStore: makeClipboardStore(named: storeName),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        ))
+        model.clipboard.pauseClipboardMonitoring(for: 60)
+        model.clipboard.updateClipboardHistoryEnabled(true)
+        model.clipboard.updateRecordsUncopiedSnips(false)
+
+        try model.capture.completeCapture(
+            makeCapturedScreenshot(sourceName: "Not copied"),
+            request: .fullscreen,
+            isPrivateCapture: false
+        )
+        try? await Task.sleep(nanoseconds: 250_000_000)
         XCTAssertTrue(model.clipboard.clipboardHistoryItems.isEmpty)
     }
 
@@ -121,16 +165,28 @@ final class ClipboardAppModelTests: XCTestCase {
             shouldStartArchiveMaintenance: false
         ))
 
-        model.clipboard.updateClipboardHistoryEnabled(false)
+        model.clipboard.updateClipboardHistoryEnabled(true)
         model.clipboard.updateClipboardMaxItemCount(2)
         model.clipboard.updateClipboardMaxStorageMB(1)
+        model.clipboard.updateClipboardRetentionDays(30)
+        model.clipboard.updateClipboardMaxItemSizeMB(10)
+        model.clipboard.updateRecordsUncopiedSnips(false)
         model.clipboard.addIgnoredClipboardApp(match: "com.example.SecretApp")
 
         let reloaded = ClipboardWorkflowModel.loadClipboardPreferences(from: defaults)
-        XCTAssertFalse(reloaded.isEnabled)
+        XCTAssertTrue(reloaded.isEnabled)
         XCTAssertEqual(reloaded.maxItemCount, 10)
         XCTAssertEqual(reloaded.maxStorageMB, 25)
+        XCTAssertEqual(reloaded.retentionDays, 30)
+        XCTAssertEqual(reloaded.maxItemSizeMB, 10)
+        XCTAssertFalse(reloaded.recordsUncopiedSnips)
         XCTAssertTrue(reloaded.ignoredApps.contains(where: { $0.match == "com.example.SecretApp" }))
         XCTAssertTrue(reloaded.ignoredApps.contains(where: { $0.match == "com.mseven.mSecure" }))
+    }
+}
+
+nonisolated private struct ClipboardAppModelTestKeyProvider: ClipboardEncryptionKeyProviding {
+    func encryptionKey() throws -> SymmetricKey {
+        SymmetricKey(data: Data(repeating: 0x6b, count: 32))
     }
 }

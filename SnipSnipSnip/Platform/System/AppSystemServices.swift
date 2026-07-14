@@ -20,7 +20,7 @@ protocol WorkspaceServicing: Sendable {
     nonisolated var runningApplications: [WorkspaceRunningApplicationSnapshot] { get }
     nonisolated func applicationURL(forBundleIdentifier bundleIdentifier: String) -> URL?
     nonisolated func open(_ url: URL)
-    @MainActor func activateApplication(processIdentifier: pid_t)
+    @MainActor @discardableResult func activateApplication(processIdentifier: pid_t) -> Bool
     nonisolated func activateFileViewerSelecting(_ urls: [URL])
 }
 
@@ -30,6 +30,15 @@ nonisolated struct WorkspaceRunningApplicationSnapshot: Sendable, Equatable {
     let bundleIdentifier: String?
     let localizedName: String?
     let bundleURL: URL?
+}
+
+nonisolated struct PasteboardRepresentationSnapshot: Equatable, Sendable {
+    let typeIdentifier: String
+    let data: Data
+}
+
+nonisolated struct PasteboardItemSnapshot: Equatable, Sendable {
+    let representations: [PasteboardRepresentationSnapshot]
 }
 
 protocol ScreenTopologyProviding: Sendable {
@@ -55,13 +64,15 @@ protocol BundleIdentityProviding: Sendable {
 protocol PasteboardServicing: Sendable {
     @MainActor var changeCount: Int { get }
     @MainActor var typeNames: [String] { get }
-    @MainActor func clearContents()
+    @MainActor @discardableResult func clearContents() -> Bool
     @MainActor func fileAndWebURLs() -> [URL]
     @MainActor func data(forType type: NSPasteboard.PasteboardType) -> Data?
     @MainActor func string(forType type: NSPasteboard.PasteboardType) -> String?
-    @MainActor func setString(_ string: String, forType type: NSPasteboard.PasteboardType)
-    @MainActor func setData(_ data: Data, forType type: NSPasteboard.PasteboardType)
-    @MainActor func writeFileURLs(_ urls: [URL])
+    @MainActor func itemSnapshots(acceptedTypeIdentifiers: Set<String>) -> [PasteboardItemSnapshot]
+    @MainActor @discardableResult func setString(_ string: String, forType type: NSPasteboard.PasteboardType) -> Bool
+    @MainActor @discardableResult func setData(_ data: Data, forType type: NSPasteboard.PasteboardType) -> Bool
+    @MainActor @discardableResult func writeFileURLs(_ urls: [URL]) -> Bool
+    @MainActor @discardableResult func writeItemSnapshots(_ items: [PasteboardItemSnapshot]) -> Bool
 }
 
 protocol ClockProviding: Sendable {
@@ -193,8 +204,9 @@ struct SystemWorkspaceService: WorkspaceServicing {
     }
 
     @MainActor
-    func activateApplication(processIdentifier: pid_t) {
-        NSRunningApplication(processIdentifier: processIdentifier)?.activate(options: [])
+    @discardableResult
+    func activateApplication(processIdentifier: pid_t) -> Bool {
+        NSRunningApplication(processIdentifier: processIdentifier)?.activate(options: []) ?? false
     }
 
     nonisolated func activateFileViewerSelecting(_ urls: [URL]) {
@@ -272,8 +284,10 @@ struct SystemPasteboardService: PasteboardServicing {
     }
 
     @MainActor
-    func clearContents() {
+    @discardableResult
+    func clearContents() -> Bool {
         NSPasteboard.general.clearContents()
+        return true
     }
 
     @MainActor
@@ -292,18 +306,53 @@ struct SystemPasteboardService: PasteboardServicing {
     }
 
     @MainActor
-    func setString(_ string: String, forType type: NSPasteboard.PasteboardType) {
+    func itemSnapshots(acceptedTypeIdentifiers: Set<String>) -> [PasteboardItemSnapshot] {
+        (NSPasteboard.general.pasteboardItems ?? []).compactMap { item in
+            let representations = item.types.compactMap { type -> PasteboardRepresentationSnapshot? in
+                guard acceptedTypeIdentifiers.contains(type.rawValue),
+                      let data = item.data(forType: type),
+                      !data.isEmpty else {
+                    return nil
+                }
+                return PasteboardRepresentationSnapshot(typeIdentifier: type.rawValue, data: data)
+            }
+            return representations.isEmpty ? nil : PasteboardItemSnapshot(representations: representations)
+        }
+    }
+
+    @MainActor
+    @discardableResult
+    func setString(_ string: String, forType type: NSPasteboard.PasteboardType) -> Bool {
         NSPasteboard.general.setString(string, forType: type)
     }
 
     @MainActor
-    func setData(_ data: Data, forType type: NSPasteboard.PasteboardType) {
+    @discardableResult
+    func setData(_ data: Data, forType type: NSPasteboard.PasteboardType) -> Bool {
         NSPasteboard.general.setData(data, forType: type)
     }
 
     @MainActor
-    func writeFileURLs(_ urls: [URL]) {
+    @discardableResult
+    func writeFileURLs(_ urls: [URL]) -> Bool {
         NSPasteboard.general.writeObjects(urls as [NSURL])
+    }
+
+    @MainActor
+    @discardableResult
+    func writeItemSnapshots(_ items: [PasteboardItemSnapshot]) -> Bool {
+        guard !items.isEmpty else { return false }
+        let pasteboardItems = items.compactMap { snapshot -> NSPasteboardItem? in
+            let item = NSPasteboardItem()
+            var wroteRepresentation = false
+            for representation in snapshot.representations {
+                let type = NSPasteboard.PasteboardType(representation.typeIdentifier)
+                wroteRepresentation = item.setData(representation.data, forType: type) || wroteRepresentation
+            }
+            return wroteRepresentation ? item : nil
+        }
+        guard pasteboardItems.count == items.count else { return false }
+        return NSPasteboard.general.writeObjects(pasteboardItems)
     }
 }
 

@@ -5,6 +5,7 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
     case welcome
     case uiMap
     case startup
+    case clipboard
     case support
     case permissions
 
@@ -26,6 +27,8 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
             return "UI Map"
         case .startup:
             return "Launch at Login"
+        case .clipboard:
+            return "Clipboard History"
         case .support:
             return "Support"
         }
@@ -53,6 +56,8 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
             return "Choose whether screenshots save visible interface metadata."
         case .startup:
             return "Keep \(AppBranding.displayName) ready right after login if you want the easiest setup."
+        case .clipboard:
+            return "Choose whether to monitor copied content and protect its local history with Keychain."
         case .support:
             return "Find help fast and send support requests or feature requests from the support page."
         }
@@ -68,6 +73,8 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
             return .blue
         case .startup:
             return .green
+        case .clipboard:
+            return .purple
         case .support:
             return .pink
         }
@@ -83,6 +90,8 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
             return "rectangle.3.group"
         case .startup:
             return "power.circle.fill"
+        case .clipboard:
+            return "clipboard.fill"
         case .support:
             return "bubble.left.and.bubble.right.fill"
         }
@@ -127,6 +136,7 @@ struct OnboardingView: View {
     @ObservedObject var lifecycle: AppLifecycleModel
     @ObservedObject var capture: CaptureWorkflowModel
     @ObservedObject var permissions: PermissionWorkflowModel
+    @ObservedObject var clipboard: ClipboardWorkflowModel
     private let capabilities: AppCapabilitySnapshot
     private let skipOnboardingAction: () -> Void
     private let completeOnboardingAction: () -> Void
@@ -142,6 +152,7 @@ struct OnboardingView: View {
         lifecycle: AppLifecycleModel,
         capture: CaptureWorkflowModel,
         permissions: PermissionWorkflowModel,
+        clipboard: ClipboardWorkflowModel,
         capabilities: AppCapabilitySnapshot,
         skipOnboarding: @escaping () -> Void,
         completeOnboarding: @escaping () -> Void
@@ -149,6 +160,7 @@ struct OnboardingView: View {
         self.lifecycle = lifecycle
         self.capture = capture
         self.permissions = permissions
+        self.clipboard = clipboard
         self.capabilities = capabilities
         self.skipOnboardingAction = skipOnboarding
         self.completeOnboardingAction = completeOnboarding
@@ -400,6 +412,8 @@ struct OnboardingView: View {
             uiMapStep(metrics: metrics)
         case .startup:
             startupStep(metrics: metrics)
+        case .clipboard:
+            clipboardStep(metrics: metrics)
         case .support:
             supportStep(metrics: metrics)
         }
@@ -594,6 +608,55 @@ struct OnboardingView: View {
                     .font(.body)
                     .foregroundStyle(.white.opacity(0.78))
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func clipboardStep(metrics: OnboardingLayoutMetrics) -> some View {
+        VStack(alignment: .leading, spacing: metrics.cardSpacing) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Clipboard History is optional and off by default.")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.white)
+
+                Text("When enabled, \(AppBranding.displayName) monitors supported content copied on this Mac and saves an encrypted local history. Its encryption key is protected by Keychain, so macOS may ask you to allow Keychain access.")
+                    .font(.body)
+                    .foregroundStyle(.white.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Toggle("Enable Clipboard History", isOn: clipboardHistoryBinding)
+                    .toggleStyle(.switch)
+                    .controlSize(.large)
+
+                Toggle("Also add screenshots that were not copied", isOn: uncopiedScreenshotsBinding)
+                    .toggleStyle(.switch)
+                    .disabled(!clipboard.preferences.isEnabled)
+
+                Text("You can change either choice later in Settings > Clipboard. Private Capture screenshots are never added, and Clipboard History does not upload its contents.")
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(metrics.contentPadding)
+            .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.75)
+            }
+
+            featurePair(metrics: metrics) {
+                onboardingFeatureCard(
+                    title: "Your Choice",
+                    detail: "No clipboard content is monitored and no history key is requested until you turn the feature on.",
+                    systemImage: "hand.raised.fill",
+                    metrics: metrics
+                )
+                onboardingFeatureCard(
+                    title: "Local and Encrypted",
+                    detail: "History stays on this Mac, is excluded from Spotlight and backup, and uses a Keychain-protected encryption key.",
+                    systemImage: "lock.shield.fill",
+                    metrics: metrics
+                )
             }
         }
     }
@@ -1128,6 +1191,24 @@ struct OnboardingView: View {
             get: { capture.uiMapEnabled },
             set: { newValue in
                 capture.updateUIMapEnabled(newValue, requestAccessIfNeeded: false)
+            }
+        )
+    }
+
+    private var clipboardHistoryBinding: Binding<Bool> {
+        Binding(
+            get: { clipboard.preferences.isEnabled },
+            set: { newValue in
+                clipboard.updateClipboardHistoryEnabled(newValue)
+            }
+        )
+    }
+
+    private var uncopiedScreenshotsBinding: Binding<Bool> {
+        Binding(
+            get: { clipboard.preferences.recordsUncopiedSnips },
+            set: { newValue in
+                clipboard.updateRecordsUncopiedSnips(newValue)
             }
         )
     }

@@ -86,7 +86,8 @@ protocol CoordinatorClipboardPort: AnyObject {
     func scheduleClipboardSnipRecording(
         from controller: EditorController,
         searchableText: String,
-        sessionID: UUID?
+        sessionID: UUID?,
+        willBeCopied: Bool
     )
     func notifyDocumentChanged()
     func startMonitoring()
@@ -178,6 +179,7 @@ extension ClipboardWorkflowModel: CoordinatorClipboardPort {
     func resetClipboardPreferencesToDefaults() {
         autoCopyEnabled = true
         preferences = .default
+        historyStore.deactivateStorage()
         searchQuery = ""
         filter = .all
     }

@@ -9,12 +9,7 @@ protocol ClipboardIgnoredAppPresenting {
 
 @MainActor
 protocol ClipboardManagerPresenting: AnyObject {
-    func showClipboardManager(
-        clipboard: ClipboardWorkflowModel,
-        workspace: any WorkspaceServicing,
-        bundleIdentifier: String?
-    )
-    func activatePreviousApplicationForPaste()
+    func showClipboardManager(clipboard: ClipboardWorkflowModel)
 }
 
 @MainActor
@@ -49,11 +44,15 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
 
             preferenceStore.savePreferences(preferences)
             monitor.update(preferences: preferences)
-            historyStore.prune(using: preferences)
+            if preferences.isEnabled {
+                historyStore.prune(using: preferences)
+            }
         }
     }
     @Published var searchQuery = ""
     @Published var filter: ClipboardItemFilter = .all
+    @Published var actionMessage: String?
+    @Published var monitoringPausedUntil: Date?
 
     init(
         dependencies: ClipboardWorkflowDependencies,
@@ -76,7 +75,11 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
     }
 
     func copyItem(_ item: ClipboardItem, plainTextOnly: Bool = false) {
-        writeItemToPasteboard(item, plainTextOnly: plainTextOnly)
+        if writeItemToPasteboard(item, plainTextOnly: plainTextOnly) {
+            actionMessage = plainTextOnly ? "Copied as plain text." : "Copied."
+        } else {
+            actionMessage = "This clipboard item is no longer available. Your current clipboard was preserved."
+        }
     }
 
     func copyItemAsPlainText(_ item: ClipboardItem) {
@@ -84,59 +87,100 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
             return
         }
 
-        writeItemToPasteboard(item, plainTextOnly: true)
+        copyItem(item, plainTextOnly: true)
     }
 
-    func pasteItem(
-        _ item: ClipboardItem,
-        plainTextOnly: Bool = false,
-        activatePreviousApplication: @MainActor () -> Void,
-        sendPasteKeystroke: @escaping @MainActor () -> Void
-    ) {
-        if plainTextOnly {
-            guard item.supportsPlainTextSanitization else {
-                return
-            }
-        }
-
-        writeItemToPasteboard(item, plainTextOnly: plainTextOnly)
-        activatePreviousApplication()
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-            Task { @MainActor in
-                sendPasteKeystroke()
-            }
-        }
-    }
-
-    private func writeItemToPasteboard(_ item: ClipboardItem, plainTextOnly: Bool) {
+    @discardableResult
+    private func writeItemToPasteboard(_ item: ClipboardItem, plainTextOnly: Bool) -> Bool {
         if plainTextOnly, item.plainTextValue == nil {
-            return
+            return false
         }
 
-        pasteboard.clearContents()
-
+        let preparedSnapshots: [PasteboardItemSnapshot]?
         if plainTextOnly, let text = item.plainTextValue {
-            pasteboard.setString(text, forType: .string)
-            monitor.markCurrentPasteboardChangeAsHandled()
-            return
+            preparedSnapshots = [PasteboardItemSnapshot(representations: [
+                PasteboardRepresentationSnapshot(
+                    typeIdentifier: NSPasteboard.PasteboardType.string.rawValue,
+                    data: Data(text.utf8)
+                )
+            ])]
+        } else {
+            preparedSnapshots = historyStore.pasteboardItemSnapshots(for: item)
         }
 
-        switch item.kind {
-        case let .text(text), let .link(text):
-            pasteboard.setString(text, forType: .string)
-        case let .fileURLs(paths):
-            pasteboard.writeFileURLs(paths.map { URL(fileURLWithPath: $0) })
-        case .image, .snip:
-            if let data = historyStore.dataForPasteboard(for: item) {
-                pasteboard.setData(data, forType: .png)
+        if item.storedPayload != nil, preparedSnapshots == nil {
+            return false
+        }
+
+        var fallbackImageData: Data?
+        if preparedSnapshots == nil, case .image = item.kind {
+            fallbackImageData = historyStore.dataForPasteboard(for: item)
+            guard fallbackImageData != nil else { return false }
+        } else if preparedSnapshots == nil, case .snip = item.kind {
+            fallbackImageData = historyStore.dataForPasteboard(for: item)
+            guard fallbackImageData != nil else { return false }
+        }
+
+        let succeeded = ClipboardPasteboardTransaction.commit(
+            pasteboard: pasteboard,
+            preparedItems: preparedSnapshots
+        ) {
+            switch item.kind {
+            case let .text(text), let .link(text):
+                return pasteboard.setString(text, forType: .string)
+            case let .fileURLs(paths):
+                return pasteboard.writeFileURLs(paths.map { URL(fileURLWithPath: $0) })
+            case .image, .snip:
+                return fallbackImageData.map { pasteboard.setData($0, forType: .png) } ?? false
             }
+        }
+
+        if succeeded {
+            monitor.markCurrentPasteboardChangeAsHandled()
+            return true
         }
 
         monitor.markCurrentPasteboardChangeAsHandled()
+        return false
     }
 
     func markAutomationPasteboardChangeAsHandled() {
         monitor.markCurrentPasteboardChangeAsHandled()
+    }
+
+    func copyEditedText(_ text: String) {
+        let item = ClipboardItem(
+            id: UUID(),
+            kind: .text(text),
+            previewText: ClipboardHistoryStore.previewText(for: text),
+            searchableText: text,
+            sourceApp: nil,
+            copiedAt: Date(),
+            isPinned: false,
+            contentHash: "edited",
+            byteSize: Int64(text.utf8.count)
+        )
+        copyItem(item)
+    }
+
+}
+
+@MainActor
+enum ClipboardPasteboardTransaction {
+    static func commit(
+        pasteboard: any PasteboardServicing,
+        preparedItems: [PasteboardItemSnapshot]?,
+        fallbackWrite: () -> Bool
+    ) -> Bool {
+        let previousItems = pasteboard.itemSnapshots(acceptedTypeIdentifiers: Set(pasteboard.typeNames))
+        _ = pasteboard.clearContents()
+        let succeeded = preparedItems.map(pasteboard.writeItemSnapshots) ?? fallbackWrite()
+        guard !succeeded else { return true }
+
+        _ = pasteboard.clearContents()
+        if !previousItems.isEmpty {
+            _ = pasteboard.writeItemSnapshots(previousItems)
+        }
+        return false
     }
 }

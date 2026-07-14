@@ -184,6 +184,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
             .ellipse(EllipseShape(rect: CGRect(x: 0, y: 0, width: 10, height: 10))),
             .line(LineShape(start: .zero, end: CGPoint(x: 10, y: 10))),
             .arrow(ArrowShape(start: .zero, end: CGPoint(x: 10, y: 10))),
+            .statusMark(StatusMarkShape(rect: CGRect(x: 0, y: 0, width: 10, height: 10))),
             .freehand(FreehandShape(points: [.zero, CGPoint(x: 10, y: 10)])),
             .highlighter(HighlighterShape(points: [.zero, CGPoint(x: 10, y: 10)])),
             .highlight(HighlightShape(rect: CGRect(x: 0, y: 0, width: 10, height: 10))),
@@ -1785,6 +1786,10 @@ final class AppArchitecturePlatformTests: XCTestCase {
             onboarding.contains("@ObservedObject var permissions: PermissionWorkflowModel"),
             "Onboarding should observe permission workflow state directly."
         )
+        XCTAssertTrue(
+            onboarding.contains("@ObservedObject var clipboard: ClipboardWorkflowModel"),
+            "Onboarding should receive the clipboard workflow directly for the opt-in choice."
+        )
         XCTAssertFalse(
             onboarding.contains("AppModel"),
             "OnboardingView should not observe or depend on the app shell."
@@ -1977,7 +1982,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
         )
         XCTAssertFalse(
             clipboardWorkflow.contains("NSPasteboard.general"),
-            "Clipboard item copy/paste should route through ClipboardWorkflowModel and injected PasteboardServicing."
+            "Clipboard item copy actions should route through ClipboardWorkflowModel and injected PasteboardServicing."
         )
         XCTAssertFalse(
             clipboardWorkflow.contains("NSOpenPanel"),
@@ -2023,9 +2028,9 @@ final class AppArchitecturePlatformTests: XCTestCase {
             clipboardWorkflow.contains("dependencies.managerPresenter.showClipboardManager("),
             "Clipboard manager presentation should route through ClipboardManagerPresenting."
         )
-        XCTAssertTrue(
-            clipboardWorkflow.contains("dependencies.managerPresenter.activatePreviousApplicationForPaste()"),
-            "Clipboard paste focus restoration should route through ClipboardManagerPresenting."
+        XCTAssertFalse(
+            clipboardWorkflow.contains("activatePreviousApplicationForPaste"),
+            "Clipboard History should not attempt to activate another app or synthesize a paste."
         )
         XCTAssertFalse(
             clipboardWorkflow.contains("ClipboardManagerWindowController("),

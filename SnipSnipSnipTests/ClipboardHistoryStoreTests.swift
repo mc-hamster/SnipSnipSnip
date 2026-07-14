@@ -1,11 +1,21 @@
 import AppKit
+import CryptoKit
 import XCTest
 @testable import SnipSnipSnip
 
 @MainActor
 final class ClipboardHistoryStoreTests: XCTestCase {
+    private var enabledPreferences: ClipboardPreferences {
+        var preferences = ClipboardPreferences.default
+        preferences.isEnabled = true
+        return preferences
+    }
+
     private func makeStore(named name: String) -> ClipboardHistoryStore {
-        ClipboardHistoryStore(baseURL: FileManager.default.temporaryDirectory.appendingPathComponent(name, isDirectory: true))
+        ClipboardHistoryStore(
+            baseURL: FileManager.default.temporaryDirectory.appendingPathComponent(name, isDirectory: true),
+            keyProvider: TestClipboardEncryptionKeyProvider()
+        )
     }
 
     private func removeStore(named name: String) {
@@ -129,7 +139,7 @@ final class ClipboardHistoryStoreTests: XCTestCase {
             workspace: TestWorkspaceService()
         )
 
-        monitor.start(preferences: .default)
+        monitor.start(preferences: enabledPreferences)
         pasteboard.setString("copy after start", forType: .string)
 
         await waitUntil {
@@ -154,7 +164,7 @@ final class ClipboardHistoryStoreTests: XCTestCase {
         )
 
         pasteboard.setString("copy before start", forType: .string)
-        monitor.start(preferences: .default)
+        monitor.start(preferences: enabledPreferences)
 
         await waitUntil {
             store.items.first?.previewText == "copy before start"
@@ -162,6 +172,26 @@ final class ClipboardHistoryStoreTests: XCTestCase {
 
         monitor.stop()
         XCTAssertEqual(store.items.first?.previewText, "copy before start")
+    }
+
+    func testClipboardMonitorDiscardsCopiesWhilePausedAndResumesCleanly() async {
+        let storeName = "ClipboardHistoryStoreTests.monitorPause"
+        removeStore(named: storeName)
+        defer { removeStore(named: storeName) }
+        let pasteboard = TestPasteboardService()
+        let store = makeStore(named: storeName)
+        let monitor = ClipboardMonitor(store: store, pasteboard: pasteboard, workspace: TestWorkspaceService())
+        monitor.start(preferences: enabledPreferences)
+        monitor.pause(until: .distantFuture)
+        pasteboard.setString("private while paused", forType: .string)
+        try? await Task.sleep(nanoseconds: 350_000_000)
+        XCTAssertTrue(store.items.isEmpty)
+
+        monitor.pause(until: nil)
+        pasteboard.setString("record after resume", forType: .string)
+        await waitUntil { store.items.first?.previewText == "record after resume" }
+        monitor.stop()
+        XCTAssertEqual(store.items.count, 1)
     }
 
     func testDefaultIgnoredAppsIncludeAdditionalPasswordManagers() {
@@ -322,6 +352,184 @@ final class ClipboardHistoryStoreTests: XCTestCase {
         XCTAssertTrue(item.matchesSearchQuery("Safari"))
     }
 
+    func testHistoryIndexAndImageAssetsAreEncryptedAndReloadable() throws {
+        let storeName = "ClipboardHistoryStoreTests.encryption"
+        removeStore(named: storeName)
+        defer { removeStore(named: storeName) }
+
+        let store = makeStore(named: storeName)
+        store.recordText("highly sensitive test value", sourceApp: nil, preferences: .default)
+        let imageData = Data(repeating: 42, count: 128)
+        store.recordImageData(imageData, sourceApp: nil, preferences: .default)
+
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(storeName, isDirectory: true)
+        let indexData = try Data(contentsOf: root.appendingPathComponent("clipboard-history.json"))
+        XCTAssertTrue(indexData.starts(with: ClipboardHistoryCryptor.envelopeMagic))
+        XCTAssertNil(String(data: indexData, encoding: .utf8)?.range(of: "highly sensitive test value"))
+
+        let assets = try FileManager.default.contentsOfDirectory(
+            at: root.appendingPathComponent("assets", isDirectory: true),
+            includingPropertiesForKeys: nil
+        )
+        XCTAssertFalse(assets.isEmpty)
+        XCTAssertTrue(try Data(contentsOf: XCTUnwrap(assets.first)).starts(with: ClipboardHistoryCryptor.envelopeMagic))
+
+        let reloaded = makeStore(named: storeName)
+        XCTAssertEqual(reloaded.items.count, 2)
+        let imageItem = try XCTUnwrap(reloaded.items.first(where: { $0.kind.filter == .images }))
+        XCTAssertEqual(reloaded.dataForPasteboard(for: imageItem), imageData)
+    }
+
+    func testDisabledHistoryDefersStoredHistoryAndKeyAccessUntilOptIn() throws {
+        let storeName = "ClipboardHistoryStoreTests.deferredKeyAccess"
+        removeStore(named: storeName)
+        defer { removeStore(named: storeName) }
+
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(storeName, isDirectory: true)
+        let writer = ClipboardHistoryStore(baseURL: root, keyProvider: TestClipboardEncryptionKeyProvider())
+        writer.recordText("stored before restart", sourceApp: nil, preferences: .default)
+
+        let countingProvider = CountingClipboardEncryptionKeyProvider()
+        let disabledStore = ClipboardHistoryStore(
+            baseURL: root,
+            keyProvider: countingProvider,
+            loadStoredHistory: false
+        )
+
+        XCTAssertEqual(countingProvider.requestCount, 0)
+        XCTAssertTrue(disabledStore.items.isEmpty)
+
+        disabledStore.activateStorage()
+
+        XCTAssertEqual(countingProvider.requestCount, 1)
+        XCTAssertEqual(disabledStore.items.first?.previewText, "stored before restart")
+
+        disabledStore.deactivateStorage()
+        XCTAssertTrue(disabledStore.items.isEmpty)
+
+        disabledStore.activateStorage()
+        XCTAssertEqual(countingProvider.requestCount, 2)
+        XCTAssertEqual(disabledStore.items.first?.previewText, "stored before restart")
+    }
+
+    func testCorruptIndexIsPreservedAndReported() throws {
+        let storeName = "ClipboardHistoryStoreTests.corrupt"
+        removeStore(named: storeName)
+        defer { removeStore(named: storeName) }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(storeName, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data("not-json".utf8).write(to: root.appendingPathComponent("clipboard-history.json"))
+
+        let store = makeStore(named: storeName)
+        XCTAssertTrue(store.items.isEmpty)
+        XCTAssertNotNil(store.recoveryMessage)
+        let files = try FileManager.default.contentsOfDirectory(atPath: root.path)
+        XCTAssertTrue(files.contains(where: { $0.hasPrefix("clipboard-history-corrupt-") }))
+    }
+
+    func testRichRepresentationsAndMultiplePasteboardItemsRoundTrip() throws {
+        let storeName = "ClipboardHistoryStoreTests.representations"
+        removeStore(named: storeName)
+        defer { removeStore(named: storeName) }
+        let store = makeStore(named: storeName)
+        let snapshots = [
+            PasteboardItemSnapshot(representations: [
+                PasteboardRepresentationSnapshot(typeIdentifier: NSPasteboard.PasteboardType.string.rawValue, data: Data("Styled".utf8)),
+                PasteboardRepresentationSnapshot(typeIdentifier: NSPasteboard.PasteboardType.rtf.rawValue, data: Data("{\\rtf1 Styled}".utf8))
+            ]),
+            PasteboardItemSnapshot(representations: [
+                PasteboardRepresentationSnapshot(typeIdentifier: NSPasteboard.PasteboardType.string.rawValue, data: Data("Second".utf8))
+            ])
+        ]
+
+        store.recordText("Styled", sourceApp: nil, preferences: .default, pasteboardItems: snapshots)
+        let item = try XCTUnwrap(store.items.first)
+        XCTAssertEqual(store.pasteboardItemSnapshots(for: item), snapshots)
+    }
+
+    func testRetentionExpiresOnlyUnpinnedItems() throws {
+        let storeName = "ClipboardHistoryStoreTests.retention"
+        removeStore(named: storeName)
+        defer { removeStore(named: storeName) }
+        let store = makeStore(named: storeName)
+        var preferences = ClipboardPreferences.default
+        preferences.retentionDays = 7
+        let oldDate = Calendar.current.date(byAdding: .day, value: -30, to: Date())!
+        store.recordText("old pinned", sourceApp: nil, preferences: .default, copiedAt: oldDate)
+        store.togglePinned(try XCTUnwrap(store.items.first))
+        store.recordText("old unpinned", sourceApp: nil, preferences: .default, copiedAt: oldDate)
+        store.recordText("current", sourceApp: nil, preferences: .default)
+
+        store.prune(using: preferences)
+        XCTAssertEqual(Set(store.items.map(\.previewText)), ["old pinned", "current"])
+    }
+
+    func testMaximumItemSizeRejectsOversizedPayloadBeforeWritingAssets() throws {
+        let storeName = "ClipboardHistoryStoreTests.itemLimit"
+        removeStore(named: storeName)
+        defer { removeStore(named: storeName) }
+        let store = makeStore(named: storeName)
+        var preferences = ClipboardPreferences.default
+        preferences.maxItemSizeMB = 1
+        store.recordImageData(Data(repeating: 1, count: 2 * 1_024 * 1_024), sourceApp: nil, preferences: preferences)
+        XCTAssertTrue(store.items.isEmpty)
+    }
+
+    func testSemanticTextTypesAreIndexed() throws {
+        let storeName = "ClipboardHistoryStoreTests.semantic"
+        removeStore(named: storeName)
+        defer { removeStore(named: storeName) }
+        let store = makeStore(named: storeName)
+        store.recordText(#"{"name":"Snip"}"#, sourceApp: nil, preferences: .default)
+        let json = try XCTUnwrap(store.items.first)
+        XCTAssertEqual(json.semanticType, .json)
+        XCTAssertTrue(json.matchesSearchQuery("JSON"))
+
+        store.recordText("#12ab34", sourceApp: nil, preferences: .default)
+        XCTAssertEqual(store.items.first?.semanticType, .color)
+    }
+
+    func testNamedCollectionsPersistAcrossReloadAndRemainSearchable() throws {
+        let storeName = "ClipboardHistoryStoreTests.collections"
+        removeStore(named: storeName)
+        defer { removeStore(named: storeName) }
+        let store = makeStore(named: storeName)
+        store.recordText("release checklist", sourceApp: nil, preferences: .default)
+        store.toggleCollection("Shipping", for: try XCTUnwrap(store.items.first))
+
+        let reloaded = makeStore(named: storeName)
+        let item = try XCTUnwrap(reloaded.items.first)
+        XCTAssertEqual(item.collectionNames, ["Shipping"])
+        XCTAssertTrue(item.matchesSearchQuery("shipping"))
+    }
+
+    func testEmptyExplicitSourceFallsBackToFrontmostApplication() throws {
+        let fallback = ClipboardSourceApp(name: "Notes", bundleIdentifier: "com.apple.Notes")
+        let source = ClipboardPasteboardReader.sourceApp(
+            forPasteboardTypeNames: [ClipboardPasteboardReader.sourceTypeName],
+            explicitSourceIdentifier: "  ",
+            fallbackSourceApp: fallback,
+            workspace: TestWorkspaceService()
+        )
+        XCTAssertEqual(source, fallback)
+    }
+
+    func testFailedTransactionalWriteRestoresPreviousClipboard() throws {
+        let pasteboard = TestPasteboardService()
+        pasteboard.setString("keep me", forType: .string)
+        pasteboard.failNextSnapshotWrite()
+        let replacement = [PasteboardItemSnapshot(representations: [
+            PasteboardRepresentationSnapshot(typeIdentifier: NSPasteboard.PasteboardType.string.rawValue, data: Data("replacement".utf8))
+        ])]
+
+        XCTAssertFalse(ClipboardPasteboardTransaction.commit(
+            pasteboard: pasteboard,
+            preparedItems: replacement,
+            fallbackWrite: { false }
+        ))
+        XCTAssertEqual(pasteboard.string(forType: .string), "keep me")
+    }
+
     private static func jpegData() -> Data? {
         guard let representation = NSBitmapImageRep(
             bitmapDataPlanes: nil,
@@ -364,6 +572,7 @@ private final class TestPasteboardService: PasteboardServicing, @unchecked Senda
     private var strings: [NSPasteboard.PasteboardType: String] = [:]
     private var dataByType: [NSPasteboard.PasteboardType: Data] = [:]
     private var urls: [URL] = []
+    private var snapshotWriteFailuresRemaining = 0
 
     private(set) var changeCount = 0
 
@@ -371,11 +580,13 @@ private final class TestPasteboardService: PasteboardServicing, @unchecked Senda
         Array(Set(strings.keys.map(\.rawValue) + dataByType.keys.map(\.rawValue)))
     }
 
-    func clearContents() {
+    @discardableResult
+    func clearContents() -> Bool {
         strings.removeAll()
         dataByType.removeAll()
         urls.removeAll()
         changeCount += 1
+        return true
     }
 
     func fileAndWebURLs() -> [URL] {
@@ -390,23 +601,86 @@ private final class TestPasteboardService: PasteboardServicing, @unchecked Senda
         strings[type]
     }
 
-    func setString(_ string: String, forType type: NSPasteboard.PasteboardType) {
-        strings[type] = string
-        changeCount += 1
+    func itemSnapshots(acceptedTypeIdentifiers: Set<String>) -> [PasteboardItemSnapshot] {
+        let representations = dataByType.compactMap { type, data in
+            acceptedTypeIdentifiers.contains(type.rawValue)
+                ? PasteboardRepresentationSnapshot(typeIdentifier: type.rawValue, data: data)
+                : nil
+        }
+        return representations.isEmpty ? [] : [PasteboardItemSnapshot(representations: representations)]
     }
 
-    func setData(_ data: Data, forType type: NSPasteboard.PasteboardType) {
+    @discardableResult
+    func setString(_ string: String, forType type: NSPasteboard.PasteboardType) -> Bool {
+        strings[type] = string
+        dataByType[type] = Data(string.utf8)
+        changeCount += 1
+        return true
+    }
+
+    @discardableResult
+    func setData(_ data: Data, forType type: NSPasteboard.PasteboardType) -> Bool {
         dataByType[type] = data
         changeCount += 1
+        return true
     }
 
-    func writeFileURLs(_ urls: [URL]) {
+    @discardableResult
+    func writeFileURLs(_ urls: [URL]) -> Bool {
         self.urls = urls
         changeCount += 1
+        return true
+    }
+
+    @discardableResult
+    func writeItemSnapshots(_ items: [PasteboardItemSnapshot]) -> Bool {
+        if snapshotWriteFailuresRemaining > 0 {
+            snapshotWriteFailuresRemaining -= 1
+            return false
+        }
+        guard !items.isEmpty else { return false }
+        strings.removeAll()
+        dataByType.removeAll()
+        for item in items {
+            for representation in item.representations {
+                dataByType[NSPasteboard.PasteboardType(representation.typeIdentifier)] = representation.data
+                if representation.typeIdentifier == NSPasteboard.PasteboardType.string.rawValue {
+                    strings[.string] = String(data: representation.data, encoding: .utf8)
+                }
+            }
+        }
+        changeCount += 1
+        return true
+    }
+
+    func failNextSnapshotWrite() {
+        snapshotWriteFailuresRemaining += 1
     }
 
     func addType(_ typeName: String) {
         dataByType[NSPasteboard.PasteboardType(typeName)] = Data()
         changeCount += 1
+    }
+}
+
+nonisolated private struct TestClipboardEncryptionKeyProvider: ClipboardEncryptionKeyProviding {
+    func encryptionKey() throws -> SymmetricKey {
+        SymmetricKey(data: Data(repeating: 0x5a, count: 32))
+    }
+}
+
+nonisolated private final class CountingClipboardEncryptionKeyProvider: ClipboardEncryptionKeyProviding, @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedRequestCount = 0
+
+    var requestCount: Int {
+        lock.withLock { storedRequestCount }
+    }
+
+    func encryptionKey() throws -> SymmetricKey {
+        lock.withLock {
+            storedRequestCount += 1
+        }
+        return SymmetricKey(data: Data(repeating: 0x5a, count: 32))
     }
 }

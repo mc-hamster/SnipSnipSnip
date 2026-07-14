@@ -18,6 +18,7 @@ nonisolated enum EditorTool: String, CaseIterable, Codable, Identifiable {
     case ellipse
     case line
     case arrow
+    case statusMark
     case freehand
     case highlighter
     case highlight
@@ -74,6 +75,8 @@ nonisolated enum EditorTool: String, CaseIterable, Codable, Identifiable {
             return Annotation.makeSolidRedaction(in: rect, style: style)
         case .spotlight:
             return Annotation.makeSpotlight(in: rect, style: style)
+        case .statusMark:
+            return Annotation.makeStatusMark(in: rect, style: style)
         case .select, .uiMapInspect, .line, .arrow, .freehand, .highlighter, .text, .callout, .measure, .colorPicker, .ocrText, .crop:
             return nil
         }
@@ -134,6 +137,15 @@ nonisolated enum EditorTool: String, CaseIterable, Codable, Identifiable {
                 supportsFillEditing: false,
                 defaultRedactionMode: nil,
                 defaultStyle: AnnotationStyle(strokeColor: .arrowStroke, fillColor: .clear, lineWidth: 5, fontSize: 0, effectRadius: 0)
+            )
+        case .statusMark:
+            return EditorToolMetadata(
+                label: "Status Mark",
+                systemImage: "checkmark.circle",
+                supportsStyleEditing: true,
+                supportsFillEditing: true,
+                defaultRedactionMode: nil,
+                defaultStyle: AnnotationStyle(strokeColor: .freehandStroke, fillColor: .clear, lineWidth: 5, fontSize: 0, effectRadius: 0)
             )
         case .freehand:
             return EditorToolMetadata(
@@ -271,7 +283,7 @@ nonisolated extension EditorTool {
         switch self {
         case .uiMapInspect, .colorPicker:
             return false
-        case .select, .rectangle, .ellipse, .line, .arrow, .freehand, .highlighter, .highlight, .text, .callout, .measure, .spotlight, .ocrText, .blur, .pixelate, .redact, .crop:
+        case .select, .rectangle, .ellipse, .line, .arrow, .statusMark, .freehand, .highlighter, .highlight, .text, .callout, .measure, .spotlight, .ocrText, .blur, .pixelate, .redact, .crop:
             return true
         }
     }
@@ -526,6 +538,8 @@ nonisolated struct AnnotationStyle: Equatable {
     var dashStyle: StrokeDashStyle = .solid
     var freehandSmoothing: CGFloat = 0.65
     var freehandSimplification: CGFloat = 1.5
+    var statusMarkSymbol: StatusMarkSymbol = .checkmark
+    var statusMarkVisualStyle: StatusMarkVisualStyle = .outlined
 
     nonisolated func scaledForDisplay(by scale: CGFloat) -> AnnotationStyle {
         let displayScale = max(scale, 0)
@@ -539,7 +553,9 @@ nonisolated struct AnnotationStyle: Equatable {
             cornerRadius: cornerRadius * displayScale,
             dashStyle: dashStyle,
             freehandSmoothing: freehandSmoothing,
-            freehandSimplification: freehandSimplification * displayScale
+            freehandSimplification: freehandSimplification * displayScale,
+            statusMarkSymbol: statusMarkSymbol,
+            statusMarkVisualStyle: statusMarkVisualStyle
         )
     }
 
@@ -800,6 +816,41 @@ nonisolated struct SpotlightShape: Equatable {
     var isEllipse: Bool = true
 }
 
+nonisolated enum StatusMarkSymbol: String, CaseIterable, Identifiable {
+    case checkmark
+    case xmark
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .checkmark: return "Checkmark"
+        case .xmark: return "X"
+        }
+    }
+}
+
+nonisolated enum StatusMarkVisualStyle: String, CaseIterable, Identifiable {
+    // Keep these raw values stable: they are persisted in .sss documents and editor preferences.
+    case outlined
+    case filled
+    case sticker
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .outlined: return "Circled"
+        case .filled: return "Cartoon"
+        case .sticker: return "Vintage"
+        }
+    }
+}
+
+nonisolated struct StatusMarkShape: Equatable {
+    var rect: CGRect
+}
+
 nonisolated struct ImageOverlayShape: Equatable {
     enum Role: String {
         case importedImage
@@ -866,6 +917,7 @@ nonisolated enum AnnotationKind: Equatable {
     case ellipse(EllipseShape)
     case line(LineShape)
     case arrow(ArrowShape)
+    case statusMark(StatusMarkShape)
     case freehand(FreehandShape)
     case highlighter(HighlighterShape)
     case highlight(HighlightShape)
@@ -1364,6 +1416,10 @@ nonisolated struct Annotation: Identifiable, Equatable {
 
     nonisolated static func makeArrow(from start: CGPoint, to end: CGPoint, style: AnnotationStyle = .default(for: .arrow)) -> Annotation {
         Annotation(id: UUID(), groupID: nil, kind: .arrow(ArrowShape(start: start, end: end)), style: style)
+    }
+
+    nonisolated static func makeStatusMark(in rect: CGRect, style: AnnotationStyle = .default(for: .statusMark)) -> Annotation {
+        Annotation(id: UUID(), groupID: nil, kind: .statusMark(StatusMarkShape(rect: rect.standardized.integral)), style: style)
     }
 
     nonisolated static func makeFreehand(points: [CGPoint], style: AnnotationStyle = .default(for: .freehand)) -> Annotation {

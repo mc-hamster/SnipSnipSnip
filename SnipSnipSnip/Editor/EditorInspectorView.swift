@@ -748,6 +748,42 @@ struct EditorInspectorView: View {
                     }
                 }
 
+                if controller.showsStatusMarkControls {
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Mark")
+                            .font(.caption.weight(.semibold))
+                        Picker("", selection: Binding(get: {
+                            controller.inspectorStyle.statusMarkSymbol
+                        }, set: { value in
+                            deferPublish { controller.updateStatusMarkSymbol(value) }
+                        })) {
+                            ForEach(StatusMarkSymbol.allCases) { symbol in
+                                Text(symbol.label).tag(symbol)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Mark Style")
+                            .font(.caption.weight(.semibold))
+                        Picker("", selection: Binding(get: {
+                            controller.inspectorStyle.statusMarkVisualStyle
+                        }, set: { value in
+                            deferPublish { controller.updateStatusMarkVisualStyle(value) }
+                        })) {
+                            ForEach(StatusMarkVisualStyle.allCases) { visualStyle in
+                                Text(visualStyle.label).tag(visualStyle)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                    }
+                }
+
                 if controller.showsCalloutControls, let selectedCallout = controller.selectedAnnotation, case let .callout(shape) = selectedCallout.kind {
                     Divider()
 

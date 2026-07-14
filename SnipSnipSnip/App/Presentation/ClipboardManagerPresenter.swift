@@ -4,23 +4,11 @@ import Foundation
 final class LiveClipboardManagerPresenter: ClipboardManagerPresenting {
     private var managerWindowController: ClipboardManagerWindowController?
 
-    func showClipboardManager(
-        clipboard: ClipboardWorkflowModel,
-        workspace: any WorkspaceServicing,
-        bundleIdentifier: String?
-    ) {
+    func showClipboardManager(clipboard: ClipboardWorkflowModel) {
         if managerWindowController == nil {
-            managerWindowController = ClipboardManagerWindowController(
-                clipboard: clipboard,
-                workspace: workspace,
-                bundleIdentifier: bundleIdentifier
-            )
+            managerWindowController = ClipboardManagerWindowController(clipboard: clipboard)
         }
 
         managerWindowController?.show()
-    }
-
-    func activatePreviousApplicationForPaste() {
-        managerWindowController?.activatePreviousApplicationForPaste()
     }
 }

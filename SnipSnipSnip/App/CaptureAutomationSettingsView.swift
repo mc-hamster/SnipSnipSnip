@@ -16,6 +16,7 @@ struct CaptureAutomationSettingsView: View {
     let checkForProUpdates: () -> Void
     let resetPreferencesToDefaults: () -> Void
     @State private var isShowingResetDefaultsConfirmation = false
+    @State private var isShowingClearClipboardConfirmation = false
     @State private var launchAtLoginErrorMessage: String?
     @Environment(\.openURL) private var openURL
 
@@ -525,12 +526,14 @@ struct CaptureAutomationSettingsView: View {
                         clipboard.updateClipboardHistoryEnabled(value)
                     }))
 
+                    SettingsHelpText("Optional and off by default. Turning this on begins monitoring supported copied content and loads or creates an encrypted local history whose key is protected by Keychain. macOS may ask you to allow Keychain access.")
+
                     Stepper(value: Binding(get: {
                         clipboard.preferences.maxItemCount
                     }, set: { value in
                         clipboard.updateClipboardMaxItemCount(value)
                     }), in: 10...1_000, step: 10) {
-                        Text("Maximum Items: \(clipboard.preferences.maxItemCount)")
+                        Text("Maximum Unpinned Items: \(clipboard.preferences.maxItemCount)")
                     }
 
                     Stepper(value: Binding(get: {
@@ -538,7 +541,49 @@ struct CaptureAutomationSettingsView: View {
                     }, set: { value in
                         clipboard.updateClipboardMaxStorageMB(value)
                     }), in: 25...5_120, step: 25) {
-                        Text("Maximum Storage: \(clipboard.preferences.maxStorageMB) MB")
+                        Text("History Storage Target: \(clipboard.preferences.maxStorageMB) MB (Pinned Kept)")
+                    }
+
+                    Stepper(value: Binding(get: {
+                        clipboard.preferences.maxItemSizeMB
+                    }, set: { value in
+                        clipboard.updateClipboardMaxItemSizeMB(value)
+                    }), in: 1...250, step: 5) {
+                        Text("Maximum Item Size: \(clipboard.preferences.maxItemSizeMB) MB")
+                    }
+
+                    Picker("Delete Unpinned Items", selection: Binding(get: {
+                        clipboard.preferences.retentionDays
+                    }, set: { value in
+                        clipboard.updateClipboardRetentionDays(value)
+                    })) {
+                        Text("Never").tag(0)
+                        Text("After 1 Day").tag(1)
+                        Text("After 7 Days").tag(7)
+                        Text("After 30 Days").tag(30)
+                        Text("After 90 Days").tag(90)
+                    }
+
+                    Toggle("Add Screenshots That Were Not Copied", isOn: Binding(get: {
+                        clipboard.preferences.recordsUncopiedSnips
+                    }, set: { value in
+                        clipboard.updateRecordsUncopiedSnips(value)
+                    }))
+                    .disabled(!clipboard.preferences.isEnabled)
+
+                    HStack {
+                        Text("Monitoring")
+                        Spacer(minLength: 12)
+                        if clipboard.isClipboardMonitoringPaused {
+                            Button("Resume", action: clipboard.resumeClipboardMonitoring)
+                        } else {
+                            Menu("Pause") {
+                                Button("5 Minutes") { clipboard.pauseClipboardMonitoring(for: 5 * 60) }
+                                Button("1 Hour") { clipboard.pauseClipboardMonitoring(for: 60 * 60) }
+                                Button("Until Restart") { clipboard.pauseClipboardMonitoring(for: nil) }
+                            }
+                            .disabled(!clipboard.preferences.isEnabled)
+                        }
                     }
 
                     HStack {
@@ -548,10 +593,17 @@ struct CaptureAutomationSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Button("Clear Clipboard History", role: .destructive, action: clipboard.clearClipboardHistory)
+                    Button("Clear Clipboard History", role: .destructive) {
+                        isShowingClearClipboardConfirmation = true
+                    }
                         .disabled(clipboard.clipboardHistoryItems.isEmpty)
 
-                    SettingsHelpText("Clipboard history is local to this Mac. Non-private \(AppBranding.displayName) screenshots are added to this timeline even when Auto Copy is off. Private Capture stays out of clipboard history.")
+                    if let recoveryMessage = clipboard.historyStore.recoveryMessage {
+                        Label(recoveryMessage, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                    }
+
+                    SettingsHelpText("When enabled, clipboard history stays encrypted on this Mac with a key protected by Keychain. Turning it off stops monitoring and unloads decrypted history and cached previews while preserving the encrypted history unless you clear it. The history and its key are not loaded on the next launch. Private Capture always stays out of clipboard history.")
                 }
 
                 Section("Ignored Apps") {
@@ -708,6 +760,11 @@ struct CaptureAutomationSettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This keeps your current documents and archive contents, but it restores settings values to their shipped defaults.")
+        }
+        .confirmationDialog("Clear all clipboard history?", isPresented: $isShowingClearClipboardConfirmation, titleVisibility: .visible) {
+            Button("Clear Clipboard History", role: .destructive, action: clipboard.clearClipboardHistory)
+        } message: {
+            Text("This permanently removes pinned and unpinned clipboard items from this Mac.")
         }
     }
 

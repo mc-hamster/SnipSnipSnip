@@ -108,7 +108,8 @@ nonisolated struct TestWorkspaceService: WorkspaceServicing {
         openedURLs(url)
     }
 
-    func activateApplication(processIdentifier: pid_t) {}
+    @discardableResult
+    func activateApplication(processIdentifier: pid_t) -> Bool { true }
 
     func activateFileViewerSelecting(_ urls: [URL]) {
         revealedURLs(urls)

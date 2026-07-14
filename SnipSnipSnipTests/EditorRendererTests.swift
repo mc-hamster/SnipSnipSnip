@@ -99,6 +99,24 @@ final class EditorRendererTests: XCTestCase {
         XCTAssertEqual(scaled.effectRadius, 18, accuracy: 0.001)
     }
 
+    func testRenderDrawsFilledXStatusMark() {
+        var style = AnnotationStyle.default(for: .statusMark)
+        style.strokeColor = .rectangleStroke
+        style.statusMarkSymbol = .xmark
+        style.statusMarkVisualStyle = .filled
+        let mark = Annotation.makeStatusMark(in: CGRect(x: 20, y: 15, width: 30, height: 30), style: style)
+
+        guard let rendered = EditorRenderer.render(
+            baseImage: makeSolidImage(width: 80, height: 60, color: PixelSample(red: 255, green: 255, blue: 255, alpha: 255)),
+            snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 80, height: 60), annotations: [mark])
+        ) else {
+            return XCTFail("Expected status-mark render")
+        }
+
+        let badgePixel = samplePixel(in: rendered, topLeftX: 24, topLeftY: 30)
+        XCTAssertGreaterThan(Int(badgePixel.red), Int(badgePixel.green))
+    }
+
     func testArrowHeadLengthGrowsWithLineWidth() {
         let thinHead = EditorRenderer.arrowHeadLength(bodyLength: 120, lineWidth: 4, scale: 1)
         let thickHead = EditorRenderer.arrowHeadLength(bodyLength: 120, lineWidth: 10, scale: 1)

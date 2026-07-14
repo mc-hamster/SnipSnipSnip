@@ -208,6 +208,8 @@ private extension AnnotationKind {
             return "line.diagonal"
         case .arrow:
             return "arrow.up.right"
+        case .statusMark:
+            return "checkmark.circle"
         case .freehand:
             return "scribble"
         case .highlighter:
@@ -239,6 +241,8 @@ private extension AnnotationKind {
             return "Line"
         case .arrow:
             return "Arrow"
+        case .statusMark:
+            return "Status Mark"
         case .freehand:
             return "Freehand"
         case .highlighter:
@@ -268,6 +272,8 @@ private extension AnnotationKind {
             return shape.text.trimmingCharacters(in: .whitespacesAndNewlines).sssLayerPreviewText
         case .arrow(let shape):
             return shape.label.trimmingCharacters(in: .whitespacesAndNewlines).sssLayerPreviewText
+        case .statusMark:
+            return nil
         case .freehand(let shape):
             return "\(shape.points.count) points"
         default:

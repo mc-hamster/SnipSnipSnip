@@ -22,6 +22,8 @@ private struct PersistedEditorToolStyleRecord: Codable {
     var dashStyle: String?
     var freehandSmoothing: Double?
     var freehandSimplification: Double?
+    var statusMarkSymbol: String?
+    var statusMarkVisualStyle: String?
 
     init(_ style: AnnotationStyle) {
         strokeColor = PersistedEditorColorRecord(style.strokeColor)
@@ -33,6 +35,8 @@ private struct PersistedEditorToolStyleRecord: Codable {
         dashStyle = style.dashStyle.rawValue
         freehandSmoothing = Double(style.freehandSmoothing)
         freehandSimplification = Double(style.freehandSimplification)
+        statusMarkSymbol = style.statusMarkSymbol.rawValue
+        statusMarkVisualStyle = style.statusMarkVisualStyle.rawValue
     }
 
     var annotationStyle: AnnotationStyle {
@@ -45,7 +49,9 @@ private struct PersistedEditorToolStyleRecord: Codable {
             cornerRadius: CGFloat(cornerRadius ?? 0),
             dashStyle: StrokeDashStyle(rawValue: dashStyle ?? "solid") ?? .solid,
             freehandSmoothing: CGFloat(freehandSmoothing ?? 0.65),
-            freehandSimplification: CGFloat(freehandSimplification ?? 1.5)
+            freehandSimplification: CGFloat(freehandSimplification ?? 1.5),
+            statusMarkSymbol: StatusMarkSymbol(rawValue: statusMarkSymbol ?? "checkmark") ?? .checkmark,
+            statusMarkVisualStyle: StatusMarkVisualStyle(rawValue: statusMarkVisualStyle ?? "outlined") ?? .outlined
         )
     }
 }
@@ -515,6 +521,10 @@ final class EditorController: ObservableObject {
 
     var showsArrowControls: Bool {
         selectedAnnotation?.editorTool == .arrow || (selectedAnnotation == nil && activeTool == .arrow)
+    }
+
+    var showsStatusMarkControls: Bool {
+        selectedAnnotation?.editorTool == .statusMark || (selectedAnnotation == nil && activeTool == .statusMark)
     }
 
     var showsCalloutControls: Bool {
@@ -1039,6 +1049,14 @@ final class EditorController: ObservableObject {
 
     func updateDashStyle(_ value: StrokeDashStyle) {
         mutateStyle { $0.dashStyle = value }
+    }
+
+    func updateStatusMarkSymbol(_ value: StatusMarkSymbol) {
+        mutateStyle { $0.statusMarkSymbol = value }
+    }
+
+    func updateStatusMarkVisualStyle(_ value: StatusMarkVisualStyle) {
+        mutateStyle { $0.statusMarkVisualStyle = value }
     }
 
     func updateFreehandSmoothing(_ value: CGFloat) {
