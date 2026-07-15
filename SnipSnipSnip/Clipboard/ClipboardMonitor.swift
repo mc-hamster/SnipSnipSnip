@@ -145,9 +145,9 @@ enum ClipboardPasteboardReader {
                 return ClipboardRawBinaryRepresentation(typeIdentifier: typeIdentifier, data: data)
             }
         )
-        // Clipboard images are processed as part of the copy event. Keep the
-        // task at the same QoS as the caller so Vision does not make a
-        // user-initiated task wait on utility-priority OCR work.
+        // Clipboard images are processed as part of the copy event. Run OCR
+        // at user-initiated QoS so Vision does not make the calling task wait
+        // on utility-priority work.
         return await Task.detached(priority: .userInitiated) {
             snapshot(from: captured)
         }.value
