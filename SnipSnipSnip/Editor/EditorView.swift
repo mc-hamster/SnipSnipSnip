@@ -277,6 +277,7 @@ struct EditorToolbarView: View {
     let onCopyPlain: () -> Void
     let onShare: () -> Void
     let dragOutPayloadProvider: @MainActor () -> PromisedFilePayload?
+    var mode: EditorToolbarMode = .standard
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -295,7 +296,8 @@ struct EditorToolbarView: View {
                         onShare: onShare,
                         onShowLayers: showLayersWindow,
                         onShowUIMap: showUIMapWindow,
-                        dragOutPayloadProvider: dragOutPayloadProvider
+                        dragOutPayloadProvider: dragOutPayloadProvider,
+                        mode: mode
                     )
                 } else {
                     InactiveEditorToolbarView(onBack: onBack)
@@ -317,6 +319,31 @@ struct EditorToolbarView: View {
     }
 }
 
+enum EditorToolbarMode {
+    case standard
+    case guideStep(onApply: () -> Void)
+
+    var isGuideStep: Bool {
+        if case .guideStep = self { return true }
+        return false
+    }
+
+    var backTitle: String {
+        isGuideStep ? "Cancel" : "Discard"
+    }
+
+    var backHelp: String {
+        isGuideStep
+            ? "Cancel Advanced Edit and leave this Guide step unchanged."
+            : "Discard the current editor session and return to the capture screen."
+    }
+
+    var applyAction: (() -> Void)? {
+        guard case .guideStep(let onApply) = self else { return nil }
+        return onApply
+    }
+}
+
 private struct ActiveEditorToolbarView: View {
     private static let drawingTools: [EditorTool] = [.rectangle, .ellipse, .line, .arrow, .statusMark, .measure, .freehand, .highlighter, .highlight, .spotlight]
     private static let textTools: [EditorTool] = [.text, .callout]
@@ -334,9 +361,10 @@ private struct ActiveEditorToolbarView: View {
     let onShowLayers: () -> Void
     let onShowUIMap: () -> Void
     let dragOutPayloadProvider: @MainActor () -> PromisedFilePayload?
+    let mode: EditorToolbarMode
 
     var body: some View {
-        if controller.workspaceMode == .presentation {
+        if controller.workspaceMode == .presentation && !mode.isGuideStep {
             PresentationEditorToolbarView(
                 controller: controller,
                 onFloatReference: onFloatReference,
@@ -357,10 +385,16 @@ private struct ActiveEditorToolbarView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 Button(action: onBack) {
-                    Label("Discard", systemImage: "xmark")
+                    Label(mode.backTitle, systemImage: "xmark")
                 }
                 .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-                .help("Discard the current editor session and return to the capture screen.")
+                .help(mode.backHelp)
+
+                if mode.isGuideStep {
+                    Text("Advanced Step Edit")
+                        .font(.headline)
+                        .lineLimit(1)
+                }
 
                 toolbarDivider
 
@@ -415,30 +449,38 @@ private struct ActiveEditorToolbarView: View {
 
                 toolbarDivider
 
-                Button {
-                    controller.setWorkspaceMode(controller.workspaceMode == .presentation ? .edit : .presentation)
-                } label: {
-                    AdaptiveToolbarLabel("Presentation", systemImage: EditorWorkspaceMode.presentation.systemImage)
+                if let applyAction = mode.applyAction {
+                    Spacer(minLength: 0)
+
+                    Button("Apply to Step", action: applyAction)
+                        .buttonStyle(.borderedProminent)
+                        .help("Save these annotations on this Guide step and return to the Guide editor.")
+                } else {
+                    Button {
+                        controller.setWorkspaceMode(controller.workspaceMode == .presentation ? .edit : .presentation)
+                    } label: {
+                        AdaptiveToolbarLabel("Presentation", systemImage: EditorWorkspaceMode.presentation.systemImage)
+                    }
+                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary, isSelected: controller.workspaceMode == .presentation))
+                    .help("Open Presentation mode to style the final copy, share, and export output.")
+
+                    toolbarDivider
+
+                    outputActionGroup
+
+                    Button(action: onFloatReference) {
+                        AdaptiveToolbarLabel("Float", systemImage: "pin")
+                    }
+                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                    .help("Open the plain annotated screenshot as an always-on-top floating reference.")
+
+                    PromisedFileDragView(
+                        accessibilityLabel: "Drag rendered screenshot to share",
+                        payloadProvider: dragOutPayloadProvider
+                    )
+                    .frame(width: 68, height: 30)
+                    .help("Drag the current rendered screenshot into Finder, Mail, or another app.")
                 }
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary, isSelected: controller.workspaceMode == .presentation))
-                .help("Open Presentation mode to style the final copy, share, and export output.")
-
-                toolbarDivider
-
-                outputActionGroup
-
-                Button(action: onFloatReference) {
-                    AdaptiveToolbarLabel("Float", systemImage: "pin")
-                }
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-                .help("Open the plain annotated screenshot as an always-on-top floating reference.")
-
-                PromisedFileDragView(
-                    accessibilityLabel: "Drag rendered screenshot to share",
-                    payloadProvider: dragOutPayloadProvider
-                )
-                .frame(width: 68, height: 30)
-                .help("Drag the current rendered screenshot into Finder, Mail, or another app.")
 
                 Spacer(minLength: 0)
             }

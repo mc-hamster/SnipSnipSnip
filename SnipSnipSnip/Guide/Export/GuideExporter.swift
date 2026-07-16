@@ -39,6 +39,11 @@ nonisolated private final class GuideExportSessionCancellation: @unchecked Senda
 }
 
 nonisolated enum GuideExporter {
+    /// Word constrains a guide card to roughly six printed inches. Rendering at
+    /// this width preserves approximately 300 dpi for the actual screenshot
+    /// area after the card's caption and side margins are applied.
+    private static let documentCardWidth = 2_000
+
     static func exportAll(
         document: EditableGuideDocument,
         formats: Set<GuideExportFormat>,
@@ -134,7 +139,7 @@ nonisolated enum GuideExporter {
             let cards = try renderedCards(
                 steps: steps,
                 document: document,
-                cardWidth: Int(1440 * Double(min(max(settings.pdfDPI, 144), 300)) / 216.0)
+                cardWidth: Int(1_440 * Double(min(max(settings.pdfDPI, 144), 300)) / 216.0)
             )
             let pageGroups = document.project.exportSettings.usesCompactPDFLayout
                 ? stride(from: 0, to: cards.count, by: 2).map { Array(cards[$0..<min($0 + 2, cards.count)]) }
@@ -164,7 +169,11 @@ nonisolated enum GuideExporter {
     /// Builds a portable Office Open XML package directly so Word export works in
     /// the sandbox without requiring a local Word or Python installation.
     private static func writeDOCX(steps: [GuideStep], document: EditableGuideDocument, to destination: URL) throws {
-        let cards = try renderedCards(steps: steps, document: document)
+        let cards = try renderedCards(
+            steps: steps,
+            document: document,
+            cardWidth: documentCardWidth
+        )
         var entries: [(String, Data)] = [
             ("[Content_Types].xml", Data(docxContentTypes.utf8)),
             ("_rels/.rels", Data(docxRootRelationships.utf8))
@@ -206,12 +215,10 @@ nonisolated enum GuideExporter {
         var body = docxParagraph(heading, size: 36, bold: true, centered: true)
         for (index, pair) in cards.enumerated() {
             if index > 0 { body += "<w:p><w:pPr><w:pageBreakBefore/></w:pPr></w:p>" }
-            body += docxParagraph("Step \(pair.0.sequence)", size: 26, bold: true)
-            body += docxParagraph(pair.0.caption, size: 22)
+            // A rendered card already includes the step number, caption, and
+            // optional note. Adding them as document paragraphs duplicates the
+            // visible instruction in Word and Pages.
             body += docxImage(index: index + 1, image: pair.1)
-            if !pair.0.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                body += docxParagraph(pair.0.note, size: 20)
-            }
         }
         return """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -546,22 +553,19 @@ nonisolated enum GuideExporter {
         cursor.add(positionAnimation(keyframes: keyframes, duration: duration), forKey: "guideCursor")
         parent.addSublayer(cursor)
 
-        for time in eventOutputTimes(placedClips: placedClips, project: document.project) where time < duration {
-            guard let nearest = keyframes.min(by: { abs($0.time - time) < abs($1.time - time) }) else { continue }
-            let ring = CAShapeLayer()
-            ring.path = CGPath(ellipseIn: CGRect(x: -22, y: -22, width: 44, height: 44), transform: nil)
-            ring.position = nearest.point
-            ring.fillColor = CGColor(red: 0.9, green: 0.12, blue: 0.1, alpha: 0.18)
-            ring.strokeColor = CGColor(red: 0.9, green: 0.12, blue: 0.1, alpha: 0.8)
-            ring.lineWidth = 3
-            let opacity = CAKeyframeAnimation(keyPath: "opacity")
-            opacity.values = [0, 1, 0]
-            opacity.keyTimes = [0, 0.15, 1]
-            opacity.beginTime = AVCoreAnimationBeginTimeAtZero + time
-            opacity.duration = 0.45
-            opacity.isRemovedOnCompletion = false
-            ring.add(opacity, forKey: "guideClick")
-            parent.addSublayer(ring)
+        if document.project.theme.showsClickHighlight {
+            for time in eventOutputTimes(placedClips: placedClips, project: document.project) where time < duration {
+                guard let nearest = keyframes.min(by: { abs($0.time - time) < abs($1.time - time) }) else { continue }
+                let ring = CAShapeLayer()
+                ring.path = CGPath(ellipseIn: CGRect(x: -22, y: -22, width: 44, height: 44), transform: nil)
+                ring.position = nearest.point
+                ring.fillColor = CGColor(red: 0.9, green: 0.12, blue: 0.1, alpha: 0.18)
+                ring.strokeColor = CGColor(red: 0.9, green: 0.12, blue: 0.1, alpha: 0.8)
+                ring.lineWidth = 3
+                ring.opacity = 0
+                ring.add(clickHighlightOpacityAnimation(eventTime: time), forKey: "guideClick")
+                parent.addSublayer(ring)
+            }
         }
         composition.animationTool = AVVideoCompositionCoreAnimationTool(postProcessingAsVideoLayer: video, in: parent)
         return composition
@@ -587,12 +591,15 @@ nonisolated enum GuideExporter {
             let clipStart = segmentStart + placed.clip.start
             let clipEnd = clipStart + placed.clip.duration
             for sample in samples where sample.timestampSeconds >= clipStart && sample.timestampSeconds <= clipEnd {
+                guard let point = GuideMediaCursorGeometry.renderPoint(
+                    fromCaptureGlobalPoint: sample.point,
+                    cropRect: crop,
+                    renderSize: renderSize,
+                    coordinateContract: project.resolvedCoordinateContract
+                ) else { continue }
                 result.append(CursorKeyframe(
                     time: min(max(placed.outputStart + sample.timestampSeconds - clipStart, 0), duration),
-                    point: CGPoint(
-                        x: min(max((sample.point.x - crop.minX) / crop.width, 0), 1) * renderSize.width,
-                        y: min(max((sample.point.y - crop.minY) / crop.height, 0), 1) * renderSize.height
-                    )
+                    point: point
                 ))
             }
         }
@@ -611,8 +618,21 @@ nonisolated enum GuideExporter {
         return animation
     }
 
+    static func clickHighlightOpacityAnimation(eventTime: Double) -> CAKeyframeAnimation {
+        let opacity = CAKeyframeAnimation(keyPath: "opacity")
+        opacity.values = [0, 1, 0]
+        opacity.keyTimes = [0, 0.15, 1]
+        opacity.beginTime = AVCoreAnimationBeginTimeAtZero + eventTime
+        opacity.duration = 0.45
+        opacity.isRemovedOnCompletion = false
+        opacity.fillMode = .both
+        return opacity
+    }
+
     private static func eventOutputTimes(placedClips: [(clip: GuideMediaClip, outputStart: Double)], project: GuideProject) -> [Double] {
-        project.steps.filter { $0.isIncluded && !$0.isDeleted }.compactMap { step in
+        project.steps.filter {
+            $0.isIncluded && !$0.isDeleted && ($0.eventKind == .click || $0.eventKind == .doubleClick)
+        }.compactMap { step in
             placedClips.compactMap { placed -> Double? in
                 let start = placed.clip.segment.startedAt.addingTimeInterval(placed.clip.start)
                 let end = start.addingTimeInterval(placed.clip.duration)

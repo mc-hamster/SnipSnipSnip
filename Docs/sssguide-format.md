@@ -31,7 +31,7 @@ The root object contains:
 | `formatIdentifier` | string | Exactly `com.oontz.snipsnipsnip.guide-document`. |
 | `formatVersion` | integer | Exactly `1`. |
 | `savedAt` | ISO-8601 date | Package write time. |
-| `project` | object | Guide project, theme, export defaults, timeline, and ordered steps. |
+| `project` | object | Guide project, theme, export defaults, timeline, ordered steps, and the coordinate contract for captured geometry. |
 | `assets` | object | Relative paths for preview, logo, steps, and media. |
 
 Every step asset entry contains `id`, `baseImage`, and `session`. Every media entry contains `id` and `path`. Project steps contain their event kind, caption, note, include/delete state, duration, safe target metadata, timing, and non-destructive session.
@@ -87,7 +87,7 @@ Example, abbreviated:
 
 The example is illustrative; Core Graphics values use the platform `Codable` representation produced by the shipping app.
 
-Each step session records crop, marker geometry and visibility, optional still-step cursor visibility, non-destructive redactions, event metadata, timing, source-coordinate mapping, and per-step style overrides. `annotationSessionAsset` is optional and points to an embedded editable `.sss` package. Export settings preserve PDF paper/orientation/quality, animation timing, PNG/JPEG step-image choice, selected formats, ZIP source-media choice, and filename tokens.
+Each step session records crop, marker geometry and visibility, optional still-step cursor visibility, non-destructive redactions, event metadata, timing, source-coordinate mapping, and per-step style overrides. `annotationSessionAsset` is optional and points to an embedded editable `.sss` package. The optional project `coordinateContract` uses the shared `DocumentCoordinateContract`; new Guides write the current contract, while Guides written before this field existed resolve to that same established top-left/y-down capture contract. Export settings preserve PDF paper/orientation/quality, animation timing, PNG/JPEG step-image choice, selected formats, ZIP source-media choice, and filename tokens.
 
 ## Compatibility and safety
 

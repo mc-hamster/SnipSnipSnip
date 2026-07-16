@@ -1,10 +1,59 @@
 import AppKit
+import AVFoundation
 import CoreMedia
 import CoreVideo
+import QuartzCore
 import XCTest
 @testable import SnipSnipSnip
 
 final class GuideWorkflowTests: XCTestCase {
+    func testSourceMediaCursorConvertsTopLeftCaptureCoordinatesForCoreAnimation() throws {
+        let crop = CGRect(x: -100, y: 50, width: 400, height: 200)
+        let output = CGSize(width: 800, height: 600)
+
+        XCTAssertEqual(
+            try XCTUnwrap(GuideMediaCursorGeometry.renderPoint(
+                fromCaptureGlobalPoint: CGPoint(x: -100, y: 50),
+                cropRect: crop,
+                renderSize: output,
+                coordinateContract: .current
+            )),
+            CGPoint(x: 0, y: 600)
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(GuideMediaCursorGeometry.renderPoint(
+                fromCaptureGlobalPoint: CGPoint(x: 300, y: 250),
+                cropRect: crop,
+                renderSize: output,
+                coordinateContract: .current
+            )),
+            CGPoint(x: 800, y: 0)
+        )
+    }
+
+    func testGuideWideNumberedMarkerSettingPreservesAVisibleStyle() {
+        var theme = GuideTheme()
+        theme.markerNumberStyle = "square"
+
+        theme.showsNumberedMarkers = false
+        XCTAssertFalse(theme.showsNumberedMarkers)
+        XCTAssertEqual(theme.markerNumberStyle, "none")
+
+        theme.showsNumberedMarkers = true
+        XCTAssertTrue(theme.showsNumberedMarkers)
+        XCTAssertEqual(theme.markerNumberStyle, "circle")
+    }
+
+    func testVideoClickHighlightIsInvisibleOutsideItsShortPulse() {
+        let animation = GuideExporter.clickHighlightOpacityAnimation(eventTime: 2.5)
+
+        XCTAssertEqual(animation.beginTime, AVCoreAnimationBeginTimeAtZero + 2.5)
+        XCTAssertEqual(animation.duration, 0.45)
+        XCTAssertEqual(animation.fillMode, .both)
+        XCTAssertFalse(animation.isRemovedOnCompletion)
+        XCTAssertEqual(animation.values as? [Int], [0, 1, 0])
+    }
+
     func testGuideSetupIntentDerivesVideoAndAudioPreferences() {
         let base = GuideCapturePreferences(
             sourceVideoEnabled: false,
@@ -260,9 +309,22 @@ final class GuideWorkflowTests: XCTestCase {
         )
 
         try SSSGuideDocumentPackage.save(document: document, to: packageURL)
+        let manifestURL = packageURL.appendingPathComponent("document.json")
+        var manifest = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: Any])
+        let persistedProject = try XCTUnwrap(manifest["project"] as? [String: Any])
+        XCTAssertNotNil(persistedProject["coordinateContract"])
+
+        // Files saved before Guide adopted the shared contract have no field.
+        // They retain the established top-left capture convention.
+        var legacyProject = persistedProject
+        legacyProject.removeValue(forKey: "coordinateContract")
+        manifest["project"] = legacyProject
+        try JSONSerialization.data(withJSONObject: manifest).write(to: manifestURL, options: .atomic)
         let decoded = try SSSGuideDocumentPackage.load(from: packageURL)
 
         XCTAssertEqual(decoded.project.title, project.title)
+        XCTAssertNil(decoded.project.coordinateContract)
+        XCTAssertEqual(decoded.project.resolvedCoordinateContract, .current)
         XCTAssertEqual(decoded.project.steps.first?.id, project.steps.first?.id)
         XCTAssertEqual(decoded.project.steps.first?.caption, project.steps.first?.caption)
         XCTAssertEqual(decoded.project.steps.first?.session, project.steps.first?.session)
@@ -333,6 +395,7 @@ final class GuideWorkflowTests: XCTestCase {
             capturedAt: createdAt.addingTimeInterval(1),
             sourceTimestampSeconds: 1,
             caption: "Click Continue.",
+            note: "Use the primary action to continue.",
             session: GuideStepSession(
                 marker: GuideMarker(target: CGPoint(x: 40, y: 24), tail: CGPoint(x: 8, y: 8)),
                 sourceCoordinateRect: CGRect(x: 0, y: 0, width: 80, height: 48),

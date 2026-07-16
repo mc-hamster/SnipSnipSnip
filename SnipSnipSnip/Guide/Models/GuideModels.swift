@@ -234,6 +234,17 @@ nonisolated struct GuideTheme: Codable, Equatable, Identifiable, Sendable {
     var pageMargin = 72.0
     var showsScreenshotShadow = true
     var logoAsset: String?
+
+    var showsNumberedMarkers: Bool {
+        get { markerNumberStyle != "none" }
+        set {
+            if newValue {
+                if markerNumberStyle == "none" { markerNumberStyle = "circle" }
+            } else {
+                markerNumberStyle = "none"
+            }
+        }
+    }
 }
 
 nonisolated struct GuideExportSettings: Codable, Equatable, Sendable {
@@ -243,7 +254,10 @@ nonisolated struct GuideExportSettings: Codable, Equatable, Sendable {
     var crossfadeDuration = 0.2
     var includesCoverWhenTitled = true
     var usesCompactPDFLayout = false
-    var pdfDPI = 216
+    // Guide documents are commonly read at high zoom or printed. Keep new
+    // projects at the print-quality raster target so captured UI text remains
+    // sharp in PDF exports.
+    var pdfDPI = 300
     var pdfPaper = GuidePDFPaper.automatic
     var pdfOrientation = GuidePDFOrientation.portrait
     var stepImageFormat = GuideStepImageFormat.png
@@ -269,6 +283,37 @@ nonisolated struct GuideCursorSample: Codable, Equatable, Sendable {
     var point: CGPoint
 }
 
+/// Translates Guide cursor samples from capture-global coordinates into the
+/// Core Animation coordinate space used to render source-video exports.
+///
+/// Guide cursor samples use the capture contract's top-left, y-down space.
+/// `AVVideoCompositionCoreAnimationTool` renders its layer tree in a
+/// bottom-left, y-up space, so this boundary must invert y exactly once.
+nonisolated enum GuideMediaCursorGeometry {
+    static func renderPoint(
+        fromCaptureGlobalPoint point: CGPoint,
+        cropRect: CGRect,
+        renderSize: CGSize,
+        coordinateContract: DocumentCoordinateContract
+    ) -> CGPoint? {
+        guard coordinateContract.captureSourceRectSpace == .captureGlobalPointsTopLeftYDownV2,
+              coordinateContract.renderOutputSpace == .renderOutputPixelsTopLeftV1 else {
+            return nil
+        }
+        let crop = cropRect.standardized
+        guard crop.width > 0, crop.height > 0, renderSize.width > 0, renderSize.height > 0 else {
+            return nil
+        }
+
+        let normalizedX = min(max((point.x - crop.minX) / crop.width, 0), 1)
+        let normalizedTopLeftY = min(max((point.y - crop.minY) / crop.height, 0), 1)
+        return CGPoint(
+            x: normalizedX * renderSize.width,
+            y: (1 - normalizedTopLeftY) * renderSize.height
+        )
+    }
+}
+
 nonisolated struct GuideProject: Codable, Equatable, Identifiable, Sendable {
     var id: UUID = UUID()
     var title = ""
@@ -276,10 +321,17 @@ nonisolated struct GuideProject: Codable, Equatable, Identifiable, Sendable {
     var modifiedAt = Date()
     var source: GuideCaptureSource
     var isPrivate = false
+    /// Optional only so version-1 packages written before Guide adopted the
+    /// coordinate contract remain readable. New projects persist `.current`.
+    var coordinateContract: DocumentCoordinateContract? = .current
     var steps: [GuideStep] = []
     var theme = GuideTheme()
     var exportSettings = GuideExportSettings()
     var timeline = GuideTimeline()
+
+    var resolvedCoordinateContract: DocumentCoordinateContract {
+        coordinateContract ?? .current
+    }
 
     mutating func normalizeStepSequence() {
         for index in steps.indices {

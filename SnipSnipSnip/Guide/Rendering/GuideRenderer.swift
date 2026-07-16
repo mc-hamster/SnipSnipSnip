@@ -17,10 +17,25 @@ nonisolated enum GuideRenderer {
             ScreenshotPresentationRenderer.render(baseImage: image, snapshot: $0.session.currentSnapshot)
         } ?? image
         let margin: CGFloat = 72
-        let captionHeight: CGFloat = 150
+        let caption = step.caption.trimmingCharacters(in: .whitespacesAndNewlines)
+        let note = step.note.trimmingCharacters(in: .whitespacesAndNewlines)
+        // The card is the shared visual representation for the editor preview
+        // and every still-image export. Reserve enough space for both pieces of
+        // step copy so notes do not silently disappear outside document exports.
+        let captionHeight = textHeight(
+            "\(step.sequence). \(caption)",
+            font: CTFontCreateWithName("Helvetica-Bold" as CFString, 30, nil),
+            width: CGFloat(cardWidth) - margin * 2
+        )
+        let noteHeight = note.isEmpty ? 0 : textHeight(
+            "Note: \(note)",
+            font: CTFontCreateWithName("Helvetica-Oblique" as CFString, 22, nil),
+            width: CGFloat(cardWidth) - margin * 2
+        )
+        let headerHeight = max(150, captionHeight + (note.isEmpty ? 0 : noteHeight + 16) + 44)
         let scale = min((CGFloat(cardWidth) - margin * 2) / CGFloat(renderedImage.width), 1)
         let imageSize = CGSize(width: CGFloat(renderedImage.width) * scale, height: CGFloat(renderedImage.height) * scale)
-        let size = CGSize(width: CGFloat(cardWidth), height: imageSize.height + margin * 2 + captionHeight)
+        let size = CGSize(width: CGFloat(cardWidth), height: imageSize.height + margin * 2 + headerHeight)
         guard let context = CGContext(
             data: nil,
             width: Int(size.width),
@@ -33,7 +48,7 @@ nonisolated enum GuideRenderer {
 
         context.setFillColor(color(theme.backgroundColorHex, fallback: CGColor(gray: 0.96, alpha: 1)))
         context.fill(CGRect(origin: .zero, size: size))
-        let imageRect = CGRect(x: margin, y: captionHeight + margin, width: imageSize.width, height: imageSize.height)
+        let imageRect = CGRect(x: margin, y: headerHeight + margin, width: imageSize.width, height: imageSize.height)
         if theme.showsScreenshotShadow {
             context.saveGState()
             context.setShadow(offset: CGSize(width: 0, height: -8), blur: 20, color: CGColor(gray: 0, alpha: 0.28))
@@ -61,7 +76,17 @@ nonisolated enum GuideRenderer {
         if step.session.showsCursor, let marker = step.session.marker {
             drawCursor(at: mapped(marker.target, sourceSize: step.session.sourcePixelSize, destination: imageRect), context: context)
         }
-        drawCaption(step.caption, number: step.sequence, rect: CGRect(x: margin, y: margin * 0.45, width: size.width - margin * 2, height: captionHeight), theme: theme, context: context)
+        let noteRect = CGRect(x: margin, y: margin * 0.45, width: size.width - margin * 2, height: noteHeight)
+        let captionRect = CGRect(
+            x: margin,
+            y: note.isEmpty ? margin * 0.45 : noteRect.maxY + 16,
+            width: size.width - margin * 2,
+            height: captionHeight
+        )
+        drawCaption(caption, number: step.sequence, rect: captionRect, theme: theme, context: context)
+        if !note.isEmpty {
+            drawNote(note, rect: noteRect, theme: theme, context: context)
+        }
         if !theme.organizationName.isEmpty {
             drawSmallText(theme.organizationName, rect: CGRect(x: margin, y: size.height - 36, width: size.width / 2, height: 24), context: context)
         }
@@ -135,6 +160,27 @@ nonisolated enum GuideRenderer {
         let framesetter = CTFramesetterCreateWithAttributedString(text)
         let frame = CTFramesetterCreateFrame(framesetter, CFRange(), CGPath(rect: rect, transform: nil), nil)
         CTFrameDraw(frame, context)
+    }
+
+    private static func drawNote(_ note: String, rect: CGRect, theme: GuideTheme, context: CGContext) {
+        let text = NSAttributedString(string: "Note: \(note)", attributes: [
+            .font: CTFontCreateWithName("Helvetica-Oblique" as CFString, 22, nil),
+            .foregroundColor: CGColor(gray: theme.appearance == .dark ? 0.78 : 0.35, alpha: 1)
+        ])
+        let frame = CTFramesetterCreateFrame(CTFramesetterCreateWithAttributedString(text), CFRange(), CGPath(rect: rect, transform: nil), nil)
+        CTFrameDraw(frame, context)
+    }
+
+    private static func textHeight(_ value: String, font: CTFont, width: CGFloat) -> CGFloat {
+        let text = NSAttributedString(string: value, attributes: [.font: font])
+        let suggested = CTFramesetterSuggestFrameSizeWithConstraints(
+            CTFramesetterCreateWithAttributedString(text),
+            CFRange(),
+            nil,
+            CGSize(width: width, height: .greatestFiniteMagnitude),
+            nil
+        )
+        return ceil(suggested.height)
     }
 
     private static func drawSmallText(_ value: String, rect: CGRect, context: CGContext) {

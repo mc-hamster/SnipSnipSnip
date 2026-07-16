@@ -92,6 +92,8 @@ struct GuideEditorView: View {
                         Image(decorative: rendered, scale: 1).resizable().scaledToFit().padding(30)
                         if let marker = step.session.marker, !marker.isHidden {
                             GuideMarkerHandles(
+                                number: step.sequence,
+                                showsNumber: controller.project.theme.showsNumberedMarkers,
                                 viewportSize: proxy.size,
                                 cardPixelSize: CGSize(width: CGFloat(rendered.width), height: CGFloat(rendered.height)),
                                 sourceImageSize: CGSize(width: CGFloat(image.width), height: CGFloat(image.height)),
@@ -112,95 +114,119 @@ struct GuideEditorView: View {
     @ViewBuilder private var inspector: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Guide").font(.headline)
-                TextField("Guide title", text: projectStringBinding(\.title))
-                HStack {
-                    Menu("Apply Theme") {
-                        Button("Standard") { controller.update(name: "Apply Theme") { $0.theme = GuideTheme() } }
-                        ForEach(savedThemes) { theme in
-                            Button(theme.name) { controller.update(name: "Apply Theme") { $0.theme = theme } }
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 12) {
+                        TextField("Guide title", text: projectStringBinding(\.title))
+                        HStack {
+                            Menu("Apply Theme") {
+                                Button("Standard") { controller.update(name: "Apply Theme") { $0.theme = GuideTheme() } }
+                                ForEach(savedThemes) { theme in
+                                    Button(theme.name) { controller.update(name: "Apply Theme") { $0.theme = theme } }
+                                }
+                            }
+                            Button("Save Theme") { onSaveTheme(controller.project.theme) }
+                        }
+                        Picker("Appearance", selection: appearanceBinding) {
+                            ForEach(GuideAppearance.allCases) { Text($0.rawValue.capitalized).tag($0) }
+                        }
+                        ColorPicker("Accent", selection: themeColorBinding(\.accentColorHex))
+                        ColorPicker("Background", selection: themeColorBinding(\.backgroundColorHex))
+                        TextField("Organization", text: themeStringBinding(\.organizationName))
+                        TextField("Footer", text: themeStringBinding(\.footer))
+                        HStack {
+                            Button(controller.logoImage == nil ? "Choose Logo…" : "Replace Logo…") { isImportingLogo = true }
+                            if controller.logoImage != nil { Button("Remove", role: .destructive) { controller.setLogo(nil) } }
+                        }
+                        Divider()
+                        Toggle("Show numbered step markers", isOn: themeBoolBinding(\.showsNumberedMarkers))
+                            .help("Show or hide the numbered marker on every still step in this Guide.")
+                        Toggle("Show click target highlights", isOn: themeBoolBinding(\.showsClickHighlight))
+                            .help("Show a target ring on still steps and a brief pulse at clicks in video exports.")
+                        Toggle("Add screenshot shadows", isOn: themeBoolBinding(\.showsScreenshotShadow))
+                            .help("Add a soft shadow around screenshots throughout this Guide.")
+                        DisclosureGroup("Fine-tune marker and card style") {
+                            VStack(alignment: .leading, spacing: 10) {
+                                ColorPicker("Marker", selection: themeColorBinding(\.markerColorHex))
+                                HStack {
+                                    Text("Width")
+                                    Slider(value: themeDoubleBinding(\.markerLineWidth), in: 1...10, step: 0.5)
+                                    Text("\(controller.project.theme.markerLineWidth, specifier: "%.1f") pt")
+                                }
+                                Picker("Arrowhead", selection: themeStringBinding(\.markerHeadStyle)) {
+                                    Text("Triangle").tag("triangle")
+                                    Text("Open").tag("open")
+                                    Text("Circle").tag("circle")
+                                }
+                                if controller.project.theme.showsNumberedMarkers {
+                                    Picker("Number style", selection: themeStringBinding(\.markerNumberStyle)) {
+                                        Text("Circle").tag("circle")
+                                        Text("Square").tag("square")
+                                        Text("Number Only").tag("plain")
+                                    }
+                                }
+                                HStack {
+                                    Text("Corner radius")
+                                    Slider(value: themeDoubleBinding(\.screenshotCornerRadius), in: 0...32, step: 1)
+                                    Text("\(Int(controller.project.theme.screenshotCornerRadius))")
+                                }
+                            }
+                            .padding(.top, 8)
                         }
                     }
-                    Button("Save Theme") { onSaveTheme(controller.project.theme) }
-                }
-                Picker("Appearance", selection: appearanceBinding) {
-                    ForEach(GuideAppearance.allCases) { Text($0.rawValue.capitalized).tag($0) }
-                }
-                ColorPicker("Accent", selection: themeColorBinding(\.accentColorHex))
-                ColorPicker("Background", selection: themeColorBinding(\.backgroundColorHex))
-                TextField("Organization", text: themeStringBinding(\.organizationName))
-                TextField("Footer", text: themeStringBinding(\.footer))
-                HStack {
-                    Button(controller.logoImage == nil ? "Choose Logo…" : "Replace Logo…") { isImportingLogo = true }
-                    if controller.logoImage != nil { Button("Remove", role: .destructive) { controller.setLogo(nil) } }
-                }
-                DisclosureGroup("Marker & Card Style") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        ColorPicker("Marker", selection: themeColorBinding(\.markerColorHex))
-                        HStack {
-                            Text("Width")
-                            Slider(value: themeDoubleBinding(\.markerLineWidth), in: 1...10, step: 0.5)
-                            Text("\(controller.project.theme.markerLineWidth, specifier: "%.1f") pt")
-                        }
-                        Picker("Arrowhead", selection: themeStringBinding(\.markerHeadStyle)) {
-                            Text("Triangle").tag("triangle")
-                            Text("Open").tag("open")
-                            Text("Circle").tag("circle")
-                        }
-                        Picker("Number", selection: themeStringBinding(\.markerNumberStyle)) {
-                            Text("Circle").tag("circle")
-                            Text("Square").tag("square")
-                            Text("Number Only").tag("plain")
-                            Text("Hidden").tag("none")
-                        }
-                        Toggle("Click highlight", isOn: themeBoolBinding(\.showsClickHighlight))
-                        HStack {
-                            Text("Corner radius")
-                            Slider(value: themeDoubleBinding(\.screenshotCornerRadius), in: 0...32, step: 1)
-                            Text("\(Int(controller.project.theme.screenshotCornerRadius))")
-                        }
-                        Toggle("Screenshot shadow", isOn: themeBoolBinding(\.showsScreenshotShadow))
-                    }
-                    .padding(.top, 8)
-                }
-                Divider()
-                if let step = controller.selectedStep {
-                    Text("Step \(step.sequence)").font(.headline)
-                    Picker("Action", selection: eventBinding(step.id)) {
-                        ForEach(GuideEventKind.allCases) { Text($0.rawValue.capitalized).tag($0) }
-                    }
-                    Text("Caption").font(.caption).foregroundStyle(.secondary)
-                    TextEditor(text: captionBinding(step.id)).frame(minHeight: 80).overlay(RoundedRectangle(cornerRadius: 6).stroke(.separator))
-                    Text("Note").font(.caption).foregroundStyle(.secondary)
-                    TextEditor(text: noteBinding(step.id)).frame(minHeight: 70).overlay(RoundedRectangle(cornerRadius: 6).stroke(.separator))
-                    HStack { Text("Duration"); Slider(value: durationBinding(step.id), in: 0.5...5, step: 0.5); Text("\(step.duration, specifier: "%.1f")s") }
-                    if let marker = step.session.marker {
-                        Text("Marker").font(.headline)
-                        HStack {
-                            Text("Length")
-                            Slider(value: markerLengthBinding(step.id), in: 30...240, step: 5)
-                            Text("\(Int(marker.length ?? controller.project.theme.markerLength)) pt")
-                        }
-                        Toggle("Show marker", isOn: markerVisibleBinding(step.id))
-                        Text("Drag the target and numbered handle directly in the preview.")
+                    .padding(.vertical, 4)
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Guide Settings").font(.headline)
+                        Text("Applies to every step in this Guide")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    if controller.selection.count > 1 {
-                        Button("Apply Duration to \(controller.selection.count) Steps") {
-                            controller.setDurationForSelection(step.duration)
+                }
+                if let step = controller.selectedStep {
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Picker("Action", selection: eventBinding(step.id)) {
+                                ForEach(GuideEventKind.allCases) { Text($0.rawValue.capitalized).tag($0) }
+                            }
+                            Text("Caption").font(.caption).foregroundStyle(.secondary)
+                            TextEditor(text: captionBinding(step.id)).frame(minHeight: 80).overlay(RoundedRectangle(cornerRadius: 6).stroke(.separator))
+                            Text("Note").font(.caption).foregroundStyle(.secondary)
+                            TextEditor(text: noteBinding(step.id)).frame(minHeight: 70).overlay(RoundedRectangle(cornerRadius: 6).stroke(.separator))
+                            HStack { Text("Duration"); Slider(value: durationBinding(step.id), in: 0.5...5, step: 0.5); Text("\(step.duration, specifier: "%.1f")s") }
+                            if let marker = step.session.marker {
+                                Text("Marker").font(.headline)
+                                HStack {
+                                    Text("Length")
+                                    Slider(value: markerLengthBinding(step.id), in: 30...240, step: 5)
+                                    Text("\(Int(marker.length ?? controller.project.theme.markerLength)) pt")
+                                }
+                                Toggle("Show marker", isOn: markerVisibleBinding(step.id))
+                                Text(controller.project.theme.showsNumberedMarkers
+                                     ? "Drag the white target and numbered handle directly in the preview."
+                                     : "Drag the white target directly in the preview.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            if controller.selection.count > 1 {
+                                Button("Apply Duration to \(controller.selection.count) Steps") {
+                                    controller.setDurationForSelection(step.duration)
+                                }
+                            }
+                            Toggle("Include in exports", isOn: includeBinding(step.id))
+                            Divider()
+                            Text("Privacy").font(.headline)
+                            HStack {
+                                Button("Blur Center") { addRedaction(.blur, stepID: step.id) }
+                                Button("Pixelate") { addRedaction(.pixelate, stepID: step.id) }
+                                Button("Solid") { addRedaction(.solid, stepID: step.id) }
+                            }
+                            Text("Advanced Edit preserves the base image and commits the screenshot edit as one Guide command.").font(.caption).foregroundStyle(.secondary)
+                            Button("Advanced Edit…") { controller.beginAdvancedEdit(capabilities: capabilities) }
                         }
+                        .padding(.vertical, 4)
+                    } label: {
+                        Text("Selected Step \(step.sequence)").font(.headline)
                     }
-                    Toggle("Include in exports", isOn: includeBinding(step.id))
-                    Divider()
-                    Text("Privacy").font(.headline)
-                    HStack {
-                        Button("Blur Center") { addRedaction(.blur, stepID: step.id) }
-                        Button("Pixelate") { addRedaction(.pixelate, stepID: step.id) }
-                        Button("Solid") { addRedaction(.solid, stepID: step.id) }
-                    }
-                    Text("Advanced Edit preserves the base image and commits the screenshot edit as one Guide command.").font(.caption).foregroundStyle(.secondary)
-                    Button("Advanced Edit…") { controller.beginAdvancedEdit(capabilities: capabilities) }
                 }
             }.padding(16)
         }
@@ -246,6 +272,8 @@ struct GuideEditorView: View {
 }
 
 private struct GuideMarkerHandles: View {
+    let number: Int
+    let showsNumber: Bool
     let viewportSize: CGSize
     let cardPixelSize: CGSize
     let sourceImageSize: CGSize
@@ -258,8 +286,33 @@ private struct GuideMarkerHandles: View {
         let target = viewPoint(for: marker.target)
         let tail = viewPoint(for: marker.tail)
         ZStack {
-            handle(at: target, symbol: "scope", color: .white, foreground: .black, onMove: onMoveTarget)
-            handle(at: tail, symbol: "number.circle.fill", color: .accentColor, foreground: .white, onMove: onMoveTail)
+            handle(
+                at: target,
+                color: .white,
+                foreground: .black,
+                accessibilityLabel: "Marker target",
+                help: "Drag to point the marker at the action."
+            ) {
+                Image(systemName: "scope")
+            } onMove: {
+                onMoveTarget($0)
+            }
+
+            if showsNumber {
+                handle(
+                    at: tail,
+                    color: .accentColor,
+                    foreground: .white,
+                    accessibilityLabel: "Step \(number) number handle",
+                    help: "Drag to move the Step \(number) number."
+                ) {
+                    Text("\(number)")
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.65)
+                } onMove: {
+                    onMoveTail($0)
+                }
+            }
         }
         .frame(width: viewportSize.width, height: viewportSize.height)
         .coordinateSpace(name: "guideMarkerCanvas")
@@ -267,8 +320,16 @@ private struct GuideMarkerHandles: View {
         .accessibilityLabel("Marker handles")
     }
 
-    private func handle(at point: CGPoint, symbol: String, color: Color, foreground: Color, onMove: @escaping (CGPoint) -> Void) -> some View {
-        Image(systemName: symbol)
+    private func handle<Content: View>(
+        at point: CGPoint,
+        color: Color,
+        foreground: Color,
+        accessibilityLabel: String,
+        help: String,
+        @ViewBuilder content: () -> Content,
+        onMove: @escaping (CGPoint) -> Void
+    ) -> some View {
+        content()
             .font(.system(size: 15, weight: .bold))
             .foregroundStyle(foreground)
             .frame(width: 28, height: 28)
@@ -279,7 +340,8 @@ private struct GuideMarkerHandles: View {
                 DragGesture(minimumDistance: 0, coordinateSpace: .named("guideMarkerCanvas"))
                     .onEnded { value in onMove(sourcePoint(for: value.location)) }
             )
-            .accessibilityLabel(symbol == "scope" ? "Marker target" : "Marker number handle")
+            .help(help)
+            .accessibilityLabel(accessibilityLabel)
     }
 
     private var layout: (scale: CGFloat, origin: CGPoint) {
@@ -350,20 +412,19 @@ private struct GuideAdvancedEditorSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Button("Cancel", action: onCancel)
-                Text("Advanced Step Edit").font(.headline)
-                Spacer()
-                Picker("Tool", selection: $editor.activeTool) {
-                    ForEach(EditorTool.allCases) { tool in
-                        Label(tool.label, systemImage: tool.systemImage).tag(tool)
-                    }
-                }
-                .frame(width: 220)
-                Button("Undo", action: editor.undo).disabled(!editor.canUndo)
-                Button("Redo", action: editor.redo).disabled(!editor.canRedo)
-                Button("Apply to Step", action: onCommit).buttonStyle(.borderedProminent)
-            }
+            EditorToolbarView(
+                controller: editor,
+                onBack: onCancel,
+                onFloatReference: {},
+                onExportPNG: {},
+                onExportJPEG: {},
+                onExportPDF: {},
+                onCopyStyled: {},
+                onCopyPlain: {},
+                onShare: {},
+                dragOutPayloadProvider: { nil },
+                mode: .guideStep(onApply: onCommit)
+            )
             .padding(12)
             Divider()
             EditorView(
@@ -467,11 +528,11 @@ private struct GuideExportOptionsSheet: View {
                     .foregroundStyle(.secondary)
             }
 
-            VStack(alignment: .leading, spacing: 10) {
-                ForEach(GuideExportFormat.allCases) { format in
-                    Toggle(format.label, isOn: formatBinding(format))
-                        .disabled(requiresSourceVideo(format) && controller.mediaSegmentURLs.isEmpty)
-                }
+            VStack(alignment: .leading, spacing: 14) {
+                formatGroup("Documents", formats: [.pdf, .docx])
+                formatGroup("Animated sharing", formats: [.gif, .apng])
+                formatGroup("Video", formats: [.fullMotionMP4, .highlightMP4, .slideshowMP4])
+                formatGroup("Files and packages", formats: [.stepImages, .zip])
             }
 
             if controller.mediaSegmentURLs.isEmpty {
@@ -501,6 +562,19 @@ private struct GuideExportOptionsSheet: View {
 
     private func requiresSourceVideo(_ format: GuideExportFormat) -> Bool {
         [.fullMotionMP4, .highlightMP4].contains(format)
+    }
+
+    @ViewBuilder
+    private func formatGroup(_ title: String, formats: [GuideExportFormat]) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+            ForEach(formats) { format in
+                Toggle(format.label, isOn: formatBinding(format))
+                    .disabled(requiresSourceVideo(format) && controller.mediaSegmentURLs.isEmpty)
+            }
+        }
     }
 
     private func formatBinding(_ format: GuideExportFormat) -> Binding<Bool> {

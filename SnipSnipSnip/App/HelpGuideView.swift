@@ -397,17 +397,19 @@ struct HelpGuideView: View {
                             title: "Edit without production work",
                             bullets: [
                                 "Reorder, search, duplicate, delete, restore, include, or exclude steps in the left pane.",
-                                "Edit captions, notes, event type, duration, marker placement with direct drag handles, appearance, reusable themes, logos, branding, and redactions without flattening the base image.",
-                                "Use Advanced Edit when a step needs the full screenshot annotation toolset.",
+                                "Edit captions, notes, event type, duration, marker placement with direct drag handles, appearance, reusable themes, logos, branding, and redactions without flattening the base image. Captions and notes appear together on each still step card in the preview and still-image, PDF, and Word exports.",
+                                "Guide Settings are separated at the top of the inspector and apply to every step in the current Guide. Use them to show or hide numbered step markers, click target highlights, screenshot shadows, branding, colors, and other shared styling.",
+                                "When numbered markers are enabled, the blue marker handle shows the step's actual number. Drag it to move the number, or drag the white target handle to point at the action.",
+                                "Use Advanced Edit when a step needs the full screenshot annotation toolset. The familiar screenshot-editing toolbar appears above the step; choose a tool, make the edits, then select Apply to Step. Cancel leaves the step unchanged.",
                                 "Save the editable project as .sssguide. Existing .sss and .sssvideo documents are unchanged."
                             ]
                         ),
                         HelpArticleSection(
                             title: "Export and share",
                             bullets: [
-                                "Click Export to choose one or more formats. PDF and GIF are selected by default; Word Document (.docx), APNG, step images, ZIP, Full Motion MP4, Action Highlights MP4, and Step Slideshow MP4 are also available. The format choices live in this export sheet, not the editor inspector.",
+                                "Click Export to choose one or more formats. The sheet groups formats by purpose: Documents (PDF and Word Document), Animated sharing (GIF and APNG), Video (Full Motion, Action Highlights, and Step Slideshow MP4), and Files and packages (step images and ZIP). PDF and GIF are selected by default. PDF and Word exports use print-quality stills to keep captured interface text sharp. The format choices live in this export sheet, not the editor inspector.",
                                 "Choose whether to show the separate export-progress window. It reports the active format and overall progress, and lets you cancel a long or multi-format export while keeping any completed files.",
-                                "Full Motion preserves capture chronology. Other step-based exports use the current Guide order.",
+                                "Full Motion preserves capture chronology. Other step-based exports use the current Guide order. Video click highlights appear only as a brief pulse at each click and obey the current Guide's Show click target highlights setting.",
                                 "Full Motion and Action Highlights require source video and include captured microphone or system audio. Slideshow MP4 remains available when source video is off.",
                                 "After export, share through the native share sheet, copy the exported files, or reveal them in Finder for Mail, Messages, Slack, Notion, and other standard destinations."
                             ]
