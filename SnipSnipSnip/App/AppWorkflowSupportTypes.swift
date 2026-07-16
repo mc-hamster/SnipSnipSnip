@@ -80,6 +80,7 @@ enum AppSettingsTab: Hashable {
     case presets
     case shortcuts
     case recording
+    case guide
     case archive
     case clipboard
     case privacy

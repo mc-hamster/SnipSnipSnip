@@ -86,5 +86,13 @@
       <parameter name="overwrite" code="SSow" type="boolean" optional="yes" description="Replace an existing file."/>
       <result type="text" description="JSON automation result."/>
     </command>
+    <command name="guide" code="SSSaGUID" description="Start, pause, resume, add a step, stop, or export a Guide.">
+      <cocoa class="SSSGuideCommand"/>
+      <parameter name="action" code="SSga" type="text" description="start, pause, resume, add-step, stop, or export."/>
+      <parameter name="target" code="SSgt" type="text" optional="yes" description="window, app, region, or display."/>
+      <parameter name="format" code="SSfm" type="text" optional="yes" description="pdf, gif, apng, mp4-full, mp4-highlights, mp4-slideshow, images, or zip."/>
+      <parameter name="privateCapture" code="SSpv" type="boolean" optional="yes" description="Run as Private Guide."/>
+      <result type="text" description="JSON automation result."/>
+    </command>
   </suite>
 </dictionary>

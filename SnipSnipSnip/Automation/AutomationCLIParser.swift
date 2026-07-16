@@ -28,6 +28,8 @@ nonisolated enum AutomationCLIParser {
             return parsePresets(cursor: &cursor, source: source, json: json, interactionPolicy: interactionPolicy, privacy: privacy)
         case "capture":
             return parseCapture(cursor: &cursor, source: source, json: json, interactionPolicy: interactionPolicy, privacy: privacy)
+        case "guide":
+            return parseGuide(cursor: &cursor, source: source, json: json, interactionPolicy: interactionPolicy, privacy: privacy)
         case "repeat-last":
             let output = parseOutput(cursor: &cursor, defaultFormat: .png) ?? .openEditor
             return success(AutomationRequest(source: source, command: .repeatLastCapture, interactionPolicy: interactionPolicy, privacy: privacy, output: output), wantsJSON: json)
@@ -48,6 +50,49 @@ nonisolated enum AutomationCLIParser {
         default:
             return failure("Unknown command `\(first)`.", wantsJSON: json, exitCode: 64)
         }
+    }
+
+    private static func parseGuide(
+        cursor: inout ArgumentCursor,
+        source: AutomationSource,
+        json: Bool,
+        interactionPolicy: AutomationInteractionPolicy,
+        privacy: AutomationPrivacyOptions
+    ) -> AutomationCLIParseResult {
+        guard let action = cursor.next() else {
+            return failure("Expected `guide start|pause|resume|add-step|stop|export`.", wantsJSON: json, exitCode: 64)
+        }
+        let command: GuideAutomationCommand
+        switch action {
+        case "start":
+            guard let targetValue = cursor.value(after: "--target"),
+                  let target = GuideAutomationTarget(rawValue: targetValue.lowercased()) else {
+                return failure("Guide start requires --target window|app|region|display.", wantsJSON: json, exitCode: 64)
+            }
+            command = .start(target)
+        case "pause": command = .pause
+        case "resume": command = .resume
+        case "add-step": command = .addStep
+        case "stop": command = .stop
+        case "export":
+            guard let formatValue = cursor.value(after: "--format"),
+                  let format = GuideAutomationExportFormat(rawValue: formatValue.lowercased()) else {
+                return failure("Guide export requires --format pdf|gif|apng|mp4-full|mp4-highlights|mp4-slideshow|images|zip.", wantsJSON: json, exitCode: 64)
+            }
+            command = .export(format)
+        default:
+            return failure("Expected `guide start|pause|resume|add-step|stop|export`.", wantsJSON: json, exitCode: 64)
+        }
+        return success(
+            AutomationRequest(
+                source: source,
+                command: .guide(command),
+                interactionPolicy: interactionPolicy,
+                privacy: privacy,
+                output: .none
+            ),
+            wantsJSON: json
+        )
     }
 
     private static func parsePresets(

@@ -44,6 +44,8 @@ struct LiveDocumentWindowPresenter: DocumentWindowPresenting {
             minSize = CGSize(width: 900, height: 600)
         case .video:
             minSize = CGSize(width: 1200, height: 780)
+        case .guide:
+            minSize = CGSize(width: 1280, height: 800)
         }
         let maxSize = screenContext.visibleFrame.size
 

@@ -6,6 +6,7 @@ private struct CaptureCommands: Commands {
     @ObservedObject var lifecycle: AppLifecycleModel
     @ObservedObject var capture: CaptureWorkflowModel
     @ObservedObject var video: VideoWorkflowModel
+    @ObservedObject var guide: GuideWorkflowModel
     @ObservedObject var tools: ToolWorkflowModel
     let capabilities: AppCapabilitySnapshot
     let workflowCoordinator: AppWorkflowCoordinator
@@ -46,6 +47,19 @@ private struct CaptureCommands: Commands {
                     ConnectedDeviceCaptureMenuContent(capture: capture, mode: .screenshot)
                 }
                 .disabled(isCaptureOrRecordingActive || capture.isConnectedDeviceSessionActive)
+            }
+
+            Divider()
+
+            Button(guide.isActive ? "Stop Guide" : "Guide", action: guide.presentQuickStart)
+                .keyboardShortcut("g", modifiers: AppShortcut.modifiers)
+                .disabled((isCaptureOrRecordingActive && !guide.isActive) || capture.isConnectedDeviceSessionActive)
+
+            if guide.isActive {
+                Button(guide.captureCoordinator.state == .paused ? "Resume Guide" : "Pause Guide", action: guide.togglePauseResume)
+                Button("Add Manual Step", action: guide.addManualStep)
+                Button("Undo Last Guide Step", action: guide.undoLastStep)
+                    .disabled(guide.stepCount == 0)
             }
 
             Divider()
@@ -176,7 +190,7 @@ private struct CaptureCommands: Commands {
     }
 
     private var isCaptureOrRecordingActive: Bool {
-        capture.isWorking || isRecordingVideo
+        capture.isWorking || isRecordingVideo || guide.isActive
     }
 
     private var isRecordingVideo: Bool {
@@ -263,6 +277,7 @@ private struct DocumentCommands: Commands {
     @ObservedObject var capture: CaptureWorkflowModel
     @ObservedObject var documents: DocumentWorkflowModel
     @ObservedObject var video: VideoWorkflowModel
+    @ObservedObject var guide: GuideWorkflowModel
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
@@ -286,7 +301,9 @@ private struct DocumentCommands: Commands {
 
         CommandGroup(after: .importExport) {
             Menu("Export") {
-                if documents.videoEditorController != nil {
+                if documents.guideEditorController != nil {
+                    Button("Export Guide…", action: documents.exportCurrentGuide)
+                } else if documents.videoEditorController != nil {
                     Button("Export \(video.exportPreferences.menuLabel)…") {
                         video.exportVideo(using: video.defaultExportRequest)
                     }
@@ -337,7 +354,7 @@ private struct DocumentCommands: Commands {
                     .disabled(documents.editorController?.requiresPNGForFaithfulExport ?? false)
                 }
             }
-            .disabled(documents.editorController == nil && documents.videoEditorController == nil)
+            .disabled(documents.editorController == nil && documents.videoEditorController == nil && documents.guideEditorController == nil)
 
             Button("Share…", action: documents.shareAnnotatedImage)
                 .disabled(documents.editorController == nil)
@@ -345,13 +362,14 @@ private struct DocumentCommands: Commands {
     }
 
     private var canOpenDocument: Bool {
-        !capture.isWorking && video.activeVideoRecording == nil && !capture.isConnectedDeviceSessionActive
+        !capture.isWorking && video.activeVideoRecording == nil && !guide.isActive && !capture.isConnectedDeviceSessionActive
     }
 
     private var canSaveDocument: Bool {
-        (documents.editorController != nil || documents.videoEditorController != nil)
+        (documents.editorController != nil || documents.videoEditorController != nil || documents.guideEditorController != nil)
             && !capture.isWorking
             && video.activeVideoRecording == nil
+            && !guide.isActive
     }
 }
 
@@ -529,12 +547,13 @@ struct SnipSnipSnipApp: App {
     init() {
         let model = AppModel()
         _model = StateObject(wrappedValue: model)
-        AppTerminationController.shared.configure(lifecycle: model.lifecycle)
+        AppTerminationController.shared.configure(lifecycle: model.lifecycle, guide: model.guide)
         MenuBarStatusController.shared.configure(
             lifecycle: model.lifecycle,
             capture: model.capture,
             clipboard: model.clipboard,
             video: model.video,
+            guide: model.guide,
             tools: model.tools,
             floatingReferences: model.documents.floatingReferenceCoordinator,
             capabilities: model.capabilities,
@@ -560,6 +579,7 @@ struct SnipSnipSnipApp: App {
                     documents: model.documents,
                     clipboard: model.clipboard,
                     video: model.video,
+                    guide: model.guide,
                     capabilities: model.capabilities,
                     workflowCoordinator: model.workflowCoordinator,
                     dismissWelcomeCard: model.lifecycle.dismissWelcomeCard,
@@ -596,7 +616,8 @@ struct SnipSnipSnipApp: App {
             DocumentCommands(
                 capture: model.capture,
                 documents: model.documents,
-                video: model.video
+                video: model.video,
+                guide: model.guide
             )
             PasteboardCommands(documents: model.documents)
             EditorCommands(documents: model.documents, capabilities: model.capabilities)
@@ -608,6 +629,7 @@ struct SnipSnipSnipApp: App {
                 lifecycle: model.lifecycle,
                 capture: model.capture,
                 video: model.video,
+                guide: model.guide,
                 tools: model.tools,
                 capabilities: model.capabilities,
                 workflowCoordinator: model.workflowCoordinator
@@ -620,6 +642,7 @@ struct SnipSnipSnipApp: App {
                 capture: model.capture,
                 permissions: model.permissions,
                 clipboard: model.clipboard,
+                guide: model.guide,
                 capabilities: model.capabilities,
                 skipOnboarding: {
                     model.lifecycle.skipOnboarding(
@@ -665,6 +688,7 @@ struct SnipSnipSnipApp: App {
                 documents: model.documents,
                 clipboard: model.clipboard,
                 video: model.video,
+                guide: model.guide,
                 archive: model.archive,
                 tools: model.tools,
                 capabilities: model.capabilities,

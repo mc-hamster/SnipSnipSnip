@@ -10,6 +10,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     private let windowCaptureMenu = NSMenu(title: "Window Capture")
     private let capturePresetsMenu = NSMenu(title: "Presets")
     private let videoRecordingMenu = NSMenu(title: "Video Recording")
+    private let guideMenu = NSMenu(title: "Guide")
     private let screenRulerMenu = NSMenu(title: "Screen Ruler")
     private let timerMenu = NSMenu(title: "Timer")
     private let regionCaptureSettingsMenu = NSMenu(title: "Region Capture Settings")
@@ -18,6 +19,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     private weak var capture: CaptureWorkflowModel?
     private weak var clipboard: ClipboardWorkflowModel?
     private weak var video: VideoWorkflowModel?
+    private weak var guide: GuideWorkflowModel?
     private weak var tools: ToolWorkflowModel?
     private weak var floatingReferences: FloatingReferenceCoordinator?
     private weak var workflowCoordinator: AppWorkflowCoordinator?
@@ -42,6 +44,8 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
 
         videoRecordingMenu.autoenablesItems = false
         videoRecordingMenu.delegate = self
+        guideMenu.autoenablesItems = false
+        guideMenu.delegate = self
 
         screenRulerMenu.autoenablesItems = false
         screenRulerMenu.delegate = self
@@ -66,6 +70,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         capture: CaptureWorkflowModel,
         clipboard: ClipboardWorkflowModel,
         video: VideoWorkflowModel,
+        guide: GuideWorkflowModel,
         tools: ToolWorkflowModel,
         floatingReferences: FloatingReferenceCoordinator,
         capabilities: AppCapabilitySnapshot,
@@ -81,6 +86,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         self.capture = capture
         self.clipboard = clipboard
         self.video = video
+        self.guide = guide
         self.tools = tools
         self.floatingReferences = floatingReferences
         self.capabilities = capabilities
@@ -109,6 +115,10 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             }
             .store(in: &cancellables)
 
+        guide.objectWillChange
+            .sink { [weak self] _ in DispatchQueue.main.async { self?.rebuildMainMenu() } }
+            .store(in: &cancellables)
+
         rebuildMainMenu()
         capture.refreshAvailableWindows(includeThumbnails: true)
     }
@@ -135,6 +145,8 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             rebuildCapturePresetsMenu()
         case videoRecordingMenu:
             rebuildVideoRecordingMenu()
+        case guideMenu:
+            rebuildGuideMenu()
         case screenRulerMenu:
             rebuildScreenRulerMenu()
         case timerMenu:
@@ -197,6 +209,12 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     @objc private func stopVideoRecording() {
         performMenuAction { [weak self] in self?.video?.stopVideoRecording() }
     }
+
+    @objc private func presentGuide() { performMenuAction { [weak self] in self?.guide?.presentQuickStart() } }
+    @objc private func toggleGuidePause() { performMenuAction { [weak self] in self?.guide?.togglePauseResume() } }
+    @objc private func addGuideStep() { performMenuAction { [weak self] in self?.guide?.addManualStep() } }
+    @objc private func undoGuideStep() { performMenuAction { [weak self] in self?.guide?.undoLastStep() } }
+    @objc private func stopGuide() { performMenuAction { [weak self] in self?.guide?.stopGuide() } }
 
     @objc private func openMainWindow() {
         performMenuAction { [weak self] in
@@ -337,6 +355,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         }
 
         menu.removeAllItems()
+        updateStatusItemForGuide()
 
         menu.addItem(actionItem(
             title: "Open \(AppBranding.displayName)",
@@ -412,6 +431,13 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         videoRecordingItem.image = NSImage(systemSymbolName: "record.circle", accessibilityDescription: nil)
         videoRecordingItem.submenu = videoRecordingMenu
         menu.addItem(videoRecordingItem)
+
+        let guideItem = NSMenuItem(title: guide?.isActive == true ? "Guide · \(guide?.stepCount ?? 0) steps" : "Guide", action: nil, keyEquivalent: "g")
+        guideItem.keyEquivalentModifierMask = captureShortcutModifiers
+        guideItem.image = NSImage(systemSymbolName: "list.number", accessibilityDescription: nil)
+        guideItem.submenu = guideMenu
+        guideItem.isEnabled = guide?.isActive == true || !isCaptureActionDisabled
+        menu.addItem(guideItem)
 
         menu.addItem(.separator())
 
@@ -570,6 +596,35 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
                 action: #selector(stopVideoRecording),
                 enabled: true
             ))
+        }
+    }
+
+    private func rebuildGuideMenu() {
+        guideMenu.removeAllItems()
+        guard let guide else { return }
+        if guide.isActive {
+            guideMenu.addItem(actionItem(title: guide.captureCoordinator.state == .paused ? "Resume" : "Pause", systemImage: guide.captureCoordinator.state == .paused ? "play.fill" : "pause.fill", action: #selector(toggleGuidePause), enabled: true))
+            guideMenu.addItem(actionItem(title: "Manual Step", systemImage: "plus.square", action: #selector(addGuideStep), enabled: guide.captureCoordinator.state == .recording))
+            guideMenu.addItem(actionItem(title: "Undo Last", systemImage: "arrow.uturn.backward", action: #selector(undoGuideStep), enabled: guide.stepCount > 0))
+            guideMenu.addItem(.separator())
+            guideMenu.addItem(actionItem(title: "Stop Guide", systemImage: "stop.fill", action: #selector(stopGuide), enabled: guide.stepCount > 0))
+        } else {
+            guideMenu.addItem(actionItem(title: "Start Guide…", systemImage: "list.number", action: #selector(presentGuide), enabled: !isCaptureActionDisabled))
+        }
+    }
+
+    private func updateStatusItemForGuide() {
+        guard let button = statusItem.button else { return }
+        if guide?.isActive == true {
+            statusItem.length = NSStatusItem.variableLength
+            button.image = NSImage(systemSymbolName: "list.number", accessibilityDescription: "Guide active")
+            button.title = " \(guide?.stepCount ?? 0)"
+            button.toolTip = "Guide active · \(guide?.stepCount ?? 0) steps"
+        } else {
+            statusItem.length = NSStatusItem.squareLength
+            button.image = NSImage(systemSymbolName: "scissors", accessibilityDescription: AppBranding.displayName)
+            button.title = ""
+            button.toolTip = AppBranding.displayName
         }
     }
 
@@ -807,7 +862,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     }
 
     private var isCaptureActionDisabled: Bool {
-        capture?.isWorking == true || isRecordingVideo
+        capture?.isWorking == true || isRecordingVideo || guide?.isActive == true
     }
 
     private var isRecordingVideo: Bool {

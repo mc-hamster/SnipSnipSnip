@@ -20,7 +20,7 @@ extension CaptureWorkflowModel {
     }
 
     var canChangePrivateCapture: Bool {
-        !isCapturePrivacyLocked && !isWorking && !isShowingWindowPicker && video?.isRecording != true && !isConnectedDeviceSessionActive
+        !isCapturePrivacyLocked && !isWorking && !isShowingWindowPicker && video?.isRecording != true && guide?.isActive != true && !isConnectedDeviceSessionActive
     }
 
     var isInteractiveCaptureActive: Bool {
@@ -185,7 +185,7 @@ extension CaptureWorkflowModel {
     }
 
     func capturePreset(_ preset: CapturePreset) {
-        guard !isWorking, video?.isRecording != true, !isConnectedDeviceSessionActive else {
+        guard !isWorking, video?.isRecording != true, guide?.isActive != true, !isConnectedDeviceSessionActive else {
             return
         }
 

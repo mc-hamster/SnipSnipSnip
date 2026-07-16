@@ -8,7 +8,8 @@ nonisolated enum PackageTemporaryDirectoryJanitor {
         try removeDirectories(
             matchingPrefixes: [
                 SSSDocumentPackage.temporaryDirectoryPrefix,
-                SSSVideoDocumentPackage.temporaryDirectoryPrefix
+                SSSVideoDocumentPackage.temporaryDirectoryPrefix,
+                SSSGuideDocumentPackage.temporaryDirectoryPrefix
             ],
             fileManager: fileManager,
             in: directoryURL ?? fileManager.temporaryDirectory

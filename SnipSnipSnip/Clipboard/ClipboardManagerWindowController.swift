@@ -12,9 +12,12 @@ enum ClipboardManagerWindowID {
 @MainActor
 final class ClipboardManagerWindowController: NSWindowController {
     private weak var clipboard: ClipboardWorkflowModel?
+    private let workspace: any WorkspaceServicing
+    private var previousApplicationProcessIdentifier: pid_t?
 
-    init(clipboard: ClipboardWorkflowModel) {
+    init(clipboard: ClipboardWorkflowModel, workspace: any WorkspaceServicing) {
         self.clipboard = clipboard
+        self.workspace = workspace
 
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 820, height: 620),
@@ -45,13 +48,13 @@ final class ClipboardManagerWindowController: NSWindowController {
         }
 
         if !window.isVisible {
+            previousApplicationProcessIdentifier = workspace.frontmostApplicationProcessIdentifier
             window.center()
         }
 
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
-
 }
 
 struct ClipboardManagerView: View {

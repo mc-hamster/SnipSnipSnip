@@ -17,7 +17,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>119</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>CFBundleDisplayName</key>
 	<string>$(SNIP_APP_DISPLAY_NAME)</string>
 	<key>SnipBuildTarget</key>
@@ -48,6 +48,20 @@
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>com.oontz.snipsnipsnip.video-document</string>
+			</array>
+			<key>LSTypeIsPackage</key>
+			<true/>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>$(SNIP_APP_DISPLAY_NAME) Guide Document</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.oontz.snipsnipsnip.guide-document</string>
 			</array>
 			<key>LSTypeIsPackage</key>
 			<true/>
@@ -138,6 +152,24 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>sssvideo</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>com.apple.package</string>
+				<string>public.content</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>$(SNIP_APP_DISPLAY_NAME) Guide Document</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.oontz.snipsnipsnip.guide-document</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>sssguide</string>
 				</array>
 			</dict>
 		</dict>

@@ -28,6 +28,7 @@ final class AppTerminationController {
     typealias RelaunchHandler = @MainActor () -> Void
 
     private weak var lifecycle: AppLifecycleModel?
+    private weak var guide: GuideWorkflowModel?
     private let confirmationHandler: QuitConfirmationHandler
     private let backgroundHandler: BackgroundHandler
     private let terminationHandler: TerminationHandler
@@ -47,12 +48,24 @@ final class AppTerminationController {
         self.relaunchHandler = relaunchHandler
     }
 
-    func configure(lifecycle: AppLifecycleModel) {
+    func configure(lifecycle: AppLifecycleModel, guide: GuideWorkflowModel? = nil) {
         self.lifecycle = lifecycle
+        self.guide = guide
     }
 
     func requestQuit() {
         guard !isPresentingQuitConfirmation else {
+            return
+        }
+
+        if guide?.isActive == true {
+            guard confirmStoppingActiveGuide(action: "quit") else { return }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await guide?.finalizeForApplicationExit()
+                guard shouldQuitAfterConfirmation() else { runInBackground(); return }
+                performConfirmedTermination()
+            }
             return
         }
 
@@ -71,8 +84,18 @@ final class AppTerminationController {
         }
 
         Self.logger.info("Restart without confirmation requested")
-        relaunchHandler()
-        performConfirmedTermination()
+        if guide?.isActive == true {
+            guard confirmStoppingActiveGuide(action: "restart") else { return }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await guide?.finalizeForApplicationExit()
+                relaunchHandler()
+                performConfirmedTermination()
+            }
+        } else {
+            relaunchHandler()
+            performConfirmedTermination()
+        }
     }
 
     func applicationShouldTerminate() -> NSApplication.TerminateReply {
@@ -83,6 +106,16 @@ final class AppTerminationController {
 
         guard !isPresentingQuitConfirmation else {
             return .terminateCancel
+        }
+
+        if guide?.isActive == true {
+            guard confirmStoppingActiveGuide(action: "quit") else { return .terminateCancel }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await guide?.finalizeForApplicationExit()
+                NSApp.reply(toApplicationShouldTerminate: true)
+            }
+            return .terminateLater
         }
 
         guard shouldQuitAfterConfirmation() else {
@@ -111,6 +144,16 @@ final class AppTerminationController {
         }
 
         return true
+    }
+
+    private func confirmStoppingActiveGuide(action: String) -> Bool {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = action == "restart" ? "Stop Guide and restart?" : "Stop Guide and quit?"
+        alert.informativeText = "Completed steps and finalized source-media segments will be saved for recovery before the app \(action)s."
+        alert.addButton(withTitle: action == "restart" ? "Stop & Restart" : "Stop & Quit")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
     static func makeQuitConfirmationAlert() -> NSAlert {

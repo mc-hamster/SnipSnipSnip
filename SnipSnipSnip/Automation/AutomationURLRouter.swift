@@ -46,6 +46,20 @@ nonisolated enum AutomationURLRouter {
             return AutomationRequest(source: source, command: .capture(command), interactionPolicy: .requireUserSelection, privacy: privacy, output: output)
         case "/repeat-last":
             return AutomationRequest(source: source, command: .repeatLastCapture, interactionPolicy: policy, privacy: privacy, output: output)
+        case "/guide/start":
+            let target = query.string("target").flatMap(GuideAutomationTarget.init(rawValue:)) ?? .window
+            return AutomationRequest(source: source, command: .guide(.start(target)), interactionPolicy: policy, privacy: privacy, output: .none)
+        case "/guide/pause":
+            return AutomationRequest(source: source, command: .guide(.pause), interactionPolicy: policy, privacy: privacy, output: .none)
+        case "/guide/resume":
+            return AutomationRequest(source: source, command: .guide(.resume), interactionPolicy: policy, privacy: privacy, output: .none)
+        case "/guide/add-step":
+            return AutomationRequest(source: source, command: .guide(.addStep), interactionPolicy: policy, privacy: privacy, output: .none)
+        case "/guide/stop":
+            return AutomationRequest(source: source, command: .guide(.stop), interactionPolicy: policy, privacy: privacy, output: .none)
+        case "/guide/export":
+            guard let value = query.string("format"), let format = GuideAutomationExportFormat(rawValue: value) else { return nil }
+            return AutomationRequest(source: source, command: .guide(.export(format)), interactionPolicy: policy, privacy: privacy, output: .none)
         default:
             return nil
         }

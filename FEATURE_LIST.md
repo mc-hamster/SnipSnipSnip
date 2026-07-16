@@ -1,6 +1,6 @@
 # SnipSnipSnip Feature List
 
-Last reviewed: 2026-06-30
+Last reviewed: 2026-07-15
 
 This document is the source of truth for what SnipSnipSnip and SnipSnipSnip Pro currently ship, what is only partially complete, and what is still missing. It is based on the current app source, shipped Help content, public docs, and test suite, not on older roadmap text.
 
@@ -174,6 +174,19 @@ The biggest unfinished areas are now clear:
 | Private Capture | ✓ Done | Private Capture skips archive checkpoints, recycle-bin retention, and background OCR indexing for that session. | Could add stronger history badging and more export-time privacy reminders. |
 | Editable video package | ✓ Done | `.sssvideo` stores source media, poster frame, trim state, and recording metadata. | Keep compatibility notes and migration examples current as the schema evolves. |
 | Public `.sssvideo` format documentation | ✓ Done | `sssvideo-format.md` now documents package layout, schema, versioning, and compatibility behavior. | Add concrete sample package fixtures over time. |
+
+### Guide
+
+| Feature | Status | Current behavior | Remaining scope |
+| --- | --- | --- | --- |
+| First-class Guide workflow | ✓ Done | Guide sits beside Screenshot and Record, supports Window, App, Region, and Display setup, a noncapturable HUD, pause/resume, Manual Step, Undo Last, recovery, and a dedicated three-pane editor. | Continue signed-sandbox compatibility testing across third-party apps and transient system UI. |
+| Editable `.sssguide` format | ✓ Done | Format v1 keeps base PNGs separate from step sessions and optional pause-aware media segments, validates package paths/assets/dimensions, uses atomic replacement, and has a public format specification. | Future versions must retain explicit compatibility gates. |
+| Action-to-step capture | ✓ Done | Passive event observation classifies one click, double-click coalescing, scroll bursts, modifier shortcuts, and manual steps while ignoring ordinary typing, repeats, own-app UI, and out-of-source actions. Pre-event frames retain controls that close on action. | Generic Enter Text steps are intentionally not implemented. Captured typed-text steps are intentionally not implemented. |
+| Local captions and privacy | ✓ Done | Safe Accessibility metadata creates immediate deterministic captions; Vision OCR is a fallback and Foundation Models can refine metadata/OCR text on device without receiving screenshots. Secure fields never retain values and receive editable solid masks. Private Guide disables OCR/AI refinement and content indexing. | English-only; localization is intentionally not implemented. |
+| Guide editing and design | ✓ Done | Search, reorder, multi-select, duplicate, delete/restore, include/exclude, duration changes, draggable marker handles, redactions, screenshot Advanced Edit, reusable themes, logos, branding, and command-based undo/redo remain non-destructive. | Continue keyboard, VoiceOver, high-contrast, reduced-motion, and long-caption QA. |
+| Guide export | ✓ Done | PDF, GIF, APNG, PNG/JPEG step images, ZIP/Markdown, Full Motion MP4, Action Highlights MP4, and Step Slideshow MP4 use shared rendering/media helpers and atomic output replacement. Source-video MP4s add a smooth custom cursor, trail, and click highlights. Missing source media disables the two dependent MP4 modes with an explicit explanation. | Continue visual snapshot coverage and two-hour/500-step profiling. |
+| Guide automation | ✓ Done | CLI, v1 URL routes, AppleScript, and App Intents share commands for start, pause, resume, Manual Step, stop, open `.sssguide`, and export, with Guide-specific payloads and errors. | URL routes remain trigger-oriented and use the configured/default export destination. |
+| macOS back-deployment | x Not done | Guide follows the app minimum of macOS 26 and uses the current ScreenCaptureKit, Vision, Accessibility, and Foundation Models stack. | macOS 14 back-deployment is intentionally not implemented. |
 
 ### Screen Recording
 

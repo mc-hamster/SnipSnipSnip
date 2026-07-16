@@ -9,6 +9,7 @@ struct AppModelComposition {
     let documents: DocumentWorkflowModel
     let clipboard: ClipboardWorkflowModel
     let video: VideoWorkflowModel
+    let guide: GuideWorkflowModel
     let archive: ArchiveWorkflowModel
     let tools: ToolWorkflowModel
     let automation: AutomationWorkflowModel
@@ -43,6 +44,13 @@ struct AppModelComposition {
             permissions: permissionWorkflow,
             appWindowPresenter: appWindowPresenter
         )
+        let guideWorkflow = Self.makeGuideWorkflow(
+            context: context,
+            lifecycle: lifecycleWorkflow,
+            capture: captureWorkflow,
+            permissions: permissionWorkflow,
+            video: videoWorkflow
+        )
         let archiveWorkflow = Self.makeArchiveWorkflow(
             context: context,
             lifecycle: lifecycleWorkflow,
@@ -61,7 +69,8 @@ struct AppModelComposition {
             context: context,
             capture: captureWorkflow,
             document: documentWorkflow,
-            clipboard: clipboardWorkflow
+            clipboard: clipboardWorkflow,
+            guide: guideWorkflow
         )
         let workflowCoordinator = Self.makeWorkflowCoordinator(
             lifecycle: lifecycleWorkflow,
@@ -70,6 +79,7 @@ struct AppModelComposition {
             documents: documentWorkflow,
             clipboard: clipboardWorkflow,
             video: videoWorkflow,
+            guide: guideWorkflow,
             archive: archiveWorkflow,
             tools: toolWorkflow,
             automation: automationWorkflow
@@ -81,6 +91,7 @@ struct AppModelComposition {
             documents: documentWorkflow,
             clipboard: clipboardWorkflow,
             video: videoWorkflow,
+            guide: guideWorkflow,
             archive: archiveWorkflow,
             tools: toolWorkflow
         )
@@ -92,6 +103,7 @@ struct AppModelComposition {
         self.documents = documentWorkflow
         self.clipboard = clipboardWorkflow
         self.video = videoWorkflow
+        self.guide = guideWorkflow
         self.archive = archiveWorkflow
         self.tools = toolWorkflow
         self.automation = automationWorkflow

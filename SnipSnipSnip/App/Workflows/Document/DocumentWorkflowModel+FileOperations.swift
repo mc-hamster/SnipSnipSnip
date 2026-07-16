@@ -98,6 +98,9 @@ extension DocumentWorkflowModel {
 
     @discardableResult
     func saveCurrentDocument() async -> Bool {
+        if let controller = guideEditorController {
+            return await saveCurrentGuideDocument(controller)
+        }
         if let controller = videoEditorController {
             return await saveCurrentVideoDocument(controller)
         }
@@ -127,6 +130,9 @@ extension DocumentWorkflowModel {
 
     @discardableResult
     func saveCurrentDocumentAs() async -> Bool {
+        if let controller = guideEditorController {
+            return await saveCurrentGuideDocumentAs(controller)
+        }
         if let controller = videoEditorController {
             return await saveCurrentVideoDocumentAs(controller)
         }
@@ -298,7 +304,13 @@ extension DocumentWorkflowModel {
         }
 
         do {
-            if url.pathExtension.lowercased() == "sssvideo" {
+            if url.pathExtension.lowercased() == "sssguide" {
+                let document = try withSecurityScopedAccess(to: url) {
+                    try SSSGuideDocumentPackage.load(from: url, files: systemServices.files)
+                }
+                let controller = GuideEditorController(document: document)
+                installGuideController(controller, documentURL: url, savedProject: controller.project)
+            } else if url.pathExtension.lowercased() == "sssvideo" {
                 let document = try withSecurityScopedAccess(to: url) {
                     try SSSVideoDocumentPackage.load(from: url, files: systemServices.files)
                 }
@@ -387,7 +399,7 @@ extension DocumentWorkflowModel {
 
     private static func isEditableDocumentURL(_ url: URL) -> Bool {
         switch url.pathExtension.lowercased() {
-        case "sss", "sssvideo":
+        case "sss", "sssvideo", "sssguide":
             return true
         default:
             return false

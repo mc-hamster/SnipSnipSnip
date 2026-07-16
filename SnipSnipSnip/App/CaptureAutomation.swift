@@ -9,6 +9,7 @@ nonisolated struct CaptureAutomationPreferences: Codable, Equatable {
     var frontmostWindowHotkey: GlobalHotKeyKey = .four
     var repeatLastCaptureHotkey: GlobalHotKeyKey = .r
     var screenInspectorHotkey: GlobalHotKeyKey = .i
+    var guideHotkey: GlobalHotKeyKey = .g
 
     private enum CodingKeys: String, CodingKey {
         case globalHotkeysEnabled
@@ -18,6 +19,7 @@ nonisolated struct CaptureAutomationPreferences: Codable, Equatable {
         case frontmostWindowHotkey
         case repeatLastCaptureHotkey
         case screenInspectorHotkey
+        case guideHotkey
     }
 
     init(
@@ -27,7 +29,8 @@ nonisolated struct CaptureAutomationPreferences: Codable, Equatable {
         fullscreenHotkey: GlobalHotKeyKey = .three,
         frontmostWindowHotkey: GlobalHotKeyKey = .four,
         repeatLastCaptureHotkey: GlobalHotKeyKey = .r,
-        screenInspectorHotkey: GlobalHotKeyKey = .i
+        screenInspectorHotkey: GlobalHotKeyKey = .i,
+        guideHotkey: GlobalHotKeyKey = .g
     ) {
         self.globalHotkeysEnabled = globalHotkeysEnabled
         self.regionHotkey = regionHotkey
@@ -36,6 +39,7 @@ nonisolated struct CaptureAutomationPreferences: Codable, Equatable {
         self.frontmostWindowHotkey = frontmostWindowHotkey
         self.repeatLastCaptureHotkey = repeatLastCaptureHotkey
         self.screenInspectorHotkey = screenInspectorHotkey
+        self.guideHotkey = guideHotkey
     }
 
     init(from decoder: Decoder) throws {
@@ -47,7 +51,8 @@ nonisolated struct CaptureAutomationPreferences: Codable, Equatable {
             fullscreenHotkey: try container.decodeIfPresent(GlobalHotKeyKey.self, forKey: .fullscreenHotkey) ?? .three,
             frontmostWindowHotkey: try container.decodeIfPresent(GlobalHotKeyKey.self, forKey: .frontmostWindowHotkey) ?? .four,
             repeatLastCaptureHotkey: try container.decodeIfPresent(GlobalHotKeyKey.self, forKey: .repeatLastCaptureHotkey) ?? .r,
-            screenInspectorHotkey: try container.decodeIfPresent(GlobalHotKeyKey.self, forKey: .screenInspectorHotkey) ?? .i
+            screenInspectorHotkey: try container.decodeIfPresent(GlobalHotKeyKey.self, forKey: .screenInspectorHotkey) ?? .i,
+            guideHotkey: try container.decodeIfPresent(GlobalHotKeyKey.self, forKey: .guideHotkey) ?? .g
         )
     }
 
@@ -65,6 +70,8 @@ nonisolated struct CaptureAutomationPreferences: Codable, Equatable {
             return repeatLastCaptureHotkey
         case .screenInspector:
             return screenInspectorHotkey
+        case .guide:
+            return guideHotkey
         }
     }
 
@@ -82,6 +89,8 @@ nonisolated struct CaptureAutomationPreferences: Codable, Equatable {
             repeatLastCaptureHotkey = key
         case .screenInspector:
             screenInspectorHotkey = key
+        case .guide:
+            guideHotkey = key
         }
     }
 

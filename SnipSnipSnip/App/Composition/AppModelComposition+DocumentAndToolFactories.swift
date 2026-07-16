@@ -58,13 +58,15 @@ extension AppModelComposition {
         context: AppModelCompositionContext,
         capture: CaptureWorkflowModel,
         document: DocumentWorkflowModel,
-        clipboard: ClipboardWorkflowModel
+        clipboard: ClipboardWorkflowModel,
+        guide: GuideWorkflowModel
     ) -> AutomationWorkflowModel {
         AutomationWorkflowModel(
             statusPort: capture,
             capturePort: capture,
             documentPort: document,
             clipboardPort: clipboard,
+            guidePort: guide,
             files: context.environment.systemServices.files,
             workspace: context.environment.systemServices.workspace,
             pasteboard: context.environment.systemServices.pasteboard

@@ -21,6 +21,7 @@ protocol AutomationCommandHandler: AnyObject {
     func repeatLastAutomationCapture(_ request: AutomationRequest) async -> AutomationResultEnvelope
     func openAutomationDocument(_ command: OpenDocumentAutomationCommand, request: AutomationRequest) async -> AutomationResultEnvelope
     func exportCurrentAutomationDocument(_ command: ExportCurrentAutomationCommand, request: AutomationRequest) async -> AutomationResultEnvelope
+    func guideAutomation(_ command: GuideAutomationCommand, request: AutomationRequest) async -> AutomationResultEnvelope
 }
 
 @MainActor
@@ -63,6 +64,8 @@ final class AutomationExecutor {
             return await handler.openAutomationDocument(command, request: request)
         case .exportCurrent(let command):
             return await handler.exportCurrentAutomationDocument(command, request: request)
+        case .guide(let command):
+            return await handler.guideAutomation(command, request: request)
         }
     }
 }

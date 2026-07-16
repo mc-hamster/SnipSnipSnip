@@ -8,6 +8,7 @@ protocol WorkflowOutputSink: AnyObject {
     func handle(_ output: DocumentWorkflowOutput)
     func handle(_ output: ClipboardWorkflowOutput)
     func handle(_ output: VideoWorkflowOutput)
+    func handle(_ output: GuideWorkflowOutput)
     func handle(_ output: ArchiveWorkflowOutput)
     func handle(_ output: ToolWorkflowOutput)
 }
@@ -20,6 +21,7 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
     private weak var documents: (any CoordinatorDocumentPort)?
     private weak var clipboard: (any CoordinatorClipboardPort)?
     private weak var video: (any CoordinatorVideoPort)?
+    private weak var guide: (any CoordinatorGuidePort)?
     private weak var archive: (any CoordinatorArchivePort)?
     private weak var tools: (any CoordinatorToolPort)?
     private weak var automation: (any CoordinatorAutomationPort)?
@@ -31,6 +33,7 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
         documents: any CoordinatorDocumentPort,
         clipboard: any CoordinatorClipboardPort,
         video: any CoordinatorVideoPort,
+        guide: any CoordinatorGuidePort,
         archive: any CoordinatorArchivePort,
         tools: any CoordinatorToolPort,
         automation: any CoordinatorAutomationPort
@@ -41,6 +44,7 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
         self.documents = documents
         self.clipboard = clipboard
         self.video = video
+        self.guide = guide
         self.archive = archive
         self.tools = tools
         self.automation = automation
@@ -170,6 +174,18 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
         }
     }
 
+    func handle(_ output: GuideWorkflowOutput) {
+        switch output {
+        case .guideCompleted(let document, let exportImmediately):
+            documents?.installCapturedGuide(document)
+            if exportImmediately { documents?.exportCurrentGuide() }
+        case .presentError(let message):
+            lifecycle?.presentError(message)
+        case .requestMainWindowPresentation:
+            requestMainWindowPresentation()
+        }
+    }
+
     func handle(_ output: ArchiveWorkflowOutput) {
         switch output {
         case .presentError(let message):
@@ -251,6 +267,7 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
               !capture.isInteractiveCaptureActive,
               documents?.editorController == nil,
               documents?.videoEditorController == nil,
+              documents?.guideEditorController == nil,
               !capture.isWorking,
               !capture.isShowingWindowPicker,
               permissions?.permissionStatus.hasScreenRecording == true else {
@@ -270,10 +287,16 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
     func handleGlobalHotKeyAction(_ action: GlobalHotKeyAction) {
         let isCapturing = capture?.isWorking == true
         let isRecording = video?.isRecording == true
+        let isGuiding = guide?.isActive == true
 
-        guard !isCapturing, !isRecording else {
+        if action == .guide {
+            guide?.presentQuickStart()
+            return
+        }
+
+        guard !isCapturing, !isRecording, !isGuiding else {
             lifecycle?.presentBusyHotKeyFeedback(
-                message: isRecording ? "Recording in progress" : "Capture already in progress"
+                message: isGuiding ? "Guide in progress" : (isRecording ? "Recording in progress" : "Capture already in progress")
             )
             return
         }
@@ -291,11 +314,13 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
             capture?.repeatLastCapture()
         case .screenInspector:
             tools?.toggleScreenInspector()
+        case .guide:
+            break
         }
     }
 
     func handleGlobalPresetHotKey(_ presetID: UUID) {
-        guard capture?.isWorking != true, video?.isRecording != true else {
+        guard capture?.isWorking != true, video?.isRecording != true, guide?.isActive != true else {
             lifecycle?.presentBusyHotKeyFeedback(message: video?.isRecording == true ? "Recording in progress" : "Capture already in progress")
             return
         }
@@ -310,6 +335,7 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
         return !capture.isWorking
             && !capture.isShowingWindowPicker
             && video?.isRecording != true
+            && guide?.isActive != true
             && !capture.isConnectedDeviceSessionActive
     }
 
@@ -323,6 +349,7 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
         documents?.resetDocumentPreferencesToDefaults()
         tools?.resetToolPreferencesToDefaults()
         video?.resetVideoPreferencesToDefaults()
+        guide?.resetGuidePreferencesToDefaults()
         archive?.resetArchivePreferencesToDefaults()
     }
 
@@ -343,7 +370,11 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
     }
 
     func openDocument(_ url: URL) {
-        documents?.openDocument(at: url)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if await guide?.prepareForConflictingAction(named: "opening another document") == false { return }
+            documents?.openDocument(at: url)
+        }
     }
 
     func saveDocument(_ controller: EditorController, to url: URL) async -> Bool {

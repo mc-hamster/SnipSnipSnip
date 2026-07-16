@@ -9,6 +9,7 @@ struct ContentView: View {
     @ObservedObject var documents: DocumentWorkflowModel
     @ObservedObject var clipboard: ClipboardWorkflowModel
     @ObservedObject var video: VideoWorkflowModel
+    @ObservedObject var guide: GuideWorkflowModel
     let capabilities: AppCapabilitySnapshot
     let workflowCoordinator: AppWorkflowCoordinator
     let dismissWelcomeCard: () -> Void
@@ -27,7 +28,23 @@ struct ContentView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            if let videoController = documents.videoEditorController {
+            if let guideController = documents.guideEditorController {
+                GuideEditorToolbarView(
+                    controller: guideController,
+                    onBack: documents.closeEditor,
+                    onExport: { documents.exportCurrentGuide(showProgressWindow: $0) },
+                    exportProgress: documents.guideExportProgress,
+                    exportStatus: documents.guideExportStatus,
+                    onCancelExport: documents.cancelGuideExport,
+                    onShowExportProgress: documents.showGuideExportProgress,
+                    hasExportedFiles: !documents.lastGuideExportURLs.isEmpty,
+                    onRevealExports: documents.revealGuideExports,
+                    onCopyExports: documents.copyGuideExports,
+                    onShareExports: documents.shareGuideExports,
+                    dragOutPayloadProvider: documents.promisedGuidePayload
+                )
+                Divider()
+            } else if let videoController = documents.videoEditorController {
                 VideoEditorToolbarView(
                     controller: videoController,
                     documentFilename: documents.currentDocumentFilename,
@@ -55,7 +72,17 @@ struct ContentView: View {
             }
 
             Group {
-                if let editorController = documents.editorController {
+                if let guideController = documents.guideEditorController {
+                    GuideEditorView(
+                        controller: guideController,
+                        capabilities: capabilities,
+                        recentSnips: documents.recentSnipEntries,
+                        onAddRecentSnip: { documents.addRecentSnip($0, to: guideController) },
+                        savedThemes: guide.savedThemes,
+                        onSaveTheme: guide.saveTheme
+                    )
+                        .id(ObjectIdentifier(guideController))
+                } else if let editorController = documents.editorController {
                     EditorView(
                         controller: editorController,
                         historyEntries: documents.historyEntries,
@@ -125,6 +152,9 @@ struct ContentView: View {
                 }
             )
         }
+        .sheet(isPresented: $guide.isShowingQuickStart) {
+            GuideQuickStartView(guide: guide, permissions: permissions)
+        }
         .sheet(isPresented: capturePresetNamingSheetBinding) {
             CapturePresetNamingSheetView(capture: capture)
                 .frame(width: 420)
@@ -174,6 +204,7 @@ struct ContentView: View {
         }
         .onAppear {
             workflowCoordinator.mainWindowDidAppear()
+            if guide.isActive { GuideCaptureHUDController.shared.show(guide: guide) }
         }
         .onDisappear {
             workflowCoordinator.mainWindowDidDisappear()
@@ -196,6 +227,8 @@ struct ContentView: View {
                 return
             }
 
+            guard !guide.isActive, !guide.isShowingQuickStart else { return }
+
             permissions.refreshPermissions()
 
             guard capture.autoRefreshWindowsEnabled,
@@ -210,6 +243,10 @@ struct ContentView: View {
                 includeThumbnails: true,
                 allowsCancellingPendingThumbnailRefresh: false
             )
+        }
+        .onChange(of: guide.captureCoordinator.state) { _, state in
+            if state == .idle { GuideCaptureHUDController.shared.hide() }
+            else { GuideCaptureHUDController.shared.show(guide: guide) }
         }
     }
 
@@ -349,6 +386,7 @@ struct ContentView: View {
                     captureButton(title: "Repeat", systemImage: "arrow.clockwise", action: capture.repeatLastCapture)
                         .disabled(!capture.canRepeatLastCapture)
                     capturePresetsMenu
+                    guideButton
                     recordButton
                 }
             }
@@ -377,6 +415,7 @@ struct ContentView: View {
             captureButton(title: "Repeat", systemImage: "arrow.clockwise", action: capture.repeatLastCapture)
                 .disabled(!capture.canRepeatLastCapture)
             capturePresetsMenu
+            guideButton
             recordButton
         }
     }
@@ -922,7 +961,7 @@ struct ContentView: View {
         }
         .buttonStyle(SSSChromeButtonStyle())
         .controlSize(.small)
-        .disabled(capture.isWorking || isRecordingVideo)
+        .disabled(capture.isWorking || isRecordingVideo || guide.isActive)
         .help(captureButtonHelpText(for: title))
     }
 
@@ -949,8 +988,22 @@ struct ContentView: View {
         .buttonStyle(SSSChromeButtonStyle(tint: .red))
         .controlSize(.small)
         .tint(.red)
-        .disabled(capture.isWorking || isRecordingVideo)
+        .disabled(capture.isWorking || isRecordingVideo || guide.isActive)
         .help("Start a screen video recording.")
+    }
+
+    private var guideButton: some View {
+        Button(action: guide.presentQuickStart) {
+            headerActionLabel(
+                title: guide.isFinishing ? "Finishing Guide…" : (guide.isActive ? "Stop Guide" : "Guide"),
+                systemImage: guide.isActive ? "stop.circle.fill" : "list.number",
+                accent: .blue
+            )
+        }
+        .buttonStyle(SSSChromeButtonStyle(tint: .blue))
+        .controlSize(.small)
+        .disabled(capture.isWorking || isRecordingVideo || guide.isFinishing)
+        .help("Capture clicks, scrolling, and shortcuts as an editable step-by-step guide.")
     }
 
     private func headerActionLabel(title: String, systemImage: String, accent: Color = .accentColor, showsChevron: Bool = false) -> some View {
@@ -1152,7 +1205,10 @@ struct ContentView: View {
             lifecycle.errorMessage = "\(AppBranding.displayName) can only open or import one file at a time. Opened \(firstURL.lastPathComponent)."
         }
 
-        documents.openExternalFile(at: firstURL)
+        Task { @MainActor in
+            guard await guide.prepareForConflictingAction(named: "opening another document") else { return }
+            documents.openExternalFile(at: firstURL)
+        }
     }
 
     private func handlePendingPasteboardImageImportRequests() {

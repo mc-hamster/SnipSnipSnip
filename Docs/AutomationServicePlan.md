@@ -186,8 +186,11 @@ enum AutomationCommand: Codable, Sendable {
     case repeatLastCapture
     case openDocument(OpenDocumentAutomationCommand)
     case exportCurrent(ExportCurrentAutomationCommand)
+    case guide(GuideAutomationCommand)
 }
 ```
+
+Guide v1 adds start (window, app, interactive region, or display), pause, resume, manual step, stop, open `.sssguide`, and export (PDF, GIF, APNG, three MP4 variants, images, or ZIP). All adapters use the same Guide payload and explicit errors for no active Guide, an already-active Guide, no steps, unavailable source media, and failed finalization. Guide control does not add a parallel service or bypass busy-state, permission, privacy, or configured-destination rules.
 
 Initial capture targets:
 

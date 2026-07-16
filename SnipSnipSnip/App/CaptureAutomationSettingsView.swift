@@ -8,6 +8,7 @@ struct CaptureAutomationSettingsView: View {
     @ObservedObject var documents: DocumentWorkflowModel
     @ObservedObject var clipboard: ClipboardWorkflowModel
     @ObservedObject var video: VideoWorkflowModel
+    @ObservedObject var guide: GuideWorkflowModel
     @ObservedObject var archive: ArchiveWorkflowModel
     @ObservedObject var tools: ToolWorkflowModel
     let capabilities: AppCapabilitySnapshot
@@ -444,6 +445,103 @@ struct CaptureAutomationSettingsView: View {
             .tag(AppSettingsTab.recording)
 
             SettingsTabContainer(
+                title: "Guide",
+                summary: "Choose how actions become polished, private, editable instructions."
+            ) {
+                Section("Capture") {
+                    Toggle("Keep Full-Motion Source Video", isOn: guideCapturePreferenceBinding(\.sourceVideoEnabled))
+                    Picker("Source Frame Rate", selection: guideCapturePreferenceBinding(\.framesPerSecond)) {
+                        Text("15 fps").tag(15)
+                        Text("30 fps · Balanced").tag(30)
+                        Text("60 fps").tag(60)
+                    }
+                    Toggle("Record System Audio", isOn: guideCapturePreferenceBinding(\.capturesSystemAudio))
+                    Toggle("Record Microphone", isOn: guideCapturePreferenceBinding(\.capturesMicrophone))
+                    SettingsHelpText("Source video is on by default so Full Motion and Action Highlights remain available. Turn it off when you only need PDF, animated, image, ZIP, or slideshow output.")
+                }
+
+                Section("Steps & Privacy") {
+                    Toggle("Create Captions Automatically", isOn: guideCapturePreferenceBinding(\.automaticCaptions))
+                    Toggle("Refine Captions On Device", isOn: guideCapturePreferenceBinding(\.aiCaptionRefinement))
+                    Toggle("Mask Secure Fields", isOn: guideCapturePreferenceBinding(\.masksSecureFields))
+                    Toggle("Show Cursor in Still Steps", isOn: guideCapturePreferenceBinding(\.showsCursorInSteps))
+                    Toggle("Hide Desktop Icons", isOn: guideCapturePreferenceBinding(\.hidesDesktopIcons))
+                    Toggle("Include Menu Bar in Display Guides", isOn: guideCapturePreferenceBinding(\.menuBarIncludedForDisplays))
+                    SettingsHelpText("Private Guide follows Private Capture: it skips archive, OCR indexing, diagnostics content, and AI refinement. Screen images and metadata never leave this Mac.")
+                }
+
+                Section("Capture HUD") {
+                    Picker("Corner", selection: guideCapturePreferenceBinding(\.hudCorner)) {
+                        Text("Top Right").tag("topRight")
+                        Text("Top Left").tag("topLeft")
+                        Text("Bottom Right").tag("bottomRight")
+                        Text("Bottom Left").tag("bottomLeft")
+                    }
+                    Toggle("Show Recent Step Previews", isOn: guideCapturePreferenceBinding(\.hudPreviewsEnabled))
+                }
+
+                Section("Default Design & Export") {
+                    TextField("Theme Name", text: guideThemeBinding(\.name))
+                    HStack {
+                        Button("Save Theme") { guide.saveTheme(guide.theme) }
+                        if !guide.savedThemes.isEmpty {
+                            Menu("Saved Themes") {
+                                ForEach(guide.savedThemes) { theme in
+                                    Button(theme.name) { guide.applySavedTheme(theme.id) }
+                                }
+                                Divider()
+                                Menu("Delete Theme") {
+                                    ForEach(guide.savedThemes) { theme in
+                                        Button(theme.name, role: .destructive) { guide.deleteSavedTheme(theme.id) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Picker("Appearance", selection: guideThemeBinding(\.appearance)) {
+                        ForEach(GuideAppearance.allCases) { appearance in
+                            Text(appearance.rawValue.capitalized).tag(appearance)
+                        }
+                    }
+                    TextField("Organization", text: guideThemeBinding(\.organizationName))
+                    TextField("Footer", text: guideThemeBinding(\.footer))
+                    Stepper("Arrow Width: \(guide.theme.markerLineWidth, specifier: "%.0f") pt", value: guideThemeBinding(\.markerLineWidth), in: 1...12)
+                    Stepper("Arrow Length: \(guide.theme.markerLength, specifier: "%.0f") pt", value: guideThemeBinding(\.markerLength), in: 24...240)
+                    Toggle("PDF", isOn: guideExportFormatBinding(.pdf))
+                    Toggle("GIF", isOn: guideExportFormatBinding(.gif))
+                    Toggle("APNG", isOn: guideExportFormatBinding(.apng))
+                    Toggle("Full Motion MP4", isOn: guideExportFormatBinding(.fullMotionMP4))
+                    Toggle("Action Highlights MP4", isOn: guideExportFormatBinding(.highlightMP4))
+                    Toggle("Step Slideshow MP4", isOn: guideExportFormatBinding(.slideshowMP4))
+                    Toggle("Step Images", isOn: guideExportFormatBinding(.stepImages))
+                    Toggle("ZIP", isOn: guideExportFormatBinding(.zip))
+                    Picker("PDF Paper", selection: guideExportSettingsBinding(\.pdfPaper)) {
+                        Text("Automatic").tag(GuidePDFPaper.automatic)
+                        Text("US Letter").tag(GuidePDFPaper.letter)
+                        Text("A4").tag(GuidePDFPaper.a4)
+                    }
+                    Picker("PDF Orientation", selection: guideExportSettingsBinding(\.pdfOrientation)) {
+                        Text("Portrait").tag(GuidePDFOrientation.portrait)
+                        Text("Landscape").tag(GuidePDFOrientation.landscape)
+                    }
+                    Picker("PDF Quality", selection: guideExportSettingsBinding(\.pdfDPI)) {
+                        Text("Compact · 144 dpi").tag(144)
+                        Text("Standard · 216 dpi").tag(216)
+                        Text("Print · 300 dpi").tag(300)
+                    }
+                    Picker("Step Image Format", selection: guideExportSettingsBinding(\.stepImageFormat)) {
+                        Text("PNG").tag(GuideStepImageFormat.png)
+                        Text("JPEG").tag(GuideStepImageFormat.jpeg)
+                    }
+                    TextField("File Name", text: guideExportSettingsBinding(\.filenameTemplate))
+                }
+            }
+            .tabItem {
+                Label("Guide", systemImage: "list.number")
+            }
+            .tag(AppSettingsTab.guide)
+
+            SettingsTabContainer(
                 title: "Archive",
                 summary: "History storage, size limits, and deleted-item cleanup live in one place."
             ) {
@@ -483,7 +581,12 @@ struct CaptureAutomationSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Button("Clear Archive", role: .destructive, action: archive.clearArchive)
+                    Button("Clear Archive", role: .destructive) {
+                        Task { @MainActor in
+                            guard await guide.prepareForConflictingAction(named: "clearing the archive") else { return }
+                            archive.clearArchive()
+                        }
+                    }
 
                     SettingsHelpText("\(AppBranding.displayName) periodically trims the oldest archived checkpoints until the archive is back under the configured limit.")
                 }
@@ -779,6 +882,7 @@ struct CaptureAutomationSettingsView: View {
             documents: documents,
             clipboard: clipboard,
             video: video,
+            guide: guide,
             archive: archive
         )
     }
@@ -807,6 +911,7 @@ struct CaptureAutomationSettingsView: View {
         !capture.isWorking
             && !capture.isShowingWindowPicker
             && video.activeVideoRecording == nil
+            && !guide.isActive
             && !capture.isConnectedDeviceSessionActive
     }
 
@@ -817,6 +922,51 @@ struct CaptureAutomationSettingsView: View {
                 var preferences = capture.automationPreferences
                 preferences[keyPath: keyPath] = newValue
                 capture.automationPreferences = preferences
+            }
+        )
+    }
+
+    private func guideCapturePreferenceBinding<Value>(_ keyPath: WritableKeyPath<GuideCapturePreferences, Value>) -> Binding<Value> {
+        Binding(
+            get: { guide.capturePreferences[keyPath: keyPath] },
+            set: { value in
+                var preferences = guide.capturePreferences
+                preferences[keyPath: keyPath] = value
+                guide.capturePreferences = preferences
+            }
+        )
+    }
+
+    private func guideThemeBinding<Value>(_ keyPath: WritableKeyPath<GuideTheme, Value>) -> Binding<Value> {
+        Binding(
+            get: { guide.theme[keyPath: keyPath] },
+            set: { value in
+                var theme = guide.theme
+                theme[keyPath: keyPath] = value
+                guide.theme = theme
+            }
+        )
+    }
+
+    private func guideExportSettingsBinding<Value>(_ keyPath: WritableKeyPath<GuideExportSettings, Value>) -> Binding<Value> {
+        Binding(
+            get: { guide.exportSettings[keyPath: keyPath] },
+            set: { value in
+                var settings = guide.exportSettings
+                settings[keyPath: keyPath] = value
+                guide.exportSettings = settings
+            }
+        )
+    }
+
+    private func guideExportFormatBinding(_ format: GuideExportFormat) -> Binding<Bool> {
+        Binding(
+            get: { guide.exportSettings.formats.contains(format) },
+            set: { enabled in
+                var settings = guide.exportSettings
+                if enabled { settings.formats.insert(format) }
+                else { settings.formats.remove(format) }
+                guide.exportSettings = settings
             }
         )
     }

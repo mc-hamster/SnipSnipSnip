@@ -274,3 +274,29 @@ final class SSSExportCurrentScreenshotCommand: SSSAutomationScriptCommand {
         )
     }
 }
+
+@objc(SSSGuideCommand)
+final class SSSGuideCommand: SSSAutomationScriptCommand {
+    override func request() -> AutomationRequest {
+        let action = stringArgument("action")?.lowercased() ?? "start"
+        let command: GuideAutomationCommand
+        switch action {
+        case "start":
+            command = .start(GuideAutomationTarget(rawValue: stringArgument("target")?.lowercased() ?? "window") ?? .window)
+        case "pause": command = .pause
+        case "resume": command = .resume
+        case "add-step", "add step": command = .addStep
+        case "stop": command = .stop
+        case "export":
+            command = .export(GuideAutomationExportFormat(rawValue: stringArgument("format")?.lowercased() ?? "pdf") ?? .pdf)
+        default: command = .start(.window)
+        }
+        return AutomationRequest(
+            source: automationSource,
+            command: .guide(command),
+            interactionPolicy: action == "start" && stringArgument("target")?.lowercased() == "region" ? .requireUserSelection : .promptIfNeeded,
+            privacy: AutomationPrivacyOptions(privateCapture: boolArgument("privateCapture")),
+            output: .none
+        )
+    }
+}

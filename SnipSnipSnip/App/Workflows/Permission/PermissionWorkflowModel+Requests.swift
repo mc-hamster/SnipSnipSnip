@@ -5,20 +5,20 @@ extension PermissionWorkflowModel {
     func refreshPermissions() {
         let currentStatus = dependencies.permissions.currentStatus()
         let status = effectivePermissionStatus(from: currentStatus)
-        if status != permissionStatus {
+        let didChangeStatus = status != permissionStatus
+        if didChangeStatus {
             permissionStatus = status
+            PermissionWorkflowDiagnostics.debugState(
+                "refreshPermissions",
+                rawStatus: currentStatus,
+                effectiveStatus: status,
+                activeRequest: activePermissionRequest,
+                setupGuide: permissionSetupGuide?.requirement,
+                screenRecordingSetupStartedThisRun: screenRecordingSetupStartedThisRun,
+                screenRecordingSetupNeedsAttention: screenRecordingSetupNeedsAttention,
+                hasVerifiedScreenRecordingAccess: hasVerifiedScreenRecordingAccess
+            )
         }
-
-        PermissionWorkflowDiagnostics.debugState(
-            "refreshPermissions",
-            rawStatus: currentStatus,
-            effectiveStatus: status,
-            activeRequest: activePermissionRequest,
-            setupGuide: permissionSetupGuide?.requirement,
-            screenRecordingSetupStartedThisRun: screenRecordingSetupStartedThisRun,
-            screenRecordingSetupNeedsAttention: screenRecordingSetupNeedsAttention,
-            hasVerifiedScreenRecordingAccess: hasVerifiedScreenRecordingAccess
-        )
 
         if screenRecordingSetupRequiresRestart(for: currentStatus) {
             markScreenRecordingRestartRequired()

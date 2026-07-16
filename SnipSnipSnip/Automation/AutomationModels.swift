@@ -66,6 +66,47 @@ nonisolated enum AutomationCommand: Codable, Equatable, Sendable {
     case repeatLastCapture
     case openDocument(OpenDocumentAutomationCommand)
     case exportCurrent(ExportCurrentAutomationCommand)
+    case guide(GuideAutomationCommand)
+}
+
+nonisolated enum GuideAutomationCommand: Codable, Equatable, Sendable {
+    case start(GuideAutomationTarget)
+    case pause
+    case resume
+    case addStep
+    case stop
+    case export(GuideAutomationExportFormat)
+}
+
+nonisolated enum GuideAutomationTarget: String, Codable, CaseIterable, Equatable, Sendable {
+    case window
+    case app
+    case region
+    case display
+}
+
+nonisolated enum GuideAutomationExportFormat: String, Codable, CaseIterable, Equatable, Sendable {
+    case pdf
+    case gif
+    case apng
+    case fullMotionMP4 = "mp4-full"
+    case highlightMP4 = "mp4-highlights"
+    case slideshowMP4 = "mp4-slideshow"
+    case images
+    case zip
+
+    var guideFormat: GuideExportFormat {
+        switch self {
+        case .pdf: .pdf
+        case .gif: .gif
+        case .apng: .apng
+        case .fullMotionMP4: .fullMotionMP4
+        case .highlightMP4: .highlightMP4
+        case .slideshowMP4: .slideshowMP4
+        case .images: .stepImages
+        case .zip: .zip
+        }
+    }
 }
 
 nonisolated struct RunPresetAutomationCommand: Codable, Equatable, Sendable {
@@ -260,6 +301,7 @@ nonisolated enum AutomationPayload: Codable, Equatable, Sendable {
     case capture(AutomationCaptureSummary)
     case export(AutomationExportSummary)
     case permissionStatus(AutomationPermissionSummary)
+    case guide(AutomationGuideSummary)
     case none
 }
 
@@ -320,6 +362,11 @@ nonisolated enum AutomationErrorCode: String, Codable, Equatable, Sendable {
     case unsupportedOutput
     case outputFailed
     case internalError
+    case noActiveGuide
+    case guideAlreadyActive
+    case guideHasNoSteps
+    case guideSourceMediaUnavailable
+    case guideFinalizationFailed
 }
 
 nonisolated struct AutomationCapabilities: Codable, Equatable, Sendable {
@@ -333,6 +380,14 @@ nonisolated struct AutomationCapabilities: Codable, Equatable, Sendable {
     var supportsScrollingCapture: Bool
     var supportsConnectedDeviceCapture: Bool
     var supportsCurrentEditorExport: Bool
+    var supportsGuide: Bool = true
+}
+
+nonisolated struct AutomationGuideSummary: Codable, Equatable, Sendable {
+    var state: String
+    var stepCount: Int
+    var source: String?
+    var sourceVideoEnabled: Bool
 }
 
 nonisolated struct AutomationPresetSummary: Codable, Equatable, Identifiable, Sendable {

@@ -565,6 +565,36 @@ struct ExportCurrentScreenshotIntent: @preconcurrency AutomationPerformingIntent
     }
 }
 
+struct GuideActionIntent: @preconcurrency AutomationPerformingIntent {
+    static let title: LocalizedStringResource = "Control SnipSnipSnip Guide"
+    static let description = IntentDescription("Start, control, stop, or export a SnipSnipSnip Guide.")
+
+    @Dependency(default: AutomationIntentClient.unavailable)
+    private var client: AutomationIntentClient
+
+    @Parameter(title: "Action")
+    var action: AutomationIntentGuideAction
+
+    @Parameter(title: "Private Guide")
+    var privateGuide: Bool?
+
+    nonisolated init() {}
+
+    func automationRequest() -> AutomationRequest {
+        AutomationIntentRequestFactory.request(
+            caller: String(describing: Self.self),
+            command: .guide(action.command),
+            interactionPolicy: action == .startRegion ? .requireUserSelection : .promptIfNeeded,
+            privacy: AutomationPrivacyOptions(privateCapture: privateGuide ?? false),
+            output: .none
+        )
+    }
+
+    func perform() async throws -> some IntentResult {
+        try await performAutomationSilently(automationRequest(), client: client)
+    }
+}
+
 struct SnipSnipSnipAutomationShortcuts: AppShortcutsProvider {
     nonisolated static var shortcutTileColor: ShortcutTileColor {
         .blue
@@ -629,6 +659,16 @@ struct SnipSnipSnipAutomationShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Run Preset",
             systemImageName: "star"
+        )
+
+        AppIntents.AppShortcut(
+            intent: GuideActionIntent(),
+            phrases: [
+                "Start a guide with \(.applicationName)",
+                "Control my guide with \(.applicationName)"
+            ],
+            shortTitle: "Guide",
+            systemImageName: "list.number"
         )
     }
 }

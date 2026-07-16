@@ -9,6 +9,7 @@ extension AppModelComposition {
         documents: any CoordinatorDocumentPort,
         clipboard: any CoordinatorClipboardPort,
         video: any CoordinatorVideoPort,
+        guide: any CoordinatorGuidePort,
         archive: any CoordinatorArchivePort,
         tools: any CoordinatorToolPort,
         automation: any CoordinatorAutomationPort
@@ -20,6 +21,7 @@ extension AppModelComposition {
             documents: documents,
             clipboard: clipboard,
             video: video,
+            guide: guide,
             archive: archive,
             tools: tools,
             automation: automation
@@ -33,6 +35,7 @@ extension AppModelComposition {
         documents: DocumentWorkflowModel,
         clipboard: ClipboardWorkflowModel,
         video: VideoWorkflowModel,
+        guide: GuideWorkflowModel,
         archive: ArchiveWorkflowModel,
         tools: ToolWorkflowModel
     ) {
@@ -41,10 +44,12 @@ extension AppModelComposition {
         capture.automationCoordinator = coordinator
         capture.documents = documents
         capture.video = video
+        capture.guide = guide
         documents.automationCoordinator = coordinator
         clipboard.outputSink = coordinator
         clipboard.documents = documents
         video.documents = documents
+        guide.outputSink = coordinator
         archive.documents = documents
         tools.outputSink = coordinator
     }

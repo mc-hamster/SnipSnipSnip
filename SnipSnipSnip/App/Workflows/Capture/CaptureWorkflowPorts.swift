@@ -31,6 +31,13 @@ protocol CaptureVideoWorkflowPort: AnyObject {
 }
 
 @MainActor
+protocol CaptureGuideWorkflowPort: AnyObject {
+    var isActive: Bool { get }
+}
+
+extension GuideWorkflowModel: CaptureGuideWorkflowPort {}
+
+@MainActor
 extension DocumentWorkflowModel: CaptureDocumentWorkflowPort {
     var activeCaptureEditorController: EditorController? {
         editorController

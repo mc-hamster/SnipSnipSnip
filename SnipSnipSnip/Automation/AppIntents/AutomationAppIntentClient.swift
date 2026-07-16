@@ -148,6 +148,8 @@ nonisolated enum AutomationIntentResultFormatter {
             return summary.hasScreenRecording
                 ? "Screen Recording permission is allowed."
                 : "Screen Recording permission is needed."
+        case .guide(let summary):
+            return "Guide is \(summary.state) with \(summary.stepCount) steps."
         case .capabilities, .none?, nil:
             return "SnipSnipSnip automation finished."
         }
@@ -170,6 +172,9 @@ extension AutomationRequest {
             }
         case .repeatLastCapture:
             return true
+        case .guide(let command):
+            if case .start(.region) = command { return true }
+            return false
         case .status, .listPresets, .runPreset, .openDocument, .exportCurrent:
             return false
         }
@@ -210,6 +215,8 @@ extension AutomationCommand {
             return "openDocument(url=\(command.url.path))"
         case .exportCurrent(let command):
             return "exportCurrent(format=\(command.format.rawValue))"
+        case .guide(let command):
+            return "guide(\(String(describing: command)))"
         }
     }
 }
@@ -287,6 +294,8 @@ extension AutomationPayload {
             return "export(format=\(summary.format?.rawValue ?? "nil"), source=\(summary.source))"
         case .permissionStatus(let summary):
             return "permissionStatus(screen=\(summary.hasScreenRecording), accessibility=\(summary.hasAccessibility))"
+        case .guide(let summary):
+            return "guide(state=\(summary.state), steps=\(summary.stepCount), video=\(summary.sourceVideoEnabled))"
         case .none:
             return "none"
         }
