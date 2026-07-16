@@ -2125,6 +2125,43 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testSelectToolMovingTextCreatedAfterTypingWithArrowSelectedPreservesText() throws {
+        let arrow = Annotation.makeArrow(from: CGPoint(x: 100, y: 100), to: CGPoint(x: 250, y: 100))
+        let snapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 400, height: 240),
+            annotations: [arrow],
+            selectedAnnotationIDs: [arrow.id]
+        )
+        let controller = makeController(snapshot: snapshot, captureSize: CGSize(width: 400, height: 240))
+        let (canvas, overlay, window) = makeCanvasHarness(
+            controller: controller,
+            frame: CGRect(x: 0, y: 0, width: 400, height: 240)
+        )
+
+        controller.beginTextAnnotation(with: "Label")
+        let text = try XCTUnwrap(controller.selectedAnnotation)
+        let originalBounds = text.boundingRect
+        controller.activeTool = .select
+
+        let start = viewPoint(for: originalBounds.center, controller: controller)
+        let end = viewPoint(for: CGPoint(x: originalBounds.midX + 40, y: originalBounds.midY + 20), controller: controller)
+        let eventTarget = try XCTUnwrap(canvas.hitTest(start))
+        XCTAssertTrue(eventTarget === overlay)
+        sendMouseEvent(.leftMouseDown, at: start, to: eventTarget, in: window, eventNumber: 1)
+        sendMouseEvent(.leftMouseDragged, at: end, to: eventTarget, in: window, eventNumber: 2)
+        sendMouseEvent(.leftMouseUp, at: end, to: eventTarget, in: window, eventNumber: 3)
+
+        guard let movedText = controller.snapshot.annotations.first(where: { $0.id == text.id }),
+              case let .text(shape) = movedText.kind else {
+            return XCTFail("Expected the text annotation to remain after moving it")
+        }
+
+        XCTAssertEqual(shape.text, "Label")
+        XCTAssertGreaterThan(movedText.boundingRect.minX, originalBounds.minX)
+        XCTAssertGreaterThan(movedText.boundingRect.minY, originalBounds.minY)
+    }
+
+    @MainActor
     func testBackspaceWhileEditingNewTextAnnotationRemovesCharacterNotAnnotation() {
         let controller = makeController()
         let (_, overlay, window) = makeCanvasHarness(
