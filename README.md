@@ -1,6 +1,6 @@
 # SnipSnipSnip
 
-SnipSnipSnip is a local-first macOS screenshot, annotation, history, OCR, and screen recording app. SnipSnipSnip Pro adds advanced capture workflows, including scrolling capture, connected iPhone/iPad capture, and UI Map.
+SnipSnipSnip (Available in the Apple App Store) is a local-first macOS screenshot, annotation, history, OCR, and screen recording app. SnipSnipSnip Pro (Available in GitHub Releases) adds advanced capture workflows, including scrolling capture, connected iPhone/iPad capture, and UI Map.
 
 ## Features
 
