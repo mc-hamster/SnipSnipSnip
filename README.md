@@ -1,5 +1,34 @@
 # SnipSnipSnip
 
+**A free, open-source, local-first screenshot and screen-recording app for macOS.**
+
+Capture, annotate, redact, record, inspect, automate, and share without sending your work to a cloud service. SnipSnipSnip is built for developers, designers, QA teams, technical writers, educators, support teams, creators, and Mac power users who want capable capture tools without an account, subscription, watermark, tracking, or forced upload.
+
+[**Download free on the Mac App Store**](https://apps.apple.com/us/app/snipsnipsnip/id6761775175?mt=12) · [**Download free SnipSnipSnip Pro**](https://github.com/mc-hamster/SnipSnipSnip/releases/latest) · [Website](https://www.oontz.com/apps/snipsnipsnip/) · [Get support](https://www.oontz.com/contact/)
+
+## Choose An Edition
+
+Both editions are free and open source:
+
+- **SnipSnipSnip** is the Mac App Store build. It includes the complete everyday screenshot, annotation, OCR, archive, presentation, automation, clipboard-history, and screen-recording workflow.
+- **SnipSnipSnip Pro** is the direct-download GitHub build. It includes everything above, plus scrolling capture, trusted USB-connected iPhone/iPad capture, and UI Map structured screenshots. These advanced workflows are distributed separately because they use capabilities that are not available to the App Store edition.
+
+SnipSnipSnip requires **macOS 26 or later**. Screenshot capture requires Screen Recording permission. Accessibility is required only for Pro's scrolling capture and UI Map workflows, and microphone permission is required only when microphone narration is enabled.
+
+## Install
+
+### Mac App Store
+
+[Download SnipSnipSnip from the Mac App Store](https://apps.apple.com/us/app/snipsnipsnip/id6761775175?mt=12). It is free, with no subscription or in-app purchases.
+
+### Direct Download
+
+[Download the latest SnipSnipSnip Pro installer from GitHub Releases](https://github.com/mc-hamster/SnipSnipSnip/releases/latest). The installer is signed, notarized, and stapled for normal macOS installation.
+
+### Build From Source
+
+Clone this repository and open `SnipSnipSnip.xcodeproj` in Xcode. See [Build And Test](#build-and-test) for the test command and [FASTLANE.md](FASTLANE.md) for release tooling.
+
 ## Guide
 
 Guide is a first-class workflow beside Screenshot and Record. Choose a window, app, region, or display, then perform the task normally: clicks, double-clicks, scroll gestures, supported shortcuts, and manual captures become editable numbered steps with local captions and non-destructive privacy masks. The capture HUD supports pause/resume, Manual Step, Undo Last, deletion, Stop, and Stop & Export.
@@ -94,3 +123,18 @@ Run a focused profiling pass with:
 ```sh
 ./bin/profile-performance
 ```
+
+## Contributing
+
+Bug reports, feature ideas, documentation improvements, and code contributions are welcome. Please [open an issue](https://github.com/mc-hamster/SnipSnipSnip/issues) before beginning a large change so the approach can be discussed. Small, focused pull requests are easiest to review.
+
+If SnipSnipSnip helps you, please [star the repository](https://github.com/mc-hamster/SnipSnipSnip). Stars help other Mac users discover the project.
+
+## About
+
+SnipSnipSnip is an independent, MIT-licensed macOS project by [Jorge Miguel Casler](https://www.oontz.com/). It is designed around local ownership: captures, OCR, annotations, recording projects, archives, rendering, and exports remain on the Mac unless the user chooses to share them.
+
+- [Product website](https://www.oontz.com/apps/snipsnipsnip/)
+- [Releases](https://github.com/mc-hamster/SnipSnipSnip/releases)
+- [Support](https://www.oontz.com/contact/)
+- [MIT License](LICENSE)
