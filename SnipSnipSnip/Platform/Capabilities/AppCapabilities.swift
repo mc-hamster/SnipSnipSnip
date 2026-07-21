@@ -17,6 +17,7 @@ nonisolated enum AppCapability: String, CaseIterable, Hashable, Sendable {
     case uiMap
     case accessibilityAutomation
     case screenRecording
+    case guide
     case screenRuler
     case screenInspector
     case archive
@@ -93,6 +94,7 @@ nonisolated struct BuildTargetCapabilityProvider: AppCapabilityProvider {
         .automation,
         .privateCapture,
         .screenRecording,
+        .guide,
         .screenRuler,
         .screenInspector,
         .archive,

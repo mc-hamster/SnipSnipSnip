@@ -201,6 +201,73 @@ final class GeometrySupportTests: XCTestCase {
         XCTAssertEqual(sourceRect, CGRect(x: 440, y: 800, width: 40, height: 40))
     }
 
+    @MainActor
+    func testLiveDesktopPreviewStopsCapturingWhenCursorIsStationary() async {
+        let recorder = LivePreviewCaptureRecorder()
+        let display = DisplaySnapshot(
+            displayID: 1,
+            name: "Display",
+            frame: CGRect(x: 0, y: 0, width: 800, height: 600),
+            scale: 2
+        )
+        let source = LiveDesktopPreviewSource(
+            displays: [display],
+            initialFocusPoint: CGPoint(x: 200, y: 160),
+            capturePlatform: TestScreenCapturePlatform(imageProvider: { request in
+                recorder.append(request)
+                return makeSolidImage(
+                    width: request.configuration.width,
+                    height: request.configuration.height,
+                    color: PixelSample(red: 20, green: 40, blue: 60, alpha: 255)
+                )
+            })
+        )
+
+        source.start()
+        await waitForLivePreviewCaptureCount(1, recorder: recorder)
+        try? await Task.sleep(nanoseconds: 360_000_000)
+
+        XCTAssertEqual(recorder.requests.count, 1)
+        await source.stop()
+    }
+
+    @MainActor
+    func testLiveDesktopPreviewCoalescesRapidCursorMovementToLatestRegion() async {
+        let recorder = LivePreviewCaptureRecorder()
+        let display = DisplaySnapshot(
+            displayID: 1,
+            name: "Display",
+            frame: CGRect(x: 0, y: 0, width: 800, height: 600),
+            scale: 2
+        )
+        let source = LiveDesktopPreviewSource(
+            displays: [display],
+            initialFocusPoint: CGPoint(x: 100, y: 100),
+            capturePlatform: TestScreenCapturePlatform(imageProvider: { request in
+                recorder.append(request)
+                return makeSolidImage(
+                    width: request.configuration.width,
+                    height: request.configuration.height,
+                    color: PixelSample(red: 20, green: 40, blue: 60, alpha: 255)
+                )
+            })
+        )
+
+        source.start()
+        await waitForLivePreviewCaptureCount(1, recorder: recorder)
+
+        for coordinate in stride(from: CGFloat(140), through: 320, by: 20) {
+            source.updateFocus(displayID: 1, cursorGlobalPoint: CGPoint(x: coordinate, y: 220))
+        }
+
+        let expectedRect = CGRect(x: 310, y: 210, width: 20, height: 20)
+        await waitForLivePreviewFrame(source, displayID: 1, sourceRect: expectedRect)
+
+        XCTAssertLessThanOrEqual(recorder.requests.count, 3)
+        XCTAssertEqual(source.frame(for: 1)?.sourceGlobalRect, expectedRect)
+        await source.stop()
+    }
+
     func testCenteredCropRectKeepsRequestedAreaAroundPoint() {
         let crop = gscCenteredCropRect(
             around: CGPoint(x: 60, y: 40),
@@ -1048,4 +1115,45 @@ private func makeAutoCropFixtureImage(
         shouldInterpolate: false,
         intent: .defaultIntent
     )!
+}
+
+private final class LivePreviewCaptureRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedRequests: [ScreenCaptureRequest] = []
+
+    var requests: [ScreenCaptureRequest] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedRequests
+    }
+
+    func append(_ request: ScreenCaptureRequest) {
+        lock.lock()
+        storedRequests.append(request)
+        lock.unlock()
+    }
+}
+
+@MainActor
+private func waitForLivePreviewCaptureCount(
+    _ count: Int,
+    recorder: LivePreviewCaptureRecorder
+) async {
+    let deadline = DispatchTime.now().uptimeNanoseconds + 2_000_000_000
+    while recorder.requests.count < count, DispatchTime.now().uptimeNanoseconds < deadline {
+        try? await Task.sleep(nanoseconds: 20_000_000)
+    }
+}
+
+@MainActor
+private func waitForLivePreviewFrame(
+    _ source: LiveDesktopPreviewSource,
+    displayID: CGDirectDisplayID,
+    sourceRect: CGRect
+) async {
+    let deadline = DispatchTime.now().uptimeNanoseconds + 2_000_000_000
+    while source.frame(for: displayID)?.sourceGlobalRect != sourceRect,
+          DispatchTime.now().uptimeNanoseconds < deadline {
+        try? await Task.sleep(nanoseconds: 20_000_000)
+    }
 }

@@ -11,6 +11,7 @@ final class AppModel: ObservableObject {
     let documents: DocumentWorkflowModel
     let clipboard: ClipboardWorkflowModel
     let video: VideoWorkflowModel
+    let guide: GuideWorkflowModel
     let archive: ArchiveWorkflowModel
     let tools: ToolWorkflowModel
     let workflowCoordinator: AppWorkflowCoordinator
@@ -40,6 +41,7 @@ final class AppModel: ObservableObject {
         self.documents = composition.documents
         self.clipboard = composition.clipboard
         self.video = composition.video
+        self.guide = composition.guide
         self.archive = composition.archive
         self.tools = composition.tools
         self.automation = composition.automation

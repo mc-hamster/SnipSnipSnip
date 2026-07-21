@@ -508,7 +508,7 @@ extension AppModel {
         set { documents.pendingCaptureHistorySearchTask = newValue }
     }
 
-    var pendingRecoveryWriteTasks: [UUID: Task<Void, Never>] {
+    var pendingRecoveryWriteTasks: [UUID: Task<Bool, Never>] {
         get { documents.pendingRecoveryWriteTasks }
         set { documents.pendingRecoveryWriteTasks = newValue }
     }
@@ -576,7 +576,7 @@ extension AppModel {
     func waitForPendingRecoveryWriteTasks() async {
         let tasks = documents.pendingRecoveryWriteTasks.values
         for task in tasks {
-            await task.value
+            _ = await task.value
         }
     }
 }

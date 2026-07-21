@@ -368,6 +368,76 @@ struct HelpGuideView: View {
             ]
         ),
         HelpCategory(
+            title: "Guide",
+            articles: [
+                HelpArticle(
+                    id: "create-guide",
+                    title: "Create an editable Guide",
+                    summary: "Turn a workflow into polished step-by-step instructions and tutorials.",
+                    sections: [
+                        HelpArticleSection(
+                            title: "Capture a workflow",
+                            steps: [
+                                "Choose Guide from the main window, Capture menu, menu bar, or press Command-Shift-G.",
+                                "Choose what you want to make: an editable step-by-step Guide, or a Guide that also keeps full-motion video for a complete walkthrough or action highlights.",
+                                "If you keep video, choose whether it should be silent, use your microphone narration, include app audio, or record narration and app audio together. Guide derives the recording settings from that choice.",
+                                "Choose what you will walk through: one window, one app, an area you select, or everything on a display. Window and app Guides automatically follow the active source when it moves, resizes, or crosses onto a mixed-scale or rotated display. A Guide area stays on the display where the drag begins; the selector visibly clamps it at that display edge. Ordinary screenshot regions may still span displays. Display capture includes every visible app—even SnipSnipSnip itself when you are demonstrating it—while keeping the floating Guide controls out of the result. The last successful choice is preselected so you can confirm or change it before capture begins.",
+                                "Review the plain-language capture summary, or expand Fine-tune capture for optional video smoothness, pointer, desktop cleanup, on-device instruction, secure-field, and display menu-bar choices. Hover over any choice for a plain-language explanation; the defaults work well for most Guides.",
+                                "Work normally. One click, double-click, text selection, scroll burst, three-finger swipe, non-secure text-entry burst, supported keyboard shortcut, or Manual Step creates one step. Guide waits briefly after a swipe so a fullscreen transition can finish before it saves the step. Printable typing is captured even in custom and web editors that do not expose a standard macOS text value. When a non-secure focused field does expose its value, paste, dictation, and input-method edits are detected too. Text changes are grouped into one step after about 0.65 seconds without a change rather than creating a step per key.",
+                                "Use the floating HUD to pause, add a manual step, delete a recent step, stop, or discard. Its System Audio and Mic controls use the same live meters and switches as the recording controls; turn either source on or off for the active Guide while it is recording. The newest 20 step previews stay available in the HUD without making a long session progressively heavier; all earlier steps remain in the Guide. Hover a preview to see a larger version with its step number and captured instruction. When source video needs a moment to close safely, the HUD replaces the recording timer with the real finalization stage: stopping media, preparing the document, rendering the preview, or saving recovery. It does not invent a time estimate.",
+                                "Guide checks capture permissions and temporary storage during long sessions. If permission changes, the capture stream stops, or disk headroom becomes low, Guide pauses and explains the issue in the HUD. Restore the permission or free space, then choose Resume; completed steps and finalized video segments stay intact.",
+                                "Stop always ends capture. If no steps were recorded, it discards the empty Guide instead of opening the editor.",
+                                "Press Command-Shift-G again to stop and open the Guide editor."
+                            ]
+                        ),
+                        HelpArticleSection(
+                            title: "Why the permissions are needed",
+                            body: "Screen Recording provides local image and optional source-video frames. Accessibility observes actions and keyboard focus so Guide can create useful captions, group non-secure text entry, and mask secure fields. If either permission changes during capture, Guide pauses instead of silently dropping steps. After access is restored, Resume creates a fresh capture stream and continues the same Guide."
+                        ),
+                        HelpArticleSection(
+                            title: "Edit without production work",
+                            bullets: [
+                                "Reorder, search, duplicate, delete, restore, include, or exclude steps in the left pane.",
+                                "Edit captions, notes, event type, duration, marker placement with direct drag handles, appearance, reusable themes, logos, branding, and redactions without flattening the base image. Captions and notes appear together on each still step card in the preview and still-image, PDF, and Word exports.",
+                                "Guide Settings are separated at the top of the inspector and apply to every step in the current Guide. Use them to show or hide numbered step markers, click target highlights, screenshot shadows, branding, colors, and other shared styling.",
+                                "When numbered markers are enabled, the blue marker handle shows the step's actual number. Drag it to move the number, or drag the white target handle to point at the action.",
+                                "Use Advanced Edit when a step needs the full screenshot annotation toolset. The familiar screenshot-editing toolbar appears above the step; choose a tool, make the edits, then select Apply to Step. Cancel leaves the step unchanged.",
+                                "Save the editable project as .sssguide. Existing .sss and .sssvideo documents are unchanged."
+                            ]
+                        ),
+                        HelpArticleSection(
+                            title: "Export and share",
+                            bullets: [
+                                "Click Export to choose one or more formats. The sheet groups formats by purpose: Documents (PDF and Word Document), Animated sharing (GIF and APNG), Video (Full Motion, Action Highlights, and Step Slideshow MP4), and Files and packages (step images and ZIP). PDF and GIF are selected by default. PDF and Word exports use print-quality stills to keep captured interface text sharp. The format choices live in this export sheet, not the editor inspector.",
+                                "Choose whether to show the separate export-progress window. It reports the active format plus real step, segment, encoder, ZIP-entry, or byte progress. Work without a measurable fraction uses an activity indicator and a concrete stage such as Finalizing video. You can cancel a long or multi-format export while keeping completed top-level files. Each file is written to a temporary sibling and replaces the destination only after it finishes, so cancellation, an encoder failure, or app interruption does not overwrite an earlier good export. ZIP uses ZIP64 for large media and succeeds only when every selected nested format succeeds. Stale partial export files are cleaned up automatically.",
+                                "Full Motion preserves capture chronology. Other step-based exports use the current Guide order. Video click highlights appear only as a brief pulse at each click and obey the current Guide's Show click target highlights setting.",
+                                "Full Motion and Action Highlights require source video and include captured microphone or system audio. Slideshow MP4 remains available when source video is off.",
+                                "After export, share through the native share sheet, copy the exported files, or reveal them in Finder for Mail, Messages, Slack, Notion, and other standard destinations."
+                            ]
+                        ),
+                        HelpArticleSection(
+                            title: "Privacy and recovery",
+                            bullets: [
+                                "Guide does not upload screen images, source media, metadata, OCR, or captions.",
+                                "Secure text values are never retained and detected secure fields receive an editable solid mask by default.",
+                                "Private Guide skips archive, Clipboard History, OCR indexing, AI caption refinement, and content diagnostics.",
+                                "Completed steps and finalized media segments are autosaved incrementally so an interrupted capture can be recovered without rewriting every earlier image after each action.",
+                                "When you quit during a recoverable active Guide, choose Stop & Quit, Keep Recording in Background, or Cancel. Restart offers Stop & Restart or Cancel. The app does not show a second ordinary quit confirmation after this Guide decision. If the final checkpoint fails, the Guide opens and the app stays running instead of risking the session.",
+                                "Private Guide intentionally has no automatic recovery checkpoint. Quit and restart offer Open Guide & Stay, Discard and continue, or Cancel; the app never claims private work was saved for recovery.",
+                                "The exact captured crop is stored with each video segment, so cursor placement and video orientation remain correct on mixed-scale or rotated displays even if the display arrangement changes before export."
+                            ]
+                        )
+                    ],
+                    important: [
+                        "Guide groups ordinary typing in supported non-secure text fields into one step after a brief pause. It never stores the typed characters in the step caption, and secure input is ignored.",
+                        "Keeping full-motion video can use substantial storage during long sessions. The setup summary shows an estimate before capture starts; Guide checks headroom before and during capture, and a step-by-step Guide does not retain source video or audio.",
+                        "Two-hour sessions and Guides with hundreds of steps are supported. Pauses do not create empty media, step images use compressed backing stores, editor thumbnails load progressively for selected and visible rows, and exports render incrementally to keep memory use stable."
+                    ],
+                    relatedIDs: ["permissions", "copy-save-export", "privacy"]
+                )
+            ]
+        ),
+        HelpCategory(
             title: "Capture and record",
             articles: [
                 HelpArticle(

@@ -36,6 +36,7 @@ protocol DocumentAutomationPort: AnyObject {
     func requestAutomationEditorPresentation()
     func saveAutomationDocument(_ controller: EditorController, to url: URL) async -> Bool
     func floatAutomationReference()
+    func exportCurrentAutomationGuide(_ format: GuideAutomationExportFormat, request: AutomationRequest) async -> AutomationResultEnvelope
 }
 
 @MainActor
@@ -49,6 +50,7 @@ final class AutomationWorkflowModel: AutomationHost, AutomationOutputPort {
     private weak var capturePort: (any CaptureAutomationPort)?
     private weak var documentPort: (any DocumentAutomationPort)?
     private weak var clipboardPort: (any ClipboardAutomationPort)?
+    private weak var guidePort: (any GuideAutomationPort)?
     private let files: any FileSystemServicing
     private let workspace: any WorkspaceServicing
     private let pasteboard: any PasteboardServicing
@@ -58,6 +60,7 @@ final class AutomationWorkflowModel: AutomationHost, AutomationOutputPort {
         capturePort: any CaptureAutomationPort,
         documentPort: any DocumentAutomationPort,
         clipboardPort: any ClipboardAutomationPort,
+        guidePort: any GuideAutomationPort,
         files: any FileSystemServicing,
         workspace: any WorkspaceServicing,
         pasteboard: any PasteboardServicing
@@ -66,6 +69,7 @@ final class AutomationWorkflowModel: AutomationHost, AutomationOutputPort {
         self.capturePort = capturePort
         self.documentPort = documentPort
         self.clipboardPort = clipboardPort
+        self.guidePort = guidePort
         self.files = files
         self.workspace = workspace
         self.pasteboard = pasteboard
@@ -154,6 +158,19 @@ final class AutomationWorkflowModel: AutomationHost, AutomationOutputPort {
             return .failure(requestID: request.id, code: .internalError, message: "Automation workflow is not available.")
         }
         return await documentPort.exportCurrentAutomationDocument(command, request: request)
+    }
+
+    func guideAutomation(_ command: GuideAutomationCommand, request: AutomationRequest) async -> AutomationResultEnvelope {
+        if case .export(let format) = command {
+            guard let documentPort else {
+                return .failure(requestID: request.id, code: .internalError, message: "Guide export is unavailable.")
+            }
+            return await documentPort.exportCurrentAutomationGuide(format, request: request)
+        }
+        guard let guidePort else {
+            return .failure(requestID: request.id, code: .internalError, message: "Guide automation is unavailable.")
+        }
+        return await guidePort.guideAutomation(command, request: request)
     }
 
     func requestAutomationEditorPresentation() {

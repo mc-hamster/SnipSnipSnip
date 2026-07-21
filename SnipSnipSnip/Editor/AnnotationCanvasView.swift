@@ -451,6 +451,13 @@ private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate 
         true
     }
 
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        // A selected text annotation is drawn by this live editor overlay. When
+        // Select is active, let the canvas receive the gesture so the annotation
+        // can be moved or resized instead of NSTextView consuming the drag.
+        controller.activeTool == .select ? nil : super.hitTest(point)
+    }
+
     override func layout() {
         super.layout()
         if let context = editableTextContext {

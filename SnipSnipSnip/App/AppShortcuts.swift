@@ -21,7 +21,8 @@ enum AppShortcut {
             ShortcutCatalogEntry(keys: "Command-Shift-3", action: "Capture Fullscreen"),
             ShortcutCatalogEntry(keys: "Command-Shift-4", action: "Capture Frontmost Window"),
             ShortcutCatalogEntry(keys: "Command-Shift-R", action: "Repeat Last Capture"),
-            ShortcutCatalogEntry(keys: "Command-Shift-I", action: "Open Screen Inspector")
+            ShortcutCatalogEntry(keys: "Command-Shift-I", action: "Open Screen Inspector"),
+            ShortcutCatalogEntry(keys: "Command-Shift-G", action: "Start or stop Guide")
         ]),
         ShortcutCatalogSection(title: "Editor", entries: [
             ShortcutCatalogEntry(keys: "Command-Z", action: "Undo"),

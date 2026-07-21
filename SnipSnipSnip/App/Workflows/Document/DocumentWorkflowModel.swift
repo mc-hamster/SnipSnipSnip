@@ -1,7 +1,6 @@
 import AppKit
 import Combine
 import Foundation
-
 @MainActor
 struct DocumentWorkflowDependencies {
     let capabilities: AppCapabilitySnapshot
@@ -17,7 +16,6 @@ struct DocumentWorkflowDependencies {
     let floatingReferenceCoordinator: FloatingReferenceCoordinator
     let textRecognitionCoordinator: CaptureTextRecognitionCoordinator
 }
-
 @MainActor
 final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     var recoveryStore: DocumentRecoveryStore
@@ -31,8 +29,15 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
         }
     }
     @Published var videoEditorController: VideoEditorController?
+    @Published var guideEditorController: GuideEditorController?
     @Published var currentDocumentURL: URL?
     @Published var hasUnsavedChanges = false
+    @Published var guideExportIsActive = false
+    @Published var guideExportProgress: Double?
+    @Published var guideExportStatus: String?
+    @Published var guideExportCurrentFormat: GuideExportFormat?
+    @Published var guideExportCancellationRequested = false
+    @Published var lastGuideExportURLs: [URL] = []
     @Published var captureSearchQuery = ""
     @Published var allCaptureHistoryEntries: [DocumentHistoryEntry]
     @Published var historyEntries: [DocumentHistoryEntry] = []
@@ -53,7 +58,6 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
                 editorStartupToolPreference = sanitizedPreference
                 return
             }
-
             preferenceStore.saveStartupToolPreference(editorStartupToolPreference)
             applyStartupToolPreference(to: editorController)
         }
@@ -65,7 +69,6 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
                 editorCropOutsideOverlayAlpha = clampedAlpha
                 return
             }
-
             preferenceStore.saveCropOutsideOverlayAlpha(editorCropOutsideOverlayAlpha)
             editorController?.updateCropOutsideOverlayAlpha(editorCropOutsideOverlayAlpha)
         }
@@ -77,7 +80,6 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
                 editorOutOfCapturePatternSettings = sanitizedSettings
                 return
             }
-
             preferenceStore.saveOutOfCapturePatternSettings(editorOutOfCapturePatternSettings)
             editorController?.updateOutOfCapturePatternSettings(editorOutOfCapturePatternSettings)
         }
@@ -96,7 +98,11 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     var pendingAutosaveTask: Task<Void, Never>?
     var pendingRecoveryRefreshTask: Task<Void, Never>?
     var pendingCaptureHistorySearchTask: Task<Void, Never>?
-    var pendingRecoveryWriteTasks: [UUID: Task<Void, Never>] = [:]
+    var recoveryOperations = RecoveryOperationState()
+    var pendingGuideAutosaveTask: Task<Void, Never>?
+    var pendingGuideExportTask: Task<Void, Never>?
+    var pendingGuideExportWorkerTask: Task<GuideExportResult, Never>?
+    var activeGuideExportID: UUID?
     var recoveryRefreshGeneration = 0
     var captureHistorySearchGeneration = 0
     var currentRecoverySessionID: UUID?
@@ -108,11 +114,12 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     var editorPersistenceObserver: AnyCancellable?
     var editorWorkspaceModeObserver: AnyCancellable?
     var videoPersistenceObserver: AnyCancellable?
+    var guidePersistenceObserver: AnyCancellable?
+    var savedGuideProject: GuideProject?
     var pendingEditorAction: (() -> Void)?
     var editableRedactionSaveConfirmationHandler: @MainActor () -> EditableRedactionSaveDecision = DocumentWorkflowModel.presentEditableRedactionSaveConfirmation
     var editableRedactionSaveWarningAcknowledgedEditorIDs: Set<ObjectIdentifier> = []
     var hasShownPresentationExperimentalNoticeThisStartup = false
-
     init(
         dependencies: DocumentWorkflowDependencies,
         recoveryStore: DocumentRecoveryStore,
@@ -218,15 +225,16 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
         if let currentDocumentURL {
             return currentDocumentURL.lastPathComponent
         }
-
         if let controller = editorController {
             return ScreenshotFilenameTemplate(pattern: screenshotFilenameTemplate).resolvedFilename(for: controller.capture, formatExtension: "sss") + ".sss"
         }
-
         if let controller = videoEditorController {
             return controller.recording.defaultFilename + ".sssvideo"
         }
-
+        if let controller = guideEditorController {
+            let title = controller.project.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            return (title.isEmpty ? "Untitled Guide" : title) + ".sssguide"
+        }
         return "Untitled.sss"
     }
 
@@ -238,5 +246,4 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
             preferenceStore.savePresentationScenesRootURL(standardizedURL)
         }
     }
-
 }

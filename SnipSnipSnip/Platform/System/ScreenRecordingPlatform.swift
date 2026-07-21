@@ -1,6 +1,7 @@
 import AVFAudio
 import AudioToolbox
 import CoreMedia
+import CoreVideo
 import Foundation
 @preconcurrency import ScreenCaptureKit
 
@@ -29,6 +30,7 @@ nonisolated struct ScreenRecordingConfiguration: Equatable, Sendable {
     var excludesCurrentProcessAudio: Bool
     var sampleRate: Int
     var channelCount: Int
+    var hidesDesktopWindows: Bool
 
     init(
         width: Int,
@@ -42,7 +44,8 @@ nonisolated struct ScreenRecordingConfiguration: Equatable, Sendable {
         capturesMicrophone: Bool,
         excludesCurrentProcessAudio: Bool = true,
         sampleRate: Int = 48_000,
-        channelCount: Int = 2
+        channelCount: Int = 2,
+        hidesDesktopWindows: Bool = false
     ) {
         self.width = max(width, 1)
         self.height = max(height, 1)
@@ -56,6 +59,7 @@ nonisolated struct ScreenRecordingConfiguration: Equatable, Sendable {
         self.excludesCurrentProcessAudio = excludesCurrentProcessAudio
         self.sampleRate = sampleRate
         self.channelCount = channelCount
+        self.hidesDesktopWindows = hidesDesktopWindows
     }
 }
 
@@ -94,6 +98,10 @@ protocol ScreenRecordingPlatformEventSink: AnyObject {
     )
 }
 
+nonisolated protocol ScreenRecordingPlatformFrameSink: AnyObject, Sendable {
+    func recordingPlatformDidOutputFrame(_ frame: GuideBufferedFrame)
+}
+
 extension ScreenRecordingPlatformEventSink {
     func recordingPlatformSession(
         _ session: any ScreenRecordingPlatformSession,
@@ -105,11 +113,21 @@ extension ScreenRecordingPlatformEventSink {
 @MainActor
 protocol ScreenRecordingPlatformSession: AnyObject {
     func setEventSink(_ sink: (any ScreenRecordingPlatformEventSink)?)
+    func setFrameSink(_ sink: (any ScreenRecordingPlatformFrameSink)?)
     func startCapture() async throws
     func stopCapture() async throws
     func updateConfiguration(_ configuration: ScreenRecordingConfiguration) async throws
+    func updateTarget(_ target: ScreenRecordingTarget, configuration: ScreenRecordingConfiguration) async throws
     func startRecordingSegment(to outputURL: URL) throws -> ScreenRecordingSegmentToken
     func removeRecordingSegment(_ token: ScreenRecordingSegmentToken) throws
+}
+
+extension ScreenRecordingPlatformSession {
+    func setFrameSink(_ sink: (any ScreenRecordingPlatformFrameSink)?) {}
+
+    func updateTarget(_ target: ScreenRecordingTarget, configuration: ScreenRecordingConfiguration) async throws {
+        try await updateConfiguration(configuration)
+    }
 }
 
 protocol ScreenRecordingPlatform: Sendable {
@@ -152,7 +170,7 @@ struct LiveScreenRecordingPlatform: ScreenRecordingPlatform {
         target: ScreenRecordingTarget,
         configuration: ScreenRecordingConfiguration
     ) async throws -> any ScreenRecordingPlatformSession {
-        let content = try await rawShareableContent()
+        let content = try await rawShareableContent(excludingDesktopWindows: configuration.hidesDesktopWindows)
         let filter = try Self.contentFilter(for: target.source, content: content)
         if case .display(_, _, let includeMenuBar) = target.source {
             filter.includeMenuBar = includeMenuBar
@@ -164,9 +182,9 @@ struct LiveScreenRecordingPlatform: ScreenRecordingPlatform {
         )
     }
 
-    nonisolated private func rawShareableContent() async throws -> SCShareableContent {
+    nonisolated fileprivate func rawShareableContent(excludingDesktopWindows: Bool = false) async throws -> SCShareableContent {
         let result: ScreenRecordingShareableContentResult = try await withCheckedThrowingContinuation { continuation in
-            SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: true) { content, error in
+            SCShareableContent.getExcludingDesktopWindows(excludingDesktopWindows, onScreenWindowsOnly: true) { content, error in
                 if let error {
                     continuation.resume(throwing: error)
                     return
@@ -183,7 +201,7 @@ struct LiveScreenRecordingPlatform: ScreenRecordingPlatform {
         return result.content
     }
 
-    nonisolated private static func contentFilter(
+    nonisolated fileprivate static func contentFilter(
         for source: ScreenRecordingTargetSource,
         content: SCShareableContent
     ) throws -> SCContentFilter {
@@ -246,8 +264,9 @@ private final class LiveScreenRecordingPlatformSession: NSObject, ScreenRecordin
     nonisolated private static let sampleOutputQueue = DispatchQueue(label: "com.oontz.SnipSnipSnip.ScreenRecordingSampleOutput")
 
     private var stream: SCStream!
-    private let target: ScreenRecordingTarget
+    private var target: ScreenRecordingTarget
     private weak var eventSink: (any ScreenRecordingPlatformEventSink)?
+    private weak var frameSink: (any ScreenRecordingPlatformFrameSink)?
     private var outputByToken: [ScreenRecordingSegmentToken: SCRecordingOutput] = [:]
     private var tokenByOutputID: [ObjectIdentifier: ScreenRecordingSegmentToken] = [:]
     private var configuration: ScreenRecordingConfiguration
@@ -271,7 +290,14 @@ private final class LiveScreenRecordingPlatformSession: NSObject, ScreenRecordin
         eventSink = sink
     }
 
+    func setFrameSink(_ sink: (any ScreenRecordingPlatformFrameSink)?) {
+        frameSink = sink
+    }
+
     func startCapture() async throws {
+        if frameSink != nil {
+            try ensureSampleOutputsAttached(for: configuration)
+        }
         try await stream.startCapture()
     }
 
@@ -286,6 +312,26 @@ private final class LiveScreenRecordingPlatformSession: NSObject, ScreenRecordin
 
         try await stream.updateConfiguration(LiveScreenRecordingPlatform.streamConfiguration(from: configuration, target: target))
         try removeDisabledSampleOutputs(for: configuration)
+        self.configuration = configuration
+    }
+
+    func updateTarget(_ target: ScreenRecordingTarget, configuration: ScreenRecordingConfiguration) async throws {
+        if configuration.capturesAudio || configuration.capturesMicrophone {
+            try ensureSampleOutputsAttached(for: configuration)
+        }
+        let content = try await LiveScreenRecordingPlatform().rawShareableContent(
+            excludingDesktopWindows: configuration.hidesDesktopWindows
+        )
+        let filter = try LiveScreenRecordingPlatform.contentFilter(for: target.source, content: content)
+        if case .display(_, _, let includeMenuBar) = target.source {
+            filter.includeMenuBar = includeMenuBar
+        }
+        try await stream.updateContentFilter(filter)
+        try await stream.updateConfiguration(
+            LiveScreenRecordingPlatform.streamConfiguration(from: configuration, target: target)
+        )
+        try removeDisabledSampleOutputs(for: configuration)
+        self.target = target
         self.configuration = configuration
     }
 
@@ -314,7 +360,6 @@ private final class LiveScreenRecordingPlatformSession: NSObject, ScreenRecordin
         guard let output = outputByToken.removeValue(forKey: token) else {
             return
         }
-        tokenByOutputID[ObjectIdentifier(output)] = nil
         try stream.removeRecordingOutput(output)
     }
 
@@ -353,6 +398,7 @@ private final class LiveScreenRecordingPlatformSession: NSObject, ScreenRecordin
                   let token = self.tokenByOutputID[ObjectIdentifier(recordingOutput)] else {
                 return
             }
+            self.tokenByOutputID[ObjectIdentifier(recordingOutput)] = nil
             self.eventSink?.recordingPlatformSession(self, didFinishSegment: token)
         }
     }
@@ -363,6 +409,7 @@ private final class LiveScreenRecordingPlatformSession: NSObject, ScreenRecordin
                   let token = self.tokenByOutputID[ObjectIdentifier(recordingOutput)] else {
                 return
             }
+            self.tokenByOutputID[ObjectIdentifier(recordingOutput)] = nil
             self.eventSink?.recordingPlatformSession(self, segment: token, didFailWith: error)
         }
     }
@@ -377,6 +424,23 @@ private final class LiveScreenRecordingPlatformSession: NSObject, ScreenRecordin
     }
 
     nonisolated func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
+        if type == .screen,
+           sampleBuffer.isValid,
+           CMSampleBufferDataIsReady(sampleBuffer),
+           Self.isUsableScreenFrame(sampleBuffer),
+           let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
+            let frame = GuideBufferedFrame(
+                // Event selection also uses the host clock. Stream presentation timestamps do
+                // not share the CGEvent epoch in every capture configuration.
+                timestamp: CMClockGetTime(CMClockGetHostTimeClock()),
+                pixelBuffer: pixelBuffer
+            )
+            Task { @MainActor [weak self] in
+                self?.frameSink?.recordingPlatformDidOutputFrame(frame)
+            }
+            return
+        }
+
         guard let source = ScreenRecordingAudioSource(streamOutputType: type),
               let level = Self.audioLevel(from: sampleBuffer) else {
             // RecordingOutput handles persisted media. Keep this sink attached so the
@@ -392,6 +456,21 @@ private final class LiveScreenRecordingPlatformSession: NSObject, ScreenRecordin
 
             self.eventSink?.recordingPlatformSession(self, didUpdateAudioLevel: level, source: source)
         }
+    }
+
+    nonisolated private static func isUsableScreenFrame(_ sampleBuffer: CMSampleBuffer) -> Bool {
+        guard let attachmentArray = CMSampleBufferGetSampleAttachmentsArray(
+            sampleBuffer,
+            createIfNecessary: false
+        ) as? [[SCStreamFrameInfo: Any]],
+        let attachment = attachmentArray.first,
+        let rawStatus = attachment[.status] as? Int,
+        let status = SCFrameStatus(rawValue: rawStatus) else {
+            // Preserve compatibility if a future ScreenCaptureKit version omits
+            // the status attachment. Current versions include it on screen frames.
+            return true
+        }
+        return status == .complete || status == .started
     }
 
     private func shouldPublishAudioLevel(for source: ScreenRecordingAudioSource) -> Bool {

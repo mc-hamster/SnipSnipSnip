@@ -376,7 +376,7 @@ private struct RecordingControlOverlayView: View {
     }
 }
 
-private struct RecordingAudioSourceControl: View {
+struct RecordingAudioSourceControl: View {
     let title: String
     let level: Double
     let isEnabled: Bool
@@ -482,7 +482,7 @@ private struct RecordingAudioToggle: View {
     }
 }
 
-private struct RecordingControlButtonStyle: ButtonStyle {
+struct RecordingControlButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
     let tint: Color
     var isProminent = false

@@ -8,12 +8,22 @@ protocol DocumentPanelPresenting {
     func selectImageToImport() -> URL?
     func selectPresentationScenesRoot(initialDirectory: URL) -> URL?
     func selectSaveDestination(suggestedFilename: String, contentType: UTType) async -> URL?
+    func selectExportDirectory() -> URL?
+    func copyExportedFiles(_ urls: [URL])
+    func shareExportedFiles(_ urls: [URL])
+}
+
+extension DocumentPanelPresenting {
+    func selectExportDirectory() -> URL? { nil }
+    func copyExportedFiles(_ urls: [URL]) {}
+    func shareExportedFiles(_ urls: [URL]) {}
 }
 
 @MainActor
 enum DocumentWindowContentKind {
     case screenshot
     case video
+    case guide
 }
 
 @MainActor

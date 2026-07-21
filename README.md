@@ -1,5 +1,11 @@
 # SnipSnipSnip
 
+## Guide
+
+Guide is a first-class workflow beside Screenshot and Record. Choose a window, app, region, or display, then perform the task normally: clicks, double-clicks, scroll gestures, supported shortcuts, and manual captures become editable numbered steps with local captions and non-destructive privacy masks. The capture HUD supports pause/resume, Manual Step, Undo Last, deletion, Stop, and Stop & Export.
+
+Guide projects save as editable `.sssguide` packages without changing `.sss` screenshot or `.sssvideo` recording compatibility. Exports include PDF, GIF, APNG, step images, ZIP/Markdown, Full Motion MP4, Action Highlights MP4, and Step Slideshow MP4. Source video defaults on but can be disabled; all processing stays on the Mac and requires no account. See [the format specification](Docs/sssguide-format.md).
+
 SnipSnipSnip is a local-first macOS screenshot, annotation, history, OCR, and screen recording app. SnipSnipSnip Pro adds advanced capture workflows, including scrolling capture, connected iPhone/iPad capture, and UI Map.
 
 ## Features

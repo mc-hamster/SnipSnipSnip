@@ -3,6 +3,7 @@ import SwiftUI
 
 private enum OnboardingStep: Int, CaseIterable, Identifiable {
     case welcome
+    case guide
     case uiMap
     case startup
     case clipboard
@@ -23,6 +24,8 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
             return "Welcome"
         case .permissions:
             return "Permissions"
+        case .guide:
+            return "Guide"
         case .uiMap:
             return "UI Map"
         case .startup:
@@ -52,6 +55,8 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
             }
 
             return "Set up capture pixels, live window thumbnails, and recording with one-time macOS permissions."
+        case .guide:
+            return "Turn normal actions into editable, polished instructions—without uploading your screen."
         case .uiMap:
             return "Choose whether screenshots save visible interface metadata."
         case .startup:
@@ -69,6 +74,8 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
             return .teal
         case .permissions:
             return .orange
+        case .guide:
+            return .cyan
         case .uiMap:
             return .blue
         case .startup:
@@ -86,6 +93,8 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
             return "sparkles"
         case .permissions:
             return "hand.raised.fill"
+        case .guide:
+            return "list.number"
         case .uiMap:
             return "rectangle.3.group"
         case .startup:
@@ -137,6 +146,7 @@ struct OnboardingView: View {
     @ObservedObject var capture: CaptureWorkflowModel
     @ObservedObject var permissions: PermissionWorkflowModel
     @ObservedObject var clipboard: ClipboardWorkflowModel
+    @ObservedObject var guide: GuideWorkflowModel
     private let capabilities: AppCapabilitySnapshot
     private let skipOnboardingAction: () -> Void
     private let completeOnboardingAction: () -> Void
@@ -153,6 +163,7 @@ struct OnboardingView: View {
         capture: CaptureWorkflowModel,
         permissions: PermissionWorkflowModel,
         clipboard: ClipboardWorkflowModel,
+        guide: GuideWorkflowModel,
         capabilities: AppCapabilitySnapshot,
         skipOnboarding: @escaping () -> Void,
         completeOnboarding: @escaping () -> Void
@@ -161,6 +172,7 @@ struct OnboardingView: View {
         self.capture = capture
         self.permissions = permissions
         self.clipboard = clipboard
+        self.guide = guide
         self.capabilities = capabilities
         self.skipOnboardingAction = skipOnboarding
         self.completeOnboardingAction = completeOnboarding
@@ -408,6 +420,8 @@ struct OnboardingView: View {
             welcomeStep(metrics: metrics)
         case .permissions:
             permissionsStep(metrics: metrics)
+        case .guide:
+            guideStep(metrics: metrics)
         case .uiMap:
             uiMapStep(metrics: metrics)
         case .startup:
@@ -509,6 +523,56 @@ struct OnboardingView: View {
                 .foregroundStyle(.white.opacity(0.72))
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private func guideStep(metrics: OnboardingLayoutMetrics) -> some View {
+        VStack(alignment: .leading, spacing: metrics.cardSpacing) {
+            featurePair(metrics: metrics) {
+                onboardingFeatureCard(
+                    title: "Work Normally",
+                    detail: "Each click, double-click, scroll, three-finger swipe, supported shortcut, or Manual Step becomes one editable instruction.",
+                    systemImage: "cursorarrow.click.2",
+                    metrics: metrics
+                )
+                onboardingFeatureCard(
+                    title: "Menus Stay Visible",
+                    detail: "Guide keeps the frame from just before the action, so menus and popovers that close remain in the step.",
+                    systemImage: "menucard",
+                    metrics: metrics
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle("Keep full-motion source video", isOn: guideOnboardingCaptureBinding(\.sourceVideoEnabled))
+                    .toggleStyle(.switch)
+                    .controlSize(.large)
+                Toggle("Refine captions on device", isOn: guideOnboardingCaptureBinding(\.aiCaptionRefinement))
+                    .toggleStyle(.switch)
+                Toggle("Mask secure fields automatically", isOn: guideOnboardingCaptureBinding(\.masksSecureFields))
+                    .toggleStyle(.switch)
+                Text("Source video is on by default so Full Motion and Action Highlights can be exported later. PDF and GIF are the one-click export defaults. Everything stays local, and Private Guide skips OCR and caption refinement.")
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.75))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(metrics.contentPadding)
+            .background(Color.cyan.opacity(0.08), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.75)
+            }
+        }
+    }
+
+    private func guideOnboardingCaptureBinding<Value>(_ keyPath: WritableKeyPath<GuideCapturePreferences, Value>) -> Binding<Value> {
+        Binding(
+            get: { guide.capturePreferences[keyPath: keyPath] },
+            set: { value in
+                var preferences = guide.capturePreferences
+                preferences[keyPath: keyPath] = value
+                guide.capturePreferences = preferences
+            }
+        )
     }
 
     private func uiMapStep(metrics: OnboardingLayoutMetrics) -> some View {

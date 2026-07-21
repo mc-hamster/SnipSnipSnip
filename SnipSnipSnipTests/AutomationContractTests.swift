@@ -488,7 +488,13 @@ final class AutomationContractTests: XCTestCase {
             "09-capture-fixed-region-to-editor",
             "11-capture-interactive-region-to-editor",
             "12-capture-interactive-window-to-clipboard",
-            "13-repeat-last-to-editor"
+            "13-repeat-last-to-editor",
+            "17-start-guide-window",
+            "18-pause-guide",
+            "19-resume-guide",
+            "20-add-guide-step",
+            "21-stop-guide",
+            "22-export-guide-pdf"
         ])
         XCTAssertTrue(urlBasenames.isSubset(of: cliBasenames))
     }

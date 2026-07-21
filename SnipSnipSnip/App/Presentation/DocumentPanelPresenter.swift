@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 struct LiveDocumentPanelPresenter: DocumentPanelPresenting {
     func selectDocumentToOpen() -> URL? {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.snipSnipDocument, .snipSnipVideoDocument]
+        panel.allowedContentTypes = [.snipSnipDocument, .snipSnipVideoDocument, .snipSnipGuideDocument]
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
@@ -58,5 +58,25 @@ struct LiveDocumentPanelPresenter: DocumentPanelPresenting {
         panel.nameFieldStringValue = suggestedFilename
 
         return await ImageExporter.presentSavePanel(panel)
+    }
+
+    func selectExportDirectory() -> URL? {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Export Guide"
+        return panel.runModal() == .OK ? panel.url : nil
+    }
+
+    func copyExportedFiles(_ urls: [URL]) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.writeObjects(urls as [NSURL])
+    }
+
+    func shareExportedFiles(_ urls: [URL]) {
+        guard let view = NSApp.keyWindow?.contentView ?? NSApp.mainWindow?.contentView else { return }
+        NSSharingServicePicker(items: urls).show(relativeTo: view.bounds, of: view, preferredEdge: .minY)
     }
 }

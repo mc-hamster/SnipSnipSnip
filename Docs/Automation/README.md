@@ -87,7 +87,28 @@ snipsnipsnipctl capture window --interactive --copy
 snipsnipsnipctl repeat-last --json --open-editor
 snipsnipsnipctl export current --output ~/Desktop/current.png --format png --overwrite
 snipsnipsnipctl open --file ~/Desktop/example.sss --output ~/Desktop/example.png --format png --overwrite
+snipsnipsnipctl guide start --target window
+snipsnipsnipctl guide pause
+snipsnipsnipctl guide resume
+snipsnipsnipctl guide add-step
+snipsnipsnipctl guide stop
+snipsnipsnipctl guide export --format pdf
 ```
+
+### Guide Commands
+
+Guide uses the same contract on every automation surface:
+
+- `guide start --target window|app|region|display`
+- `guide pause`, `guide resume`, `guide add-step`, and `guide stop`
+- `guide export --format pdf|gif|apng|mp4-full|mp4-highlights|mp4-slideshow|images|zip`
+- URL routes mirror these at `snipsnipsnip://v1/guide/start`, `/pause`, `/resume`, `/add-step`, `/stop`, and `/export`.
+- AppleScript uses `guide given action:"…"`, with optional `target`, `format`, and `privateCapture` parameters.
+- App Intents exposes the same actions through Control SnipSnipSnip Guide.
+
+Guide start requires Screen Recording and Accessibility. Region start is interactive and the selected Guide region is constrained to the display where the drag begins; cross-display Guide regions are rejected, while ordinary screenshot-region capture is unchanged. Window and app Guide targets follow source geometry changes automatically. URL exports are trigger-oriented and use the default Downloads destination. Explicit errors include `noActiveGuide`, `guideAlreadyActive`, `guideHasNoSteps`, `guideSourceMediaUnavailable`, and `guideFinalizationFailed`.
+
+Private Guide skips archive/search/indexing and background OCR or AI refinement. Automation never receives screenshot, OCR, caption, window-title, or path content in diagnostics.
 
 Supported flags:
 

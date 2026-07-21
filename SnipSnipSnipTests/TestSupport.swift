@@ -173,6 +173,7 @@ final class TestScreenRecordingPlatformSession: ScreenRecordingPlatformSession {
     private weak var eventSink: (any ScreenRecordingPlatformEventSink)?
     private(set) var isCapturing = false
     private(set) var configurationUpdates: [ScreenRecordingConfiguration] = []
+    private(set) var targetUpdates: [ScreenRecordingTarget] = []
     private(set) var segmentOutputURLs: [ScreenRecordingSegmentToken: URL] = [:]
 
     func setEventSink(_ sink: (any ScreenRecordingPlatformEventSink)?) {
@@ -188,6 +189,11 @@ final class TestScreenRecordingPlatformSession: ScreenRecordingPlatformSession {
     }
 
     func updateConfiguration(_ configuration: ScreenRecordingConfiguration) async throws {
+        configurationUpdates.append(configuration)
+    }
+
+    func updateTarget(_ target: ScreenRecordingTarget, configuration: ScreenRecordingConfiguration) async throws {
+        targetUpdates.append(target)
         configurationUpdates.append(configuration)
     }
 
@@ -207,6 +213,11 @@ final class TestScreenRecordingPlatformSession: ScreenRecordingPlatformSession {
 
     func fail(_ token: ScreenRecordingSegmentToken, error: Error) {
         eventSink?.recordingPlatformSession(self, segment: token, didFailWith: error)
+    }
+
+    func stopWithError(_ error: Error) {
+        isCapturing = false
+        eventSink?.recordingPlatformSession(self, didStopWith: error)
     }
 }
 

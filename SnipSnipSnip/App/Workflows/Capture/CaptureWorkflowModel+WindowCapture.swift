@@ -66,7 +66,8 @@ extension CaptureWorkflowModel {
 
         Task {
             await performCapture(request: .window(window), minimizeAppWindow: true) {
-                try await captureService.captureWindow(window)
+                let resolvedWindow = try await captureService.resolveWindowTarget(window)
+                return try await captureService.captureWindow(resolvedWindow)
             }
         }
     }
@@ -180,7 +181,7 @@ extension CaptureWorkflowModel {
             defer { isWorking = false }
 
             do {
-                let windows = try await captureService.listWindows(includeThumbnails: true)
+                let windows = try await captureService.listWindows(includeThumbnails: false)
                 guard let resolvedWindow = gscStrictSavedWindowMatch(for: savedWindow, in: windows) else {
                     isWorking = false
                     presentWindowReplacementPicker(forPresetID: presetID)
@@ -189,7 +190,8 @@ extension CaptureWorkflowModel {
 
                 isWorking = false
                 await performCapture(request: .window(resolvedWindow), minimizeAppWindow: true, runOptions: options) {
-                    try await captureService.captureWindow(resolvedWindow)
+                    let currentWindow = try await captureService.resolveWindowTarget(resolvedWindow)
+                    return try await captureService.captureWindow(currentWindow)
                 }
             } catch {
                 present(error)

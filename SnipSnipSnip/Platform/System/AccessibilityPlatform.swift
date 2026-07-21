@@ -66,6 +66,17 @@ protocol AccessibilityPlatform: Sendable {
     nonisolated func wait(seconds: TimeInterval)
 }
 
+extension AccessibilityPlatform {
+    /// Returns the current keyboard focus when the platform exposes it. Keeping
+    /// this on the abstraction lets workflows reason about typed input without
+    /// guessing from the pointer location.
+    nonisolated func focusedElement() -> AccessibilityElementHandle? {
+        let result = copyAttribute("AXFocusedUIElement", from: systemWideElement())
+        guard result.status == .success else { return nil }
+        return result.value as? AccessibilityElementHandle
+    }
+}
+
 struct LiveAccessibilityPlatform: AccessibilityPlatform {
     nonisolated func isProcessTrusted() -> Bool {
         AXIsProcessTrusted()

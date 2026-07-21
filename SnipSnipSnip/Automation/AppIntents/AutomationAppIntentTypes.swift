@@ -3,6 +3,41 @@ import CoreGraphics
 import Foundation
 import OSLog
 
+nonisolated enum AutomationIntentGuideAction: String, AppEnum {
+    case startWindow, startApp, startRegion, startDisplay
+    case pause, resume, addStep, stop
+    case exportPDF, exportGIF, exportAPNG, exportFullMotion, exportHighlights, exportSlideshow, exportImages, exportZIP
+
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Guide Action"
+    static let caseDisplayRepresentations: [AutomationIntentGuideAction: DisplayRepresentation] = [
+        .startWindow: "Start · Window", .startApp: "Start · App", .startRegion: "Start · Region", .startDisplay: "Start · Display",
+        .pause: "Pause", .resume: "Resume", .addStep: "Add Manual Step", .stop: "Stop",
+        .exportPDF: "Export PDF", .exportGIF: "Export GIF", .exportAPNG: "Export APNG", .exportFullMotion: "Export Full Motion MP4",
+        .exportHighlights: "Export Action Highlights MP4", .exportSlideshow: "Export Slideshow MP4", .exportImages: "Export Images", .exportZIP: "Export ZIP"
+    ]
+
+    var command: GuideAutomationCommand {
+        switch self {
+        case .startWindow: .start(.window)
+        case .startApp: .start(.app)
+        case .startRegion: .start(.region)
+        case .startDisplay: .start(.display)
+        case .pause: .pause
+        case .resume: .resume
+        case .addStep: .addStep
+        case .stop: .stop
+        case .exportPDF: .export(.pdf)
+        case .exportGIF: .export(.gif)
+        case .exportAPNG: .export(.apng)
+        case .exportFullMotion: .export(.fullMotionMP4)
+        case .exportHighlights: .export(.highlightMP4)
+        case .exportSlideshow: .export(.slideshowMP4)
+        case .exportImages: .export(.images)
+        case .exportZIP: .export(.zip)
+        }
+    }
+}
+
 nonisolated enum AutomationIntentOutputDestination: String, AppEnum {
     case openEditor
     case clipboard

@@ -39,6 +39,8 @@ nonisolated enum AutomationValidation {
                 return AutomationError(code: .invalidRequest, message: "Export current screenshot supports PNG, JPEG, and PDF. Use save editable document output for .sss.")
             }
             return validate(output: request.output)
+        case .guide:
+            return validate(output: request.output)
         }
     }
 

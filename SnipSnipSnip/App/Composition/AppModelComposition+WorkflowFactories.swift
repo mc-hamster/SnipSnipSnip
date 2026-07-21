@@ -69,7 +69,7 @@ extension AppModelComposition {
             dependencies: ClipboardWorkflowDependencies(
                 systemServices: context.environment.systemServices,
                 ignoredAppPresenter: LiveClipboardIgnoredAppPresenter(),
-                managerPresenter: LiveClipboardManagerPresenter()
+                managerPresenter: LiveClipboardManagerPresenter(workspace: context.environment.systemServices.workspace)
             ),
             historyStore: context.clipboardHistoryStore,
             monitor: clipboardMonitor,
@@ -96,6 +96,26 @@ extension AppModelComposition {
             ),
             recordingService: context.overrides.screenRecordingService ?? context.environment.makeScreenRecordingService(),
             preferenceStore: context.preferenceStores.video
+        )
+    }
+
+    static func makeGuideWorkflow(
+        context: AppModelCompositionContext,
+        lifecycle: AppLifecycleModel,
+        capture: CaptureWorkflowModel,
+        permissions: PermissionWorkflowModel,
+        video: VideoWorkflowModel
+    ) -> GuideWorkflowModel {
+        GuideWorkflowModel(
+            dependencies: GuideWorkflowDependencies(
+                capabilities: context.environment.capabilities,
+                systemServices: context.environment.systemServices,
+                permissions: permissions,
+                lifecycle: lifecycle,
+                capture: capture,
+                video: video
+            ),
+            preferenceStore: context.preferenceStores.guide
         )
     }
 

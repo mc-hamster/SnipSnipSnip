@@ -97,7 +97,7 @@ extension DocumentWorkflowModel {
             editorPersistenceObserver = nil
             editorWorkspaceModeObserver = nil
 
-            if videoEditorController == nil {
+            if videoEditorController == nil && guideEditorController == nil {
                 resetEditorSessionState()
             }
 
@@ -207,12 +207,15 @@ extension DocumentWorkflowModel {
         pendingRecoveryRefreshTask = nil
         pendingCaptureHistorySearchTask?.cancel()
         pendingCaptureHistorySearchTask = nil
-        pendingRecoveryWriteTasks.values.forEach { $0.cancel() }
-        pendingRecoveryWriteTasks.removeAll()
+        for (taskID, task) in pendingRecoveryWriteTasks
+        where !recoveryOperationIDsRequiredForConsistency.contains(taskID) {
+            task.cancel()
+        }
         recoveryRefreshGeneration += 1
         currentRecoverySessionID = nil
         historyEntries = []
         lastAutosavedState = nil
+        lastEnqueuedRecoveryState = nil
         savedEditorAutosaveState = nil
         currentDocumentURL = nil
         savedDocumentSession = nil
@@ -284,6 +287,8 @@ extension DocumentWorkflowModel {
     ) {
         let previousTemporaryVideoURL = currentOwnedTemporaryVideoSourceURL(replacingWith: nil)
         videoEditorController = nil
+        guideEditorController = nil
+        savedGuideProject = nil
         cleanupTemporaryVideoSourceIfNeeded(previousTemporaryVideoURL)
         savedVideoSession = nil
         currentDocumentURL = documentURL
@@ -318,6 +323,8 @@ extension DocumentWorkflowModel {
         clearCurrentRecoveryPendingState()
         editorController = nil
         videoEditorController = nil
+        guideEditorController = nil
+        savedGuideProject = nil
         savedVideoSession = nil
         cleanupTemporaryVideoSourceIfNeeded(previousTemporaryVideoURL)
     }
@@ -337,7 +344,7 @@ extension DocumentWorkflowModel {
     }
 
     func performAfterHandlingUnsavedChanges(_ action: @escaping () -> Void) {
-        guard (editorController != nil || videoEditorController != nil), hasUnsavedChanges else {
+        guard (editorController != nil || videoEditorController != nil || guideEditorController != nil), hasUnsavedChanges else {
             action()
             return
         }
@@ -381,12 +388,18 @@ extension DocumentWorkflowModel {
             return
         }
 
+        if let controller = guideEditorController {
+            hasUnsavedChanges = currentDocumentURL == nil || controller.project != savedGuideProject
+            syncMainWindowDocumentState()
+            return
+        }
+
         hasUnsavedChanges = false
         syncMainWindowDocumentState()
     }
 
     func syncMainWindowDocumentState() {
-        let title = editorController == nil && videoEditorController == nil ? AppBranding.displayName : currentDocumentFilename
+        let title = editorController == nil && videoEditorController == nil && guideEditorController == nil ? AppBranding.displayName : currentDocumentFilename
         dependencies.windowPresenter.syncMainWindowDocumentState(
             documentURL: currentDocumentURL,
             hasUnsavedChanges: hasUnsavedChanges,
@@ -403,6 +416,11 @@ extension DocumentWorkflowModel {
         } else if let videoController = videoEditorController {
             imagePixelSize = videoController.recording.bounds.size
             contentKind = .video
+        } else if let guideController = guideEditorController,
+                  let step = guideController.project.steps.first,
+                  let image = guideController.stepImages[step.id] {
+            imagePixelSize = CGSize(width: image.width, height: image.height)
+            contentKind = .guide
         } else {
             return
         }
@@ -474,6 +492,8 @@ extension DocumentWorkflowModel {
         let previousTemporaryVideoURL = currentOwnedTemporaryVideoSourceURL(replacingWith: controller.recording.sourceURL)
         clearCurrentRecoveryPendingState()
         editorController = nil
+        guideEditorController = nil
+        savedGuideProject = nil
         currentDocumentURL = documentURL
         savedVideoSession = savedSession
         videoEditorController = controller
@@ -490,7 +510,7 @@ extension DocumentWorkflowModel {
         guard let videoEditorController else {
             videoPersistenceObserver = nil
 
-            if editorController == nil {
+            if editorController == nil && guideEditorController == nil {
                 resetEditorSessionState()
             }
 
@@ -532,6 +552,9 @@ extension DocumentWorkflowModel {
     }
 
     private func compatibilityStatus(forDocumentAt url: URL) -> PackageCompatibilityStatus {
+        if url.pathExtension.lowercased() == "sssguide" {
+            return SSSGuideDocumentPackage.compatibilityStatus(at: url, files: systemServices.files)
+        }
         if url.pathExtension.lowercased() == "sssvideo" {
             return SSSVideoDocumentPackage.compatibilityStatus(at: url, files: systemServices.files)
         }

@@ -56,6 +56,7 @@ protocol CoordinatorCapturePort: AnyObject {
 protocol CoordinatorDocumentPort: AnyObject {
     var editorController: EditorController? { get }
     var videoEditorController: VideoEditorController? { get }
+    var guideEditorController: GuideEditorController? { get }
     var currentRecoverySessionID: UUID? { get }
 
     func resetDocumentPreferencesToDefaults()
@@ -68,6 +69,8 @@ protocol CoordinatorDocumentPort: AnyObject {
     ) async throws -> URL
     func cancelPendingAutoCopy()
     func installCapturedRecording(_ recording: CapturedVideoRecording)
+    func installCapturedGuide(_ document: EditableGuideDocument)
+    func exportCurrentGuide()
     func refreshHistoryEntries()
     func syncMainWindowDocumentState()
     func resizeMainWindowForEditorContentIfNeeded(animated: Bool)

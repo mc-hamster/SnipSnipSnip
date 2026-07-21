@@ -67,6 +67,13 @@ struct SupportDiagnosticsSnapshot {
     let videoError: String?
     let launchAtLoginStatus: String
     let workingMessage: String?
+    let guideState: String
+    let guideStepCount: Int
+    let guideSourceKind: String?
+    let guideSourceVideoEnabled: Bool
+    let guideStorageEstimateMB: Int
+    let guideLastFailureCategory: String?
+    let guideExporterStatus: String
 
     static func make(
         capabilities: AppCapabilitySnapshot,
@@ -78,6 +85,7 @@ struct SupportDiagnosticsSnapshot {
         documents: DocumentWorkflowModel,
         clipboard: ClipboardWorkflowModel,
         video: VideoWorkflowModel,
+        guide: GuideWorkflowModel? = nil,
         archive: ArchiveWorkflowModel
     ) -> SupportDiagnosticsSnapshot {
         let permissionStatus = permissionWorkflow.permissionStatus
@@ -117,7 +125,14 @@ struct SupportDiagnosticsSnapshot {
             editorError: editorController?.errorMessage,
             videoError: videoEditorController?.errorMessage,
             launchAtLoginStatus: lifecycle.launchAtLoginStatus.stateLabel,
-            workingMessage: capture.isWorking ? lifecycle.workingMessage : nil
+            workingMessage: capture.isWorking ? lifecycle.workingMessage : nil,
+            guideState: guide?.captureCoordinator.state.rawValue ?? "idle",
+            guideStepCount: guide?.stepCount ?? 0,
+            guideSourceKind: guide?.isActive == true ? guide?.selectedSourceKind : nil,
+            guideSourceVideoEnabled: guide?.capturePreferences.sourceVideoEnabled ?? false,
+            guideStorageEstimateMB: (guide?.storageEstimateMinutes ?? 0) * 18,
+            guideLastFailureCategory: nil,
+            guideExporterStatus: documents.guideEditorController == nil ? "idle" : "ready"
         )
     }
 }
@@ -200,6 +215,16 @@ struct SupportDiagnostics: Codable, Equatable {
         let workingMessage: String?
     }
 
+    struct GuideInfo: Codable, Equatable {
+        let state: String
+        let stepCount: Int
+        let sourceKind: String?
+        let sourceVideoEnabled: Bool
+        let storageEstimateMB: Int
+        let lastCaptureFailureCategory: String?
+        let exporterStatus: String
+    }
+
     let generatedAt: Date
     let app: AppInfo
     let system: SystemInfo
@@ -210,6 +235,7 @@ struct SupportDiagnostics: Codable, Equatable {
     let editor: EditorInfo
     let connectedDevice: ConnectedDeviceInfo
     let recentStatus: RecentStatusInfo
+    let guide: GuideInfo
 
     func jsonData() throws -> Data {
         let encoder = JSONEncoder()
@@ -232,7 +258,16 @@ enum SupportDiagnosticsBuilder {
             storage: storageInfo(from: snapshot),
             editor: editorInfo(from: snapshot),
             connectedDevice: connectedDeviceInfo(from: snapshot),
-            recentStatus: recentStatusInfo(from: snapshot)
+            recentStatus: recentStatusInfo(from: snapshot),
+            guide: SupportDiagnostics.GuideInfo(
+                state: snapshot.guideState,
+                stepCount: snapshot.guideStepCount,
+                sourceKind: snapshot.guideSourceKind,
+                sourceVideoEnabled: snapshot.guideSourceVideoEnabled,
+                storageEstimateMB: snapshot.guideStorageEstimateMB,
+                lastCaptureFailureCategory: snapshot.guideLastFailureCategory,
+                exporterStatus: snapshot.guideExporterStatus
+            )
         )
     }
 

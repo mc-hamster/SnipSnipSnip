@@ -239,8 +239,7 @@ enum ImageExporter {
 
                 try Task.checkCancellation()
                 if mode == .stagedReplacement {
-                    try? FileManager.default.removeItem(at: url)
-                    try FileManager.default.moveItem(at: outputURL, to: url)
+                    try installStagedFile(at: outputURL, replacing: url)
                 }
             } catch {
                 try? FileManager.default.removeItem(at: outputURL)
@@ -374,8 +373,23 @@ enum ImageExporter {
     }
 
     nonisolated private static func stagingURL(for destinationURL: URL) -> URL {
-        FileManager.default.temporaryDirectory
-            .appendingPathComponent("\(destinationURL.lastPathComponent).\(UUID().uuidString).tmp")
+        destinationURL.deletingLastPathComponent()
+            .appendingPathComponent(".\(destinationURL.lastPathComponent).\(UUID().uuidString).tmp")
+    }
+
+    nonisolated private static func installStagedFile(at stagedURL: URL, replacing destinationURL: URL) throws {
+        let fileManager = FileManager.default
+
+        if fileManager.fileExists(atPath: destinationURL.path) {
+            _ = try fileManager.replaceItemAt(
+                destinationURL,
+                withItemAt: stagedURL,
+                backupItemName: nil,
+                options: []
+            )
+        } else {
+            try fileManager.moveItem(at: stagedURL, to: destinationURL)
+        }
     }
 
     nonisolated private static func normalizedImageForEncoding(_ image: CGImage) throws -> CGImage {

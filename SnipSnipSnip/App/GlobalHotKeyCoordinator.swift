@@ -18,6 +18,7 @@ nonisolated enum GlobalHotKeyKey: String, CaseIterable, Codable, Identifiable {
     case w
     case f
     case i
+    case g
 
     var id: String { rawValue }
 
@@ -53,10 +54,12 @@ nonisolated enum GlobalHotKeyKey: String, CaseIterable, Codable, Identifiable {
             return "F"
         case .i:
             return "I"
+        case .g:
+            return "G"
         }
     }
 
-    fileprivate var keyCode: UInt32 {
+    var keyCode: UInt32 {
         switch self {
         case .one:
             return UInt32(kVK_ANSI_1)
@@ -88,6 +91,8 @@ nonisolated enum GlobalHotKeyKey: String, CaseIterable, Codable, Identifiable {
             return UInt32(kVK_ANSI_F)
         case .i:
             return UInt32(kVK_ANSI_I)
+        case .g:
+            return UInt32(kVK_ANSI_G)
         }
     }
 }
@@ -99,6 +104,7 @@ nonisolated enum GlobalHotKeyAction: UInt32, CaseIterable {
     case frontmostWindow = 4
     case repeatLastCapture = 5
     case screenInspector = 6
+    case guide = 7
 
     var label: String {
         switch self {
@@ -114,6 +120,8 @@ nonisolated enum GlobalHotKeyAction: UInt32, CaseIterable {
             return "Repeat"
         case .screenInspector:
             return "Screen Inspector"
+        case .guide:
+            return "Guide"
         }
     }
 
@@ -123,7 +131,8 @@ nonisolated enum GlobalHotKeyAction: UInt32, CaseIterable {
         .fullscreen: .three,
         .frontmostWindow: .four,
         .repeatLastCapture: .r,
-        .screenInspector: .i
+        .screenInspector: .i,
+        .guide: .g
     ]
 }
 

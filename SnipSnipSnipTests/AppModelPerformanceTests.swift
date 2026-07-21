@@ -44,6 +44,28 @@ final class AppModelPerformanceTests: XCTestCase {
         model.editorController = nil
     }
 
+    func testRecoveryOperationsRunInSubmissionOrder() async {
+        let model = makeModel()
+        Self.retainedModels.append(model)
+        let recorder = RecoveryOperationRecorder()
+
+        let first = model.documents.enqueueRecoveryOperation {
+            try await Task.sleep(nanoseconds: 150_000_000)
+            await recorder.append(1)
+        }
+        let second = model.documents.enqueueRecoveryOperation {
+            await recorder.append(2)
+        }
+
+        let firstResult = await first.value
+        let secondResult = await second.value
+        let recordedValues = await recorder.values
+
+        XCTAssertTrue(firstResult)
+        XCTAssertTrue(secondResult)
+        XCTAssertEqual(recordedValues, [1, 2])
+    }
+
     func testHideAndRestoreAppWindowRoundTripsVisibleMainWindow() {
         let window = retainForTestLifetime(VisibilityTrackingWindow(
             contentRect: CGRect(x: 0, y: 0, width: 480, height: 320),
@@ -424,5 +446,13 @@ final class AppModelPerformanceTests: XCTestCase {
             PerformanceBudgetCatalog.videoExportPlanning.contains(elapsed),
             "Video export planning/storage budgeting took \(elapsed)s, over \(PerformanceBudgetCatalog.videoExportPlanning.maximumSeconds)s"
         )
+    }
+}
+
+private actor RecoveryOperationRecorder {
+    private(set) var values: [Int] = []
+
+    func append(_ value: Int) {
+        values.append(value)
     }
 }
