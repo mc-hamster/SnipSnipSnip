@@ -547,7 +547,11 @@ struct SnipSnipSnipApp: App {
     init() {
         let model = AppModel()
         _model = StateObject(wrappedValue: model)
-        AppTerminationController.shared.configure(lifecycle: model.lifecycle, guide: model.guide)
+        AppTerminationController.shared.configure(
+            lifecycle: model.lifecycle,
+            guide: model.guide,
+            documents: model.documents
+        )
         MenuBarStatusController.shared.configure(
             lifecycle: model.lifecycle,
             capture: model.capture,

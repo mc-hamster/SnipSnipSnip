@@ -18,6 +18,22 @@ enum GuideWorkflowOutput {
     case requestMainWindowPresentation
 }
 
+nonisolated struct GuideExitContext: Equatable, Sendable {
+    let isPrivate: Bool
+    let hasSteps: Bool
+}
+
+nonisolated enum GuideExitAction: Equatable, Sendable {
+    case finalizeForRecovery
+    case openAndStay
+    case discard
+}
+
+nonisolated enum GuideExitResult: Equatable, Sendable {
+    case readyToExit
+    case stayedOpen
+}
+
 @MainActor
 final class GuideWorkflowModel: ObservableObject {
     static let onboardingVersion = 1
@@ -28,6 +44,7 @@ final class GuideWorkflowModel: ObservableObject {
     private let preferenceStore: GuidePreferenceStore
     private let recoveryStore: GuideRecoveryStore
     private var guideAudioOptionsTask: Task<Void, Never>?
+    private var activeFinishTask: Task<EditableGuideDocument, Error>?
 
     @Published var isShowingQuickStart = false
     @Published var capturePreferences: GuideCapturePreferences { didSet { preferenceStore.saveCapturePreferences(capturePreferences) } }
@@ -62,6 +79,10 @@ final class GuideWorkflowModel: ObservableObject {
     var isFinishing: Bool { captureCoordinator.state == .finishing }
     var availableWindows: [CaptureWindowSummary] { dependencies.capture.availableWindows }
     var stepCount: Int { captureCoordinator.project?.steps.count ?? 0 }
+    var exitContext: GuideExitContext? {
+        guard isActive, let project = captureCoordinator.project else { return nil }
+        return GuideExitContext(isPrivate: project.isPrivate, hasSteps: !project.steps.isEmpty)
+    }
 
     func presentQuickStart() {
         guard dependencies.capabilities.isEnabled(.guide) else { return }
@@ -135,7 +156,7 @@ final class GuideWorkflowModel: ObservableObject {
         Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                if captureCoordinator.state == .paused { try captureCoordinator.resume() }
+                if captureCoordinator.state == .paused { try await captureCoordinator.resume() }
                 else { try await captureCoordinator.pause() }
             } catch { outputSink?.handle(GuideWorkflowOutput.presentError(error.localizedDescription)) }
         }
@@ -215,10 +236,52 @@ final class GuideWorkflowModel: ObservableObject {
         }
     }
 
-    func finalizeForApplicationExit() async {
-        guard isActive else { return }
-        if stepCount == 0 { await captureCoordinator.discard() }
-        else { _ = try? await captureCoordinator.stop() }
+    func prepareForApplicationExit(_ action: GuideExitAction) async -> GuideExitResult {
+        guard isActive else { return .readyToExit }
+        if action == .discard {
+            await captureCoordinator.discard()
+            return .readyToExit
+        }
+        if stepCount == 0 {
+            await captureCoordinator.discard()
+            return .readyToExit
+        }
+        do {
+            let wasAlreadyFinishing = activeFinishTask != nil
+            let document: EditableGuideDocument
+            if let activeFinishTask {
+                document = try await activeFinishTask.value
+            } else {
+                guard let stoppedDocument = try await captureCoordinator.stop() else { return .readyToExit }
+                document = stoppedDocument
+            }
+            if document.project.isPrivate || action == .openAndStay {
+                if !wasAlreadyFinishing {
+                    outputSink?.handle(GuideWorkflowOutput.guideCompleted(document, exportImmediately: false))
+                    outputSink?.handle(GuideWorkflowOutput.requestMainWindowPresentation)
+                }
+                if document.project.isPrivate {
+                    outputSink?.handle(GuideWorkflowOutput.presentError(
+                        "Private Guides are not written to recovery. The Guide is open so you can save or export it."
+                    ))
+                }
+                return .stayedOpen
+            }
+            if let issue = captureCoordinator.recoveryIssue {
+                if !wasAlreadyFinishing {
+                    outputSink?.handle(GuideWorkflowOutput.guideCompleted(document, exportImmediately: false))
+                    outputSink?.handle(GuideWorkflowOutput.requestMainWindowPresentation)
+                }
+                outputSink?.handle(GuideWorkflowOutput.presentError(issue))
+                return .stayedOpen
+            }
+            return .readyToExit
+        } catch {
+            outputSink?.handle(GuideWorkflowOutput.presentError(
+                "Guide could not be finalized, so the app stayed open: \((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)"
+            ))
+            return .stayedOpen
+        }
     }
 
     func prepareForConflictingAction(named action: String) async -> Bool {
@@ -297,6 +360,7 @@ final class GuideWorkflowModel: ObservableObject {
                     snapshot: selection.snapshot,
                     windows: selection.windows,
                     preferences: dependencies.capture.regionCapturePreferences,
+                    constraint: .singleDisplay,
                     livePreviewCapturePlatform: dependencies.systemServices.screenCapturePlatform
                 )
                 guard let result = await session.begin() else { return }
@@ -324,15 +388,27 @@ final class GuideWorkflowModel: ObservableObject {
 
     @discardableResult
     private func finishGuideCapture(exportImmediately: Bool = false) async throws -> EditableGuideDocument {
-        guard let document = try await captureCoordinator.stop() else {
-            throw AutomationExecutionError(code: .noActiveGuide, message: "There is no active Guide.")
+        if let activeFinishTask {
+            return try await activeFinishTask.value
         }
-        guard !document.project.steps.isEmpty else {
-            throw AutomationExecutionError(code: .guideHasNoSteps, message: "The Guide has no captured steps.")
+        let task = Task { @MainActor [weak self] () throws -> EditableGuideDocument in
+            guard let self,
+                  let document = try await captureCoordinator.stop() else {
+                throw AutomationExecutionError(code: .noActiveGuide, message: "There is no active Guide.")
+            }
+            guard !document.project.steps.isEmpty else {
+                throw AutomationExecutionError(code: .guideHasNoSteps, message: "The Guide has no captured steps.")
+            }
+            outputSink?.handle(GuideWorkflowOutput.guideCompleted(document, exportImmediately: exportImmediately))
+            outputSink?.handle(GuideWorkflowOutput.requestMainWindowPresentation)
+            if let recoveryIssue = captureCoordinator.recoveryIssue {
+                outputSink?.handle(GuideWorkflowOutput.presentError(recoveryIssue))
+            }
+            return document
         }
-        outputSink?.handle(GuideWorkflowOutput.guideCompleted(document, exportImmediately: exportImmediately))
-        outputSink?.handle(GuideWorkflowOutput.requestMainWindowPresentation)
-        return document
+        activeFinishTask = task
+        defer { activeFinishTask = nil }
+        return try await task.value
     }
 }
 
@@ -376,7 +452,7 @@ extension GuideWorkflowModel: GuideAutomationPort {
                 try await captureCoordinator.pause()
             case .resume:
                 guard captureCoordinator.state == .paused else { return .failure(requestID: request.id, code: .noActiveGuide, message: "There is no paused Guide to resume.") }
-                try captureCoordinator.resume()
+                try await captureCoordinator.resume()
             case .addStep:
                 guard captureCoordinator.state == .recording else { return .failure(requestID: request.id, code: .noActiveGuide, message: "There is no active Guide.") }
                 captureCoordinator.addManualStep()

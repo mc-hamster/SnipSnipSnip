@@ -45,7 +45,7 @@ private struct GuideExportProgressView: View {
     @ObservedObject var workflow: DocumentWorkflowModel
     let onClose: () -> Void
 
-    private var isExporting: Bool { workflow.guideExportProgress != nil }
+    private var isExporting: Bool { workflow.guideExportIsActive }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -66,6 +66,12 @@ private struct GuideExportProgressView: View {
             if let progress = workflow.guideExportProgress {
                 ProgressView(value: progress)
                     .progressViewStyle(.linear)
+                Text(workflow.guideExportCurrentFormat.map { "Current format: \($0.label)" } ?? "Preparing files…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if isExporting {
+                ProgressView()
+                    .controlSize(.small)
                 Text(workflow.guideExportCurrentFormat.map { "Current format: \($0.label)" } ?? "Preparing files…")
                     .font(.caption)
                     .foregroundStyle(.secondary)

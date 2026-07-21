@@ -117,12 +117,17 @@ protocol ScreenRecordingPlatformSession: AnyObject {
     func startCapture() async throws
     func stopCapture() async throws
     func updateConfiguration(_ configuration: ScreenRecordingConfiguration) async throws
+    func updateTarget(_ target: ScreenRecordingTarget, configuration: ScreenRecordingConfiguration) async throws
     func startRecordingSegment(to outputURL: URL) throws -> ScreenRecordingSegmentToken
     func removeRecordingSegment(_ token: ScreenRecordingSegmentToken) throws
 }
 
 extension ScreenRecordingPlatformSession {
     func setFrameSink(_ sink: (any ScreenRecordingPlatformFrameSink)?) {}
+
+    func updateTarget(_ target: ScreenRecordingTarget, configuration: ScreenRecordingConfiguration) async throws {
+        try await updateConfiguration(configuration)
+    }
 }
 
 protocol ScreenRecordingPlatform: Sendable {
@@ -177,7 +182,7 @@ struct LiveScreenRecordingPlatform: ScreenRecordingPlatform {
         )
     }
 
-    nonisolated private func rawShareableContent(excludingDesktopWindows: Bool = false) async throws -> SCShareableContent {
+    nonisolated fileprivate func rawShareableContent(excludingDesktopWindows: Bool = false) async throws -> SCShareableContent {
         let result: ScreenRecordingShareableContentResult = try await withCheckedThrowingContinuation { continuation in
             SCShareableContent.getExcludingDesktopWindows(excludingDesktopWindows, onScreenWindowsOnly: true) { content, error in
                 if let error {
@@ -196,7 +201,7 @@ struct LiveScreenRecordingPlatform: ScreenRecordingPlatform {
         return result.content
     }
 
-    nonisolated private static func contentFilter(
+    nonisolated fileprivate static func contentFilter(
         for source: ScreenRecordingTargetSource,
         content: SCShareableContent
     ) throws -> SCContentFilter {
@@ -259,7 +264,7 @@ private final class LiveScreenRecordingPlatformSession: NSObject, ScreenRecordin
     nonisolated private static let sampleOutputQueue = DispatchQueue(label: "com.oontz.SnipSnipSnip.ScreenRecordingSampleOutput")
 
     private var stream: SCStream!
-    private let target: ScreenRecordingTarget
+    private var target: ScreenRecordingTarget
     private weak var eventSink: (any ScreenRecordingPlatformEventSink)?
     private weak var frameSink: (any ScreenRecordingPlatformFrameSink)?
     private var outputByToken: [ScreenRecordingSegmentToken: SCRecordingOutput] = [:]
@@ -307,6 +312,26 @@ private final class LiveScreenRecordingPlatformSession: NSObject, ScreenRecordin
 
         try await stream.updateConfiguration(LiveScreenRecordingPlatform.streamConfiguration(from: configuration, target: target))
         try removeDisabledSampleOutputs(for: configuration)
+        self.configuration = configuration
+    }
+
+    func updateTarget(_ target: ScreenRecordingTarget, configuration: ScreenRecordingConfiguration) async throws {
+        if configuration.capturesAudio || configuration.capturesMicrophone {
+            try ensureSampleOutputsAttached(for: configuration)
+        }
+        let content = try await LiveScreenRecordingPlatform().rawShareableContent(
+            excludingDesktopWindows: configuration.hidesDesktopWindows
+        )
+        let filter = try LiveScreenRecordingPlatform.contentFilter(for: target.source, content: content)
+        if case .display(_, _, let includeMenuBar) = target.source {
+            filter.includeMenuBar = includeMenuBar
+        }
+        try await stream.updateContentFilter(filter)
+        try await stream.updateConfiguration(
+            LiveScreenRecordingPlatform.streamConfiguration(from: configuration, target: target)
+        )
+        try removeDisabledSampleOutputs(for: configuration)
+        self.target = target
         self.configuration = configuration
     }
 

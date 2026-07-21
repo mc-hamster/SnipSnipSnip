@@ -80,6 +80,16 @@ nonisolated struct GuideCaptionGenerator: Sendable {
         )
     }
 
+    /// Lets an app-scoped Guide follow keyboard focus even when the pointer has
+    /// not generated an interaction in the newly focused window yet.
+    func focusedWindowID(forProcessID processID: pid_t) -> CGWindowID? {
+        guard accessibility.isProcessTrusted(),
+              let element = accessibility.focusedElement(),
+              let identity = accessibility.windowIdentity(for: element),
+              identity.ownerPID == processID else { return nil }
+        return identity.windowID
+    }
+
     func recognizeFallbackText(in image: CGImage, privateCapture: Bool) async -> String? {
         guard !privateCapture else { return nil }
         let value = try? await CaptureTextRecognizer.recognizeText(in: image)

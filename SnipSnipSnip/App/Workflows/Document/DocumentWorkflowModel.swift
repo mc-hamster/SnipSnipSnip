@@ -32,6 +32,7 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     @Published var guideEditorController: GuideEditorController?
     @Published var currentDocumentURL: URL?
     @Published var hasUnsavedChanges = false
+    @Published var guideExportIsActive = false
     @Published var guideExportProgress: Double?
     @Published var guideExportStatus: String?
     @Published var guideExportCurrentFormat: GuideExportFormat?
@@ -97,7 +98,7 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     var pendingAutosaveTask: Task<Void, Never>?
     var pendingRecoveryRefreshTask: Task<Void, Never>?
     var pendingCaptureHistorySearchTask: Task<Void, Never>?
-    var pendingRecoveryWriteTasks: [UUID: Task<Void, Never>] = [:]
+    var recoveryOperations = RecoveryOperationState()
     var pendingGuideAutosaveTask: Task<Void, Never>?
     var pendingGuideExportTask: Task<Void, Never>?
     var pendingGuideExportWorkerTask: Task<GuideExportResult, Never>?
@@ -224,20 +225,16 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
         if let currentDocumentURL {
             return currentDocumentURL.lastPathComponent
         }
-
         if let controller = editorController {
             return ScreenshotFilenameTemplate(pattern: screenshotFilenameTemplate).resolvedFilename(for: controller.capture, formatExtension: "sss") + ".sss"
         }
-
         if let controller = videoEditorController {
             return controller.recording.defaultFilename + ".sssvideo"
         }
-
         if let controller = guideEditorController {
             let title = controller.project.title.trimmingCharacters(in: .whitespacesAndNewlines)
             return (title.isEmpty ? "Untitled Guide" : title) + ".sssguide"
         }
-
         return "Untitled.sss"
     }
 
@@ -249,5 +246,4 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
             preferenceStore.savePresentationScenesRootURL(standardizedURL)
         }
     }
-
 }

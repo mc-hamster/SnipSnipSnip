@@ -152,6 +152,146 @@ nonisolated enum SSSGuideDocumentPackage {
         }
     }
 
+    /// Updates a recovery package in place while committing its manifest last.
+    /// Existing step PNGs and media are reused, so the cost of autosaving grows
+    /// with newly captured work instead of with the total length of the Guide.
+    /// If a write is interrupted, the previous manifest remains readable and any
+    /// newly written assets are harmless orphans until the next checkpoint.
+    nonisolated static func saveRecoveryCheckpoint(
+        document: EditableGuideDocument,
+        to url: URL,
+        files: any FileSystemServicing = SystemFileService()
+    ) throws {
+        if files.fileExists(atPath: url.path), !files.directoryExists(at: url) {
+            try files.removeItem(at: url)
+        }
+        if !files.directoryExists(at: url) {
+            try files.createDirectory(at: url, withIntermediateDirectories: true)
+        }
+        let stepsURL = url.appendingPathComponent(stepsDirectory, isDirectory: true)
+        if !files.directoryExists(at: stepsURL) {
+            try files.createDirectory(at: stepsURL, withIntermediateDirectories: true)
+        }
+
+        var project = document.project
+        project.modifiedAt = Date()
+        project.normalizeStepSequence()
+        var stepAssets: [StepAssets] = []
+        stepAssets.reserveCapacity(project.steps.count)
+
+        for index in project.steps.indices {
+            try Task.checkCancellation()
+            let id = project.steps[index].id
+            let directoryName = id.uuidString.lowercased()
+            let stepDirectory = stepsURL.appendingPathComponent(directoryName, isDirectory: true)
+            if !files.directoryExists(at: stepDirectory) {
+                try files.createDirectory(at: stepDirectory, withIntermediateDirectories: true)
+            }
+            if let advanced = document.advancedEdits[id] {
+                let assetsDirectory = stepDirectory.appendingPathComponent("assets", isDirectory: true)
+                if !files.directoryExists(at: assetsDirectory) {
+                    try files.createDirectory(at: assetsDirectory, withIntermediateDirectories: true)
+                }
+                let path = "steps/\(directoryName)/assets/advanced.sss"
+                try SSSDocumentPackage.save(
+                    document: advanced,
+                    previewImage: advanced.capture.image,
+                    to: url.appendingPathComponent(path),
+                    includeUIMapSearchText: false,
+                    files: files
+                )
+                project.steps[index].session.annotationSessionAsset = path
+            }
+            let step = project.steps[index]
+            guard let image = document.stepImages[id] else {
+                throw SSSGuideDocumentError.missingAsset("steps/\(id.uuidString)/base.png")
+            }
+            let basePath = "steps/\(directoryName)/base.png"
+            let baseURL = url.appendingPathComponent(basePath)
+            if !files.fileExists(atPath: baseURL.path) {
+                try validateDimensions(image, asset: basePath)
+                try files.writeData(try ImageExporter.pngData(for: image), to: baseURL, options: .atomic)
+            }
+            let sessionPath = "steps/\(directoryName)/session.json"
+            try files.writeData(
+                try encoder.encode(StepSessionRecord(id: id, session: step.session)),
+                to: url.appendingPathComponent(sessionPath),
+                options: .atomic
+            )
+            stepAssets.append(StepAssets(id: id, baseImage: basePath, session: sessionPath))
+        }
+
+        var previewPath: String?
+        if let previewImage = document.previewImage {
+            try validateDimensions(previewImage, asset: previewFilename)
+            try files.writeData(
+                try ImageExporter.pngData(for: previewImage),
+                to: url.appendingPathComponent(previewFilename),
+                options: .atomic
+            )
+            previewPath = previewFilename
+        } else if files.fileExists(atPath: url.appendingPathComponent(previewFilename).path) {
+            previewPath = previewFilename
+        }
+
+        var logoPath: String?
+        if let logoImage = document.logoImage {
+            let brandURL = url.appendingPathComponent(brandDirectory, isDirectory: true)
+            if !files.directoryExists(at: brandURL) {
+                try files.createDirectory(at: brandURL, withIntermediateDirectories: true)
+            }
+            logoPath = "brand/logo.png"
+            try files.writeData(
+                try ImageExporter.pngData(for: logoImage),
+                to: url.appendingPathComponent(logoPath!),
+                options: .atomic
+            )
+        }
+
+        var mediaAssets: [MediaAsset] = []
+        if !project.timeline.segments.isEmpty {
+            let segmentsDirectory = url.appendingPathComponent("media/segments", isDirectory: true)
+            if !files.directoryExists(at: segmentsDirectory) {
+                try files.createDirectory(at: segmentsDirectory, withIntermediateDirectories: true)
+            }
+            for segment in project.timeline.segments {
+                try Task.checkCancellation()
+                guard let sourceURL = document.mediaSegmentURLs[segment.id], files.fileExists(atPath: sourceURL.path) else {
+                    throw SSSGuideDocumentError.missingAsset(segment.asset)
+                }
+                let relativePath = "media/segments/\(segment.id.uuidString.lowercased()).mp4"
+                let destination = url.appendingPathComponent(relativePath)
+                if sourceURL.standardizedFileURL != destination.standardizedFileURL,
+                   !files.fileExists(atPath: destination.path) {
+                    try files.copyItem(at: sourceURL, to: destination)
+                }
+                mediaAssets.append(MediaAsset(id: segment.id, path: relativePath))
+            }
+            let mediaURL = url.appendingPathComponent(mediaDirectory, isDirectory: true)
+            if !files.directoryExists(at: mediaURL) {
+                try files.createDirectory(at: mediaURL, withIntermediateDirectories: true)
+            }
+            try files.writeData(
+                try encoder.encode(project.timeline),
+                to: url.appendingPathComponent(timelineFilename),
+                options: .atomic
+            )
+        }
+
+        let manifest = Manifest(
+            formatIdentifier: formatIdentifier,
+            formatVersion: formatVersion,
+            savedAt: Date(),
+            project: project,
+            assets: Assets(preview: previewPath, logo: logoPath, steps: stepAssets, media: mediaAssets)
+        )
+        try files.writeData(
+            try encoder.encode(manifest),
+            to: url.appendingPathComponent(manifestFilename),
+            options: .atomic
+        )
+    }
+
     nonisolated static func load(
         from url: URL,
         files: any FileSystemServicing = SystemFileService()

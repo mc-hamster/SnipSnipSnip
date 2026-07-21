@@ -106,7 +106,7 @@ Guide uses the same contract on every automation surface:
 - AppleScript uses `guide given action:"…"`, with optional `target`, `format`, and `privateCapture` parameters.
 - App Intents exposes the same actions through Control SnipSnipSnip Guide.
 
-Guide start requires Screen Recording and Accessibility. Region start is interactive. URL exports are trigger-oriented and use the default Downloads destination. Explicit errors include `noActiveGuide`, `guideAlreadyActive`, `guideHasNoSteps`, `guideSourceMediaUnavailable`, and `guideFinalizationFailed`.
+Guide start requires Screen Recording and Accessibility. Region start is interactive and the selected Guide region is constrained to the display where the drag begins; cross-display Guide regions are rejected, while ordinary screenshot-region capture is unchanged. Window and app Guide targets follow source geometry changes automatically. URL exports are trigger-oriented and use the default Downloads destination. Explicit errors include `noActiveGuide`, `guideAlreadyActive`, `guideHasNoSteps`, `guideSourceMediaUnavailable`, and `guideFinalizationFailed`.
 
 Private Guide skips archive/search/indexing and background OCR or AI refinement. Automation never receives screenshot, OCR, caption, window-title, or path content in diagnostics.
 

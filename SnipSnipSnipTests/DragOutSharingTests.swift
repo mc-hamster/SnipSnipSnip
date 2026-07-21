@@ -138,6 +138,32 @@ final class DragOutSharingTests: XCTestCase {
         XCTAssertEqual(decoded.height, 8)
     }
 
+    func testStagedImageWriteAtomicallyReplacesExistingDestination() async throws {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        let outputURL = directoryURL.appendingPathComponent("existing.png")
+        try Data("existing-content".utf8).write(to: outputURL)
+        let image = makeSolidImage(
+            width: 17,
+            height: 11,
+            color: PixelSample(red: 120, green: 80, blue: 40, alpha: 255)
+        )
+
+        try await ImageExporter.write(image, format: .png, to: outputURL)
+
+        let source = try XCTUnwrap(CGImageSourceCreateWithURL(outputURL as CFURL, nil))
+        let decoded = try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        XCTAssertEqual(decoded.width, 17)
+        XCTAssertEqual(decoded.height, 11)
+        XCTAssertEqual(
+            try FileManager.default.contentsOfDirectory(atPath: directoryURL.path),
+            ["existing.png"]
+        )
+    }
+
     func testEditedFilenamePlacesSuffixBeforeExtension() {
         XCTAssertEqual(
             ImageExporter.editedFilename(suggestedFilename: "Screenshot.png", format: .png),

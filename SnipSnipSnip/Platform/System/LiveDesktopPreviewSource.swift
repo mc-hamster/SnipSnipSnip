@@ -4,14 +4,16 @@ import AppKit
 final class LiveDesktopPreviewSource {
     typealias Observer = @MainActor () -> Void
     private static let cropLogicalSize: CGFloat = 20
-    private static let refreshIntervalNanoseconds: UInt64 = 66_666_667
+    private static let minimumCaptureIntervalNanoseconds: UInt64 = 120_000_000
 
     private var latestFramesByDisplayID: [CGDirectDisplayID: LiveDesktopPreviewFrame] = [:]
     private var observersByDisplayID: [CGDirectDisplayID: [UUID: Observer]] = [:]
-    private var focusedPointByDisplayID: [CGDirectDisplayID: CGPoint] = [:]
-    private var activeDisplayID: CGDirectDisplayID?
-    private var refreshTask: Task<Void, Never>?
-    private var isCaptureInFlight = false
+    private var pendingRequest: LiveDesktopPreviewCaptureRequest?
+    private var focusRevision: UInt64 = 0
+    private var completedRevision: UInt64 = 0
+    private var lastCaptureStartNanoseconds: UInt64?
+    private var captureTask: Task<Void, Never>?
+    private var isRunning = false
     private let displaysByID: [CGDirectDisplayID: DisplaySnapshot]
     private let capturePlatform: any ScreenCapturePlatform
 
@@ -23,48 +25,46 @@ final class LiveDesktopPreviewSource {
         self.displaysByID = Dictionary(uniqueKeysWithValues: displays.map { ($0.displayID, $0) })
         self.capturePlatform = capturePlatform
         if let initialFocusPoint,
-           let display = displays.first(where: { $0.frame.contains(initialFocusPoint) }) {
-            self.activeDisplayID = display.displayID
-            self.focusedPointByDisplayID[display.displayID] = initialFocusPoint
+           let display = displays.first(where: { $0.frame.contains(initialFocusPoint) }),
+           let request = Self.captureRequest(around: initialFocusPoint, in: display) {
+            pendingRequest = request
+            focusRevision = 1
         }
     }
 
     func start() {
-        guard !displaysByID.isEmpty, refreshTask == nil else {
+        guard !displaysByID.isEmpty, !isRunning else {
             return
         }
 
-        refreshTask = Task { @MainActor [weak self] in
-            await self?.captureFocusedRegionIfNeeded()
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: Self.refreshIntervalNanoseconds)
-                await self?.captureFocusedRegionIfNeeded()
-            }
-        }
+        isRunning = true
+        scheduleCaptureIfNeeded()
     }
 
     func stop() async {
-        refreshTask?.cancel()
-        refreshTask = nil
+        isRunning = false
+        let task = captureTask
+        captureTask = nil
+        task?.cancel()
+        await task?.value
+
         latestFramesByDisplayID.removeAll()
-        focusedPointByDisplayID.removeAll()
-        activeDisplayID = nil
-        isCaptureInFlight = false
+        pendingRequest = nil
+        focusRevision = 0
+        completedRevision = 0
+        lastCaptureStartNanoseconds = nil
     }
 
     func updateFocus(displayID: CGDirectDisplayID, cursorGlobalPoint: CGPoint) {
-        guard displaysByID[displayID]?.frame.contains(cursorGlobalPoint) == true else {
+        guard let display = displaysByID[displayID],
+              let request = Self.captureRequest(around: cursorGlobalPoint, in: display),
+              request != pendingRequest else {
             return
         }
 
-        activeDisplayID = displayID
-        focusedPointByDisplayID[displayID] = cursorGlobalPoint
-
-        if refreshTask != nil {
-            Task { @MainActor [weak self] in
-                await self?.captureFocusedRegionIfNeeded()
-            }
-        }
+        pendingRequest = request
+        focusRevision &+= 1
+        scheduleCaptureIfNeeded()
     }
 
     func image(for displayID: CGDirectDisplayID) -> CGImage? {
@@ -96,41 +96,79 @@ final class LiveDesktopPreviewSource {
         observersByDisplayID[frame.displayID]?.values.forEach { $0() }
     }
 
-    private func captureFocusedRegionIfNeeded() async {
-        guard !isCaptureInFlight,
-              let activeDisplayID,
-              let display = displaysByID[activeDisplayID],
-              let focusedPoint = focusedPointByDisplayID[activeDisplayID],
-              let request = LiveDesktopPreviewRegionGeometry.captureRequest(
-                around: focusedPoint,
-                in: display,
-                cropLogicalSize: Self.cropLogicalSize
-              ) else {
+    private static func captureRequest(
+        around point: CGPoint,
+        in display: DisplaySnapshot
+    ) -> LiveDesktopPreviewCaptureRequest? {
+        LiveDesktopPreviewRegionGeometry.captureRequest(
+            around: point,
+            in: display,
+            cropLogicalSize: cropLogicalSize
+        )
+    }
+
+    private func scheduleCaptureIfNeeded() {
+        guard isRunning,
+              pendingRequest != nil,
+              completedRevision != focusRevision,
+              captureTask == nil else {
             return
         }
 
-        isCaptureInFlight = true
-        defer {
-            isCaptureInFlight = false
+        captureTask = Task { @MainActor [weak self] in
+            await self?.drainPendingCaptures()
         }
+    }
 
-        do {
-            let image = try await captureImage(for: request)
-            guard refreshTask != nil else {
+    private func drainPendingCaptures() async {
+        defer { captureTask = nil }
+
+        while isRunning, completedRevision != focusRevision {
+            await waitForCaptureRateLimit()
+
+            guard isRunning, !Task.isCancelled, let request = pendingRequest else {
                 return
             }
 
-            store(
-                frame: LiveDesktopPreviewFrame(
-                    displayID: request.displayID,
-                    image: image,
-                    sourceGlobalRect: request.sourceGlobalRect
+            let requestRevision = focusRevision
+            lastCaptureStartNanoseconds = DispatchTime.now().uptimeNanoseconds
+
+            do {
+                let image = try await captureImage(for: request)
+                guard isRunning, !Task.isCancelled else {
+                    return
+                }
+
+                completedRevision = requestRevision
+                store(
+                    frame: LiveDesktopPreviewFrame(
+                        displayID: request.displayID,
+                        image: image,
+                        sourceGlobalRect: request.sourceGlobalRect
+                    )
                 )
-            )
-        } catch {
-            // Keep the last usable live frame. The loupe draw path can still fall back to the
-            // original desktop snapshot if no current capture is available.
+            } catch is CancellationError {
+                return
+            } catch {
+                // A new cursor position will retry. The draw path keeps the last live frame or
+                // falls back to the original desktop snapshot while the pointer is stationary.
+                completedRevision = requestRevision
+            }
         }
+    }
+
+    private func waitForCaptureRateLimit() async {
+        guard let lastCaptureStartNanoseconds else {
+            return
+        }
+
+        let now = DispatchTime.now().uptimeNanoseconds
+        let nextAllowedCapture = lastCaptureStartNanoseconds &+ Self.minimumCaptureIntervalNanoseconds
+        guard now < nextAllowedCapture else {
+            return
+        }
+
+        try? await Task.sleep(nanoseconds: nextAllowedCapture - now)
     }
 
     private func captureImage(for request: LiveDesktopPreviewCaptureRequest) async throws -> CGImage {

@@ -1763,6 +1763,97 @@ final class EditorControllerTests: XCTestCase {
         XCTAssertTrue(controller.pinnedUIMapElements.isEmpty)
     }
 
+    @MainActor
+    func testAutosaveStateCoversPersistedContentButIgnoresSelection() {
+        let annotation = Annotation.makeRectangle(in: CGRect(x: 10, y: 10, width: 70, height: 50))
+        let baseSnapshot = makeEditorSnapshot(annotations: [annotation])
+        let controller = makeController(snapshot: baseSnapshot)
+        let documentURL = URL(fileURLWithPath: "/tmp/AutosaveState.sss")
+        let baseline = AutosaveState(controller: controller, documentURL: documentURL)
+
+        controller.select(annotationIDs: [annotation.id])
+        XCTAssertEqual(AutosaveState(controller: controller, documentURL: documentURL), baseline)
+
+        controller.updatePresentationPadding(48)
+        let presentationState = AutosaveState(controller: controller, documentURL: documentURL)
+        XCTAssertNotEqual(presentationState, baseline)
+
+        _ = controller.saveCurrentPresentationToDocument(named: "Saved Variant")
+        XCTAssertNotEqual(
+            AutosaveState(controller: controller, documentURL: documentURL),
+            presentationState
+        )
+
+        let calloutController = makeController(snapshot: makeEditorSnapshot(nextCalloutNumber: 2))
+        let calloutState = AutosaveState(controller: calloutController, documentURL: documentURL)
+        XCTAssertNotEqual(calloutState.nextCalloutNumber, baseline.nextCalloutNumber)
+
+        let pinnedController = makeController(
+            snapshot: makeEditorSnapshot(
+                annotations: [annotation],
+                pinnedUIMapElementIDs: [UUID()]
+            )
+        )
+        let pinnedState = AutosaveState(controller: pinnedController, documentURL: documentURL)
+        XCTAssertNotEqual(pinnedState.pinnedUIMapElementIDs, baseline.pinnedUIMapElementIDs)
+    }
+
+    @MainActor
+    func testApplicationExitFlushesLatestEditorStateToRecovery() async throws {
+        let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
+        let model = retainForTestLifetime(AppModel(
+            defaults: makeTestDefaults(),
+            recoveryStore: store,
+            shouldCheckCompatibilityOnLaunch: false
+        ))
+        defer {
+            model.documents.resetEditorSessionState()
+            try? FileManager.default.removeItem(at: rootURL)
+        }
+
+        let controller = EditorController(capture: makeCapturedScreenshot())
+        model.documents.installEditorController(controller, documentURL: nil, savedSession: nil)
+        controller.addAnnotation(
+            Annotation.makeRectangle(in: CGRect(x: 12, y: 16, width: 68, height: 48))
+        )
+
+        let didPrepare = await model.documents.prepareForApplicationExit()
+
+        XCTAssertTrue(didPrepare)
+        let pendingRecovery = try XCTUnwrap(store.latestPendingRecovery())
+        let restoredDocument = try store.restoreDocument(from: pendingRecovery.latestEntry)
+        XCTAssertEqual(restoredDocument.session.currentSnapshot.annotations, controller.snapshot.annotations)
+    }
+
+    @MainActor
+    func testSavedCheckpointCannotBeOvertakenByOlderPendingRecoveryWrite() async throws {
+        let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
+        let model = retainForTestLifetime(AppModel(
+            defaults: makeTestDefaults(),
+            recoveryStore: store,
+            shouldCheckCompatibilityOnLaunch: false
+        ))
+        defer {
+            model.documents.resetEditorSessionState()
+            try? FileManager.default.removeItem(at: rootURL)
+        }
+
+        let controller = EditorController(capture: makeCapturedScreenshot())
+        model.documents.installEditorController(controller, documentURL: nil, savedSession: nil)
+        let sessionID = try XCTUnwrap(model.currentRecoverySessionID)
+
+        model.hasUnsavedChanges = true
+        model.documents.recordRecoveryCheckpoint(for: controller, label: "Autosave", pendingRecovery: true)
+        model.hasUnsavedChanges = false
+        model.documents.recordRecoveryCheckpoint(for: controller, label: "Saved", pendingRecovery: false)
+        await model.waitForPendingRecoveryWriteTasks()
+
+        XCTAssertNil(store.latestPendingRecovery())
+        XCTAssertEqual(store.historyEntries(for: sessionID).map(\.label), ["Saved", "Autosave"])
+    }
+
     func testPinnedUIMapElementIncludesOverlayParentHierarchy() {
         let childID = UUID()
         let uiMap = UIMapSnapshot(

@@ -99,6 +99,34 @@ final class AppTerminationControllerTests: XCTestCase {
         XCTAssertEqual(appKitReply, .terminateNow)
     }
 
+    func testConfirmedRequestQuitWaitsForDocumentRecoveryFlush() async {
+        let lifecycle = makeLifecycle()
+        let preparer = ExitPreparationStub()
+        let terminationExpectation = expectation(description: "Termination after recovery flush")
+        var terminationCalls = 0
+        let controller = AppTerminationController(
+            confirmationHandler: { _ in
+                AppTerminationController.QuitConfirmationResult(
+                    shouldQuit: true,
+                    suppressFutureConfirmations: false
+                )
+            },
+            backgroundHandler: {},
+            terminationHandler: {
+                terminationCalls += 1
+                terminationExpectation.fulfill()
+            }
+        )
+        controller.configure(lifecycle: lifecycle, documents: preparer)
+
+        controller.requestQuit()
+
+        XCTAssertEqual(terminationCalls, 0)
+        await fulfillment(of: [terminationExpectation], timeout: 2)
+        XCTAssertEqual(preparer.callCount, 1)
+        XCTAssertEqual(terminationCalls, 1)
+    }
+
     func testRestartWithoutConfirmationRelaunchesAndBypassesQuitConfirmation() {
         let lifecycle = makeLifecycle()
         let controllerBox = TerminationControllerBox()
@@ -179,6 +207,27 @@ final class AppTerminationControllerTests: XCTestCase {
         XCTAssertEqual(alert.buttons.first?.keyEquivalentModifierMask, [])
     }
 
+    func testActiveRecoverableGuideQuitUsesOneTruthfulDecisionSet() {
+        let alert = AppTerminationController.makeActiveGuideAlert(
+            context: GuideExitContext(isPrivate: false, hasSteps: true),
+            purpose: .quit
+        )
+
+        XCTAssertEqual(alert.buttons.map(\.title), ["Stop & Quit", "Keep Recording in Background", "Cancel"])
+        XCTAssertTrue(alert.informativeText.contains("saved for recovery"))
+    }
+
+    func testPrivateGuideRestartNeverClaimsRecovery() {
+        let alert = AppTerminationController.makeActiveGuideAlert(
+            context: GuideExitContext(isPrivate: true, hasSteps: true),
+            purpose: .restart
+        )
+
+        XCTAssertEqual(alert.buttons.map(\.title), ["Open Guide & Stay", "Discard & Restart", "Cancel"])
+        XCTAssertFalse(alert.informativeText.localizedCaseInsensitiveContains("recovery"))
+        XCTAssertTrue(alert.messageText.localizedCaseInsensitiveContains("cannot be recovered"))
+    }
+
     private func makeLifecycle(confirmsBeforeQuitting: Bool = true) -> AppLifecycleModel {
         let suiteName = "AppTerminationControllerTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -203,4 +252,15 @@ final class AppTerminationControllerTests: XCTestCase {
 @MainActor
 private final class TerminationControllerBox {
     var controller: AppTerminationController!
+}
+
+@MainActor
+private final class ExitPreparationStub: ApplicationExitPreparing {
+    private(set) var callCount = 0
+
+    func prepareForApplicationExit() async -> Bool {
+        callCount += 1
+        try? await Task.sleep(nanoseconds: 80_000_000)
+        return true
+    }
 }

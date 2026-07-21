@@ -8,6 +8,7 @@ import SwiftUI
 final class GuideEditorController: ObservableObject {
     @Published private(set) var project: GuideProject
     @Published private(set) var stepImages: [UUID: CGImage]
+    @Published private(set) var stepThumbnails: [UUID: CGImage] = [:]
     @Published var selection: Set<UUID> = []
     @Published var searchQuery = ""
     @Published var notice: String?
@@ -20,6 +21,12 @@ final class GuideEditorController: ObservableObject {
     private var advancedEditorStepID: UUID?
     private var undoCommands: [any GuideCommand] = []
     private var redoCommands: [any GuideCommand] = []
+    private var lastCommandDate = Date.distantPast
+    private let documentGeneration = UUID()
+    private let thumbnailLoader = GuideThumbnailLoader()
+    private var thumbnailTasks: [UUID: Task<Void, Never>] = [:]
+    private var imageRevisions: [UUID: Int] = [:]
+    private static let maximumUndoCommands = 50
 
     init(document: EditableGuideDocument) {
         project = document.project
@@ -28,26 +35,66 @@ final class GuideEditorController: ObservableObject {
         mediaSegmentURLs = document.mediaSegmentURLs
         advancedEdits = document.advancedEdits
         selection = Set(document.project.steps.first.map { [$0.id] } ?? [])
+        imageRevisions = Dictionary(uniqueKeysWithValues: document.project.steps.map { ($0.id, 0) })
+        if let firstID = document.project.steps.first?.id {
+            requestThumbnail(for: firstID, priority: .userInitiated)
+            prefetchThumbnails(after: firstID)
+        }
+    }
+
+    deinit {
+        thumbnailTasks.values.forEach { $0.cancel() }
     }
 
     var selectedStep: GuideStep? { project.steps.first { selection.contains($0.id) } }
     var includedSteps: [GuideStep] { project.steps.filter { $0.isIncluded && !$0.isDeleted } }
 
+    func requestThumbnail(for stepID: UUID, priority: TaskPriority = .utility) {
+        guard stepThumbnails[stepID] == nil,
+              thumbnailTasks[stepID] == nil,
+              project.steps.contains(where: { $0.id == stepID }),
+              let image = stepImages[stepID] else { return }
+        let generation = documentGeneration
+        let revision = imageRevisions[stepID, default: 0]
+        thumbnailTasks[stepID] = Task(priority: priority) { @MainActor [weak self, thumbnailLoader] in
+            guard !Task.isCancelled else { return }
+            let thumbnail = await thumbnailLoader.thumbnail(of: image)
+            guard !Task.isCancelled,
+                  let self,
+                  documentGeneration == generation,
+                  imageRevisions[stepID] == revision,
+                  project.steps.contains(where: { $0.id == stepID }) else { return }
+            if let thumbnail {
+                stepThumbnails[stepID] = thumbnail
+            }
+            thumbnailTasks[stepID] = nil
+        }
+    }
+
+    func prefetchThumbnails(after stepID: UUID, count: Int = 6) {
+        guard let index = project.steps.firstIndex(where: { $0.id == stepID }) else { return }
+        let end = min(index + max(count, 0) + 1, project.steps.count)
+        guard index + 1 < end else { return }
+        for step in project.steps[(index + 1)..<end] {
+            requestThumbnail(for: step.id)
+        }
+    }
+
     func editableDocument(previewImage: CGImage? = nil) -> EditableGuideDocument {
         EditableGuideDocument(project: project, stepImages: stepImages, previewImage: previewImage, logoImage: logoImage, mediaSegmentURLs: mediaSegmentURLs, advancedEdits: advancedEdits)
     }
 
-    func update(name: String, mutation: (inout GuideProject) -> Void) {
+    func update(name: String, coalescingKey: String? = nil, mutation: (inout GuideProject) -> Void) {
         let before = project
         var after = project
         mutation(&after)
         after.normalizeStepSequence()
         guard before != after else { return }
-        execute(GuideProjectCommand(name: name, before: before, after: after))
+        execute(GuideProjectCommand(name: name, coalescingKey: coalescingKey, before: before, after: after))
     }
 
     func updateCaption(stepID: UUID, caption: String) {
-        update(name: "Edit Caption") { project in
+        update(name: "Edit Caption", coalescingKey: "caption-\(stepID.uuidString)") { project in
             guard let index = project.steps.firstIndex(where: { $0.id == stepID }) else { return }
             project.steps[index].caption = caption
             project.steps[index].captionRevision += 1
@@ -179,7 +226,7 @@ final class GuideEditorController: ObservableObject {
     }
 
     func updateMarkerLength(stepID: UUID, length: Double) {
-        update(name: "Change Marker Length") { project in
+        update(name: "Change Marker Length", coalescingKey: "marker-length-\(stepID.uuidString)") { project in
             guard let index = project.steps.firstIndex(where: { $0.id == stepID }),
                   var marker = project.steps[index].session.marker else { return }
             let vector = CGPoint(x: marker.tail.x - marker.target.x, y: marker.tail.y - marker.target.y)
@@ -209,6 +256,7 @@ final class GuideEditorController: ObservableObject {
         guard let command = undoCommands.popLast() else { return }
         command.undo(on: self)
         redoCommands.append(command)
+        lastCommandDate = .distantPast
         updateCommandState()
     }
 
@@ -216,12 +264,30 @@ final class GuideEditorController: ObservableObject {
         guard let command = redoCommands.popLast() else { return }
         command.apply(to: self)
         undoCommands.append(command)
+        trimUndoHistory()
+        lastCommandDate = .distantPast
         updateCommandState()
     }
 
     func execute(_ command: any GuideCommand) {
         command.apply(to: self)
-        undoCommands.append(command)
+        let now = Date()
+        if let incoming = command as? GuideProjectCommand,
+           let key = incoming.coalescingKey,
+           now.timeIntervalSince(lastCommandDate) <= 0.8,
+           let previous = undoCommands.last as? GuideProjectCommand,
+           previous.coalescingKey == key {
+            undoCommands[undoCommands.count - 1] = GuideProjectCommand(
+                name: incoming.name,
+                coalescingKey: key,
+                before: previous.before,
+                after: incoming.after
+            )
+        } else {
+            undoCommands.append(command)
+            trimUndoHistory()
+        }
+        lastCommandDate = now
         redoCommands.removeAll()
         updateCommandState()
     }
@@ -231,13 +297,19 @@ final class GuideEditorController: ObservableObject {
     func insertStepWithoutCommand(_ step: GuideStep, image: CGImage, at index: Int) {
         project.steps.insert(step, at: min(max(index, 0), project.steps.count))
         stepImages[step.id] = image
+        imageRevisions[step.id, default: 0] += 1
+        requestThumbnail(for: step.id, priority: .userInitiated)
         project.normalizeStepSequence()
         selection = [step.id]
     }
 
     func removeStepWithoutCommand(id: UUID) {
+        thumbnailTasks[id]?.cancel()
+        thumbnailTasks[id] = nil
+        imageRevisions[id, default: 0] += 1
         project.steps.removeAll { $0.id == id }
         stepImages[id] = nil
+        stepThumbnails[id] = nil
         project.normalizeStepSequence()
         selection.remove(id)
     }
@@ -245,6 +317,12 @@ final class GuideEditorController: ObservableObject {
     private func updateCommandState() {
         canUndo = !undoCommands.isEmpty
         canRedo = !redoCommands.isEmpty
+    }
+
+    private func trimUndoHistory() {
+        if undoCommands.count > Self.maximumUndoCommands {
+            undoCommands.removeFirst(undoCommands.count - Self.maximumUndoCommands)
+        }
     }
 
     private func clamped(_ point: CGPoint, to size: CGSize) -> CGPoint {

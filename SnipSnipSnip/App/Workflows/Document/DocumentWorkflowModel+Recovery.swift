@@ -1,6 +1,31 @@
 import Foundation
 
 extension DocumentWorkflowModel {
+    var pendingRecoveryWriteTasks: [UUID: Task<Bool, Never>] {
+        get { recoveryOperations.pendingTasks }
+        set { recoveryOperations.pendingTasks = newValue }
+    }
+
+    var recoveryWriteTail: Task<Bool, Never>? {
+        get { recoveryOperations.tail }
+        set { recoveryOperations.tail = newValue }
+    }
+
+    var recoveryOperationIDsRequiredForConsistency: Set<UUID> {
+        get { recoveryOperations.requiredOperationIDs }
+        set { recoveryOperations.requiredOperationIDs = newValue }
+    }
+
+    var lastEnqueuedRecoveryState: AutosaveState? {
+        get { recoveryOperations.lastEnqueuedState }
+        set { recoveryOperations.lastEnqueuedState = newValue }
+    }
+
+    var recoverySessionsWithPendingClearEnqueued: Set<UUID> {
+        get { recoveryOperations.pendingClearSessionIDs }
+        set { recoveryOperations.pendingClearSessionIDs = newValue }
+    }
+
     func restorePendingRecovery() {
         guard let pendingRecoverySession else {
             return
@@ -14,12 +39,7 @@ extension DocumentWorkflowModel {
             return
         }
 
-        do {
-            try recoveryStore.clearPendingRecovery(for: pendingRecoverySession.id)
-            refreshPendingRecoverySession()
-        } catch {
-            present(error)
-        }
+        clearRecoveryPendingState(for: pendingRecoverySession.id)
     }
 
     func restoreHistoryEntry(_ entry: DocumentHistoryEntry) {
@@ -34,25 +54,23 @@ extension DocumentWorkflowModel {
     }
 
     func deleteHistoryEntry(_ entry: DocumentHistoryEntry) {
-        do {
-            try recoveryStore.deleteHistoryEntry(entry)
-            refreshHistoryEntries()
-            refreshPendingRecoverySession()
-            triggerArchiveMaintenance()
-        } catch {
-            present(error)
-        }
+        let store = recoveryStore
+        enqueueRecoveryOperation(
+            mustComplete: true,
+            operation: {
+                try await RecoveryCheckpointWriter.performStoreMutation {
+                    try store.deleteHistoryEntry(entry)
+                }
+            },
+            onSuccess: { model in
+                model.refreshHistoryEntries()
+                model.triggerArchiveMaintenance()
+            }
+        )
     }
 
     func deleteCaptureHistorySession(_ entry: DocumentHistoryEntry) {
-        do {
-            try recoveryStore.deleteSession(entry.sessionID)
-            refreshHistoryEntries()
-            refreshPendingRecoverySession()
-            triggerArchiveMaintenance()
-        } catch {
-            present(error)
-        }
+        deleteRecoverySession(entry.sessionID)
     }
 
     func deleteAllHistoryEntries() {
@@ -60,36 +78,57 @@ extension DocumentWorkflowModel {
             return
         }
 
-        do {
-            try recoveryStore.deleteHistoryEntries(for: currentRecoverySessionID)
-            refreshHistoryEntries()
-            refreshPendingRecoverySession()
-            triggerArchiveMaintenance()
-        } catch {
-            present(error)
-        }
+        let store = recoveryStore
+        enqueueRecoveryOperation(
+            mustComplete: true,
+            operation: {
+                try await RecoveryCheckpointWriter.performStoreMutation {
+                    try store.deleteHistoryEntries(for: currentRecoverySessionID)
+                }
+            },
+            onSuccess: { model in
+                model.refreshHistoryEntries()
+                model.triggerArchiveMaintenance()
+            }
+        )
     }
 
     func deleteRecentSnipEntry(_ entry: DocumentHistoryEntry) {
-        do {
-            try recoveryStore.deleteSession(entry.sessionID)
-            refreshHistoryEntries()
-            refreshPendingRecoverySession()
-            triggerArchiveMaintenance()
-        } catch {
-            present(error)
-        }
+        deleteRecoverySession(entry.sessionID)
     }
 
     func deleteAllRecentSnipEntries() {
-        do {
-            try recoveryStore.deletePendingRecoverySessions(excluding: currentRecoverySessionID)
-            refreshHistoryEntries()
-            refreshPendingRecoverySession()
-            triggerArchiveMaintenance()
-        } catch {
-            present(error)
-        }
+        let store = recoveryStore
+        let excludedSessionID = currentRecoverySessionID
+        enqueueRecoveryOperation(
+            mustComplete: true,
+            operation: {
+                try await RecoveryCheckpointWriter.performStoreMutation {
+                    try store.deletePendingRecoverySessions(excluding: excludedSessionID)
+                }
+            },
+            onSuccess: { model in
+                model.refreshHistoryEntries()
+                model.triggerArchiveMaintenance()
+            }
+        )
+    }
+
+    private func deleteRecoverySession(_ sessionID: UUID) {
+        let store = recoveryStore
+        enqueueRecoveryOperation(
+            mustComplete: true,
+            operation: {
+                try await RecoveryCheckpointWriter.performStoreMutation {
+                    try store.deleteSession(sessionID)
+                }
+            },
+            onSuccess: { model in
+                model.recoverySessionsWithPendingClearEnqueued.remove(sessionID)
+                model.refreshHistoryEntries()
+                model.triggerArchiveMaintenance()
+            }
+        )
     }
 
     func restoreHistoryEntryImmediately(_ entry: DocumentHistoryEntry, clearPendingRecovery: Bool = true) {
@@ -108,8 +147,7 @@ extension DocumentWorkflowModel {
                 recoverySessionID: entry.sessionID
             )
             if clearPendingRecovery {
-                try recoveryStore.clearPendingRecovery(for: entry.sessionID)
-                refreshPendingRecoverySession()
+                clearRecoveryPendingState(for: entry.sessionID)
             }
             requestMainWindowPresentation()
         } catch {
@@ -183,7 +221,8 @@ extension DocumentWorkflowModel {
 
         let pendingState = AutosaveState(controller: controller, documentURL: currentDocumentURL)
 
-        guard pendingState != lastAutosavedState else {
+        guard pendingState != lastAutosavedState,
+              pendingState != lastEnqueuedRecoveryState else {
             return
         }
 
@@ -205,7 +244,8 @@ extension DocumentWorkflowModel {
 
             let currentState = AutosaveState(controller: controller, documentURL: self.currentDocumentURL)
 
-            guard currentState != self.lastAutosavedState else {
+            guard currentState != self.lastAutosavedState,
+                  currentState != self.lastEnqueuedRecoveryState else {
                 self.pendingAutosaveTask = nil
                 return
             }
@@ -247,8 +287,43 @@ extension DocumentWorkflowModel {
         pendingWriteTasks.forEach { $0.cancel() }
 
         for task in pendingWriteTasks {
-            await task.value
+            _ = await task.value
         }
+
+        recoveryWriteTail = nil
+        recoveryOperationIDsRequiredForConsistency.removeAll()
+        lastEnqueuedRecoveryState = nil
+        recoverySessionsWithPendingClearEnqueued.removeAll()
+    }
+
+    func prepareForApplicationExit() async -> Bool {
+        pendingAutosaveTask?.cancel()
+        pendingAutosaveTask = nil
+
+        if let controller = editorController,
+           currentRecoverySessionID != nil,
+           shouldAutosave(for: controller) {
+            controller.commitPendingTextEdits()
+            updateDocumentChangeTracking()
+
+            let state = AutosaveState(controller: controller, documentURL: currentDocumentURL)
+            if state != lastAutosavedState, state != lastEnqueuedRecoveryState {
+                recordRecoveryCheckpoint(
+                    for: controller,
+                    label: "Autosave",
+                    pendingRecovery: hasUnsavedChanges
+                )
+            }
+        }
+
+        let pendingWriteTasks = Array(pendingRecoveryWriteTasks.values)
+        var allWritesSucceeded = true
+        for task in pendingWriteTasks {
+            if await task.value == false {
+                allWritesSucceeded = false
+            }
+        }
+        return allWritesSucceeded
     }
 
     func rebindRecoveryStore(_ store: DocumentRecoveryStore) {
@@ -260,7 +335,11 @@ extension DocumentWorkflowModel {
         pendingCaptureHistorySearchTask = nil
         pendingRecoveryWriteTasks.values.forEach { $0.cancel() }
         pendingRecoveryWriteTasks.removeAll()
+        recoveryWriteTail = nil
+        recoveryOperationIDsRequiredForConsistency.removeAll()
         lastAutosavedState = nil
+        lastEnqueuedRecoveryState = nil
+        recoverySessionsWithPendingClearEnqueued.removeAll()
         recoveryStore = store
     }
 
@@ -304,40 +383,87 @@ extension DocumentWorkflowModel {
             includeUIMapSearchText: windowUIMapEnabled
         )
 
-        pendingRecoveryWriteTasks[taskID] = Task { @MainActor [weak self, weak controller] in
-            do {
+        lastEnqueuedRecoveryState = autosaveState
+        if pendingRecovery {
+            recoverySessionsWithPendingClearEnqueued.remove(currentRecoverySessionID)
+        }
+
+        enqueueRecoveryOperation(
+            taskID: taskID,
+            operation: {
                 try await RecoveryCheckpointWriter.save(payload)
-                try Task.checkCancellation()
-
-                guard let self else {
-                    return
-                }
-
-                self.pendingRecoveryWriteTasks[taskID] = nil
-                let isCurrentController = self.editorController.map { ObjectIdentifier($0) } == controllerID
+            },
+            onSuccess: { [weak controller] model in
+                let isCurrentController = model.editorController.map { ObjectIdentifier($0) } == controllerID
 
                 if isCurrentController {
-                    self.lastAutosavedState = autosaveState
+                    model.lastAutosavedState = autosaveState
                 }
 
-                self.refreshRecoveryPresentationState()
-                self.triggerArchiveMaintenance()
+                if !pendingRecovery {
+                    model.recoverySessionsWithPendingClearEnqueued.insert(currentRecoverySessionID)
+                }
+
+                model.refreshRecoveryPresentationState()
+                model.triggerArchiveMaintenance()
 
                 if label == "Capture", isCurrentController, let controller {
-                    self.indexCurrentCaptureIfNeeded(using: controller)
+                    model.indexCurrentCaptureIfNeeded(using: controller)
                 }
-            } catch {
-                guard let self else {
-                    return
-                }
-
-                self.pendingRecoveryWriteTasks[taskID] = nil
-
-                if !Task.isCancelled {
-                    self.present(error)
+            },
+            onFailure: { model in
+                if model.lastEnqueuedRecoveryState == autosaveState {
+                    model.lastEnqueuedRecoveryState = nil
                 }
             }
+        )
+    }
+
+    @discardableResult
+    func enqueueRecoveryOperation(
+        taskID: UUID? = nil,
+        mustComplete: Bool = false,
+        operation: @escaping @MainActor () async throws -> Void,
+        onSuccess: @escaping @MainActor (DocumentWorkflowModel) -> Void = { _ in },
+        onFailure: @escaping @MainActor (DocumentWorkflowModel) -> Void = { _ in }
+    ) -> Task<Bool, Never> {
+        let resolvedTaskID = taskID ?? systemServices.ids.uuid()
+        let predecessor = recoveryWriteTail
+        let task = Task { @MainActor [weak self] in
+            if let predecessor {
+                _ = await predecessor.value
+            }
+
+            guard let self else {
+                return false
+            }
+            defer {
+                self.pendingRecoveryWriteTasks[resolvedTaskID] = nil
+                self.recoveryOperationIDsRequiredForConsistency.remove(resolvedTaskID)
+            }
+
+            do {
+                try Task.checkCancellation()
+                try await operation()
+                try Task.checkCancellation()
+                onSuccess(self)
+                return true
+            } catch is CancellationError {
+                onFailure(self)
+                return true
+            } catch {
+                onFailure(self)
+                self.present(error)
+                return false
+            }
         }
+
+        pendingRecoveryWriteTasks[resolvedTaskID] = task
+        if mustComplete {
+            recoveryOperationIDsRequiredForConsistency.insert(resolvedTaskID)
+        }
+        recoveryWriteTail = task
+        return task
     }
 
     func clearCurrentRecoveryPendingState() {
@@ -346,12 +472,33 @@ extension DocumentWorkflowModel {
             return
         }
 
-        do {
-            try recoveryStore.clearPendingRecovery(for: currentRecoverySessionID)
-            refreshPendingRecoverySession()
-        } catch {
-            present(error)
+        clearRecoveryPendingState(for: currentRecoverySessionID)
+    }
+
+    func clearRecoveryPendingState(for sessionID: UUID) {
+        guard recoverySessionsWithPendingClearEnqueued.insert(sessionID).inserted else {
+            return
         }
+
+        let store = recoveryStore
+        enqueueRecoveryOperation(
+            mustComplete: true,
+            operation: {
+                try await RecoveryCheckpointWriter.clearPendingRecovery(
+                    for: sessionID,
+                    in: store
+                )
+            },
+            onSuccess: { model in
+                model.refreshPendingRecoverySession()
+                if model.currentRecoverySessionID != sessionID {
+                    model.recoverySessionsWithPendingClearEnqueued.remove(sessionID)
+                }
+            },
+            onFailure: { model in
+                model.recoverySessionsWithPendingClearEnqueued.remove(sessionID)
+            }
+        )
     }
 
     func refreshHistoryEntries() {
@@ -404,17 +551,35 @@ extension DocumentWorkflowModel {
 }
 
 struct AutosaveState: Equatable {
+    let controllerID: ObjectIdentifier
     let documentURL: URL?
     let cropRect: CGRect
     let annotations: [Annotation]
+    let nextCalloutNumber: Int
+    let presentation: ScreenshotPresentation
+    let pinnedUIMapElementIDs: [UUID]
     let toolStyles: [EditorTool: AnnotationStyle]
+    let savedPresentations: [SavedPresentation]
 
     init(controller: EditorController, documentURL: URL?) {
+        controllerID = ObjectIdentifier(controller)
         self.documentURL = documentURL
         cropRect = controller.snapshot.cropRect
         annotations = controller.snapshot.annotations
+        nextCalloutNumber = controller.snapshot.nextCalloutNumber
+        presentation = controller.snapshot.presentation
+        pinnedUIMapElementIDs = controller.snapshot.pinnedUIMapElementIDs
         toolStyles = controller.toolStyles
+        savedPresentations = controller.savedPresentations
     }
+}
+
+struct RecoveryOperationState {
+    var pendingTasks: [UUID: Task<Bool, Never>] = [:]
+    var tail: Task<Bool, Never>?
+    var requiredOperationIDs: Set<UUID> = []
+    var lastEnqueuedState: AutosaveState?
+    var pendingClearSessionIDs: Set<UUID> = []
 }
 
 nonisolated private struct RecoveryCheckpointWritePayload: @unchecked Sendable {
@@ -494,6 +659,25 @@ nonisolated private enum RecoveryCheckpointWriter {
                 hasUnsavedChanges: payload.hasUnsavedChanges,
                 includeUIMapSearchText: payload.includeUIMapSearchText
             )
+        }
+
+        try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
+    }
+
+    static func clearPendingRecovery(for sessionID: UUID, in store: DocumentRecoveryStore) async throws {
+        try await performStoreMutation {
+            try store.clearPendingRecovery(for: sessionID)
+        }
+    }
+
+    static func performStoreMutation(_ mutation: @escaping @Sendable () throws -> Void) async throws {
+        let task = Task.detached(priority: .utility) {
+            try Task.checkCancellation()
+            try mutation()
         }
 
         try await withTaskCancellationHandler {

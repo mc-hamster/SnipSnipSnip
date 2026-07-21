@@ -28,6 +28,98 @@ nonisolated struct GuideExportResult: Sendable {
     var failures: [GuideExportFormat: String]
 }
 
+nonisolated enum GuideExportProgressPhase: String, Sendable {
+    case preparing
+    case renderingSteps
+    case encoding
+    case packaging
+    case finalizing
+}
+
+nonisolated struct GuideExportProgressUpdate: Sendable, Equatable {
+    var format: GuideExportFormat
+    var phase: GuideExportProgressPhase
+    var detail: String
+    var completedUnits: Int64
+    var totalUnits: Int64?
+    var overallFraction: Double?
+}
+
+typealias GuideExportProgressHandler = @Sendable (GuideExportProgressUpdate) -> Void
+
+nonisolated private final class GuideFormatProgressReporter: @unchecked Sendable {
+    private let lock = NSLock()
+    private let formatIndex: Int
+    private let formatCount: Int
+    private let handler: GuideExportProgressHandler?
+    private var lastLocalFraction: Double = 0
+
+    init(formatIndex: Int, formatCount: Int, handler: GuideExportProgressHandler?) {
+        self.formatIndex = formatIndex
+        self.formatCount = max(formatCount, 1)
+        self.handler = handler
+    }
+
+    func report(_ update: GuideExportProgressUpdate) {
+        guard let handler else { return }
+        lock.lock()
+        var delivered = update
+        if let fraction = update.overallFraction {
+            lastLocalFraction = max(lastLocalFraction, min(max(fraction, 0), 1))
+            delivered.overallFraction = (Double(formatIndex) + lastLocalFraction) / Double(formatCount)
+        } else {
+            delivered.overallFraction = nil
+        }
+        lock.unlock()
+        handler(delivered)
+    }
+}
+
+nonisolated enum GuideVideoTrackGeometry {
+    static func orientedGeometry(
+        naturalSize: CGSize,
+        preferredTransform: CGAffineTransform
+    ) -> (renderSize: CGSize, layerTransform: CGAffineTransform)? {
+        guard naturalSize.width > 0, naturalSize.height > 0 else { return nil }
+        let transformed = CGRect(origin: .zero, size: naturalSize)
+            .applying(preferredTransform)
+            .standardized
+        guard transformed.width > 0, transformed.height > 0 else { return nil }
+        let normalized = preferredTransform.concatenating(
+            CGAffineTransform(translationX: -transformed.minX, y: -transformed.minY)
+        )
+        return (transformed.size, normalized)
+    }
+
+    static func fittedGeometry(
+        naturalSize: CGSize,
+        preferredTransform: CGAffineTransform,
+        renderSize: CGSize
+    ) -> (layerTransform: CGAffineTransform, contentRect: CGRect)? {
+        guard let oriented = orientedGeometry(
+            naturalSize: naturalSize,
+            preferredTransform: preferredTransform
+        ), renderSize.width > 0, renderSize.height > 0 else { return nil }
+        let scale = min(
+            renderSize.width / oriented.renderSize.width,
+            renderSize.height / oriented.renderSize.height
+        )
+        guard scale.isFinite, scale > 0 else { return nil }
+        let size = CGSize(
+            width: oriented.renderSize.width * scale,
+            height: oriented.renderSize.height * scale
+        )
+        let origin = CGPoint(
+            x: (renderSize.width - size.width) / 2,
+            y: (renderSize.height - size.height) / 2
+        )
+        let transform = oriented.layerTransform
+            .concatenating(CGAffineTransform(scaleX: scale, y: scale))
+            .concatenating(CGAffineTransform(translationX: origin.x, y: origin.y))
+        return (transform, CGRect(origin: origin, size: size))
+    }
+}
+
 // AVFoundation documents `cancelExport()` as the cross-thread cancellation
 // mechanism. This wrapper confines that one intentional handoff.
 nonisolated private final class GuideExportSessionCancellation: @unchecked Sendable {
@@ -48,82 +140,144 @@ nonisolated enum GuideExporter {
         document: EditableGuideDocument,
         formats: Set<GuideExportFormat>,
         directory: URL,
-        progress: (@MainActor (GuideExportFormat, Double) -> Void)? = nil
+        progress: GuideExportProgressHandler? = nil
     ) async -> GuideExportResult {
         var outputs: [URL] = []
         var failures: [GuideExportFormat: String] = [:]
-        for (index, format) in formats.sorted(by: { $0.rawValue < $1.rawValue }).enumerated() {
+        let orderedFormats = formats.sorted(by: { $0.rawValue < $1.rawValue })
+        for (index, format) in orderedFormats.enumerated() {
             if Task.isCancelled { break }
-            if let progress { await progress(format, Double(index) / Double(max(formats.count, 1))) }
+            let reporter = GuideFormatProgressReporter(
+                formatIndex: index,
+                formatCount: orderedFormats.count,
+                handler: progress
+            )
+            reporter.report(GuideExportProgressUpdate(
+                format: format,
+                phase: .preparing,
+                detail: "Preparing \(format.label)…",
+                completedUnits: 0,
+                totalUnits: nil,
+                overallFraction: nil
+            ))
+            var succeeded = false
             do {
-                let url = try await export(document: document, format: format, directory: directory)
+                let url = try await export(
+                    document: document,
+                    format: format,
+                    directory: directory,
+                    progress: reporter.report
+                )
                 outputs.append(url)
+                succeeded = true
             } catch is CancellationError {
                 break
             } catch {
                 failures[format] = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             }
-            if let progress { await progress(format, Double(index + 1) / Double(max(formats.count, 1))) }
+            if succeeded {
+                reporter.report(GuideExportProgressUpdate(
+                    format: format,
+                    phase: .finalizing,
+                    detail: "Finished \(format.label).",
+                    completedUnits: 1,
+                    totalUnits: 1,
+                    overallFraction: 1
+                ))
+            } else if let reason = failures[format] {
+                reporter.report(GuideExportProgressUpdate(
+                    format: format,
+                    phase: .finalizing,
+                    detail: "\(format.label) failed: \(reason)",
+                    completedUnits: 0,
+                    totalUnits: nil,
+                    overallFraction: nil
+                ))
+            }
         }
         return GuideExportResult(outputs: outputs, failures: failures)
     }
 
-    static func export(document: EditableGuideDocument, format: GuideExportFormat, directory: URL) async throws -> URL {
+    static func export(
+        document: EditableGuideDocument,
+        format: GuideExportFormat,
+        directory: URL,
+        progress: GuideExportProgressHandler? = nil
+    ) async throws -> URL {
         try Task.checkCancellation()
         let steps = document.project.steps.filter { $0.isIncluded && !$0.isDeleted }
         guard !steps.isEmpty else { throw GuideExportError.noSteps }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try GuideStorageGuardrails.ensureCanExport(
+            document: document,
+            format: format,
+            directory: directory
+        )
+        cleanupStaleTemporaryArtifacts()
         let basename = filenameBase(project: document.project, format: format)
         switch format {
         case .pdf:
             let url = fileURL(in: directory, basename: basename, extension: "pdf")
-            try writePDF(steps: steps, document: document, to: url)
+            try writePDF(steps: steps, document: document, to: url, progress: progress)
             return url
         case .docx:
             let url = fileURL(in: directory, basename: basename, extension: "docx")
-            try writeDOCX(steps: steps, document: document, to: url)
+            try writeDOCX(steps: steps, document: document, to: url, progress: progress)
             return url
         case .gif, .apng:
             let ext = format == .gif ? "gif" : "png"
             let url = fileURL(in: directory, basename: basename, extension: ext)
-            try writeAnimated(steps: steps, document: document, format: format, to: url)
+            try writeAnimated(steps: steps, document: document, format: format, to: url, progress: progress)
             return url
         case .stepImages:
             let url = directory.appendingPathComponent(basename, isDirectory: true)
-            try writeStepImages(steps: steps, document: document, to: url)
+            try writeStepImages(steps: steps, document: document, to: url, progress: progress)
             return url
         case .slideshowMP4:
             let url = fileURL(in: directory, basename: basename, extension: "mp4")
-            try await writeSlideshow(steps: steps, document: document, to: url)
+            try await writeSlideshow(steps: steps, document: document, to: url, progress: progress)
             return url
         case .fullMotionMP4:
             let url = fileURL(in: directory, basename: basename, extension: "mp4")
-            try await writeMediaTimeline(document: document, highlightsOnly: false, to: url)
+            try await writeMediaTimeline(document: document, highlightsOnly: false, format: format, to: url, progress: progress)
             return url
         case .highlightMP4:
             let url = fileURL(in: directory, basename: basename, extension: "mp4")
-            try await writeMediaTimeline(document: document, highlightsOnly: true, to: url)
+            try await writeMediaTimeline(document: document, highlightsOnly: true, format: format, to: url, progress: progress)
             return url
         case .zip:
             let url = fileURL(in: directory, basename: basename, extension: "zip")
-            try await writeZIP(steps: steps, document: document, to: url)
+            try await writeZIP(steps: steps, document: document, to: url, progress: progress)
             return url
         }
     }
 
-    private static func renderedCards(steps: [GuideStep], document: EditableGuideDocument, cardWidth: Int = 1440) throws -> [(GuideStep, CGImage)] {
-        var cards: [(GuideStep, CGImage)] = []
-        cards.reserveCapacity(steps.count)
-        for step in steps {
-            try Task.checkCancellation()
-            guard let image = document.stepImages[step.id],
-                  let card = GuideRenderer.renderStepCard(step: step, image: image, theme: document.project.theme, cardWidth: cardWidth, advancedEdit: document.advancedEdits[step.id], logo: document.logoImage) else { throw GuideExportError.renderingFailed }
-            cards.append((step, card))
+    private static func renderedCard(
+        step: GuideStep,
+        document: EditableGuideDocument,
+        cardWidth: Int = 1_440
+    ) throws -> CGImage {
+        try Task.checkCancellation()
+        guard let image = document.stepImages[step.id],
+              let card = GuideRenderer.renderStepCard(
+                step: step,
+                image: image,
+                theme: document.project.theme,
+                cardWidth: cardWidth,
+                advancedEdit: document.advancedEdits[step.id],
+                logo: document.logoImage
+              ) else {
+            throw GuideExportError.renderingFailed
         }
-        return cards
+        return card
     }
 
-    private static func writePDF(steps: [GuideStep], document: EditableGuideDocument, to destination: URL) throws {
+    private static func writePDF(
+        steps: [GuideStep],
+        document: EditableGuideDocument,
+        to destination: URL,
+        progress: GuideExportProgressHandler?
+    ) throws {
         try atomicFile(destination) { url in
             let settings = document.project.exportSettings
             let usesA4 = settings.pdfPaper == .a4 || (settings.pdfPaper == .automatic && Locale.current.measurementSystem == .metric)
@@ -136,31 +290,34 @@ nonisolated enum GuideExporter {
                 drawPDFText(document.project.title, in: mediaBox.insetBy(dx: 56, dy: 72), size: 38, context: context, invisible: false)
                 context.endPDFPage()
             }
-            let cards = try renderedCards(
-                steps: steps,
-                document: document,
-                cardWidth: Int(1_440 * Double(min(max(settings.pdfDPI, 144), 300)) / 216.0)
-            )
-            let pageGroups = document.project.exportSettings.usesCompactPDFLayout
-                ? stride(from: 0, to: cards.count, by: 2).map { Array(cards[$0..<min($0 + 2, cards.count)]) }
-                : cards.map { [$0] }
-            for group in pageGroups {
+            let cardWidth = Int(1_440 * Double(min(max(settings.pdfDPI, 144), 300)) / 216.0)
+            let groupSize = document.project.exportSettings.usesCompactPDFLayout ? 2 : 1
+            var completedSteps = 0
+            for start in stride(from: 0, to: steps.count, by: groupSize) {
                 try Task.checkCancellation()
+                let group = Array(steps[start..<min(start + groupSize, steps.count)])
                 context.beginPDFPage(nil)
                 let margin = min(max(document.project.theme.pageMargin, 18), min(mediaBox.width, mediaBox.height) / 3)
                 let pageInset = mediaBox.insetBy(dx: margin, dy: margin)
                 let slotHeight = pageInset.height / CGFloat(group.count)
-                for (index, pair) in group.enumerated() {
+                for (index, step) in group.enumerated() {
                     try Task.checkCancellation()
                     let slot = CGRect(x: pageInset.minX, y: pageInset.maxY - CGFloat(index + 1) * slotHeight, width: pageInset.width, height: slotHeight).insetBy(dx: 0, dy: group.count == 1 ? 0 : 12)
-                    let image = pair.1
+                    let image = try renderedCard(step: step, document: document, cardWidth: cardWidth)
                     let scale = min(slot.width / CGFloat(image.width), slot.height / CGFloat(image.height))
                     let size = CGSize(width: CGFloat(image.width) * scale, height: CGFloat(image.height) * scale)
                     context.draw(image, in: CGRect(x: slot.midX - size.width / 2, y: slot.midY - size.height / 2, width: size.width, height: size.height))
                     // Preserve the polished raster card while also embedding selectable/searchable caption text.
-                    drawPDFText("\(pair.0.sequence). \(pair.0.caption)", in: slot, size: 12, context: context, invisible: true)
+                    drawPDFText("\(step.sequence). \(step.caption)", in: slot, size: 12, context: context, invisible: true)
                 }
                 context.endPDFPage()
+                completedSteps += group.count
+                reportStepProgress(
+                    format: .pdf,
+                    completed: completedSteps,
+                    total: steps.count,
+                    progress: progress
+                )
             }
             context.closePDF()
         }
@@ -168,29 +325,48 @@ nonisolated enum GuideExporter {
 
     /// Builds a portable Office Open XML package directly so Word export works in
     /// the sandbox without requiring a local Word or Python installation.
-    private static func writeDOCX(steps: [GuideStep], document: EditableGuideDocument, to destination: URL) throws {
-        let cards = try renderedCards(
-            steps: steps,
-            document: document,
-            cardWidth: documentCardWidth
-        )
-        var entries: [(String, Data)] = [
-            ("[Content_Types].xml", Data(docxContentTypes.utf8)),
-            ("_rels/.rels", Data(docxRootRelationships.utf8))
-        ]
-        var relationships = """
-        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-        """
-        for (index, pair) in cards.enumerated() {
-            try Task.checkCancellation()
-            entries.append(("word/media/step-\(index + 1).png", try ImageExporter.pngData(for: pair.1)))
-            relationships += "<Relationship Id=\"rId\(index + 1)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/step-\(index + 1).png\"/>"
+    private static func writeDOCX(
+        steps: [GuideStep],
+        document: EditableGuideDocument,
+        to destination: URL,
+        progress: GuideExportProgressHandler?
+    ) throws {
+        try atomicFile(destination) { url in
+            let writer = try GuideZIPWriter.Stream(url: url)
+            do {
+                try writer.add(name: "[Content_Types].xml", data: Data(docxContentTypes.utf8))
+                try writer.add(name: "_rels/.rels", data: Data(docxRootRelationships.utf8))
+                var relationships = """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                """
+                var imageSizes: [CGSize] = []
+                imageSizes.reserveCapacity(steps.count)
+                for (index, step) in steps.enumerated() {
+                    try Task.checkCancellation()
+                    let card = try renderedCard(step: step, document: document, cardWidth: documentCardWidth)
+                    imageSizes.append(CGSize(width: card.width, height: card.height))
+                    try writer.add(name: "word/media/step-\(index + 1).png", data: ImageExporter.pngData(for: card))
+                    relationships += "<Relationship Id=\"rId\(index + 1)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/step-\(index + 1).png\"/>"
+                    reportStepProgress(
+                        format: .docx,
+                        completed: index + 1,
+                        total: steps.count,
+                        progress: progress
+                    )
+                }
+                relationships += "</Relationships>"
+                try writer.add(name: "word/_rels/document.xml.rels", data: Data(relationships.utf8))
+                try writer.add(
+                    name: "word/document.xml",
+                    data: Data(docxDocumentXML(title: document.project.title, imageSizes: imageSizes).utf8)
+                )
+                try writer.finish()
+            } catch {
+                writer.cancel()
+                throw error
+            }
         }
-        relationships += "</Relationships>"
-        entries.append(("word/_rels/document.xml.rels", Data(relationships.utf8)))
-        entries.append(("word/document.xml", Data(docxDocumentXML(title: document.project.title, cards: cards).utf8)))
-        try atomicFile(destination) { url in try GuideZIPWriter.write(entries: entries, to: url) }
     }
 
     private static let docxContentTypes = """
@@ -210,15 +386,15 @@ nonisolated enum GuideExporter {
     </Relationships>
     """
 
-    private static func docxDocumentXML(title: String, cards: [(GuideStep, CGImage)]) -> String {
+    private static func docxDocumentXML(title: String, imageSizes: [CGSize]) -> String {
         let heading = title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Guide" : title
         var body = docxParagraph(heading, size: 36, bold: true, centered: true)
-        for (index, pair) in cards.enumerated() {
+        for (index, size) in imageSizes.enumerated() {
             if index > 0 { body += "<w:p><w:pPr><w:pageBreakBefore/></w:pPr></w:p>" }
             // A rendered card already includes the step number, caption, and
             // optional note. Adding them as document paragraphs duplicates the
             // visible instruction in Word and Pages.
-            body += docxImage(index: index + 1, image: pair.1)
+            body += docxImage(index: index + 1, size: size)
         }
         return """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -237,14 +413,14 @@ nonisolated enum GuideExporter {
         return "<w:p><w:pPr>\(alignment)<w:spacing w:after=\"160\"/></w:pPr><w:r><w:rPr>\(weight)<w:sz w:val=\"\(size)\"/></w:rPr><w:t xml:space=\"preserve\">\(docxEscapedText(text))</w:t></w:r></w:p>"
     }
 
-    private static func docxImage(index: Int, image: CGImage) -> String {
+    private static func docxImage(index: Int, size: CGSize) -> String {
         let maximumWidth: Double = 5_700_000
         let maximumHeight: Double = 6_300_000
         // DrawingML measures images in EMUs. Screenshots are treated as 96-DPI
         // images, then constrained to the printable page area.
         let emusPerPixel: Double = 9_525
-        let naturalWidth = Double(image.width) * emusPerPixel
-        let naturalHeight = Double(image.height) * emusPerPixel
+        let naturalWidth = Double(size.width) * emusPerPixel
+        let naturalHeight = Double(size.height) * emusPerPixel
         let scale = min(maximumWidth / naturalWidth, maximumHeight / naturalHeight, 1)
         let width = max(1, Int(naturalWidth * scale))
         let height = max(1, Int(naturalHeight * scale))
@@ -276,40 +452,69 @@ nonisolated enum GuideExporter {
         context.restoreGState()
     }
 
-    private static func writeAnimated(steps: [GuideStep], document: EditableGuideDocument, format: GuideExportFormat, to destination: URL) throws {
-        let cards = try renderedCards(steps: steps, document: document)
-        var frames: [(CGImage, Double)] = []
-        for index in cards.indices {
-            try Task.checkCancellation()
-            let duration = min(max(cards[index].0.duration, 0.5), 5)
-            let crossfade = document.project.exportSettings.usesCrossfade && index + 1 < cards.count
-                ? min(max(document.project.exportSettings.crossfadeDuration, 0), min(0.2, duration / 2))
-                : 0
-            frames.append((cards[index].1, duration - crossfade))
-            if crossfade > 0 {
-                for frameIndex in 1...2 {
-                    let fraction = CGFloat(frameIndex) / 3
-                    frames.append((blend(cards[index].1, cards[index + 1].1, fraction: fraction) ?? cards[index].1, crossfade / 2))
-                }
-            }
-        }
+    private static func writeAnimated(
+        steps: [GuideStep],
+        document: EditableGuideDocument,
+        format: GuideExportFormat,
+        to destination: URL,
+        progress: GuideExportProgressHandler?
+    ) throws {
         try atomicFile(destination) { url in
             let type = format == .gif ? UTType.gif.identifier : UTType.png.identifier
-            guard let output = CGImageDestinationCreateWithURL(url as CFURL, type as CFString, frames.count, nil) else { throw GuideExportError.renderingFailed }
+            let transitionCount = document.project.exportSettings.usesCrossfade
+                && document.project.exportSettings.crossfadeDuration > 0
+                ? max(steps.count - 1, 0) * 2
+                : 0
+            guard let output = CGImageDestinationCreateWithURL(url as CFURL, type as CFString, steps.count + transitionCount, nil) else { throw GuideExportError.renderingFailed }
             if format == .gif {
                 CGImageDestinationSetProperties(output, [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFLoopCount: 0]] as CFDictionary)
             } else {
                 CGImageDestinationSetProperties(output, [kCGImagePropertyPNGDictionary: [kCGImagePropertyAPNGLoopCount: 0]] as CFDictionary)
             }
-            for (image, duration) in frames {
+            var current = try renderedCard(step: steps[0], document: document)
+            for index in steps.indices {
                 try Task.checkCancellation()
-                let properties: CFDictionary = format == .gif
-                    ? [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFDelayTime: duration]] as CFDictionary
-                    : [kCGImagePropertyPNGDictionary: [kCGImagePropertyAPNGDelayTime: duration]] as CFDictionary
-                CGImageDestinationAddImage(output, image, properties)
+                let duration = min(max(steps[index].duration, 0.5), 5)
+                let next = index + 1 < steps.count
+                    ? try renderedCard(step: steps[index + 1], document: document)
+                    : nil
+                let crossfade = document.project.exportSettings.usesCrossfade && next != nil
+                    ? min(max(document.project.exportSettings.crossfadeDuration, 0), min(0.2, duration / 2))
+                    : 0
+                addAnimatedFrame(current, duration: duration - crossfade, format: format, to: output)
+                if crossfade > 0, let next {
+                    for frameIndex in 1...2 {
+                        let fraction = CGFloat(frameIndex) / 3
+                        addAnimatedFrame(
+                            blend(current, next, fraction: fraction) ?? current,
+                            duration: crossfade / 2,
+                            format: format,
+                            to: output
+                        )
+                    }
+                }
+                if let next { current = next }
+                reportStepProgress(
+                    format: format,
+                    completed: index + 1,
+                    total: steps.count,
+                    progress: progress
+                )
             }
             guard CGImageDestinationFinalize(output) else { throw GuideExportError.renderingFailed }
         }
+    }
+
+    private static func addAnimatedFrame(
+        _ image: CGImage,
+        duration: Double,
+        format: GuideExportFormat,
+        to output: CGImageDestination
+    ) {
+        let properties: CFDictionary = format == .gif
+            ? [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFDelayTime: duration]] as CFDictionary
+            : [kCGImagePropertyPNGDictionary: [kCGImagePropertyAPNGDelayTime: duration]] as CFDictionary
+        CGImageDestinationAddImage(output, image, properties)
     }
 
     private static func blend(_ first: CGImage, _ second: CGImage, fraction: CGFloat) -> CGImage? {
@@ -323,26 +528,48 @@ nonisolated enum GuideExporter {
         return context.makeImage()
     }
 
-    private static func writeStepImages(steps: [GuideStep], document: EditableGuideDocument, to destination: URL) throws {
-        let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("GuideImages-\(UUID().uuidString)", isDirectory: true)
+    private static func writeStepImages(
+        steps: [GuideStep],
+        document: EditableGuideDocument,
+        to destination: URL,
+        progress: GuideExportProgressHandler?
+    ) throws {
+        cleanupInterruptedTemporaryFiles(for: destination)
+        let temporary = destination.deletingLastPathComponent().appendingPathComponent(
+            "\(destination.lastPathComponent).\(UUID().uuidString).tmp",
+            isDirectory: true
+        )
         defer { try? FileManager.default.removeItem(at: temporary) }
         try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)
-        for (index, pair) in try renderedCards(steps: steps, document: document).enumerated() {
+        for (index, step) in steps.enumerated() {
             try Task.checkCancellation()
+            let card = try renderedCard(step: step, document: document)
             let isJPEG = document.project.exportSettings.stepImageFormat == .jpeg
             let ext = isJPEG ? "jpg" : "png"
-            let data = try isJPEG ? ImageExporter.jpegData(for: pair.1) : ImageExporter.pngData(for: pair.1)
-            try data.write(to: temporary.appendingPathComponent(String(format: "%03d-%@.%@", index + 1, safeComponent(pair.0.caption), ext)), options: .atomic)
+            let data = try isJPEG ? ImageExporter.jpegData(for: card) : ImageExporter.pngData(for: card)
+            try data.write(to: temporary.appendingPathComponent(String(format: "%03d-%@.%@", index + 1, safeComponent(step.caption), ext)), options: .atomic)
+            reportStepProgress(
+                format: .stepImages,
+                completed: index + 1,
+                total: steps.count,
+                progress: progress
+            )
         }
         try replace(destination, with: temporary)
     }
 
-    private static func writeSlideshow(steps: [GuideStep], document: EditableGuideDocument, to destination: URL) async throws {
-        let cards = try renderedCards(steps: steps, document: document)
+    private static func writeSlideshow(
+        steps: [GuideStep],
+        document: EditableGuideDocument,
+        to destination: URL,
+        progress: GuideExportProgressHandler?
+    ) async throws {
+        let firstCard = try renderedCard(step: steps[0], document: document)
         try await atomicFileAsync(destination) { url in
             let width = 1440
-            let height = cards.first?.1.height ?? 900
+            let height = firstCard.height
             let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
+            defer { if writer.status == .writing { writer.cancelWriting() } }
             let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
                 AVVideoCodecKey: AVVideoCodecType.h264,
                 AVVideoWidthKey: width,
@@ -359,40 +586,93 @@ nonisolated enum GuideExporter {
             guard writer.startWriting() else { throw GuideExportError.writerFailed(writer.error?.localizedDescription ?? "Could not start the video writer.") }
             writer.startSession(atSourceTime: .zero)
             var time = CMTime.zero
-            for index in cards.indices {
+            var currentImage = firstCard
+            for index in steps.indices {
                 try Task.checkCancellation()
-                let step = cards[index].0
-                let image = cards[index].1
-                while !input.isReadyForMoreMediaData { try await Task.sleep(for: .milliseconds(5)) }
-                guard let buffer = pixelBuffer(image: image, width: width, height: height), adaptor.append(buffer, withPresentationTime: time) else {
+                let step = steps[index]
+                let duration = max(step.duration, 0.05)
+                try await waitUntilReady(input, writer: writer)
+                guard let buffer = pixelBuffer(image: currentImage, width: width, height: height), adaptor.append(buffer, withPresentationTime: time) else {
                     throw GuideExportError.writerFailed(writer.error?.localizedDescription ?? "Could not write a slideshow frame.")
                 }
-                if document.project.exportSettings.usesCrossfade, index + 1 < cards.count {
-                    let fade = min(document.project.exportSettings.crossfadeDuration, min(0.2, step.duration / 2))
+                let nextImage = index + 1 < steps.count
+                    ? try renderedCard(step: steps[index + 1], document: document)
+                    : nil
+                if document.project.exportSettings.usesCrossfade, let nextImage {
+                    let fade = min(max(document.project.exportSettings.crossfadeDuration, 0), min(0.2, duration / 2))
                     for fadeIndex in 1...4 {
                         try Task.checkCancellation()
-                        while !input.isReadyForMoreMediaData { try await Task.sleep(for: .milliseconds(5)) }
+                        try await waitUntilReady(input, writer: writer)
                         let fraction = CGFloat(fadeIndex) / 5
-                        guard let blended = blend(image, cards[index + 1].1, fraction: fraction),
+                        guard let blended = blend(currentImage, nextImage, fraction: fraction),
                               let buffer = pixelBuffer(image: blended, width: width, height: height),
-                              adaptor.append(buffer, withPresentationTime: CMTimeAdd(time, CMTime(seconds: step.duration - fade + fade * Double(fadeIndex) / 5, preferredTimescale: 600))) else {
+                              adaptor.append(buffer, withPresentationTime: CMTimeAdd(time, CMTime(seconds: duration - fade + fade * Double(fadeIndex) / 5, preferredTimescale: 600))) else {
                             throw GuideExportError.writerFailed(writer.error?.localizedDescription ?? "Could not write a slideshow transition.")
                         }
                     }
                 }
-                time = CMTimeAdd(time, CMTime(seconds: step.duration, preferredTimescale: 600))
+                time = CMTimeAdd(time, CMTime(seconds: duration, preferredTimescale: 600))
+                if let nextImage { currentImage = nextImage }
+                reportStepProgress(
+                    format: .slideshowMP4,
+                    completed: index + 1,
+                    total: steps.count,
+                    progress: progress
+                )
             }
-            if let finalImage = cards.last?.1, let finalBuffer = pixelBuffer(image: finalImage, width: width, height: height) {
-                while !input.isReadyForMoreMediaData { try await Task.sleep(for: .milliseconds(5)) }
-                _ = adaptor.append(finalBuffer, withPresentationTime: time)
+            try await waitUntilReady(input, writer: writer)
+            guard let finalBuffer = pixelBuffer(image: currentImage, width: width, height: height),
+                  adaptor.append(finalBuffer, withPresentationTime: time) else {
+                throw GuideExportError.writerFailed(writer.error?.localizedDescription ?? "Could not write the final slideshow frame.")
             }
             input.markAsFinished()
+            progress?(GuideExportProgressUpdate(
+                format: .slideshowMP4,
+                phase: .finalizing,
+                detail: "Finalizing slideshow video…",
+                completedUnits: Int64(steps.count),
+                totalUnits: Int64(steps.count),
+                overallFraction: nil
+            ))
             await writer.finishWriting()
             guard writer.status == .completed else { throw GuideExportError.writerFailed(writer.error?.localizedDescription ?? "Could not finish the slideshow.") }
         }
     }
 
-    private static func writeMediaTimeline(document: EditableGuideDocument, highlightsOnly: Bool, to destination: URL) async throws {
+    private static func reportStepProgress(
+        format: GuideExportFormat,
+        completed: Int,
+        total: Int,
+        progress: GuideExportProgressHandler?
+    ) {
+        let boundedTotal = max(total, 1)
+        progress?(GuideExportProgressUpdate(
+            format: format,
+            phase: .renderingSteps,
+            detail: "Rendering step \(completed) of \(total)…",
+            completedUnits: Int64(completed),
+            totalUnits: Int64(total),
+            overallFraction: Double(completed) / Double(boundedTotal)
+        ))
+    }
+
+    private static func waitUntilReady(_ input: AVAssetWriterInput, writer: AVAssetWriter) async throws {
+        while !input.isReadyForMoreMediaData {
+            try Task.checkCancellation()
+            if writer.status == .failed || writer.status == .cancelled {
+                throw GuideExportError.writerFailed(writer.error?.localizedDescription ?? "The media writer stopped before the export completed.")
+            }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+    }
+
+    private static func writeMediaTimeline(
+        document: EditableGuideDocument,
+        highlightsOnly: Bool,
+        format: GuideExportFormat,
+        to destination: URL,
+        progress: GuideExportProgressHandler?
+    ) async throws {
         guard !document.mediaSegmentURLs.isEmpty else { throw GuideExportError.sourceVideoUnavailable }
         do {
             try await atomicFileAsync(destination) { url in
@@ -400,12 +680,11 @@ nonisolated enum GuideExporter {
             guard let videoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else { throw GuideExportError.renderingFailed }
             var audioTrack: AVMutableCompositionTrack?
             var insertion = CMTime.zero
-            var placedClips: [(clip: GuideMediaClip, outputStart: Double)] = []
-            var outputSize: CGSize?
+            var placedClips: [PlacedGuideMediaClip] = []
             let clips = highlightsOnly ? highlightClips(document: document) : document.project.timeline.segments.map {
                 GuideMediaClip(segment: $0, start: 0, duration: $0.duration)
             }
-            for clip in clips {
+            for (clipIndex, clip) in clips.enumerated() {
                 try Task.checkCancellation()
                 guard let segmentURL = document.mediaSegmentURLs[clip.segment.id] else { continue }
                 let asset = AVURLAsset(url: segmentURL)
@@ -417,23 +696,45 @@ nonisolated enum GuideExporter {
                     end: CMTime(seconds: end, preferredTimescale: 600)
                 )
                 guard range.duration > .zero else { continue }
-                if let sourceVideo = try await asset.loadTracks(withMediaType: .video).first {
-                    if outputSize == nil { outputSize = try await sourceVideo.load(.naturalSize) }
-                    try videoTrack.insertTimeRange(range, of: sourceVideo, at: insertion)
-                }
+                guard let sourceVideo = try await asset.loadTracks(withMediaType: .video).first else { continue }
+                let naturalSize = try await sourceVideo.load(.naturalSize)
+                let preferredTransform = try await sourceVideo.load(.preferredTransform)
+                guard let oriented = GuideVideoTrackGeometry.orientedGeometry(
+                    naturalSize: naturalSize,
+                    preferredTransform: preferredTransform
+                ) else { continue }
+                try videoTrack.insertTimeRange(range, of: sourceVideo, at: insertion)
                 if let sourceAudio = try await asset.loadTracks(withMediaType: .audio).first {
                     if audioTrack == nil {
                         audioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
                     }
                     try audioTrack?.insertTimeRange(range, of: sourceAudio, at: insertion)
                 }
-                placedClips.append((clip, insertion.seconds))
+                placedClips.append(PlacedGuideMediaClip(
+                    clip: clip,
+                    outputStart: insertion.seconds,
+                    naturalSize: naturalSize,
+                    preferredTransform: preferredTransform,
+                    orientedSize: oriented.renderSize
+                ))
                 insertion = CMTimeAdd(insertion, range.duration)
+                let completed = clipIndex + 1
+                progress?(GuideExportProgressUpdate(
+                    format: format,
+                    phase: .preparing,
+                    detail: "Preparing video segment \(completed) of \(clips.count)…",
+                    completedUnits: Int64(completed),
+                    totalUnits: Int64(clips.count),
+                    overallFraction: 0.4 * Double(completed) / Double(max(clips.count, 1))
+                ))
+            }
+            let outputSize = commonVideoRenderSize(for: placedClips)
+            guard !placedClips.isEmpty, outputSize.width > 0, outputSize.height > 0, insertion > .zero else {
+                throw GuideExportError.sourceVideoUnavailable
             }
             guard let session = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality) else { throw GuideExportError.renderingFailed }
             guard session.supportedFileTypes.contains(.mp4) else { throw GuideExportError.renderingFailed }
-            if let outputSize, insertion > .zero,
-               let videoComposition = mediaVideoComposition(
+            if let videoComposition = mediaVideoComposition(
                     track: videoTrack,
                     renderSize: outputSize,
                     duration: insertion.seconds,
@@ -447,6 +748,14 @@ nonisolated enum GuideExporter {
             session.shouldOptimizeForNetworkUse = true
             do {
                 let cancellation = GuideExportSessionCancellation(session)
+                progress?(GuideExportProgressUpdate(
+                    format: format,
+                    phase: .encoding,
+                    detail: "Finalizing video…",
+                    completedUnits: Int64(placedClips.count),
+                    totalUnits: Int64(clips.count),
+                    overallFraction: nil
+                ))
                 try await withTaskCancellationHandler(
                     operation: { try await session.export(to: url, as: .mp4) },
                     onCancel: { cancellation.session.cancelExport() }
@@ -472,6 +781,24 @@ nonisolated enum GuideExporter {
         var segment: GuideTimelineSegment
         var start: Double
         var duration: Double
+    }
+
+    private struct PlacedGuideMediaClip {
+        var clip: GuideMediaClip
+        var outputStart: Double
+        var naturalSize: CGSize
+        var preferredTransform: CGAffineTransform
+        var orientedSize: CGSize
+    }
+
+    private static func commonVideoRenderSize(for clips: [PlacedGuideMediaClip]) -> CGSize {
+        let width = clips.map(\.orientedSize.width).max() ?? 0
+        let height = clips.map(\.orientedSize.height).max() ?? 0
+        func evenDimension(_ value: CGFloat) -> CGFloat {
+            let rounded = max(Int(value.rounded(.up)), 0)
+            return CGFloat(rounded.isMultiple(of: 2) ? rounded : rounded + 1)
+        }
+        return CGSize(width: evenDimension(width), height: evenDimension(height))
     }
 
     private static func highlightClips(document: EditableGuideDocument) -> [GuideMediaClip] {
@@ -500,13 +827,25 @@ nonisolated enum GuideExporter {
         track: AVCompositionTrack,
         renderSize: CGSize,
         duration: Double,
-        placedClips: [(clip: GuideMediaClip, outputStart: Double)],
+        placedClips: [PlacedGuideMediaClip],
         document: EditableGuideDocument
     ) -> AVMutableVideoComposition? {
         guard renderSize.width > 0, renderSize.height > 0, duration > 0 else { return nil }
         let instruction = AVMutableVideoCompositionInstruction()
         instruction.timeRange = CMTimeRange(start: .zero, duration: CMTime(seconds: duration, preferredTimescale: 600))
-        instruction.layerInstructions = [AVMutableVideoCompositionLayerInstruction(assetTrack: track)]
+        let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: track)
+        for placed in placedClips {
+            guard let fitted = GuideVideoTrackGeometry.fittedGeometry(
+                naturalSize: placed.naturalSize,
+                preferredTransform: placed.preferredTransform,
+                renderSize: renderSize
+            ) else { continue }
+            layerInstruction.setTransform(
+                fitted.layerTransform,
+                at: CMTime(seconds: placed.outputStart, preferredTimescale: 600)
+            )
+        }
+        instruction.layerInstructions = [layerInstruction]
         let composition = AVMutableVideoComposition()
         composition.instructions = [instruction]
         composition.renderSize = renderSize
@@ -525,7 +864,9 @@ nonisolated enum GuideExporter {
             renderSize: renderSize,
             duration: duration
         )
-        guard keyframes.count > 1 else { return nil }
+        // Even without cursor samples, keep this composition so a rotated
+        // source track receives its preferred transform.
+        guard keyframes.count > 1 else { return composition }
         for trailIndex in stride(from: 3, through: 1, by: -1) {
             let trail = CAShapeLayer()
             trail.path = CGPath(ellipseIn: CGRect(x: -5, y: -5, width: 10, height: 10), transform: nil)
@@ -578,15 +919,22 @@ nonisolated enum GuideExporter {
 
     private static func cursorKeyframes(
         samples: [GuideCursorSample],
-        placedClips: [(clip: GuideMediaClip, outputStart: Double)],
+        placedClips: [PlacedGuideMediaClip],
         project: GuideProject,
         renderSize: CGSize,
         duration: Double
     ) -> [CursorKeyframe] {
-        let crop = guideMediaCropRect(project.source)
-        guard crop.width > 0, crop.height > 0 else { return [] }
         var result: [CursorKeyframe] = []
         for placed in placedClips {
+            guard let fitted = GuideVideoTrackGeometry.fittedGeometry(
+                naturalSize: placed.naturalSize,
+                preferredTransform: placed.preferredTransform,
+                renderSize: renderSize
+            ) else { continue }
+            let crop = placed.clip.segment.sourceCoordinateRect
+                ?? project.timeline.sourceCoordinateRect
+                ?? guideMediaCropRect(project.source)
+            guard crop.width > 0, crop.height > 0 else { continue }
             let segmentStart = placed.clip.segment.startedAt.timeIntervalSince(project.createdAt)
             let clipStart = segmentStart + placed.clip.start
             let clipEnd = clipStart + placed.clip.duration
@@ -594,12 +942,15 @@ nonisolated enum GuideExporter {
                 guard let point = GuideMediaCursorGeometry.renderPoint(
                     fromCaptureGlobalPoint: sample.point,
                     cropRect: crop,
-                    renderSize: renderSize,
+                    renderSize: fitted.contentRect.size,
                     coordinateContract: project.resolvedCoordinateContract
                 ) else { continue }
                 result.append(CursorKeyframe(
                     time: min(max(placed.outputStart + sample.timestampSeconds - clipStart, 0), duration),
-                    point: point
+                    point: CGPoint(
+                        x: fitted.contentRect.minX + point.x,
+                        y: fitted.contentRect.minY + point.y
+                    )
                 ))
             }
         }
@@ -629,7 +980,7 @@ nonisolated enum GuideExporter {
         return opacity
     }
 
-    private static func eventOutputTimes(placedClips: [(clip: GuideMediaClip, outputStart: Double)], project: GuideProject) -> [Double] {
+    private static func eventOutputTimes(placedClips: [PlacedGuideMediaClip], project: GuideProject) -> [Double] {
         project.steps.filter {
             $0.isIncluded && !$0.isDeleted && ($0.eventKind == .click || $0.eventKind == .doubleClick)
         }.compactMap { step in
@@ -658,36 +1009,109 @@ nonisolated enum GuideExporter {
         }
     }
 
-    private static func writeZIP(steps: [GuideStep], document: EditableGuideDocument, to destination: URL) async throws {
-        var entries: [(String, Data)] = []
-        var markdown = "# \(document.project.title.isEmpty ? "Guide" : document.project.title)\n\n"
-        for (index, pair) in try renderedCards(steps: steps, document: document).enumerated() {
-            try Task.checkCancellation()
-            let name = String(format: "steps/%03d.png", index + 1)
-            entries.append((name, try ImageExporter.pngData(for: pair.1)))
-            markdown += "## \(index + 1). \(pair.0.caption)\n\n![Step \(index + 1)](\(name))\n\n\(pair.0.note)\n\n"
-        }
-        entries.append(("Guide.md", Data(markdown.utf8)))
+    private static func writeZIP(
+        steps: [GuideStep],
+        document: EditableGuideDocument,
+        to destination: URL,
+        progress: GuideExportProgressHandler?
+    ) async throws {
         let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("GuideZIPExports-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: temporary) }
         try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)
-        for format in document.project.exportSettings.formats where format != .zip && format != .stepImages {
+        var nestedExports: [URL] = []
+        let nestedFormats = document.project.exportSettings.formats
+            .filter { $0 != .zip && $0 != .stepImages }
+            .sorted { $0.rawValue < $1.rawValue }
+        for (index, format) in nestedFormats.enumerated() {
             try Task.checkCancellation()
-            if let url = try? await export(document: document, format: format, directory: temporary),
-               !url.hasDirectoryPath,
-               let data = try? Data(contentsOf: url) {
-                entries.append(("exports/\(url.lastPathComponent)", data))
-            }
-        }
-        if document.project.exportSettings.includesSourceMediaInZIP {
-            for (index, segment) in document.project.timeline.segments.enumerated() {
-                try Task.checkCancellation()
-                if let url = document.mediaSegmentURLs[segment.id], let data = try? Data(contentsOf: url) {
-                    entries.append((String(format: "source-media/%03d.mp4", index + 1), data))
+            progress?(GuideExportProgressUpdate(
+                format: .zip,
+                phase: .preparing,
+                detail: "Creating \(format.label) for the ZIP…",
+                completedUnits: Int64(index),
+                totalUnits: Int64(nestedFormats.count),
+                overallFraction: nestedFormats.isEmpty ? 0.2 : 0.2 * Double(index) / Double(nestedFormats.count)
+            ))
+            do {
+                let url = try await export(document: document, format: format, directory: temporary)
+                guard !url.hasDirectoryPath else {
+                    throw GuideExportError.writerFailed("\(format.label) produced an unexpected directory.")
                 }
+                nestedExports.append(url)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                let reason = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                throw GuideExportError.writerFailed("ZIP could not include \(format.label): \(reason)")
             }
         }
-        try atomicFile(destination) { url in try GuideZIPWriter.write(entries: entries, to: url) }
+
+        let sourceMedia: [(index: Int, url: URL)]
+        if document.project.exportSettings.includesSourceMediaInZIP {
+            sourceMedia = try document.project.timeline.segments.enumerated().map { index, segment in
+                guard let url = document.mediaSegmentURLs[segment.id],
+                      FileManager.default.fileExists(atPath: url.path) else {
+                    throw GuideExportError.writerFailed(
+                        "ZIP could not include source media segment \(index + 1) because its file is unavailable."
+                    )
+                }
+                return (index, url)
+            }
+        } else {
+            sourceMedia = []
+        }
+
+        try atomicFile(destination) { url in
+            let writer = try GuideZIPWriter.Stream(url: url)
+            do {
+                let totalEntries = max(steps.count + nestedExports.count + sourceMedia.count + 1, 1)
+                var completedEntries = 0
+                func reportEntry(_ detail: String, partial: Double = 0) {
+                    let packagingFraction = (Double(completedEntries) + min(max(partial, 0), 1)) / Double(totalEntries)
+                    progress?(GuideExportProgressUpdate(
+                        format: .zip,
+                        phase: .packaging,
+                        detail: detail,
+                        completedUnits: Int64(completedEntries),
+                        totalUnits: Int64(totalEntries),
+                        overallFraction: 0.2 + (0.8 * packagingFraction)
+                    ))
+                }
+                var markdown = "# \(document.project.title.isEmpty ? "Guide" : document.project.title)\n\n"
+                for (index, step) in steps.enumerated() {
+                    let name = String(format: "steps/%03d.png", index + 1)
+                    let card = try renderedCard(step: step, document: document)
+                    try writer.add(name: name, data: ImageExporter.pngData(for: card))
+                    completedEntries += 1
+                    reportEntry("Packaging step \(index + 1) of \(steps.count)…")
+                    markdown += "## \(index + 1). \(step.caption)\n\n![Step \(index + 1)](\(name))\n\n\(step.note)\n\n"
+                }
+                try writer.add(name: "Guide.md", data: Data(markdown.utf8))
+                completedEntries += 1
+                reportEntry("Packaging Guide instructions…")
+                for nested in nestedExports {
+                    try writer.addFile(name: "exports/\(nested.lastPathComponent)", url: nested) { written, total in
+                        let partial = total > 0 ? Double(written) / Double(total) : 0
+                        reportEntry("Packaging \(nested.lastPathComponent)…", partial: partial)
+                    }
+                    completedEntries += 1
+                    reportEntry("Packaged \(nested.lastPathComponent).")
+                }
+                for entry in sourceMedia {
+                    try Task.checkCancellation()
+                    try writer.addFile(name: String(format: "source-media/%03d.mp4", entry.index + 1), url: entry.url) { written, total in
+                        let partial = total > 0 ? Double(written) / Double(total) : 0
+                        reportEntry("Packaging source video \(entry.index + 1)…", partial: partial)
+                    }
+                    completedEntries += 1
+                    reportEntry("Packaged source video \(entry.index + 1).")
+                }
+                try writer.finish()
+            } catch {
+                writer.cancel()
+                throw error
+            }
+        }
     }
 
     private static func pixelBuffer(image: CGImage, width: Int, height: Int) -> CVPixelBuffer? {
@@ -735,11 +1159,13 @@ nonisolated enum GuideExporter {
             .appendingPathComponent("\(stem).\(UUID().uuidString).tmp\(suffix)", isDirectory: false)
     }
     private static func atomicFile(_ destination: URL, writer: (URL) throws -> Void) throws {
+        cleanupInterruptedTemporaryFiles(for: destination)
         let temp = temporaryFileURL(for: destination)
         defer { try? FileManager.default.removeItem(at: temp) }
         try writer(temp); try replace(destination, with: temp)
     }
     private static func atomicFileAsync(_ destination: URL, writer: (URL) async throws -> Void) async throws {
+        cleanupInterruptedTemporaryFiles(for: destination)
         let temp = temporaryFileURL(for: destination)
         defer { try? FileManager.default.removeItem(at: temp) }
         try await writer(temp)
@@ -758,29 +1184,253 @@ nonisolated enum GuideExporter {
         if FileManager.default.fileExists(atPath: destination.path) { _ = try FileManager.default.replaceItemAt(destination, withItemAt: temporary) }
         else { try FileManager.default.moveItem(at: temporary, to: destination) }
     }
+
+    private static func cleanupInterruptedTemporaryFiles(for destination: URL) {
+        let directory = destination.deletingLastPathComponent()
+        let stem = destination.deletingPathExtension().lastPathComponent + "."
+        let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
+        guard let urls = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.contentModificationDateKey],
+            options: [.skipsHiddenFiles]
+        ) else { return }
+        for url in urls where url.lastPathComponent.hasPrefix(stem) && url.lastPathComponent.contains(".tmp") {
+            let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            if modified < cutoff { try? FileManager.default.removeItem(at: url) }
+        }
+    }
+
+    private static func cleanupStaleTemporaryArtifacts() {
+        let directory = FileManager.default.temporaryDirectory
+        let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
+        guard let urls = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.contentModificationDateKey],
+            options: [.skipsHiddenFiles]
+        ) else { return }
+        for url in urls where url.lastPathComponent.hasPrefix("GuideImages-") || url.lastPathComponent.hasPrefix("GuideZIPExports-") {
+            let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            if modified < cutoff { try? FileManager.default.removeItem(at: url) }
+        }
+    }
 }
 
-nonisolated private enum GuideZIPWriter {
+nonisolated enum GuideZIPWriter {
     static func write(entries: [(String, Data)], to url: URL) throws {
-        var output = Data(); var central = Data(); var offset: UInt32 = 0
-        for (name, data) in entries {
-            try Task.checkCancellation()
-            let nameData = Data(name.utf8); let crc = try crc32(data); let size = UInt32(data.count)
-            var local = Data(); local.appendLE(UInt32(0x04034b50)); local.appendLE(UInt16(20)); local.appendLE(UInt16(0)); local.appendLE(UInt16(0)); local.appendLE(UInt16(0)); local.appendLE(UInt16(0)); local.appendLE(crc); local.appendLE(size); local.appendLE(size); local.appendLE(UInt16(nameData.count)); local.appendLE(UInt16(0)); local.append(nameData); local.append(data)
-            output.append(local)
-            var record = Data(); record.appendLE(UInt32(0x02014b50)); record.appendLE(UInt16(20)); record.appendLE(UInt16(20)); record.appendLE(UInt16(0)); record.appendLE(UInt16(0)); record.appendLE(UInt16(0)); record.appendLE(UInt16(0)); record.appendLE(crc); record.appendLE(size); record.appendLE(size); record.appendLE(UInt16(nameData.count)); record.appendLE(UInt16(0)); record.appendLE(UInt16(0)); record.appendLE(UInt16(0)); record.appendLE(UInt16(0)); record.appendLE(UInt32(0)); record.appendLE(offset); record.append(nameData); central.append(record)
-            offset += UInt32(local.count)
+        let writer = try Stream(url: url)
+        do {
+            for (name, data) in entries { try writer.add(name: name, data: data) }
+            try writer.finish()
+        } catch {
+            writer.cancel()
+            throw error
         }
-        output.append(central); output.appendLE(UInt32(0x06054b50)); output.appendLE(UInt16(0)); output.appendLE(UInt16(0)); output.appendLE(UInt16(entries.count)); output.appendLE(UInt16(entries.count)); output.appendLE(UInt32(central.count)); output.appendLE(offset); output.appendLE(UInt16(0)); try output.write(to: url, options: .atomic)
     }
+
+    final class Stream {
+        private struct Record {
+            var name: Data
+            var crc: UInt32
+            var size: UInt64
+            var offset: UInt64
+            var flags: UInt16
+        }
+
+        private let handle: FileHandle
+        private let url: URL
+        private var records: [Record] = []
+        private var offset: UInt64 = 0
+        private var isFinished = false
+
+        init(url: URL) throws {
+            self.url = url
+            FileManager.default.createFile(atPath: url.path, contents: nil)
+            handle = try FileHandle(forWritingTo: url)
+        }
+
+        deinit { try? handle.close() }
+
+        func add(name: String, data: Data) throws {
+            try Task.checkCancellation()
+            let nameData = Data(name.utf8)
+            guard nameData.count <= Int(UInt16.max) else { throw GuideExportError.writerFailed("A ZIP entry name was too long.") }
+            let crc = try GuideZIPWriter.crc32(data)
+            let size = UInt64(data.count)
+            let usesZIP64Size = size >= UInt64(UInt32.max)
+            let extra = usesZIP64Size ? GuideZIPWriter.zip64Extra([size, size]) : Data()
+            var local = Data()
+            local.appendLE(UInt32(0x04034b50))
+            local.appendLE(UInt16(usesZIP64Size ? 45 : 20))
+            local.appendLE(UInt16(0))
+            local.appendLE(UInt16(0))
+            local.appendLE(UInt16(0)); local.appendLE(UInt16(0))
+            local.appendLE(crc)
+            local.appendLE(usesZIP64Size ? UInt32.max : UInt32(size))
+            local.appendLE(usesZIP64Size ? UInt32.max : UInt32(size))
+            local.appendLE(UInt16(nameData.count)); local.appendLE(UInt16(extra.count))
+            local.append(nameData); local.append(extra)
+            let localOffset = offset
+            try handle.write(contentsOf: local)
+            try handle.write(contentsOf: data)
+            records.append(Record(name: nameData, crc: crc, size: size, offset: localOffset, flags: 0))
+            offset += UInt64(local.count + data.count)
+        }
+
+        func addFile(
+            name: String,
+            url: URL,
+            progress: ((UInt64, UInt64) -> Void)? = nil
+        ) throws {
+            try Task.checkCancellation()
+            let source = try FileHandle(forReadingFrom: url)
+            defer { try? source.close() }
+            let size64 = try source.seekToEnd()
+            try source.seek(toOffset: 0)
+            let nameData = Data(name.utf8)
+            guard nameData.count <= Int(UInt16.max) else {
+                throw GuideExportError.writerFailed("A ZIP entry name was too long.")
+            }
+            let usesZIP64Size = size64 >= UInt64(UInt32.max)
+            let extra = usesZIP64Size ? GuideZIPWriter.zip64Extra([size64, size64]) : Data()
+            var local = Data()
+            local.appendLE(UInt32(0x04034b50))
+            local.appendLE(UInt16(usesZIP64Size ? 45 : 20))
+            local.appendLE(UInt16(0x0008)) // CRC and sizes follow the streamed payload.
+            local.appendLE(UInt16(0))
+            local.appendLE(UInt16(0)); local.appendLE(UInt16(0))
+            local.appendLE(UInt32(0))
+            local.appendLE(usesZIP64Size ? UInt32.max : UInt32(0))
+            local.appendLE(usesZIP64Size ? UInt32.max : UInt32(0))
+            local.appendLE(UInt16(nameData.count)); local.appendLE(UInt16(extra.count))
+            local.append(nameData); local.append(extra)
+            let localOffset = offset
+            try handle.write(contentsOf: local)
+            var crcState: UInt32 = 0xffffffff
+            var bytesWritten: UInt64 = 0
+            while let chunk = try source.read(upToCount: 1_048_576), !chunk.isEmpty {
+                try Task.checkCancellation()
+                crcState = try GuideZIPWriter.updateCRC32(crcState, with: chunk)
+                try handle.write(contentsOf: chunk)
+                bytesWritten += UInt64(chunk.count)
+                progress?(bytesWritten, size64)
+            }
+            let crc = crcState ^ 0xffffffff
+            var descriptor = Data()
+            descriptor.appendLE(UInt32(0x08074b50))
+            descriptor.appendLE(crc)
+            if usesZIP64Size {
+                descriptor.appendLE(size64); descriptor.appendLE(size64)
+            } else {
+                descriptor.appendLE(UInt32(size64)); descriptor.appendLE(UInt32(size64))
+            }
+            try handle.write(contentsOf: descriptor)
+            records.append(Record(name: nameData, crc: crc, size: size64, offset: localOffset, flags: 0x0008))
+            offset += UInt64(local.count) + size64 + UInt64(descriptor.count)
+        }
+
+        func finish() throws {
+            guard !isFinished else { return }
+            try Task.checkCancellation()
+            let centralOffset = offset
+            var centralSize: UInt64 = 0
+            var archiveNeedsZIP64 = false
+            for record in records {
+                try Task.checkCancellation()
+                let sizeNeedsZIP64 = record.size >= UInt64(UInt32.max)
+                let offsetNeedsZIP64 = record.offset >= UInt64(UInt32.max)
+                var zip64Values: [UInt64] = []
+                if sizeNeedsZIP64 { zip64Values.append(contentsOf: [record.size, record.size]) }
+                if offsetNeedsZIP64 { zip64Values.append(record.offset) }
+                let extra = GuideZIPWriter.zip64Extra(zip64Values)
+                let needsZIP64 = !zip64Values.isEmpty
+                archiveNeedsZIP64 = archiveNeedsZIP64 || needsZIP64
+                var entry = Data()
+                entry.appendLE(UInt32(0x02014b50))
+                entry.appendLE(UInt16(needsZIP64 ? 45 : 20)); entry.appendLE(UInt16(needsZIP64 ? 45 : 20))
+                entry.appendLE(record.flags); entry.appendLE(UInt16(0))
+                entry.appendLE(UInt16(0)); entry.appendLE(UInt16(0))
+                entry.appendLE(record.crc)
+                entry.appendLE(sizeNeedsZIP64 ? UInt32.max : UInt32(record.size))
+                entry.appendLE(sizeNeedsZIP64 ? UInt32.max : UInt32(record.size))
+                entry.appendLE(UInt16(record.name.count)); entry.appendLE(UInt16(extra.count))
+                entry.appendLE(UInt16(0)); entry.appendLE(UInt16(0)); entry.appendLE(UInt16(0)); entry.appendLE(UInt32(0))
+                entry.appendLE(offsetNeedsZIP64 ? UInt32.max : UInt32(record.offset))
+                entry.append(record.name); entry.append(extra)
+                try handle.write(contentsOf: entry)
+                centralSize += UInt64(entry.count)
+            }
+            let end = GuideZIPWriter.endRecords(
+                recordCount: UInt64(records.count),
+                centralSize: centralSize,
+                centralOffset: centralOffset,
+                forceZIP64: archiveNeedsZIP64
+            )
+            try handle.write(contentsOf: end)
+            try handle.synchronize()
+            try handle.close()
+            isFinished = true
+        }
+
+        func cancel() {
+            try? handle.close()
+            try? FileManager.default.removeItem(at: url)
+            isFinished = true
+        }
+    }
+
+    static func endRecords(
+        recordCount: UInt64,
+        centralSize: UInt64,
+        centralOffset: UInt64,
+        forceZIP64: Bool = false
+    ) -> Data {
+        let usesZIP64 = forceZIP64
+            || recordCount >= UInt64(UInt16.max)
+            || centralSize >= UInt64(UInt32.max)
+            || centralOffset >= UInt64(UInt32.max)
+        var result = Data()
+        if usesZIP64 {
+            let zip64EndOffset = centralOffset + centralSize
+            result.appendLE(UInt32(0x06064b50))
+            result.appendLE(UInt64(44))
+            result.appendLE(UInt16(45)); result.appendLE(UInt16(45))
+            result.appendLE(UInt32(0)); result.appendLE(UInt32(0))
+            result.appendLE(recordCount); result.appendLE(recordCount)
+            result.appendLE(centralSize); result.appendLE(centralOffset)
+            result.appendLE(UInt32(0x07064b50))
+            result.appendLE(UInt32(0)); result.appendLE(zip64EndOffset); result.appendLE(UInt32(1))
+        }
+        result.appendLE(UInt32(0x06054b50))
+        result.appendLE(UInt16(0)); result.appendLE(UInt16(0))
+        result.appendLE(usesZIP64 ? UInt16.max : UInt16(recordCount))
+        result.appendLE(usesZIP64 ? UInt16.max : UInt16(recordCount))
+        result.appendLE(usesZIP64 ? UInt32.max : UInt32(centralSize))
+        result.appendLE(usesZIP64 ? UInt32.max : UInt32(centralOffset))
+        result.appendLE(UInt16(0))
+        return result
+    }
+
+    private static func zip64Extra(_ values: [UInt64]) -> Data {
+        guard !values.isEmpty else { return Data() }
+        var extra = Data()
+        extra.appendLE(UInt16(0x0001))
+        extra.appendLE(UInt16(values.count * MemoryLayout<UInt64>.size))
+        values.forEach { extra.appendLE($0) }
+        return extra
+    }
+
     private static func crc32(_ data: Data) throws -> UInt32 {
-        var crc: UInt32 = 0xffffffff
+        try updateCRC32(0xffffffff, with: data) ^ 0xffffffff
+    }
+
+    private static func updateCRC32(_ initial: UInt32, with data: Data) throws -> UInt32 {
+        var crc = initial
         for (index, byte) in data.enumerated() {
             if index.isMultiple(of: 65_536) { try Task.checkCancellation() }
             crc ^= UInt32(byte)
             for _ in 0..<8 { crc = (crc >> 1) ^ (0xedb88320 & (0 &- (crc & 1))) }
         }
-        return crc ^ 0xffffffff
+        return crc
     }
 }
 

@@ -7,6 +7,82 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class GuideWorkflowTests: XCTestCase {
+    func testGuideStorageGuardrailsRejectLowDiskBeforeCaptureAndExport() throws {
+        XCTAssertThrowsError(try GuideStorageGuardrails.ensureCanStartCapture(
+            pixelWidth: 3_840,
+            pixelHeight: 2_160,
+            framesPerSecond: 60,
+            sourceVideoEnabled: true,
+            temporaryDirectory: URL(fileURLWithPath: "/tmp"),
+            availableCapacity: { _ in 100_000_000 }
+        )) { error in
+            guard case GuideStorageError.insufficientAvailableSpace = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+        }
+
+        XCTAssertGreaterThan(
+            GuideStorageGuardrails.captureHeadroomBytes(
+                pixelWidth: 3_840,
+                pixelHeight: 2_160,
+                framesPerSecond: 60,
+                sourceVideoEnabled: true
+            ),
+            GuideStorageGuardrails.minimumVideoCaptureFreeBytes
+        )
+        XCTAssertEqual(
+            GuideStorageGuardrails.captureHeadroomBytes(
+                pixelWidth: 1,
+                pixelHeight: 1,
+                framesPerSecond: 1,
+                sourceVideoEnabled: false
+            ),
+            GuideStorageGuardrails.minimumStepCaptureFreeBytes
+        )
+    }
+
+    func testRotatedVideoTrackGeometryNormalizesIntoUprightRenderSpace() throws {
+        let preferred = CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 1_080, ty: 0)
+        let geometry = try XCTUnwrap(GuideVideoTrackGeometry.orientedGeometry(
+            naturalSize: CGSize(width: 1_920, height: 1_080),
+            preferredTransform: preferred
+        ))
+
+        XCTAssertEqual(geometry.renderSize, CGSize(width: 1_080, height: 1_920))
+        let outputRect = CGRect(x: 0, y: 0, width: 1_920, height: 1_080)
+            .applying(geometry.layerTransform)
+            .standardized
+        XCTAssertEqual(outputRect.origin.x, 0, accuracy: 0.001)
+        XCTAssertEqual(outputRect.origin.y, 0, accuracy: 0.001)
+        XCTAssertEqual(outputRect.size.width, 1_080, accuracy: 0.001)
+        XCTAssertEqual(outputRect.size.height, 1_920, accuracy: 0.001)
+    }
+
+    func testMixedOrientationVideoSegmentsFitWithoutStretching() throws {
+        let portraitTransform = CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 1_080, ty: 0)
+        let canvas = CGSize(width: 1_920, height: 1_920)
+        let portrait = try XCTUnwrap(GuideVideoTrackGeometry.fittedGeometry(
+            naturalSize: CGSize(width: 1_920, height: 1_080),
+            preferredTransform: portraitTransform,
+            renderSize: canvas
+        ))
+        let landscape = try XCTUnwrap(GuideVideoTrackGeometry.fittedGeometry(
+            naturalSize: CGSize(width: 1_920, height: 1_080),
+            preferredTransform: .identity,
+            renderSize: canvas
+        ))
+
+        XCTAssertEqual(portrait.contentRect, CGRect(x: 420, y: 0, width: 1_080, height: 1_920))
+        XCTAssertEqual(landscape.contentRect, CGRect(x: 0, y: 420, width: 1_920, height: 1_080))
+        let portraitOutput = CGRect(x: 0, y: 0, width: 1_920, height: 1_080)
+            .applying(portrait.layerTransform)
+            .standardized
+        XCTAssertEqual(portraitOutput.minX, portrait.contentRect.minX, accuracy: 0.001)
+        XCTAssertEqual(portraitOutput.minY, portrait.contentRect.minY, accuracy: 0.001)
+        XCTAssertEqual(portraitOutput.width, portrait.contentRect.width, accuracy: 0.001)
+        XCTAssertEqual(portraitOutput.height, portrait.contentRect.height, accuracy: 0.001)
+    }
+
     func testSourceMediaCursorConvertsTopLeftCaptureCoordinatesForCoreAnimation() throws {
         let crop = CGRect(x: -100, y: 50, width: 400, height: 200)
         let output = CGSize(width: 800, height: 600)
@@ -253,6 +329,41 @@ final class GuideWorkflowTests: XCTestCase {
         XCTAssertEqual(target.source, .display(7, excludingProcessID: nil, includeMenuBar: true))
     }
 
+    func testGuideChoosesScreenCaptureKitDisplayForMixedScaleWindowGeometry() throws {
+        let displays = [
+            DisplaySnapshot(
+                displayID: 1,
+                name: "Retina",
+                frame: CGRect(x: 0, y: 0, width: 1_440, height: 900),
+                overlayFrame: CGRect(x: 0, y: 0, width: 1_440, height: 900),
+                scale: 2
+            ),
+            DisplaySnapshot(
+                displayID: 2,
+                name: "Rotated",
+                frame: CGRect(x: -1_080, y: 0, width: 1_080, height: 1_920),
+                overlayFrame: CGRect(x: -1_920, y: 0, width: 1_920, height: 1_080),
+                scale: 1
+            )
+        ]
+        let source = GuideCaptureSource.window(
+            id: 42,
+            ownerPID: 7,
+            name: "Mixed Scale",
+            frame: CGRect(x: -900, y: 200, width: 600, height: 800)
+        )
+
+        let selected = try XCTUnwrap(GuideMediaCaptureSession.captureDisplay(
+            for: source,
+            in: displays,
+            fallbackDisplayID: 1
+        ))
+
+        XCTAssertEqual(selected.displayID, 2)
+        XCTAssertEqual(selected.frame, CGRect(x: -1_080, y: 0, width: 1_080, height: 1_920))
+        XCTAssertEqual(selected.scale, 1)
+    }
+
     @MainActor
     func testDiscardStopsCaptureWithoutWaitingForSegmentFinalization() async throws {
         let platformSession = TestScreenRecordingPlatformSession()
@@ -275,6 +386,439 @@ final class GuideWorkflowTests: XCTestCase {
         XCTAssertTrue(platformSession.segmentOutputURLs.isEmpty)
     }
 
+    @MainActor
+    func testCaptureStreamInterruptionPreservesCompletedWorkAndMakesStopResponsive() async throws {
+        let platformSession = TestScreenRecordingPlatformSession()
+        let media = GuideMediaCaptureSession(
+            source: .displays(.current),
+            capturedDisplayFrame: CGRect(x: -1_080, y: 0, width: 1_080, height: 1_920),
+            captureDisplayID: 2,
+            platformSession: platformSession,
+            files: SystemFileService(),
+            sourceVideoEnabled: true
+        )
+        var interruptionMessage: String?
+        media.interruptionHandler = { interruptionMessage = $0.localizedDescription }
+        try await media.start()
+
+        platformSession.stopWithError(NSError(
+            domain: "GuideTests",
+            code: 17,
+            userInfo: [NSLocalizedDescriptionKey: "Permission changed"]
+        ))
+
+        XCTAssertTrue(media.isInterrupted)
+        XCTAssertEqual(interruptionMessage, "Permission changed")
+        XCTAssertTrue(platformSession.segmentOutputURLs.isEmpty)
+        let preservedSegments = try await media.stop()
+        XCTAssertTrue(preservedSegments.isEmpty)
+    }
+
+    func testIncrementalRecoveryReusesOldStepAssetsAcrossHundredsOfSteps() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GuideIncrementalRecovery-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let package = root.appendingPathComponent("Long.sssguide", isDirectory: true)
+        let firstID = UUID()
+        let firstStep = GuideStep(
+            id: firstID,
+            sequence: 1,
+            eventKind: .manual,
+            caption: "First",
+            session: GuideStepSession(
+                sourceCoordinateRect: CGRect(x: -1_080, y: 0, width: 1_080, height: 1_920),
+                sourcePixelSize: CGSize(width: 8, height: 8)
+            )
+        )
+        var project = GuideProject(source: .displays(.selected([2])))
+        project.steps = [firstStep]
+        var images: [UUID: CGImage] = [firstID: try solidImage(width: 8, height: 8, color: CGColor(red: 0, green: 0, blue: 1, alpha: 1))]
+        try SSSGuideDocumentPackage.saveRecoveryCheckpoint(
+            document: EditableGuideDocument(project: project, stepImages: images, previewImage: nil, logoImage: nil, mediaSegmentURLs: [:]),
+            to: package
+        )
+        let firstAsset = package
+            .appendingPathComponent("steps/\(firstID.uuidString.lowercased())/base.png")
+        let originalData = try Data(contentsOf: firstAsset)
+
+        for sequence in 2...250 {
+            let id = UUID()
+            project.steps.append(GuideStep(
+                id: id,
+                sequence: sequence,
+                eventKind: .manual,
+                caption: "Step \(sequence)",
+                session: GuideStepSession(
+                    sourceCoordinateRect: CGRect(x: 0, y: 0, width: 8, height: 8),
+                    sourcePixelSize: CGSize(width: 8, height: 8)
+                )
+            ))
+            images[id] = try image(width: 8, height: 8)
+        }
+        // Recovery treats captured base images as immutable and must not rewrite
+        // the first 249 assets when only the manifest or final step changes.
+        images[firstID] = try solidImage(width: 8, height: 8, color: CGColor(red: 1, green: 0, blue: 0, alpha: 1))
+        try SSSGuideDocumentPackage.saveRecoveryCheckpoint(
+            document: EditableGuideDocument(project: project, stepImages: images, previewImage: nil, logoImage: nil, mediaSegmentURLs: [:]),
+            to: package
+        )
+
+        XCTAssertEqual(try Data(contentsOf: firstAsset), originalData)
+        let recovered = try SSSGuideDocumentPackage.load(from: package)
+        XCTAssertEqual(recovered.project.steps.count, 250)
+        XCTAssertEqual(recovered.stepImages.count, 250)
+    }
+
+    @MainActor
+    func testLongGuideCaptionTypingCoalescesIntoOneUndoCommand() throws {
+        var project = GuideProject(source: .region(CGRect(x: 0, y: 0, width: 8, height: 8)))
+        var images: [UUID: CGImage] = [:]
+        let sharedImage = try image(width: 8, height: 8)
+        for sequence in 1...300 {
+            let id = UUID()
+            project.steps.append(GuideStep(
+                id: id,
+                sequence: sequence,
+                eventKind: .manual,
+                caption: sequence == 1 ? "Initial" : "Step \(sequence)",
+                session: GuideStepSession(
+                    sourceCoordinateRect: CGRect(x: 0, y: 0, width: 8, height: 8),
+                    sourcePixelSize: CGSize(width: 8, height: 8)
+                )
+            ))
+            images[id] = sharedImage
+        }
+        let controller = GuideEditorController(document: EditableGuideDocument(
+            project: project,
+            stepImages: images,
+            previewImage: nil,
+            logoImage: nil,
+            mediaSegmentURLs: [:]
+        ))
+        let firstID = try XCTUnwrap(project.steps.first?.id)
+        for index in 1...80 {
+            controller.updateCaption(stepID: firstID, caption: "Edited \(index)")
+        }
+        XCTAssertEqual(controller.project.steps[0].caption, "Edited 80")
+        controller.undo()
+        XCTAssertEqual(controller.project.steps[0].caption, "Initial")
+        XCTAssertFalse(controller.canUndo)
+    }
+
+    func testGuideImageMemoryUsesBoundedThumbnailsAndPreservesFullResolution() throws {
+        let source = try image(width: 1_200, height: 800)
+        let thumbnail = try XCTUnwrap(GuideImageMemory.thumbnail(of: source, maximumPixelDimension: 200))
+        XCTAssertEqual(max(thumbnail.width, thumbnail.height), 200)
+        let compressed = try XCTUnwrap(GuideImageMemory.compressedCopy(of: source))
+        XCTAssertEqual(compressed.width, 1_200)
+        XCTAssertEqual(compressed.height, 800)
+    }
+
+    func testResolvedWindowSourceFollowsMixedScaleAndRotatedDisplayGeometry() throws {
+        let displays = [
+            DisplaySnapshot(displayID: 1, name: "Retina", frame: CGRect(x: 0, y: 0, width: 1_440, height: 900), scale: 2),
+            DisplaySnapshot(displayID: 2, name: "Portrait", frame: CGRect(x: -1_080, y: 0, width: 1_080, height: 1_920), scale: 1)
+        ]
+        let movedFrame = CGRect(x: -900, y: 240, width: 600, height: 900)
+        let content = ScreenContentSnapshot(
+            displays: displays,
+            windows: [ScreenWindowSnapshot(
+                id: 42,
+                ownerName: "Example",
+                ownerPID: 7,
+                bundleIdentifier: "com.example.app",
+                title: "Document",
+                frame: movedFrame,
+                layer: 0,
+                isOnScreen: true
+            )],
+            applications: []
+        )
+        let screens = TestScreenTopologyService(
+            screens: [
+                ScreenDisplaySnapshot(displayID: 1, name: "Retina", frame: displays[0].frame, visibleFrame: displays[0].frame, backingScaleFactor: 2),
+                ScreenDisplaySnapshot(displayID: 2, name: "Portrait", frame: displays[1].frame, visibleFrame: displays[1].frame, backingScaleFactor: 1)
+            ],
+            mainScreen: nil
+        )
+
+        let resolved = try GuideMediaCaptureSession.resolve(
+            source: .window(id: 42, ownerPID: 7, name: "Document", frame: CGRect(x: 20, y: 20, width: 500, height: 300)),
+            content: content,
+            screens: screens,
+            preferredWindowID: 42,
+            previousFrame: nil,
+            includeMenuBar: false
+        )
+
+        XCTAssertEqual(resolved.windowID, 42)
+        XCTAssertEqual(resolved.captureFrame, movedFrame)
+        XCTAssertEqual(resolved.displayID, 2)
+        XCTAssertEqual(resolved.pointPixelScale, 1)
+        XCTAssertEqual(resolved.target.source, .window(42))
+        XCTAssertNil(resolved.target.sourceRect)
+    }
+
+    func testResolvedAppSourcePrefersInteractionWindowThenPreviousOverlap() throws {
+        let display = DisplaySnapshot(displayID: 1, name: "Display", frame: CGRect(x: 0, y: 0, width: 1_600, height: 1_000), scale: 2)
+        let first = ScreenWindowSnapshot(id: 10, ownerName: "App", ownerPID: 99, bundleIdentifier: "com.example.app", title: "First", frame: CGRect(x: 40, y: 40, width: 500, height: 500), layer: 0, isOnScreen: true)
+        let second = ScreenWindowSnapshot(id: 11, ownerName: "App", ownerPID: 99, bundleIdentifier: "com.example.app", title: "Second", frame: CGRect(x: 900, y: 100, width: 600, height: 700), layer: 0, isOnScreen: true)
+        let content = ScreenContentSnapshot(displays: [display], windows: [first, second], applications: [])
+        let screens = TestScreenTopologyService(
+            screens: [ScreenDisplaySnapshot(displayID: 1, name: "Display", frame: display.frame, visibleFrame: display.frame, backingScaleFactor: 2)],
+            mainScreen: nil
+        )
+
+        let exact = try GuideMediaCaptureSession.resolve(
+            source: .app(processID: 99, bundleIdentifier: "com.example.app", name: "App", initialFrame: first.frame),
+            content: content,
+            screens: screens,
+            preferredWindowID: 11,
+            previousFrame: first.frame,
+            includeMenuBar: false
+        )
+        let overlap = try GuideMediaCaptureSession.resolve(
+            source: .app(processID: 99, bundleIdentifier: "com.example.app", name: "App", initialFrame: first.frame),
+            content: content,
+            screens: screens,
+            preferredWindowID: nil,
+            previousFrame: first.frame,
+            includeMenuBar: false
+        )
+
+        XCTAssertEqual(exact.windowID, 11)
+        XCTAssertEqual(overlap.windowID, 10)
+    }
+
+    func testGuideRegionResolutionRejectsCrossDisplayRectangle() {
+        let content = ScreenContentSnapshot(
+            displays: [
+                DisplaySnapshot(displayID: 1, name: "Left", frame: CGRect(x: 0, y: 0, width: 1_000, height: 800), scale: 2),
+                DisplaySnapshot(displayID: 2, name: "Right", frame: CGRect(x: 1_000, y: 0, width: 1_000, height: 800), scale: 1)
+            ],
+            windows: [],
+            applications: []
+        )
+        XCTAssertThrowsError(try GuideMediaCaptureSession.resolve(
+            source: .region(CGRect(x: 900, y: 100, width: 300, height: 300)),
+            content: content,
+            screens: TestScreenTopologyService(),
+            preferredWindowID: nil,
+            previousFrame: nil,
+            includeMenuBar: false
+        )) { error in
+            XCTAssertEqual(error as? GuideSourceResolutionError, .regionSpansDisplays)
+        }
+    }
+
+    @MainActor
+    func testLongGuidePublishesThumbnailsProgressivelyAndRejectsRemovedStepResult() async throws {
+        var project = GuideProject(source: .displays(.current))
+        var images: [UUID: CGImage] = [:]
+        let source = try image(width: 1_200, height: 800)
+        for sequence in 1...120 {
+            let step = GuideStep(
+                sequence: sequence,
+                eventKind: .manual,
+                caption: "Step \(sequence)",
+                session: GuideStepSession(
+                    sourceCoordinateRect: CGRect(x: 0, y: 0, width: 1_200, height: 800),
+                    sourcePixelSize: CGSize(width: 1_200, height: 800)
+                )
+            )
+            project.steps.append(step)
+            images[step.id] = source
+        }
+        let controller = GuideEditorController(document: EditableGuideDocument(
+            project: project,
+            stepImages: images,
+            previewImage: nil,
+            logoImage: nil,
+            mediaSegmentURLs: [:]
+        ))
+        XCTAssertLessThanOrEqual(controller.stepThumbnails.count, 7)
+
+        let lastID = try XCTUnwrap(project.steps.last?.id)
+        controller.requestThumbnail(for: lastID, priority: .userInitiated)
+        for _ in 0..<100 where controller.stepThumbnails[lastID] == nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertNotNil(controller.stepThumbnails[lastID])
+
+        let removedID = project.steps[60].id
+        controller.requestThumbnail(for: removedID, priority: .userInitiated)
+        controller.removeStepWithoutCommand(id: removedID)
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertNil(controller.stepThumbnails[removedID])
+    }
+
+    func testZIP64EndRecordsUseClassicFieldsWhenPossibleAndZIP64ForLargeOffsets() {
+        let classic = GuideZIPWriter.endRecords(recordCount: 3, centralSize: 120, centralOffset: 2_048)
+        XCTAssertNil(classic.range(of: littleEndianData(UInt32(0x06064b50))))
+        XCTAssertNotNil(classic.range(of: littleEndianData(UInt32(0x06054b50))))
+
+        let zip64 = GuideZIPWriter.endRecords(
+            recordCount: 3,
+            centralSize: 120,
+            centralOffset: UInt64(UInt32.max)
+        )
+        XCTAssertNotNil(zip64.range(of: littleEndianData(UInt32(0x06064b50))))
+        XCTAssertNotNil(zip64.range(of: littleEndianData(UInt32(0x07064b50))))
+        XCTAssertNotNil(zip64.range(of: littleEndianData(UInt32(0x06054b50))))
+    }
+
+    func testZIPNestedExportFailurePreservesPreviousGoodArchive() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GuideZIPFailure-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let stepID = UUID()
+        var project = GuideProject(source: .displays(.current))
+        project.steps = [GuideStep(
+            id: stepID,
+            sequence: 1,
+            eventKind: .manual,
+            caption: "Step",
+            session: GuideStepSession(
+                sourceCoordinateRect: CGRect(x: 0, y: 0, width: 80, height: 50),
+                sourcePixelSize: CGSize(width: 80, height: 50)
+            )
+        )]
+        project.exportSettings.formats = [.zip, .fullMotionMP4]
+        project.exportSettings.filenameTemplate = "Guide-ZIP-Failure"
+        let document = EditableGuideDocument(
+            project: project,
+            stepImages: [stepID: try image(width: 80, height: 50)],
+            previewImage: nil,
+            logoImage: nil,
+            mediaSegmentURLs: [:]
+        )
+        let destination = root.appendingPathComponent("Guide-ZIP-Failure.zip")
+        let original = Data("previous-good-archive".utf8)
+        try original.write(to: destination)
+
+        do {
+            _ = try await GuideExporter.export(document: document, format: .zip, directory: root)
+            XCTFail("Expected the nested Full Motion export to fail.")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("Full Motion"))
+        }
+        XCTAssertEqual(try Data(contentsOf: destination), original)
+    }
+
+    func testZIPMissingRequestedSourceMediaPreservesPreviousGoodArchive() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GuideZIPMissingMedia-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let stepID = UUID()
+        var project = GuideProject(source: .displays(.current))
+        project.steps = [GuideStep(
+            id: stepID,
+            sequence: 1,
+            eventKind: .manual,
+            caption: "Step",
+            session: GuideStepSession(
+                sourceCoordinateRect: CGRect(x: 0, y: 0, width: 80, height: 50),
+                sourcePixelSize: CGSize(width: 80, height: 50)
+            )
+        )]
+        project.timeline.segments = [GuideTimelineSegment(asset: "missing.mp4", startedAt: Date(), duration: 1)]
+        project.exportSettings.formats = [.zip]
+        project.exportSettings.includesSourceMediaInZIP = true
+        project.exportSettings.filenameTemplate = "Guide-ZIP-Missing-Media"
+        let document = EditableGuideDocument(
+            project: project,
+            stepImages: [stepID: try image(width: 80, height: 50)],
+            previewImage: nil,
+            logoImage: nil,
+            mediaSegmentURLs: [:]
+        )
+        let destination = root.appendingPathComponent("Guide-ZIP-Missing-Media.zip")
+        let original = Data("previous-good-archive".utf8)
+        try original.write(to: destination)
+
+        do {
+            _ = try await GuideExporter.export(document: document, format: .zip, directory: root)
+            XCTFail("Expected missing requested source media to fail the ZIP export.")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("source media segment 1"))
+        }
+        XCTAssertEqual(try Data(contentsOf: destination), original)
+    }
+
+    func testGuideExportProgressReportsStepDetailsAndMonotonicFractions() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GuideProgress-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var project = GuideProject(source: .displays(.current))
+        var images: [UUID: CGImage] = [:]
+        for sequence in 1...3 {
+            let step = GuideStep(
+                sequence: sequence,
+                eventKind: .manual,
+                caption: "Step \(sequence)",
+                session: GuideStepSession(
+                    sourceCoordinateRect: CGRect(x: 0, y: 0, width: 80, height: 50),
+                    sourcePixelSize: CGSize(width: 80, height: 50)
+                )
+            )
+            project.steps.append(step)
+            images[step.id] = try image(width: 80, height: 50)
+        }
+        let recorder = GuideProgressRecorder()
+        let result = await GuideExporter.exportAll(
+            document: EditableGuideDocument(project: project, stepImages: images, previewImage: nil, logoImage: nil, mediaSegmentURLs: [:]),
+            formats: [.pdf, .stepImages],
+            directory: root,
+            progress: recorder.record
+        )
+
+        XCTAssertTrue(result.failures.isEmpty)
+        let updates = recorder.updates
+        XCTAssertTrue(updates.contains { $0.detail.contains("step 3 of 3") })
+        let fractions = updates.compactMap(\.overallFraction)
+        XCTAssertEqual(fractions, fractions.sorted())
+        XCTAssertEqual(fractions.last, 1)
+    }
+
+    func testZIPStorageEstimateIncludesSourceMediaAndAtomicReplacementHeadroom() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GuideZIPEstimate-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let mediaURL = root.appendingPathComponent("large-source.mp4")
+        FileManager.default.createFile(atPath: mediaURL.path, contents: nil)
+        let handle = try FileHandle(forWritingTo: mediaURL)
+        try handle.truncate(atOffset: 320_000_000)
+        try handle.close()
+
+        let stepID = UUID()
+        let segment = GuideTimelineSegment(asset: "source.mp4", startedAt: Date(), duration: 1)
+        var project = GuideProject(source: .displays(.current))
+        project.steps = [GuideStep(
+            id: stepID,
+            sequence: 1,
+            eventKind: .manual,
+            caption: "Step",
+            session: GuideStepSession(
+                sourceCoordinateRect: CGRect(x: 0, y: 0, width: 10, height: 10),
+                sourcePixelSize: CGSize(width: 10, height: 10)
+            )
+        )]
+        project.timeline.segments = [segment]
+        project.exportSettings.formats = [.zip]
+        let image = try image(width: 10, height: 10)
+        project.exportSettings.includesSourceMediaInZIP = false
+        let withoutMedia = GuideStorageGuardrails.exportHeadroomBytes(
+            document: EditableGuideDocument(project: project, stepImages: [stepID: image], previewImage: nil, logoImage: nil, mediaSegmentURLs: [segment.id: mediaURL]),
+            format: .zip
+        )
+        project.exportSettings.includesSourceMediaInZIP = true
+        let withMedia = GuideStorageGuardrails.exportHeadroomBytes(
+            document: EditableGuideDocument(project: project, stepImages: [stepID: image], previewImage: nil, logoImage: nil, mediaSegmentURLs: [segment.id: mediaURL]),
+            format: .zip
+        )
+
+        XCTAssertEqual(withoutMedia, GuideStorageGuardrails.minimumExportFreeBytes)
+        XCTAssertGreaterThanOrEqual(withMedia, 640_000_000)
+    }
+
     func testGuidePackageV1RoundTripsNonDestructiveStateAndMedia() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("GuidePackageTests-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -283,7 +827,12 @@ final class GuideWorkflowTests: XCTestCase {
         let mediaURL = root.appendingPathComponent("segment.mp4")
         try Data("media".utf8).write(to: mediaURL)
         let stepID = UUID()
-        let segment = GuideTimelineSegment(asset: "unused.mp4", startedAt: Date(timeIntervalSince1970: 100), duration: 2)
+        let segment = GuideTimelineSegment(
+            asset: "unused.mp4",
+            startedAt: Date(timeIntervalSince1970: 100),
+            duration: 2,
+            sourceCoordinateRect: CGRect(x: -1_080, y: 0, width: 1_080, height: 1_920)
+        )
         var project = GuideProject(source: .region(CGRect(x: 10, y: 20, width: 320, height: 200)))
         project.title = "Export a Report"
         project.steps = [GuideStep(
@@ -331,6 +880,7 @@ final class GuideWorkflowTests: XCTestCase {
         XCTAssertLessThan(abs(try XCTUnwrap(decoded.project.steps.first?.capturedAt.timeIntervalSince(project.steps[0].capturedAt))), 0.001)
         XCTAssertEqual(decoded.project.timeline.segments.first?.id, segment.id)
         XCTAssertEqual(decoded.project.timeline.segments.first?.duration, segment.duration)
+        XCTAssertEqual(decoded.project.timeline.segments.first?.sourceCoordinateRect, segment.sourceCoordinateRect)
         XCTAssertEqual(decoded.stepImages[stepID]?.width, 64)
         XCTAssertNotNil(decoded.previewImage)
         XCTAssertNotNil(decoded.logoImage)
@@ -461,6 +1011,11 @@ final class GuideWorkflowTests: XCTestCase {
         XCTAssertNotNil(AutomationURLRouter.request(from: try XCTUnwrap(URL(string: "snipsnipsnip://v1/guide/export?format=pdf"))))
     }
 
+    private func littleEndianData<T: FixedWidthInteger>(_ input: T) -> Data {
+        var value = input.littleEndian
+        return withUnsafeBytes(of: &value) { Data($0) }
+    }
+
     private func pixelBuffer(width: Int, height: Int) throws -> CVPixelBuffer {
         var buffer: CVPixelBuffer?
         let result = CVPixelBufferCreate(nil, width, height, kCVPixelFormatType_32BGRA, nil, &buffer)
@@ -469,6 +1024,10 @@ final class GuideWorkflowTests: XCTestCase {
     }
 
     private func image(width: Int, height: Int) throws -> CGImage {
+        try solidImage(width: width, height: height, color: CGColor(red: 0.2, green: 0.5, blue: 0.8, alpha: 1))
+    }
+
+    private func solidImage(width: Int, height: Int, color: CGColor) throws -> CGImage {
         let context = try XCTUnwrap(CGContext(
             data: nil,
             width: width,
@@ -478,8 +1037,23 @@ final class GuideWorkflowTests: XCTestCase {
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ))
-        context.setFillColor(CGColor(red: 0.2, green: 0.5, blue: 0.8, alpha: 1))
+        context.setFillColor(color)
         context.fill(CGRect(x: 0, y: 0, width: width, height: height))
         return try XCTUnwrap(context.makeImage())
+    }
+}
+
+nonisolated private final class GuideProgressRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [GuideExportProgressUpdate] = []
+
+    var updates: [GuideExportProgressUpdate] {
+        lock.lock(); defer { lock.unlock() }
+        return storage
+    }
+
+    func record(_ update: GuideExportProgressUpdate) {
+        lock.lock(); defer { lock.unlock() }
+        storage.append(update)
     }
 }

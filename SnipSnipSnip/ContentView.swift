@@ -33,6 +33,7 @@ struct ContentView: View {
                     controller: guideController,
                     onBack: documents.closeEditor,
                     onExport: { documents.exportCurrentGuide(showProgressWindow: $0) },
+                    exportIsActive: documents.guideExportIsActive,
                     exportProgress: documents.guideExportProgress,
                     exportStatus: documents.guideExportStatus,
                     onCancelExport: documents.cancelGuideExport,

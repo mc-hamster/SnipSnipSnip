@@ -270,12 +270,17 @@ nonisolated struct GuideTimelineSegment: Codable, Equatable, Identifiable, Senda
     var asset: String
     var startedAt: Date
     var duration: Double
+    var sourceCoordinateRect: CGRect? = nil
 }
 
 nonisolated struct GuideTimeline: Codable, Equatable, Sendable {
     var segments: [GuideTimelineSegment] = []
     var sourceVideoEnabled = true
     var cursorSamples: [GuideCursorSample] = []
+    /// The exact capture-global crop supplied to ScreenCaptureKit. Persisting
+    /// this avoids reconstructing it later from the current display topology,
+    /// which may have changed scale, rotation, or primary-display origin.
+    var sourceCoordinateRect: CGRect? = nil
 }
 
 nonisolated struct GuideCursorSample: Codable, Equatable, Sendable {

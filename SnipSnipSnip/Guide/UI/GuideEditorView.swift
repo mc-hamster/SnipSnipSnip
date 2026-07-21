@@ -34,8 +34,13 @@ struct GuideEditorView: View {
                 ForEach(visibleSteps) { step in
                     HStack(alignment: .top, spacing: 8) {
                         Text("\(step.sequence)").font(.headline).frame(width: 24)
-                        if let image = controller.stepImages[step.id] {
+                        if let image = controller.stepThumbnails[step.id] {
                             Image(decorative: image, scale: 1).resizable().scaledToFill().frame(width: 86, height: 54).clipped().clipShape(RoundedRectangle(cornerRadius: 5))
+                        } else {
+                            Image(systemName: "photo")
+                                .foregroundStyle(.tertiary)
+                                .frame(width: 86, height: 54)
+                                .background(.quaternary.opacity(0.2), in: RoundedRectangle(cornerRadius: 5))
                         }
                         VStack(alignment: .leading, spacing: 3) {
                             Label(step.eventKind.rawValue.capitalized, systemImage: icon(step.eventKind)).font(.caption)
@@ -43,6 +48,10 @@ struct GuideEditorView: View {
                         }
                     }
                     .tag(step.id)
+                    .task(id: step.id) {
+                        controller.requestThumbnail(for: step.id, priority: .userInitiated)
+                        controller.prefetchThumbnails(after: step.id)
+                    }
                     .contextMenu {
                         Button(step.isIncluded ? "Exclude" : "Include") { controller.setIncluded(!step.isIncluded, stepID: step.id) }
                         if step.isDeleted { Button("Restore") { controller.restore(stepID: step.id) } }
@@ -253,17 +262,17 @@ struct GuideEditorView: View {
     }
 
     private func projectStringBinding(_ keyPath: WritableKeyPath<GuideProject, String>) -> Binding<String> {
-        Binding(get: { controller.project[keyPath: keyPath] }, set: { value in controller.update(name: "Edit Guide") { $0[keyPath: keyPath] = value } })
+        Binding(get: { controller.project[keyPath: keyPath] }, set: { value in controller.update(name: "Edit Guide", coalescingKey: "project-string-\(keyPath.hashValue)") { $0[keyPath: keyPath] = value } })
     }
     private var appearanceBinding: Binding<GuideAppearance> { Binding(get: { controller.project.theme.appearance }, set: { value in controller.update(name: "Change Appearance") { $0.theme.appearance = value } }) }
-    private func themeStringBinding(_ keyPath: WritableKeyPath<GuideTheme, String>) -> Binding<String> { Binding(get: { controller.project.theme[keyPath: keyPath] }, set: { value in controller.update(name: "Change Guide Style") { $0.theme[keyPath: keyPath] = value } }) }
-    private func themeDoubleBinding(_ keyPath: WritableKeyPath<GuideTheme, Double>) -> Binding<Double> { Binding(get: { controller.project.theme[keyPath: keyPath] }, set: { value in controller.update(name: "Change Guide Style") { $0.theme[keyPath: keyPath] = value } }) }
+    private func themeStringBinding(_ keyPath: WritableKeyPath<GuideTheme, String>) -> Binding<String> { Binding(get: { controller.project.theme[keyPath: keyPath] }, set: { value in controller.update(name: "Change Guide Style", coalescingKey: "theme-string-\(keyPath.hashValue)") { $0.theme[keyPath: keyPath] = value } }) }
+    private func themeDoubleBinding(_ keyPath: WritableKeyPath<GuideTheme, Double>) -> Binding<Double> { Binding(get: { controller.project.theme[keyPath: keyPath] }, set: { value in controller.update(name: "Change Guide Style", coalescingKey: "theme-double-\(keyPath.hashValue)") { $0.theme[keyPath: keyPath] = value } }) }
     private func themeBoolBinding(_ keyPath: WritableKeyPath<GuideTheme, Bool>) -> Binding<Bool> { Binding(get: { controller.project.theme[keyPath: keyPath] }, set: { value in controller.update(name: "Change Guide Style") { $0.theme[keyPath: keyPath] = value } }) }
-    private func themeColorBinding(_ keyPath: WritableKeyPath<GuideTheme, String>) -> Binding<Color> { Binding(get: { Color(guideHex: controller.project.theme[keyPath: keyPath]) }, set: { value in controller.update(name: "Change Guide Color") { $0.theme[keyPath: keyPath] = value.guideHex } }) }
+    private func themeColorBinding(_ keyPath: WritableKeyPath<GuideTheme, String>) -> Binding<Color> { Binding(get: { Color(guideHex: controller.project.theme[keyPath: keyPath]) }, set: { value in controller.update(name: "Change Guide Color", coalescingKey: "theme-color-\(keyPath.hashValue)") { $0.theme[keyPath: keyPath] = value.guideHex } }) }
     private func captionBinding(_ id: UUID) -> Binding<String> { Binding(get: { controller.project.steps.first(where: { $0.id == id })?.caption ?? "" }, set: { controller.updateCaption(stepID: id, caption: $0) }) }
-    private func noteBinding(_ id: UUID) -> Binding<String> { Binding(get: { controller.project.steps.first(where: { $0.id == id })?.note ?? "" }, set: { value in controller.update(name: "Edit Note") { if let i = $0.steps.firstIndex(where: { $0.id == id }) { $0.steps[i].note = value } } }) }
+    private func noteBinding(_ id: UUID) -> Binding<String> { Binding(get: { controller.project.steps.first(where: { $0.id == id })?.note ?? "" }, set: { value in controller.update(name: "Edit Note", coalescingKey: "note-\(id.uuidString)") { if let i = $0.steps.firstIndex(where: { $0.id == id }) { $0.steps[i].note = value } } }) }
     private func eventBinding(_ id: UUID) -> Binding<GuideEventKind> { Binding(get: { controller.project.steps.first(where: { $0.id == id })?.eventKind ?? .manual }, set: { value in controller.update(name: "Change Action") { if let i = $0.steps.firstIndex(where: { $0.id == id }) { $0.steps[i].eventKind = value } } }) }
-    private func durationBinding(_ id: UUID) -> Binding<Double> { Binding(get: { controller.project.steps.first(where: { $0.id == id })?.duration ?? 2 }, set: { value in controller.update(name: "Change Duration") { if let i = $0.steps.firstIndex(where: { $0.id == id }) { $0.steps[i].duration = value } } }) }
+    private func durationBinding(_ id: UUID) -> Binding<Double> { Binding(get: { controller.project.steps.first(where: { $0.id == id })?.duration ?? 2 }, set: { value in controller.update(name: "Change Duration", coalescingKey: "duration-\(id.uuidString)") { if let i = $0.steps.firstIndex(where: { $0.id == id }) { $0.steps[i].duration = value } } }) }
     private func includeBinding(_ id: UUID) -> Binding<Bool> { Binding(get: { controller.project.steps.first(where: { $0.id == id })?.isIncluded ?? true }, set: { controller.setIncluded($0, stepID: id) }) }
     private func markerLengthBinding(_ id: UUID) -> Binding<Double> { Binding(get: { controller.project.steps.first(where: { $0.id == id })?.session.marker?.length ?? controller.project.theme.markerLength }, set: { controller.updateMarkerLength(stepID: id, length: $0) }) }
     private func markerVisibleBinding(_ id: UUID) -> Binding<Bool> { Binding(get: { !(controller.project.steps.first(where: { $0.id == id })?.session.marker?.isHidden ?? false) }, set: { visible in controller.update(name: "Toggle Marker") { project in if let i = project.steps.firstIndex(where: { $0.id == id }), var marker = project.steps[i].session.marker { marker.isHidden = !visible; project.steps[i].session.marker = marker } } }) }
@@ -452,6 +461,7 @@ struct GuideEditorToolbarView: View {
     @ObservedObject var controller: GuideEditorController
     let onBack: () -> Void
     let onExport: (Bool) -> Void
+    var exportIsActive = false
     var exportProgress: Double? = nil
     var exportStatus: String? = nil
     var onCancelExport: () -> Void = {}
@@ -471,8 +481,12 @@ struct GuideEditorToolbarView: View {
             Spacer()
             Button(action: controller.undo) { Image(systemName: "arrow.uturn.backward") }.disabled(!controller.canUndo)
             Button(action: controller.redo) { Image(systemName: "arrow.uturn.forward") }.disabled(!controller.canRedo)
-            if let exportProgress {
-                ProgressView(value: exportProgress).frame(width: 100)
+            if exportIsActive {
+                if let exportProgress {
+                    ProgressView(value: exportProgress).frame(width: 100)
+                } else {
+                    ProgressView().controlSize(.small).frame(width: 28)
+                }
                 Button("Progress…", action: onShowExportProgress)
                 Button("Cancel", action: onCancelExport)
             } else {

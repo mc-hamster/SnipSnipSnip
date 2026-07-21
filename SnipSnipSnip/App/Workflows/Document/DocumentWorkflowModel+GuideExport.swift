@@ -53,7 +53,8 @@ extension DocumentWorkflowModel {
         pendingGuideExportTask?.cancel()
         pendingGuideExportWorkerTask?.cancel()
         lastGuideExportURLs = []
-        guideExportProgress = 0
+        guideExportIsActive = true
+        guideExportProgress = nil
         guideExportStatus = "Preparing Guide export…"
         guideExportCurrentFormat = nil
         guideExportCancellationRequested = false
@@ -67,10 +68,13 @@ extension DocumentWorkflowModel {
                 document: document,
                 formats: formats,
                 directory: directory,
-                progress: { format, progress in
-                    self?.guideExportCurrentFormat = format
-                    self?.guideExportProgress = progress
-                    self?.guideExportStatus = "Exporting \(format.label)…"
+                progress: { [weak self] update in
+                    Task { @MainActor [weak self] in
+                        guard let self, self.activeGuideExportID == exportID else { return }
+                        self.guideExportCurrentFormat = update.format
+                        self.guideExportProgress = update.overallFraction
+                        self.guideExportStatus = update.detail
+                    }
                 }
             )
         }
@@ -79,6 +83,7 @@ extension DocumentWorkflowModel {
             guard let self else { return }
             let result = await worker.value
             guard activeGuideExportID == exportID else { return }
+            guideExportIsActive = false
             guideExportProgress = nil
             guideExportCurrentFormat = nil
             pendingGuideExportWorkerTask = nil

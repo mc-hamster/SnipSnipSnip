@@ -219,7 +219,7 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
     }
 
     func frontmostWindow(excluding processID: pid_t = ProcessInfo.processInfo.processIdentifier) async throws -> CaptureWindowSummary {
-        let windows = try await listWindows(excluding: processID, includeThumbnails: true)
+        let windows = try await listWindows(excluding: processID, includeThumbnails: false)
         let frontmostOwnerPID = workspace.frontmostApplicationProcessIdentifier
 
         if let frontmostOwnerPID,
@@ -240,7 +240,7 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
         _ window: CaptureWindowSummary,
         excluding processID: pid_t = ProcessInfo.processInfo.processIdentifier
     ) async throws -> CaptureWindowSummary {
-        let windows = try await listWindows(excluding: processID, includeThumbnails: true)
+        let windows = try await listWindows(excluding: processID, includeThumbnails: false)
 
         guard let resolved = gscBestWindowMatch(
             for: window,

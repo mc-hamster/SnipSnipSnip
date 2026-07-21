@@ -11,6 +11,7 @@ protocol GuideCommand {
 @MainActor
 struct GuideProjectCommand: GuideCommand {
     let name: String
+    var coalescingKey: String? = nil
     let before: GuideProject
     let after: GuideProject
 

@@ -23,7 +23,7 @@ nonisolated final class GuideRecoveryStore: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         try files.createDirectory(at: rootURL, withIntermediateDirectories: true)
         let url = recoveryURL(for: document.project.id)
-        try SSSGuideDocumentPackage.save(document: document, to: url, files: files)
+        try SSSGuideDocumentPackage.saveRecoveryCheckpoint(document: document, to: url, files: files)
     }
 
     func newestRecoveryURL() -> URL? {

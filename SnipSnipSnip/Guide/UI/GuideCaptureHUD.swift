@@ -14,14 +14,14 @@ final class GuideCaptureHUDController: NSObject, NSWindowDelegate {
             // close cycle. Refresh its hosted view and bring it forward so a second
             // Guide always receives fresh, live controls.
             panel.contentView = NSHostingView(rootView: GuideCaptureHUD(guide: guide))
-            panel.setContentSize(NSSize(width: 590, height: 286))
+            panel.setContentSize(NSSize(width: 590, height: 320))
             panel.acceptsMouseMovedEvents = true
             position(panel, corner: guide.capturePreferences.hudCorner)
             panel.orderFrontRegardless()
             return
         }
         let panel = NSPanel(
-            contentRect: CGRect(x: 0, y: 0, width: 590, height: 286),
+            contentRect: CGRect(x: 0, y: 0, width: 590, height: 320),
             styleMask: [.nonactivatingPanel, .hudWindow],
             backing: .buffered,
             defer: false
@@ -130,17 +130,19 @@ private struct GuideCaptureHUD: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        if capture.state == .finishing {
-                            HStack(spacing: 6) {
-                                ProgressView(value: finishingProgress(at: context.date))
-                                    .frame(width: 72)
-                                Text(finishingRemainingText(at: context.date))
-                                    .font(.caption)
-                                    .monospacedDigit()
-                                    .foregroundStyle(.secondary)
+                    if capture.state == .finishing {
+                        HStack(spacing: 6) {
+                            if let fraction = capture.finalizationProgress?.fraction {
+                                ProgressView(value: fraction).frame(width: 72)
+                            } else {
+                                ProgressView().controlSize(.small)
                             }
-                        } else {
+                            Text("Working…")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        TimelineView(.periodic(from: .now, by: 1)) { _ in
                             Text(elapsed)
                                 .font(.system(.title3, design: .monospaced).weight(.bold))
                                 .contentTransition(.numericText())
@@ -205,23 +207,36 @@ private struct GuideCaptureHUD: View {
                 if capture.state == .finishing {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.small)
-                        Text(capture.finishingStatus.isEmpty ? "Finalizing Guide…" : capture.finishingStatus)
+                        Text(capture.finalizationProgress?.detail ?? "Finalizing Guide…")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Spacer()
-                        Text("Estimate updates as processing continues")
+                        Text("Completed work stays protected")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
                 }
+                if let issue = capture.captureIssue ?? capture.recoveryIssue {
+                    HStack(alignment: .top, spacing: 7) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text(issue)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(3)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 7)
+                    .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 9))
+                }
                 if guide.capturePreferences.hudPreviewsEnabled {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
-                        // Keep the newest step first, but do not arbitrarily cap the
-                        // visible row at three cards. The HUD shows every step that
-                        // fits and can scroll to earlier ones as a Guide grows.
-                            ForEach(Array((capture.project?.steps ?? []).reversed())) { step in
-                                if let image = capture.stepImages[step.id] {
+                        // Keep the newest steps immediately available while bounding
+                        // HUD work during sessions with hundreds of steps.
+                            ForEach(hudSteps) { step in
+                                if let image = capture.stepThumbnails[step.id] ?? capture.stepImages[step.id] {
                                     ZStack(alignment: .topTrailing) {
                                         Image(decorative: image, scale: 1)
                                             .resizable()
@@ -239,6 +254,12 @@ private struct GuideCaptureHUD: View {
                                             .disabled(capture.state == .finishing)
                                     }
                                 }
+                            }
+                            if guide.stepCount > hudSteps.count {
+                                Text("+\(guide.stepCount - hudSteps.count) earlier")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 76, height: 74)
                             }
                         }
                     }
@@ -311,26 +332,6 @@ private struct GuideCaptureHUD: View {
         return String(format: "%02d:%02d", Int(interval) / 60, Int(interval) % 60)
     }
 
-    private func finishingProgress(at date: Date) -> Double {
-        guard let startedAt = capture.finishingStartedAt,
-              capture.finishingEstimatedDuration > 0 else {
-            return capture.finishingProgress
-        }
-        let elapsed = max(0, date.timeIntervalSince(startedAt))
-        let timeBasedProgress = min(0.75, 0.08 + elapsed / capture.finishingEstimatedDuration * 0.67)
-        return max(capture.finishingProgress, timeBasedProgress)
-    }
-
-    private func finishingRemainingText(at date: Date) -> String {
-        guard let startedAt = capture.finishingStartedAt,
-              capture.finishingEstimatedDuration > 0 else { return "Estimating…" }
-        let remaining = capture.finishingEstimatedDuration - date.timeIntervalSince(startedAt)
-        guard remaining > 0 else { return "Almost done…" }
-        let seconds = Int(ceil(remaining))
-        if seconds >= 60 { return "≈ \(Int(ceil(Double(seconds) / 60)))m left" }
-        return "≈ \(seconds)s left"
-    }
-
     private var statusTitle: String {
         switch capture.state {
         case .paused: "Guide Paused"
@@ -345,6 +346,10 @@ private struct GuideCaptureHUD: View {
         case .finishing: .blue
         default: .red
         }
+    }
+
+    private var hudSteps: [GuideStep] {
+        Array((capture.project?.steps ?? []).reversed().prefix(20))
     }
 }
 

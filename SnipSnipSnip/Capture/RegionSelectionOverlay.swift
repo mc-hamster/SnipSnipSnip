@@ -1,6 +1,11 @@
 import AppKit
 import CoreGraphics
 
+nonisolated enum RegionSelectionConstraint: Equatable, Sendable {
+    case desktop
+    case singleDisplay
+}
+
 @MainActor
 final class RegionSelectionSession: NSObject {
     private let snapshot: DesktopCompositeSnapshot
@@ -8,6 +13,7 @@ final class RegionSelectionSession: NSObject {
     private let preferences: RegionCapturePreferences
     private let initialSelectionRect: CGRect?
     private let livePreviewCapturePlatform: any ScreenCapturePlatform
+    private let constraint: RegionSelectionConstraint
     private var continuation: CheckedContinuation<RegionCaptureSelection?, Never>?
     private var coordinator: RegionSelectionCoordinator?
     private var livePreviewSource: LiveDesktopPreviewSource?
@@ -20,12 +26,14 @@ final class RegionSelectionSession: NSObject {
         windows: [CaptureWindowSummary] = [],
         preferences: RegionCapturePreferences,
         initialSelectionRect: CGRect? = nil,
+        constraint: RegionSelectionConstraint = .desktop,
         livePreviewCapturePlatform: any ScreenCapturePlatform = LiveScreenCapturePlatform()
     ) {
         self.snapshot = snapshot
         self.windows = windows
         self.preferences = preferences
         self.initialSelectionRect = initialSelectionRect?.gscIntegralStandardized
+        self.constraint = constraint
         self.livePreviewCapturePlatform = livePreviewCapturePlatform
     }
 
@@ -56,6 +64,7 @@ final class RegionSelectionSession: NSObject {
             windows: windows,
             preferences: preferences,
             initialSelectionRect: initialSelectionRect,
+            constraint: constraint,
             onCaptureCursorHiddenChange: { [weak self] shouldHideCursor in
                 self?.setCaptureCursorHidden(shouldHideCursor)
             },
@@ -280,6 +289,7 @@ private final class RegionSelectionCoordinator {
     let preferences: RegionCapturePreferences
     private let onCaptureCursorHiddenChange: (Bool) -> Void
     private let onComplete: (RegionCaptureSelection?) -> Void
+    private let constraint: RegionSelectionConstraint
     private let clickToDragThreshold: CGFloat = 4
     private var views: [WeakView] = []
     private var dragMode: DragMode?
@@ -289,6 +299,7 @@ private final class RegionSelectionCoordinator {
     private var lastCursorGlobalPointInSelection: CGPoint?
     private var lastProcessedEventSignature: ProcessedEventSignature?
     private var lockedAspectRatio: CGFloat?
+    private var constrainedDisplayID: CGDirectDisplayID?
 
     private(set) var selectionRect: CGRect?
     private(set) var cursorGlobalPoint: CGPoint?
@@ -304,19 +315,29 @@ private final class RegionSelectionCoordinator {
         windows: [CaptureWindowSummary],
         preferences: RegionCapturePreferences,
         initialSelectionRect: CGRect? = nil,
+        constraint: RegionSelectionConstraint = .desktop,
         onCaptureCursorHiddenChange: @escaping (Bool) -> Void,
         onComplete: @escaping (RegionCaptureSelection?) -> Void
     ) {
         self.snapshot = snapshot
         self.windows = windows
         self.preferences = preferences
+        self.constraint = constraint
         self.onCaptureCursorHiddenChange = onCaptureCursorHiddenChange
         self.onComplete = onComplete
 
         if let initialSelectionRect {
+            let initialBounds: CGRect
+            if constraint == .singleDisplay,
+               let display = displayContainingMost(of: initialSelectionRect) {
+                constrainedDisplayID = display.displayID
+                initialBounds = display.frame
+            } else {
+                initialBounds = snapshot.globalFrame
+            }
             let normalizedSelection = initialSelectionRect
                 .gscIntegralStandardized
-                .gscClamped(to: snapshot.globalFrame)
+                .gscClamped(to: initialBounds)
 
             if normalizedSelection.width > 2, normalizedSelection.height > 2 {
                 self.selectionRect = normalizedSelection
@@ -355,6 +376,13 @@ private final class RegionSelectionCoordinator {
 
     var isAspectRatioLocked: Bool {
         lockedAspectRatio != nil
+    }
+
+    var instructionText: String {
+        let base = preferences.showsRegionConfirmationControls
+            ? "Drag to select a region. Click Capture or press Return when ready. Esc cancels."
+            : "Drag to select a region. Release captures. Esc cancels."
+        return constraint == .singleDisplay ? "\(base) Guide regions stay on one display." : base
     }
 
     private var isAdjustingPrecisionSelection: Bool {
@@ -412,6 +440,9 @@ private final class RegionSelectionCoordinator {
         }
 
         selectionRect = nil
+        if constraint == .singleDisplay {
+            constrainedDisplayID = displayID(containing: point)
+        }
         lastCursorGlobalPointInSelection = nil
         lockedAspectRatio = nil
         dragMode = nil
@@ -443,17 +474,21 @@ private final class RegionSelectionCoordinator {
                 y: min(anchor.y, point.y),
                 width: abs(point.x - anchor.x),
                 height: abs(point.y - anchor.y)
-            ).gscClamped(to: snapshot.globalFrame)
+            ).gscClamped(to: selectionBounds)
         case let .moving(anchor, original):
             let delta = CGSize(width: point.x - anchor.x, height: point.y - anchor.y)
-            selectionRect = original.offsetBy(dx: delta.width, dy: delta.height).gscClamped(to: snapshot.globalFrame)
+            if constraint == .singleDisplay {
+                selectionRect = RegionPrecisionGeometry.nudgedRect(original, by: delta, within: selectionBounds)
+            } else {
+                selectionRect = original.offsetBy(dx: delta.width, dy: delta.height).gscClamped(to: selectionBounds)
+            }
         case let .resizing(handle, original):
             selectionRect = RegionPrecisionGeometry.resizedRect(
                 original,
                 handle: handle,
                 point: point,
                 aspectRatio: lockedAspectRatio,
-                within: snapshot.globalFrame
+                within: selectionBounds
             )
         case .none:
             break
@@ -537,6 +572,7 @@ private final class RegionSelectionCoordinator {
 
     func cancelSelection() {
         selectionRect = nil
+        constrainedDisplayID = nil
         actionControlsDisplayID = nil
         actionControlsGlobalPoint = nil
         lastCursorGlobalPointInSelection = nil
@@ -555,7 +591,7 @@ private final class RegionSelectionCoordinator {
             width: width,
             height: height,
             lockedAspectRatio: lockedAspectRatio,
-            within: snapshot.globalFrame
+            within: selectionBounds
         )
         if lockedAspectRatio != nil, let updatedRect = self.selectionRect, updatedRect.height > 0 {
             lockedAspectRatio = updatedRect.width / updatedRect.height
@@ -606,7 +642,7 @@ private final class RegionSelectionCoordinator {
             return false
         }
 
-        selectionRect = RegionPrecisionGeometry.nudgedRect(selectionRect ?? .null, by: delta, within: snapshot.globalFrame)
+        selectionRect = RegionPrecisionGeometry.nudgedRect(selectionRect ?? .null, by: delta, within: selectionBounds)
         notifyViews()
         return true
     }
@@ -620,6 +656,23 @@ private final class RegionSelectionCoordinator {
 
     private func displayID(containing point: CGPoint) -> CGDirectDisplayID? {
         snapshot.displayPreviews.first(where: { $0.snapshot.frame.contains(point) })?.snapshot.displayID
+    }
+
+    private var selectionBounds: CGRect {
+        guard constraint == .singleDisplay,
+              let constrainedDisplayID,
+              let display = snapshot.displays.first(where: { $0.displayID == constrainedDisplayID }) else {
+            return snapshot.globalFrame
+        }
+        return display.frame
+    }
+
+    private func displayContainingMost(of rect: CGRect) -> DisplaySnapshot? {
+        snapshot.displays
+            .filter { $0.frame.intersects(rect) }
+            .max { left, right in
+                left.frame.intersection(rect).area < right.frame.intersection(rect).area
+            }
     }
 
     private func displayPreviewForControls(near point: CGPoint, selectionRect: CGRect) -> DisplayPreview? {
@@ -687,7 +740,10 @@ private final class RegionSelectionView: NSView, NSTextFieldDelegate {
     init(displayPreview: DisplayPreview, coordinator: RegionSelectionCoordinator, livePreviewSource: LiveDesktopPreviewSource?) {
         self.displayPreview = displayPreview
         self.coordinator = coordinator
-        self.canvasView = RegionSelectionCanvasView(displayPreview: displayPreview)
+        self.canvasView = RegionSelectionCanvasView(
+            displayPreview: displayPreview,
+            instructionText: coordinator.instructionText
+        )
         self.crosshairOverlayView = coordinator.preferences.overlayMode.showsCrosshair
             ? RegionSelectionCrosshairOverlayView(displayPreview: displayPreview)
             : nil
@@ -1021,13 +1077,15 @@ private final class RegionSelectionView: NSView, NSTextFieldDelegate {
 
 private final class RegionSelectionCanvasView: RegionSelectionPassThroughView {
     private let displayPreview: DisplayPreview
+    private let instructionText: String
     private var selectionRect: CGRect?
     private var showsActionControls = false
     private var actionControlsVisible = false
     private var isActivelyDraggingSelection = false
 
-    init(displayPreview: DisplayPreview) {
+    init(displayPreview: DisplayPreview, instructionText: String) {
         self.displayPreview = displayPreview
+        self.instructionText = instructionText
         super.init(frame: CGRect(origin: .zero, size: displayPreview.snapshot.overlayFrame.size))
         wantsLayer = true
     }
@@ -1106,7 +1164,7 @@ private final class RegionSelectionCanvasView: RegionSelectionPassThroughView {
         } else {
             NSColor.black.withAlphaComponent(0.42).setFill()
             dimPath.fill()
-            let info = NSString(string: showsActionControls ? "Drag to select a region. Click Capture or press Return when ready. Esc cancels." : "Drag to select a region. Release captures. Esc cancels.")
+            let info = NSString(string: instructionText)
             let infoRect = CGRect(x: 24, y: 24, width: 520, height: 22)
             info.draw(in: infoRect, withAttributes: [
                 .foregroundColor: NSColor.white,

@@ -207,12 +207,15 @@ extension DocumentWorkflowModel {
         pendingRecoveryRefreshTask = nil
         pendingCaptureHistorySearchTask?.cancel()
         pendingCaptureHistorySearchTask = nil
-        pendingRecoveryWriteTasks.values.forEach { $0.cancel() }
-        pendingRecoveryWriteTasks.removeAll()
+        for (taskID, task) in pendingRecoveryWriteTasks
+        where !recoveryOperationIDsRequiredForConsistency.contains(taskID) {
+            task.cancel()
+        }
         recoveryRefreshGeneration += 1
         currentRecoverySessionID = nil
         historyEntries = []
         lastAutosavedState = nil
+        lastEnqueuedRecoveryState = nil
         savedEditorAutosaveState = nil
         currentDocumentURL = nil
         savedDocumentSession = nil
