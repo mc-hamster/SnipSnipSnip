@@ -441,9 +441,11 @@ private_lane :publish_self_release_package do |options|
   Actions.sh("command -v gh >/dev/null 2>&1")
 
   prepared = options[:prepared]
+  beta = boolean_option(options[:beta], default_value: false)
+  lane_name = beta ? "self_release_beta" : "self_release"
   changelog_details = tracked_changelog_details(
     provided_changelog: options[:changelog],
-    lane_name: "self_release"
+    lane_name: lane_name
   )
   repository = options[:repository].to_s.strip
   repository = ENV["GITHUB_RELEASE_REPOSITORY"].to_s.strip if repository.empty?
@@ -451,10 +453,16 @@ private_lane :publish_self_release_package do |options|
   repository = "mc-hamster/SnipSnipSnip" if repository.empty?
 
   tag = options[:tag].to_s.strip
-  tag = "v#{prepared[:version]}-self.#{prepared[:build_number]}" if tag.empty?
+  if tag.empty?
+    channel = beta ? "beta" : "self"
+    tag = "v#{prepared[:version]}-#{channel}.#{prepared[:build_number]}"
+  end
 
   release_name = options[:release_name].to_s.strip
-  release_name = "SnipSnipSnip Pro #{prepared[:version]} (#{prepared[:build_number]}) Self Release" if release_name.empty?
+  if release_name.empty?
+    channel_name = beta ? "Self Release Beta" : "Self Release"
+    release_name = "SnipSnipSnip Pro #{prepared[:version]} (#{prepared[:build_number]}) #{channel_name}"
+  end
 
   asset_path = options[:asset_path].to_s.strip
   asset_path = latest_pkg_path if asset_path.empty?
@@ -503,14 +511,14 @@ private_lane :publish_self_release_package do |options|
   end
 
   persist_upload_record(
-    lane_name: "self_release",
+    lane_name: lane_name,
     prepared: prepared,
     changelog: changelog_details[:text],
-    distribution: "github-releases"
+    distribution: beta ? "github-releases-beta" : "github-releases"
   )
 
   record_fastlane_run_metadata(
-    lane_name: "self_release",
+    lane_name: lane_name,
     version: prepared[:version],
     build_number: prepared[:build_number],
     changelog: changelog_details[:text],
@@ -954,7 +962,8 @@ platform :mac do
         release_name: options[:release_name],
         asset_path: options[:asset_path],
         prerelease: options[:prerelease],
-        draft: options[:draft]
+        draft: options[:draft],
+        beta: options[:beta]
       )
       next prepared
     end
@@ -973,6 +982,11 @@ platform :mac do
   desc "Build and publish the Self Release package to GitHub Releases"
   lane :self_release_publish do |options|
     self_release(options.merge(publish: true))
+  end
+
+  desc "Build and publish a Self Release beta as a non-latest GitHub pre-release"
+  lane :self_release_beta do |options|
+    self_release(options.merge(publish: true, prerelease: true, beta: true))
   end
 
   desc "Submit an already uploaded build for App Store review without rebuilding"

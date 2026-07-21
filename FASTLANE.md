@@ -198,6 +198,15 @@ GITHUB_TOKEN=ghp_xxx \
 ./bin/fastlane mac self_release_publish
 ```
 
+To publish a beta that is clearly labeled and never selected as GitHub's latest stable release:
+
+```bash
+GITHUB_TOKEN=ghp_xxx \
+./bin/fastlane mac self_release_beta
+```
+
+The beta lane always creates or updates a GitHub pre-release and explicitly sets `latest=false`. Its default tag is `vVERSION-beta.BUILD`, and its default title ends in `Self Release Beta`. The prerelease setting cannot be disabled through lane arguments, although `tag:...` and `release_name:...` can still customize the labels.
+
 Common variations:
 
 ```bash

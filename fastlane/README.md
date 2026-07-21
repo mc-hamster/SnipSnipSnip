@@ -71,6 +71,14 @@ Build a website-distribution package with Self Release feature flags
 
 Build and publish the Self Release package to GitHub Releases
 
+### mac self_release_beta
+
+```sh
+[bundle exec] fastlane mac self_release_beta
+```
+
+Build and publish a Self Release beta as a non-latest GitHub pre-release
+
 ### mac submit_review
 
 ```sh

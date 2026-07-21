@@ -470,7 +470,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Capture the screen",
-                            body: "Choose Fullscreen to capture the current display by default. Settings > General > Screenshot Capture can switch fullscreen screenshots to a selected display or all displays. Choose Repeat Last Capture to rerun the previous capture when the target can still be found."
+                            body: "Choose Fullscreen to capture the current display by default. Settings > General > Screenshot Capture can switch fullscreen screenshots to a selected display or all displays. Choose Repeat Last Capture to rerun the previous capture when the target can still be found. When captured content opens or resizes the editor, the main window keeps the placement you chose and only moves as much as needed to remain on-screen."
                         ),
                     ] + (connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(

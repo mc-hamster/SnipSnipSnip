@@ -1,6 +1,34 @@
 import AppKit
 import Foundation
 
+nonisolated enum DocumentWindowPlacementPolicy {
+    static func resizedFrame(
+        currentFrame: CGRect,
+        targetSize: CGSize,
+        visibleFrame: CGRect
+    ) -> CGRect {
+        let resolvedSize = CGSize(
+            width: min(max(targetSize.width, 1), max(visibleFrame.width, 1)),
+            height: min(max(targetSize.height, 1), max(visibleFrame.height, 1))
+        )
+        let proposedOrigin = CGPoint(
+            x: currentFrame.minX,
+            y: currentFrame.maxY - resolvedSize.height
+        )
+        let maximumOrigin = CGPoint(
+            x: visibleFrame.maxX - resolvedSize.width,
+            y: visibleFrame.maxY - resolvedSize.height
+        )
+
+        return CGRect(
+            x: min(max(proposedOrigin.x, visibleFrame.minX), max(visibleFrame.minX, maximumOrigin.x)),
+            y: min(max(proposedOrigin.y, visibleFrame.minY), max(visibleFrame.minY, maximumOrigin.y)),
+            width: resolvedSize.width,
+            height: resolvedSize.height
+        ).integral
+    }
+}
+
 @MainActor
 struct LiveDocumentWindowPresenter: DocumentWindowPresenting {
     let screens: any ScreenTopologyProviding
@@ -52,11 +80,11 @@ struct LiveDocumentWindowPresenter: DocumentWindowPresenting {
         let targetWidth = min(max(imagePointSize.width + chromeWidth, minSize.width), maxSize.width)
         let targetHeight = min(max(imagePointSize.height + chromeHeight, minSize.height), maxSize.height)
         let targetSize = CGSize(width: targetWidth, height: targetHeight)
-        let targetOrigin = CGPoint(
-            x: screenContext.visibleFrame.midX - targetSize.width / 2,
-            y: screenContext.visibleFrame.midY - targetSize.height / 2
+        let targetFrame = DocumentWindowPlacementPolicy.resizedFrame(
+            currentFrame: window.frame,
+            targetSize: targetSize,
+            visibleFrame: screenContext.visibleFrame
         )
-        let targetFrame = CGRect(origin: targetOrigin, size: targetSize).integral
 
         guard targetFrame.width > 0, targetFrame.height > 0 else {
             return false

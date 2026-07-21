@@ -14,6 +14,7 @@ final class ClipboardManagerWindowController: NSWindowController {
     private weak var clipboard: ClipboardWorkflowModel?
     private let workspace: any WorkspaceServicing
     private var previousApplicationProcessIdentifier: pid_t?
+    private var hasPositionedWindow = false
 
     init(clipboard: ClipboardWorkflowModel, workspace: any WorkspaceServicing) {
         self.clipboard = clipboard
@@ -49,7 +50,11 @@ final class ClipboardManagerWindowController: NSWindowController {
 
         if !window.isVisible {
             previousApplicationProcessIdentifier = workspace.frontmostApplicationProcessIdentifier
+        }
+
+        if !hasPositionedWindow {
             window.center()
+            hasPositionedWindow = true
         }
 
         window.makeKeyAndOrderFront(nil)
