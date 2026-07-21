@@ -310,7 +310,7 @@ struct OnboardingView: View {
                 .font(.system(size: metrics.primaryTitleSize, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
 
-            Text("A short setup pass gets you from first launch to fast capture, editor workflows, and support without hunting through menus.")
+            Text("SnipSnipSnip is running in your menu bar. This short setup pass gets you from first launch to fast capture, editor workflows, and support without hunting through menus.")
                 .font(.title3.weight(.medium))
                 .foregroundStyle(.white.opacity(0.82))
                 .fixedSize(horizontal: false, vertical: true)

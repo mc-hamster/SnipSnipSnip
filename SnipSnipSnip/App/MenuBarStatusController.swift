@@ -131,7 +131,9 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         openMainWindowAction = openMainWindow
         openOnboardingWindowAction = openOnboardingWindow
         openCapturePresetsSettingsAction = openCapturePresetsSettings
-        performInitialWindowPresentationIfNeeded()
+        DispatchQueue.main.async { [weak self] in
+            self?.performInitialWindowPresentationIfNeeded()
+        }
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {

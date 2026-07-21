@@ -165,7 +165,7 @@ final class AppTerminationControllerTests: XCTestCase {
         XCTAssertEqual(appKitReply, .terminateNow)
     }
 
-    func testRestartLauncherWaitsForCurrentProcessBeforeOpeningNewInstance() {
+    func testRestartLauncherWaitsForCurrentProcessBeforeReusingTheAppInstance() {
         let arguments = AppTerminationController.restartLauncherArguments(
             appPath: "/Applications/Fixture.app",
             processID: 12345
@@ -174,10 +174,26 @@ final class AppTerminationControllerTests: XCTestCase {
         XCTAssertEqual(arguments[0], "/bin/sh")
         XCTAssertEqual(arguments[1], "-c")
         XCTAssertTrue(arguments[2].contains("while kill -0 \"$parent_pid\""))
-        XCTAssertTrue(arguments[2].contains("/usr/bin/open -n \"$app_path\""))
+        XCTAssertTrue(arguments[2].contains("/usr/bin/open \"$app_path\""))
+        XCTAssertFalse(arguments[2].contains("/usr/bin/open -n"))
         XCTAssertEqual(arguments[3], "restart")
         XCTAssertEqual(arguments[4], "/Applications/Fixture.app")
         XCTAssertEqual(arguments[5], "12345")
+    }
+
+    func testFallbackRestartLauncherWaitsForCurrentProcessBeforeReusingTheAppInstance() {
+        let arguments = AppTerminationController.restartFallbackLauncherArguments(
+            appPath: "/Applications/Fixture.app",
+            processID: 12345
+        )
+
+        XCTAssertEqual(arguments[0], "-c")
+        XCTAssertTrue(arguments[1].contains("while kill -0 \"$parent_pid\""))
+        XCTAssertTrue(arguments[1].contains("/usr/bin/open \"$app_path\""))
+        XCTAssertFalse(arguments[1].contains("/usr/bin/open -n"))
+        XCTAssertEqual(arguments[2], "restart")
+        XCTAssertEqual(arguments[3], "/Applications/Fixture.app")
+        XCTAssertEqual(arguments[4], "12345")
     }
 
     func testConfirmedQuitCanSuppressFutureConfirmations() {
