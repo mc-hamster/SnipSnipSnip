@@ -829,27 +829,37 @@ nonisolated enum GuideExporter {
         duration: Double,
         placedClips: [PlacedGuideMediaClip],
         document: EditableGuideDocument
-    ) -> AVMutableVideoComposition? {
+    ) -> AVVideoComposition? {
         guard renderSize.width > 0, renderSize.height > 0, duration > 0 else { return nil }
-        let instruction = AVMutableVideoCompositionInstruction()
-        instruction.timeRange = CMTimeRange(start: .zero, duration: CMTime(seconds: duration, preferredTimescale: 600))
-        let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: track)
+        var layerConfiguration = AVVideoCompositionLayerInstruction.Configuration(assetTrack: track)
         for placed in placedClips {
             guard let fitted = GuideVideoTrackGeometry.fittedGeometry(
                 naturalSize: placed.naturalSize,
                 preferredTransform: placed.preferredTransform,
                 renderSize: renderSize
             ) else { continue }
-            layerInstruction.setTransform(
+            layerConfiguration.setTransform(
                 fitted.layerTransform,
                 at: CMTime(seconds: placed.outputStart, preferredTimescale: 600)
             )
         }
-        instruction.layerInstructions = [layerInstruction]
-        let composition = AVMutableVideoComposition()
-        composition.instructions = [instruction]
-        composition.renderSize = renderSize
-        composition.frameDuration = CMTime(value: 1, timescale: 30)
+        let layerInstruction = AVVideoCompositionLayerInstruction(configuration: layerConfiguration)
+        let instruction = AVVideoCompositionInstruction(configuration: .init(
+            layerInstructions: [layerInstruction],
+            timeRange: CMTimeRange(
+                start: .zero,
+                duration: CMTime(seconds: duration, preferredTimescale: 600)
+            )
+        ))
+
+        func composition(animationTool: AVVideoCompositionCoreAnimationTool? = nil) -> AVVideoComposition {
+            AVVideoComposition(configuration: .init(
+                animationTool: animationTool,
+                frameDuration: CMTime(value: 1, timescale: 30),
+                instructions: [instruction],
+                renderSize: renderSize
+            ))
+        }
 
         let parent = CALayer()
         let video = CALayer()
@@ -866,7 +876,7 @@ nonisolated enum GuideExporter {
         )
         // Even without cursor samples, keep this composition so a rotated
         // source track receives its preferred transform.
-        guard keyframes.count > 1 else { return composition }
+        guard keyframes.count > 1 else { return composition() }
         for trailIndex in stride(from: 3, through: 1, by: -1) {
             let trail = CAShapeLayer()
             trail.path = CGPath(ellipseIn: CGRect(x: -5, y: -5, width: 10, height: 10), transform: nil)
@@ -908,8 +918,11 @@ nonisolated enum GuideExporter {
                 parent.addSublayer(ring)
             }
         }
-        composition.animationTool = AVVideoCompositionCoreAnimationTool(postProcessingAsVideoLayer: video, in: parent)
-        return composition
+        let animationTool = AVVideoCompositionCoreAnimationTool(configuration: .init(
+            postProcessingAsVideoLayer: video,
+            containingLayer: parent
+        ))
+        return composition(animationTool: animationTool)
     }
 
     private struct CursorKeyframe {

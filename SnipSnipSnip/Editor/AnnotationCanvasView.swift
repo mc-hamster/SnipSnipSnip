@@ -2209,16 +2209,18 @@ private final class AnnotationCanvasOverlayView: NSView {
 
         let focusViewPoint = viewPoint(for: focusDocumentPoint, in: canvasRect)
         let dimensions = gscCropPixelDimensionText(for: draftCropRect)
-        let attributes = cropDimensionTextAttributes()
-        let dimensionSize = NSString(string: dimensions).size(withAttributes: attributes)
+        let font = NSFont.monospacedSystemFont(ofSize: 13, weight: .semibold)
+        guard let textLayout = GlyphLineRenderer.layout(text: dimensions, font: font) else {
+            return
+        }
         let layout = gscCropInteractionHUDLayout(
             around: focusViewPoint,
             in: bounds,
-            dimensionSize: CGSize(width: ceil(dimensionSize.width), height: ceil(dimensionSize.height))
+            dimensionSize: textLayout.size
         )
 
         drawCropLoupe(layout: layout, focusDocumentPoint: focusDocumentPoint)
-        drawCropDimensionBadge(text: dimensions, in: layout.dimensionRect, attributes: attributes)
+        drawCropDimensionBadge(textLayout: textLayout, in: layout.dimensionRect)
     }
 
     private var shouldShowCropInteractionHUD: Bool {
@@ -2289,7 +2291,7 @@ private final class AnnotationCanvasOverlayView: NSView {
         ).gscIntegralStandardized
     }
 
-    private func drawCropDimensionBadge(text: String, in rect: CGRect, attributes: [NSAttributedString.Key: Any]) {
+    private func drawCropDimensionBadge(textLayout: GlyphLineLayout, in rect: CGRect) {
         NSColor.black.withAlphaComponent(0.82).setFill()
         NSBezierPath(roundedRect: rect, xRadius: 11, yRadius: 11).fill()
 
@@ -2298,21 +2300,18 @@ private final class AnnotationCanvasOverlayView: NSView {
         border.lineWidth = 1
         border.stroke()
 
-        let textSize = NSString(string: text).size(withAttributes: attributes)
-        let textRect = CGRect(
-            x: rect.midX - textSize.width / 2,
-            y: rect.midY - textSize.height / 2,
-            width: textSize.width,
-            height: textSize.height
+        guard let context = NSGraphicsContext.current?.cgContext else {
+            return
+        }
+        GlyphLineRenderer.draw(
+            textLayout,
+            at: CGPoint(
+                x: rect.midX - textLayout.size.width / 2,
+                y: rect.midY - textLayout.size.height / 2
+            ),
+            color: .white,
+            in: context
         )
-        NSString(string: text).draw(in: textRect, withAttributes: attributes)
-    }
-
-    private func cropDimensionTextAttributes() -> [NSAttributedString.Key: Any] {
-        [
-            .font: NSFont.monospacedSystemFont(ofSize: 13, weight: .semibold),
-            .foregroundColor: NSColor.white
-        ]
     }
 
     private func drawCropHandles(for rect: CGRect) {
