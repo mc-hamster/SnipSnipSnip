@@ -242,7 +242,7 @@ struct OnboardingView: View {
     }
 
     private func onboardingStatusCard(metrics: OnboardingLayoutMetrics) -> some View {
-        GroupBox {
+        InsetGroupBox {
             Text("After Screen Recording is set up, onboarding can be skipped and every step can be revisited later from Settings > General.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -690,7 +690,7 @@ struct OnboardingView: View {
         systemImage: String,
         metrics: OnboardingLayoutMetrics
     ) -> some View {
-        GroupBox {
+        InsetGroupBox {
             Text(detail)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -947,34 +947,34 @@ struct OnboardingView: View {
     }
 
     private func deferredPermissionNotes(metrics: OnboardingLayoutMetrics) -> some View {
-        GroupBox {
+        InsetGroupBox {
             VStack(alignment: .leading, spacing: 12) {
-            Text("These do not appear during onboarding. macOS asks later if you enable the matching workflow.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                Text("These do not appear during onboarding. macOS asks later if you enable the matching workflow.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            VStack(alignment: .leading, spacing: 10) {
-                if capabilities.isEnabled(.connectedDeviceCapture) {
+                VStack(alignment: .leading, spacing: 10) {
+                    if capabilities.isEnabled(.connectedDeviceCapture) {
+                        deferredPermissionRow(
+                            title: "Camera",
+                            detail: "Connected iPhone or iPad preview, screenshots, and recordings.",
+                            systemImage: "camera.fill"
+                        )
+                    }
+
                     deferredPermissionRow(
-                        title: "Camera",
-                        detail: "Connected iPhone or iPad preview, screenshots, and recordings.",
-                        systemImage: "camera.fill"
+                        title: "Microphone",
+                        detail: "Video recording only when microphone narration is enabled.",
+                        systemImage: "mic.fill"
+                    )
+
+                    deferredPermissionRow(
+                        title: "System Audio",
+                        detail: "Video recording only when system audio capture is enabled.",
+                        systemImage: "speaker.wave.2.fill"
                     )
                 }
-
-                deferredPermissionRow(
-                    title: "Microphone",
-                    detail: "Video recording only when microphone narration is enabled.",
-                    systemImage: "mic.fill"
-                )
-
-                deferredPermissionRow(
-                    title: "System Audio",
-                    detail: "Video recording only when system audio capture is enabled.",
-                    systemImage: "speaker.wave.2.fill"
-                )
-            }
             }
         } label: {
             Text("Asked Only When Used")

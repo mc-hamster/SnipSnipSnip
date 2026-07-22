@@ -216,7 +216,7 @@ struct EditorInspectorView: View {
     }
 
     private var uiMapInspectionSection: some View {
-        GroupBox("UI Map") {
+        InsetGroupBox("UI Map") {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 12) {
                     UIMapInspectorLegendItem(color: .blue, label: "AX element")
@@ -393,7 +393,7 @@ struct EditorInspectorView: View {
     }
 
     private var styleSection: some View {
-        GroupBox("Style") {
+        InsetGroupBox("Style") {
             VStack(alignment: .leading, spacing: 12) {
                 Text(controller.stylePrimaryLabel)
                     .font(.caption.weight(.semibold))
@@ -812,7 +812,7 @@ struct EditorInspectorView: View {
     }
 
     private var cropSection: some View {
-        GroupBox("Crop") {
+        InsetGroupBox("Crop") {
             let cropRect = controller.snapshot.cropRect.gscIntegralStandardized
 
             VStack(alignment: .leading, spacing: 12) {
@@ -894,7 +894,7 @@ struct EditorInspectorView: View {
     }
 
     private var alignmentSection: some View {
-        GroupBox("Alignment") {
+        InsetGroupBox("Alignment") {
             if controller.showsTextAlignmentControls {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Text alignment")
@@ -1224,7 +1224,7 @@ private struct ChangeHistorySectionView: View, Equatable {
     }
 
     var body: some View {
-        GroupBox("Change History") {
+        InsetGroupBox("Change History") {
             VStack(alignment: .leading, spacing: 12) {
                 if historyEntries.isEmpty {
                     Text("Autosave history appears here after edits or saves.")
@@ -1323,7 +1323,7 @@ private struct RecentSnipsSectionView: View, Equatable {
     }
 
     var body: some View {
-        GroupBox("Recent Snips") {
+        InsetGroupBox("Recent Snips") {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top, spacing: 8) {
                     Text("Switch back to an earlier snip without interrupting the current capture flow.")

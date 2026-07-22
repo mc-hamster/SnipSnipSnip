@@ -1212,13 +1212,13 @@ private struct HelpImportantView: View {
     let items: [String]
 
     var body: some View {
-        GroupBox {
+        InsetGroupBox {
             VStack(alignment: .leading, spacing: 10) {
-            ForEach(items, id: \.self) { item in
-                Text(AppBranding.branded(item))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
-            }
+                ForEach(items, id: \.self) { item in
+                    Text(AppBranding.branded(item))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         } label: {

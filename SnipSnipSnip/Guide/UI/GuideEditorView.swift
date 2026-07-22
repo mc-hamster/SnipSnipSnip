@@ -154,7 +154,7 @@ struct GuideEditorView: View {
     @ViewBuilder private var inspector: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                GroupBox {
+                InsetGroupBox {
                     VStack(alignment: .leading, spacing: 12) {
                         TextField("Guide title", text: projectStringBinding(\.title))
                         HStack {
@@ -231,7 +231,7 @@ struct GuideEditorView: View {
                     }
                 }
                 if let step = controller.selectedStep {
-                    GroupBox {
+                    InsetGroupBox {
                         VStack(alignment: .leading, spacing: 12) {
                             Picker("Action", selection: eventBinding(step.id)) {
                                 ForEach(GuideEventKind.allCases) { Text($0.rawValue.capitalized).tag($0) }

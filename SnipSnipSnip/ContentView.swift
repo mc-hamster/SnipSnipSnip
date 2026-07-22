@@ -1206,25 +1206,23 @@ private struct CaptureModeCard<Content: View>: View {
     }
 
     var body: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 18) {
+        InsetGroupBox(spacing: 16) {
+            content
+        } label: {
+            VStack(alignment: .leading, spacing: 5) {
+                Label {
+                    Text(title)
+                        .font(.headline)
+                } icon: {
+                    Image(systemName: systemImage)
+                        .foregroundStyle(Color.accentColor)
+                }
+
                 Text(detail)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-
-                content
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } label: {
-            Label {
-                Text(title)
-                    .font(.headline)
-            } icon: {
-                Image(systemName: systemImage)
-                    .foregroundStyle(Color.accentColor)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

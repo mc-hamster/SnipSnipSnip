@@ -114,11 +114,8 @@ struct PresentationInspectorView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            GroupBox("Presentation") {
+            InsetGroupBox {
                 VStack(alignment: .leading, spacing: 12) {
-                    Label("Presentation", systemImage: EditorWorkspaceMode.presentation.systemImage)
-                        .font(.headline)
-
                     Text(presentationSummary)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -141,27 +138,29 @@ struct PresentationInspectorView: View {
                         presentationSceneLibrary
                     }
                 }
+            } label: {
+                Label("Presentation", systemImage: EditorWorkspaceMode.presentation.systemImage)
             }
 
             if selectedTab == .style {
-                GroupBox("Background") {
+                InsetGroupBox("Background") {
                     presentationBackgroundControls
                 }
 
-                GroupBox("Effects") {
+                InsetGroupBox("Effects") {
                     presentationEffectsControls
                 }
             } else {
-                GroupBox("Scene Slots") {
+                InsetGroupBox("Scene Slots") {
                     presentationSceneSlotControls
                 }
 
-                GroupBox("Scene Files") {
+                InsetGroupBox("Scene Files") {
                     presentationSceneFileControls
                 }
 
                 if !controller.presentationSceneDiagnostics.isEmpty {
-                    GroupBox("Scene Diagnostics") {
+                    InsetGroupBox("Scene Diagnostics") {
                         DisclosureGroup("Review Issues", isExpanded: $isShowingSceneDiagnostics) {
                             presentationSceneDiagnostics
                                 .padding(.top, 8)
@@ -170,7 +169,7 @@ struct PresentationInspectorView: View {
                 }
             }
 
-            GroupBox("Variants") {
+            InsetGroupBox("Variants") {
                 savedPresentationLibrary
             }
         }

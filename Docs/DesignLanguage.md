@@ -65,6 +65,7 @@ This document is the required design reference for user-visible SwiftUI and AppK
 ### Settings, Help, lists, and empty states
 
 - Use native forms, lists, sections, search, and selection.
+- Keep each standalone grouped section's heading, supporting text, and controls inside one native grouped boundary so the heading clearly belongs to its content. This applies to main-window empty states, onboarding, Help, and editor and Guide inspectors; retain native external section headers in forms and lists.
 - Prefer `ContentUnavailableView` or a small native empty-state composition.
 - Avoid card grids when a list, outline, form, or disclosure group communicates the same structure.
 
