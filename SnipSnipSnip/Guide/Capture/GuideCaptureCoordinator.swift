@@ -52,6 +52,7 @@ final class GuideCaptureCoordinator: ObservableObject {
     @Published private(set) var isUpdatingAudioOptions = false
     @Published private(set) var captureIssue: String?
     @Published private(set) var recoveryIssue: String?
+    @Published private(set) var isDiscarding = false
     private var startedUptime: TimeInterval?
 
     private let systemServices: AppSystemServices
@@ -398,6 +399,9 @@ final class GuideCaptureCoordinator: ObservableObject {
     }
 
     func discard() async {
+        guard !isDiscarding else { return }
+        isDiscarding = true
+
         let projectID = project?.id
         eventMonitor.stop()
         stopGuardrailMonitor()
@@ -411,13 +415,10 @@ final class GuideCaptureCoordinator: ObservableObject {
         pendingTextEntry = nil
         stopTextEntryObservation()
         let outstandingRecoveryTask = recoveryTask
+        let discardedMediaSession = mediaSession
         outstandingRecoveryTask?.cancel()
         recoveryTask = nil
         pendingRecoveryDocument = nil
-        if let outstandingRecoveryTask {
-            await outstandingRecoveryTask.value
-        }
-        await mediaSession?.discard()
         mediaSession = nil
         retainedSegments = []
         project = nil
@@ -429,7 +430,13 @@ final class GuideCaptureCoordinator: ObservableObject {
         startedUptime = nil
         finalizationProgress = nil
         state = .idle
+
+        if let outstandingRecoveryTask {
+            await outstandingRecoveryTask.value
+        }
+        await discardedMediaSession?.discard()
         if let projectID { recoveryStore.remove(projectID: projectID) }
+        isDiscarding = false
     }
 
     private func startGuardrailMonitor() {

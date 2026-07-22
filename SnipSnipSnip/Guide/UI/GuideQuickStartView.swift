@@ -49,22 +49,14 @@ struct GuideQuickStartView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 14) {
-            Image(systemName: "list.number")
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 44, height: 44)
-                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-
+        HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 5) {
                 Text("Create a Guide")
                     .font(.title2.weight(.semibold))
-
-                Text("Tell us what you want to make. We’ll set up the capture for you.")
+                Text("Choose the capture, then adjust only the options you need.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 24)
@@ -130,17 +122,17 @@ struct GuideQuickStartView: View {
     }
 
     private var sourceQuestion: some View {
-        Section("\(outputIntent == .stepsAndVideo ? 3 : 2). What will you walk through?") {
-            Text("Keep the Guide focused on one window or app, select an area, or show the whole display.")
+        Section("\(outputIntent == .stepsAndVideo ? 3 : 2). What will you capture?") {
+            Text("Use the same capture choices as the main window, or follow every window from one app.")
                 .foregroundStyle(.secondary)
 
             Picker("Source", selection: $guide.selectedSourceKind) {
-                Text("One window").tag("window")
-                Text("One app").tag("app")
-                Text("An area").tag("region")
-                Text("Everything on a display").tag("display")
+                Label("Region", systemImage: "selection.pin.in.out").tag("region")
+                Label("Window", systemImage: "rectangle.on.rectangle").tag("window")
+                Label("App", systemImage: "app.dashed").tag("app")
+                Label("Display", systemImage: "macwindow").tag("display")
             }
-            .pickerStyle(.radioGroup)
+            .pickerStyle(.segmented)
             .labelsHidden()
             .onChange(of: guide.selectedSourceKind) { _, _ in prepareSourceSelection() }
 
@@ -156,34 +148,31 @@ struct GuideQuickStartView: View {
     private var sourcePicker: some View {
         switch guide.selectedSourceKind {
         case "window":
-            sourceMenu(
-                label: "Window",
-                selection: selectedWindow?.displayTitle ?? "Choose a window",
-                choices: guide.availableWindows,
-                choiceTitle: \.displayTitle
-            )
-        case "app":
-            sourceMenu(
-                label: "App",
-                selection: selectedWindow?.ownerName ?? "Choose an app",
-                choices: availableApps,
-                choiceTitle: \.ownerName
-            )
-        case "display":
-            Menu {
-                ForEach(guide.dependencies.systemServices.screens.screens, id: \.displayID) { display in
-                    Button(display.name) { guide.selectedDisplayID = display.displayID }
+            Picker("Window", selection: $guide.selectedWindowID) {
+                ForEach(guide.availableWindows) { window in
+                    Text(window.displayTitle).tag(Optional(window.id))
                 }
-            } label: {
-                sourceSelectionLabel(
-                    label: "Display",
-                    selection: selectedDisplayName ?? "Choose a display"
-                )
             }
-            .menuStyle(.borderlessButton)
+            .pickerStyle(.menu)
+            .help("Choose the window the Guide should follow.")
+        case "app":
+            Picker("App", selection: $guide.selectedWindowID) {
+                ForEach(availableApps) { app in
+                    Text(app.ownerName).tag(Optional(app.id))
+                }
+            }
+            .pickerStyle(.menu)
+            .help("Choose the app the Guide should follow.")
+        case "display":
+            Picker("Display", selection: $guide.selectedDisplayID) {
+                ForEach(guide.dependencies.systemServices.screens.screens, id: \.displayID) { display in
+                    Text(display.name).tag(Optional(display.displayID))
+                }
+            }
+            .pickerStyle(.menu)
             .help("Choose which display the Guide should capture.")
         default:
-            Label("You’ll choose the area after clicking Start Guide.", systemImage: "cursorarrow.rays")
+            Label("Choose the region on screen after clicking Start Guide.", systemImage: "cursorarrow.rays")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 2)
@@ -250,7 +239,7 @@ struct GuideQuickStartView: View {
                 Spacer(minLength: 12)
 
                 Button("Cancel") { guide.isShowingQuickStart = false }
-                    .buttonStyle(.glass)
+                    .buttonStyle(.bordered)
                     .keyboardShortcut(.cancelAction)
                     .help("Close Guide setup without starting a capture.")
 
@@ -259,7 +248,7 @@ struct GuideQuickStartView: View {
                     guide.completeFirstUseSetup()
                     guide.startSelectedSource()
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
                 .disabled(!canStart)
                 .help(canStart ? "Start capturing this Guide with the choices shown in the summary." : "Open an app window before starting this Guide.")
@@ -268,7 +257,7 @@ struct GuideQuickStartView: View {
             HStack(spacing: 12) {
                 if guide.hasRecoverableGuide {
                     Button("Recover Interrupted Guide", action: guide.recoverLatestGuide)
-                        .buttonStyle(.glass)
+                        .buttonStyle(.bordered)
                         .help("Open the most recent Guide that was autosaved before an interruption.")
                 }
 
@@ -283,42 +272,6 @@ struct GuideQuickStartView: View {
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 14)
-    }
-
-    private func sourceMenu(
-        label: String,
-        selection: String,
-        choices: [CaptureWindowSummary],
-        choiceTitle: KeyPath<CaptureWindowSummary, String>
-    ) -> some View {
-        Menu {
-            ForEach(choices) { choice in
-                Button(choice[keyPath: choiceTitle]) { guide.selectedWindowID = choice.id }
-            }
-        } label: {
-            sourceSelectionLabel(label: label, selection: selection)
-        }
-        .menuStyle(.borderlessButton)
-        .help("Choose the \(label.lowercased()) the Guide should follow.")
-    }
-
-    private func sourceSelectionLabel(label: String, selection: String) -> some View {
-        HStack(spacing: 10) {
-            Text(label)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(selection)
-                .font(.subheadline.weight(.medium))
-                .lineLimit(1)
-            Spacer()
-            Image(systemName: "chevron.up.chevron.down")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 12)
-        .frame(height: 38)
-        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private var availableApps: [CaptureWindowSummary] {

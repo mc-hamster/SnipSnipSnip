@@ -938,7 +938,7 @@ struct ContentView: View {
     private var guideButton: some View {
         Button(action: guide.presentQuickStart) {
             headerActionLabel(
-                title: guide.isFinishing ? "Finishing Guide…" : (guide.isActive ? "Stop Guide" : "Guide"),
+                title: guideButtonTitle,
                 systemImage: guide.isActive ? "stop.circle.fill" : "list.number",
                 accent: .accentColor
             )
@@ -946,8 +946,14 @@ struct ContentView: View {
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
         .controlSize(.small)
-        .disabled(capture.isWorking || isRecordingVideo || guide.isFinishing)
+        .disabled(capture.isWorking || isRecordingVideo || guide.isFinishing || guide.isDiscarding)
         .help("Capture clicks, scrolling, and shortcuts as an editable step-by-step guide.")
+    }
+
+    private var guideButtonTitle: String {
+        if guide.isDiscarding { return "Discarding Guide…" }
+        if guide.isFinishing { return "Finishing Guide…" }
+        return guide.isActive ? "Stop Guide" : "Guide"
     }
 
     private func headerActionLabel(title: String, systemImage: String, accent: Color = .accentColor, showsChevron: Bool = false) -> some View {

@@ -46,6 +46,8 @@ final class GuideWorkflowModel: ObservableObject {
     private let recoveryStore: GuideRecoveryStore
     private var guideAudioOptionsTask: Task<Void, Never>?
     private var activeFinishTask: Task<EditableGuideDocument, Error>?
+    private var captureStateObservation: AnyCancellable?
+    private var captureDiscardObservation: AnyCancellable?
 
     @Published var isShowingQuickStart = false
     @Published var capturePreferences: GuideCapturePreferences { didSet { preferenceStore.saveCapturePreferences(capturePreferences) } }
@@ -76,10 +78,17 @@ final class GuideWorkflowModel: ObservableObject {
         self.captureCoordinator = GuideCaptureCoordinator(systemServices: dependencies.systemServices, recoveryStore: recoveryStore)
         self.isShowingFirstUseSetup = preferenceStore.loadOnboardingVersion() < Self.onboardingVersion
         self.hasRecoverableGuide = recoveryStore.newestRecoveryURL() != nil
+        self.captureStateObservation = captureCoordinator.$state
+            .dropFirst()
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+        self.captureDiscardObservation = captureCoordinator.$isDiscarding
+            .dropFirst()
+            .sink { [weak self] _ in self?.objectWillChange.send() }
     }
 
-    var isActive: Bool { captureCoordinator.state != .idle }
+    var isActive: Bool { captureCoordinator.state != .idle || captureCoordinator.isDiscarding }
     var isFinishing: Bool { captureCoordinator.state == .finishing }
+    var isDiscarding: Bool { captureCoordinator.isDiscarding }
     var availableWindows: [CaptureWindowSummary] { dependencies.capture.availableWindows }
     var stepCount: Int { captureCoordinator.project?.steps.count ?? 0 }
     var exitContext: GuideExitContext? {
@@ -225,6 +234,9 @@ final class GuideWorkflowModel: ObservableObject {
     }
 
     func discardGuide() {
+        guard !captureCoordinator.isDiscarding else { return }
+        guideAudioOptionsTask?.cancel()
+        guideAudioOptionsTask = nil
         Task { @MainActor [weak self] in
             await self?.captureCoordinator.discard()
         }
