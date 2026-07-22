@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-private enum OnboardingStep: Int, CaseIterable, Identifiable {
+private enum OnboardingStep: Int, CaseIterable, Identifiable, Hashable {
     case welcome
     case guide
     case uiMap
@@ -68,25 +68,6 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
         }
     }
 
-    var accent: Color {
-        switch self {
-        case .welcome:
-            return .teal
-        case .permissions:
-            return .orange
-        case .guide:
-            return .cyan
-        case .uiMap:
-            return .blue
-        case .startup:
-            return .green
-        case .clipboard:
-            return .purple
-        case .support:
-            return .pink
-        }
-    }
-
     var symbol: String {
         switch self {
         case .welcome:
@@ -110,38 +91,20 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
 private struct OnboardingLayoutMetrics {
     let isCompactWidth: Bool
     let isCompactHeight: Bool
-    let outerPadding: CGFloat
-    let sectionSpacing: CGFloat
-    let railWidth: CGFloat
-    let contentPadding: CGFloat
     let cardSpacing: CGFloat
     let featureSpacing: CGFloat
-    let primaryTitleSize: CGFloat
-    let stepTitleSize: CGFloat
     let stepIconFrame: CGFloat
-    let statusCardPadding: CGFloat
-    let featureCardPadding: CGFloat
 
     init(size: CGSize) {
         isCompactWidth = size.width < 1_120
         isCompactHeight = size.height < 760
-        outerPadding = isCompactWidth ? 20 : 28
-        sectionSpacing = isCompactHeight ? 18 : 24
-        railWidth = isCompactWidth ? 248 : 280
-        contentPadding = (isCompactWidth || isCompactHeight) ? 22 : 28
         cardSpacing = isCompactHeight ? 18 : 24
         featureSpacing = isCompactWidth ? 12 : 16
-        primaryTitleSize = isCompactWidth ? 30 : 34
-        stepTitleSize = isCompactWidth ? 24 : 28
         stepIconFrame = isCompactWidth ? 58 : 68
-        statusCardPadding = isCompactWidth ? 16 : 18
-        featureCardPadding = isCompactWidth ? 16 : 18
     }
 }
 
 struct OnboardingView: View {
-    private static let windowCornerRadius: CGFloat = 14
-
     @ObservedObject var lifecycle: AppLifecycleModel
     @ObservedObject var capture: CaptureWorkflowModel
     @ObservedObject var permissions: PermissionWorkflowModel
@@ -182,25 +145,14 @@ struct OnboardingView: View {
         GeometryReader { proxy in
             let metrics = OnboardingLayoutMetrics(size: proxy.size)
 
-            ZStack {
-                background
-
-                VStack(spacing: metrics.sectionSpacing) {
-                    header(metrics: metrics)
-
-                    HStack(alignment: .top, spacing: metrics.featureSpacing + 4) {
-                        stepRail(metrics: metrics)
-                        contentCard(metrics: metrics)
-                    }
-                    .frame(maxHeight: .infinity, alignment: .top)
-
-                    footer
-                }
-                .padding(metrics.outerPadding)
-                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+            NavigationSplitView {
+                stepRail(metrics: metrics)
+                    .navigationSplitViewColumnWidth(min: 230, ideal: 260, max: 300)
+            } detail: {
+                contentCard(metrics: metrics)
             }
-            .compositingGroup()
-            .clipShape(RoundedRectangle(cornerRadius: Self.windowCornerRadius, style: .continuous))
+            .navigationSplitViewStyle(.balanced)
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
         .frame(minWidth: 920, minHeight: 640)
         .task {
@@ -241,173 +193,103 @@ struct OnboardingView: View {
         }
     }
 
-    private var background: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.08, green: 0.13, blue: 0.17),
-                    Color(red: 0.05, green: 0.09, blue: 0.12),
-                    Color(red: 0.10, green: 0.12, blue: 0.16)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-
-            Circle()
-                .fill(Color.teal.opacity(0.18))
-                .frame(width: 360, height: 360)
-                .offset(x: -320, y: -220)
-                .blur(radius: 12)
-
-            Circle()
-                .fill(Color.orange.opacity(0.16))
-                .frame(width: 320, height: 320)
-                .offset(x: 360, y: -180)
-                .blur(radius: 10)
-
-            Circle()
-                .fill(Color.pink.opacity(0.16))
-                .frame(width: 380, height: 380)
-                .offset(x: 320, y: 260)
-                .blur(radius: 16)
-        }
-        .ignoresSafeArea()
-    }
-
-    private func header(metrics: OnboardingLayoutMetrics) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: metrics.featureSpacing + 4) {
-                headerCopy(metrics: metrics)
-
-                Spacer(minLength: 20)
-
-                skipOnboardingButton
-            }
-
-            VStack(alignment: .leading, spacing: 14) {
-                headerCopy(metrics: metrics)
-
-                HStack {
-                    Spacer(minLength: 0)
-
-                    skipOnboardingButton
-                }
-            }
-        }
-    }
-
     @ViewBuilder
     private var skipOnboardingButton: some View {
         if canBypassOnboarding {
             Button("Skip for Now", action: skipOnboarding)
-                .buttonStyle(SSSChromeButtonStyle(tint: .white))
+                .buttonStyle(.glass)
         }
     }
 
     private func headerCopy(metrics: OnboardingLayoutMetrics) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Welcome to \(AppBranding.displayName)")
-                .font(.system(size: metrics.primaryTitleSize, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+                .font(.title2.weight(.semibold))
 
             Text("A short setup pass gets you from first launch to fast capture, editor workflows, and support without hunting through menus.")
-                .font(.title3.weight(.medium))
-                .foregroundStyle(.white.opacity(0.82))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     private func stepRail(metrics: OnboardingLayoutMetrics) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(visibleSteps) { step in
-                Button {
-                    selectedStep = step
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: step.symbol)
-                            .font(.headline.weight(.semibold))
-                            .frame(width: 28)
+        VStack(spacing: 0) {
+            headerCopy(metrics: metrics)
+                .padding(16)
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(step.title)
-                                .font(.headline.weight(.semibold))
-
-                            Text(step.summary(for: capabilities))
-                                .font(metrics.isCompactHeight ? .caption : .footnote)
+            List(visibleSteps, selection: $selectedStep) { step in
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(step.title)
+                        if let status = sidebarStatus(for: step) {
+                            Text(status)
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                } icon: {
+                    Image(systemName: step.symbol)
                 }
-                .buttonStyle(SSSChromeButtonStyle(tint: step.accent, isSelected: selectedStep == step))
+                .tag(step)
+                .help(step.summary(for: capabilities))
             }
-
-            Spacer(minLength: 0)
+            .listStyle(.sidebar)
 
             onboardingStatusCard(metrics: metrics)
+                .padding(12)
         }
-        .frame(width: metrics.railWidth)
-        .frame(maxHeight: .infinity, alignment: .top)
     }
 
     private func onboardingStatusCard(metrics: OnboardingLayoutMetrics) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Ready When You Are", systemImage: "scissors")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(.white)
-
+        GroupBox {
             Text("After Screen Recording is set up, onboarding can be skipped and every step can be revisited later from Settings > General.")
                 .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.78))
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(metrics.statusCardPadding)
-        .sssGlassSurface(cornerRadius: 20, tint: .white.opacity(0.08), shadowOpacity: 0.18)
-        .overlay {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.75)
+        } label: {
+            Label("Ready When You Are", systemImage: "scissors")
         }
     }
 
     private func contentCard(metrics: OnboardingLayoutMetrics) -> some View {
-        VStack(alignment: .leading, spacing: metrics.cardSpacing) {
+        VStack(spacing: 0) {
             currentStepHeader(metrics: metrics)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 18)
 
-            ScrollView(.vertical, showsIndicators: true) {
+            Divider()
+
+            Form {
                 currentStepContent(metrics: metrics)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .padding(.trailing, 6)
             }
+            .formStyle(.grouped)
             .scrollBounceBehavior(.basedOnSize)
-            .frame(maxHeight: .infinity, alignment: .top)
+
+            Divider()
+
+            footer
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
         }
-        .padding(metrics.contentPadding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color.white.opacity(0.04))
-        .sssGlassSurface(cornerRadius: 28, tint: .white.opacity(0.08), shadowOpacity: 0.22)
-        .overlay {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.75)
-        }
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private func currentStepHeader(metrics: OnboardingLayoutMetrics) -> some View {
         HStack(alignment: .top, spacing: 18) {
             Image(systemName: selectedStep.symbol)
-                .font(.system(size: 36, weight: .semibold))
-                .foregroundStyle(selectedStep.accent)
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
                 .frame(width: metrics.stepIconFrame, height: metrics.stepIconFrame)
-                .background(selectedStep.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             VStack(alignment: .leading, spacing: 8) {
                 Text(selectedStep.title)
-                    .font(.system(size: metrics.stepTitleSize, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .font(.title2.weight(.semibold))
 
                 Text(selectedStep.summary(for: capabilities))
-                    .font(.title3)
-                    .foregroundStyle(.white.opacity(0.8))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -468,7 +350,6 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Default shortcuts")
                     .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white)
 
                 ForEach(defaultCaptureShortcutEntries) { entry in
                     shortcutRow(key: entry.keys, action: entry.action)
@@ -502,12 +383,13 @@ struct OnboardingView: View {
             actionGroup {
                 if permissions.screenRecordingSetupNeedsAttention {
                     Button(AppBranding.branded("Restart SnipSnipSnip"), action: restartAfterPermissionSetup)
-                        .buttonStyle(SSSChromeButtonStyle(tint: .orange))
+                        .buttonStyle(.glassProminent)
+                        .tint(.orange)
                 } else {
                     Button("Set Up Next") {
                         permissions.requestNextMissingSetupRequirement(in: onboardingPermissionRequirements)
                     }
-                    .buttonStyle(SSSChromeButtonStyle())
+                    .buttonStyle(.glassProminent)
                     .disabled(permissions.activePermissionRequest != nil)
                 }
 
@@ -515,12 +397,12 @@ struct OnboardingView: View {
                     openWindow(id: AppSceneID.helpWindow)
                     NSApp.activate(ignoringOtherApps: true)
                 }
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .buttonStyle(.glass)
             }
 
             Text(permissionsSummaryText)
                 .font(.footnote)
-                .foregroundStyle(.white.opacity(0.72))
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -552,14 +434,8 @@ struct OnboardingView: View {
                     .toggleStyle(.switch)
                 Text("Source video is on by default so Full Motion and Action Highlights can be exported later. PDF and GIF are the one-click export defaults. Everything stays local, and Private Guide skips OCR and caption refinement.")
                     .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.75))
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(metrics.contentPadding)
-            .background(Color.cyan.opacity(0.08), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.75)
             }
         }
     }
@@ -580,12 +456,10 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 14) {
                 Text("UI Map works with Window capture. It can save available names, roles, identifiers, and locations from the selected window alongside the screenshot.")
                     .font(.body)
-                    .foregroundStyle(.white.opacity(0.82))
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text("UI Map metadata stays local to the screenshot document and is used for inspection, search, documentation, accessibility review, and QA workflows. You can disable it now or change this later in Settings.")
                     .font(.body)
-                    .foregroundStyle(.white.opacity(0.82))
                     .fixedSize(horizontal: false, vertical: true)
 
                 Toggle("Enable UI Map for Window captures", isOn: uiMapBinding)
@@ -593,24 +467,13 @@ struct OnboardingView: View {
                     .controlSize(.large)
 
                 if capture.windowUIMapNeedsAccessibilityAccess {
-                    VStack(alignment: .leading, spacing: 10) {
+                    GroupBox {
                         Label("Window UI Map will add Accessibility to the next permissions step.", systemImage: "lock.trianglebadge.exclamationmark.fill")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.orange)
-                    }
-                    .padding(14)
-                    .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .strokeBorder(Color.orange.opacity(0.24), lineWidth: 0.75)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-            }
-            .padding(metrics.contentPadding)
-            .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.75)
             }
 
             featurePair(metrics: metrics) {
@@ -648,29 +511,23 @@ struct OnboardingView: View {
 
                 Text(lifecycle.launchAtLoginStatus.detail)
                     .font(.body)
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if lifecycle.launchAtLoginStatus.needsSystemSettingsApproval || lifecycle.launchAtLoginStatus == .unavailable {
                     Button("Open Login Items in System Settings", action: lifecycle.openLaunchAtLoginSettings)
-                        .buttonStyle(SSSChromeButtonStyle(tint: .orange))
+                        .buttonStyle(.glass)
+                        .tint(.orange)
                 }
-            }
-            .padding(metrics.contentPadding)
-            .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.75)
             }
 
             VStack(alignment: .leading, spacing: 10) {
                 Text("Why turn it on?")
                     .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white)
 
                 Text("If \(AppBranding.displayName) starts at login, the menu bar extra, capture shortcuts, and quick editor flow are already in place when you need them.")
                     .font(.body)
-                    .foregroundStyle(.white.opacity(0.78))
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -681,11 +538,9 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Clipboard History is optional and off by default.")
                     .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white)
 
                 Text("When enabled, \(AppBranding.displayName) monitors supported content copied on this Mac and saves an encrypted local history. Its encryption key is protected by Keychain, so macOS may ask you to allow Keychain access.")
                     .font(.body)
-                    .foregroundStyle(.white.opacity(0.82))
                     .fixedSize(horizontal: false, vertical: true)
 
                 Toggle("Enable Clipboard History", isOn: clipboardHistoryBinding)
@@ -698,14 +553,8 @@ struct OnboardingView: View {
 
                 Text("You can change either choice later in Settings > Clipboard. Private Capture screenshots are never added, and Clipboard History does not upload its contents.")
                     .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.72))
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(metrics.contentPadding)
-            .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.75)
             }
 
             featurePair(metrics: metrics) {
@@ -746,22 +595,22 @@ struct OnboardingView: View {
                     openWindow(id: AppSceneID.helpWindow)
                     NSApp.activate(ignoringOtherApps: true)
                 }
-                .buttonStyle(SSSChromeButtonStyle())
+                .buttonStyle(.glassProminent)
 
                 Button("Open Support Page") {
                     openURL(AppLinks.support)
                 }
-                .buttonStyle(SSSChromeButtonStyle(tint: .pink))
+                .buttonStyle(.glass)
 
                 Button("Open Website") {
                     openURL(AppLinks.website)
                 }
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .buttonStyle(.glass)
             }
 
             Text("You can replay this onboarding from Settings > General whenever you want the guided tour again.")
                 .font(.footnote)
-                .foregroundStyle(.white.opacity(0.72))
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -769,26 +618,26 @@ struct OnboardingView: View {
         ViewThatFits(in: .horizontal) {
             HStack {
                 Button("Back", action: moveBack)
-                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                    .buttonStyle(.glass)
                     .disabled(selectedStep == .welcome)
 
                 Spacer(minLength: 16)
 
                 Button(AppBranding.branded(primaryFooterTitle), action: primaryFooterAction)
-                    .buttonStyle(SSSChromeButtonStyle(tint: selectedStep.accent))
+                    .buttonStyle(.glassProminent)
                     .disabled(isPrimaryFooterDisabled)
             }
 
             VStack(alignment: .leading, spacing: 12) {
                 Button("Back", action: moveBack)
-                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                    .buttonStyle(.glass)
                     .disabled(selectedStep == .welcome)
 
                 HStack(spacing: 10) {
                     Spacer(minLength: 0)
 
                     Button(AppBranding.branded(primaryFooterTitle), action: primaryFooterAction)
-                        .buttonStyle(SSSChromeButtonStyle(tint: selectedStep.accent))
+                        .buttonStyle(.glassProminent)
                         .disabled(isPrimaryFooterDisabled)
                 }
             }
@@ -841,23 +690,15 @@ struct OnboardingView: View {
         systemImage: String,
         metrics: OnboardingLayoutMetrics
     ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label(title, systemImage: systemImage)
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(.white)
-
+        GroupBox {
             Text(detail)
                 .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.76))
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+        } label: {
+            Label(title, systemImage: systemImage)
         }
-        .padding(metrics.featureCardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.75)
-        }
     }
 
     private func featurePair<Content: View>(
@@ -897,43 +738,39 @@ struct OnboardingView: View {
         let hasAccess = !needsAttention && permissions.permissionStatus.hasAccess(to: requirement)
         let isWaiting = !needsAttention && permissions.activePermissionRequest == requirement
 
-        return VStack(alignment: .leading, spacing: 12) {
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .center, spacing: 12) {
-                    permissionHeader(requirement: requirement, hasAccess: hasAccess)
+        return GroupBox {
+            VStack(alignment: .leading, spacing: 12) {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .center, spacing: 12) {
+                        permissionHeader(requirement: requirement, hasAccess: hasAccess)
 
-                    Spacer(minLength: 12)
+                        Spacer(minLength: 12)
 
-                    if !hasAccess {
-                        permissionActions(requirement: requirement, isWaiting: isWaiting, needsAttention: needsAttention)
+                        if !hasAccess {
+                            permissionActions(requirement: requirement, isWaiting: isWaiting, needsAttention: needsAttention)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        permissionHeader(requirement: requirement, hasAccess: hasAccess)
+                        if !hasAccess {
+                            permissionActions(requirement: requirement, isWaiting: isWaiting, needsAttention: needsAttention)
+                        }
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 12) {
-                    permissionHeader(requirement: requirement, hasAccess: hasAccess)
-                    if !hasAccess {
-                        permissionActions(requirement: requirement, isWaiting: isWaiting, needsAttention: needsAttention)
-                    }
-                }
-            }
-
-            Text(permissionDescription(for: requirement))
-                .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.74))
-                .fixedSize(horizontal: false, vertical: true)
-
-            if let followUpText = permissionFollowUpText(for: requirement, isWaiting: isWaiting, needsAttention: needsAttention) {
-                Label(followUpText, systemImage: needsAttention ? "arrow.clockwise.circle.fill" : "gearshape.fill")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(needsAttention ? .orange : .white.opacity(0.72))
+                Text(permissionDescription(for: requirement))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if let followUpText = permissionFollowUpText(for: requirement, isWaiting: isWaiting, needsAttention: needsAttention) {
+                    Label(followUpText, systemImage: needsAttention ? "arrow.clockwise.circle.fill" : "gearshape.fill")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(needsAttention ? .orange : .secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
-        }
-        .padding(metrics.featureCardPadding)
-        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.75)
         }
     }
 
@@ -951,7 +788,6 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(requirement.title)
                     .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white)
 
                 Text(statusLabel)
                     .font(.subheadline.weight(.semibold))
@@ -985,7 +821,7 @@ struct OnboardingView: View {
                     Button("Open Settings") {
                         permissions.openPermissionSettings(requirement)
                     }
-                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                    .buttonStyle(.glass)
                 }
 
                 VStack(alignment: .leading, spacing: 10) {
@@ -993,28 +829,31 @@ struct OnboardingView: View {
                     Button("Open Settings") {
                         permissions.openPermissionSettings(requirement)
                     }
-                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                    .buttonStyle(.glass)
                 }
             }
         } else {
             Button("Set Up") {
                 permissions.requestPermission(requirement)
             }
-            .buttonStyle(SSSChromeButtonStyle(tint: .orange))
+            .buttonStyle(.glassProminent)
+            .tint(.orange)
             .disabled(permissions.activePermissionRequest != nil)
         }
     }
 
     private func restartPermissionButton() -> some View {
         Button(AppBranding.branded("Restart SnipSnipSnip"), action: restartAfterPermissionSetup)
-            .buttonStyle(SSSChromeButtonStyle(tint: .orange))
+            .buttonStyle(.glassProminent)
+            .tint(.orange)
     }
 
     private func checkAgainButton(tint: Color) -> some View {
         Button("Check Again") {
             permissions.checkPermissionSetupGuideStatus()
         }
-        .buttonStyle(SSSChromeButtonStyle(tint: tint))
+        .buttonStyle(.glass)
+        .tint(tint)
     }
 
     private func permissionNeedsAttention(_ requirement: CapturePermissionRequirement) -> Bool {
@@ -1108,14 +947,11 @@ struct OnboardingView: View {
     }
 
     private func deferredPermissionNotes(metrics: OnboardingLayoutMetrics) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Asked Only When Used")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(.white)
-
+        GroupBox {
+            VStack(alignment: .leading, spacing: 12) {
             Text("These do not appear during onboarding. macOS asks later if you enable the matching workflow.")
                 .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.76))
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: 10) {
@@ -1139,12 +975,9 @@ struct OnboardingView: View {
                     systemImage: "speaker.wave.2.fill"
                 )
             }
-        }
-        .padding(metrics.featureCardPadding)
-        .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.10), lineWidth: 0.75)
+            }
+        } label: {
+            Text("Asked Only When Used")
         }
     }
 
@@ -1153,16 +986,15 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
 
                 Text(detail)
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.72))
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         } icon: {
             Image(systemName: systemImage)
-                .foregroundStyle(.white.opacity(0.82))
+                .foregroundStyle(.secondary)
         }
         .fixedSize(horizontal: false, vertical: true)
     }
@@ -1215,7 +1047,7 @@ struct OnboardingView: View {
 
                 Text(AppBranding.branded(action))
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.78))
+                    .foregroundStyle(.secondary)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -1223,7 +1055,7 @@ struct OnboardingView: View {
 
                 Text(AppBranding.branded(action))
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.78))
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -1231,10 +1063,9 @@ struct OnboardingView: View {
     private func shortcutBadge(_ key: String) -> some View {
         Text(key)
             .font(.system(.footnote, design: .monospaced).weight(.semibold))
-            .foregroundStyle(.white)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private var launchAtLoginBinding: Binding<Bool> {
@@ -1305,6 +1136,24 @@ struct OnboardingView: View {
 
     private var visibleSteps: [OnboardingStep] {
         OnboardingStep.visibleCases(for: capabilities)
+    }
+
+    private func sidebarStatus(for step: OnboardingStep) -> String? {
+        switch step {
+        case .welcome, .guide, .support:
+            return nil
+        case .uiMap:
+            return capture.uiMapEnabled ? "On" : "Off"
+        case .startup:
+            return lifecycle.launchAtLoginStatus.stateLabel
+        case .clipboard:
+            return clipboard.preferences.isEnabled ? "On" : "Off"
+        case .permissions:
+            let screenRecordingAllowed = permissions.permissionStatus.hasScreenRecording
+            let accessibilityAllowed = !shouldIncludeAccessibilityPermissionInOnboarding
+                || permissions.permissionStatus.hasAccessibility
+            return screenRecordingAllowed && accessibilityAllowed ? "Allowed" : "Needs Setup"
+        }
     }
 
     private var canBypassOnboarding: Bool {

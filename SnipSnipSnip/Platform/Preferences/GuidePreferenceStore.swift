@@ -17,6 +17,7 @@ nonisolated struct GuideCapturePreferences: Codable, Equatable, Sendable {
 }
 
 nonisolated struct GuidePreferenceStore {
+    private static let brandLogoKey = "guide.brand.logo.png"
     private let storage: PreferenceStorage
     private let capturePreference = CodablePreference(key: "guide.capture.preferences", defaultValue: GuideCapturePreferences())
     private let exportPreference = CodablePreference(key: "guide.export.preferences", defaultValue: GuideExportSettings())
@@ -33,6 +34,8 @@ nonisolated struct GuidePreferenceStore {
     func saveTheme(_ value: GuideTheme) { themePreference.save(value, to: storage) }
     func loadSavedThemes() -> [GuideTheme] { savedThemesPreference.load(from: storage) }
     func saveSavedThemes(_ value: [GuideTheme]) { savedThemesPreference.save(value, to: storage) }
+    func loadBrandLogoData() -> Data? { storage.data(forKey: Self.brandLogoKey) }
+    func saveBrandLogoData(_ value: Data?) { storage.set(value, forKey: Self.brandLogoKey) }
 
     func loadLastSource() -> GuideCaptureSource? {
         guard let data = storage.data(forKey: "guide.lastSource") else { return nil }

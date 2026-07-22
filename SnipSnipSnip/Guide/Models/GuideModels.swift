@@ -230,6 +230,10 @@ nonisolated struct GuideTheme: Codable, Equatable, Identifiable, Sendable {
     var showsClickHighlight = true
     var organizationName = ""
     var footer = ""
+    /// Optional long-form ownership, confidentiality, or other legal copy.
+    /// This stays optional so version-1 Guide documents and saved themes that
+    /// predate reusable brand profiles continue to decode without migration.
+    var legalStatement: String?
     var screenshotCornerRadius = 12.0
     var pageMargin = 72.0
     var showsScreenshotShadow = true

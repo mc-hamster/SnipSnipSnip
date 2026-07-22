@@ -281,7 +281,7 @@ private struct GuideCaptureHUD: View {
             }
         }
         .padding(12)
-        .sssGlassSurface(cornerRadius: 20)
+        .sssFloatingOverlaySurface(cornerRadius: 20, shadowOpacity: 0.12)
     }
 
     private func guideAudioControl(

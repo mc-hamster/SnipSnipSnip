@@ -26,39 +26,12 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header
+            captureHeader
             Divider()
-            if let guideController = documents.guideEditorController {
-                GuideEditorToolbarView(
-                    controller: guideController,
-                    onBack: documents.closeEditor,
-                    onExport: { documents.exportCurrentGuide(showProgressWindow: $0) },
-                    exportIsActive: documents.guideExportIsActive,
-                    exportProgress: documents.guideExportProgress,
-                    exportStatus: documents.guideExportStatus,
-                    onCancelExport: documents.cancelGuideExport,
-                    onShowExportProgress: documents.showGuideExportProgress,
-                    hasExportedFiles: !documents.lastGuideExportURLs.isEmpty,
-                    onRevealExports: documents.revealGuideExports,
-                    onCopyExports: documents.copyGuideExports,
-                    onShareExports: documents.shareGuideExports,
-                    dragOutPayloadProvider: documents.promisedGuidePayload
-                )
-                Divider()
-            } else if let videoController = documents.videoEditorController {
-                VideoEditorToolbarView(
-                    controller: videoController,
-                    documentFilename: documents.currentDocumentFilename,
-                    hasUnsavedChanges: documents.hasUnsavedChanges,
-                    exportPreferences: video.exportPreferences,
-                    onBack: documents.closeEditor,
-                    onExportRequest: video.exportVideo(using:),
-                    dragOutPayloadProvider: video.promisedVideoPayload
-                )
-                Divider()
-            } else if documents.editorController != nil {
-                EditorToolbarView(
-                    controller: documents.editorController,
+
+            if let editorController = documents.editorController {
+                EditorCommandBar(
+                    controller: editorController,
                     onBack: documents.closeEditor,
                     onFloatReference: documents.floatCurrentEditorReference,
                     onExportPNG: { documents.exportAnnotatedImage(as: .png) },
@@ -67,6 +40,8 @@ struct ContentView: View {
                     onCopyStyled: documents.copyCurrentEditorImageToClipboard,
                     onCopyPlain: documents.copyCurrentPlainEditorImageToClipboard,
                     onShare: documents.shareAnnotatedImage,
+                    onShowLayers: showLayersWindow,
+                    onShowUIMap: showUIMapWindow,
                     dragOutPayloadProvider: documents.promisedAnnotatedImagePayload
                 )
                 Divider()
@@ -80,7 +55,8 @@ struct ContentView: View {
                         recentSnips: documents.recentSnipEntries,
                         onAddRecentSnip: { documents.addRecentSnip($0, to: guideController) },
                         savedThemes: guide.savedThemes,
-                        onSaveTheme: guide.saveTheme
+                        onSaveTheme: guide.saveTheme,
+                        onSetDefaultBranding: guide.setDefaultBranding
                     )
                         .id(ObjectIdentifier(guideController))
                 } else if let editorController = documents.editorController {
@@ -114,6 +90,10 @@ struct ContentView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .toolbar {
+            appToolbarContent
+        }
+        .toolbar(removing: .title)
         .confirmationDialog("Save changes before continuing?", isPresented: $documents.isShowingUnsavedChangesPrompt, titleVisibility: .visible) {
             Button("Save", action: documents.confirmSaveBeforeContinuing)
             Button("Discard Changes", role: .destructive, action: documents.discardChangesAndContinue)
@@ -251,126 +231,129 @@ struct ContentView: View {
         }
     }
 
-    private var header: some View {
-        GlassEffectContainer(spacing: 18) {
-            VStack(spacing: 0) {
-                headerPanel
-            }
+    @ToolbarContentBuilder
+    private var appToolbarContent: some ToolbarContent {
+        if let guideController = documents.guideEditorController {
+            GuideEditorToolbarContent(
+                controller: guideController,
+                onBack: documents.closeEditor,
+                onExport: { documents.exportCurrentGuide(showProgressWindow: $0) },
+                exportIsActive: documents.guideExportIsActive,
+                exportProgress: documents.guideExportProgress,
+                exportStatus: documents.guideExportStatus,
+                onCancelExport: documents.cancelGuideExport,
+                onShowExportProgress: documents.showGuideExportProgress,
+                hasExportedFiles: !documents.lastGuideExportURLs.isEmpty,
+                onRevealExports: documents.revealGuideExports,
+                onCopyExports: documents.copyGuideExports,
+                onShareExports: documents.shareGuideExports,
+                dragOutPayloadProvider: documents.promisedGuidePayload
+            )
+        } else if let videoController = documents.videoEditorController {
+            VideoEditorToolbarContent(
+                controller: videoController,
+                documentFilename: documents.currentDocumentFilename,
+                hasUnsavedChanges: documents.hasUnsavedChanges,
+                exportPreferences: video.exportPreferences,
+                onBack: documents.closeEditor,
+                onExportRequest: video.exportVideo(using:),
+                dragOutPayloadProvider: video.promisedVideoPayload
+            )
         }
-        .padding(.horizontal, 14)
-        .padding(.top, 8)
-        .padding(.bottom, 10)
-        .background(.thinMaterial)
     }
 
-    private var headerPanel: some View {
+    private var captureHeader: some View {
         VStack(alignment: .leading, spacing: 8) {
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .center, spacing: 10) {
-                    headerIntro
-                    Spacer(minLength: 8)
-                    headerUtilities
+                    captureHeaderIdentity
+                    Spacer(minLength: 12)
+                    autoCopyToggle
                 }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(alignment: .center, spacing: 10) {
-                        headerIntro
-                        Spacer(minLength: 8)
-                    }
-
-                    HStack(spacing: 0) {
-                        Spacer(minLength: 0)
-                        headerUtilities
-                    }
+                VStack(alignment: .leading, spacing: 8) {
+                    captureHeaderIdentity
+                    autoCopyToggle
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
 
-            headerPrimaryActions
+            captureHeaderActions
 
             if !headerCaptureReady {
                 headerPermissionCallout
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .sssGlassSurface(cornerRadius: 18, tint: .white.opacity(0.06), shadowOpacity: 0.12)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: 16, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.75)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
         }
+        .padding(.horizontal, 14)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
-    private var headerIntro: some View {
+    private var captureHeaderIdentity: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 8) {
-                Text(AppBranding.displayName)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .lineLimit(1)
-                    .accessibilityAddTraits(.isHeader)
-
-                headerStatusSummary
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(AppBranding.displayName)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .lineLimit(1)
-                    .accessibilityAddTraits(.isHeader)
-
-                headerStatusSummary
-            }
-        }
-    }
-
-    private var headerStatusSummary: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) {
-                headerStatusChip(
-                    title: permissionStatusTitle,
-                    systemImage: permissionStatusSystemImage,
-                    tint: permissionStatusTint
-                )
-
-                if capabilities.isEnabled(.uiMap), shouldShowHeaderUIMapStatus {
-                    headerUIMapStatusChip
-                }
+                captureHeaderTitle
+                captureStatusBadge
 
                 if capture.isWorking || isRecordingVideo {
-                    headerWorkingChip
+                    headerWorkingIndicator
                 }
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                headerStatusChip(
-                    title: permissionStatusTitle,
-                    systemImage: permissionStatusSystemImage,
-                    tint: permissionStatusTint
-                )
-
-                if capabilities.isEnabled(.uiMap), shouldShowHeaderUIMapStatus {
-                    headerUIMapStatusChip
-                }
-
-                if capture.isWorking || isRecordingVideo {
-                    headerWorkingChip
+            VStack(alignment: .leading, spacing: 6) {
+                captureHeaderTitle
+                HStack(spacing: 8) {
+                    captureStatusBadge
+                    if capture.isWorking || isRecordingVideo {
+                        headerWorkingIndicator
+                    }
                 }
             }
         }
     }
 
-    private var appTitle: some View {
+    private var captureHeaderTitle: some View {
         Text(AppBranding.displayName)
-            .font(.headline.weight(.bold))
+            .font(.title3.bold())
             .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
-            .layoutPriority(2)
             .accessibilityAddTraits(.isHeader)
     }
 
-    private var headerPrimaryActions: some View {
+    private var captureStatusBadge: some View {
+        Label(permissionStatusTitle, systemImage: permissionStatusSystemImage)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(permissionStatusTint.opacity(0.16), in: .capsule)
+            .overlay {
+                Capsule()
+                    .strokeBorder(permissionStatusTint.opacity(0.55), lineWidth: 1)
+            }
+            .help(headerCaptureReady ? "Capture permissions are ready." : permissionCalloutSummary)
+    }
+
+    private var autoCopyToggle: some View {
+        Toggle("Auto Copy", isOn: $clipboard.autoCopyEnabled)
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .font(.subheadline.weight(.semibold))
+            .fixedSize()
+            .help("Automatically copy the current rendered snip after captures and editor changes.")
+    }
+
+    private var captureHeaderActions: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 8) {
-                headerPrimaryActionButtons
+                captureHeaderActionButtons
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -394,6 +377,33 @@ struct ContentView: View {
         }
     }
 
+    @ViewBuilder
+    private var captureHeaderActionButtons: some View {
+        captureButton(title: "Region", systemImage: "selection.pin.in.out", action: capture.captureRegion)
+        captureButton(title: "Full", systemImage: "macwindow", action: capture.captureCurrentDisplay)
+        captureButton(title: "Window", systemImage: "rectangle.on.rectangle", action: captureWindowFromHeader)
+        if capabilities.isEnabled(.scrollingCapture) {
+            captureButton(title: "Scroll", systemImage: "arrow.down.to.line", action: capture.captureScrollingArea)
+        }
+        captureButton(title: "Repeat", systemImage: "arrow.clockwise", action: capture.repeatLastCapture)
+            .disabled(!capture.canRepeatLastCapture)
+        capturePresetsMenu
+        guideButton
+        recordButton
+    }
+
+    private func showLayersWindow() {
+        openWindow(id: AppSceneID.layersWindow)
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.layersWindow })?.makeKeyAndOrderFront(nil)
+    }
+
+    private func showUIMapWindow() {
+        openWindow(id: AppSceneID.uiMapWindow)
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.uiMapWindow })?.makeKeyAndOrderFront(nil)
+    }
+
     private var headerWorkingIndicator: some View {
         HStack(spacing: 8) {
             ProgressView()
@@ -405,36 +415,16 @@ struct ContentView: View {
         }
     }
 
-    private var headerPrimaryActionButtons: some View {
-        Group {
-            captureButton(title: "Region", systemImage: "selection.pin.in.out", action: capture.captureRegion)
-            captureButton(title: "Full", systemImage: "macwindow", action: capture.captureCurrentDisplay)
-            captureButton(title: "Window", systemImage: "rectangle.on.rectangle", action: captureWindowFromHeader)
-            if capabilities.isEnabled(.scrollingCapture) {
-                captureButton(title: "Scroll", systemImage: "arrow.down.to.line", action: capture.captureScrollingArea)
-            }
-            captureButton(title: "Repeat", systemImage: "arrow.clockwise", action: capture.repeatLastCapture)
-                .disabled(!capture.canRepeatLastCapture)
-            capturePresetsMenu
-            guideButton
-            recordButton
-        }
-    }
-
     private var capturePresetsMenu: some View {
         Menu {
             CapturePresetMenuContent(capture: capture, video: video, lifecycle: lifecycle)
         } label: {
             Label("Presets", systemImage: "star")
         }
-        .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .controlSize(.small)
         .help("Run saved screenshot capture presets or save the last capture as a preset.")
-    }
-
-    private var headerUtilities: some View {
-        HStack(spacing: 12) {
-            headerAutoCopyToggle
-        }
     }
 
     private var capturePresetNamingSheetBinding: Binding<Bool> {
@@ -442,15 +432,6 @@ struct ContentView: View {
             get: { capture.isShowingCapturePresetNamingSheet },
             set: { capture.isShowingCapturePresetNamingSheet = $0 }
         )
-    }
-
-    private var headerAutoCopyToggle: some View {
-        Toggle("Auto Copy", isOn: $clipboard.autoCopyEnabled)
-            .toggleStyle(.switch)
-            .controlSize(.small)
-            .font(.subheadline.weight(.semibold))
-            .fixedSize()
-        .help("Automatically copy the current rendered snip to the clipboard after each capture and after editor changes.")
     }
 
     private var headerPermissionCallout: some View {
@@ -469,7 +450,7 @@ struct ContentView: View {
 
                 if headerMissingRequirements.count > 1 {
                     Button("Set Up Next", action: requestNextHeaderPermission)
-                        .buttonStyle(SSSChromeButtonStyle())
+                        .buttonStyle(.glass)
                         .controlSize(.small)
                         .disabled(permissions.activePermissionRequest != nil)
                         .help("Set up the next missing macOS privacy permission for \(AppBranding.displayName).")
@@ -493,57 +474,11 @@ struct ContentView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .sssGlassSurface(cornerRadius: 12, tint: .orange, shadowOpacity: 0.03)
-    }
-
-    private var headerWorkingChip: some View {
-        HStack(spacing: 8) {
-            ProgressView()
-                .controlSize(.small)
-
-            Text(lifecycle.workingMessage)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(isRecordingVideo ? .red : .secondary)
-                .lineLimit(1)
+        .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.16), lineWidth: 1)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .glassEffect(.regular.tint(isRecordingVideo ? .red : nil), in: .capsule)
-    }
-
-    private var headerUIMapStatusChip: some View {
-        Group {
-            if documents.editorController?.isProcessingUIMap == true {
-                HStack(spacing: 6) {
-                    ProgressView()
-                        .controlSize(.mini)
-
-                    Text(uiMapStatusTitle)
-                        .lineLimit(1)
-                }
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .glassEffect(.regular.tint(uiMapStatusTint), in: .capsule)
-            } else {
-                headerStatusChip(
-                    title: uiMapStatusTitle,
-                    systemImage: "rectangle.3.group",
-                    tint: uiMapStatusTint
-                )
-            }
-        }
-        .help(uiMapStatusHelp)
-    }
-
-    private func headerStatusChip(title: String, systemImage: String, tint: Color) -> some View {
-        Label(title, systemImage: systemImage)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.primary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .glassEffect(.regular.tint(tint), in: .capsule)
     }
 
     private var emptyState: some View {
@@ -592,13 +527,13 @@ struct ContentView: View {
                 HStack(spacing: 10) {
                     if !permissions.permissionStatus.hasScreenRecording {
                         Button("Set Up", action: permissions.requestScreenRecordingAccess)
-                            .buttonStyle(SSSChromeButtonStyle())
+                            .buttonStyle(.glass)
                             .disabled(permissions.activePermissionRequest != nil)
                             .help("Set up macOS Screen Recording permission for \(AppBranding.displayName).")
                     }
 
                     Button("Dismiss", action: dismissWelcomeCard)
-                        .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                        .buttonStyle(.glass)
                         .help("Hide this quick-start card.")
 
                     Spacer(minLength: 8)
@@ -640,15 +575,15 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 10) {
                     Button("Pick On Screen", action: capture.pickWindowOnScreen)
-                        .buttonStyle(SSSChromeButtonStyle())
+                        .buttonStyle(.glass)
                         .help("Hide this window and choose a window directly from an on-screen overlay.")
 
                     Button("Capture Frontmost", action: capture.captureFrontmostWindow)
-                        .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                        .buttonStyle(.glass)
                         .help("Capture the frontmost shareable window immediately.")
 
                     Button("Refresh", action: capture.refreshAvailableWindowsOrRequestAccess)
-                        .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                        .buttonStyle(.glass)
                         .help(
                             permissions.permissionStatus.hasScreenRecording
                             ? "Reload the list of available windows."
@@ -670,7 +605,7 @@ struct ContentView: View {
                         .foregroundStyle(.secondary)
 
                     Button("Set Up", action: permissions.requestScreenRecordingAccess)
-                        .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                        .buttonStyle(.glass)
                         .disabled(permissions.activePermissionRequest != nil)
                         .help("Set up macOS Screen Recording permission for \(AppBranding.displayName).")
                 } else if capture.isLoadingWindowChoices && capture.availableWindows.isEmpty {
@@ -730,11 +665,11 @@ struct ContentView: View {
 
                     HStack(spacing: 10) {
                         Button("Restore", action: documents.restorePendingRecovery)
-                            .buttonStyle(SSSChromeButtonStyle())
+                            .buttonStyle(.glass)
                             .help("Open the most recent autosaved session in the editor.")
 
                         Button("Dismiss", action: documents.dismissPendingRecovery)
-                            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                            .buttonStyle(.glass)
                             .help("Ignore this recovery session and remove the pending recovery prompt.")
                     }
                 }
@@ -800,7 +735,7 @@ struct ContentView: View {
                                 Button("Open") {
                                     documents.restoreHistoryEntry(entry)
                                 }
-                                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                                .buttonStyle(.glass)
                                 .help("Open this capture in the editor.")
 
                                 Button(role: .destructive) {
@@ -808,7 +743,7 @@ struct ContentView: View {
                                 } label: {
                                     Label("Delete", systemImage: "trash")
                                 }
-                                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                                .buttonStyle(.glass)
                                 .help("Delete this capture and all of its checkpoints.")
                             }
                         }
@@ -871,7 +806,7 @@ struct ContentView: View {
                     Spacer(minLength: 12)
 
                     Button("Empty Now", role: .destructive, action: documents.emptyRecycleBin)
-                        .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                        .buttonStyle(.glass)
                         .disabled(documents.recycleBinEntries.isEmpty)
                         .help("Permanently delete every item currently in the recycle bin.")
                 }
@@ -899,7 +834,7 @@ struct ContentView: View {
                         Button("Restore") {
                             documents.restoreRecycledHistoryEntry(entry)
                         }
-                        .buttonStyle(SSSChromeButtonStyle())
+                        .buttonStyle(.glass)
                         .help("Restore this deleted snip and open it in the editor.")
                     }
                 }
@@ -929,7 +864,8 @@ struct ContentView: View {
             Image(systemName: systemImage)
                 .font(.system(size: 14, weight: .semibold))
                 .frame(width: 28, height: 28)
-                .glassEffect(.regular.tint(.accentColor), in: .rect(cornerRadius: 8))
+                .foregroundStyle(Color.accentColor)
+                .background(Color.accentColor.opacity(0.12), in: .rect(cornerRadius: 8, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
@@ -948,7 +884,11 @@ struct ContentView: View {
                 .font(.caption.monospaced())
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .glassEffect(.regular, in: .rect(cornerRadius: 8))
+                .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+                }
 
             Text(AppBranding.branded(action))
                 .font(.subheadline)
@@ -960,7 +900,8 @@ struct ContentView: View {
         Button(action: action) {
             headerActionLabel(title: title, systemImage: systemImage)
         }
-        .buttonStyle(SSSChromeButtonStyle())
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
         .controlSize(.small)
         .disabled(capture.isWorking || isRecordingVideo || guide.isActive)
         .help(captureButtonHelpText(for: title))
@@ -986,7 +927,8 @@ struct ContentView: View {
         } label: {
             headerActionLabel(title: "Record", systemImage: "record.circle", accent: .red, showsChevron: true)
         }
-        .buttonStyle(SSSChromeButtonStyle(tint: .red))
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
         .controlSize(.small)
         .tint(.red)
         .disabled(capture.isWorking || isRecordingVideo || guide.isActive)
@@ -998,10 +940,11 @@ struct ContentView: View {
             headerActionLabel(
                 title: guide.isFinishing ? "Finishing Guide…" : (guide.isActive ? "Stop Guide" : "Guide"),
                 systemImage: guide.isActive ? "stop.circle.fill" : "list.number",
-                accent: .blue
+                accent: .accentColor
             )
         }
-        .buttonStyle(SSSChromeButtonStyle(tint: .blue))
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
         .controlSize(.small)
         .disabled(capture.isWorking || isRecordingVideo || guide.isFinishing)
         .help("Capture clicks, scrolling, and shortcuts as an editable step-by-step guide.")
@@ -1031,7 +974,7 @@ struct ContentView: View {
         switch title {
         case "Region":
             return "Drag to capture a selected region of the screen."
-        case "Full", "Fullscreen":
+        case "Full", "Fullscreen", "Full Screen":
             return "Capture the full desktop across connected displays."
         case "Window":
             if capabilities.isEnabled(.uiMap), capture.uiMapEnabled {
@@ -1039,7 +982,7 @@ struct ContentView: View {
             }
 
             return "Open quick window capture choices."
-        case "Scroll":
+        case "Scroll", "Scrolling":
             return "Capture a scrolling page, document, or list from a selected viewport."
         case "Repeat":
             return "Repeat the most recent capture mode with its last target when possible."
@@ -1070,38 +1013,6 @@ struct ContentView: View {
 
     private var headerCaptureReady: Bool {
         permissions.permissionStatus.hasScreenRecording
-    }
-
-    private var shouldShowHeaderUIMapStatus: Bool {
-        guard let controller = documents.editorController else {
-            return false
-        }
-
-        if controller.isProcessingUIMap {
-            return true
-        }
-
-        return controller.capture.kind == .window && controller.uiMapSnapshot != nil
-    }
-
-    private var uiMapStatusTitle: String {
-        if documents.editorController?.isProcessingUIMap == true {
-            return "UI Map Processing"
-        }
-
-        return "UI Map Captured"
-    }
-
-    private var uiMapStatusTint: Color {
-        documents.editorController?.isProcessingUIMap == true ? .orange : .blue
-    }
-
-    private var uiMapStatusHelp: String {
-        if documents.editorController?.isProcessingUIMap == true {
-            return "Window UI Map metadata is being captured in the background."
-        }
-
-        return "This Window capture contains UI Map metadata."
     }
 
     private var headerMissingRequirements: [CapturePermissionRequirement] {
@@ -1163,20 +1074,20 @@ struct ContentView: View {
                 Button("Restart") {
                     AppTerminationController.shared.requestRestartWithoutConfirmation()
                 }
-                .buttonStyle(SSSChromeButtonStyle())
+                .buttonStyle(.glass)
                 .controlSize(.small)
                 .help("Restart \(AppBranding.displayName) without the normal quit confirmation so macOS applies Screen Recording access.")
 
                 Button("Check Again") {
                     permissions.checkPermissionSetupGuideStatus()
                 }
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .buttonStyle(.glass)
                 .controlSize(.small)
             } else {
                 Button("Set Up") {
                     permissions.requestPermission(requirement)
                 }
-                .buttonStyle(SSSChromeButtonStyle())
+                .buttonStyle(.glass)
                 .controlSize(.small)
                 .disabled(permissions.activePermissionRequest != nil)
                 .help("Set up macOS \(requirement.title) permission for \(AppBranding.displayName).")
@@ -1184,7 +1095,7 @@ struct ContentView: View {
                 Button("Help") {
                     permissions.presentPermissionSetupGuide(for: requirement)
                 }
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .buttonStyle(.glass)
                 .controlSize(.small)
                 .help("Show manual setup steps below if macOS does not list \(AppBranding.displayName).")
             }
@@ -1289,32 +1200,25 @@ private struct CaptureModeCard<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: 44, height: 44)
-                    .glassEffect(.regular.tint(Color.accentColor.opacity(0.16)), in: .rect(cornerRadius: 14))
+        GroupBox {
+            VStack(alignment: .leading, spacing: 18) {
+                Text(detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(title)
-                        .font(.title3.weight(.semibold))
-                    Text(detail)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+                content
             }
-
-            content
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } label: {
+            Label {
+                Text(title)
+                    .font(.headline)
+            } icon: {
+                Image(systemName: systemImage)
+                    .foregroundStyle(Color.accentColor)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(22)
-        .sssGlassSurface(cornerRadius: 22, tint: .white.opacity(0.04), shadowOpacity: 0.055)
-        .overlay {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.75)
-        }
     }
 }
 
@@ -1333,7 +1237,7 @@ private struct PermissionSetupGuideView: View {
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(.orange)
                     .frame(width: 44, height: 44)
-                    .glassEffect(.regular.tint(.orange), in: .rect(cornerRadius: 12))
+                    .background(Color.orange.opacity(0.12), in: .rect(cornerRadius: 12, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Allow \(guide.requirement.title)")
@@ -1363,31 +1267,35 @@ private struct PermissionSetupGuideView: View {
                     .textSelection(.enabled)
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .glassEffect(.regular, in: .rect(cornerRadius: 8))
+                    .background(Color(nsColor: .textBackgroundColor), in: .rect(cornerRadius: 8, style: .continuous))
             }
 
             HStack(spacing: 10) {
                 Button("Open Settings", action: onOpenSettings)
-                    .buttonStyle(SSSChromeButtonStyle())
+                    .buttonStyle(.glass)
 
                 Button("Reveal App", action: onRevealApp)
-                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                    .buttonStyle(.glass)
 
                 Button("Copy Path", action: onCopyPath)
-                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                    .buttonStyle(.glass)
 
                 Spacer(minLength: 12)
 
                 Button("Check Again", action: onCheckAgain)
-                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                    .buttonStyle(.glass)
 
                 Button("Done", action: onDone)
                     .keyboardShortcut(.cancelAction)
-                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                    .buttonStyle(.glass)
             }
         }
         .padding(12)
-        .sssGlassSurface(cornerRadius: 10, tint: .orange, shadowOpacity: 0.03)
+        .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.16), lineWidth: 1)
+        }
     }
 
     private var permissionIntro: String {

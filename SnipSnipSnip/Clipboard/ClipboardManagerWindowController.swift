@@ -568,6 +568,12 @@ private struct ClipboardItemRow: View {
 
             Spacer(minLength: 8)
 
+            if isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(Color.accentColor)
+                    .accessibilityHidden(true)
+            }
+
             actions
         }
         .padding(.horizontal, 8)
@@ -578,6 +584,7 @@ private struct ClipboardItemRow: View {
                     .fill(Color.accentColor.opacity(0.22))
             }
         }
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     @ViewBuilder

@@ -2,10 +2,6 @@ import AppKit
 import SwiftUI
 
 struct EditorView: View {
-    private let inspectorWidth: CGFloat = 300
-    private let inspectorDividerWidth: CGFloat = 1
-    private let inspectorScrollbarGutter: CGFloat = 8
-
     @ObservedObject var controller: EditorController
     let historyEntries: [DocumentHistoryEntry]
     let recentSnipEntries: [DocumentHistoryEntry]
@@ -15,39 +11,11 @@ struct EditorView: View {
     let captureHistorySearchResultsLabel: String
     let historyActions: EditorHistoryActions
     @State private var previewedHistoryEntry: DocumentHistoryEntry?
+    @SceneStorage("editor.inspector.isPresented") private var isInspectorPresented = true
 
     var body: some View {
         ZStack {
-            GeometryReader { proxy in
-                let canvasWidth = max(
-                    proxy.size.width - inspectorWidth - inspectorDividerWidth - inspectorScrollbarGutter,
-                    0
-                )
-
-                HStack(spacing: 0) {
-                    EditorCanvasScrollContainer(controller: controller)
-                        .frame(width: canvasWidth, height: proxy.size.height)
-
-                    Color.clear
-                        .frame(width: inspectorScrollbarGutter, height: proxy.size.height)
-
-                    Divider()
-                        .frame(width: inspectorDividerWidth)
-
-                    EditorInspectorView(
-                        controller: controller,
-                        historyEntries: historyEntries,
-                        recentSnipEntries: recentSnipEntries,
-                        captureHistoryEntries: captureHistoryEntries,
-                        recycleBinEntries: recycleBinEntries,
-                        captureSearchQuery: $captureSearchQuery,
-                        captureHistorySearchResultsLabel: captureHistorySearchResultsLabel,
-                        actions: historyActions,
-                        previewedHistoryEntry: $previewedHistoryEntry
-                    )
-                    .frame(width: inspectorWidth, height: proxy.size.height)
-                }
-            }
+            EditorCanvasScrollContainer(controller: controller)
 
             if let entry = previewedHistoryEntry {
                 HistoryPreviewOverlayView(
@@ -71,7 +39,7 @@ struct EditorView: View {
                     .font(.caption.weight(.medium))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .glassEffect(.regular, in: .capsule)
+                    .sssFloatingOverlaySurface(cornerRadius: 18, shadowOpacity: 0.10)
                     .padding(16)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .transition(.opacity)
@@ -79,6 +47,36 @@ struct EditorView: View {
             }
         }
         .background(Color(nsColor: .underPageBackgroundColor))
+        .inspector(isPresented: $isInspectorPresented) {
+            EditorInspectorView(
+                controller: controller,
+                historyEntries: historyEntries,
+                recentSnipEntries: recentSnipEntries,
+                captureHistoryEntries: captureHistoryEntries,
+                recycleBinEntries: recycleBinEntries,
+                captureSearchQuery: $captureSearchQuery,
+                captureHistorySearchResultsLabel: captureHistorySearchResultsLabel,
+                actions: historyActions,
+                previewedHistoryEntry: $previewedHistoryEntry
+            )
+            .inspectorColumnWidth(min: 280, ideal: 320, max: 380)
+        }
+        .toolbar {
+            ToolbarItem(id: "editor-inspector", placement: .primaryAction) {
+                Button {
+                    isInspectorPresented.toggle()
+                } label: {
+                    Label(isInspectorPresented ? "Hide Inspector" : "Show Inspector", systemImage: "sidebar.right")
+                }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.capsule)
+                .help(isInspectorPresented ? "Hide Inspector" : "Show Inspector")
+                .accessibilityValue(isInspectorPresented ? "Shown" : "Hidden")
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .sssToggleEditorInspector)) { _ in
+            isInspectorPresented.toggle()
+        }
         .alert("Editor Error", isPresented: Binding(get: {
             controller.errorMessage != nil
         }, set: { value in
@@ -266,59 +264,6 @@ private struct ViewportScrollbar: View {
     }
 }
 
-struct EditorToolbarView: View {
-    let controller: EditorController?
-    let onBack: () -> Void
-    let onFloatReference: () -> Void
-    let onExportPNG: () -> Void
-    let onExportJPEG: () -> Void
-    let onExportPDF: () -> Void
-    let onCopyStyled: () -> Void
-    let onCopyPlain: () -> Void
-    let onShare: () -> Void
-    let dragOutPayloadProvider: @MainActor () -> PromisedFilePayload?
-    var mode: EditorToolbarMode = .standard
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        GlassEffectContainer(spacing: 14) {
-            Group {
-                if let controller {
-                    ActiveEditorToolbarView(
-                        controller: controller,
-                        onBack: onBack,
-                        onFloatReference: onFloatReference,
-                        onExportPNG: onExportPNG,
-                        onExportJPEG: onExportJPEG,
-                        onExportPDF: onExportPDF,
-                        onCopyStyled: onCopyStyled,
-                        onCopyPlain: onCopyPlain,
-                        onShare: onShare,
-                        onShowLayers: showLayersWindow,
-                        onShowUIMap: showUIMapWindow,
-                        dragOutPayloadProvider: dragOutPayloadProvider,
-                        mode: mode
-                    )
-                } else {
-                    InactiveEditorToolbarView(onBack: onBack)
-                }
-            }
-        }
-    }
-
-    private func showLayersWindow() {
-        openWindow(id: AppSceneID.layersWindow)
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.layersWindow })?.makeKeyAndOrderFront(nil)
-    }
-
-    private func showUIMapWindow() {
-        openWindow(id: AppSceneID.uiMapWindow)
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.uiMapWindow })?.makeKeyAndOrderFront(nil)
-    }
-}
-
 enum EditorToolbarMode {
     case standard
     case guideStep(onApply: () -> Void)
@@ -328,9 +273,7 @@ enum EditorToolbarMode {
         return false
     }
 
-    var backTitle: String {
-        isGuideStep ? "Cancel" : "Discard"
-    }
+    var backTitle: String { isGuideStep ? "Cancel" : "Discard" }
 
     var backHelp: String {
         isGuideStep
@@ -344,10 +287,12 @@ enum EditorToolbarMode {
     }
 }
 
-private struct ActiveEditorToolbarView: View {
-    private static let drawingTools: [EditorTool] = [.rectangle, .ellipse, .line, .arrow, .statusMark, .measure, .freehand, .highlighter, .highlight, .spotlight]
+struct EditorCommandBar: View {
+    private static let primaryTools: [EditorTool] = [.select, .crop]
+    private static let shapeTools: [EditorTool] = [.rectangle, .ellipse, .line, .arrow, .statusMark, .measure]
+    private static let drawingTools: [EditorTool] = [.freehand, .highlighter, .highlight, .spotlight]
     private static let textTools: [EditorTool] = [.text, .callout]
-    private static let utilityTools: [EditorTool] = [.ocrText]
+    private static let utilityTools: [EditorTool] = [.ocrText, .colorPicker]
 
     @ObservedObject var controller: EditorController
     let onBack: () -> Void
@@ -361,249 +306,361 @@ private struct ActiveEditorToolbarView: View {
     let onShowLayers: () -> Void
     let onShowUIMap: () -> Void
     let dragOutPayloadProvider: @MainActor () -> PromisedFilePayload?
-    let mode: EditorToolbarMode
+    var mode: EditorToolbarMode = .standard
 
     var body: some View {
-        if controller.workspaceMode == .presentation && !mode.isGuideStep {
-            PresentationEditorToolbarView(
-                controller: controller,
-                onFloatReference: onFloatReference,
-                onExportPNG: onExportPNG,
-                onExportJPEG: onExportJPEG,
-                onExportPDF: onExportPDF,
-                onCopyStyled: onCopyStyled,
-                onCopyPlain: onCopyPlain,
-                onShare: onShare,
-                dragOutPayloadProvider: dragOutPayloadProvider
-            )
-        } else {
-            editToolbar
+        Group {
+            if controller.workspaceMode == .presentation, !mode.isGuideStep {
+                presentationCommands
+            } else {
+                editCommands
+            }
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(nsColor: .controlBackgroundColor))
     }
 
-    private var editToolbar: some View {
+    private var editCommands: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
-                Button(action: onBack) {
-                    Label(mode.backTitle, systemImage: "xmark")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    Button(action: onBack) {
+                        Label(mode.backTitle, systemImage: "xmark")
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .help(mode.backHelp)
+
+                    if mode.isGuideStep {
+                        Text("Advanced Step Edit")
+                            .font(.headline)
+                            .lineLimit(1)
+                    }
+
+                    EditorCommandGroup("Selection tools") {
+                        toolButtons(Self.primaryTools)
+                    }
+                    EditorCommandGroup("Shape tools") {
+                        toolButtons(Self.shapeTools)
+                    }
+                    EditorCommandGroup("Drawing and highlight tools") {
+                        toolButtons(Self.drawingTools)
+                    }
+                    EditorCommandGroup("Text and callout tools") {
+                        toolButtons(Self.textTools)
+                    }
+                    EditorCommandGroup("Redaction tools") {
+                        redactionControl
+                    }
+                    EditorCommandGroup("Recognition and image tools") {
+                        toolButtons(Self.utilityTools)
+                        insertImageButton
+                    }
                 }
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-                .help(mode.backHelp)
-
-                if mode.isGuideStep {
-                    Text("Advanced Step Edit")
-                        .font(.headline)
-                        .lineLimit(1)
-                }
-
-                toolbarDivider
-
-                toolGroup(primaryTools)
-                toolbarDivider
-                toolGroup(Self.drawingTools)
-                toolbarDivider
-                toolGroup(Self.textTools)
-                toolbarDivider
-                redactionToolButton
-                toolbarDivider
-                utilityToolGroup
-
-                Spacer(minLength: 0)
+                .fixedSize(horizontal: true, vertical: false)
             }
 
-            HStack(spacing: 10) {
-                Button(action: controller.undo) {
-                    Image(systemName: "arrow.uturn.backward")
-                }
-                .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
-                .help("Undo")
-                .disabled(!controller.canUndo)
-
-                Button(action: controller.redo) {
-                    Image(systemName: "arrow.uturn.forward")
-                }
-                .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
-                .help("Redo")
-                .disabled(!controller.canRedo)
-
-                Button(action: onShowLayers) {
-                    Image(systemName: "square.3.layers.3d")
-                }
-                .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
-                .help("Show Layers")
-
-                if showsUIMapToolbarControls {
-                    uiMapToolGroup
-                }
-
-                Button(action: controller.rotateSelectedClockwise90) {
-                    Image(systemName: "rotate.right")
-                }
-                .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
-                .help("Rotate selected annotation 90 degrees clockwise.")
-                .disabled(!controller.canRotateSelection)
-
-                toolbarDivider
-
-                EditorZoomControlGroup(controller: controller)
-
-                toolbarDivider
-
-                if let applyAction = mode.applyAction {
-                    Spacer(minLength: 0)
-
-                    Button("Apply to Step", action: applyAction)
-                        .buttonStyle(.borderedProminent)
-                        .help("Save these annotations on this Guide step and return to the Guide editor.")
-                } else {
-                    Button {
-                        controller.setWorkspaceMode(controller.workspaceMode == .presentation ? .edit : .presentation)
-                    } label: {
-                        AdaptiveToolbarLabel("Presentation", systemImage: EditorWorkspaceMode.presentation.systemImage)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    EditorCommandGroup("History") {
+                        undoButton
+                        redoButton
                     }
-                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary, isSelected: controller.workspaceMode == .presentation))
-                    .help("Open Presentation mode to style the final copy, share, and export output.")
-
-                    toolbarDivider
-
-                    outputActionGroup
-
-                    Button(action: onFloatReference) {
-                        AdaptiveToolbarLabel("Float", systemImage: "pin")
+                    EditorCommandGroup("Layers and arrangement") {
+                        arrangementCommands
                     }
-                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-                    .help("Open the plain annotated screenshot as an always-on-top floating reference.")
+                    EditorCommandGroup("Zoom") {
+                        zoomCommands
+                    }
 
-                    PromisedFileDragView(
-                        accessibilityLabel: "Drag rendered screenshot to share",
-                        payloadProvider: dragOutPayloadProvider
-                    )
-                    .frame(width: 68, height: 30)
-                    .help("Drag the current rendered screenshot into Finder, Mail, or another app.")
+                    if let applyAction = mode.applyAction {
+                        Button("Apply to Step", action: applyAction)
+                            .buttonStyle(.borderedProminent)
+                            .buttonBorderShape(.capsule)
+                            .help("Save these annotations on this Guide step and return to the Guide editor.")
+                    } else {
+                        EditorCommandGroup("Workspace") {
+                            presentationButton
+                        }
+                        EditorCommandGroup("Output") {
+                            documentOutputCommands
+                        }
+                        EditorCommandGroup("References and drag out") {
+                            referenceCommands
+                        }
+                    }
                 }
-
-                Spacer(minLength: 0)
+                .fixedSize(horizontal: true, vertical: false)
             }
         }
     }
 
-    private var utilityToolGroup: some View {
-        HStack(spacing: 6) {
-            ForEach(Self.utilityTools) { tool in
+    private var presentationCommands: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
                 Button {
-                    controller.activateToolbarTool(tool)
+                    controller.setWorkspaceMode(.edit)
                 } label: {
-                    Image(systemName: tool.systemImage)
-                        .frame(width: 32, height: 32)
+                    Label("Back to Edit", systemImage: EditorWorkspaceMode.edit.systemImage)
                 }
-                .help(tool.label)
-                .buttonStyle(EditorToolButtonStyle(isSelected: controller.activeTool == tool))
-                .disabled(!isToolEnabled(tool))
-            }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
 
-            Button {
-                controller.importImageOverlay()
-            } label: {
-                Image(systemName: "photo.badge.plus")
-                    .frame(width: 32, height: 32)
+                EditorCommandGroup("History") {
+                    undoButton
+                    redoButton
+                }
+                EditorCommandGroup("Zoom") {
+                    zoomCommands
+                }
+
+                EditorCommandGroup("Presentation variants") {
+                    Button {
+                        _ = controller.saveCurrentPresentationToDocument()
+                    } label: {
+                        Label("Save Variant", systemImage: "plus.square.on.square")
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                }
+                EditorCommandGroup("Output") {
+                    Button(action: onCopyStyled) {
+                        Label("Copy Styled", systemImage: "doc.on.doc")
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+
+                    exportMenu
+                    shareButton
+                }
+                EditorCommandGroup("References and drag out") {
+                    referenceCommands
+                }
             }
-            .help("Import an image overlay into the editable screenshot.")
-            .buttonStyle(EditorToolButtonStyle(isSelected: false))
+            .fixedSize(horizontal: true, vertical: false)
         }
-        .padding(3)
-        .glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 12))
     }
 
-    private var primaryTools: [EditorTool] {
-        return [.select]
+    @ViewBuilder
+    private var arrangementCommands: some View {
+        Button(action: onShowLayers) {
+            Image(systemName: "square.3.layers.3d")
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.circle)
+        .help("Show Layers")
+
+        if controller.capabilities.isEnabled(.uiMap), controller.capture.kind == .window {
+            Button(action: onShowUIMap) {
+                Image(systemName: "rectangle.3.group")
+            }
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.circle)
+            .help(uiMapButtonHelpText)
+            .disabled(controller.uiMapSnapshot == nil && !controller.isProcessingUIMap)
+
+            toolButton(.uiMapInspect)
+        }
+
+        Button(action: controller.rotateSelectedClockwise90) {
+            Image(systemName: "rotate.right")
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.circle)
+        .help("Rotate selected annotation 90 degrees clockwise.")
+        .disabled(!controller.canRotateSelection)
+
+        Button(action: controller.deleteSelected) {
+            Image(systemName: "trash")
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.circle)
+        .help(deleteSelectionHelpText)
+        .accessibilityLabel(deleteSelectionHelpText)
+        .disabled(controller.selectedCount == 0)
     }
 
-    private var showsUIMapToolbarControls: Bool {
-        controller.capabilities.isEnabled(.uiMap) && controller.capture.kind == .window
+    private var undoButton: some View {
+        Button(action: controller.undo) {
+            Image(systemName: "arrow.uturn.backward")
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.circle)
+        .help("Undo")
+        .disabled(!controller.canUndo)
+    }
+
+    private var redoButton: some View {
+        Button(action: controller.redo) {
+            Image(systemName: "arrow.uturn.forward")
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.circle)
+        .help("Redo")
+        .disabled(!controller.canRedo)
+    }
+
+    @ViewBuilder
+    private var zoomCommands: some View {
+        Button(action: controller.zoomOut) {
+            Image(systemName: "minus.magnifyingglass")
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.circle)
+        .help("Zoom Out")
+        .disabled(!controller.canZoomOut)
+
+        Text(controller.zoomPercentageLabel)
+            .font(.caption.monospacedDigit().weight(.semibold))
+            .frame(minWidth: 42)
+
+        Button(action: controller.zoomIn) {
+            Image(systemName: "plus.magnifyingglass")
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.circle)
+        .help("Zoom In")
+        .disabled(!controller.canZoomIn)
+
+        Button(action: controller.zoomToFit) {
+            Image(systemName: "arrow.up.left.and.arrow.down.right")
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.circle)
+        .help("Fit to Window")
+
+        Button(action: controller.zoomToActualSize) {
+            Image(systemName: "1.magnifyingglass")
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.circle)
+        .help("Actual Size")
+    }
+
+    private var presentationButton: some View {
+        Button {
+            controller.setWorkspaceMode(.presentation)
+        } label: {
+            Label("Presentation", systemImage: EditorWorkspaceMode.presentation.systemImage)
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .help("Open Presentation mode to style the final copy, share, and export output.")
+    }
+
+    @ViewBuilder
+    private var documentOutputCommands: some View {
+        Button(action: onCopyPlain) {
+            Label("Copy", systemImage: "doc.on.doc")
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .help("Copy the plain annotated screenshot.")
+
+        exportMenu
+        shareButton
+    }
+
+    @ViewBuilder
+    private var referenceCommands: some View {
+        floatButton
+        dragControl
     }
 
     private var exportMenu: some View {
         Menu {
             Button(controller.presentation.isEnabled ? "Styled PNG…" : "PNG…", action: onExportPNG)
-
             Button(controller.presentation.isEnabled ? "Styled JPEG…" : "JPEG…", action: onExportJPEG)
                 .disabled(controller.requiresPNGForFaithfulExport)
-
             Button(controller.presentation.isEnabled ? "Styled PDF…" : "PDF…", action: onExportPDF)
                 .disabled(controller.requiresPNGForFaithfulExport)
         } label: {
-            AdaptiveToolbarMenuLabel(
-                controller.presentation.isEnabled ? "Export Styled…" : "Export…",
-                systemImage: "square.and.arrow.down"
-            )
+            Label("Export", systemImage: "square.and.arrow.down")
         }
-        .buttonStyle(SSSChromeButtonStyle())
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
         .help("Export the rendered image as PNG, JPEG, or PDF.")
     }
 
-    private var copyButton: some View {
-        Button(action: onCopyPlain) {
-            AdaptiveToolbarLabel("Copy", systemImage: "doc.on.doc")
+    private var shareButton: some View {
+        Button(action: onShare) {
+            Label("Share", systemImage: "square.and.arrow.up")
         }
-        .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-        .help("Copy the plain annotated screenshot.")
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
     }
 
-    private var outputActionGroup: some View {
-        HStack(spacing: 6) {
-            copyButton
-            exportMenu
-
-            Button(action: onShare) {
-                AdaptiveToolbarLabel("Share", systemImage: "square.and.arrow.up")
-            }
-            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-            .help("Share the current rendered image using macOS sharing services.")
+    private var floatButton: some View {
+        Button(action: onFloatReference) {
+            Label("Float", systemImage: "pin")
         }
-        .padding(3)
-        .glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 12))
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
     }
 
-    private var uiMapToolGroup: some View {
-        HStack(spacing: 6) {
-            Button(action: onShowUIMap) {
-                Image(systemName: "rectangle.3.group")
-                    .frame(width: 32, height: 32)
-            }
-            .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
-            .help(uiMapButtonHelpText)
-            .disabled(controller.uiMapSnapshot == nil && !controller.isProcessingUIMap)
-
-            Button {
-                controller.activateToolbarTool(.uiMapInspect)
-            } label: {
-                Image(systemName: EditorTool.uiMapInspect.systemImage)
-                    .frame(width: 32, height: 32)
-            }
-            .help(helpText(for: .uiMapInspect))
-            .buttonStyle(EditorToolButtonStyle(isSelected: controller.activeTool == .uiMapInspect))
-            .disabled(!isToolEnabled(.uiMapInspect))
-        }
-        .padding(3)
-        .glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 12))
+    private var dragControl: some View {
+        PromisedFileDragView(
+            accessibilityLabel: controller.workspaceMode == .presentation
+                ? "Drag styled presentation to share"
+                : "Drag rendered screenshot to share",
+            payloadProvider: dragOutPayloadProvider
+        )
+        .frame(width: 68, height: 30)
     }
 
-    private func toolGroup(_ tools: [EditorTool]) -> some View {
-        HStack(spacing: 6) {
-            ForEach(tools) { tool in
+    @ViewBuilder
+    private func toolButtons(_ tools: [EditorTool]) -> some View {
+        ForEach(tools) { tool in
+            toolButton(tool)
+        }
+    }
+
+    private func toolButton(_ tool: EditorTool) -> some View {
+        Button {
+            controller.activateToolbarTool(tool)
+        } label: {
+            Image(systemName: tool.systemImage)
+                .frame(width: 30, height: 28)
+        }
+        .buttonStyle(EditorDirectToolButtonStyle(isSelected: controller.activeTool == tool))
+        .help(helpText(for: tool))
+        .accessibilityLabel(tool.label)
+        .accessibilityValue(controller.activeTool == tool ? "Selected" : "Not selected")
+        .disabled(!isToolEnabled(tool))
+    }
+
+    private var redactionControl: some View {
+        Menu {
+            ForEach(RedactionMode.allCases) { redactionMode in
                 Button {
-                    controller.activateToolbarTool(tool)
+                    controller.updateRedactionMode(redactionMode)
                 } label: {
-                    Image(systemName: tool.systemImage)
-                        .frame(width: 32, height: 32)
+                    Label(
+                        redactionMode.label,
+                        systemImage: redactionMode == controller.currentRedactionMode ? "checkmark" : redactionMode.toolbarSystemImage
+                    )
                 }
-                .help(helpText(for: tool))
-                .buttonStyle(EditorToolButtonStyle(isSelected: controller.activeTool == tool))
-                .disabled(!isToolEnabled(tool))
             }
+        } label: {
+            Image(systemName: controller.currentRedactionMode.toolbarSystemImage)
+                .frame(width: 30, height: 28)
+        } primaryAction: {
+            controller.activateToolbarTool(.blur)
         }
-        .padding(3)
-        .glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 12))
+        .buttonStyle(EditorDirectToolButtonStyle(isSelected: controller.activeTool.defaultRedactionMode != nil))
+        .help("Redaction: \(controller.currentRedactionMode.label). Click to use; open the menu to change mode.")
+        .accessibilityValue(controller.activeTool.defaultRedactionMode != nil ? "Selected" : "Not selected")
+    }
+
+    private var insertImageButton: some View {
+        Button(action: controller.importImageOverlay) {
+            Image(systemName: "photo.badge.plus")
+                .frame(width: 30, height: 28)
+        }
+        .buttonStyle(EditorDirectToolButtonStyle(isSelected: false))
+        .help("Insert an image overlay.")
+        .accessibilityLabel("Insert Image")
     }
 
     private func isToolEnabled(_ tool: EditorTool) -> Bool {
@@ -614,259 +671,90 @@ private struct ActiveEditorToolbarView: View {
         if controller.isProcessingUIMap {
             return "Window UI Map metadata is still processing."
         }
+        return controller.uiMapSnapshot == nil ? "No UI Map metadata is available." : "Show UI Map"
+    }
 
-        guard controller.uiMapSnapshot == nil else {
-            return "Show UI Map"
+    private var deleteSelectionHelpText: String {
+        switch controller.selectedCount {
+        case 1:
+            return "Delete selected annotation."
+        case 2...:
+            return "Delete \(controller.selectedCount) selected annotations."
+        default:
+            return "Delete selected annotations."
         }
-
-        return controller.capture.kind == .window
-            ? "No UI Map metadata was available for this window."
-            : "UI Map is available for Window captures only."
     }
 
     private func helpText(for tool: EditorTool) -> String {
         if tool == .uiMapInspect, controller.isProcessingUIMap {
-            return "Pin UI Map will be available after Window UI Map processing finishes."
+            return "Pin UI Map will be available after processing finishes."
         }
-
         if tool == .uiMapInspect, controller.uiMapSnapshot == nil {
-            return controller.capture.kind == .window
-                ? "Pin UI Map is available when Window capture contains UI Map metadata."
-                : "UI Map is available for Window captures only."
+            return "Pin UI Map is available when this Window capture contains UI Map metadata."
         }
-
-        if tool == .uiMapInspect {
-            return "Pin UI Map. Move over the screenshot to preview an available element, then click to pin or unpin it."
-        }
-
         return tool.label
     }
-
-    private var redactionToolButton: some View {
-        Button {
-            controller.activateToolbarTool(.blur)
-        } label: {
-            Image(systemName: controller.currentRedactionMode.toolbarSystemImage)
-                .frame(width: 32, height: 32)
-        }
-        .help("Redaction: \(controller.currentRedactionMode.label)")
-        .buttonStyle(EditorToolButtonStyle(isSelected: controller.activeTool.defaultRedactionMode != nil))
-    }
-
-    private var toolbarDivider: some View {
-        Divider()
-            .frame(height: 22)
-            .opacity(0.22)
-    }
 }
 
-private struct PresentationEditorToolbarView: View {
-    @ObservedObject var controller: EditorController
-    let onFloatReference: () -> Void
-    let onExportPNG: () -> Void
-    let onExportJPEG: () -> Void
-    let onExportPDF: () -> Void
-    let onCopyStyled: () -> Void
-    let onCopyPlain: () -> Void
-    let onShare: () -> Void
-    let dragOutPayloadProvider: @MainActor () -> PromisedFilePayload?
+private struct EditorCommandGroup<Content: View>: View {
+    let accessibilityLabel: String
+    let content: Content
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    init(_ accessibilityLabel: String, @ViewBuilder content: () -> Content) {
+        self.accessibilityLabel = accessibilityLabel
+        self.content = content()
+    }
 
     var body: some View {
-        HStack(spacing: 10) {
-            Button {
-                controller.setWorkspaceMode(.edit)
-            } label: {
-                AdaptiveToolbarLabel("Back to Edit", systemImage: EditorWorkspaceMode.edit.systemImage)
-            }
-            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-            .help("Return to annotation editing.")
-
-            toolbarDivider
-
-            Button(action: controller.undo) {
-                Image(systemName: "arrow.uturn.backward")
-            }
-            .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
-            .help("Undo")
-            .disabled(!controller.canUndo)
-
-            Button(action: controller.redo) {
-                Image(systemName: "arrow.uturn.forward")
-            }
-            .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
-            .help("Redo")
-            .disabled(!controller.canRedo)
-
-            toolbarDivider
-
-            EditorZoomControlGroup(controller: controller)
-
-            toolbarDivider
-
-            Button {
-                _ = controller.saveCurrentPresentationToDocument()
-            } label: {
-                AdaptiveToolbarLabel("Save Variant", systemImage: "plus.square.on.square")
-            }
-            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-            .help("Save the current presentation as a named variant in this .sss document.")
-
-            outputActionGroup
-
-            Button(action: onFloatReference) {
-                AdaptiveToolbarLabel("Float", systemImage: "pin")
-            }
-            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-            .help("Open the styled presentation as an always-on-top floating reference.")
-
-            PromisedFileDragView(
-                accessibilityLabel: "Drag styled presentation to share",
-                payloadProvider: dragOutPayloadProvider
-            )
-            .frame(width: 68, height: 30)
-            .help("Drag the styled presentation into Finder, Mail, or another app.")
-
-            Spacer(minLength: 0)
-        }
-    }
-
-    private var exportMenu: some View {
-        Menu {
-            Button("Styled PNG…", action: onExportPNG)
-
-            Button("Styled JPEG…", action: onExportJPEG)
-                .disabled(controller.requiresPNGForFaithfulExport)
-
-            Button("Styled PDF…", action: onExportPDF)
-                .disabled(controller.requiresPNGForFaithfulExport)
-        } label: {
-            AdaptiveToolbarMenuLabel("Export Styled…", systemImage: "square.and.arrow.down")
-        }
-        .buttonStyle(SSSChromeButtonStyle())
-        .help("Export the styled presentation as PNG, JPEG, or PDF.")
-    }
-
-    private var copyButton: some View {
-        Button(action: onCopyStyled) {
-            AdaptiveToolbarLabel("Copy Styled", systemImage: "doc.on.doc")
-        }
-        .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-        .help("Copy the styled presentation.")
-    }
-
-    private var outputActionGroup: some View {
-        HStack(spacing: 6) {
-            copyButton
-            exportMenu
-
-            Button(action: onShare) {
-                AdaptiveToolbarLabel("Share", systemImage: "square.and.arrow.up")
-            }
-            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-            .help("Share the current styled presentation using macOS sharing services.")
+        HStack(spacing: 5) {
+            content
         }
         .padding(3)
-        .glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 12))
-    }
-
-    private var toolbarDivider: some View {
-        Divider()
-            .frame(height: 22)
-            .opacity(0.22)
+        .background(Color(nsColor: .windowBackgroundColor), in: .rect(cornerRadius: 11, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .strokeBorder(
+                    Color(nsColor: .separatorColor),
+                    lineWidth: contrast == .increased ? 2 : 1
+                )
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(accessibilityLabel)
     }
 }
 
-private struct AdaptiveToolbarLabel: View {
-    let title: String
-    let systemImage: String
+private struct EditorDirectToolButtonStyle: ButtonStyle {
+    let isSelected: Bool
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.colorSchemeContrast) private var contrast
 
-    init(_ title: String, systemImage: String) {
-        self.title = title
-        self.systemImage = systemImage
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+            .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(backgroundColor(isPressed: configuration.isPressed))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(
+                        isSelected ? Color.accentColor : Color(nsColor: .separatorColor),
+                        lineWidth: isSelected || contrast == .increased ? 2 : 1
+                    )
+            }
+            .opacity(isEnabled ? 1 : 0.45)
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            Label(title, systemImage: systemImage)
-                .fixedSize(horizontal: true, vertical: false)
-
-            Image(systemName: systemImage)
-                .accessibilityLabel(title)
+    private func backgroundColor(isPressed: Bool) -> Color {
+        if isSelected {
+            return Color.accentColor.opacity(contrast == .increased ? 0.28 : 0.18)
         }
-    }
-}
-
-private struct AdaptiveToolbarMenuLabel: View {
-    let title: String
-    let systemImage: String
-
-    init(_ title: String, systemImage: String) {
-        self.title = title
-        self.systemImage = systemImage
-    }
-
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            menuLabel(showsTitle: true)
-                .fixedSize(horizontal: true, vertical: false)
-
-            menuLabel(showsTitle: false)
+        if isPressed {
+            return Color.primary.opacity(0.10)
         }
-    }
-
-    private func menuLabel(showsTitle: Bool) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: systemImage)
-
-            if showsTitle {
-                Text(title)
-            }
-
-            Image(systemName: "chevron.down")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.secondary)
-        }
-        .accessibilityLabel(title)
-    }
-}
-
-private struct EditorZoomControlGroup: View {
-    @ObservedObject var controller: EditorController
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Button(action: controller.zoomOut) {
-                Image(systemName: "minus.magnifyingglass")
-            }
-            .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
-            .help("Zoom Out")
-            .disabled(!controller.canZoomOut)
-
-            Text(controller.zoomPercentageLabel)
-                .font(.caption.monospacedDigit())
-                .frame(minWidth: 54)
-
-            Button(action: controller.zoomIn) {
-                Image(systemName: "plus.magnifyingglass")
-            }
-            .buttonStyle(SSSChromeIconButtonStyle(tint: .secondary))
-            .help("Zoom In")
-            .disabled(!controller.canZoomIn)
-
-            Button(action: controller.zoomToActualSize) {
-                AdaptiveToolbarLabel("100%", systemImage: "viewfinder")
-            }
-            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-            .help("Actual Size")
-
-            Button(action: controller.zoomToFit) {
-                AdaptiveToolbarLabel("Fit", systemImage: "arrow.up.left.and.arrow.down.right")
-            }
-            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-            .help("Fit to Window")
-        }
-        .padding(3)
-        .glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 12))
+        return Color(nsColor: .controlBackgroundColor)
     }
 }
 
@@ -891,54 +779,13 @@ private struct OCRReviewView: View {
             HStack {
                 Spacer()
                 Button("Cancel", action: onCancel)
-                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                    .buttonStyle(.glass)
                 Button("Copy Text", action: onCopy)
-                    .buttonStyle(SSSChromeButtonStyle())
+                    .buttonStyle(.glass)
                     .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(18)
-        .sssGlassSurface(cornerRadius: 18)
-    }
-}
-
-private struct InactiveEditorToolbarView: View {
-    let onBack: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Button(action: onBack) {
-                Label("Discard", systemImage: "trash")
-            }
-            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
-            .help("Discard the inactive editor view.")
-            .disabled(true)
-
-            Spacer()
-        }
-    }
-}
-
-private struct EditorToolButtonStyle: ButtonStyle {
-    let isSelected: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
-            .glassEffect(glass(isPressed: configuration.isPressed), in: .rect(cornerRadius: 8))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(isSelected ? Color.accentColor.opacity(0.55) : Color.white.opacity(0.12), lineWidth: 0.75)
-            }
-            .opacity(configuration.isPressed ? 0.9 : 1)
-    }
-
-    private func glass(isPressed: Bool) -> Glass {
-        if isSelected {
-            return .regular.tint(Color.accentColor.opacity(isPressed ? 0.38 : 0.28)).interactive()
-        }
-
-        return .regular.tint(isPressed ? Color.secondary.opacity(0.14) : Color.white.opacity(0.03)).interactive()
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 }

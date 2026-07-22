@@ -1800,6 +1800,200 @@ final class AppArchitecturePlatformTests: XCTestCase {
         )
     }
 
+    func testDesignLanguageGovernanceIsCanonicalAndAgentReferenced() throws {
+        let designURL = repositoryRoot.appendingPathComponent("Docs/DesignLanguage.md")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: designURL.path))
+
+        let design = try String(contentsOf: designURL, encoding: .utf8)
+        let agents = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("AGENTS.md"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(agents.contains("Docs/DesignLanguage.md"))
+        XCTAssertTrue(agents.localizedCaseInsensitiveContains("before changing user-visible SwiftUI or AppKit UI"))
+        XCTAssertTrue(agents.contains("same change"))
+
+        for requiredRule in [
+            "## Principles",
+            "## Accessibility Behavior",
+            "## Custom Surface Exception Registry",
+            "## Prohibited Patterns",
+            "## UI Review Checklist",
+            "Reduce Transparency",
+            "Increase Contrast",
+            "Differentiate Without Color",
+            "Reduced Motion",
+            "VoiceOver",
+            "Normal text must reach 4.5:1 contrast",
+            "meaningful icons, control boundaries, and selected states must reach 3:1",
+        ] {
+            XCTAssertTrue(design.contains(requiredRule), "Design language is missing required rule: \(requiredRule)")
+        }
+    }
+
+    func testNativeDesignMigrationRemovesGenericGlassInfrastructure() throws {
+        let files = try productionSwiftFiles()
+
+        for forbiddenFragment in [
+            "sssGlassSurface",
+            "sssGlassAction",
+            "SSSChromeButtonStyle",
+            "SSSChromeIconButtonStyle",
+            "SSSGlassSurfaceModifier",
+            "SSSGlassActionModifier",
+            "GlassEffectContainer",
+        ] {
+            for sourceFile in files {
+                let contents = try String(contentsOf: sourceFile, encoding: .utf8)
+                XCTAssertFalse(
+                    contents.contains(forbiddenFragment),
+                    "Removed generic styling \(forbiddenFragment) returned in \(relativePath(for: sourceFile))."
+                )
+            }
+        }
+
+        try assertFragment(
+            ".glassEffect(",
+            in: files,
+            isOnlyUsedIn: ["SnipSnipSnip/Support/FloatingOverlaySupport.swift"]
+        )
+
+        try assertFragment(
+            ".background(Color.black",
+            in: files,
+            isOnlyUsedIn: [
+                "SnipSnipSnip/App/FloatingReferenceController.swift",
+                "SnipSnipSnip/App/ScreenInspectorController.swift",
+                "SnipSnipSnip/Capture/ConnectedDevicePreviewWindowController.swift",
+                "SnipSnipSnip/Video/VideoEditorView.swift",
+            ]
+        )
+        try assertFragment(
+            ".fill(Color.black",
+            in: files,
+            isOnlyUsedIn: [
+                "SnipSnipSnip/Editor/EditorView.swift",
+                "SnipSnipSnip/Video/VideoEditorView.swift",
+            ]
+        )
+
+        let design = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("Docs/DesignLanguage.md"),
+            encoding: .utf8
+        )
+        for documentedException in [
+            "FloatingReferenceController.swift",
+            "ScreenInspectorController.swift",
+            "ConnectedDevicePreviewWindowController.swift",
+            "Editor/EditorView.swift",
+            "Video/VideoEditorView.swift",
+        ] {
+            XCTAssertTrue(design.contains(documentedException), "Fixed-dark exception is not documented: \(documentedException)")
+        }
+
+        let floatingOverlay = try String(
+            contentsOf: repositoryRoot
+                .appendingPathComponent("SnipSnipSnip/Support/FloatingOverlaySupport.swift"),
+            encoding: .utf8
+        )
+        for accessibilityAdaptation in [
+            "accessibilityReduceTransparency",
+            "colorSchemeContrast",
+            "accessibilityReduceMotion",
+        ] {
+            XCTAssertTrue(
+                floatingOverlay.contains(accessibilityAdaptation),
+                "Floating overlays must adapt to \(accessibilityAdaptation)."
+            )
+        }
+        XCTAssertTrue(
+            floatingOverlay.contains(".allowsHitTesting(false)"),
+            "Floating-overlay decoration must not intercept HUD controls."
+        )
+    }
+
+    func testOnboardingAndGuideQuickStartUseAdaptiveNativeStructure() throws {
+        let onboarding = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/App/OnboardingView.swift"),
+            encoding: .utf8
+        )
+        let quickStart = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/Guide/UI/GuideQuickStartView.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(onboarding.contains("NavigationSplitView"))
+        XCTAssertTrue(onboarding.contains("Form"))
+        XCTAssertTrue(quickStart.contains("Form"))
+        XCTAssertTrue(quickStart.contains("Picker("))
+
+        for forbiddenFragment in ["LinearGradient", "RadialGradient", ".blur(", "Color(red:", ".foregroundStyle(.white"] {
+            XCTAssertFalse(onboarding.contains(forbiddenFragment), "Onboarding contains legacy decoration: \(forbiddenFragment)")
+            XCTAssertFalse(quickStart.contains(forbiddenFragment), "Guide Quick Start contains legacy decoration: \(forbiddenFragment)")
+        }
+    }
+
+    func testEditorsUseStableCommandRowsAndInspectorWithoutAppModelDependency() throws {
+        let content = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/ContentView.swift"),
+            encoding: .utf8
+        )
+        let editor = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/Editor/EditorView.swift"),
+            encoding: .utf8
+        )
+        let guide = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/Guide/UI/GuideEditorView.swift"),
+            encoding: .utf8
+        )
+        let video = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/Video/VideoEditorView.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(content.contains("appToolbarContent: some ToolbarContent"))
+        XCTAssertTrue(content.contains(".toolbar(removing: .title)"))
+        XCTAssertTrue(content.contains("private var captureHeader: some View"))
+        XCTAssertTrue(content.contains("private var captureHeaderActions: some View"))
+        XCTAssertFalse(content.contains("ToolbarItem(id: \"capture-region\""))
+        XCTAssertTrue(editor.contains("struct EditorCommandBar: View"))
+        XCTAssertTrue(editor.contains("ScrollView(.horizontal, showsIndicators: false)"))
+        XCTAssertTrue(editor.contains("toolButtons(Self.shapeTools)"))
+        XCTAssertTrue(editor.contains("toolButtons(Self.drawingTools)"))
+        XCTAssertTrue(editor.contains("struct EditorCommandGroup<Content: View>: View"))
+        XCTAssertTrue(editor.contains("EditorCommandGroup(\"Selection tools\")"))
+        XCTAssertTrue(editor.contains("EditorCommandGroup(\"History\")"))
+        XCTAssertTrue(editor.contains("EditorCommandGroup(\"Zoom\")"))
+        XCTAssertTrue(editor.contains("EditorCommandGroup(\"Output\")"))
+        XCTAssertTrue(editor.contains("EditorDirectToolButtonStyle"))
+        XCTAssertFalse(editor.contains("toolMenu(title:"))
+        XCTAssertTrue(editor.contains(".inspector(isPresented:"))
+        XCTAssertTrue(editor.contains(".inspectorColumnWidth(min: 280, ideal: 320, max: 380)"))
+        XCTAssertTrue(guide.contains("struct GuideEditorToolbarContent: ToolbarContent"))
+        XCTAssertTrue(video.contains("struct VideoEditorToolbarContent: ToolbarContent"))
+        XCTAssertFalse(content.contains("AppModel"))
+        XCTAssertFalse(editor.contains("AppModel"))
+        XCTAssertFalse(guide.contains("AppModel"))
+        XCTAssertFalse(video.contains("AppModel"))
+
+        let productionSources = try productionSwiftFiles()
+        for sourceFile in productionSources {
+            let source = try String(contentsOf: sourceFile, encoding: .utf8)
+            XCTAssertFalse(
+                source.contains("ToolbarItemGroup"),
+                "Labeled toolbar commands must not collapse into a segmented rectangular group in \(relativePath(for: sourceFile))."
+            )
+        }
+
+        let layers = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/Editor/LayersWindowView.swift"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(layers.contains("layerCommandBar"))
+        XCTAssertFalse(layers.contains("ToolbarItem("))
+    }
+
     func testProductionSourceKeepsCapabilitiesAndPermissionsBehindPlatformBoundaries() throws {
         let files = try productionSwiftFiles()
 

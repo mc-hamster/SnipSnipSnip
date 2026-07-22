@@ -29,7 +29,7 @@ Validate the local fastlane and App Store Connect setup
 [bundle exec] fastlane mac internal_testing
 ```
 
-Build and upload a macOS package to TestFlight for internal testers
+Build and upload a macOS package for asynchronous TestFlight processing
 
 ### mac external_testing
 

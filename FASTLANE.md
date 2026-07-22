@@ -58,7 +58,10 @@ What to expect:
 1. Fastlane uses the current marketing version unless you pass `version:...`.
 2. Fastlane bumps the build number automatically.
 3. Fastlane builds the Release archive with `SNIP_BUILD_TARGET=Internal` and uploads it to TestFlight.
-4. The build is uploaded for internal testing without submitting it for external beta review.
+4. Fastlane returns after App Store Connect acknowledges the upload instead of blocking on Apple's processing queue.
+5. Apple continues processing the build asynchronously without submitting it for external beta review.
+
+To deliberately wait for full processing during an internal upload, pass `skip_waiting:false`. You can bound that wait with `wait_timeout:5400` (seconds).
 
 ### Upload for internal testing
 
@@ -76,7 +79,7 @@ What it does:
 2. increments the build number above the current local and TestFlight build numbers
 3. builds the `Release` archive with `SNIP_BUILD_TARGET=Internal`
 4. exports a Mac App Store package
-5. uploads it to TestFlight
+5. uploads it to TestFlight and returns after App Store Connect acknowledges the build
 
 ### Upload for external testing
 
@@ -98,6 +101,8 @@ TESTFLIGHT_NOTIFY_EXTERNAL_TESTERS=true \
 ```
 
 `TESTFLIGHT_GROUPS` is required for external distribution.
+
+External distribution waits for Apple to finish processing because Fastlane cannot assign an unprocessed build to testers. The wait is capped at 5,400 seconds by default. Override it with `wait_timeout:<seconds>` or `TESTFLIGHT_WAIT_PROCESSING_TIMEOUT_DURATION`.
 
 If the build was already uploaded earlier and you only want to distribute that processed build to external testers, reuse it instead of uploading a new binary:
 

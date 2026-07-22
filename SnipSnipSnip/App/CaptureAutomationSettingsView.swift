@@ -1,5 +1,7 @@
 import AppKit
+import ImageIO
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct CaptureAutomationSettingsView: View {
     @ObservedObject var lifecycle: AppLifecycleModel
@@ -18,6 +20,7 @@ struct CaptureAutomationSettingsView: View {
     let resetPreferencesToDefaults: () -> Void
     @State private var isShowingResetDefaultsConfirmation = false
     @State private var isShowingClearClipboardConfirmation = false
+    @State private var isImportingGuideLogo = false
     @State private var launchAtLoginErrorMessage: String?
     @Environment(\.openURL) private var openURL
 
@@ -480,6 +483,24 @@ struct CaptureAutomationSettingsView: View {
                     Toggle("Show Recent Step Previews", isOn: guideCapturePreferenceBinding(\.hudPreviewsEnabled))
                 }
 
+                Section("Default Brand Profile") {
+                    TextField("Organization", text: guideThemeBinding(\.organizationName))
+                    HStack {
+                        Button(guide.defaultLogoImage == nil ? "Choose Logo…" : "Replace Logo…") {
+                            isImportingGuideLogo = true
+                        }
+                        if guide.defaultLogoImage != nil {
+                            Button("Remove Logo", role: .destructive) { guide.setDefaultLogo(nil) }
+                        }
+                    }
+                    TextField("Copyright / footer", text: guideThemeBinding(\.footer))
+                    Text("Legal statement").font(.caption).foregroundStyle(.secondary)
+                    TextEditor(text: guideOptionalThemeStringBinding(\.legalStatement))
+                        .frame(minHeight: 72)
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(.separator))
+                    SettingsHelpText("This profile is copied into every new Guide and travels with the saved .sssguide document. Existing Guides keep their own branding. Use the Guide editor's Use as Default button to replace this profile from a finished design.")
+                }
+
                 Section("Default Design & Export") {
                     TextField("Theme Name", text: guideThemeBinding(\.name))
                     HStack {
@@ -503,8 +524,6 @@ struct CaptureAutomationSettingsView: View {
                             Text(appearance.rawValue.capitalized).tag(appearance)
                         }
                     }
-                    TextField("Organization", text: guideThemeBinding(\.organizationName))
-                    TextField("Footer", text: guideThemeBinding(\.footer))
                     Stepper("Arrow Width: \(guide.theme.markerLineWidth, specifier: "%.0f") pt", value: guideThemeBinding(\.markerLineWidth), in: 1...12)
                     Stepper("Arrow Length: \(guide.theme.markerLength, specifier: "%.0f") pt", value: guideThemeBinding(\.markerLength), in: 24...240)
                     Toggle("PDF", isOn: guideExportFormatBinding(.pdf))
@@ -837,6 +856,14 @@ struct CaptureAutomationSettingsView: View {
         .task {
             lifecycle.refreshLaunchAtLoginStatus()
         }
+        .fileImporter(isPresented: $isImportingGuideLogo, allowedContentTypes: [.image]) { result in
+            guard case .success(let url) = result else { return }
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return }
+            guide.setDefaultLogo(image)
+        }
         .alert("Couldn't Update Launch at Login", isPresented: Binding(get: {
             launchAtLoginErrorMessage != nil
         }, set: { isPresented in
@@ -943,6 +970,17 @@ struct CaptureAutomationSettingsView: View {
             set: { value in
                 var theme = guide.theme
                 theme[keyPath: keyPath] = value
+                guide.theme = theme
+            }
+        )
+    }
+
+    private func guideOptionalThemeStringBinding(_ keyPath: WritableKeyPath<GuideTheme, String?>) -> Binding<String> {
+        Binding(
+            get: { guide.theme[keyPath: keyPath] ?? "" },
+            set: { value in
+                var theme = guide.theme
+                theme[keyPath: keyPath] = value.isEmpty ? nil : value
                 guide.theme = theme
             }
         )

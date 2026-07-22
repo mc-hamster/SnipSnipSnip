@@ -29,14 +29,6 @@ SnipSnipSnip requires **macOS 26 or later**. Screenshot capture requires Screen 
 
 Clone this repository and open `SnipSnipSnip.xcodeproj` in Xcode. See [Build And Test](#build-and-test) for the test command and [FASTLANE.md](FASTLANE.md) for release tooling.
 
-## Guide
-
-Guide is a first-class workflow beside Screenshot and Record. Choose a window, app, region, or display, then perform the task normally: clicks, double-clicks, scroll gestures, supported shortcuts, and manual captures become editable numbered steps with local captions and non-destructive privacy masks. The capture HUD supports pause/resume, Manual Step, Undo Last, deletion, Stop, and Stop & Export.
-
-Guide projects save as editable `.sssguide` packages without changing `.sss` screenshot or `.sssvideo` recording compatibility. Exports include PDF, GIF, APNG, step images, ZIP/Markdown, Full Motion MP4, Action Highlights MP4, and Step Slideshow MP4. Source video defaults on but can be disabled; all processing stays on the Mac and requires no account. See [the format specification](Docs/sssguide-format.md).
-
-SnipSnipSnip is a local-first macOS screenshot, annotation, history, OCR, and screen recording app. SnipSnipSnip Pro adds advanced capture workflows, including scrolling capture, connected iPhone/iPad capture, and UI Map.
-
 ## Features
 
 - Region, window, frontmost window, fullscreen, repeat, and timer screenshot capture, with optional precision controls for region sizing and current/selected/all-display fullscreen modes.
@@ -126,7 +118,9 @@ Run a focused profiling pass with:
 
 ## Contributing
 
-Bug reports, feature ideas, documentation improvements, and code contributions are welcome. Please [open an issue](https://github.com/mc-hamster/SnipSnipSnip/issues) before beginning a large change so the approach can be discussed. Small, focused pull requests are easiest to review.
+Bug reports, feature ideas, documentation improvements, and code contributions are welcome. Start with the [contribution guide](CONTRIBUTING.md), use the structured [issue forms](https://github.com/mc-hamster/SnipSnipSnip/issues/new/choose), and discuss large changes before beginning implementation. Small, focused pull requests are easiest to review.
+
+Trying SnipSnipSnip for the first time? [Share your early-user feedback](https://github.com/mc-hamster/SnipSnipSnip/issues/new?template=early_feedback.yml) about installation, permissions, capture, editing, recording, or export. Please do not attach private captures or unreviewed diagnostics to a public issue.
 
 If SnipSnipSnip helps you, please [star the repository](https://github.com/mc-hamster/SnipSnipSnip). Stars help other Mac users discover the project.
 

@@ -438,6 +438,14 @@ private struct EditorCommands: Commands {
     @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
+        CommandGroup(after: .toolbar) {
+            Button("Show/Hide Inspector") {
+                NotificationCenter.default.post(name: .sssToggleEditorInspector, object: nil)
+            }
+            .keyboardShortcut("i", modifiers: [.command, .option])
+            .disabled(documents.editorController == nil)
+        }
+
         CommandGroup(after: .pasteboard) {
             Menu("Arrange") {
                 Button("Show Layers", action: showLayersWindow)
@@ -600,7 +608,6 @@ struct SnipSnipSnipApp: App {
                 )
             }
         }
-        .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 900, height: 600)
         .windowResizability(.contentSize)
         .defaultLaunchBehavior(.suppressed)
@@ -660,7 +667,6 @@ struct SnipSnipSnipApp: App {
                 }
             )
         }
-        .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 980, height: 700)
         .windowResizability(.contentSize)
         .restorationBehavior(.disabled)

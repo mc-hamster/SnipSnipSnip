@@ -32,7 +32,17 @@ nonisolated enum GuideRenderer {
             font: CTFontCreateWithName("Helvetica-Oblique" as CFString, 22, nil),
             width: CGFloat(cardWidth) - margin * 2
         )
-        let headerHeight = max(150, captionHeight + (note.isEmpty ? 0 : noteHeight + 16) + 44)
+        let legalCopy = theme.legalStatement?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let footerCopy = [theme.footer.trimmingCharacters(in: .whitespacesAndNewlines), legalCopy]
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        let footerHeight = footerCopy.isEmpty ? 0 : textHeight(
+            footerCopy,
+            font: CTFontCreateWithName("Helvetica" as CFString, 17, nil),
+            width: CGFloat(cardWidth) - margin * 2
+        )
+        let footerSpacing: CGFloat = footerCopy.isEmpty ? 0 : footerHeight + 16
+        let headerHeight = max(150, captionHeight + (note.isEmpty ? 0 : noteHeight + 16) + footerSpacing + 44)
         let scale = min((CGFloat(cardWidth) - margin * 2) / CGFloat(renderedImage.width), 1)
         let imageSize = CGSize(width: CGFloat(renderedImage.width) * scale, height: CGFloat(renderedImage.height) * scale)
         let size = CGSize(width: CGFloat(cardWidth), height: imageSize.height + margin * 2 + headerHeight)
@@ -76,10 +86,18 @@ nonisolated enum GuideRenderer {
         if step.session.showsCursor, let marker = step.session.marker {
             drawCursor(at: mapped(marker.target, sourceSize: step.session.sourcePixelSize, destination: imageRect), context: context)
         }
-        let noteRect = CGRect(x: margin, y: margin * 0.45, width: size.width - margin * 2, height: noteHeight)
+        if !footerCopy.isEmpty {
+            drawSmallText(
+                footerCopy,
+                rect: CGRect(x: margin, y: 12, width: size.width - margin * 2, height: footerHeight),
+                context: context
+            )
+        }
+        let copyOriginY = margin * 0.45 + footerSpacing
+        let noteRect = CGRect(x: margin, y: copyOriginY, width: size.width - margin * 2, height: noteHeight)
         let captionRect = CGRect(
             x: margin,
-            y: note.isEmpty ? margin * 0.45 : noteRect.maxY + 16,
+            y: note.isEmpty ? copyOriginY : noteRect.maxY + 16,
             width: size.width - margin * 2,
             height: captionHeight
         )
@@ -90,9 +108,6 @@ nonisolated enum GuideRenderer {
         if !theme.organizationName.isEmpty {
             drawSmallText(theme.organizationName, rect: CGRect(x: margin, y: size.height - 36, width: size.width / 2, height: 24), context: context)
         }
-        if !theme.footer.isEmpty {
-            drawSmallText(theme.footer, rect: CGRect(x: size.width / 2, y: 12, width: size.width / 2 - margin, height: 24), context: context)
-        }
         if let logo {
             let ratio = CGFloat(logo.width) / CGFloat(max(logo.height, 1))
             let logoHeight: CGFloat = 44
@@ -101,9 +116,21 @@ nonisolated enum GuideRenderer {
         return context.makeImage()
     }
 
-    static func renderPreview(project: GuideProject, images: [UUID: CGImage], advancedEdits: [UUID: EditableScreenshotDocument] = [:]) -> CGImage? {
+    static func renderPreview(
+        project: GuideProject,
+        images: [UUID: CGImage],
+        advancedEdits: [UUID: EditableScreenshotDocument] = [:],
+        logo: CGImage? = nil
+    ) -> CGImage? {
         guard let step = project.steps.first(where: { !$0.isDeleted }), let image = images[step.id] else { return nil }
-        return renderStepCard(step: step, image: image, theme: project.theme, cardWidth: 960, advancedEdit: advancedEdits[step.id])
+        return renderStepCard(
+            step: step,
+            image: image,
+            theme: project.theme,
+            cardWidth: 960,
+            advancedEdit: advancedEdits[step.id],
+            logo: logo
+        )
     }
 
     private static func drawMarker(_ marker: GuideMarker, number: Int, in imageRect: CGRect, sourceSize: CGSize, theme: GuideTheme, context: CGContext) {

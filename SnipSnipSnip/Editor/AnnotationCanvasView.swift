@@ -1560,6 +1560,37 @@ private final class AnnotationCanvasOverlayView: NSView {
         return segments
     }
 
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let viewPoint = convert(event.locationInWindow, from: nil)
+        guard let point = documentPoint(from: viewPoint),
+              let annotation = annotation(at: point) else {
+            return nil
+        }
+
+        window?.makeFirstResponder(self)
+        if !controller.snapshot.selectedAnnotationIDs.contains(annotation.id) {
+            controller.select(annotation.id)
+        }
+
+        let count = controller.selectedCount
+        let title = count == 1 ? "Delete Annotation" : "Delete \(count) Annotations"
+        let deleteItem = NSMenuItem(
+            title: title,
+            action: #selector(deleteSelectedAnnotationsFromContextMenu(_:)),
+            keyEquivalent: ""
+        )
+        deleteItem.target = self
+        deleteItem.image = NSImage(systemSymbolName: "trash", accessibilityDescription: title)
+
+        let menu = NSMenu()
+        menu.addItem(deleteItem)
+        return menu
+    }
+
+    @objc private func deleteSelectedAnnotationsFromContextMenu(_ sender: Any?) {
+        controller.deleteSelected()
+    }
+
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
         let viewPoint = convert(event.locationInWindow, from: nil)
@@ -1926,7 +1957,7 @@ private final class AnnotationCanvasOverlayView: NSView {
             return
         }
 
-        if let annotation = controller.snapshot.annotations.reversed().first(where: { $0.contains(point) }) {
+        if let annotation = annotation(at: point) {
             if additive || toggle {
                 controller.select(annotation.id, additive: additive, toggle: toggle)
                 needsDisplay = true
@@ -1959,6 +1990,10 @@ private final class AnnotationCanvasOverlayView: NSView {
 
         interactionState.beginMarquee(at: point, additive: additive || toggle)
         needsDisplay = true
+    }
+
+    private func annotation(at point: CGPoint) -> Annotation? {
+        controller.snapshot.annotations.reversed().first { $0.contains(point) }
     }
 
     private func handleUIMapInspectMouseDown(_ point: CGPoint) {

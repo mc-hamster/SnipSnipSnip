@@ -10,14 +10,35 @@ struct GuideEditorView: View {
     let onAddRecentSnip: (DocumentHistoryEntry) -> Void
     let savedThemes: [GuideTheme]
     let onSaveTheme: (GuideTheme) -> Void
+    let onSetDefaultBranding: (GuideTheme, CGImage?) -> Void
     @State private var isImportingImages = false
     @State private var isImportingLogo = false
+    @SceneStorage("guide.inspector.isPresented") private var isInspectorPresented = true
 
     var body: some View {
-        HSplitView {
-            stepList.frame(minWidth: 260, idealWidth: 300, maxWidth: 360)
-            canvas.frame(minWidth: 500)
-            inspector.frame(minWidth: 280, idealWidth: 320, maxWidth: 380)
+        NavigationSplitView {
+            stepList
+                .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 360)
+        } detail: {
+            canvas
+                .frame(minWidth: 500)
+        }
+        .inspector(isPresented: $isInspectorPresented) {
+            inspector
+                .inspectorColumnWidth(min: 280, ideal: 320, max: 380)
+        }
+        .toolbar {
+            ToolbarItem(id: "guide-inspector", placement: .primaryAction) {
+                Button {
+                    isInspectorPresented.toggle()
+                } label: {
+                    Label(isInspectorPresented ? "Hide Inspector" : "Show Inspector", systemImage: "sidebar.right")
+                }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.capsule)
+                .help(isInspectorPresented ? "Hide Guide Inspector" : "Show Guide Inspector")
+                .accessibilityValue(isInspectorPresented ? "Shown" : "Hidden")
+            }
         }
     }
 
@@ -44,7 +65,15 @@ struct GuideEditorView: View {
                         }
                         VStack(alignment: .leading, spacing: 3) {
                             Label(step.eventKind.rawValue.capitalized, systemImage: icon(step.eventKind)).font(.caption)
-                            Text(step.caption).lineLimit(2).foregroundStyle(step.isDeleted ? .tertiary : .primary)
+                            Text(step.caption)
+                                .lineLimit(2)
+                                .foregroundStyle(step.isDeleted ? .tertiary : .primary)
+                                .strikethrough(step.isDeleted)
+                            if step.isDeleted {
+                                Label("Deleted", systemImage: "trash")
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                            }
                         }
                     }
                     .tag(step.id)
@@ -70,7 +99,9 @@ struct GuideEditorView: View {
                         }
                     }
                 }
-                Button("Delete", action: controller.deleteSelected).disabled(controller.selection.isEmpty)
+                Button("Delete", role: .destructive, action: controller.deleteSelected)
+                    .disabled(controller.selection.isEmpty)
+                    .help("Delete the selected steps. Deleted steps remain available to restore from their context menu.")
                 Button("Duplicate", action: controller.duplicateSelected).disabled(controller.selection.isEmpty)
                 Button { controller.moveSelection(by: -1) } label: { Image(systemName: "arrow.up") }.disabled(controller.selection.isEmpty)
                 Button { controller.moveSelection(by: 1) } label: { Image(systemName: "arrow.down") }.disabled(controller.selection.isEmpty)
@@ -134,6 +165,10 @@ struct GuideEditorView: View {
                                 }
                             }
                             Button("Save Theme") { onSaveTheme(controller.project.theme) }
+                            Button("Use as Default") {
+                                onSetDefaultBranding(controller.project.theme, controller.logoImage)
+                            }
+                            .help("Use this Guide's organization, logo, copyright, legal statement, and styling for new Guides.")
                         }
                         Picker("Appearance", selection: appearanceBinding) {
                             ForEach(GuideAppearance.allCases) { Text($0.rawValue.capitalized).tag($0) }
@@ -141,7 +176,11 @@ struct GuideEditorView: View {
                         ColorPicker("Accent", selection: themeColorBinding(\.accentColorHex))
                         ColorPicker("Background", selection: themeColorBinding(\.backgroundColorHex))
                         TextField("Organization", text: themeStringBinding(\.organizationName))
-                        TextField("Footer", text: themeStringBinding(\.footer))
+                        TextField("Copyright / footer", text: themeStringBinding(\.footer))
+                        Text("Legal statement").font(.caption).foregroundStyle(.secondary)
+                        TextEditor(text: themeOptionalStringBinding(\.legalStatement))
+                            .frame(minHeight: 64)
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(.separator))
                         HStack {
                             Button(controller.logoImage == nil ? "Choose Logo…" : "Replace Logo…") { isImportingLogo = true }
                             if controller.logoImage != nil { Button("Remove", role: .destructive) { controller.setLogo(nil) } }
@@ -266,6 +305,7 @@ struct GuideEditorView: View {
     }
     private var appearanceBinding: Binding<GuideAppearance> { Binding(get: { controller.project.theme.appearance }, set: { value in controller.update(name: "Change Appearance") { $0.theme.appearance = value } }) }
     private func themeStringBinding(_ keyPath: WritableKeyPath<GuideTheme, String>) -> Binding<String> { Binding(get: { controller.project.theme[keyPath: keyPath] }, set: { value in controller.update(name: "Change Guide Style", coalescingKey: "theme-string-\(keyPath.hashValue)") { $0.theme[keyPath: keyPath] = value } }) }
+    private func themeOptionalStringBinding(_ keyPath: WritableKeyPath<GuideTheme, String?>) -> Binding<String> { Binding(get: { controller.project.theme[keyPath: keyPath] ?? "" }, set: { value in controller.update(name: "Change Guide Branding", coalescingKey: "theme-optional-string-\(keyPath.hashValue)") { $0.theme[keyPath: keyPath] = value.isEmpty ? nil : value } }) }
     private func themeDoubleBinding(_ keyPath: WritableKeyPath<GuideTheme, Double>) -> Binding<Double> { Binding(get: { controller.project.theme[keyPath: keyPath] }, set: { value in controller.update(name: "Change Guide Style", coalescingKey: "theme-double-\(keyPath.hashValue)") { $0.theme[keyPath: keyPath] = value } }) }
     private func themeBoolBinding(_ keyPath: WritableKeyPath<GuideTheme, Bool>) -> Binding<Bool> { Binding(get: { controller.project.theme[keyPath: keyPath] }, set: { value in controller.update(name: "Change Guide Style") { $0.theme[keyPath: keyPath] = value } }) }
     private func themeColorBinding(_ keyPath: WritableKeyPath<GuideTheme, String>) -> Binding<Color> { Binding(get: { Color(guideHex: controller.project.theme[keyPath: keyPath]) }, set: { value in controller.update(name: "Change Guide Color", coalescingKey: "theme-color-\(keyPath.hashValue)") { $0.theme[keyPath: keyPath] = value.guideHex } }) }
@@ -421,7 +461,7 @@ private struct GuideAdvancedEditorSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            EditorToolbarView(
+            EditorCommandBar(
                 controller: editor,
                 onBack: onCancel,
                 onFloatReference: {},
@@ -431,11 +471,13 @@ private struct GuideAdvancedEditorSheet: View {
                 onCopyStyled: {},
                 onCopyPlain: {},
                 onShare: {},
+                onShowLayers: {},
+                onShowUIMap: {},
                 dragOutPayloadProvider: { nil },
                 mode: .guideStep(onApply: onCommit)
             )
-            .padding(12)
             Divider()
+
             EditorView(
                 controller: editor,
                 historyEntries: [],
@@ -453,11 +495,12 @@ private struct GuideAdvancedEditorSheet: View {
                 )
             )
         }
+        .toolbar(removing: .title)
         .frame(minWidth: 1000, minHeight: 700)
     }
 }
 
-struct GuideEditorToolbarView: View {
+struct GuideEditorToolbarContent: ToolbarContent {
     @ObservedObject var controller: GuideEditorController
     let onBack: () -> Void
     let onExport: (Bool) -> Void
@@ -473,27 +516,73 @@ struct GuideEditorToolbarView: View {
     var dragOutPayloadProvider: @MainActor () -> PromisedFilePayload? = { nil }
     @State private var isShowingExportOptions = false
 
-    var body: some View {
-        HStack(spacing: 10) {
+    var body: some ToolbarContent {
+        ToolbarItem(id: "guide-back", placement: .navigation) {
             Button(action: onBack) { Label("Back", systemImage: "chevron.left") }
-            Divider().frame(height: 22)
-            Text(controller.project.title.isEmpty ? "Untitled Guide" : controller.project.title).font(.headline).lineLimit(1)
-            Spacer()
-            Button(action: controller.undo) { Image(systemName: "arrow.uturn.backward") }.disabled(!controller.canUndo)
-            Button(action: controller.redo) { Image(systemName: "arrow.uturn.forward") }.disabled(!controller.canRedo)
-            if exportIsActive {
-                if let exportProgress {
+                .buttonStyle(.glass)
+                .buttonBorderShape(.capsule)
+        }
+
+        ToolbarItem(id: "guide-title", placement: .principal) {
+            Text(controller.project.title.isEmpty ? "Untitled Guide" : controller.project.title)
+                .font(.headline)
+                .lineLimit(1)
+        }
+
+        ToolbarItem(id: "guide-undo", placement: .automatic) {
+            Button(action: controller.undo) { Label("Undo", systemImage: "arrow.uturn.backward").labelStyle(.iconOnly) }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+                .help("Undo")
+                .disabled(!controller.canUndo)
+        }
+        ToolbarItem(id: "guide-redo", placement: .automatic) {
+            Button(action: controller.redo) { Label("Redo", systemImage: "arrow.uturn.forward").labelStyle(.iconOnly) }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+                .help("Redo")
+                .disabled(!controller.canRedo)
+        }
+
+        if exportIsActive {
+            ToolbarItem(id: "guide-export-progress", placement: .primaryAction) {
+                Group {
+                    if let exportProgress {
                     ProgressView(value: exportProgress).frame(width: 100)
-                } else {
-                    ProgressView().controlSize(.small).frame(width: 28)
+                    } else {
+                        ProgressView().controlSize(.small).frame(width: 28)
+                    }
                 }
-                Button("Progress…", action: onShowExportProgress)
-                Button("Cancel", action: onCancelExport)
-            } else {
-                Button("Export…") { isShowingExportOptions = true }
-                    .buttonStyle(.borderedProminent)
             }
-            if hasExportedFiles {
+            ToolbarItem(id: "guide-export-progress-window", placement: .primaryAction) {
+                Button("Progress…", action: onShowExportProgress)
+                    .buttonStyle(.glass)
+                    .buttonBorderShape(.capsule)
+            }
+            ToolbarItem(id: "guide-export-cancel", placement: .primaryAction) {
+                Button("Cancel", action: onCancelExport)
+                    .buttonStyle(.glass)
+                    .buttonBorderShape(.capsule)
+            }
+        } else {
+            ToolbarItem(id: "guide-export", placement: .primaryAction) {
+                Button("Export…") { isShowingExportOptions = true }
+                    .buttonStyle(.glassProminent)
+                    .buttonBorderShape(.capsule)
+                    .sheet(isPresented: $isShowingExportOptions) {
+                        GuideExportOptionsSheet(
+                            controller: controller,
+                            onCancel: { isShowingExportOptions = false },
+                            onExport: { showProgressWindow in
+                                isShowingExportOptions = false
+                                onExport(showProgressWindow)
+                            }
+                        )
+                    }
+            }
+        }
+        if hasExportedFiles {
+            ToolbarItem(id: "guide-share", placement: .primaryAction) {
                 Menu {
                     Button("Share…", action: onShareExports)
                     Button("Copy Files", action: onCopyExports)
@@ -501,7 +590,11 @@ struct GuideEditorToolbarView: View {
                 } label: {
                     Label("Share", systemImage: "square.and.arrow.up")
                 }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.capsule)
             }
+        }
+        ToolbarItem(id: "guide-drag", placement: .primaryAction) {
             PromisedFileDragView(
                 accessibilityLabel: "Drag Guide export",
                 payloadProvider: dragOutPayloadProvider
@@ -511,19 +604,11 @@ struct GuideEditorToolbarView: View {
             // the label does not paint into the adjacent Export control.
             .frame(width: 68, height: 30)
             .help("Drag the first selected Guide export format into Finder or another app.")
-            if let exportStatus { Text(exportStatus).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .sheet(isPresented: $isShowingExportOptions) {
-            GuideExportOptionsSheet(
-                controller: controller,
-                onCancel: { isShowingExportOptions = false },
-                onExport: { showProgressWindow in
-                    isShowingExportOptions = false
-                    onExport(showProgressWindow)
-                }
-            )
+        if let exportStatus {
+            ToolbarItem(id: "guide-export-status", placement: .primaryAction) {
+                Text(exportStatus).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
         }
     }
 }

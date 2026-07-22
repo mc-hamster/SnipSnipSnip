@@ -61,6 +61,7 @@ final class GuideCaptureCoordinator: ObservableObject {
     private let captionGenerator: GuideCaptionGenerator
     private let textEntryObserver: GuideTextEntryObserver
     private var mediaSession: GuideMediaCaptureSession?
+    private var logoImage: CGImage?
     private var preferences = GuideCapturePreferences()
     private var pendingScrollTask: Task<Void, Never>?
     private var pendingScroll: (event: GuideObservedEvent, timestamp: CMTime, direction: String, distance: Double)?
@@ -114,6 +115,7 @@ final class GuideCaptureCoordinator: ObservableObject {
         preferences: GuideCapturePreferences,
         exportSettings: GuideExportSettings,
         theme: GuideTheme,
+        logoImage: CGImage?,
         privateCapture: Bool,
         guideShortcutKeyCode: UInt16
     ) async throws {
@@ -127,8 +129,10 @@ final class GuideCaptureCoordinator: ObservableObject {
         var project = GuideProject(source: source, isPrivate: privateCapture)
         project.exportSettings = exportSettings
         project.theme = theme
+        project.theme.logoAsset = logoImage == nil ? nil : "brand/logo.png"
         project.timeline.sourceVideoEnabled = preferences.sourceVideoEnabled
         self.project = project
+        self.logoImage = logoImage
         stepImages = [:]
         stepThumbnails = [:]
         cursorSamples = []
@@ -181,6 +185,7 @@ final class GuideCaptureCoordinator: ObservableObject {
             eventMonitor.stop()
             mediaSession = nil
             self.project = nil
+            self.logoImage = nil
             audioLevels = ScreenRecordingAudioLevels()
             state = .idle
             throw error
@@ -351,10 +356,11 @@ final class GuideCaptureCoordinator: ObservableObject {
         )
         let previewProject = project
         let previewImages = stepImages
+        let previewLogo = logoImage
         let preview = await Task.detached(priority: .utility) {
-            GuideRenderer.renderPreview(project: previewProject, images: previewImages)
+            GuideRenderer.renderPreview(project: previewProject, images: previewImages, logo: previewLogo)
         }.value
-        let document = EditableGuideDocument(project: project, stepImages: stepImages, previewImage: preview, logoImage: nil, mediaSegmentURLs: mediaURLs)
+        let document = EditableGuideDocument(project: project, stepImages: stepImages, previewImage: preview, logoImage: logoImage, mediaSegmentURLs: mediaURLs)
         if !project.isPrivate {
             finalizationProgress = GuideFinalizationProgress(
                 phase: .savingRecovery,
@@ -376,6 +382,7 @@ final class GuideCaptureCoordinator: ObservableObject {
             }
         }
         self.project = nil
+        logoImage = nil
         stepImages = [:]
         stepThumbnails = [:]
         audioLevels = ScreenRecordingAudioLevels()
@@ -414,6 +421,7 @@ final class GuideCaptureCoordinator: ObservableObject {
         mediaSession = nil
         retainedSegments = []
         project = nil
+        logoImage = nil
         stepImages = [:]
         stepThumbnails = [:]
         audioLevels = ScreenRecordingAudioLevels()
@@ -1086,7 +1094,7 @@ final class GuideCaptureCoordinator: ObservableObject {
             // Recovery does not need a contact-sheet preview while capture is
             // active. Omitting it avoids re-rendering every prior step.
             previewImage: nil,
-            logoImage: nil,
+            logoImage: logoImage,
             mediaSegmentURLs: mediaURLs
         )
         pendingRecoveryDocument = document

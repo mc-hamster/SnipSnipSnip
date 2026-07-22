@@ -1,0 +1,98 @@
+name: Bug report
+description: Report a reproducible problem in SnipSnipSnip.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve SnipSnipSnip. Do not attach private captures, recordings, clipboard contents, UI Map data, or unreviewed diagnostics to a public issue.
+  - type: dropdown
+    id: edition
+    attributes:
+      label: Edition
+      options:
+        - SnipSnipSnip (Mac App Store)
+        - SnipSnipSnip Pro (GitHub download)
+    validations:
+      required: true
+  - type: input
+    id: app-version
+    attributes:
+      label: App version
+      placeholder: For example, 1.0.23 (118)
+    validations:
+      required: true
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      placeholder: For example, macOS 26.0
+    validations:
+      required: true
+  - type: input
+    id: hardware
+    attributes:
+      label: Mac hardware
+      placeholder: For example, MacBook Pro with Apple M3 Pro
+    validations:
+      required: true
+  - type: dropdown
+    id: workflow
+    attributes:
+      label: Affected workflow
+      options:
+        - Screenshot capture
+        - Screenshot editor or annotations
+        - Redaction or privacy
+        - OCR or history search
+        - Archive, recovery, or clipboard history
+        - Screen recording or trimming
+        - Export, copy, drag, or share
+        - Presentation styling
+        - Scrolling capture
+        - Connected iPhone or iPad capture
+        - UI Map or Screen Inspector
+        - Automation
+        - Installation, update, or permissions
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Use synthetic or non-sensitive content.
+      placeholder: |
+        1. Open...
+        2. Choose...
+        3. Observe...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Mention relevant permission state or whether the problem repeats after relaunch. Do not paste unreviewed diagnostics or private data.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission checks
+      options:
+        - label: I searched existing issues for this problem.
+          required: true
+        - label: I removed private or sensitive information from this report.
+          required: true

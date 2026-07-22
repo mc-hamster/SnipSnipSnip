@@ -23,7 +23,7 @@ private struct VideoPlayerContainerView: NSViewRepresentable {
     }
 }
 
-struct VideoEditorToolbarView: View {
+struct VideoEditorToolbarContent: ToolbarContent {
     @ObservedObject var controller: VideoEditorController
     let documentFilename: String
     let hasUnsavedChanges: Bool
@@ -32,71 +32,69 @@ struct VideoEditorToolbarView: View {
     let onExportRequest: (VideoExportRequest) -> Void
     let dragOutPayloadProvider: @MainActor () -> PromisedFilePayload?
 
-    var body: some View {
-        GlassEffectContainer(spacing: 14) {
-            HStack(spacing: 12) {
-                Button(action: onBack) {
-                    Label("Discard", systemImage: "xmark")
-                }
-                .buttonStyle(.glass)
-                .help("Discard the current video editor session and return to the capture screen.")
-
-                Spacer(minLength: 12)
-
-                Text(documentFilename + (hasUnsavedChanges ? " *" : ""))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-
-                Menu("Export") {
-                    let preferredRequest = VideoExportRequest(
-                        format: exportPreferences.format,
-                        target: exportPreferences.target
-                    )
-                    Button("Export \(exportPreferences.menuLabel)…") {
-                        onExportRequest(
-                            preferredRequest
-                        )
-                    }
-                    .disabled(!VideoExportSupport.capability(for: preferredRequest.format, target: preferredRequest.target).isSupported)
-
-                    Divider()
-
-                    Section("MP4 Quality") {
-                        ForEach(VideoExportQualityPreset.allCases) { preset in
-                            exportButton(format: .mp4, target: .quality(preset))
-                        }
-                    }
-
-                    Section("MP4 Size Limit") {
-                        ForEach(VideoExportSizeLimit.allCases) { sizeLimit in
-                            exportButton(format: .mp4, target: .sizeLimit(sizeLimit))
-                        }
-                    }
-
-                    Section("Animated Loops") {
-                        ForEach(VideoExportQualityPreset.allCases) { preset in
-                            exportButton(format: .gif, target: .quality(preset))
-                            exportButton(format: .apng, target: .quality(preset))
-                        }
-                    }
-
-                }
-                .buttonStyle(.glassProminent)
-                .help("Export the trimmed video using MP4, GIF, APNG, or another available format.")
-                .disabled(controller.isExporting)
-
-                PromisedFileDragView(
-                    accessibilityLabel: "Drag trimmed recording to share",
-                    payloadProvider: dragOutPayloadProvider
-                )
-                .frame(width: 68, height: 30)
-                .help("Drag the current trimmed export into Finder, Mail, or another app. Export starts after the drop is accepted.")
+    var body: some ToolbarContent {
+        ToolbarItem(id: "video-back", placement: .navigation) {
+            Button(action: onBack) {
+                Label("Discard", systemImage: "xmark")
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .buttonStyle(.glass)
+            .buttonBorderShape(.capsule)
+            .help("Discard the current video editor session and return to the capture screen.")
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+
+        ToolbarItem(id: "video-title", placement: .principal) {
+            Text(documentFilename + (hasUnsavedChanges ? " *" : ""))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+
+        ToolbarItem(id: "video-export", placement: .primaryAction) {
+            Menu("Export") {
+                let preferredRequest = VideoExportRequest(
+                    format: exportPreferences.format,
+                    target: exportPreferences.target
+                )
+                Button("Export \(exportPreferences.menuLabel)…") {
+                    onExportRequest(preferredRequest)
+                }
+                .disabled(!VideoExportSupport.capability(for: preferredRequest.format, target: preferredRequest.target).isSupported)
+
+                Divider()
+
+                Section("MP4 Quality") {
+                    ForEach(VideoExportQualityPreset.allCases) { preset in
+                        exportButton(format: .mp4, target: .quality(preset))
+                    }
+                }
+
+                Section("MP4 Size Limit") {
+                    ForEach(VideoExportSizeLimit.allCases) { sizeLimit in
+                        exportButton(format: .mp4, target: .sizeLimit(sizeLimit))
+                    }
+                }
+
+                Section("Animated Loops") {
+                    ForEach(VideoExportQualityPreset.allCases) { preset in
+                        exportButton(format: .gif, target: .quality(preset))
+                        exportButton(format: .apng, target: .quality(preset))
+                    }
+                }
+            }
+            .buttonStyle(.glassProminent)
+            .buttonBorderShape(.capsule)
+            .help("Export the trimmed video using MP4, GIF, APNG, or another available format.")
+            .disabled(controller.isExporting)
+        }
+
+        ToolbarItem(id: "video-drag", placement: .primaryAction) {
+            PromisedFileDragView(
+                accessibilityLabel: "Drag trimmed recording to share",
+                payloadProvider: dragOutPayloadProvider
+            )
+            .frame(width: 68, height: 30)
+            .help("Drag the current trimmed export into Finder, Mail, or another app. Export starts after the drop is accepted.")
+        }
     }
 
     @ViewBuilder
@@ -113,7 +111,9 @@ struct VideoEditorToolbarView: View {
 
 struct VideoEditorView: View {
     @ObservedObject var controller: VideoEditorController
-    private let trimAccent = Color(red: 1.0, green: 0.82, blue: 0.18)
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    private let trimAccent = Color.accentColor
 
     var body: some View {
         VStack(spacing: 0) {
@@ -126,16 +126,7 @@ struct VideoEditorView: View {
                 exportProgressOverlay(exportProgress)
             }
         }
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(nsColor: .black),
-                    Color(nsColor: .controlBackgroundColor)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
+        .background(Color(nsColor: .windowBackgroundColor))
         .alert("Video Error", isPresented: Binding(get: {
             controller.errorMessage != nil
         }, set: { value in
@@ -234,7 +225,10 @@ struct VideoEditorView: View {
         .padding(.horizontal, 22)
         .padding(.top, 15)
         .padding(.bottom, 18)
-        .sssGlassSurface(cornerRadius: 0, shadowOpacity: 0.04)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .overlay(alignment: .top) {
+            Divider()
+        }
     }
 
     private func playbackPill(title: String, systemImage: String) -> some View {
@@ -243,7 +237,11 @@ struct VideoEditorView: View {
             .foregroundStyle(.white.opacity(0.92))
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .glassEffect(.regular.tint(.black.opacity(0.18)), in: .capsule)
+            .background(Color.black.opacity(reduceTransparency ? 0.94 : 0.68), in: .capsule)
+            .overlay {
+                Capsule()
+                    .stroke(Color.white.opacity(colorSchemeContrast == .increased ? 0.58 : 0.22), lineWidth: 1)
+            }
     }
 
     private var trimMetricsBar: some View {
@@ -258,10 +256,10 @@ struct VideoEditorView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
-        .background(Color.white.opacity(0.045), in: .rect(cornerRadius: 10, style: .continuous))
+        .background(Color(nsColor: .textBackgroundColor), in: .rect(cornerRadius: 10, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                .stroke(Color.primary.opacity(0.10), lineWidth: 1)
         )
     }
 
@@ -301,7 +299,7 @@ struct VideoEditorView: View {
             }
             .padding(18)
             .frame(width: 360)
-            .sssGlassSurface(cornerRadius: 18)
+            .sssFloatingOverlaySurface(cornerRadius: 18, shadowOpacity: 0.16)
         }
     }
 
@@ -352,8 +350,8 @@ struct VideoEditorView: View {
                 .font(.system(size: 18, weight: .semibold))
                 .frame(width: 40, height: 40)
         }
-        .buttonStyle(.plain)
-        .glassEffect(.regular.tint(.white.opacity(0.08)).interactive(), in: .circle)
+        .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.circle)
         .contentShape(Circle())
         .help(controller.isPlaying ? "Pause playback." : "Play the selected trim range.")
     }
@@ -371,6 +369,7 @@ struct VideoEditorView: View {
 
 private struct VideoTrimTimelineView: View {
     @ObservedObject var controller: VideoEditorController
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     let trimAccent: Color
 
     @State private var startHandleDragOrigin: TimeInterval?
@@ -559,12 +558,12 @@ private struct VideoTrimTimelineView: View {
                 .shadow(color: .black.opacity(0.28), radius: 4, y: 1)
 
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .stroke(Color.black.opacity(0.2), lineWidth: 0.75)
+                .stroke(Color.primary.opacity(colorSchemeContrast == .increased ? 0.72 : 0.34), lineWidth: colorSchemeContrast == .increased ? 1.5 : 0.75)
                 .frame(width: handleVisualWidth, height: height)
 
             VStack(spacing: 4) {
-                Capsule().fill(Color.black.opacity(0.42)).frame(width: 2, height: 13)
-                Capsule().fill(Color.black.opacity(0.42)).frame(width: 2, height: 13)
+                Capsule().fill(Color.primary.opacity(0.72)).frame(width: 2, height: 13)
+                Capsule().fill(Color.primary.opacity(0.72)).frame(width: 2, height: 13)
             }
         }
         .frame(width: handleHitWidth, height: height)

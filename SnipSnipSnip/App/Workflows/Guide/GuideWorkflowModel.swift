@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import Foundation
+import ImageIO
 
 @MainActor
 struct GuideWorkflowDependencies {
@@ -50,6 +51,7 @@ final class GuideWorkflowModel: ObservableObject {
     @Published var capturePreferences: GuideCapturePreferences { didSet { preferenceStore.saveCapturePreferences(capturePreferences) } }
     @Published var exportSettings: GuideExportSettings { didSet { preferenceStore.saveExportSettings(exportSettings) } }
     @Published var theme: GuideTheme { didSet { preferenceStore.saveTheme(theme) } }
+    @Published private(set) var defaultLogoImage: CGImage?
     @Published private(set) var savedThemes: [GuideTheme]
     @Published var selectedWindowID: CGWindowID?
     @Published var selectedDisplayID: CGDirectDisplayID?
@@ -69,6 +71,7 @@ final class GuideWorkflowModel: ObservableObject {
         self.capturePreferences = preferenceStore.loadCapturePreferences()
         self.exportSettings = preferenceStore.loadExportSettings()
         self.theme = preferenceStore.loadTheme()
+        self.defaultLogoImage = Self.decodeLogo(preferenceStore.loadBrandLogoData())
         self.savedThemes = preferenceStore.loadSavedThemes()
         self.captureCoordinator = GuideCaptureCoordinator(systemServices: dependencies.systemServices, recoveryStore: recoveryStore)
         self.isShowingFirstUseSetup = preferenceStore.loadOnboardingVersion() < Self.onboardingVersion
@@ -123,6 +126,20 @@ final class GuideWorkflowModel: ObservableObject {
     func deleteSavedTheme(_ id: UUID) {
         savedThemes.removeAll { $0.id == id }
         preferenceStore.saveSavedThemes(savedThemes)
+    }
+
+    func setDefaultLogo(_ image: CGImage?) {
+        let normalized = image.flatMap { GuideImageMemory.thumbnail(of: $0, maximumPixelDimension: 1_024) }
+        defaultLogoImage = normalized
+        preferenceStore.saveBrandLogoData(normalized.flatMap { try? ImageExporter.pngData(for: $0) })
+        var updatedTheme = theme
+        updatedTheme.logoAsset = normalized == nil ? nil : "brand/logo.png"
+        theme = updatedTheme
+    }
+
+    func setDefaultBranding(theme: GuideTheme, logo: CGImage?) {
+        self.theme = theme
+        setDefaultLogo(logo)
     }
 
     func startSelectedSource() {
@@ -379,11 +396,22 @@ final class GuideWorkflowModel: ObservableObject {
             preferences: capturePreferences,
             exportSettings: exportSettings,
             theme: theme,
+            logoImage: defaultLogoImage,
             privateCapture: privateCapture,
             guideShortcutKeyCode: dependencies.capture.guideHotKeyCode
         )
         preferenceStore.saveLastSource(source)
         dependencies.lifecycle.updateWorkingMessage("Guide • 0 steps")
+    }
+
+    private static func decodeLogo(_ data: Data?) -> CGImage? {
+        guard let data,
+              let source = CGImageSourceCreateWithData(data as CFData, [
+                kCGImageSourceShouldCache: false
+              ] as CFDictionary) else { return nil }
+        return CGImageSourceCreateImageAtIndex(source, 0, [
+            kCGImageSourceShouldCache: false
+        ] as CFDictionary)
     }
 
     @discardableResult

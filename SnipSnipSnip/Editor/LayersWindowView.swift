@@ -36,8 +36,7 @@ private struct LayersListView: View {
                     message: "Add annotations or image overlays to see them here."
                 )
             } else {
-                toolbar
-
+                layerCommandBar
                 Divider()
 
                 List(selection: $selection) {
@@ -64,59 +63,47 @@ private struct LayersListView: View {
         }
     }
 
-    private var toolbar: some View {
+    private var layerCommandBar: some View {
         HStack(spacing: 8) {
-            Button(action: controller.sendToFront) {
-                Image(systemName: "square.3.layers.3d.top.filled")
+            Menu {
+                Button("Bring to Front", systemImage: "square.3.layers.3d.top.filled", action: controller.sendToFront)
+                    .disabled(controller.selectedCount == 0)
+                Button("Bring Forward", systemImage: "arrow.up", action: controller.bringForward)
+                    .disabled(!controller.canBringForward)
+                Button("Send Backward", systemImage: "arrow.down", action: controller.sendBackward)
+                    .disabled(!controller.canSendBackward)
+                Button("Send to Back", systemImage: "square.3.layers.3d.bottom.filled", action: controller.sendToBack)
+                    .disabled(controller.selectedCount == 0)
+            } label: {
+                Label("Arrange", systemImage: "square.3.layers.3d")
             }
-            .help("Bring to Front")
-            .disabled(controller.selectedCount == 0)
+            .buttonStyle(.glass)
+            .buttonBorderShape(.capsule)
 
-            Button(action: controller.bringForward) {
-                Image(systemName: "arrow.up")
+            Menu {
+                Button("Group", systemImage: "square.stack.3d.up", action: controller.groupSelected)
+                    .disabled(!controller.canGroupSelection)
+                Button("Ungroup", systemImage: "square.stack.3d.down.right", action: controller.ungroupSelected)
+                    .disabled(!controller.canUngroupSelection)
+            } label: {
+                Label("Group", systemImage: "square.stack.3d.up")
             }
-            .help("Bring Forward")
-            .disabled(!controller.canBringForward)
+            .buttonStyle(.glass)
+            .buttonBorderShape(.capsule)
 
-            Button(action: controller.sendBackward) {
-                Image(systemName: "arrow.down")
-            }
-            .help("Send Backward")
-            .disabled(!controller.canSendBackward)
-
-            Button(action: controller.sendToBack) {
-                Image(systemName: "square.3.layers.3d.bottom.filled")
-            }
-            .help("Send to Back")
-            .disabled(controller.selectedCount == 0)
-
-            Divider()
-                .frame(height: 18)
-
-            Button(action: controller.groupSelected) {
-                Image(systemName: "square.stack.3d.up")
-            }
-            .help("Group")
-            .disabled(!controller.canGroupSelection)
-
-            Button(action: controller.ungroupSelected) {
-                Image(systemName: "square.stack.3d.down.right")
-            }
-            .help("Ungroup")
-            .disabled(!controller.canUngroupSelection)
-
-            Spacer()
+            Spacer(minLength: 0)
 
             Button(role: .destructive, action: controller.deleteSelected) {
-                Image(systemName: "trash")
+                Label("Delete", systemImage: "trash")
             }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.capsule)
             .help("Delete Selected Layers")
             .disabled(controller.selectedCount == 0)
         }
-        .buttonStyle(.borderless)
         .controlSize(.small)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(8)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private func syncSelectionToController(_ selectedIDs: Set<UUID>) {

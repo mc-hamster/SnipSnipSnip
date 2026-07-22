@@ -10,38 +10,6 @@ private func deferPublish(_ action: @escaping @MainActor () -> Void) {
 }
 
 private let collapsedInspectorHistoryLimit = 5
-private struct HistoryPreviewSecondaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.body.weight(.medium))
-            .foregroundStyle(Color.primary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 10))
-            .opacity(configuration.isPressed ? 0.9 : 1)
-    }
-}
-
-private struct InspectorGlassGroupBoxStyle: GroupBoxStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            configuration.label
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            configuration.content
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(14)
-        .sssGlassSurface(cornerRadius: 16, tint: .white.opacity(0.04), shadowOpacity: 0.035)
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.75)
-        }
-    }
-}
-
 private struct UIMapInspectorLegendItem: View {
     let color: Color
     let label: String
@@ -234,8 +202,6 @@ struct EditorInspectorView: View {
 
             recycleBinFooter
         }
-        .groupBoxStyle(InspectorGlassGroupBoxStyle())
-        .background(.thinMaterial)
         .sheet(isPresented: $isShowingRecycleBin) {
             RecycleBinSheetView(
                 recycleBinEntries: recycleBinEntries,
@@ -279,10 +245,16 @@ struct EditorInspectorView: View {
                         Text("Selected Element")
                             .font(.subheadline.weight(.semibold))
 
-                        Button(controller.isUIMapElementPinned(element.id) ? "Unpin" : "Pin") {
+                        Button {
                             controller.togglePinnedUIMapElement(element.id)
+                        } label: {
+                            Label(
+                                controller.isUIMapElementPinned(element.id) ? "Unpin" : "Pin",
+                                systemImage: controller.isUIMapElementPinned(element.id) ? "pin.slash" : "pin"
+                            )
                         }
-                        .buttonStyle(SSSChromeButtonStyle(tint: controller.isUIMapElementPinned(element.id) ? .orange : .accentColor))
+                        .buttonStyle(.glass)
+                        .tint(controller.isUIMapElementPinned(element.id) ? .orange : .accentColor)
                         .help(controller.isUIMapElementPinned(element.id)
                             ? "Remove this UI Map overlay from copied, shared, and exported screenshots."
                             : "Keep this UI Map overlay visible in copied, shared, and exported screenshots."
@@ -305,7 +277,7 @@ struct EditorInspectorView: View {
                     Button("Clear Selection") {
                         controller.selectUIMapElement(nil)
                     }
-                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                    .buttonStyle(.glass)
                 } else {
                     Text(controller.activeTool == .uiMapInspect
                         ? "Move over a UI element in the screenshot to preview it, then click to pin it."
@@ -447,7 +419,7 @@ struct EditorInspectorView: View {
                             } label: {
                                 Label("Picker", systemImage: "eyedropper")
                             }
-                            .buttonStyle(SSSChromeButtonStyle())
+                            .buttonStyle(.glass)
                             ColorSampleSwatchView(color: controller.sampledPickerPreviewColor)
                                 .help("Current picker color.")
 
@@ -457,7 +429,7 @@ struct EditorInspectorView: View {
                                 } label: {
                                     Label("Fill", systemImage: "eyedropper.halffull")
                                 }
-                                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                                .buttonStyle(.glass)
                                 ColorSampleSwatchView(color: controller.sampledFillPreviewColor)
                                     .help("Current fill color.")
                             }
@@ -556,27 +528,16 @@ struct EditorInspectorView: View {
                     }
                     .pickerStyle(.segmented)
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Fill Preset")
-                            .font(.caption.weight(.semibold))
-
-                        HStack {
-                            Button("Outline") {
-                                deferPublish { controller.applyRectangleFillPreset(nil) }
-                            }
-                            .buttonStyle(SSSChromeButtonStyle(tint: .secondary, isSelected: controller.activeFillPreset == nil))
-
-                            Button("Soft") {
-                                deferPublish { controller.applyRectangleFillPreset(0.18) }
-                            }
-                            .buttonStyle(SSSChromeButtonStyle(tint: .secondary, isSelected: controller.activeFillPreset == 0.18))
-
-                            Button("Solid") {
-                                deferPublish { controller.applyRectangleFillPreset(1) }
-                            }
-                            .buttonStyle(SSSChromeButtonStyle(tint: .secondary, isSelected: controller.activeFillPreset == 1))
+                    Picker("Fill Preset", selection: Binding<CGFloat?>(get: {
+                        controller.activeFillPreset
+                    }, set: { value in
+                        deferPublish { controller.applyRectangleFillPreset(value) }
+                    })) {
+                        Text("Outline").tag(Optional<CGFloat>.none)
+                        Text("Soft").tag(Optional<CGFloat>(0.18))
+                        Text("Solid").tag(Optional<CGFloat>(1.0))
                         }
-                    }
+                    .pickerStyle(.segmented)
                 }
 
                 if controller.showsEllipseControls {
@@ -593,27 +554,16 @@ struct EditorInspectorView: View {
                     }
                     .pickerStyle(.segmented)
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Fill Preset")
-                            .font(.caption.weight(.semibold))
-
-                        HStack {
-                            Button("Outline") {
-                                deferPublish { controller.applyEllipseFillPreset(nil) }
-                            }
-                            .buttonStyle(SSSChromeButtonStyle(tint: .secondary, isSelected: controller.activeFillPreset == nil))
-
-                            Button("Soft") {
-                                deferPublish { controller.applyEllipseFillPreset(0.18) }
-                            }
-                            .buttonStyle(SSSChromeButtonStyle(tint: .secondary, isSelected: controller.activeFillPreset == 0.18))
-
-                            Button("Solid") {
-                                deferPublish { controller.applyEllipseFillPreset(1) }
-                            }
-                            .buttonStyle(SSSChromeButtonStyle(tint: .secondary, isSelected: controller.activeFillPreset == 1))
+                    Picker("Fill Preset", selection: Binding<CGFloat?>(get: {
+                        controller.activeFillPreset
+                    }, set: { value in
+                        deferPublish { controller.applyEllipseFillPreset(value) }
+                    })) {
+                        Text("Outline").tag(Optional<CGFloat>.none)
+                        Text("Soft").tag(Optional<CGFloat>(0.18))
+                        Text("Solid").tag(Optional<CGFloat>(1.0))
                         }
-                    }
+                    .pickerStyle(.segmented)
                 }
 
                 if controller.showsFreehandTuningControls {
@@ -816,7 +766,7 @@ struct EditorInspectorView: View {
                         Button("Step Guide") {
                             controller.copyCalloutStepGuideToClipboard()
                         }
-                        .buttonStyle(SSSChromeButtonStyle())
+                        .buttonStyle(.glass)
                         .help("Copy the current callouts as a numbered step guide.")
                     }
                 }
@@ -920,19 +870,19 @@ struct EditorInspectorView: View {
                     Button("Auto Crop") {
                         controller.autoCropCurrentCrop()
                     }
-                    .buttonStyle(SSSChromeButtonStyle())
+                    .buttonStyle(.glass)
                     .help("Tighten the current crop around screenshot content and visible annotations.")
 
                     Button("Padded") {
                         controller.autoCropCurrentCropWithPadding()
                     }
-                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                    .buttonStyle(.glass)
                     .help("Tighten the current crop while keeping a small margin around screenshot content and visible annotations.")
 
                     Button("Reset Crop") {
                         controller.resetCrop()
                     }
-                    .buttonStyle(SSSChromeButtonStyle())
+                    .buttonStyle(.glass)
                     .help("Restore the editable area to the full captured image.")
                     .disabled(!controller.canResetCrop)
 
@@ -959,7 +909,7 @@ struct EditorInspectorView: View {
                                 Label(mode.shortLabel, systemImage: mode.systemImage)
                                     .frame(maxWidth: .infinity)
                             }
-                            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                            .buttonStyle(.glass)
                             .help(mode.label)
                         }
                     }
@@ -973,7 +923,7 @@ struct EditorInspectorView: View {
                             Label(mode.label, systemImage: mode.systemImage)
                                 .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                        .buttonStyle(.glass)
                         .help("Align selected annotations to the \(mode.label.lowercased()) edge or axis.")
                         .disabled(!controller.canAlignSelection)
                     }
@@ -1042,7 +992,7 @@ struct EditorInspectorView: View {
             .padding(.vertical, 10)
         }
         .buttonStyle(.plain)
-        .sssGlassSurface(cornerRadius: 14, tint: .white.opacity(0.04), shadowOpacity: 0.025)
+        .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .padding(10)
         .help("Open deleted snips. Deleted items can be restored until the recycle bin is emptied or retention expires.")
     }
@@ -1290,7 +1240,7 @@ private struct ChangeHistorySectionView: View, Equatable {
                         Button(role: .destructive, action: actions.onDeleteAllHistoryEntries) {
                             Label("Clear", systemImage: "trash")
                         }
-                        .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                        .buttonStyle(.glass)
                         .controlSize(.small)
                         .help("Delete every history snapshot for this snip.")
                     }
@@ -1385,7 +1335,7 @@ private struct RecentSnipsSectionView: View, Equatable {
                     Button(role: .destructive, action: actions.onDeleteAllRecentSnipEntries) {
                         Label("Clear", systemImage: "trash")
                     }
-                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                    .buttonStyle(.glass)
                     .controlSize(.small)
                     .disabled(recentSnipEntries.isEmpty)
                     .help("Delete every recent snip except the one currently open.")
@@ -1506,14 +1456,14 @@ private struct RecycleBinSheetView: View {
                 Button(action: dismiss.callAsFunction) {
                     Label("Close", systemImage: "xmark")
                 }
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .buttonStyle(.glass)
                 .keyboardShortcut(.cancelAction)
                 .help("Close the recycle bin.")
 
                 Button(role: .destructive, action: actions.onEmptyRecycleBin) {
                     Label("Empty Now", systemImage: "trash.slash")
                 }
-                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                    .buttonStyle(.glass)
                     .disabled(recycleBinEntries.isEmpty)
                     .help("Permanently delete every item currently in the recycle bin.")
                 }
@@ -1614,19 +1564,19 @@ private struct RecycleBinEntryRowView: View {
 
             VStack(spacing: 8) {
                 Button("Restore", action: onRestore)
-                    .buttonStyle(SSSChromeButtonStyle())
+                    .buttonStyle(.glass)
                     .help("Restore this snip and open it in the editor.")
 
                 Button(role: .destructive, action: onPermanentDelete) {
                     Label("Delete Forever", systemImage: "trash.slash")
                 }
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .buttonStyle(.glass)
                 .controlSize(.small)
                 .help("Permanently delete this snip from the recycle bin.")
             }
         }
         .padding(14)
-        .sssGlassSurface(cornerRadius: 12, shadowOpacity: 0.03)
+        .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private var deletedDateLabel: String {
@@ -1644,7 +1594,7 @@ private struct ExpandCollapseHistoryButton: View {
 
     var body: some View {
         Button(title, action: action)
-            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+            .buttonStyle(.glass)
             .controlSize(.small)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -1691,7 +1641,8 @@ private struct HistoryEntryRowView: View, Equatable {
                             .font(.caption.weight(.bold))
                             .foregroundStyle(.primary)
                             .frame(width: 24, height: 24)
-                            .glassEffect(.regular.interactive(), in: .circle)
+                            .background(.regularMaterial, in: .circle)
+                            .overlay(Circle().stroke(Color.primary.opacity(0.16), lineWidth: 1))
                             .padding(6)
                     }
                 }
@@ -1725,14 +1676,14 @@ private struct HistoryEntryRowView: View, Equatable {
                 Spacer(minLength: 0)
 
                 Button(restoreLabel, action: onRestore)
-                    .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                    .buttonStyle(.glass)
                     .help(restoreHelp)
 
                 Button(role: .destructive, action: onDelete) {
                     Label("Delete", systemImage: "trash")
                         .lineLimit(1)
                 }
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .buttonStyle(.glass)
                 .controlSize(.small)
                 .help(deleteHelp)
             }
@@ -1808,7 +1759,7 @@ struct HistoryPreviewOverlayView: View {
                         Button(action: onClose) {
                             Label("Close", systemImage: "xmark")
                         }
-                        .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                        .buttonStyle(.glass)
                         .keyboardShortcut(.cancelAction)
                         .help("Close this preview.")
                     }
@@ -1830,7 +1781,7 @@ struct HistoryPreviewOverlayView: View {
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
-                            .glassEffect(.regular, in: .capsule)
+                            .sssFloatingOverlaySurface(cornerRadius: 18, shadowOpacity: 0.08)
                             .padding(18)
                     }
                     .frame(maxWidth: .infinity)
@@ -1853,25 +1804,25 @@ struct HistoryPreviewOverlayView: View {
                         Button(action: onClose) {
                             Label("Back to Editing", systemImage: "chevron.backward")
                         }
-                        .buttonStyle(HistoryPreviewSecondaryButtonStyle())
+                        .buttonStyle(.glass)
                         .help("Close this preview and return to editing.")
 
                         Button(action: onFloat) {
                             Label("Float Reference", systemImage: "pin")
                         }
-                        .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                        .buttonStyle(.glass)
                         .help("Open this snapshot in an always-on-top floating reference window.")
 
                         Button(action: onRestore) {
                             Label("Restore Snapshot", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
                         }
-                        .buttonStyle(SSSChromeButtonStyle())
+                        .buttonStyle(.glass)
                         .help("Restore the document to this history snapshot.")
                     }
                 }
                 .padding(28)
                 .frame(maxWidth: panelWidth)
-                .sssGlassSurface(cornerRadius: 30)
+                .sssFloatingOverlaySurface(cornerRadius: 20, shadowOpacity: 0.12)
                 .contentShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
                 .onTapGesture {
                 }

@@ -108,10 +108,18 @@ final class GuideEditorController: ObservableObject {
 
     func deleteSelected() {
         let ids = selection
+        guard !ids.isEmpty else { return }
+        let firstDeletedIndex = project.steps.firstIndex { ids.contains($0.id) }
         update(name: "Delete Steps") { project in
             for index in project.steps.indices where ids.contains(project.steps[index].id) { project.steps[index].isDeleted = true }
         }
-        selection.removeAll()
+        let remainingSteps = project.steps.filter { !$0.isDeleted }
+        guard !remainingSteps.isEmpty else {
+            selection.removeAll()
+            return
+        }
+        let nextIndex = min(firstDeletedIndex ?? 0, remainingSteps.count - 1)
+        selection = [remainingSteps[nextIndex].id]
     }
 
     func restore(stepID: UUID) { update(name: "Restore Step") { project in if let i = project.steps.firstIndex(where: { $0.id == stepID }) { project.steps[i].isDeleted = false } } }
