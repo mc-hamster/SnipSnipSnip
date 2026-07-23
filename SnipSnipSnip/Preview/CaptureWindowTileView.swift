@@ -50,7 +50,8 @@ struct CaptureWindowTileView: View {
                         .font(.caption.weight(.semibold))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .glassEffect(.regular.interactive(), in: .capsule)
+                        .background(.regularMaterial, in: .capsule)
+                        .overlay(Capsule().stroke(Color.primary.opacity(0.18), lineWidth: 1))
                         .padding(10)
                         .opacity(isHovering ? 1 : 0)
                         .offset(y: isHovering ? 0 : -6)
@@ -81,10 +82,13 @@ struct CaptureWindowTileView: View {
             }
             .frame(width: 228, alignment: .leading)
             .padding(14)
-            .sssGlassSurface(cornerRadius: 18, tint: isHovering ? .accentColor.opacity(0.18) : .white.opacity(0.035), isInteractive: true, shadowOpacity: isHovering ? 0.08 : 0.035)
+            .background(
+                isHovering ? Color.accentColor.opacity(0.12) : Color(nsColor: .controlBackgroundColor),
+                in: .rect(cornerRadius: 18, style: .continuous)
+            )
             .overlay {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(isHovering ? Color.accentColor.opacity(0.45) : Color.white.opacity(0.11), lineWidth: 0.75)
+                    .strokeBorder(isHovering ? Color.accentColor.opacity(0.55) : Color.primary.opacity(0.12), lineWidth: 1)
             }
         }
         .buttonStyle(CaptureWindowTileButtonStyle(isHovering: isHovering))

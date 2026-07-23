@@ -9,6 +9,13 @@ description: "Workspace instructions for implementing SnipSnipSnip as a local-fi
 - Keep cleanup work behavior-preserving unless the task explicitly asks for a feature or UX change.
 - If a user-visible feature, workflow, or label changes, update the in-app Help guide in the same change so Help matches the shipped behavior.
 
+## Design Language
+- Before changing user-visible SwiftUI or AppKit UI, read and follow `Docs/DesignLanguage.md`.
+- Treat the design-language rules as required unless the user explicitly requests a different design direction.
+- Prefer native macOS structure, controls, materials, colors, focus, and accessibility behavior over custom visual chrome.
+- If a change introduces or alters a reusable visual pattern or a custom Glass/fixed-dark exception, update `Docs/DesignLanguage.md` in the same change.
+- When navigation, labels, action placement, or workflows change, update the in-app Help guide in the same change.
+
 ## Architecture
 - Keep capture, preview, editor, rendering, export, and support code in separate modules.
 - Use a non-destructive annotation model. Do not flatten annotations into the screenshot except when copying or exporting.

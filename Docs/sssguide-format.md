@@ -34,7 +34,7 @@ The root object contains:
 | `project` | object | Guide project, theme, export defaults, timeline, ordered steps, and the coordinate contract for captured geometry. |
 | `assets` | object | Relative paths for preview, logo, steps, and media. |
 
-Every step asset entry contains `id`, `baseImage`, and `session`. Every media entry contains `id` and `path`. Project steps contain their event kind, caption, note, include/delete state, duration, safe target metadata, timing, and non-destructive session.
+Every step asset entry contains `id`, `baseImage`, and `session`. Every media entry contains `id` and `path`. Project steps contain their event kind, caption, note, include/delete state, duration, safe target metadata, timing, and non-destructive session. The project theme can include an organization name, short footer or copyright, and an optional `legalStatement`; the corresponding logo remains the optional self-contained `assets.logo` image.
 
 Example, abbreviated:
 

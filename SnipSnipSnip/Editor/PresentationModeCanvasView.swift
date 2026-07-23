@@ -135,7 +135,7 @@ struct PresentationModeCanvasView: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .glassEffect(.regular, in: .capsule)
+                    .sssFloatingOverlaySurface(cornerRadius: 18, shadowOpacity: 0.08)
                     .padding(18)
             }
             .task(id: "\(renderID)|\(Int(previewPixelDimension.rounded()))") {

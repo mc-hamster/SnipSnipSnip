@@ -360,17 +360,17 @@ private struct RecordingControlOverlayView: View {
         }
         .padding(16)
         .frame(width: 590, height: 136)
-        .sssGlassSurface(cornerRadius: 20)
+        .sssFloatingOverlaySurface(cornerRadius: 20, shadowOpacity: 0.12)
     }
 
     private var recordingBeacon: some View {
         ZStack {
             Circle()
-                .fill((model.isPaused ? Color.yellow : Color.red).opacity(0.18))
+                .fill((model.isPaused ? Color.orange : Color.red).opacity(0.18))
                 .frame(width: 28, height: 28)
 
             Circle()
-                .fill(model.isPaused ? Color.yellow : Color.red)
+                .fill(model.isPaused ? Color.orange : Color.red)
                 .frame(width: 11, height: 11)
         }
     }

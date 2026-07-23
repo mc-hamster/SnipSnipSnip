@@ -1,0 +1,54 @@
+name: Feature request
+description: Propose an improvement grounded in a real workflow.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: Describe the problem and desired outcome before prescribing an implementation.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or workflow
+      description: What are you trying to accomplish, and what makes it difficult today?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What would a successful result look like?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: How do you handle this workflow today?
+  - type: dropdown
+    id: area
+    attributes:
+      label: Product area
+      options:
+        - Screenshot capture
+        - Editing or annotation
+        - Redaction or privacy
+        - OCR, history, archive, or clipboard
+        - Screen recording
+        - Export, copy, drag, or share
+        - Presentation styling
+        - Scrolling or connected-device capture
+        - UI Map or Screen Inspector
+        - Automation
+        - Accessibility or usability
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission checks
+      options:
+        - label: I searched existing issues for a similar request.
+          required: true

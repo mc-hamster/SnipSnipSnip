@@ -7,6 +7,38 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class GuideWorkflowTests: XCTestCase {
+    @MainActor
+    func testGuideEditorDeleteMarksStepsAndSelectsNextActiveStep() throws {
+        let steps = (1...3).map { sequence in
+            GuideStep(
+                sequence: sequence,
+                eventKind: .manual,
+                caption: "Step \(sequence)",
+                session: GuideStepSession(
+                    sourceCoordinateRect: CGRect(x: 0, y: 0, width: 10, height: 10),
+                    sourcePixelSize: CGSize(width: 10, height: 10)
+                )
+            )
+        }
+        var project = GuideProject(source: .displays(.current))
+        project.steps = steps
+        let image = try image(width: 10, height: 10)
+        let controller = GuideEditorController(document: EditableGuideDocument(
+            project: project,
+            stepImages: Dictionary(uniqueKeysWithValues: steps.map { ($0.id, image) }),
+            previewImage: nil,
+            logoImage: nil,
+            mediaSegmentURLs: [:]
+        ))
+        controller.selection = [steps[1].id]
+
+        controller.deleteSelected()
+
+        XCTAssertTrue(controller.project.steps[1].isDeleted)
+        XCTAssertEqual(controller.selection, [steps[2].id])
+        XCTAssertEqual(controller.includedSteps.map { $0.id }, [steps[0].id, steps[2].id])
+    }
+
     func testGuideStorageGuardrailsRejectLowDiskBeforeCaptureAndExport() throws {
         XCTAssertThrowsError(try GuideStorageGuardrails.ensureCanStartCapture(
             pixelWidth: 3_840,
@@ -118,6 +150,55 @@ final class GuideWorkflowTests: XCTestCase {
         theme.showsNumberedMarkers = true
         XCTAssertTrue(theme.showsNumberedMarkers)
         XCTAssertEqual(theme.markerNumberStyle, "circle")
+    }
+
+    func testLegacyGuideThemeWithoutLegalStatementStillDecodes() throws {
+        let encoded = try JSONEncoder().encode(GuideTheme())
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        json.removeValue(forKey: "legalStatement")
+
+        let decoded = try JSONDecoder().decode(
+            GuideTheme.self,
+            from: JSONSerialization.data(withJSONObject: json)
+        )
+
+        XCTAssertNil(decoded.legalStatement)
+    }
+
+    @MainActor
+    func testGuideBrandLogoDataPersistsAcrossPreferenceStores() {
+        let suiteName = "GuideWorkflowTests.brandLogo.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let expected = Data([0x89, 0x50, 0x4E, 0x47])
+
+        GuidePreferenceStore(storage: defaults).saveBrandLogoData(expected)
+
+        XCTAssertEqual(GuidePreferenceStore(storage: defaults).loadBrandLogoData(), expected)
+    }
+
+    func testLegalStatementReservesSpaceOnRenderedGuideCards() throws {
+        let step = GuideStep(
+            sequence: 1,
+            eventKind: .manual,
+            caption: "Review the result.",
+            session: GuideStepSession(
+                sourceCoordinateRect: CGRect(x: 0, y: 0, width: 80, height: 48),
+                sourcePixelSize: CGSize(width: 80, height: 48)
+            )
+        )
+        let source = try image(width: 80, height: 48)
+        let plain = try XCTUnwrap(GuideRenderer.renderStepCard(step: step, image: source, theme: GuideTheme()))
+        var brandedTheme = GuideTheme()
+        brandedTheme.footer = "© 2026 Example Company"
+        brandedTheme.legalStatement = Array(
+            repeating: "Confidential. For authorized recipients only. Do not redistribute without written permission.",
+            count: 8
+        ).joined(separator: " ")
+
+        let branded = try XCTUnwrap(GuideRenderer.renderStepCard(step: step, image: source, theme: brandedTheme))
+
+        XCTAssertGreaterThan(branded.height, plain.height)
     }
 
     func testVideoClickHighlightIsInvisibleOutsideItsShortPulse() {

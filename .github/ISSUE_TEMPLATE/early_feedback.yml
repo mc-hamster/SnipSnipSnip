@@ -1,0 +1,53 @@
+name: Early-user feedback
+description: Tell us what was clear, confusing, useful, or missing during your first experience.
+title: "[Feedback]: "
+labels:
+  - feedback
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for trying SnipSnipSnip. First impressions are especially valuable. Do not attach private captures, recordings, clipboard contents, UI Map data, or unreviewed diagnostics.
+  - type: dropdown
+    id: edition
+    attributes:
+      label: Edition tried
+      options:
+        - SnipSnipSnip (Mac App Store)
+        - SnipSnipSnip Pro (GitHub download)
+        - Both
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: What were you trying to do?
+    validations:
+      required: true
+  - type: textarea
+    id: worked
+    attributes:
+      label: What worked well?
+    validations:
+      required: true
+  - type: textarea
+    id: confusing
+    attributes:
+      label: What was confusing or difficult?
+    validations:
+      required: true
+  - type: textarea
+    id: missing
+    attributes:
+      label: What felt missing?
+  - type: textarea
+    id: comparison
+    attributes:
+      label: What capture or recording tool do you normally use?
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed private or sensitive information from this feedback.
+          required: true

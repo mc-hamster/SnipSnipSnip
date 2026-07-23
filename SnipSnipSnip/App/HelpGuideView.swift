@@ -76,7 +76,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "First launch onboarding",
                             steps: [
-                                "The first launch brings a guided onboarding flow to the front and confirms that SnipSnipSnip is running in your menu bar. It covers capture basics, UI Map disclosure when available, launch-at-login, an optional Clipboard History choice, support links, and permissions as the final step.",
+                                "The first launch brings a setup window to the front and confirms that SnipSnipSnip is running in your menu bar. Its standard sidebar covers capture basics, UI Map disclosure when available, launch-at-login, an optional Clipboard History choice, support links, and permissions as the final step. Select a sidebar step to review it; status text identifies completed and attention-needed items without relying on color.",
                                 "Screen Recording must be set up before onboarding can be skipped or completed because macOS requires it for screenshot pixels and live window thumbnails.",
                                 "Open Settings > General > Show Onboarding Again any time to replay it."
                             ]
@@ -215,7 +215,7 @@ struct HelpGuideView: View {
                             bullets: [
                                 "UI Map capture runs only during user-initiated Window capture workflows.",
                                 "Region, Fullscreen, Scrolling, Recording, Connected Device, and Screen Inspector captures are visual-only and do not request Accessibility because of UI Map.",
-                                "After a Window screenshot opens, the header may show UI Map Processing while metadata is captured in the background, then UI Map Captured when metadata was saved with the screenshot.",
+                                "After a Window screenshot opens, the editor command rows and UI Map controls report processing and availability while metadata is captured in the background.",
                                 "The screenshot image stays visually unchanged by default.",
                                 "If macOS provides interface metadata, SnipSnipSnip saves available names, labels, identifiers, roles, positions, sizes, parent hierarchy, and owning app.",
                                 "Cross-app interface trees are available in Pro and development builds after Accessibility consent.",
@@ -228,11 +228,11 @@ struct HelpGuideView: View {
                             title: "Use the panel",
                             steps: [
                                 "Open a screenshot that contains UI Map metadata.",
-                                "Choose Arrange > Show UI Map, or use the UI Map toolbar button.",
+                                "Choose Arrange > Show UI Map, or use the UI Map button in the lower editor command row.",
                                 "Search by name, role, label, or identifier, filter by element type, or turn on Pinned Only to show just pinned UI Map overlays.",
                                 "Select an element to show its region on the screenshot and inspect its metadata. With a row selected, use the arrow keys to move through the visible tree, expand, or collapse branches.",
                                 "Use Show All to outline captured controls and leaf elements without permanently annotating the screenshot. Accessibility elements use blue outlines and OCR supplement text uses orange outlines unless you choose a custom outline color for pinned overlays.",
-                                "For Window captures with UI Map available, use the lower toolbar UI Map group to open the UI Map panel or switch to Pin UI Map. Pin UI Map starts with captured element outlines hidden unless Show All is enabled in the UI Map panel. Move over the screenshot to preview an available element, then click to select and pin it; click it again to unpin it.",
+                                "For Window captures with UI Map available, use the UI Map button to open the panel or the adjacent Pin UI Map tool. Pin UI Map starts with captured element outlines hidden unless Show All is enabled in the UI Map panel. Move over the screenshot to preview an available element, then click to select and pin it; click it again to unpin it.",
                                 "Pinned UI Map overlays stay visible in copied, shared, or exported screenshots. You can also pin or unpin the selected element from the inspector or UI Map panel.",
                                 "Use Export JSON to save the structured UI Map metadata for debugging, review, or support.",
                                 "In the UI Map panel or inspector, use the checkboxes beside the selected element's outline, source, name, accessibility label, identifier, role, value, position, size, owning app, bundle identifier, and parent hierarchy rows to choose what appears in pinned overlays. The outline row also lets you choose the overlay color."
@@ -381,10 +381,10 @@ struct HelpGuideView: View {
                                 "Choose Guide from the main window, Capture menu, menu bar, or press Command-Shift-G.",
                                 "Choose what you want to make: an editable step-by-step Guide, or a Guide that also keeps full-motion video for a complete walkthrough or action highlights.",
                                 "If you keep video, choose whether it should be silent, use your microphone narration, include app audio, or record narration and app audio together. Guide derives the recording settings from that choice.",
-                                "Choose what you will walk through: one window, one app, an area you select, or everything on a display. Window and app Guides automatically follow the active source when it moves, resizes, or crosses onto a mixed-scale or rotated display. A Guide area stays on the display where the drag begins; the selector visibly clamps it at that display edge. Ordinary screenshot regions may still span displays. Display capture includes every visible app—even SnipSnipSnip itself when you are demonstrating it—while keeping the floating Guide controls out of the result. The last successful choice is preselected so you can confirm or change it before capture begins.",
+                                "Choose Region, Window, App, or Display from the native capture picker. These match the capture terms used in the main window; App additionally follows you between one app’s windows. Window and App Guides automatically follow the active source when it moves, resizes, or crosses onto a mixed-scale or rotated display. A Guide region stays on the display where the drag begins; the selector visibly clamps it at that display edge. Ordinary screenshot regions may still span displays. Display capture includes every visible app—even SnipSnipSnip itself when you are demonstrating it—while keeping the floating Guide controls out of the result. The last successful choice is preselected so you can confirm or change it before capture begins.",
                                 "Review the plain-language capture summary, or expand Fine-tune capture for optional video smoothness, pointer, desktop cleanup, on-device instruction, secure-field, and display menu-bar choices. Hover over any choice for a plain-language explanation; the defaults work well for most Guides.",
                                 "Work normally. One click, double-click, text selection, scroll burst, three-finger swipe, non-secure text-entry burst, supported keyboard shortcut, or Manual Step creates one step. Guide waits briefly after a swipe so a fullscreen transition can finish before it saves the step. Printable typing is captured even in custom and web editors that do not expose a standard macOS text value. When a non-secure focused field does expose its value, paste, dictation, and input-method edits are detected too. Text changes are grouped into one step after about 0.65 seconds without a change rather than creating a step per key.",
-                                "Use the floating HUD to pause, add a manual step, delete a recent step, stop, or discard. Its System Audio and Mic controls use the same live meters and switches as the recording controls; turn either source on or off for the active Guide while it is recording. The newest 20 step previews stay available in the HUD without making a long session progressively heavier; all earlier steps remain in the Guide. Hover a preview to see a larger version with its step number and captured instruction. When source video needs a moment to close safely, the HUD replaces the recording timer with the real finalization stage: stopping media, preparing the document, rendering the preview, or saving recovery. It does not invent a time estimate.",
+                                "Use the floating HUD to pause, add a manual step, delete a recent step, stop, or discard. Discard closes the HUD immediately while Guide removes the live capture and its recovery checkpoint. Its System Audio and Mic controls use the same live meters and switches as the recording controls; turn either source on or off for the active Guide while it is recording. The newest 20 step previews stay available in the HUD without making a long session progressively heavier; all earlier steps remain in the Guide. Hover a preview to see a larger version with its step number and captured instruction. When source video needs a moment to close safely, the HUD replaces the recording timer with the real finalization stage: stopping media, preparing the document, rendering the preview, or saving recovery. It does not invent a time estimate.",
                                 "Guide checks capture permissions and temporary storage during long sessions. If permission changes, the capture stream stops, or disk headroom becomes low, Guide pauses and explains the issue in the HUD. Restore the permission or free space, then choose Resume; completed steps and finalized video segments stay intact.",
                                 "Stop always ends capture. If no steps were recorded, it discards the empty Guide instead of opening the editor.",
                                 "Press Command-Shift-G again to stop and open the Guide editor."
@@ -397,13 +397,17 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Edit without production work",
                             bullets: [
-                                "Reorder, search, duplicate, delete, restore, include, or exclude steps in the left pane.",
-                                "Edit captions, notes, event type, duration, marker placement with direct drag handles, appearance, reusable themes, logos, branding, and redactions without flattening the base image. Captions and notes appear together on each still step card in the preview and still-image, PDF, and Word exports.",
-                                "Guide Settings are separated at the top of the inspector and apply to every step in the current Guide. Use them to show or hide numbered step markers, click target highlights, screenshot shadows, branding, colors, and other shared styling.",
+                                "Reorder, search, duplicate, delete, restore, include, or exclude steps in the left pane. Deleted steps are crossed out and marked Deleted; Control-click one and choose Restore to bring it back.",
+                                "Edit captions, notes, event type, duration, marker placement with direct drag handles, appearance, reusable themes, logos, organization names, copyright footers, legal statements, and redactions without flattening the base image. Captions, notes, and branding appear together on each still step card in the preview and still-image, PDF, and Word exports.",
+                                "Guide Settings are separated at the top of the inspector and apply to every step in the current Guide. Use them to show or hide numbered step markers, click target highlights, screenshot shadows, branding, colors, and other shared styling. Choose Use as Default to copy that Guide's organization, logo, copyright, legal statement, and styling into the default brand profile for future Guides.",
                                 "When numbered markers are enabled, the blue marker handle shows the step's actual number. Drag it to move the number, or drag the white target handle to point at the action.",
-                                "Use Advanced Edit when a step needs the full screenshot annotation toolset. The familiar screenshot-editing toolbar appears above the step; choose a tool, make the edits, then select Apply to Step. Cancel leaves the step unchanged.",
+                                "Use Advanced Edit when a step needs the full screenshot annotation toolset. The familiar two editor command rows appear with direct tool buttons; choose a tool, make the edits, then select Apply to Step. Cancel leaves the step unchanged.",
                                 "Save the editable project as .sssguide. Existing .sss and .sssvideo documents are unchanged."
                             ]
+                        ),
+                        HelpArticleSection(
+                            title: "Reuse company branding",
+                            body: "Open Settings > Guide > Default Brand Profile to set an organization name, logo, copyright footer, and longer legal statement once. SnipSnipSnip copies that profile into every new Guide, including Guides started by automation. Each .sssguide remains self-contained, so changing the default later does not rewrite existing documents and shared Guide packages keep the branding they were created with."
                         ),
                         HelpArticleSection(
                             title: "Export and share",
@@ -463,7 +467,7 @@ struct HelpGuideView: View {
                             title: "Capture a window",
                             steps: [
                                 "Choose Window.",
-                                "From the header Window button or menu bar, use the quick menu to choose Pick On Screen, a suggested window, or More Windows.",
+                                "From Window in the capture header or from the menu bar, use the quick menu to choose Pick On Screen, a suggested window, or More Windows.",
                                 "From the startup screen, pick a live thumbnail directly or use Pick On Screen for crowded desktops.",
                                 "Use Refresh or Auto Refresh if the target window is visible but not listed. With Auto Refresh off, SnipSnipSnip still refreshes once whenever the app returns to the foreground."
                             ]
@@ -587,15 +591,15 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Choose a tool",
-                            body: "The toolbar includes Select, Rectangle, Ellipse, Line, Arrow, Status Mark, Freehand, Highlighter, Highlight Box, Text, Callout, Ruler, Spotlight, Copy Text, Redaction, Import Image, and Presentation. Status Mark draws a checkmark or X that can be styled in the inspector. Presentation switches to a final-export styling workspace without changing the screenshot annotation tools. In Settings > General > Editor, choose whether new editor sessions start with Last Used or a specific default tool. For Window captures with UI Map metadata, the lower toolbar also includes Show UI Map and Pin UI Map."
+                            body: "The first editor command row keeps Discard and every editing tool in a stable, one-click position. Rounded group boundaries organize Selection (Select and Crop), Shapes (Rectangle, Ellipse, Line, Arrow, Status Mark, and Ruler), Drawing and Highlight (Freehand, Highlighter, Highlight Box, and Spotlight), Text and Callout, Redaction, and Recognition and Image (Copy Text, Pick Color, and Insert Image). The selected tool has a filled background and stronger boundary as well as its accessibility state. Open the Redaction button's menu to change between Blur, Pixelate, and Redact. The second row visibly groups History, Layers and Arrangement, Zoom, Workspace, Output, and References and Drag Out in workflow order. At narrow widths, scroll a row horizontally; the groups and commands keep their positions instead of collapsing into category menus or title-bar overflow."
                         ),
                         HelpArticleSection(
                             title: "Select and arrange annotations",
-                            body: "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing, moving, and resizing."
+                            body: "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. Use the trash button in Layers and Arrangement, press Delete, or right-click an annotation and choose Delete. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing, moving, and resizing."
                         ),
                         HelpArticleSection(
                             title: "Use the inspector",
-                            body: "The right inspector changes with the active tool, selection, or workspace. Use it to adjust style, colors, text size, effect strength, image overlay opacity, UI Map display and pin options when available, crop values, Presentation Styles and Scenes, callout step guides, Change History, Recent Snips, search, and the Recycle Bin."
+                            body: "The native right inspector changes with the active tool, selection, or workspace. Use it to adjust style, colors, text size, effect strength, image overlay opacity, UI Map display and pin options when available, crop values, Presentation Styles and Scenes, callout step guides, Change History, Recent Snips, search, and the Recycle Bin. It is visible by default and remembered for each window scene. Use the toolbar button or View > Show/Hide Inspector (Command-Option-I) to toggle it."
                         )
                     ],
                     important: [
@@ -611,7 +615,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Create a floating reference",
                             bullets: [
-                                "Click Float in the edit toolbar to pin the current annotated screenshot without the Presentation wrapper.",
+                                "Click Float in the lower editor command row to pin the current annotated screenshot without the Presentation wrapper.",
                                 "In Presentation mode, click Float to pin the styled presentation output.",
                                 "Choose Reference > Float Current Screenshot when you prefer the menu command; it follows the active editor workspace.",
                                 "Open a Change History, Recent Snip, Capture History, or Recycle Bin preview and click Float Reference to pin that snapshot."
@@ -660,7 +664,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Move around the canvas",
                             bullets: [
-                                "Use Zoom In, Zoom Out, 100%, or Fit in the toolbar. Fit scales the full editable image into view.",
+                                "Use the lower editor command row's Zoom Out, percentage, Zoom In, Fit to Window, or Actual Size controls. Fit scales the full editable image into view.",
                                 "Use pinch zoom, Command-scroll, or Option-scroll to zoom.",
                                 "Use two-finger or mouse-wheel panning and the visible scroll tracks to pan."
                             ]
@@ -680,15 +684,15 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Add annotations",
-                            body: "Draw shapes, lines, arrows, checkmarks and X status marks, freehand strokes, marker-style highlighter strokes, highlight boxes, rulers, spotlights, text, and callouts from the toolbar. Status Mark offers Circled, Cartoon, and Vintage treatments in the inspector, along with the standard color controls. Text boxes and callouts fit snugly while you type until you manually resize them; after a manual resize, their width stays fixed and they grow taller as text wraps. Selected text boxes and callouts can be edited in place with normal cursor movement, arrow keys, selection, and click-to-position behavior. Import Image adds an editable overlay that can be moved, resized, rotated, faded, saved, copied, exported, and shared."
+                            body: "Draw shapes, lines, arrows, checkmarks and X status marks, freehand strokes, marker-style highlighter strokes, highlight boxes, rulers, spotlights, text, and callouts from the direct buttons in the top editor command row. Status Mark offers Circled, Cartoon, and Vintage treatments in the inspector, along with the standard color controls. Text boxes and callouts fit snugly while you type until you manually resize them; after a manual resize, their width stays fixed and they grow taller as text wraps. Selected text boxes and callouts can be edited in place with normal cursor movement, arrow keys, selection, and click-to-position behavior. Insert Image adds an editable overlay that can be moved, resized, rotated, faded, saved, copied, exported, and shared."
                         ),
                         HelpArticleSection(
                             title: "Edit styles",
-                            body: "Use the inspector to change stroke color, fill color, line width, text size, effect strength, arrow heads, arrow labels, status mark symbol and treatment, callout style, rectangle corners, freehand smoothing, and alignment where supported. Use the editor toolbar rotate button to turn selected annotations by 90 degrees."
+                            body: "Use the inspector to change stroke color, fill color, line width, text size, effect strength, arrow heads, arrow labels, status mark symbol and treatment, callout style, rectangle corners, freehand smoothing, and alignment where supported. Use Rotate in the lower editor command row to turn selected annotations by 90 degrees."
                         ),
                         HelpArticleSection(
                             title: "Manage layers",
-                            body: "Use the Layers button in the editor toolbar or Arrange > Show Layers to open a separate Layers window. The window shows editable annotations from front to back, lets you select one or more layers, drag to reorder, group or ungroup, and delete selected layers without using the inspector."
+                            body: "Use the Layers button in the lower editor command row or Arrange > Show Layers to open a separate Layers window. The window shows editable annotations from front to back, lets you select one or more layers, drag to reorder, and provides Arrange, Group, and Delete controls above the list."
                         ),
                         HelpArticleSection(
                             title: "Sample colors",
@@ -714,8 +718,8 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Choose a redaction mode",
                             steps: [
-                                "Select the Redaction tool.",
-                                "In the inspector, choose Blur, Pixelate, or Redact.",
+                                "Open the direct Redaction tool's menu and choose Blur, Pixelate, or Redact.",
+                                "The menu label changes to show the active redaction mode.",
                                 "Drag over the content you want to cover.",
                                 "Use the Effect slider for Blur or Pixelate strength."
                             ]
@@ -742,7 +746,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Copy recognized text",
                             steps: [
-                                "Select Copy Text in the toolbar.",
+                                "Choose the Copy Text tool in the top editor command row.",
                                 "Drag over the text region in the screenshot.",
                                 "Review the normalized text.",
                                 "Copy the accepted text to the clipboard."
@@ -768,11 +772,11 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Use Copy or Share",
-                            body: "Use Copy in the editor toolbar to copy the plain annotated screenshot with crop, annotations, pinned UI Map overlays, and flattened redactions. In Presentation mode, use Copy Styled to copy the styled presentation output. Presentation styling changes do not auto-copy while you are in Presentation mode; use Copy Styled when you want the current styled result on the clipboard."
+                            body: "Use Copy in the lower editor command row to copy the plain annotated screenshot with crop, annotations, pinned UI Map overlays, and flattened redactions. In Presentation mode, use Copy Styled to copy the styled presentation output. Presentation styling changes do not auto-copy while you are in Presentation mode; use Copy Styled when you want the current styled result on the clipboard."
                         ),
                         HelpArticleSection(
                             title: "Export screenshots",
-                            body: "Click Presentation in the editor toolbar to switch into a focused export workspace. The first time you enter Presentation mode after each app startup, SnipSnipSnip shows an experimental-feature notice with a Discord feedback link. Presentation mode hides annotation tools and shows Back to Edit, zoom, Save Variant, Copy Styled, Export Styled, Share, Float, and drag-out actions. Float in Presentation mode opens the styled result; Float after returning to edit opens the plain annotated editor result. The Style tab handles fast native polish such as transparent, solid, gradient, spotlight, or blurred-screenshot backgrounds, spacing, corners, and shadows. Use the Scene tab for browser, window, phone, tablet, and other template-driven layouts. Transparent presentation output uses PNG so rounded corners and shadows can stay on alpha."
+                            body: "Choose Presentation in the lower editor command row to switch into a focused export workspace. The first time you enter Presentation mode after each app startup, SnipSnipSnip shows an experimental-feature notice with a Discord feedback link. Presentation mode replaces the tool row with Back to Edit while retaining zoom, Save Variant, Copy Styled, Export, Share, Float, and drag-out actions. Float in Presentation mode opens the styled result; Float after returning to edit opens the plain annotated editor result. The Style tab handles fast native polish such as transparent, solid, gradient, spotlight, or blurred-screenshot backgrounds, spacing, corners, and shadows. Use the Scene tab for browser, window, phone, tablet, and other template-driven layouts. Transparent presentation output uses PNG so rounded corners and shadows can stay on alpha."
                         ),
                         HelpArticleSection(
                             title: "Use Presentation Scenes",
@@ -1208,24 +1212,19 @@ private struct HelpImportantView: View {
     let items: [String]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        InsetGroupBox {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(items, id: \.self) { item in
+                    Text(AppBranding.branded(item))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } label: {
             Label("Important", systemImage: "exclamationmark.triangle")
                 .font(.headline)
-
-            ForEach(items, id: \.self) { item in
-                Text(AppBranding.branded(item))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
-            }
-        }
-        .padding(16)
-        .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.yellow.opacity(0.12))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Color.yellow.opacity(0.25), lineWidth: 1)
+                .foregroundStyle(.orange)
         }
     }
 }

@@ -735,6 +735,21 @@ private_lane :upload_testflight_build do |options|
   changelog_details = tracked_changelog_details(provided_changelog: options[:changelog], lane_name: lane_name)
   prepared = nil
 
+  skip_waiting_value = options[:skip_waiting]
+  skip_waiting_value = ENV["TESTFLIGHT_SKIP_WAITING_FOR_BUILD_PROCESSING"] if skip_waiting_value.nil?
+  skip_waiting_value = nil if skip_waiting_value.to_s.strip.empty?
+  skip_waiting = boolean_option(
+    skip_waiting_value,
+    default_value: !distribute_external && !distribute_only
+  )
+
+  wait_timeout_value = options[:wait_timeout].to_s.strip
+  wait_timeout_value = ENV["TESTFLIGHT_WAIT_PROCESSING_TIMEOUT_DURATION"].to_s.strip if wait_timeout_value.empty?
+  wait_timeout_value = "5400" if wait_timeout_value.empty? && distribute_external && !skip_waiting
+  unless wait_timeout_value.empty? || wait_timeout_value.match?(/\A[1-9]\d*\z/)
+    UI.user_error!("`wait_timeout` must be a positive number of seconds.")
+  end
+
   unless distribute_only
     prepared = prepare_version_and_build_number(
       api_key: api_key,
@@ -757,11 +772,18 @@ private_lane :upload_testflight_build do |options|
       options[:skip_submission] || ENV["TESTFLIGHT_SKIP_SUBMISSION"],
       default_value: !distribute_external
     ),
-    skip_waiting_for_build_processing: boolean_option(
-      options[:skip_waiting] || ENV["TESTFLIGHT_SKIP_WAITING_FOR_BUILD_PROCESSING"],
-      default_value: false
-    )
+    skip_waiting_for_build_processing: skip_waiting
   }
+
+  unless wait_timeout_value.empty? || skip_waiting
+    upload_options[:wait_processing_timeout_duration] = wait_timeout_value.to_i
+  end
+
+  if skip_waiting
+    UI.message("Fastlane will return after App Store Connect acknowledges the upload; Apple will continue processing it asynchronously.")
+  elsif upload_options[:wait_processing_timeout_duration]
+    UI.message("Fastlane will wait up to #{upload_options[:wait_processing_timeout_duration]} seconds for App Store Connect processing.")
+  end
 
   notify_external = nullable_boolean_option(
     options[:notify_external] || ENV["TESTFLIGHT_NOTIFY_EXTERNAL_TESTERS"]
@@ -910,7 +932,7 @@ platform :mac do
     )
   end
 
-  desc "Build and upload a macOS package to TestFlight for internal testers"
+  desc "Build and upload a macOS package for asynchronous TestFlight processing"
   lane :internal_testing do |options|
     upload_testflight_build(options.merge(external: false))
   end

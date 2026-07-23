@@ -45,5 +45,6 @@ extension GuideWorkflowModel: CoordinatorGuidePort {
         capturePreferences = GuideCapturePreferences()
         exportSettings = GuideExportSettings()
         theme = GuideTheme()
+        setDefaultLogo(nil)
     }
 }

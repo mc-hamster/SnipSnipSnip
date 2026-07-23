@@ -114,11 +114,8 @@ struct PresentationInspectorView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            GroupBox("Presentation") {
+            InsetGroupBox {
                 VStack(alignment: .leading, spacing: 12) {
-                    Label("Presentation", systemImage: EditorWorkspaceMode.presentation.systemImage)
-                        .font(.headline)
-
                     Text(presentationSummary)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -141,27 +138,29 @@ struct PresentationInspectorView: View {
                         presentationSceneLibrary
                     }
                 }
+            } label: {
+                Label("Presentation", systemImage: EditorWorkspaceMode.presentation.systemImage)
             }
 
             if selectedTab == .style {
-                GroupBox("Background") {
+                InsetGroupBox("Background") {
                     presentationBackgroundControls
                 }
 
-                GroupBox("Effects") {
+                InsetGroupBox("Effects") {
                     presentationEffectsControls
                 }
             } else {
-                GroupBox("Scene Slots") {
+                InsetGroupBox("Scene Slots") {
                     presentationSceneSlotControls
                 }
 
-                GroupBox("Scene Files") {
+                InsetGroupBox("Scene Files") {
                     presentationSceneFileControls
                 }
 
                 if !controller.presentationSceneDiagnostics.isEmpty {
-                    GroupBox("Scene Diagnostics") {
+                    InsetGroupBox("Scene Diagnostics") {
                         DisclosureGroup("Review Issues", isExpanded: $isShowingSceneDiagnostics) {
                             presentationSceneDiagnostics
                                 .padding(.top, 8)
@@ -170,7 +169,7 @@ struct PresentationInspectorView: View {
                 }
             }
 
-            GroupBox("Variants") {
+            InsetGroupBox("Variants") {
                 savedPresentationLibrary
             }
         }
@@ -265,7 +264,7 @@ struct PresentationInspectorView: View {
             } label: {
                 Label("Clear Scene", systemImage: "xmark.circle")
             }
-            .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+            .buttonStyle(.glass)
             .disabled(controller.presentation.scene == nil)
         }
     }
@@ -290,7 +289,7 @@ struct PresentationInspectorView: View {
                 } label: {
                     Label("Save", systemImage: "plus")
                 }
-                .buttonStyle(SSSChromeButtonStyle())
+                .buttonStyle(.glass)
                 .help("Save the current presentation as a variant in this .sss document.")
             }
 
@@ -344,7 +343,7 @@ struct PresentationInspectorView: View {
                 } label: {
                     Label("Rename", systemImage: "pencil")
                 }
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .buttonStyle(.glass)
                 .disabled(selectedSavedPresentation == nil)
 
                 Button {
@@ -355,7 +354,7 @@ struct PresentationInspectorView: View {
                 } label: {
                     Label("Update", systemImage: "arrow.triangle.2.circlepath")
                 }
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .buttonStyle(.glass)
                 .disabled(selectedSavedPresentation == nil)
                 .help("Replace the selected saved presentation with the current Presentation settings.")
             }
@@ -376,7 +375,7 @@ struct PresentationInspectorView: View {
                 } label: {
                     Label("Duplicate", systemImage: "plus.square.on.square")
                 }
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .buttonStyle(.glass)
                 .disabled(selectedSavedPresentation == nil)
 
                 Button(role: .destructive) {
@@ -391,7 +390,7 @@ struct PresentationInspectorView: View {
                 } label: {
                     Label("Delete", systemImage: "trash")
                 }
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .buttonStyle(.glass)
                 .disabled(selectedSavedPresentation == nil)
             }
         }
@@ -461,7 +460,7 @@ struct PresentationInspectorView: View {
                         } label: {
                             Label("Reset Framing", systemImage: "scope")
                         }
-                        .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                        .buttonStyle(.glass)
                     }
                     .padding(.top, 8)
                 }
@@ -530,7 +529,7 @@ struct PresentationInspectorView: View {
             }
             .help("Nudge right")
         }
-        .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+        .buttonStyle(.glass)
     }
 
     private var presentationSceneFileControls: some View {
@@ -547,14 +546,14 @@ struct PresentationInspectorView: View {
                 } label: {
                     Label("Reveal User Folder", systemImage: "folder")
                 }
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .buttonStyle(.glass)
 
                 Button {
                     deferPublish { controller.reloadPresentationScenes() }
                 } label: {
                     Label("Reload", systemImage: "arrow.clockwise")
                 }
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .buttonStyle(.glass)
             }
 
             DisclosureGroup("Folder Layout", isExpanded: $isShowingSceneFiles) {
@@ -607,7 +606,7 @@ struct PresentationInspectorView: View {
                 } label: {
                     Label("Save Style", systemImage: "plus")
                 }
-                .buttonStyle(SSSChromeButtonStyle())
+                .buttonStyle(.glass)
                 .help("Save the current native presentation style globally.")
 
                 Button {
@@ -624,7 +623,7 @@ struct PresentationInspectorView: View {
                 } label: {
                     Label("Rename", systemImage: "pencil")
                 }
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .buttonStyle(.glass)
                 .disabled(selectedPresentationTemplate?.isBuiltIn ?? true)
 
                 Button {
@@ -642,7 +641,7 @@ struct PresentationInspectorView: View {
                 } label: {
                     Label("Duplicate", systemImage: "plus.square.on.square")
                 }
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .buttonStyle(.glass)
                 .disabled(selectedPresentationTemplate == nil)
             }
 
@@ -655,7 +654,8 @@ struct PresentationInspectorView: View {
                 } label: {
                     Label("Default", systemImage: controller.defaultPresentationTemplateID == selectedPresentationTemplateID ? "checkmark.circle.fill" : "checkmark.circle")
                 }
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary, isSelected: controller.defaultPresentationTemplateID == selectedPresentationTemplateID))
+                .buttonStyle(.glass)
+                .accessibilityAddTraits(controller.defaultPresentationTemplateID == selectedPresentationTemplateID ? .isSelected : [])
                 .disabled(selectedPresentationTemplate == nil)
 
                 Button {
@@ -663,7 +663,7 @@ struct PresentationInspectorView: View {
                 } label: {
                     Label("Clear", systemImage: "xmark.circle")
                 }
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .buttonStyle(.glass)
                 .disabled(controller.defaultPresentationTemplateID == nil)
 
                 Button(role: .destructive) {
@@ -678,7 +678,7 @@ struct PresentationInspectorView: View {
                 } label: {
                     Label("Delete", systemImage: "trash")
                 }
-                .buttonStyle(SSSChromeButtonStyle(tint: .secondary))
+                .buttonStyle(.glass)
                 .disabled(selectedPresentationTemplate?.isBuiltIn ?? true)
             }
         }
@@ -1098,10 +1098,20 @@ private struct PresentationTemplateTileView: View {
             .padding(8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .sssGlassSurface(cornerRadius: 12, tint: isSelected ? Color.accentColor.opacity(0.16) : Color.white.opacity(0.03), shadowOpacity: 0.025)
+            .background(
+                isSelected ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08),
+                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+            )
             .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(isSelected ? Color.accentColor.opacity(0.72) : Color.primary.opacity(0.10), lineWidth: isSelected ? 1.4 : 0.8)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(isSelected ? Color.accentColor : Color.primary.opacity(0.18), lineWidth: isSelected ? 1.5 : 1)
+            }
+            .overlay(alignment: .topTrailing) {
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Color.accentColor)
+                        .padding(6)
+                }
             }
         }
         .buttonStyle(.plain)
@@ -1154,10 +1164,20 @@ private struct PresentationSceneTileView: View {
             .padding(8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .sssGlassSurface(cornerRadius: 12, tint: isSelected ? Color.accentColor.opacity(0.16) : Color.white.opacity(0.03), shadowOpacity: 0.02)
+            .background(
+                isSelected ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08),
+                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+            )
             .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(isSelected ? Color.accentColor.opacity(0.95) : Color.white.opacity(0.08), lineWidth: isSelected ? 1.5 : 1)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(isSelected ? Color.accentColor : Color.primary.opacity(0.18), lineWidth: isSelected ? 1.5 : 1)
+            }
+            .overlay(alignment: .topTrailing) {
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Color.accentColor)
+                        .padding(6)
+                }
             }
         }
         .buttonStyle(.plain)
@@ -1191,10 +1211,20 @@ private struct SavedPresentationTileView: View {
             .padding(8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .sssGlassSurface(cornerRadius: 12, tint: isSelected ? Color.accentColor.opacity(0.16) : Color.white.opacity(0.03), shadowOpacity: 0.02)
+            .background(
+                isSelected ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08),
+                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+            )
             .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(isSelected ? Color.accentColor.opacity(0.95) : Color.white.opacity(0.08), lineWidth: isSelected ? 1.5 : 1)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(isSelected ? Color.accentColor : Color.primary.opacity(0.18), lineWidth: isSelected ? 1.5 : 1)
+            }
+            .overlay(alignment: .topTrailing) {
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Color.accentColor)
+                        .padding(6)
+                }
             }
         }
         .buttonStyle(.plain)

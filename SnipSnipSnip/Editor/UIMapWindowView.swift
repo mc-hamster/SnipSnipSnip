@@ -644,7 +644,7 @@ private struct UIMapTreeNodeView: View {
         }
 
         if isSearchMatch {
-            return AnyShapeStyle(Color.yellow.opacity(0.18))
+            return AnyShapeStyle(Color.secondary.opacity(0.12))
         }
 
         return AnyShapeStyle(Color.clear)

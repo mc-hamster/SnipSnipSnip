@@ -917,6 +917,48 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testAnnotationContextMenuDeletesTheCurrentSelection() throws {
+        let first = Annotation.makeRectangle(in: CGRect(x: 20, y: 20, width: 40, height: 30))
+        let second = Annotation.makeEllipse(in: CGRect(x: 80, y: 20, width: 40, height: 30))
+        let remaining = Annotation.makeRectangle(in: CGRect(x: 20, y: 70, width: 40, height: 30))
+        let snapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 160, height: 120),
+            annotations: [first, second, remaining],
+            selectedAnnotationIDs: [first.id, second.id]
+        )
+        let controller = makeController(snapshot: snapshot)
+        let (_, overlay, window) = makeCanvasHarness(
+            controller: controller,
+            frame: CGRect(x: 0, y: 0, width: 640, height: 480)
+        )
+        let viewPoint = viewPoint(
+            for: CGPoint(x: second.boundingRect.midX, y: second.boundingRect.midY),
+            controller: controller
+        )
+        let event = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .rightMouseDown,
+            location: overlay.convert(viewPoint, to: nil),
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 1
+        ))
+
+        let menu = try XCTUnwrap(overlay.menu(for: event))
+
+        XCTAssertEqual(menu.items.map(\.title), ["Delete 2 Annotations"])
+        XCTAssertEqual(controller.snapshot.selectedAnnotationIDs, [first.id, second.id])
+
+        menu.performActionForItem(at: 0)
+
+        XCTAssertEqual(controller.snapshot.annotations.map(\.id), [remaining.id])
+        XCTAssertTrue(controller.snapshot.selectedAnnotationIDs.isEmpty)
+    }
+
+    @MainActor
     func testRectangleToolDragAddsAnnotation() {
         let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
         controller.activeTool = .rectangle

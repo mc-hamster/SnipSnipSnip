@@ -6,6 +6,7 @@ extension Notification.Name {
     static let sssPendingPasteboardImageImportsDidChange = Notification.Name("sssPendingPasteboardImageImportsDidChange")
     static let sssPendingAutomationRequestsDidChange = Notification.Name("sssPendingAutomationRequestsDidChange")
     static let sssOpenMainWindowRequest = Notification.Name("sssOpenMainWindowRequest")
+    static let sssToggleEditorInspector = Notification.Name("sssToggleEditorInspector")
 }
 
 @MainActor
