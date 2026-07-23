@@ -98,6 +98,10 @@ final class GuideMediaCaptureSession: ScreenRecordingPlatformEventSink, ScreenRe
         preferences: GuideCapturePreferences,
         systemServices: AppSystemServices
     ) async throws -> GuideMediaCaptureSession {
+        try await requestMicrophoneAccessIfNeeded(
+            preferences: preferences,
+            platform: systemServices.screenRecordingPlatform
+        )
         let content = try await systemServices.screenRecordingPlatform.shareableContent()
         let resolved = try resolve(
             source: source,
@@ -137,6 +141,14 @@ final class GuideMediaCaptureSession: ScreenRecordingPlatformEventSink, ScreenRe
         )
         session.resolvedSource = resolved
         return session
+    }
+
+    nonisolated static func requestMicrophoneAccessIfNeeded(
+        preferences: GuideCapturePreferences,
+        platform: any ScreenRecordingPlatform
+    ) async throws {
+        guard preferences.sourceVideoEnabled, preferences.capturesMicrophone else { return }
+        try await platform.requestMicrophoneAccess()
     }
 
     nonisolated private static func configuration(

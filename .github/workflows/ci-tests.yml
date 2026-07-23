@@ -26,12 +26,6 @@ jobs:
             -scheme SnipSnipSnip \
             -destination 'platform=macOS,arch=arm64' \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
-            -only-testing 'SnipSnipSnipTests/CaptureModelsTests' \
-            -only-testing 'SnipSnipSnipTests/GeometrySupportTests' \
-            -only-testing 'SnipSnipSnipTests/EditorControllerTests/testPresentationCornerRadiusClampsToOneHundred' \
-            -only-testing 'SnipSnipSnipTests/EditorControllerTests/testPresentationDefaultsToTransparentBackground' \
-            -only-testing 'SnipSnipSnipTests/EditorControllerTests/testPresentationPresetChangesAreUndoable' \
-            -only-testing 'SnipSnipSnipTests/EditorControllerTests/testPresentationShadowDirectionControlsSignedOffsets' \
             CODE_SIGNING_ALLOWED=NO \
             -resultBundlePath "$RUNNER_TEMP/TestResults.xcresult"
 

@@ -105,6 +105,34 @@ struct CLI {
                 arguments.append("privateCapture:true")
             }
             return appleScriptCommand(commandName, arguments: arguments)
+        case "guide":
+            guard let action = cursor.next() else {
+                return nil
+            }
+            var arguments = ["action:\"\(escape(action))\""]
+            switch action {
+            case "start":
+                guard let target = cursor.value(after: "--target"),
+                      ["window", "app", "region", "display"].contains(target.lowercased()) else {
+                    return nil
+                }
+                arguments.append("target:\"\(escape(target.lowercased()))\"")
+                if cursor.contains("--private") {
+                    arguments.append("privateCapture:true")
+                }
+            case "pause", "resume", "add-step", "stop":
+                break
+            case "export":
+                guard let format = cursor.value(after: "--format"),
+                      ["pdf", "gif", "apng", "mp4-full", "mp4-highlights", "mp4-slideshow", "images", "zip"]
+                        .contains(format.lowercased()) else {
+                    return nil
+                }
+                arguments.append("format:\"\(escape(format.lowercased()))\"")
+            default:
+                return nil
+            }
+            return appleScriptCommand("guide", arguments: arguments)
         case "repeat-last":
             return appleScriptCommand("repeatLastCapture", arguments: outputParts(cursor: &cursor))
         case "export":

@@ -17,6 +17,16 @@ on:
         required: true
         default: false
         type: boolean
+      metadata_ready:
+        description: "App Store metadata and screenshots are complete"
+        required: true
+        default: false
+        type: boolean
+      manual_qa_confirmed:
+        description: "Signed TestFlight QA checklist is complete"
+        required: true
+        default: false
+        type: boolean
 
 concurrency:
   group: app-store-release
@@ -48,12 +58,6 @@ jobs:
             -scheme SnipSnipSnip \
             -destination 'platform=macOS,arch=arm64' \
             -derivedDataPath "$RUNNER_TEMP/DerivedDataReleaseGate" \
-            -only-testing 'SnipSnipSnipTests/CaptureModelsTests' \
-            -only-testing 'SnipSnipSnipTests/GeometrySupportTests' \
-            -only-testing 'SnipSnipSnipTests/EditorControllerTests/testPresentationCornerRadiusClampsToOneHundred' \
-            -only-testing 'SnipSnipSnipTests/EditorControllerTests/testPresentationDefaultsToTransparentBackground' \
-            -only-testing 'SnipSnipSnipTests/EditorControllerTests/testPresentationPresetChangesAreUndoable' \
-            -only-testing 'SnipSnipSnipTests/EditorControllerTests/testPresentationShadowDirectionControlsSignedOffsets' \
             CODE_SIGNING_ALLOWED=NO
 
   release:
@@ -96,9 +100,9 @@ jobs:
           APP_STORE_CONNECT_API_KEY_PATH: fastlane/AuthKey_ci.p8
           APP_STORE_SUBMIT_FOR_REVIEW: ${{ inputs.submit_for_review }}
           APP_STORE_AUTOMATIC_RELEASE: ${{ inputs.automatic_release }}
-          RELEASE_METADATA_READY: true
+          RELEASE_METADATA_READY: ${{ inputs.metadata_ready }}
           RELEASE_TESTS_CONFIRMED: true
-          RELEASE_MANUAL_QA_CONFIRMED: true
+          RELEASE_MANUAL_QA_CONFIRMED: ${{ inputs.manual_qa_confirmed }}
           RELEASE_SKIP_TESTS: true
         run: |
           if [ -n "${{ inputs.version }}" ]; then

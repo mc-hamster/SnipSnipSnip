@@ -2,12 +2,61 @@ import AppKit
 import Foundation
 import OSLog
 
-struct AutomationExecutionError: LocalizedError {
+nonisolated struct AutomationExecutionError: LocalizedError {
     var code: AutomationErrorCode
     var message: String
 
     var errorDescription: String? {
         message
+    }
+}
+
+nonisolated struct AutomationFileDestinationPolicy {
+    var restrictsUnattendedOutputToDownloads: Bool
+    var downloadsDirectory: URL?
+
+    static var current: AutomationFileDestinationPolicy {
+#if APP_STORE_BUILD
+        AutomationFileDestinationPolicy(
+            restrictsUnattendedOutputToDownloads: true,
+            downloadsDirectory: FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+        )
+#else
+        AutomationFileDestinationPolicy(
+            restrictsUnattendedOutputToDownloads: false,
+            downloadsDirectory: nil
+        )
+#endif
+    }
+
+    func validate(_ url: URL) throws -> URL {
+        guard url.isFileURL else {
+            throw AutomationExecutionError(
+                code: .invalidRequest,
+                message: "Automation file output requires a local file path."
+            )
+        }
+
+        let candidate = url.standardizedFileURL
+        guard restrictsUnattendedOutputToDownloads else { return candidate }
+        guard let downloadsDirectory else {
+            throw AutomationExecutionError(
+                code: .permissionDenied,
+                message: "The Downloads folder is unavailable for unattended automation output."
+            )
+        }
+
+        let downloads = downloadsDirectory.standardizedFileURL
+        let downloadsComponents = downloads.pathComponents
+        let candidateComponents = candidate.pathComponents
+        guard candidateComponents.count > downloadsComponents.count,
+              candidateComponents.prefix(downloadsComponents.count).elementsEqual(downloadsComponents) else {
+            throw AutomationExecutionError(
+                code: .permissionDenied,
+                message: "The App Store build can save unattended automation output only in Downloads. Choose a Downloads path or use an interactive export."
+            )
+        }
+        return candidate
     }
 }
 
@@ -87,17 +136,20 @@ final class AutomationOutputService {
     private let files: any FileSystemServicing
     private let workspace: any WorkspaceServicing
     private let pasteboard: any PasteboardServicing
+    private let destinationPolicy: AutomationFileDestinationPolicy
 
     init(
         port: AutomationOutputPort,
         files: any FileSystemServicing = SystemFileService(),
         workspace: any WorkspaceServicing = SystemWorkspaceService(),
-        pasteboard: any PasteboardServicing = SystemPasteboardService()
+        pasteboard: any PasteboardServicing = SystemPasteboardService(),
+        destinationPolicy: AutomationFileDestinationPolicy = .current
     ) {
         self.port = port
         self.files = files
         self.workspace = workspace
         self.pasteboard = pasteboard
+        self.destinationPolicy = destinationPolicy
     }
 
     func write(_ output: AutomationOutput) async throws -> [AutomationOutputResult] {
@@ -207,7 +259,7 @@ final class AutomationOutputService {
             ShortcutsAutomationLog.logger.error("output.url missing")
             throw AutomationExecutionError(code: .invalidRequest, message: "Automation file output requires a path.")
         }
-        return url
+        return try destinationPolicy.validate(url)
     }
 
     private func writeFile(to url: URL, overwrite: Bool, operation: () async throws -> Void) async throws {

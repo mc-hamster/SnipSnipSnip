@@ -63,6 +63,17 @@ struct HelpGuideView: View {
         let connectedDeviceCaptureEnabled = capabilities.isEnabled(.connectedDeviceCapture)
         let uiMapEnabled = capabilities.isEnabled(.uiMap)
         let proUpdateCheckEnabled = capabilities.isEnabled(.proUpdateCheck)
+        let guideEnabled = capabilities.isEnabled(.guide)
+        var accessibilityUses: [String] = []
+        if guideEnabled {
+            accessibilityUses.append("Guide uses it while active to observe actions and keyboard focus, group non-secure text entry, and mask secure fields.")
+        }
+        if scrollingCaptureEnabled {
+            accessibilityUses.append("Scrolling Capture uses it to scroll the selected app while collecting segments.")
+        }
+        if uiMapEnabled {
+            accessibilityUses.append("Window UI Map uses it to read visible interface element names, roles, identifiers, and locations during a user-initiated Window capture.")
+        }
 
         return [
         HelpCategory(
@@ -119,8 +130,8 @@ struct HelpGuideView: View {
                     important: [
                         "Screen Recording permission is required before macOS lets SnipSnipSnip capture pixels or show live window thumbnails.",
                         "Support requests and feature requests start from Help > Support."
-                    ] + (scrollingCaptureEnabled || uiMapEnabled
-                        ? ["Accessibility permission is required for Window UI Map metadata capture\(scrollingCaptureEnabled ? " and Scrolling Capture" : ""). Region and Fullscreen captures do not require Accessibility because of UI Map."]
+                    ] + (guideEnabled || scrollingCaptureEnabled || uiMapEnabled
+                        ? ["Accessibility permission is required for the enabled workflows that observe other apps, including Guide\(scrollingCaptureEnabled ? ", Scrolling Capture" : "")\(uiMapEnabled ? ", and Window UI Map" : ""). Ordinary Region and Fullscreen screenshots do not require Accessibility."]
                         : []),
                     relatedIDs: ["capture-screenshot", "edit-screenshot", "copy-save-export"]
                 ),
@@ -140,22 +151,18 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Audio permissions",
-                            body: "Microphone and system audio permissions are optional and are not part of onboarding setup. macOS asks for Microphone only when microphone narration is enabled for a recording, and asks for system audio only when system audio capture is enabled."
+                            body: "Microphone and system audio permissions are optional and are not part of onboarding setup. macOS asks for Microphone only when microphone narration is enabled for a recording or Guide, and asks for system audio only when system audio capture is enabled."
                         )
                     ] + (connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(
                             title: "Camera",
                             body: "Required only when you start a connected iPhone or iPad preview, screenshot, or recording, and it is not part of onboarding setup. macOS exposes trusted iPhone and iPad screens as video sources, so the system permission is named Camera even though SnipSnipSnip is using it for the connected-device screen stream."
                         )
-                    ] : []) + (scrollingCaptureEnabled || uiMapEnabled
+                    ] : []) + (guideEnabled || scrollingCaptureEnabled || uiMapEnabled
                         ? [
                             HelpArticleSection(
                                 title: "Accessibility",
-                                body: scrollingCaptureEnabled && uiMapEnabled
-                                    ? "Required for Scrolling Capture and for Window capture when Enable UI Map for Window captures is on. SnipSnipSnip uses it to scroll the selected app during Scrolling Capture and to read visible interface element names, roles, identifiers, and locations from the selected window during UI Map capture."
-                                    : uiMapEnabled
-                                        ? "Required for Window capture when Enable UI Map for Window captures is on. SnipSnipSnip uses it to read visible interface element names, roles, identifiers, and locations from the selected window during a user-initiated Window capture."
-                                        : "Required only for Scrolling Capture. SnipSnipSnip uses it to scroll the selected app while collecting segments.",
+                                body: accessibilityUses.joined(separator: " "),
                                 steps: [
                                     "Click Set Up beside Accessibility in SnipSnipSnip.",
                                     "Allow SnipSnipSnip in System Settings > Privacy & Security > Accessibility.",
@@ -164,10 +171,10 @@ struct HelpGuideView: View {
                             )
                         ]
                         : []),
-                    important: scrollingCaptureEnabled || uiMapEnabled
+                    important: guideEnabled || scrollingCaptureEnabled || uiMapEnabled
                         ? [
-                            uiMapEnabled
-                                ? "Region and Fullscreen screenshot capture do not include UI Map metadata and do not require Accessibility because of UI Map."
+                            guideEnabled
+                                ? "Ordinary Region and Fullscreen screenshot capture do not require Accessibility. Guide does require it while recording a workflow."
                                 : "Region and Fullscreen screenshot capture do not require Accessibility.",
                             "In Settings, Set Up starts a missing permission and Manage opens System Settings for a permission that is already allowed.",
                             "Development builds launched from Xcode may need Accessibility permission for the exact app in DerivedData, not a copy in Applications."
@@ -380,7 +387,7 @@ struct HelpGuideView: View {
                             steps: [
                                 "Choose Guide from the main window, Capture menu, menu bar, or press Command-Shift-G.",
                                 "Choose what you want to make: an editable step-by-step Guide, or a Guide that also keeps full-motion video for a complete walkthrough or action highlights.",
-                                "If you keep video, choose whether it should be silent, use your microphone narration, include app audio, or record narration and app audio together. Guide derives the recording settings from that choice.",
+                                "If you keep video, choose whether it should be silent, use your microphone narration, include app audio, or record narration and app audio together. Guide derives the recording settings from that choice. Audio is captured live; a silent source video cannot be given audio later in the Guide editor.",
                                 "Choose Region, Window, App, or Display from the native capture picker. These match the capture terms used in the main window; App additionally follows you between one app’s windows. Window and App Guides automatically follow the active source when it moves, resizes, or crosses onto a mixed-scale or rotated display. A Guide region stays on the display where the drag begins; the selector visibly clamps it at that display edge. Ordinary screenshot regions may still span displays. Display capture includes every visible app—even SnipSnipSnip itself when you are demonstrating it—while keeping the floating Guide controls out of the result. The last successful choice is preselected so you can confirm or change it before capture begins.",
                                 "Review the plain-language capture summary, or expand Fine-tune capture for optional video smoothness, pointer, desktop cleanup, on-device instruction, secure-field, and display menu-bar choices. Hover over any choice for a plain-language explanation; the defaults work well for most Guides.",
                                 "Work normally. One click, double-click, text selection, scroll burst, three-finger swipe, non-secure text-entry burst, supported keyboard shortcut, or Manual Step creates one step. Guide waits briefly after a swipe so a fullscreen transition can finish before it saves the step. Printable typing is captured even in custom and web editors that do not expose a standard macOS text value. When a non-secure focused field does expose its value, paste, dictation, and input-method edits are detected too. Text changes are grouped into one step after about 0.65 seconds without a change rather than creating a step per key.",
@@ -931,6 +938,7 @@ struct HelpGuideView: View {
                                 "Get automation status and list capture presets.",
                                 "Run a capture preset by choosing a saved preset.",
                                 "Capture fullscreen, frontmost window, region, or interactive window.",
+                                "Start, pause, resume, add a step to, stop, or export a Guide.",
                                 "Repeat the last capture, open an editable .sss document, or export the current screenshot."
                             ]
                         ),
@@ -940,7 +948,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Output and privacy",
-                            body: "Shortcuts actions use the same automation validation as command-line, AppleScript, and URL automation. File output accepts an absolute path or file URL and still checks format and overwrite choices. Private Capture skips archive checkpoints, Recent Snips recovery, Recycle Bin retention, and background OCR indexing for that capture session."
+                            body: "Shortcuts actions use the same automation validation as command-line, AppleScript, and URL automation. File output accepts an absolute path or file URL and still checks format and overwrite choices. In the sandboxed App Store build, unattended file output must be inside Downloads; interactive exports can use a location you choose in the save panel. The direct-download Pro build can use other writable absolute paths. Private Capture skips archive checkpoints, Recent Snips recovery, Recycle Bin retention, and background OCR indexing for that capture session."
                         ),
                         HelpArticleSection(
                             title: "Script interfaces",

@@ -24,14 +24,7 @@ DERIVED_DATA_DIRECTORY = resolve_repo_path(
 )
 ARCHIVE_PATH = File.join(BUILD_ARTIFACTS_DIRECTORY, "#{SCHEME}.xcarchive")
 UPLOAD_STATE_PATH = File.join(BUILD_ARTIFACTS_DIRECTORY, "upload_state.json")
-RELEASE_TEST_TARGETS_DEFAULT = [
-  "SnipSnipSnipTests/CaptureModelsTests",
-  "SnipSnipSnipTests/GeometrySupportTests",
-  "SnipSnipSnipTests/EditorControllerTests/testPresentationCornerRadiusClampsToOneHundred",
-  "SnipSnipSnipTests/EditorControllerTests/testPresentationDefaultsToTransparentBackground",
-  "SnipSnipSnipTests/EditorControllerTests/testPresentationPresetChangesAreUndoable",
-  "SnipSnipSnipTests/EditorControllerTests/testPresentationShadowDirectionControlsSignedOffsets"
-].freeze
+RELEASE_TEST_TARGETS_DEFAULT = [].freeze
 
 def required_env!(key)
   value = ENV[key]
@@ -543,6 +536,7 @@ private_lane :build_release_pkg do |options|
   if build_target == "Self Release"
     xcargs << "SNIP_APP_DISPLAY_NAME=#{Shellwords.escape('SnipSnipSnip Pro')}"
     xcargs << "ENABLE_APP_SANDBOX=NO"
+    xcargs << "CODE_SIGN_ENTITLEMENTS="
     xcargs << "ENABLE_RESOURCE_ACCESS_CAMERA=YES"
     xcargs << "INFOPLIST_PREPROCESSOR_DEFINITIONS=SNIP_SELF_RELEASE_INFO=1"
     xcargs << "CODE_SIGN_STYLE=Manual"

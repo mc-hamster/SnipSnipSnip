@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SSSCTL="${SSSCTL:-/Applications/SnipSnipSnip.app/Contents/Library/Helpers/snipsnipsnipctl}"
-OUTPUT_DIR="${OUTPUT_DIR:-$HOME/Desktop}"
+OUTPUT_DIR="${OUTPUT_DIR:-$HOME/Downloads}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 OUTPUT_PATH="$OUTPUT_DIR/fullscreen-$STAMP.png"
 

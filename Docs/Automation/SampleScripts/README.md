@@ -46,13 +46,19 @@ Current procedure matrix:
 | `14-export-current-to-file` | yes | yes | no |
 | `15-private-fullscreen-to-file` | yes | yes | no |
 | `16-open-document-to-file` | yes | yes | no |
+| `17-start-guide-window` | yes | yes | yes |
+| `18-pause-guide` | yes | yes | yes |
+| `19-resume-guide` | yes | yes | yes |
+| `20-add-guide-step` | yes | yes | yes |
+| `21-stop-guide` | yes | yes | yes |
+| `22-export-guide-pdf` | yes | yes | yes |
 
 Set these environment variables as needed:
 
 ```bash
 export SSSCTL="/Applications/SnipSnipSnip.app/Contents/Library/Helpers/snipsnipsnipctl"
-export OUTPUT_DIR="$HOME/Desktop"
+export OUTPUT_DIR="$HOME/Downloads"
 export PRESET_ID="00000000-0000-0000-0000-000000000000"
 export PRESET_NAME="Daily Clip"
-export SSS_DOCUMENT="$HOME/Desktop/example.sss"
+export SSS_DOCUMENT="$HOME/Downloads/example.sss"
 ```

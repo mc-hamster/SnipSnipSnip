@@ -120,6 +120,7 @@ nonisolated struct SystemCapturePermissionService: CapturePermissionServicing {
             return capabilities.isEnabled(.accessibilityAutomation)
                 || capabilities.isEnabled(.uiMap)
                 || capabilities.isEnabled(.scrollingCapture)
+                || capabilities.isEnabled(.guide)
         }
     }
 

@@ -118,6 +118,34 @@ final class AutomationContractTests: XCTestCase {
         XCTAssertEqual(error.code.rawValue, "confirmationRequired")
     }
 
+    func testSandboxedAutomationFileDestinationPolicyKeepsUnattendedOutputInDownloads() throws {
+        let downloads = URL(fileURLWithPath: "/Users/example/Downloads", isDirectory: true)
+        let policy = AutomationFileDestinationPolicy(
+            restrictsUnattendedOutputToDownloads: true,
+            downloadsDirectory: downloads
+        )
+        let valid = downloads.appendingPathComponent("Captures/example.png")
+
+        XCTAssertEqual(try policy.validate(valid), valid.standardizedFileURL)
+
+        for invalid in [
+            URL(fileURLWithPath: "/Users/example/Desktop/example.png"),
+            URL(fileURLWithPath: "/Users/example/Downloads/../Desktop/example.png"),
+            downloads,
+        ] {
+            XCTAssertThrowsError(try policy.validate(invalid)) { error in
+                XCTAssertEqual((error as? AutomationExecutionError)?.code, .permissionDenied)
+            }
+        }
+
+        let unrestricted = AutomationFileDestinationPolicy(
+            restrictsUnattendedOutputToDownloads: false,
+            downloadsDirectory: nil
+        )
+        let desktop = URL(fileURLWithPath: "/Users/example/Desktop/example.png")
+        XCTAssertEqual(try unrestricted.validate(desktop), desktop.standardizedFileURL)
+    }
+
     func testAppIntentRequestFactoryMapsExistingAutomationCommands() {
         let presetID = UUID()
         let outputURL = URL(fileURLWithPath: "/tmp/SnipSnipSnip-AppIntentTests.png")
@@ -422,6 +450,22 @@ final class AutomationContractTests: XCTestCase {
             ["capture", "region", "--rect", "10,20,300,200", "--output", "/tmp/region.png", "--format", "png", "--overwrite"],
             ["capture", "region", "--interactive", "--open-editor"],
             ["capture", "window", "--interactive", "--copy"],
+            ["guide", "start", "--target", "window"],
+            ["guide", "start", "--target", "app", "--private"],
+            ["guide", "start", "--target", "region"],
+            ["guide", "start", "--target", "display"],
+            ["guide", "pause"],
+            ["guide", "resume"],
+            ["guide", "add-step"],
+            ["guide", "stop"],
+            ["guide", "export", "--format", "pdf"],
+            ["guide", "export", "--format", "gif"],
+            ["guide", "export", "--format", "apng"],
+            ["guide", "export", "--format", "mp4-full"],
+            ["guide", "export", "--format", "mp4-highlights"],
+            ["guide", "export", "--format", "mp4-slideshow"],
+            ["guide", "export", "--format", "images"],
+            ["guide", "export", "--format", "zip"],
             ["repeat-last", "--json", "--open-editor"],
             ["export", "current", "--output", "/tmp/current.png", "--format", "png", "--overwrite"],
             ["capture", "fullscreen", "--private", "--output", "/tmp/private.png", "--format", "png", "--overwrite"],
@@ -433,6 +477,50 @@ final class AutomationContractTests: XCTestCase {
             XCTAssertEqual(result.exitCode, 0, arguments.joined(separator: " "))
             XCTAssertNotNil(result.request, arguments.joined(separator: " "))
         }
+    }
+
+    func testBundledCLIImplementsDocumentedGuideCommands() throws {
+        let text = try String(
+            contentsOf: repoRoot().appendingPathComponent("SnipSnipSnipCLI/main.swift"),
+            encoding: .utf8
+        )
+
+        for fragment in [
+            "case \"guide\":",
+            "\"start\"",
+            "\"pause\"",
+            "\"resume\"",
+            "\"add-step\"",
+            "\"stop\"",
+            "\"export\"",
+            "appleScriptCommand(\"guide\"",
+        ] {
+            XCTAssertTrue(text.contains(fragment), "Bundled CLI is missing Guide support for \(fragment).")
+        }
+    }
+
+    func testBundledCLIHasSandboxedAccessToTheAppsAutomationCommands() throws {
+        let scriptingDefinition = try String(
+            contentsOf: repoRoot().appendingPathComponent("SnipSnipSnip/Automation/SnipSnipSnipAutomation.sdef"),
+            encoding: .utf8
+        )
+        let entitlements = try String(
+            contentsOf: repoRoot().appendingPathComponent("SnipSnipSnipCLI/SnipSnipSnipCLI.entitlements"),
+            encoding: .utf8
+        )
+        let info = try String(
+            contentsOf: repoRoot().appendingPathComponent("SnipSnipSnipCLI/Info.plist"),
+            encoding: .utf8
+        )
+
+        XCTAssertEqual(
+            scriptingDefinition.components(separatedBy: "com.oontz.SnipSnipSnip.automation").count - 1,
+            11,
+            "Every exposed command must belong to the CLI's narrow scripting access group."
+        )
+        XCTAssertTrue(entitlements.contains("com.apple.security.scripting-targets"))
+        XCTAssertTrue(entitlements.contains("com.oontz.SnipSnipSnip.automation"))
+        XCTAssertTrue(info.contains("NSAppleEventsUsageDescription"))
     }
 
     func testScriptingDictionaryContainsDocumentedCommands() throws {
@@ -450,7 +538,8 @@ final class AutomationContractTests: XCTestCase {
             "capture window",
             "repeat last capture",
             "open snip document",
-            "export current screenshot"
+            "export current screenshot",
+            "guide"
         ]
 
         for command in commands {

@@ -21,7 +21,8 @@ Implemented v1 coverage:
   `snipsnipsnip://import-pasteboard`.
 - AppleScript suite commands returning JSON text.
 - `snipsnipsnipctl` CLI helper source using AppleScript/Apple Events as the v1
-  transport.
+  transport. The sandboxed executable embeds its own bundle identity and is
+  entitled only for SnipSnipSnip's dedicated scripting access group.
 - App Intents for macOS Shortcuts, Spotlight, and system automation surfaces,
   backed by the same automation request/result contract.
 - GitHub-only sample scripts under `Docs/Automation/SampleScripts`.
@@ -355,12 +356,12 @@ Proposed commands:
 snipsnipsnipctl status --json
 snipsnipsnipctl presets list --json
 snipsnipsnipctl presets run --id <uuid> --copy
-snipsnipsnipctl presets run --name "Docs Header" --output ~/Desktop/header.png
+snipsnipsnipctl presets run --name "Docs Header" --output ~/Downloads/header.png
 snipsnipsnipctl capture fullscreen --display current --copy
-snipsnipsnipctl capture frontmost-window --output ~/Desktop/frontmost.png
-snipsnipsnipctl capture region --rect 100,120,800,450 --output ~/Desktop/region.png
+snipsnipsnipctl capture frontmost-window --output ~/Downloads/frontmost.png
+snipsnipsnipctl capture region --rect 100,120,800,450 --output ~/Downloads/region.png
 snipsnipsnipctl capture region --interactive --open-editor
-snipsnipsnipctl export current --format png --output ~/Desktop/current.png
+snipsnipsnipctl export current --format png --output ~/Downloads/current.png
 ```
 
 Exit code guidance:
@@ -378,6 +379,9 @@ CLI best practices:
 - Prefer `presets run` over hard-coded region coordinates.
 - Use `--json` for scripts and parse `status`, `outputs`, and `error.code`.
 - Use unique output paths or `--overwrite` explicitly.
+- In the sandboxed App Store build, keep unattended file output inside
+  Downloads. Interactive save panels may grant access elsewhere, while the
+  direct-download Pro build can use other writable absolute paths.
 - Run `status --json` before unattended workflows.
 - Use `--interactive` only for workflows where a picker or region overlay is
   acceptable.
@@ -398,12 +402,12 @@ tell application "SnipSnipSnip"
     automationStatus
     listCapturePresets
     runCapturePreset given name:"Docs Header", output:"clipboard"
-    captureFullscreen given display:"current", outputPath:"/Users/me/Desktop/fullscreen.png", format:"png", overwrite:true
+    captureFullscreen given display:"current", outputPath:"/Users/me/Downloads/fullscreen.png", format:"png", overwrite:true
     captureFrontmostWindow given output:"editor"
-    captureRegion given rect:"100,100,640,480", outputPath:"/Users/me/Desktop/region.png", format:"png", overwrite:true
+    captureRegion given rect:"100,100,640,480", outputPath:"/Users/me/Downloads/region.png", format:"png", overwrite:true
     captureWindow given interactive:true, output:"clipboard"
     repeatLastCapture given output:"editor"
-    exportCurrentScreenshot given outputPath:"/Users/me/Desktop/current.png", format:"png", overwrite:true
+    exportCurrentScreenshot given outputPath:"/Users/me/Downloads/current.png", format:"png", overwrite:true
 end tell
 ```
 
@@ -510,7 +514,10 @@ Supporting types:
 - App enums map Shortcuts choices to existing automation output, export format,
   fullscreen display, delay, cursor, and UI Map values.
 - File output accepts an absolute POSIX path or `file://` URL string, then maps
-  to the existing `AutomationOutput` file validation.
+  to the existing `AutomationOutput` file validation. The sandboxed App Store
+  build rejects unattended destinations outside Downloads with
+  `permissionDenied`; interactive save panels and the unsandboxed
+  direct-download Pro build retain their existing destination behavior.
 - `AppShortcutsProvider` advertises common capture phrases and uses
   `AppIntents.AppShortcut` explicitly so it does not collide with the in-app
   keyboard shortcut catalog.
@@ -522,6 +529,7 @@ Supporting types:
 - Never capture pixels without Screen Recording permission.
 - Never attempt scrolling capture or UI Map metadata capture without the
   Accessibility permission required by the existing feature.
+- Never start Guide without Screen Recording and Accessibility permission.
 - Do not grant extra permission because a request came from CLI, AppleScript,
   URL, or App Intents.
 - Do not persist screenshots, OCR text, clipboard content, annotation text, or

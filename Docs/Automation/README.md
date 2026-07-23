@@ -18,7 +18,9 @@ response. Use App Intents when users want native Shortcuts actions.
   surfaces, and user-authored automations that should appear as native actions.
 
 The v1 CLI transport uses AppleScript and Apple Events. The app does not expose
-XPC or a local HTTP server in v1.
+XPC or a local HTTP server in v1. The sandboxed helper has an embedded bundle
+identity and is limited to SnipSnipSnip's dedicated automation scripting access
+group; it does not receive general Apple Events access to other apps.
 
 ## Permissions
 
@@ -78,15 +80,15 @@ alias snipsnipsnipctl="/Applications/SnipSnipSnip.app/Contents/Library/Helpers/s
 snipsnipsnipctl --json status
 snipsnipsnipctl presets list
 snipsnipsnipctl presets run --id UUID --copy
-snipsnipsnipctl presets run --name "Daily Clip" --output ~/Desktop/capture.png --format png --overwrite
-snipsnipsnipctl capture fullscreen --output ~/Desktop/fullscreen.png --format png --overwrite
+snipsnipsnipctl presets run --name "Daily Clip" --output ~/Downloads/capture.png --format png --overwrite
+snipsnipsnipctl capture fullscreen --output ~/Downloads/fullscreen.png --format png --overwrite
 snipsnipsnipctl capture frontmost-window --open-editor
-snipsnipsnipctl capture region --rect 100,100,640,480 --output ~/Desktop/region.png --format png --overwrite
+snipsnipsnipctl capture region --rect 100,100,640,480 --output ~/Downloads/region.png --format png --overwrite
 snipsnipsnipctl capture region --interactive --open-editor
 snipsnipsnipctl capture window --interactive --copy
 snipsnipsnipctl repeat-last --json --open-editor
-snipsnipsnipctl export current --output ~/Desktop/current.png --format png --overwrite
-snipsnipsnipctl open --file ~/Desktop/example.sss --output ~/Desktop/example.png --format png --overwrite
+snipsnipsnipctl export current --output ~/Downloads/current.png --format png --overwrite
+snipsnipsnipctl open --file ~/Downloads/example.sss --output ~/Downloads/example.png --format png --overwrite
 snipsnipsnipctl guide start --target window
 snipsnipsnipctl guide pause
 snipsnipsnipctl guide resume
@@ -122,6 +124,12 @@ Supported flags:
 - `--overwrite`: replace an existing output file.
 - `--private`: request Private Capture behavior.
 
+The sandboxed App Store build accepts unattended file destinations only inside
+the current user's Downloads folder. This matches the app's Downloads
+entitlement and fails early with `permissionDenied` instead of attempting a
+write macOS will reject. Interactive exports can use a location chosen in the
+save panel. The direct-download Pro build can use other writable absolute paths.
+
 ### CLI Exit Codes
 
 - `0`: succeeded or accepted.
@@ -139,13 +147,13 @@ tell application id "com.oontz.SnipSnipSnip"
     automationStatus
     listCapturePresets
     runCapturePreset given name:"Daily Clip", output:"clipboard"
-    captureFullscreen given outputPath:"/Users/me/Desktop/fullscreen.png", format:"png", overwrite:true
+    captureFullscreen given outputPath:"/Users/me/Downloads/fullscreen.png", format:"png", overwrite:true
     captureFrontmostWindow given output:"editor"
-    captureRegion given rect:"100,100,640,480", outputPath:"/Users/me/Desktop/region.png", format:"png", overwrite:true
+    captureRegion given rect:"100,100,640,480", outputPath:"/Users/me/Downloads/region.png", format:"png", overwrite:true
     captureRegion given interactive:true, output:"editor"
     captureWindow given interactive:true, output:"clipboard"
     repeatLastCapture given output:"editor"
-    exportCurrentScreenshot given outputPath:"/Users/me/Desktop/current.png", format:"png", overwrite:true
+    exportCurrentScreenshot given outputPath:"/Users/me/Downloads/current.png", format:"png", overwrite:true
 end tell
 ```
 
@@ -193,6 +201,7 @@ Available actions:
 - Repeat Last SnipSnipSnip Capture
 - Open SnipSnipSnip Document
 - Export Current SnipSnipSnip Screenshot
+- Control SnipSnipSnip Guide
 
 Shortcut suggestions include high-value capture actions for fullscreen, region,
 window, frontmost window, repeat last capture, and running a capture preset.
@@ -206,7 +215,8 @@ Foreground/background behavior:
   `floatReference` outputs continue in SnipSnipSnip before completing.
 - File output accepts an absolute POSIX path such as
   `/Users/me/Downloads/output.png` or a `file://` URL, then uses the same
-  overwrite and format validation as other automation interfaces.
+  overwrite and format validation as other automation interfaces. The
+  sandboxed App Store build restricts unattended output to Downloads.
 - Opening a `.sss` document uses an `IntentFile` constrained to the
   SnipSnipSnip document package type.
 
@@ -270,7 +280,7 @@ and permissions before starting a capture:
   "outputs": [
     {
       "kind": "savedFile",
-      "url": "file:///Users/me/Desktop/fullscreen.png",
+      "url": "file:///Users/me/Downloads/fullscreen.png",
       "format": "png",
       "message": null
     }

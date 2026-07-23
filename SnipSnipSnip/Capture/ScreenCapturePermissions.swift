@@ -40,7 +40,7 @@ nonisolated enum CapturePermissionRequirement: CaseIterable, Identifiable {
         case .screenRecording:
             return "Captures, recordings, and live window thumbnails."
         case .accessibility:
-            return "Scrolling Capture and Window UI Map workflows."
+            return "Guide and other Accessibility-assisted workflows."
         }
     }
 

@@ -1,4 +1,4 @@
-set outputPath to ((path to desktop as text) & "region.png")
+set outputPath to ((path to downloads folder as text) & "region.png")
 set outputPOSIXPath to POSIX path of outputPath
 
 tell application id "com.oontz.SnipSnipSnip"

@@ -151,20 +151,35 @@ You can disable the gate only for emergencies with:
 RELEASE_SAFETY_CHECKS=false
 ```
 
-The `release` lane also runs a deterministic release test gate by default using `-only-testing` targets:
-
-- `SnipSnipSnipTests/CaptureModelsTests`
-- `SnipSnipSnipTests/GeometrySupportTests`
-- `SnipSnipSnipTests/EditorControllerTests/testPresentationCornerRadiusClampsToOneHundred`
-- `SnipSnipSnipTests/EditorControllerTests/testPresentationDefaultsToTransparentBackground`
-- `SnipSnipSnipTests/EditorControllerTests/testPresentationPresetChangesAreUndoable`
-- `SnipSnipSnipTests/EditorControllerTests/testPresentationShadowDirectionControlsSignedOffsets`
-
-Override the list with a comma-separated value in `RELEASE_TEST_ONLY`, or skip the gate entirely (for example when CI already ran it) with:
+The `release` lane runs the complete `SnipSnipSnipTests` suite by default.
+`RELEASE_TEST_ONLY` remains available for local diagnosis, but must not be used
+for a production release. Skip the duplicate lane test only when CI already ran
+the complete suite for the exact commit:
 
 ```bash
 RELEASE_SKIP_TESTS=true
 ```
+
+`RELEASE_MANUAL_QA_CONFIRMED=true` means the following checks passed on the
+exact signed App Store/TestFlight candidate, not on an Xcode Debug build:
+
+1. With Screen Recording and Accessibility access removed, ordinary Region and
+   Fullscreen capture request only Screen Recording and complete after using the
+   app's Restart action.
+2. Starting Guide can request Accessibility in the App Store build. Click,
+   double-click, typing, scrolling, and a supported keyboard shortcut each
+   create the expected steps in another app.
+3. Starting a Guide with microphone narration requests Microphone before
+   capture and the exported Full Motion MP4 contains narration. Silent Guide
+   capture remains silent.
+4. Guide pause/resume, stop, discard, quit, and Restart preserve or discard work
+   exactly as their confirmation text states.
+5. The bundled `snipsnipsnipctl` can start, pause, resume, add a step to, stop,
+   and export a Guide.
+6. App Store unattended automation saves inside Downloads and rejects an
+   outside path clearly; an interactive save can use a user-selected location.
+7. Screenshot capture, recording, Clipboard History opt-in, Share extension
+   import, document reopen, copy, export, and launch-at-login smoke tests pass.
 
 ### Build for website distribution
 
@@ -262,6 +277,9 @@ Current gated features:
 - Scrolling Capture and Accessibility automation are disabled for `Dev`, `Internal`, `External`, and `Release`.
 - Local Xcode `Debug` / `Dev` builds and Fastlane `Self Release` builds run without App Sandbox so Accessibility-backed UI Map and self-distributed Pro automation can read cross-app accessibility trees after user consent.
 - Fastlane `Internal`, `External`, and App Store `Release` builds all keep App Sandbox and `APP_STORE_BUILD`, so the Accessibility-backed scrolling implementation is compiled out of those binaries and extra self-distribution capabilities do not ship to App Store builds.
+- Sandboxed builds carry a Downloads read/write entitlement for unattended
+  automation output. The automation layer rejects other unattended destinations
+  before writing; interactive save panels still grant user-selected access.
 
 Before relying on `release`, verify all of the following manually in App Store Connect and Xcode:
 

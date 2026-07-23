@@ -4,14 +4,17 @@
   <suite name="SnipSnipSnip Automation" code="SSSa" description="Automation commands for SnipSnipSnip screenshots and exports. Commands return JSON text.">
     <command name="automation status" code="SSSaSTAT" description="Return automation capabilities and permission status as JSON.">
       <cocoa class="SSSAutomationStatusCommand"/>
+      <access-group identifier="com.oontz.SnipSnipSnip.automation"/>
       <result type="text" description="JSON automation result."/>
     </command>
     <command name="list capture presets" code="SSSaLSPR" description="Return capture presets as JSON.">
       <cocoa class="SSSListCapturePresetsCommand"/>
+      <access-group identifier="com.oontz.SnipSnipSnip.automation"/>
       <result type="text" description="JSON automation result."/>
     </command>
     <command name="run capture preset" code="SSSaRNPR" description="Run a capture preset by id or name.">
       <cocoa class="SSSRunCapturePresetCommand"/>
+      <access-group identifier="com.oontz.SnipSnipSnip.automation"/>
       <parameter name="id" code="SSid" type="text" optional="yes" description="Preset UUID."/>
       <parameter name="name" code="SSnm" type="text" optional="yes" description="Preset name."/>
       <parameter name="output" code="SSou" type="text" optional="yes" description="editor, clipboard, float, or none."/>
@@ -23,6 +26,7 @@
     </command>
     <command name="capture fullscreen" code="SSSaCFUL" description="Capture the configured fullscreen target.">
       <cocoa class="SSSCaptureFullscreenCommand"/>
+      <access-group identifier="com.oontz.SnipSnipSnip.automation"/>
       <parameter name="display" code="SSds" type="text" optional="yes" description="app-default, current, selected, or all."/>
       <parameter name="output" code="SSou" type="text" optional="yes" description="editor, clipboard, float, or none."/>
       <parameter name="outputPath" code="SSop" type="text" optional="yes" description="POSIX output path for rendered file."/>
@@ -33,6 +37,7 @@
     </command>
     <command name="capture frontmost window" code="SSSaCFRW" description="Capture the frontmost eligible window.">
       <cocoa class="SSSCaptureFrontmostWindowCommand"/>
+      <access-group identifier="com.oontz.SnipSnipSnip.automation"/>
       <parameter name="output" code="SSou" type="text" optional="yes" description="editor, clipboard, float, or none."/>
       <parameter name="outputPath" code="SSop" type="text" optional="yes" description="POSIX output path for rendered file."/>
       <parameter name="format" code="SSfm" type="text" optional="yes" description="png, jpeg, or pdf."/>
@@ -42,6 +47,7 @@
     </command>
     <command name="capture region" code="SSSaCREG" description="Capture a fixed region or start interactive region capture.">
       <cocoa class="SSSCaptureRegionCommand"/>
+      <access-group identifier="com.oontz.SnipSnipSnip.automation"/>
       <parameter name="rect" code="SSrc" type="text" optional="yes" description="Region rectangle as x,y,width,height in screen points."/>
       <parameter name="interactive" code="SSin" type="boolean" optional="yes" description="Start user-selected region capture."/>
       <parameter name="output" code="SSou" type="text" optional="yes" description="editor, clipboard, float, or none."/>
@@ -53,6 +59,7 @@
     </command>
     <command name="capture window" code="SSSaCWIN" description="Start interactive window capture.">
       <cocoa class="SSSCaptureWindowCommand"/>
+      <access-group identifier="com.oontz.SnipSnipSnip.automation"/>
       <parameter name="interactive" code="SSin" type="boolean" optional="yes" description="Start user-selected window capture."/>
       <parameter name="output" code="SSou" type="text" optional="yes" description="editor, clipboard, float, or none."/>
       <parameter name="outputPath" code="SSop" type="text" optional="yes" description="POSIX output path for rendered file."/>
@@ -63,6 +70,7 @@
     </command>
     <command name="repeat last capture" code="SSSaREPT" description="Repeat the last repeatable capture.">
       <cocoa class="SSSRepeatLastCaptureCommand"/>
+      <access-group identifier="com.oontz.SnipSnipSnip.automation"/>
       <parameter name="output" code="SSou" type="text" optional="yes" description="editor, clipboard, float, or none."/>
       <parameter name="outputPath" code="SSop" type="text" optional="yes" description="POSIX output path for rendered file."/>
       <parameter name="format" code="SSfm" type="text" optional="yes" description="png, jpeg, or pdf."/>
@@ -71,6 +79,7 @@
     </command>
     <command name="open snip document" code="SSSaOPEN" description="Open an editable SnipSnipSnip document.">
       <cocoa class="SSSOpenSnipDocumentCommand"/>
+      <access-group identifier="com.oontz.SnipSnipSnip.automation"/>
       <parameter name="path" code="SSpa" type="text" description="POSIX path to a .sss document."/>
       <parameter name="output" code="SSou" type="text" optional="yes" description="editor, clipboard, float, or none."/>
       <parameter name="outputPath" code="SSop" type="text" optional="yes" description="POSIX output path for rendered file."/>
@@ -80,6 +89,7 @@
     </command>
     <command name="export current screenshot" code="SSSaEXPT" description="Export the current screenshot.">
       <cocoa class="SSSExportCurrentScreenshotCommand"/>
+      <access-group identifier="com.oontz.SnipSnipSnip.automation"/>
       <parameter name="format" code="SSfm" type="text" optional="yes" description="png, jpeg, or pdf."/>
       <parameter name="output" code="SSou" type="text" optional="yes" description="editor, clipboard, float, or none."/>
       <parameter name="outputPath" code="SSop" type="text" optional="yes" description="POSIX output path for rendered file."/>
@@ -88,6 +98,7 @@
     </command>
     <command name="guide" code="SSSaGUID" description="Start, pause, resume, add a step, stop, or export a Guide.">
       <cocoa class="SSSGuideCommand"/>
+      <access-group identifier="com.oontz.SnipSnipSnip.automation"/>
       <parameter name="action" code="SSga" type="text" description="start, pause, resume, add-step, stop, or export."/>
       <parameter name="target" code="SSgt" type="text" optional="yes" description="window, app, region, or display."/>
       <parameter name="format" code="SSfm" type="text" optional="yes" description="pdf, gif, apng, mp4-full, mp4-highlights, mp4-slideshow, images, or zip."/>

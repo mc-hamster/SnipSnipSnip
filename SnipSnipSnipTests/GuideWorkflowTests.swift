@@ -261,6 +261,39 @@ final class GuideWorkflowTests: XCTestCase {
         XCTAssertFalse(stepsOnly.capturesSystemAudio)
     }
 
+    func testGuideRequestsInitialMicrophoneAccessOnlyWhenRecordingNarration() async throws {
+        let recorder = GuideMicrophoneAccessRecorder()
+        let platform = TestScreenRecordingPlatform(
+            microphoneAccess: {
+                await recorder.recordRequest()
+            }
+        )
+        var preferences = GuideCapturePreferences()
+
+        preferences.sourceVideoEnabled = true
+        preferences.capturesMicrophone = true
+        try await GuideMediaCaptureSession.requestMicrophoneAccessIfNeeded(
+            preferences: preferences,
+            platform: platform
+        )
+        var requestCount = await recorder.requestCount
+        XCTAssertEqual(requestCount, 1)
+
+        preferences.sourceVideoEnabled = false
+        try await GuideMediaCaptureSession.requestMicrophoneAccessIfNeeded(
+            preferences: preferences,
+            platform: platform
+        )
+        preferences.sourceVideoEnabled = true
+        preferences.capturesMicrophone = false
+        try await GuideMediaCaptureSession.requestMicrophoneAccessIfNeeded(
+            preferences: preferences,
+            platform: platform
+        )
+        requestCount = await recorder.requestCount
+        XCTAssertEqual(requestCount, 1)
+    }
+
     func testEventClassifierCapturesSupportedActionsAndCoalescibleTextEntry() {
         let classifier = GuideEventClassifier()
         let point = CGPoint(x: 10, y: 20)
@@ -1121,6 +1154,14 @@ final class GuideWorkflowTests: XCTestCase {
         context.setFillColor(color)
         context.fill(CGRect(x: 0, y: 0, width: width, height: height))
         return try XCTUnwrap(context.makeImage())
+    }
+}
+
+private actor GuideMicrophoneAccessRecorder {
+    private(set) var requestCount = 0
+
+    func recordRequest() {
+        requestCount += 1
     }
 }
 

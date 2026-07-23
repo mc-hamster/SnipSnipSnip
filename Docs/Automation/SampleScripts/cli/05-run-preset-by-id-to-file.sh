@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SSSCTL="${SSSCTL:-/Applications/SnipSnipSnip.app/Contents/Library/Helpers/snipsnipsnipctl}"
-OUTPUT_DIR="${OUTPUT_DIR:-$HOME/Desktop}"
+OUTPUT_DIR="${OUTPUT_DIR:-$HOME/Downloads}"
 PRESET_ID="${PRESET_ID:-00000000-0000-0000-0000-000000000000}"
 FORMAT="${FORMAT:-png}"
 OUTPUT_PATH="$OUTPUT_DIR/preset-capture.$FORMAT"

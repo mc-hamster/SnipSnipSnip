@@ -2,6 +2,6 @@
 set -euo pipefail
 
 SSSCTL="${SSSCTL:-/Applications/SnipSnipSnip.app/Contents/Library/Helpers/snipsnipsnipctl}"
-OUTPUT_DIR="${OUTPUT_DIR:-$HOME/Desktop}"
+OUTPUT_DIR="${OUTPUT_DIR:-$HOME/Downloads}"
 
 "$SSSCTL" --json export current --output "$OUTPUT_DIR/current-screenshot.png" --format png --overwrite

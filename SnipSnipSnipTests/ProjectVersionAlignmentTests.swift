@@ -25,7 +25,7 @@ final class ProjectVersionAlignmentTests: XCTestCase {
         )
     }
 
-    func testAppAndShareExtensionPlistsUseSharedVersionBuildSettings() throws {
+    func testShippedInfoPlistsUseSharedVersionBuildSettings() throws {
         let appInfo = try String(
             contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip-Info.plist"),
             encoding: .utf8
@@ -34,11 +34,38 @@ final class ProjectVersionAlignmentTests: XCTestCase {
             contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnipShareExtension/Info.plist"),
             encoding: .utf8
         )
+        let commandLineHelperInfo = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnipCLI/Info.plist"),
+            encoding: .utf8
+        )
 
-        for plist in [appInfo, shareExtensionInfo] {
+        for plist in [appInfo, shareExtensionInfo, commandLineHelperInfo] {
             XCTAssertTrue(plist.contains("<key>CFBundleShortVersionString</key>\n\t<string>$(MARKETING_VERSION)</string>"))
             XCTAssertTrue(plist.contains("<key>CFBundleVersion</key>\n\t<string>$(CURRENT_PROJECT_VERSION)</string>"))
         }
+    }
+
+    func testReleaseAutomationRunsTheCompleteSuiteAndRequiresHumanConfirmations() throws {
+        let ciWorkflow = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(".github/workflows/ci-tests.yml"),
+            encoding: .utf8
+        )
+        let releaseWorkflow = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(".github/workflows/release-app-store.yml"),
+            encoding: .utf8
+        )
+        let fastfile = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("fastlane/Fastfile"),
+            encoding: .utf8
+        )
+
+        XCTAssertFalse(ciWorkflow.contains("-only-testing"))
+        XCTAssertFalse(releaseWorkflow.contains("-only-testing"))
+        XCTAssertTrue(fastfile.contains("RELEASE_TEST_TARGETS_DEFAULT = [].freeze"))
+        XCTAssertTrue(releaseWorkflow.contains("RELEASE_METADATA_READY: ${{ inputs.metadata_ready }}"))
+        XCTAssertTrue(releaseWorkflow.contains("RELEASE_MANUAL_QA_CONFIRMED: ${{ inputs.manual_qa_confirmed }}"))
+        XCTAssertFalse(releaseWorkflow.contains("RELEASE_METADATA_READY: true"))
+        XCTAssertFalse(releaseWorkflow.contains("RELEASE_MANUAL_QA_CONFIRMED: true"))
     }
 
     private func buildSettingValues(named settingName: String, in project: String) -> [String] {

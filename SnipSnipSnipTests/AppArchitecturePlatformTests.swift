@@ -52,7 +52,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
             .canRequest(.accessibility)
         )
 
-        for capability in [AppCapability.scrollingCapture, .uiMap, .accessibilityAutomation] {
+        for capability in [AppCapability.scrollingCapture, .uiMap, .accessibilityAutomation, .guide] {
             let service = SystemCapturePermissionService(
                 capabilities: capabilities([.screenRecording, capability]),
                 client: makePermissionClient()
@@ -60,6 +60,19 @@ final class AppArchitecturePlatformTests: XCTestCase {
 
             XCTAssertTrue(service.canRequest(.accessibility), "\(capability) should allow Accessibility requests.")
         }
+    }
+
+    func testReleaseGuideCanRequestAccessibilityWithoutMakingItAGlobalCaptureRequirement() {
+        let capabilities = BuildTargetCapabilityProvider().snapshot(for: .release)
+        let service = SystemCapturePermissionService(
+            capabilities: capabilities,
+            client: makePermissionClient()
+        )
+        let status = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false)
+
+        XCTAssertTrue(capabilities.isEnabled(.guide))
+        XCTAssertTrue(service.canRequest(.accessibility))
+        XCTAssertTrue(status.missingRequirements(for: capabilities).isEmpty)
     }
 
     func testSystemCapturePermissionServiceDelegatesSystemActionsExactlyOnce() {

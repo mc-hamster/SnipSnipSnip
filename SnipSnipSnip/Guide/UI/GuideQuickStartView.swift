@@ -328,7 +328,7 @@ struct GuideQuickStartView: View {
     private func audioHelp(for value: GuideAudioIntent) -> String {
         switch value {
         case .none:
-            return "Keep the source video silent. You can still add or replace audio after capture."
+            return "Keep the source video silent. Audio is not retained and cannot be added later in the Guide editor."
         case .narration:
             return "Record your microphone so you can explain the workflow while demonstrating it."
         case .appAudio:
