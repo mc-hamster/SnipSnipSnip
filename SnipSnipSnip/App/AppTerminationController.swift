@@ -21,7 +21,7 @@ final class AppTerminationController {
     while kill -0 "$parent_pid" 2>/dev/null; do
       sleep 0.1
     done
-    /usr/bin/open -n "$app_path"
+    /usr/bin/open "$app_path"
     """
 
     struct QuitConfirmationResult: Equatable {
@@ -352,39 +352,64 @@ final class AppTerminationController {
     }
 
     private static func relaunchApplication() {
+        let appPath = Bundle.main.bundleURL.path
+        let processID = getpid()
+
+        if launchRestartHelper(
+            executableURL: URL(fileURLWithPath: "/usr/bin/nohup"),
+            arguments: restartLauncherArguments(appPath: appPath, processID: processID)
+        ) {
+            logger.info(
+                "Restart helper launched appPath=\(appPath, privacy: .public) currentPID=\(processID, privacy: .public)"
+            )
+            return
+        }
+
+        if launchRestartHelper(
+            executableURL: URL(fileURLWithPath: "/bin/sh"),
+            arguments: restartFallbackLauncherArguments(appPath: appPath, processID: processID)
+        ) {
+            logger.info(
+                "Restart fallback launched appPath=\(appPath, privacy: .public) currentPID=\(processID, privacy: .public)"
+            )
+            return
+        }
+
+        logger.error("Failed to launch restart helper or fallback appPath=\(appPath, privacy: .public)")
+    }
+
+    @discardableResult
+    private static func launchRestartHelper(executableURL: URL, arguments: [String]) -> Bool {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/nohup")
-        process.arguments = restartLauncherArguments(
-            appPath: Bundle.main.bundleURL.path,
-            processID: getpid()
-        )
+        process.executableURL = executableURL
+        process.arguments = arguments
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
 
         do {
             try process.run()
-            logger.info(
-                "Restart helper launched appPath=\(Bundle.main.bundleURL.path, privacy: .public) currentPID=\(getpid(), privacy: .public)"
-            )
-            return
+            return true
         } catch {
-            logger.error("Failed to launch restart helper: \(error.localizedDescription, privacy: .public)")
+            logger.error(
+                "Failed to launch restart helper executable=\(executableURL.path, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+            )
+            return false
         }
-
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = true
-        configuration.createsNewApplicationInstance = true
-
-        NSWorkspace.shared.openApplication(
-            at: Bundle.main.bundleURL,
-            configuration: configuration
-        )
-        logger.info("Restart fallback requested through NSWorkspace appPath=\(Bundle.main.bundleURL.path, privacy: .public)")
     }
 
     nonisolated static func restartLauncherArguments(appPath: String, processID: pid_t) -> [String] {
         [
             "/bin/sh",
+            "-c",
+            restartLauncherScript,
+            "restart",
+            appPath,
+            String(processID)
+        ]
+    }
+
+    nonisolated static func restartFallbackLauncherArguments(appPath: String, processID: pid_t) -> [String] {
+        [
             "-c",
             restartLauncherScript,
             "restart",

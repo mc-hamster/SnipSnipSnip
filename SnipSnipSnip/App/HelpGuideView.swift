@@ -76,7 +76,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "First launch onboarding",
                             steps: [
-                                "The first launch opens a setup window with a standard sidebar for capture basics, UI Map disclosure when available, launch-at-login, an optional Clipboard History choice, support links, and permissions as the final step. Select a sidebar step to review it; status text identifies completed and attention-needed items without relying on color.",
+                                "The first launch brings a setup window to the front and confirms that SnipSnipSnip is running in your menu bar. Its standard sidebar covers capture basics, UI Map disclosure when available, launch-at-login, an optional Clipboard History choice, support links, and permissions as the final step. Select a sidebar step to review it; status text identifies completed and attention-needed items without relying on color.",
                                 "Screen Recording must be set up before onboarding can be skipped or completed because macOS requires it for screenshot pixels and live window thumbnails.",
                                 "Open Settings > General > Show Onboarding Again any time to replay it."
                             ]

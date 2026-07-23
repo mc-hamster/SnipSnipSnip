@@ -206,7 +206,7 @@ struct OnboardingView: View {
             Text("Welcome to \(AppBranding.displayName)")
                 .font(.title2.weight(.semibold))
 
-            Text("A short setup pass gets you from first launch to fast capture, editor workflows, and support without hunting through menus.")
+            Text("SnipSnipSnip is running in your menu bar. This short setup pass gets you from first launch to fast capture, editor workflows, and support without hunting through menus.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
