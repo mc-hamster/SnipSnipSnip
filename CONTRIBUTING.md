@@ -19,6 +19,8 @@ Run the test suite with:
 xcodebuild test -project SnipSnipSnip.xcodeproj -scheme SnipSnipSnip -destination 'platform=macOS,arch=arm64,name=My Mac' -derivedDataPath /private/tmp/SnipSnipSnip-DerivedData
 ```
 
+SnipSnipSnip permits only one app process at a time, including one app-hosted XCTest process. The shared scheme therefore runs tests in a single host. Quit any running copy before launching from Xcode or running app-hosted tests. If the current copy must remain open, use `xcodebuild build` or `xcodebuild build-for-testing` for compile-only verification, then run the tests after that copy exits. Do not use `open -n` or invoke the app executable directly to bypass the guard.
+
 ## Project Expectations
 
 - Keep the app runnable after every change.

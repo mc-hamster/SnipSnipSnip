@@ -553,6 +553,7 @@ struct SnipSnipSnipApp: App {
     @StateObject private var model: AppModel
 
     init() {
+        SingleInstanceCoordinator.enforceAtLaunch()
         let model = AppModel()
         _model = StateObject(wrappedValue: model)
         AppTerminationController.shared.configure(

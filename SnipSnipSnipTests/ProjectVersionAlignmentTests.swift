@@ -57,6 +57,73 @@ final class ProjectVersionAlignmentTests: XCTestCase {
         )
     }
 
+    func testBuiltAppProhibitsMultipleInstances() {
+        XCTAssertEqual(
+            Bundle.main.object(forInfoDictionaryKey: "LSMultipleInstancesProhibited") as? Bool,
+            true,
+            "The generated app bundle must prohibit multiple instances, not just its source plist."
+        )
+    }
+
+    func testSingleInstanceEnforcementPrecedesAppModelCreation() throws {
+        let appSource = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/SnipSnipSnipApp.swift"),
+            encoding: .utf8
+        )
+        let enforcement = try XCTUnwrap(
+            appSource.range(of: "SingleInstanceCoordinator.enforceAtLaunch()")
+        )
+        let modelCreation = try XCTUnwrap(
+            appSource.range(of: "let model = AppModel()")
+        )
+
+        XCTAssertLessThan(
+            enforcement.lowerBound,
+            modelCreation.lowerBound,
+            "Reject duplicate processes before constructing app services or shared-state stores."
+        )
+    }
+
+    func testWorkspaceInstructionsDocumentSingleInstanceDevelopmentRules() throws {
+        let agents = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("AGENTS.md"),
+            encoding: .utf8
+        )
+        let contributing = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("CONTRIBUTING.md"),
+            encoding: .utf8
+        )
+        let sharedScheme = try String(
+            contentsOf: repositoryRoot
+                .appendingPathComponent("SnipSnipSnip.xcodeproj")
+                .appendingPathComponent("xcshareddata/xcschemes/SnipSnipSnip.xcscheme"),
+            encoding: .utf8
+        )
+
+        for requiredInstruction in [
+            "## Single-Instance Development",
+            "`LSMultipleInstancesProhibited`",
+            "`SingleInstanceCoordinator`",
+            "`xcodebuild build-for-testing`",
+            "Run app-hosted XCTest suites in one host process",
+            "Do not use `open -n`"
+        ] {
+            XCTAssertTrue(
+                agents.contains(requiredInstruction),
+                "AGENTS.md must retain the single-instance instruction: \(requiredInstruction)"
+            )
+        }
+
+        XCTAssertTrue(contributing.contains("only one app process at a time"))
+        XCTAssertTrue(contributing.contains("Quit any running copy"))
+        XCTAssertTrue(contributing.contains("`xcodebuild build-for-testing`"))
+        XCTAssertTrue(contributing.contains("Do not use `open -n`"))
+        XCTAssertTrue(
+            sharedScheme.contains(#"parallelizable = "NO""#),
+            "The app-hosted test target must use one process because the app is single-instance."
+        )
+    }
+
     func testReleaseAutomationRunsTheCompleteSuiteAndRequiresHumanConfirmations() throws {
         let ciWorkflow = try String(
             contentsOf: repositoryRoot.appendingPathComponent(".github/workflows/ci-tests.yml"),
