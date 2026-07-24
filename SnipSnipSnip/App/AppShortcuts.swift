@@ -75,6 +75,23 @@ enum AppShortcut {
             ShortcutCatalogEntry(keys: "Option-1 through Option-9", action: "Copy visible item")
         ])
     ]
+
+    static func catalogSections(includesGuideCapture: Bool) -> [ShortcutCatalogSection] {
+        guard !includesGuideCapture else {
+            return catalogSections
+        }
+
+        return catalogSections.map { section in
+            guard section.title == "Default Global Capture" else {
+                return section
+            }
+
+            return ShortcutCatalogSection(
+                title: section.title,
+                entries: section.entries.filter { $0.action != "Start or stop Guide" }
+            )
+        }
+    }
 }
 
 struct ShortcutCatalogSection: Identifiable, Equatable {

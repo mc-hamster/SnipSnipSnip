@@ -14,6 +14,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
             XCTAssertEqual(snapshot.isEnabled(.accessibilityAutomation), FeatureFlags.accessibilityAutomationEnabled(for: target))
             XCTAssertEqual(snapshot.isEnabled(.connectedDeviceCapture), FeatureFlags.connectedDeviceCaptureEnabled(for: target))
             XCTAssertEqual(snapshot.isEnabled(.uiMap), FeatureFlags.uiMapEnabled(for: target))
+            XCTAssertEqual(snapshot.isEnabled(.guideCapture), FeatureFlags.guideCaptureEnabled(for: target))
             XCTAssertEqual(snapshot.isEnabled(.proUpdateCheck), FeatureFlags.proUpdateCheckEnabled(for: target))
 
             XCTAssertTrue(snapshot.isEnabled(.regionCapture))
@@ -52,7 +53,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
             .canRequest(.accessibility)
         )
 
-        for capability in [AppCapability.scrollingCapture, .uiMap, .accessibilityAutomation, .guide] {
+        for capability in [AppCapability.scrollingCapture, .uiMap, .accessibilityAutomation, .guideCapture] {
             let service = SystemCapturePermissionService(
                 capabilities: capabilities([.screenRecording, capability]),
                 client: makePermissionClient()
@@ -62,17 +63,160 @@ final class AppArchitecturePlatformTests: XCTestCase {
         }
     }
 
-    func testReleaseGuideCanRequestAccessibilityWithoutMakingItAGlobalCaptureRequirement() {
+    func testReleaseGuideAndAccessibilityAreUnavailable() {
         let capabilities = BuildTargetCapabilityProvider().snapshot(for: .release)
+        let recorder = PermissionClientRecorder()
         let service = SystemCapturePermissionService(
             capabilities: capabilities,
-            client: makePermissionClient()
+            client: makePermissionClient(recorder: recorder)
         )
         let status = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false)
 
-        XCTAssertTrue(capabilities.isEnabled(.guide))
-        XCTAssertTrue(service.canRequest(.accessibility))
+        XCTAssertFalse(capabilities.isEnabled(.guideCapture))
+        XCTAssertFalse(service.canRequest(.accessibility))
+        XCTAssertFalse(service.requestAccess(for: .accessibility))
+        service.openSystemSettings(for: .accessibility)
+        XCTAssertEqual(recorder.accessibilityRequestCount, 0)
+        XCTAssertTrue(recorder.openedSettingsRequirementIDs.isEmpty)
         XCTAssertTrue(status.missingRequirements(for: capabilities).isEmpty)
+    }
+
+    func testGuideHotkeyAndShortcutCatalogFollowCapabilityMatrix() {
+        for target in [BuildTarget.internalTesting, .externalTesting, .release] {
+            let capabilities = BuildTargetCapabilityProvider().snapshot(for: target)
+            XCTAssertFalse(GlobalHotKeyAction.availableActions(for: capabilities).contains(.guide))
+            XCTAssertFalse(
+                AppShortcut.catalogSections(includesGuideCapture: capabilities.isEnabled(.guideCapture))
+                    .flatMap(\.entries)
+                    .contains { $0.action == "Start or stop Guide" }
+            )
+        }
+
+        for target in [BuildTarget.dev, .selfRelease] {
+            let capabilities = BuildTargetCapabilityProvider().snapshot(for: target)
+            XCTAssertTrue(GlobalHotKeyAction.availableActions(for: capabilities).contains(.guide))
+            XCTAssertTrue(
+                AppShortcut.catalogSections(includesGuideCapture: capabilities.isEnabled(.guideCapture))
+                    .flatMap(\.entries)
+                    .contains { $0.action == "Start or stop Guide" }
+            )
+        }
+    }
+
+    func testGuideDocumentProNoticePolicyIsSuccessfulOpenOnlyStandardOnlyAndOnce() {
+        XCTAssertFalse(
+            GuideDocumentProNotice.shouldPresent(
+                didOpenSuccessfully: false,
+                isAppStoreEdition: true,
+                guideCaptureIsAvailable: false,
+                hasPresented: false
+            )
+        )
+        XCTAssertTrue(
+            GuideDocumentProNotice.shouldPresent(
+                didOpenSuccessfully: true,
+                isAppStoreEdition: true,
+                guideCaptureIsAvailable: false,
+                hasPresented: false
+            )
+        )
+        XCTAssertFalse(
+            GuideDocumentProNotice.shouldPresent(
+                didOpenSuccessfully: true,
+                isAppStoreEdition: true,
+                guideCaptureIsAvailable: true,
+                hasPresented: false
+            )
+        )
+        XCTAssertFalse(
+            GuideDocumentProNotice.shouldPresent(
+                didOpenSuccessfully: true,
+                isAppStoreEdition: true,
+                guideCaptureIsAvailable: false,
+                hasPresented: true
+            )
+        )
+        XCTAssertFalse(
+            GuideDocumentProNotice.shouldPresent(
+                didOpenSuccessfully: true,
+                isAppStoreEdition: false,
+                guideCaptureIsAvailable: false,
+                hasPresented: false
+            )
+        )
+        XCTAssertEqual(GuideDocumentProNotice.title, "Creating Guides is a Pro feature")
+        XCTAssertEqual(
+            GuideDocumentProNotice.learnMoreURL.absoluteString,
+            "https://www.oontz.com/apps/snipsnipsnip/"
+        )
+    }
+
+    func testGuideDocumentProNoticePreferencePersistsOncePerInstallation() {
+        let defaults = makeDefaults()
+        let store = EditorPreferenceStore(storage: defaults)
+
+        XCTAssertFalse(store.hasPresentedGuideDocumentProNotice())
+        store.markGuideDocumentProNoticePresented()
+        XCTAssertTrue(EditorPreferenceStore(storage: defaults).hasPresentedGuideDocumentProNotice())
+    }
+
+    func testPublicWindowResolverChoosesMatchingWindowForOnePID() {
+        let candidates = [
+            accessibilityWindowCandidate(id: 11, pid: 42, title: "Document", frame: CGRect(x: 0, y: 0, width: 700, height: 500), order: 0),
+            accessibilityWindowCandidate(id: 12, pid: 42, title: "Inspector", frame: CGRect(x: 740, y: 0, width: 300, height: 500), order: 1),
+        ]
+
+        XCTAssertEqual(
+            AccessibilityWindowResolver.resolve(
+                processID: 42,
+                title: "Inspector",
+                accessibilityFrame: CGRect(x: 740, y: 0, width: 300, height: 500),
+                candidates: candidates
+            ),
+            AccessibilityWindowIdentity(windowID: 12, ownerPID: 42)
+        )
+    }
+
+    func testPublicWindowResolverSupportsUntitledMovedAndMixedDisplayWindows() {
+        XCTAssertEqual(
+            AccessibilityWindowResolver.resolve(
+                processID: 9,
+                title: nil,
+                accessibilityFrame: CGRect(x: 110, y: 105, width: 800, height: 600),
+                candidates: [
+                    accessibilityWindowCandidate(id: 21, pid: 9, title: nil, frame: CGRect(x: 100, y: 100, width: 800, height: 600))
+                ]
+            )?.windowID,
+            21
+        )
+        XCTAssertEqual(
+            AccessibilityWindowResolver.resolve(
+                processID: 9,
+                title: "Canvas",
+                accessibilityFrame: CGRect(x: -1_400, y: 80, width: 1_000, height: 700),
+                candidates: [
+                    accessibilityWindowCandidate(id: 22, pid: 9, title: "Canvas", frame: CGRect(x: -1_400, y: 80, width: 1_000, height: 700))
+                ]
+            )?.windowID,
+            22
+        )
+    }
+
+    func testPublicWindowResolverFailsSafelyWhenMatchIsAmbiguous() {
+        let frame = CGRect(x: 20, y: 20, width: 500, height: 400)
+        let candidates = [
+            accessibilityWindowCandidate(id: 31, pid: 7, title: "Same", frame: frame, order: 0),
+            accessibilityWindowCandidate(id: 32, pid: 7, title: "Same", frame: frame, order: 1),
+        ]
+
+        XCTAssertNil(
+            AccessibilityWindowResolver.resolve(
+                processID: 7,
+                title: "Same",
+                accessibilityFrame: frame,
+                candidates: candidates
+            )
+        )
     }
 
     func testSystemCapturePermissionServiceDelegatesSystemActionsExactlyOnce() {
@@ -165,6 +309,10 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertEqual(stores.capture.loadScreenshotJPEGQuality(), ImageExportOptions.sanitizedJPEGQuality(0.25))
         XCTAssertTrue(stores.clipboard.loadAutoCopyEnabled())
         XCTAssertEqual(stores.screenTools.loadRulerPreferences(), .default)
+        XCTAssertFalse(stores.capture.loadUIMapEnabled(defaultEnabled: false))
+
+        stores.capture.saveUIMapEnabled(true)
+        XCTAssertTrue(stores.capture.loadUIMapEnabled(defaultEnabled: false))
 
         let presets = [
             CapturePreset(
@@ -2657,6 +2805,24 @@ final class AppArchitecturePlatformTests: XCTestCase {
         target: BuildTarget = .dev
     ) -> AppCapabilitySnapshot {
         AppCapabilitySnapshot(buildTarget: target, enabledCapabilities: enabledCapabilities)
+    }
+
+    private func accessibilityWindowCandidate(
+        id: CGWindowID,
+        pid: pid_t,
+        title: String?,
+        frame: CGRect,
+        layer: Int = 0,
+        order: Int = 0
+    ) -> AccessibilityWindowCandidate {
+        AccessibilityWindowCandidate(
+            windowID: id,
+            ownerPID: pid,
+            title: title,
+            frame: frame,
+            layer: layer,
+            order: order
+        )
     }
 
     private func makePermissionClient(

@@ -380,7 +380,7 @@ nonisolated struct AutomationCapabilities: Codable, Equatable, Sendable {
     var supportsScrollingCapture: Bool
     var supportsConnectedDeviceCapture: Bool
     var supportsCurrentEditorExport: Bool
-    var supportsGuide: Bool = true
+    var supportsGuide: Bool
 }
 
 nonisolated struct AutomationGuideSummary: Codable, Equatable, Sendable {

@@ -17,7 +17,7 @@ nonisolated enum AppCapability: String, CaseIterable, Hashable, Sendable {
     case uiMap
     case accessibilityAutomation
     case screenRecording
-    case guide
+    case guideCapture
     case screenRuler
     case screenInspector
     case archive
@@ -70,6 +70,10 @@ nonisolated struct BuildTargetCapabilityProvider: AppCapabilityProvider {
             enabled.insert(.uiMap)
         }
 
+        if isBuildGatedFeatureEnabled(.guideCapture, for: target) {
+            enabled.insert(.guideCapture)
+        }
+
         if isBuildGatedFeatureEnabled(.proUpdateCheck, for: target) {
             enabled.insert(.proUpdateCheck)
         }
@@ -94,7 +98,6 @@ nonisolated struct BuildTargetCapabilityProvider: AppCapabilityProvider {
         .automation,
         .privateCapture,
         .screenRecording,
-        .guide,
         .screenRuler,
         .screenInspector,
         .archive,

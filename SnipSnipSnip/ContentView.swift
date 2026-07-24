@@ -379,7 +379,9 @@ struct ContentView: View {
                     captureButton(title: "Repeat", systemImage: "arrow.clockwise", action: capture.repeatLastCapture)
                         .disabled(!capture.canRepeatLastCapture)
                     capturePresetsMenu
-                    guideButton
+                    if capabilities.isEnabled(.guideCapture) {
+                        guideButton
+                    }
                     recordButton
                 }
             }
@@ -397,7 +399,9 @@ struct ContentView: View {
         captureButton(title: "Repeat", systemImage: "arrow.clockwise", action: capture.repeatLastCapture)
             .disabled(!capture.canRepeatLastCapture)
         capturePresetsMenu
-        guideButton
+        if capabilities.isEnabled(.guideCapture) {
+            guideButton
+        }
         recordButton
     }
 

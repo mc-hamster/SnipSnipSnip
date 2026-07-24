@@ -12,6 +12,7 @@ nonisolated enum GuideEventMonitorError: LocalizedError {
     }
 }
 
+#if !APP_STORE_BUILD
 @MainActor
 final class GuideEventMonitor {
     typealias Handler = @MainActor (GuideObservedEvent, CMTime) -> Void
@@ -236,3 +237,16 @@ final class GuideEventMonitor {
         }
     }
 }
+#else
+@MainActor
+final class GuideEventMonitor {
+    typealias Handler = @MainActor (GuideObservedEvent, CMTime) -> Void
+
+    func start(handler: @escaping Handler) throws {
+        _ = handler
+        throw GuideEventMonitorError.accessibilityRequired
+    }
+
+    func stop() {}
+}
+#endif

@@ -3,6 +3,39 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class UIMapCaptureGeometryTests: XCTestCase {
+    func testSecureRoleAndSubrolePropagateSensitivityWithoutReadingValue() {
+        XCTAssertTrue(
+            UIMapAccessibilityPrivacy.isSensitive(
+                role: "AXSecureTextField",
+                subrole: nil,
+                ancestorIsSensitive: false
+            )
+        )
+        XCTAssertTrue(
+            UIMapAccessibilityPrivacy.isSensitive(
+                role: "AXTextField",
+                subrole: "AXSecureTextField",
+                ancestorIsSensitive: false
+            )
+        )
+        XCTAssertTrue(
+            UIMapAccessibilityPrivacy.isSensitive(
+                role: "AXStaticText",
+                subrole: nil,
+                ancestorIsSensitive: true
+            )
+        )
+
+        var valueWasRequested = false
+        let value = UIMapAccessibilityPrivacy.readValueIfAllowed(isSensitive: true) {
+            valueWasRequested = true
+            return "secret"
+        }
+
+        XCTAssertNil(value)
+        XCTAssertFalse(valueWasRequested)
+    }
+
     func testCaptureServiceSkipsNonWindowCapturesBeforeAccessibilityWork() async {
         let service = AccessibilityUIMapCaptureService()
 

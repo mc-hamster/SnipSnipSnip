@@ -10,10 +10,10 @@ Capture, annotate, redact, record, inspect, automate, and share without sending 
 
 Both editions are free and open source:
 
-- **SnipSnipSnip** is the Mac App Store build. It includes the complete everyday screenshot, annotation, OCR, archive, presentation, automation, clipboard-history, and screen-recording workflow.
-- **SnipSnipSnip Pro** is the direct-download GitHub build. It includes everything above, plus scrolling capture, trusted USB-connected iPhone/iPad capture, and UI Map structured screenshots. These advanced workflows are distributed separately because they use capabilities that are not available to the App Store edition.
+- **SnipSnipSnip** is the Mac App Store build. It includes the complete everyday screenshot, annotation, OCR, archive, presentation, automation, clipboard-history, and screen-recording workflow. It can also open, edit, save, recover, and export existing `.sssguide` documents.
+- **SnipSnipSnip Pro** is the direct-download GitHub build. It includes everything above, plus Guide creation and recording, scrolling capture, trusted USB-connected iPhone/iPad capture, and UI Map structured screenshots. These advanced workflows are distributed separately because they use capabilities that are not available to the App Store edition.
 
-SnipSnipSnip requires **macOS 26 or later**. Screenshot capture requires Screen Recording permission. Accessibility is required only for Pro's scrolling capture and UI Map workflows, and microphone permission is required only when microphone narration is enabled.
+SnipSnipSnip requires **macOS 26 or later**. Screenshot capture requires Screen Recording permission. The App Store edition does not request Accessibility. Accessibility is required only for Pro's Guide creation, scrolling capture, UI Map, and other Accessibility-assisted workflows; microphone permission is required only when narration is enabled.
 
 ## Install
 
@@ -36,6 +36,7 @@ Clone this repository and open `SnipSnipSnip.xcodeproj` in Xcode. See [Build And
 - Non-destructive screenshot editor with crop, rectangle, ellipse, line, arrow, freehand, highlight, text, callouts, ruler measurements, spotlight/dim, image overlays, rotation, layer ordering, grouping, alignment, snapping, and blur/pixelate/solid redaction.
 - Local OCR for capture-history search and selectable Copy Text from a dragged screenshot region.
 - SnipSnipSnip Pro UI Map capture for saving visible interface element names, roles, identifiers, hierarchy, and geometry in editable `.sss` documents. UI Map turns a Window screenshot into a searchable, inspectable structured capture instead of pixels only.
+- SnipSnipSnip Pro Guide creation for recording workflows as editable steps with optional source video and audio. Both editions can edit, save, recover, and export existing `.sssguide` documents.
 - PNG, JPEG, and PDF screenshot export with re-encoded metadata-stripped output and a lightweight JPEG quality setting.
 - Drag-out sharing for rendered screenshots, styled presentation previews, and trimmed video exports.
 - Centralized Settings > Shortcuts reference for global capture hotkeys, app commands, editor shortcuts, layers, Screen Inspector, and Clipboard History.
@@ -50,12 +51,14 @@ For the detailed current feature inventory, partial features, and known gaps, se
 
 SnipSnipSnip processes screenshots, annotations, OCR, rendering, and any SnipSnipSnip Pro UI Map metadata locally. Editable `.sss` packages retain the original base screenshot, annotation state, and any captured UI Map metadata, so share rendered exports when redactions must be flattened or editable metadata should not travel. When saving an editable `.sss` that contains redactions, SnipSnipSnip warns that the original pixels remain in the editable package and offers flattened PNG export instead.
 
+The Mac App Store edition does not request Accessibility and contains no live UI Map or Guide-capture backend. It can still preserve and render UI Map metadata already stored in `.sss` documents and edit/export existing `.sssguide` documents. In Pro UI Map capture, secure text fields and their descendants are treated as sensitive before any value is read; their values are never requested, stored, indexed, exported, or logged.
+
 Private Capture skips archive checkpoints, recent-snips recovery, recycle-bin retention, and background OCR indexing for that capture session. Exported/copied PNG, JPEG, and PDF output is re-encoded and does not carry source EXIF, TIFF, GPS, IPTC, or user metadata forward.
 
 ## Permissions
 
 - Screen Recording: required for screenshot capture, window thumbnails, and screen recording pixels.
-- Accessibility: required in SnipSnipSnip Pro for Scrolling Capture, where the app must scroll the selected target, and for UI Map Window capture, where visible interface metadata can be read during the user-initiated capture workflow.
+- Accessibility: requested only by SnipSnipSnip Pro for Guide creation, Scrolling Capture, UI Map Window capture, and other Accessibility-assisted workflows. The Mac App Store edition never requests it.
 - Microphone: required only when microphone narration is enabled for recording.
 
 The app Settings screen includes permission diagnostics, remediation buttons, and a local sanitized diagnostics export for support. Standard region, window, and fullscreen capture do not require Accessibility.

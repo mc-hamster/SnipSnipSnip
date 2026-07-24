@@ -2,6 +2,7 @@ import Foundation
 
 nonisolated enum AppLinks {
     static let website = URL(string: "https://www.oontz.com")!
+    static let snipSnipSnipProduct = URL(string: "https://www.oontz.com/apps/snipsnipsnip/")!
     static let privacyPolicy = URL(string: "https://www.oontz.com/apps/snipsnipsnip/privacy")!
     static let support = URL(string: "https://www.oontz.com/apps/snipsnipsnip/support")!
     static let presentationFeedbackDiscord = URL(string: "https://discord.gg/eaadSfaVgP")!

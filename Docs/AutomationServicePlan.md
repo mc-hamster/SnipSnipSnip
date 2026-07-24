@@ -191,7 +191,7 @@ enum AutomationCommand: Codable, Sendable {
 }
 ```
 
-Guide v1 adds start (window, app, interactive region, or display), pause, resume, manual step, stop, open `.sssguide`, and export (PDF, GIF, APNG, three MP4 variants, images, or ZIP). Interactive Guide regions are constrained to the display where selection begins and cross-display rectangles are rejected; normal screenshot-region automation remains unchanged. Window and app Guides resolve and follow the current source geometry without changing the persisted automation command. All adapters use the same Guide payload and explicit errors for no active Guide, an already-active Guide, no steps, unavailable source media, and failed finalization. Guide control does not add a parallel service or bypass busy-state, permission, privacy, or configured-destination rules.
+Guide v1 keeps start (window, app, interactive region, or display), pause, resume, manual step, stop, open `.sssguide`, and export identifiers stable on every surface. Guide creation and dedicated control/export are Pro-only. The App Store edition decodes those requests and returns `proFeatureRequired` before permission or capture work; generic `.sssguide` opening remains shared. In Pro, interactive Guide regions are constrained to the display where selection begins and cross-display rectangles are rejected; normal screenshot-region automation remains unchanged. Window and app Guides resolve and follow the current source geometry without changing the persisted automation command.
 
 Initial capture targets:
 
@@ -520,16 +520,22 @@ Supporting types:
   direct-download Pro build retain their existing destination behavior.
 - `AppShortcutsProvider` advertises common capture phrases and uses
   `AppIntents.AppShortcut` explicitly so it does not collide with the in-app
-  keyboard shortcut catalog.
+  keyboard shortcut catalog. The Guide App Shortcut is compiled only into Pro
+  and development builds; the intent identifier remains decodable in the App
+  Store edition for stable `proFeatureRequired` results.
 - Opening `.sss` documents uses `IntentFile` with the SnipSnipSnip document
   package type.
 
 ## Permission And Privacy Rules
 
 - Never capture pixels without Screen Recording permission.
-- Never attempt scrolling capture or UI Map metadata capture without the
-  Accessibility permission required by the existing feature.
-- Never start Guide without Screen Recording and Accessibility permission.
+- In the App Store edition, return `proFeatureRequired` for explicit UI Map and
+  dedicated Guide requests before any permission preflight. Do not request or
+  direct the user to Accessibility.
+- In Pro, never attempt scrolling capture or UI Map metadata capture without
+  Accessibility permission.
+- In Pro, never start Guide without Screen Recording and Accessibility
+  permission.
 - Do not grant extra permission because a request came from CLI, AppleScript,
   URL, or App Intents.
 - Do not persist screenshots, OCR text, clipboard content, annotation text, or
@@ -540,6 +546,8 @@ Supporting types:
 - Editable `.sss` output retains base screenshot pixels, annotation state, and
   hidden UI Map metadata. External automation docs must tell callers to use
   flattened image/PDF output when privacy flattening matters.
+- Generic document opening preserves `.sssguide` compatibility in both
+  editions. Dedicated Guide export automation remains Pro-only.
 
 ## Testing Strategy
 

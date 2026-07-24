@@ -113,7 +113,12 @@ struct AppSystemServices: Sendable {
     let connectedDevicePlatform: any ConnectedDevicePlatform
 
     static func live(permissions: any CapturePermissionServicing) -> AppSystemServices {
-        AppSystemServices(
+#if APP_STORE_BUILD
+        let accessibilityPlatform: any AccessibilityPlatform = UnavailableAccessibilityPlatform()
+#else
+        let accessibilityPlatform: any AccessibilityPlatform = LiveAccessibilityPlatform()
+#endif
+        return AppSystemServices(
             files: SystemFileService(),
             workspace: SystemWorkspaceService(),
             screens: SystemScreenTopologyService(),
@@ -125,7 +130,7 @@ struct AppSystemServices: Sendable {
             ids: SystemIDGenerator(),
             scheduler: SystemScheduler(),
             permissions: permissions,
-            accessibility: LiveAccessibilityPlatform(),
+            accessibility: accessibilityPlatform,
             screenCapturePlatform: LiveScreenCapturePlatform(),
             screenRecordingPlatform: LiveScreenRecordingPlatform(),
             connectedDevicePlatform: LiveConnectedDevicePlatform()

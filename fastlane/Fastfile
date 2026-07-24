@@ -1,4 +1,5 @@
 require "json"
+require "open3"
 require "time"
 
 default_platform(:mac)
@@ -389,6 +390,59 @@ def self_release_archive_app_path
   app_path
 end
 
+def archive_mach_o_executables
+  app_path = self_release_archive_app_path
+  Dir.glob(File.join(app_path, "**", "*"), File::FNM_DOTMATCH).select do |path|
+    next false unless File.file?(path) && File.executable?(path)
+
+    output, _error, status = Open3.capture3("/usr/bin/file", "-b", path)
+    status.success? && output.include?("Mach-O")
+  end
+end
+
+def verify_release_archive_safety!(build_target:)
+  app_store_build = build_target != "Self Release"
+  executables = archive_mach_o_executables
+  UI.user_error!("No Mach-O executables found in #{self_release_archive_app_path}.") if executables.empty?
+
+  failures = []
+  executables.each do |executable|
+    symbols, symbol_error, symbol_status = Open3.capture3("/usr/bin/nm", "-u", executable)
+    unless symbol_status.success?
+      failures << "#{executable}: could not inspect symbols (#{symbol_error.strip})"
+      next
+    end
+
+    if symbols.include?("_AXUIElementGetWindow")
+      failures << "#{executable}: imports private symbol _AXUIElementGetWindow"
+    end
+
+    if app_store_build
+      ax_symbols = symbols.scan(/\b_AX[A-Za-z0-9_]+/).uniq
+      failures << "#{executable}: imports Accessibility client symbols #{ax_symbols.join(', ')}" unless ax_symbols.empty?
+      if symbols.include?("_CGEventTapCreate")
+        failures << "#{executable}: imports CGEventTapCreate"
+      end
+
+      entitlements, entitlement_error, entitlement_status = Open3.capture3(
+        "/usr/bin/codesign",
+        "-d",
+        "--entitlements",
+        ":-",
+        executable
+      )
+      entitlement_payload = "#{entitlements}\n#{entitlement_error}"
+      sandboxed = entitlement_payload.match?(
+        %r{<key>\s*com\.apple\.security\.app-sandbox\s*</key>\s*<true\s*/>}
+      )
+      failures << "#{executable}: missing the App Sandbox entitlement" unless entitlement_status.success? && sandboxed
+    end
+  end
+
+  UI.user_error!("Release archive safety audit failed:\n- #{failures.join("\n- ")}") unless failures.empty?
+  UI.success("Release archive safety audit passed for #{executables.length} executable(s).")
+end
+
 def self_release_pkg_path
   File.join(BUILD_ARTIFACTS_DIRECTORY, "#{SCHEME}.pkg")
 end
@@ -569,6 +623,7 @@ private_lane :build_release_pkg do |options|
     export_xcargs: "-allowProvisioningUpdates"
   )
 
+  verify_release_archive_safety!(build_target: build_target)
   package_self_release_archive if build_target == "Self Release"
 end
 

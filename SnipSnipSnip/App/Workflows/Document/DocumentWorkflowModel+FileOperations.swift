@@ -310,6 +310,7 @@ extension DocumentWorkflowModel {
                 }
                 let controller = GuideEditorController(document: document)
                 installGuideController(controller, documentURL: url, savedProject: controller.project)
+                presentGuideDocumentProNoticeIfNeeded()
             } else if url.pathExtension.lowercased() == "sssvideo" {
                 let document = try withSecurityScopedAccess(to: url) {
                     try SSSVideoDocumentPackage.load(from: url, files: systemServices.files)

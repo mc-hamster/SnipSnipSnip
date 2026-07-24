@@ -22,6 +22,9 @@ final class AppModelRuntimeBindings {
             actionHandler: { action in Task { @MainActor in workflowCoordinator.handleGlobalHotKeyAction(action) } },
             presetHandler: { presetID in Task { @MainActor in workflowCoordinator.handleGlobalPresetHotKey(presetID) } }
         )
+        globalHotKeyCoordinator.setEnabledActions(
+            Set(GlobalHotKeyAction.availableActions(for: capabilities))
+        )
 
         bindHotKeyPreferences(from: capture)
         activateStartupServices(

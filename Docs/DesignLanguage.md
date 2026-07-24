@@ -49,7 +49,7 @@ This document is the required design reference for user-visible SwiftUI and AppK
 
 ### Main window and editors
 
-- Capture is the main window's persistent workflow, so its primary actions belong in a compact in-content header rather than the title-bar toolbar. The adaptive header keeps the product name and textual readiness status above a stable Region, Full, Window, conditional Scroll, Repeat, Presets, Guide, and Record sequence, with Auto Copy aligned separately.
+- Capture is the main window's persistent workflow, so its primary actions belong in a compact in-content header rather than the title-bar toolbar. The adaptive header keeps the product name and textual readiness status above a stable Region, Full, Window, conditional Scroll, Repeat, Presets, conditional Guide capture, and Record sequence, with Auto Copy aligned separately. Guide creation appears only when the build exposes `guideCapture`; opening and editing an existing `.sssguide` document remains a shared document workflow and does not add a capture-header action in the App Store edition.
 - The capture header uses semantic system backgrounds, native bordered controls, and an explicit status badge. It is not Glass and must remain visible while editing so capture remains the stable top-level workflow.
 - Reserve the native window toolbar for sparse window-level actions such as Guide or video export and inspector visibility. Do not promote an entire workflow into title-bar chrome or depend on toolbar overflow for primary commands.
 - Keep the screenshot, guide, or video as the dominant content.

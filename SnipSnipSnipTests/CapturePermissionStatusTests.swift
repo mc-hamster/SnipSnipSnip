@@ -46,6 +46,12 @@ final class CapturePermissionStatusTests: XCTestCase {
         XCTAssertFalse(FeatureFlags.uiMapEnabled(for: .externalTesting))
         XCTAssertFalse(FeatureFlags.uiMapEnabled(for: .release))
         XCTAssertTrue(FeatureFlags.uiMapEnabled(for: .selfRelease))
+
+        XCTAssertTrue(FeatureFlags.guideCaptureEnabled(for: .dev))
+        XCTAssertFalse(FeatureFlags.guideCaptureEnabled(for: .internalTesting))
+        XCTAssertFalse(FeatureFlags.guideCaptureEnabled(for: .externalTesting))
+        XCTAssertFalse(FeatureFlags.guideCaptureEnabled(for: .release))
+        XCTAssertTrue(FeatureFlags.guideCaptureEnabled(for: .selfRelease))
     }
 
     func testCaptureReadyRequiresScreenRecordingOnlyWhenScrollingFeatureDisabled() {
@@ -74,7 +80,7 @@ final class CapturePermissionStatusTests: XCTestCase {
         )
     }
 
-    func testMissingRequirementsDoNotRequireAccessibilityForOptionalUIMap() {
+    func testMissingRequirementsIncludeAccessibilityForEnabledUIMap() {
         let uiMapCapabilities = AppCapabilitySnapshot(
             buildTarget: .dev,
             enabledCapabilities: [.screenRecording, .uiMap]
@@ -82,11 +88,11 @@ final class CapturePermissionStatusTests: XCTestCase {
 
         XCTAssertEqual(
             CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: false).missingRequirements(for: uiMapCapabilities),
-            [.screenRecording]
+            [.screenRecording, .accessibility]
         )
         XCTAssertEqual(
             CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false).missingRequirements(for: uiMapCapabilities),
-            []
+            [.accessibility]
         )
     }
 }

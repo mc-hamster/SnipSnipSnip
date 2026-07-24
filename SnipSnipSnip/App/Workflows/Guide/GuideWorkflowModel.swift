@@ -106,7 +106,7 @@ final class GuideWorkflowModel: ObservableObject {
     }
 
     func presentQuickStart() {
-        guard dependencies.capabilities.isEnabled(.guide) else { return }
+        guard dependencies.capabilities.isEnabled(.guideCapture) else { return }
         if isActive { stopGuide(); return }
         guard !dependencies.capture.isWorking,
               !dependencies.video.isRecording,
@@ -162,6 +162,7 @@ final class GuideWorkflowModel: ObservableObject {
     }
 
     func beginSelectedSourceSelection() {
+        guard dependencies.capabilities.isEnabled(.guideCapture) else { return }
         guard dependencies.permissions.preflight(
             [.screenRecording, .accessibility],
             featureName: "Guide"
@@ -178,6 +179,7 @@ final class GuideWorkflowModel: ObservableObject {
     }
 
     func selectTarget(_ window: CaptureWindowSummary, as kind: GuideTargetPickerKind) {
+        guard dependencies.capabilities.isEnabled(.guideCapture) else { return }
         targetPickerKind = nil
         selectedSourceKind = kind.rawValue
         selectedWindowID = window.id
@@ -185,6 +187,7 @@ final class GuideWorkflowModel: ObservableObject {
     }
 
     func pickTargetOnScreen(as kind: GuideTargetPickerKind) {
+        guard dependencies.capabilities.isEnabled(.guideCapture) else { return }
         guard dependencies.permissions.preflight(
             [.screenRecording, .accessibility],
             featureName: "Guide"
@@ -207,6 +210,7 @@ final class GuideWorkflowModel: ObservableObject {
     }
 
     func start(source: GuideCaptureSource) {
+        guard dependencies.capabilities.isEnabled(.guideCapture) else { return }
         guard !isActive else { return }
         guard dependencies.permissions.preflight(
             [.screenRecording, .accessibility],
@@ -547,6 +551,12 @@ final class GuideWorkflowModel: ObservableObject {
     }
 
     private func startImmediately(source: GuideCaptureSource, privateCapture: Bool) async throws {
+        guard dependencies.capabilities.isEnabled(.guideCapture) else {
+            throw AutomationExecutionError(
+                code: .proFeatureRequired,
+                message: "Guide capture is available in SnipSnipSnip Pro."
+            )
+        }
         isShowingQuickStart = false
         try await captureCoordinator.start(
             source: source,
@@ -600,6 +610,13 @@ final class GuideWorkflowModel: ObservableObject {
 @MainActor
 extension GuideWorkflowModel: GuideAutomationPort {
     func guideAutomation(_ command: GuideAutomationCommand, request: AutomationRequest) async -> AutomationResultEnvelope {
+        guard dependencies.capabilities.isEnabled(.guideCapture) else {
+            return .failure(
+                requestID: request.id,
+                code: .proFeatureRequired,
+                message: "Guide capture and Guide automation are available in SnipSnipSnip Pro."
+            )
+        }
         do {
             switch command {
             case .start(let target):

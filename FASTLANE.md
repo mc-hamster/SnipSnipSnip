@@ -137,7 +137,7 @@ Use this to create a production upload and submit it for App Review:
 
 If you omit `version`, the `release` lane automatically increments the patch version from the current marketing version before building.
 
-Fastlane builds App Store archives with `SNIP_BUILD_TARGET=Release` and adds the Swift compilation condition `APP_STORE_BUILD`, which disables internal/dev-only feature flags and compiles out the Accessibility-backed scrolling implementation from the App Store binary.
+Fastlane builds App Store archives with `SNIP_BUILD_TARGET=Release` and adds the Swift compilation condition `APP_STORE_BUILD`. That condition is authoritative: it disables Guide capture, UI Map, scrolling capture, and all Accessibility-assisted workflows even if a runtime target is misconfigured, and compiles their live Accessibility/event-tap backends out of the App Store binary.
 
 Release safety checks are now enabled by default for `release` and `submit_review`. Before either lane can continue, set these environment variables to `true`:
 
@@ -163,23 +163,28 @@ RELEASE_SKIP_TESTS=true
 `RELEASE_MANUAL_QA_CONFIRMED=true` means the following checks passed on the
 exact signed App Store/TestFlight candidate, not on an Xcode Debug build:
 
-1. With Screen Recording and Accessibility access removed, ordinary Region and
-   Fullscreen capture request only Screen Recording and complete after using the
-   app's Restart action.
-2. Starting Guide can request Accessibility in the App Store build. Click,
-   double-click, typing, scrolling, and a supported keyboard shortcut each
-   create the expected steps in another app.
-3. Starting a Guide with microphone narration requests Microphone before
-   capture and the exported Full Motion MP4 contains narration. Silent Guide
-   capture remains silent.
-4. Guide pause/resume, stop, discard, quit, and Restart preserve or discard work
-   exactly as their confirmation text states.
-5. The bundled `snipsnipsnipctl` can start, pause, resume, add a step to, stop,
-   and export a Guide.
-6. App Store unattended automation saves inside Downloads and rejects an
+1. With Accessibility access removed, ordinary Region, Window, Fullscreen,
+   recording, editor, archive, Clipboard History, automation, and on-screen
+   window picking work without an Accessibility prompt. Screen capture still
+   requests Screen Recording normally.
+2. Guide creation is absent from the App Store main header, Capture menu, menu
+   bar, Settings, onboarding, shortcut catalog, global hotkeys, and advertised
+   App Shortcuts. Dedicated Guide and explicit UI Map automation return
+   `proFeatureRequired` before permission work.
+3. Representative `.sssguide` documents and recovery checkpoints open, edit,
+   save, and export in the App Store edition. The native Pro notice appears
+   only after the first successful Guide open, once per installation, and its
+   Learn More action opens the product page without closing the document.
+4. Representative `.sss` documents containing UI Map metadata round-trip in
+   the App Store edition without metadata loss and retain pinned-overlay
+   rendering.
+5. App Store unattended automation saves inside Downloads and rejects an
    outside path clearly; an interactive save can use a user-selected location.
-7. Screenshot capture, recording, Clipboard History opt-in, Share extension
+6. Screenshot capture, recording, Clipboard History opt-in, Share extension
    import, document reopen, copy, export, and launch-at-login smoke tests pass.
+7. A Self Release candidate from the same commit passes Guide capture,
+   pause/resume, recovery, automation, all exports, scrolling capture, and UI
+   Map tests. UI Map excludes secure-field values and descendants.
 
 ### Build for website distribution
 
@@ -273,10 +278,12 @@ The app reads `SnipBuildTarget` from its bundle Info.plist. Local Xcode `Debug` 
 Current gated features:
 
 - Presentation export styling is currently enabled for `Dev` and disabled for `Internal`, `External`, `Release`, and `Self Release`.
-- Scrolling Capture and Accessibility automation are enabled only for `Self Release`.
-- Scrolling Capture and Accessibility automation are disabled for `Dev`, `Internal`, `External`, and `Release`.
-- Local Xcode `Debug` / `Dev` builds and Fastlane `Self Release` builds run without App Sandbox so Accessibility-backed UI Map and self-distributed Pro automation can read cross-app accessibility trees after user consent.
-- Fastlane `Internal`, `External`, and App Store `Release` builds all keep App Sandbox and `APP_STORE_BUILD`, so the Accessibility-backed scrolling implementation is compiled out of those binaries and extra self-distribution capabilities do not ship to App Store builds.
+- Guide capture, Scrolling Capture, connected-device capture, and UI Map are enabled for `Dev` and `Self Release`.
+- Accessibility automation and Pro update checks are enabled only for `Self Release`.
+- `Internal`, `External`, and `Release` expose none of those gated capabilities.
+- Local Xcode `Debug` / `Dev` builds and Fastlane `Self Release` builds run without App Sandbox so Accessibility-backed Guide, scrolling, UI Map, and Pro automation can operate after user consent.
+- Fastlane `Internal`, `External`, and App Store `Release` builds all keep App Sandbox and `APP_STORE_BUILD`. Live Accessibility, UI Map capture, Guide event monitoring/caption capture, and Guide capture coordinators are replaced by unavailable implementations that make no cross-app calls.
+- After every archive, Fastlane inspects every Mach-O executable. All editions reject the private `_AXUIElementGetWindow` import. App Store archives additionally fail before packaging/upload when any executable lacks App Sandbox or imports AX client calls or `CGEventTapCreate`.
 - Sandboxed builds carry a Downloads read/write entitlement for unattended
   automation output. The automation layer rejects other unattended destinations
   before writing; interactive save panels still grant user-selected access.
@@ -288,6 +295,11 @@ Before relying on `release`, verify all of the following manually in App Store C
 3. The Release build signs correctly for App Store distribution on this Mac.
 4. The export compliance answer is correct in `fastlane/.env` via `USES_NON_EXEMPT_ENCRYPTION=false` for this app.
 5. A valid editable App Store version exists in App Store Connect or can be created by the upload.
+6. The privacy policy and App Store metadata explicitly say that the App Store
+   edition does not request Accessibility, that Guide creation is Pro-only, and
+   that existing `.sssguide` documents can still be edited and exported.
+7. The product website feature comparison lists Guide creation under Pro and
+   documents App Store `.sssguide` editing/export compatibility.
 
 Important limitation: the `release` and `submit_review` lanes intentionally use `skip_metadata: true` and `skip_screenshots: true`, so they do not upload store listing content. That content must already be complete in App Store Connect.
 

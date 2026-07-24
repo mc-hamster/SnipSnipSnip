@@ -63,7 +63,7 @@ struct HelpGuideView: View {
         let connectedDeviceCaptureEnabled = capabilities.isEnabled(.connectedDeviceCapture)
         let uiMapEnabled = capabilities.isEnabled(.uiMap)
         let proUpdateCheckEnabled = capabilities.isEnabled(.proUpdateCheck)
-        let guideEnabled = capabilities.isEnabled(.guide)
+        let guideEnabled = capabilities.isEnabled(.guideCapture)
         var accessibilityUses: [String] = []
         if guideEnabled {
             accessibilityUses.append("Guide uses it while active to observe actions and keyboard focus, group non-secure text entry, and mask secure fields.")
@@ -374,7 +374,7 @@ struct HelpGuideView: View {
                 )
             ]
         ),
-        HelpCategory(
+        guideEnabled ? HelpCategory(
             title: "Guide",
             articles: [
                 HelpArticle(
@@ -448,6 +448,47 @@ struct HelpGuideView: View {
                         "Two-hour sessions and Guides with hundreds of steps are supported. Pauses do not create empty media, step images use compressed backing stores, editor thumbnails load progressively for selected and visible rows, and exports render incrementally to keep memory use stable."
                     ],
                     relatedIDs: ["permissions", "copy-save-export", "privacy"]
+                )
+            ]
+        ) : HelpCategory(
+            title: "Guide",
+            articles: [
+                HelpArticle(
+                    id: "create-guide",
+                    title: "Open and edit an existing Guide",
+                    summary: "Use this App Store edition with editable .sssguide documents created in SnipSnipSnip Pro.",
+                    sections: [
+                        HelpArticleSection(
+                            title: "Open a Guide",
+                            body: "This App Store edition does not create or record new Guides, and it does not request Accessibility access. It keeps the Guide document model and editor so existing .sssguide files remain useful.",
+                            steps: [
+                                "Choose File > Open, or open a .sssguide file from Finder.",
+                                "The first successfully opened Guide shows a one-time explanation that Guide creation is available in the free direct-download Pro edition.",
+                                "Continue editing, saving, recovering, and exporting the Guide normally."
+                            ],
+                            links: [
+                                HelpArticleLink(title: "Learn about SnipSnipSnip Pro", url: AppLinks.snipSnipSnipProduct)
+                            ]
+                        ),
+                        HelpArticleSection(
+                            title: "Edit and export",
+                            bullets: [
+                                "Reorder, search, duplicate, delete, restore, include, or exclude steps.",
+                                "Edit instructions, markers, screenshots, branding, themes, and other saved Guide settings.",
+                                "Save changes back to the editable .sssguide package or use Save As to create a copy.",
+                                "Export the formats supported by the opened Guide, including document, image, package, and available video formats."
+                            ]
+                        ),
+                        HelpArticleSection(
+                            title: "Compatibility and privacy",
+                            body: "Opening and editing a Guide does not inspect other apps. SnipSnipSnip preserves the existing .sssguide package format so documents can move between the App Store and Pro editions without conversion."
+                        )
+                    ],
+                    important: [
+                        "Guide creation, live action monitoring, and dedicated Guide automation are available only in SnipSnipSnip Pro.",
+                        "The App Store edition never asks for Accessibility access."
+                    ],
+                    relatedIDs: ["copy-save-export", "privacy"]
                 )
             ]
         ),

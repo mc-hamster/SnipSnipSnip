@@ -38,7 +38,8 @@ final class AutomationContractTests: XCTestCase {
             supportsUIMap: false,
             supportsScrollingCapture: false,
             supportsConnectedDeviceCapture: false,
-            supportsCurrentEditorExport: true
+            supportsCurrentEditorExport: true,
+            supportsGuide: false
         )
         let preflight = AutomationPermissionPreflight(
             capabilities: capabilities,

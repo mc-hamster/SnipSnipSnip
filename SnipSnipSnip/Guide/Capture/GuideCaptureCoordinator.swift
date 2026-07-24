@@ -40,6 +40,7 @@ nonisolated enum GuideCaptureInterruptionError: LocalizedError, Equatable {
     }
 }
 
+#if !APP_STORE_BUILD
 @MainActor
 final class GuideCaptureCoordinator: ObservableObject {
     @Published private(set) var state: GuideCaptureState = .idle
@@ -1247,3 +1248,73 @@ final class GuideCaptureCoordinator: ObservableObject {
         ).standardized.intersection(CGRect(x: 0, y: 0, width: image.width, height: image.height))
     }
 }
+#else
+@MainActor
+final class GuideCaptureCoordinator: ObservableObject {
+    @Published private(set) var state: GuideCaptureState = .idle
+    @Published private(set) var project: GuideProject?
+    @Published private(set) var stepImages: [UUID: CGImage] = [:]
+    @Published private(set) var stepThumbnails: [UUID: CGImage] = [:]
+    @Published private(set) var startedAt: Date?
+    @Published private(set) var finalizationProgress: GuideFinalizationProgress?
+    @Published private(set) var audioLevels = ScreenRecordingAudioLevels()
+    @Published private(set) var isUpdatingAudioOptions = false
+    @Published private(set) var captureIssue: String?
+    @Published private(set) var recoveryIssue: String?
+    @Published private(set) var isDiscarding = false
+
+    init(
+        systemServices: AppSystemServices,
+        recoveryStore: GuideRecoveryStore = GuideRecoveryStore()
+    ) {
+        _ = systemServices
+        _ = recoveryStore
+    }
+
+    func start(
+        source: GuideCaptureSource,
+        preferences: GuideCapturePreferences,
+        exportSettings: GuideExportSettings,
+        theme: GuideTheme,
+        logoImage: CGImage?,
+        privateCapture: Bool,
+        guideShortcutKeyCode: UInt16
+    ) async throws {
+        _ = source
+        _ = preferences
+        _ = exportSettings
+        _ = theme
+        _ = logoImage
+        _ = privateCapture
+        _ = guideShortcutKeyCode
+        throw AutomationExecutionError(
+            code: .proFeatureRequired,
+            message: "Guide capture is available in SnipSnipSnip Pro."
+        )
+    }
+
+    func pause() async throws {}
+    func resume() async throws {}
+
+    func updateAudioOptions(capturesSystemAudio: Bool, capturesMicrophone: Bool) async throws {
+        _ = capturesSystemAudio
+        _ = capturesMicrophone
+    }
+
+    func addManualStep() {}
+    func undoLastStep() {}
+    func deleteStep(id: UUID) { _ = id }
+    func stop() async throws -> EditableGuideDocument? { nil }
+
+    func discard() async {
+        state = .idle
+        project = nil
+        stepImages = [:]
+        stepThumbnails = [:]
+        startedAt = nil
+        finalizationProgress = nil
+        captureIssue = nil
+        recoveryIssue = nil
+    }
+}
+#endif

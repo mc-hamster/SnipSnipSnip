@@ -15,7 +15,8 @@ extension CaptureWorkflowModel {
             supportsUIMap: dependencies.capabilities.isEnabled(.uiMap),
             supportsScrollingCapture: dependencies.capabilities.isEnabled(.scrollingCapture),
             supportsConnectedDeviceCapture: dependencies.capabilities.isEnabled(.connectedDeviceCapture),
-            supportsCurrentEditorExport: documents?.activeCaptureEditorController != nil
+            supportsCurrentEditorExport: documents?.activeCaptureEditorController != nil,
+            supportsGuide: dependencies.capabilities.isEnabled(.guideCapture)
         )
     }
 
@@ -56,7 +57,14 @@ extension CaptureWorkflowModel {
         guard let preset = AutomationPresetResolver(presets: capturePresets).resolve(command) else {
             return .failure(requestID: request.id, code: .targetUnavailable, message: "Capture preset was not found.")
         }
-
+        if preset.options.windowUIMapEnabled,
+           !dependencies.capabilities.isEnabled(.uiMap) {
+            return .failure(
+                requestID: request.id,
+                code: .proFeatureRequired,
+                message: "UI Map capture is available in SnipSnipSnip Pro."
+            )
+        }
         do {
             switch preset.target {
             case .region(let region):
@@ -104,6 +112,14 @@ extension CaptureWorkflowModel {
                 "capture.automation busy requestID=\(request.id.uuidString, privacy: .public) isWorking=\(self.isWorking, privacy: .public) videoRecording=\(self.video?.isRecording == true, privacy: .public) connectedDevice=\(self.isConnectedDeviceSessionActive, privacy: .public)"
             )
             return .failure(requestID: request.id, code: .busy, message: "SnipSnipSnip is already working.")
+        }
+        if command.options.windowUIMap == .enabled,
+           !dependencies.capabilities.isEnabled(.uiMap) {
+            return .failure(
+                requestID: request.id,
+                code: .proFeatureRequired,
+                message: "UI Map capture is available in SnipSnipSnip Pro."
+            )
         }
 
         do {

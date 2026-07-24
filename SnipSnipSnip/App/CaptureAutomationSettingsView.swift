@@ -372,7 +372,7 @@ struct CaptureAutomationSettingsView: View {
                 Section("Global Capture Hotkeys") {
                     Toggle("Enable Global Capture Hotkeys", isOn: automationBinding(\.globalHotkeysEnabled))
 
-                    ForEach(GlobalHotKeyAction.allCases, id: \.rawValue) { action in
+                    ForEach(availableGlobalHotKeyActions, id: \.rawValue) { action in
                         Picker(action.label + " Hotkey", selection: automationHotKeyBinding(for: action)) {
                             ForEach(GlobalHotKeyKey.allCases) { key in
                                 Text("Command-Shift-" + key.label).tag(key)
@@ -389,7 +389,11 @@ struct CaptureAutomationSettingsView: View {
                 }
 
                 Section("Shortcut Reference") {
-                    ShortcutCatalogListView(sections: AppShortcut.catalogSections)
+                    ShortcutCatalogListView(
+                        sections: AppShortcut.catalogSections(
+                            includesGuideCapture: capabilities.isEnabled(.guideCapture)
+                        )
+                    )
                     SettingsHelpText("Default global capture hotkeys can be changed above. Built-in app and editor shortcuts are fixed in this version.")
                 }
             }
@@ -447,10 +451,11 @@ struct CaptureAutomationSettingsView: View {
             }
             .tag(AppSettingsTab.recording)
 
-            SettingsTabContainer(
-                title: "Guide",
-                summary: "Choose how actions become polished, private, editable instructions."
-            ) {
+            if capabilities.isEnabled(.guideCapture) {
+                SettingsTabContainer(
+                    title: "Guide",
+                    summary: "Choose how actions become polished, private, editable instructions."
+                ) {
                 Section("Capture") {
                     Toggle("Keep Full-Motion Source Video", isOn: guideCapturePreferenceBinding(\.sourceVideoEnabled))
                     Picker("Source Frame Rate", selection: guideCapturePreferenceBinding(\.framesPerSecond)) {
@@ -554,11 +559,12 @@ struct CaptureAutomationSettingsView: View {
                     }
                     TextField("File Name", text: guideExportSettingsBinding(\.filenameTemplate))
                 }
+                }
+                .tabItem {
+                    Label("Guide", systemImage: "list.number")
+                }
+                .tag(AppSettingsTab.guide)
             }
-            .tabItem {
-                Label("Guide", systemImage: "list.number")
-            }
-            .tag(AppSettingsTab.guide)
 
             SettingsTabContainer(
                 title: "Archive",
@@ -1018,6 +1024,10 @@ struct CaptureAutomationSettingsView: View {
                 capture.automationPreferences = preferences
             }
         )
+    }
+
+    private var availableGlobalHotKeyActions: [GlobalHotKeyAction] {
+        GlobalHotKeyAction.availableActions(for: capabilities)
     }
 
     private func capturePresetRow(_ preset: CapturePreset) -> some View {

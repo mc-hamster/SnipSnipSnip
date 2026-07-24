@@ -8,6 +8,11 @@ sample scripts.
 The scripts are GitHub-only examples. They are not copied into the app bundle
 and are not part of shipped build products.
 
+Guide procedures 17–22 require SnipSnipSnip Pro. The App Store edition keeps
+the same parsers and identifiers, but returns `proFeatureRequired` before
+permission or capture work so old scripts fail predictably instead of becoming
+invalid.
+
 Maintenance rule: maintain these samples whenever any shared automation command,
 option, URL route, AppleScript term, App Intent action, App Entity, App Shortcut
 phrase, result field, error code, or output behavior changes. Update the
@@ -46,12 +51,12 @@ Current procedure matrix:
 | `14-export-current-to-file` | yes | yes | no |
 | `15-private-fullscreen-to-file` | yes | yes | no |
 | `16-open-document-to-file` | yes | yes | no |
-| `17-start-guide-window` | yes | yes | yes |
-| `18-pause-guide` | yes | yes | yes |
-| `19-resume-guide` | yes | yes | yes |
-| `20-add-guide-step` | yes | yes | yes |
-| `21-stop-guide` | yes | yes | yes |
-| `22-export-guide-pdf` | yes | yes | yes |
+| `17-start-guide-window` (Pro) | yes | yes | yes |
+| `18-pause-guide` (Pro) | yes | yes | yes |
+| `19-resume-guide` (Pro) | yes | yes | yes |
+| `20-add-guide-step` (Pro) | yes | yes | yes |
+| `21-stop-guide` (Pro) | yes | yes | yes |
+| `22-export-guide-pdf` (Pro) | yes | yes | yes |
 
 Set these environment variables as needed:
 

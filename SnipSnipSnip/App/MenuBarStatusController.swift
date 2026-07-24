@@ -434,12 +434,14 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         videoRecordingItem.submenu = videoRecordingMenu
         menu.addItem(videoRecordingItem)
 
-        let guideItem = NSMenuItem(title: guide?.isActive == true ? "Guide · \(guide?.stepCount ?? 0) steps" : "Guide", action: nil, keyEquivalent: "g")
-        guideItem.keyEquivalentModifierMask = captureShortcutModifiers
-        guideItem.image = NSImage(systemSymbolName: "list.number", accessibilityDescription: nil)
-        guideItem.submenu = guideMenu
-        guideItem.isEnabled = guide?.isActive == true || !isCaptureActionDisabled
-        menu.addItem(guideItem)
+        if capabilities.isEnabled(.guideCapture) {
+            let guideItem = NSMenuItem(title: guide?.isActive == true ? "Guide · \(guide?.stepCount ?? 0) steps" : "Guide", action: nil, keyEquivalent: "g")
+            guideItem.keyEquivalentModifierMask = captureShortcutModifiers
+            guideItem.image = NSImage(systemSymbolName: "list.number", accessibilityDescription: nil)
+            guideItem.submenu = guideMenu
+            guideItem.isEnabled = guide?.isActive == true || !isCaptureActionDisabled
+            menu.addItem(guideItem)
+        }
 
         menu.addItem(.separator())
 

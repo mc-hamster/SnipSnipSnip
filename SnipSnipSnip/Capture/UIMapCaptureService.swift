@@ -4,6 +4,7 @@ import Foundation
 import OSLog
 import Vision
 
+#if !APP_STORE_BUILD
 private enum UIMapCaptureDiagnostics {
     nonisolated private static let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "com.oontz.SnipSnipSnip",
@@ -18,9 +19,17 @@ private enum UIMapCaptureDiagnostics {
         logger.error("\(message, privacy: .public)")
     }
 }
+#endif
 
 protocol UIMapCaptureServiceType: Sendable {
     nonisolated func captureUIMap(for capture: CapturedScreenshot) async -> UIMapSnapshot?
+}
+
+nonisolated struct UnavailableUIMapCaptureService: UIMapCaptureServiceType {
+    nonisolated func captureUIMap(for capture: CapturedScreenshot) async -> UIMapSnapshot? {
+        _ = capture
+        return nil
+    }
 }
 
 nonisolated struct UIMapWindowRelativeMapping: Equatable {
@@ -139,6 +148,21 @@ nonisolated enum UIMapTextRecognitionGeometry {
     }
 }
 
+nonisolated enum UIMapAccessibilityPrivacy {
+    static func isSensitive(role: String?, subrole: String?, ancestorIsSensitive: Bool) -> Bool {
+        ancestorIsSensitive || role == "AXSecureTextField" || subrole == "AXSecureTextField"
+    }
+
+    static func readValueIfAllowed(
+        isSensitive: Bool,
+        _ readValue: () -> String?
+    ) -> String? {
+        guard !isSensitive else { return nil }
+        return readValue()
+    }
+}
+
+#if !APP_STORE_BUILD
 nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
     private let capabilities: AppCapabilitySnapshot
     private let accessibility: any AccessibilityPlatform
@@ -494,6 +518,7 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
                 mapping: mapping,
                 windowRelativeMapping: windowRelativeMapping,
                 depth: 0,
+                ancestorIsSensitive: false,
                 visited: &visited,
                 remainingVisitBudget: &remainingVisitBudget,
                 remainingElementBudget: &remainingElementBudget,
@@ -648,6 +673,7 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         mapping: CaptureMapping,
         windowRelativeMapping: UIMapWindowRelativeMapping?,
         depth: Int,
+        ancestorIsSensitive: Bool,
         visited: inout Set<AccessibilityElementHandle>,
         remainingVisitBudget: inout Int,
         remainingElementBudget: inout Int,
@@ -670,6 +696,14 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         }
         remainingVisitBudget -= 1
 
+        let role = stringAttribute("AXRole", from: element)
+        let subrole = stringAttribute("AXSubrole", from: element)
+        let isSensitive = UIMapAccessibilityPrivacy.isSensitive(
+            role: role,
+            subrole: subrole,
+            ancestorIsSensitive: ancestorIsSensitive
+        )
+
         let capturedChildren = elementChildren(of: element).compactMap {
             captureElement(
                 $0,
@@ -678,6 +712,7 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
                 mapping: mapping,
                 windowRelativeMapping: windowRelativeMapping,
                 depth: depth + 1,
+                ancestorIsSensitive: isSensitive,
                 visited: &visited,
                 remainingVisitBudget: &remainingVisitBudget,
                 remainingElementBudget: &remainingElementBudget,
@@ -704,9 +739,11 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
                 name: stringAttribute("AXTitle", from: element) ?? stringAttribute("AXDescription", from: element),
                 accessibilityLabel: stringAttribute("AXDescription", from: element),
                 accessibilityIdentifier: stringAttribute("AXIdentifier", from: element),
-                role: stringAttribute("AXRole", from: element),
+                role: role,
                 roleDescription: stringAttribute("AXRoleDescription", from: element),
-                valueDescription: valueDescription(from: element),
+                valueDescription: UIMapAccessibilityPrivacy.readValueIfAllowed(isSensitive: isSensitive) {
+                    valueDescription(from: element)
+                },
                 documentRect: childBoundingRect,
                 owningApplication: ownerName,
                 bundleIdentifier: bundleIdentifier,
@@ -719,9 +756,11 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
             name: stringAttribute("AXTitle", from: element) ?? stringAttribute("AXDescription", from: element),
             accessibilityLabel: stringAttribute("AXDescription", from: element),
             accessibilityIdentifier: stringAttribute("AXIdentifier", from: element),
-            role: stringAttribute("AXRole", from: element),
+            role: role,
             roleDescription: stringAttribute("AXRoleDescription", from: element),
-            valueDescription: valueDescription(from: element),
+            valueDescription: UIMapAccessibilityPrivacy.readValueIfAllowed(isSensitive: isSensitive) {
+                valueDescription(from: element)
+            },
             documentRect: documentRect,
             owningApplication: ownerName,
             bundleIdentifier: bundleIdentifier,
@@ -1149,6 +1188,7 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         String(format: "%.1f", Double(value))
     }
 }
+#endif
 
 nonisolated enum UIMapWindowVisibilityPolicy {
     static let minimumVisibleArea: CGFloat = 16

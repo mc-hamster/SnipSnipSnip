@@ -661,6 +661,7 @@ struct SnipSnipSnipAutomationShortcuts: AppShortcutsProvider {
             systemImageName: "star"
         )
 
+        #if !APP_STORE_BUILD
         AppIntents.AppShortcut(
             intent: GuideActionIntent(),
             phrases: [
@@ -670,5 +671,6 @@ struct SnipSnipSnipAutomationShortcuts: AppShortcutsProvider {
             shortTitle: "Guide",
             systemImageName: "list.number"
         )
+        #endif
     }
 }

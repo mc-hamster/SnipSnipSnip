@@ -51,18 +51,20 @@ private struct CaptureCommands: Commands {
 
             Divider()
 
-            Button(guide.isActive ? "Stop Guide" : "Guide", action: guide.presentQuickStart)
-                .keyboardShortcut("g", modifiers: AppShortcut.modifiers)
-                .disabled((isCaptureOrRecordingActive && !guide.isActive) || capture.isConnectedDeviceSessionActive)
+            if capabilities.isEnabled(.guideCapture) {
+                Button(guide.isActive ? "Stop Guide" : "Guide", action: guide.presentQuickStart)
+                    .keyboardShortcut("g", modifiers: AppShortcut.modifiers)
+                    .disabled((isCaptureOrRecordingActive && !guide.isActive) || capture.isConnectedDeviceSessionActive)
 
-            if guide.isActive {
-                Button(guide.captureCoordinator.state == .paused ? "Resume Guide" : "Pause Guide", action: guide.togglePauseResume)
-                Button("Add Manual Step", action: guide.addManualStep)
-                Button("Undo Last Guide Step", action: guide.undoLastStep)
-                    .disabled(guide.stepCount == 0)
+                if guide.isActive {
+                    Button(guide.captureCoordinator.state == .paused ? "Resume Guide" : "Pause Guide", action: guide.togglePauseResume)
+                    Button("Add Manual Step", action: guide.addManualStep)
+                    Button("Undo Last Guide Step", action: guide.undoLastStep)
+                        .disabled(guide.stepCount == 0)
+                }
+
+                Divider()
             }
-
-            Divider()
 
             Menu("Video Recording") {
                 Button("Record Region", action: video.recordRegion)

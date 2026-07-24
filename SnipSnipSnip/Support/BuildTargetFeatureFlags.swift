@@ -29,6 +29,7 @@ nonisolated enum FeatureToggle: Sendable {
     case accessibilityAutomation
     case connectedDeviceCapture
     case uiMap
+    case guideCapture
     case proUpdateCheck
 }
 
@@ -41,6 +42,7 @@ nonisolated enum BuildTargetFeatureMatrix {
         .dev: [
           .connectedDeviceCapture,
           .uiMap,
+          .guideCapture,
           .scrollingCapture,
         ],
         .internalTesting: [],
@@ -51,6 +53,7 @@ nonisolated enum BuildTargetFeatureMatrix {
             .accessibilityAutomation,
             .connectedDeviceCapture,
             .uiMap,
+            .guideCapture,
             .proUpdateCheck,
         ],
     ]
@@ -93,6 +96,14 @@ nonisolated enum FeatureFlags {
 
     static var uiMapEnabled: Bool {
         uiMapEnabled(for: .current)
+    }
+
+    static func guideCaptureEnabled(for target: BuildTarget = .current) -> Bool {
+        capabilityProvider.snapshot(for: target).isEnabled(.guideCapture)
+    }
+
+    static var guideCaptureEnabled: Bool {
+        guideCaptureEnabled(for: .current)
     }
 
     static func proUpdateCheckEnabled(for target: BuildTarget = .current) -> Bool {

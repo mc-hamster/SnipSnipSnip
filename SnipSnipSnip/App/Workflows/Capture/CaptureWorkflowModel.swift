@@ -143,7 +143,7 @@ final class CaptureWorkflowModel: ObservableObject, AutomationStatusPort, Captur
         self.screenshotFilenameTemplate = dependencies.preferenceStore.loadScreenshotFilenameTemplate()
         self.screenshotDragOutFormat = dependencies.preferenceStore.loadScreenshotDragOutFormat()
         self.privateCaptureEnabled = dependencies.preferenceStore.loadPrivateCaptureEnabled()
-        self.uiMapEnabled = dependencies.preferenceStore.loadUIMapEnabled(defaultEnabled: dependencies.capabilities.isEnabled(.uiMap))
+        self.uiMapEnabled = dependencies.preferenceStore.loadUIMapEnabled(defaultEnabled: false)
         self.automationPreferences = dependencies.automationPreferenceStore.loadPreferences()
     }
 }

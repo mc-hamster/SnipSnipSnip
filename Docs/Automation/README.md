@@ -27,8 +27,9 @@ group; it does not receive general Apple Events access to other apps.
 Screenshot automation follows the same macOS permissions as the app UI:
 
 - Screen Recording is required for screenshot capture.
-- Accessibility may be needed for frontmost-window workflows and future advanced
-  window targeting.
+- The App Store edition never requests Accessibility. SnipSnipSnip Pro requires
+  it for Guide creation, scrolling capture, UI Map, and other
+  Accessibility-assisted workflows.
 - Apple Events permission is required for `snipsnipsnipctl` because it talks to
   SnipSnipSnip through the AppleScript suite.
 - App Intents and Shortcuts use the same app permissions. Interactive actions
@@ -99,16 +100,26 @@ snipsnipsnipctl guide export --format pdf
 
 ### Guide Commands
 
-Guide uses the same contract on every automation surface:
+Guide creation and dedicated Guide automation are Pro-only. The identifiers
+remain decodable on every automation surface so existing workflows stay
+compatible:
 
 - `guide start --target window|app|region|display`
 - `guide pause`, `guide resume`, `guide add-step`, and `guide stop`
 - `guide export --format pdf|gif|apng|mp4-full|mp4-highlights|mp4-slideshow|images|zip`
 - URL routes mirror these at `snipsnipsnip://v1/guide/start`, `/pause`, `/resume`, `/add-step`, `/stop`, and `/export`.
 - AppleScript uses `guide given action:"…"`, with optional `target`, `format`, and `privateCapture` parameters.
-- App Intents exposes the same actions through Control SnipSnipSnip Guide.
+- App Intents exposes the same actions through Control SnipSnipSnip Guide in
+  Pro. The App Store edition does not advertise that App Shortcut.
 
-Guide start requires Screen Recording and Accessibility. Region start is interactive and the selected Guide region is constrained to the display where the drag begins; cross-display Guide regions are rejected, while ordinary screenshot-region capture is unchanged. Window and app Guide targets follow source geometry changes automatically. URL exports are trigger-oriented and use the default Downloads destination. Explicit errors include `noActiveGuide`, `guideAlreadyActive`, `guideHasNoSteps`, `guideSourceMediaUnavailable`, and `guideFinalizationFailed`.
+In Pro, Guide start requires Screen Recording and Accessibility. Region start is interactive and the selected Guide region is constrained to the display where the drag begins; cross-display Guide regions are rejected, while ordinary screenshot-region capture is unchanged. Window and app Guide targets follow source geometry changes automatically. URL exports are trigger-oriented and use the default Downloads destination. Explicit errors include `noActiveGuide`, `guideAlreadyActive`, `guideHasNoSteps`, `guideSourceMediaUnavailable`, and `guideFinalizationFailed`.
+
+In the App Store edition, every dedicated Guide start/control/export request
+returns `proFeatureRequired` before permission or capture work. Generic document
+opening still accepts `.sssguide`, and an opened Guide can be edited, saved, and
+exported through the normal document workflow. An explicit UI Map capture
+option likewise returns `proFeatureRequired`; ordinary Window capture is
+unchanged.
 
 Private Guide skips archive/search/indexing and background OCR or AI refinement. Automation never receives screenshot, OCR, caption, window-title, or path content in diagnostics.
 
@@ -201,7 +212,8 @@ Available actions:
 - Repeat Last SnipSnipSnip Capture
 - Open SnipSnipSnip Document
 - Export Current SnipSnipSnip Screenshot
-- Control SnipSnipSnip Guide
+- Control SnipSnipSnip Guide (Pro only; the identifier remains compatible in
+  the App Store edition but is not advertised)
 
 Shortcut suggestions include high-value capture actions for fullscreen, region,
 window, frontmost window, repeat last capture, and running a capture preset.

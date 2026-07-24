@@ -1,4 +1,6 @@
+#if !APP_STORE_BUILD
 import ApplicationServices
+#endif
 import CoreGraphics
 import Foundation
 #if canImport(FoundationModels)
@@ -13,6 +15,7 @@ nonisolated struct GuideCaptionResult: Equatable, Sendable {
 nonisolated struct GuideCaptionGenerator: Sendable {
     let accessibility: any AccessibilityPlatform
 
+    #if !APP_STORE_BUILD
     func immediateCaption(for event: GuideClassifiedEvent, at point: CGPoint) -> GuideCaptionResult {
         let metadata = targetMetadata(at: point)
         return GuideCaptionResult(metadata: metadata, deterministicCaption: deterministicCaption(for: event, metadata: metadata))
@@ -197,4 +200,55 @@ nonisolated struct GuideCaptionGenerator: Sendable {
         case .ignored: return ""
         }
     }
+    #else
+    func immediateCaption(for event: GuideClassifiedEvent, at point: CGPoint) -> GuideCaptionResult {
+        _ = event
+        _ = point
+        return GuideCaptionResult(metadata: nil, deterministicCaption: "Review this step.")
+    }
+
+    func textEntryCaption(at point: CGPoint, fromPrintableKeyEvent: Bool = false) -> GuideCaptionResult? {
+        _ = point
+        _ = fromPrintableKeyEvent
+        return nil
+    }
+
+    static func allowsTextEntryCapture(
+        metadata: GuideTargetMetadata?,
+        fromPrintableKeyEvent: Bool
+    ) -> Bool {
+        guard metadata?.isSecure != true else { return false }
+        if fromPrintableKeyEvent { return true }
+        switch metadata?.role {
+        case "AXTextField", "AXTextArea", "AXSearchField", "AXComboBox": return true
+        default: return false
+        }
+    }
+
+    func focusedTextEntryObservation() -> GuideTextEntryObservation? { nil }
+
+    func focusedWindowID(forProcessID processID: pid_t) -> CGWindowID? {
+        _ = processID
+        return nil
+    }
+
+    func recognizeFallbackText(in image: CGImage, privateCapture: Bool) async -> String? {
+        _ = image
+        _ = privateCapture
+        return nil
+    }
+
+    func refineCaption(
+        deterministic: String,
+        metadata: GuideTargetMetadata?,
+        recognizedText: String?,
+        privateCapture: Bool
+    ) async -> String? {
+        _ = deterministic
+        _ = metadata
+        _ = recognizedText
+        _ = privateCapture
+        return nil
+    }
+    #endif
 }

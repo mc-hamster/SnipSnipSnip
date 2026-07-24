@@ -52,7 +52,7 @@ final class WindowSelectionSession: NSObject {
         snapshot: DesktopCompositeSnapshot,
         windows: [CaptureWindowSummary],
         capabilities: AppCapabilitySnapshot,
-        accessibility: any AccessibilityPlatform = LiveAccessibilityPlatform(),
+        accessibility: any AccessibilityPlatform = AccessibilityPlatformFactory.defaultPlatform(),
         screens: any ScreenTopologyProviding = SystemScreenTopologyService(),
         prompt: WindowSelectionPrompt = .capture
     ) {

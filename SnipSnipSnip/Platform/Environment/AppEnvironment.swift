@@ -67,12 +67,16 @@ struct AppEnvironment {
     }
 
     func makeUIMapCaptureService() -> any UIMapCaptureServiceType {
+#if APP_STORE_BUILD
+        UnavailableUIMapCaptureService()
+#else
         AccessibilityUIMapCaptureService(
             capabilities: capabilities,
             accessibility: systemServices.accessibility,
             screens: systemServices.screens,
             clock: systemServices.clock
         )
+#endif
     }
 
     func makeConnectedDeviceCaptureService() -> any ConnectedDeviceCaptureServiceType {

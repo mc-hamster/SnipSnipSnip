@@ -14,7 +14,8 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable, Hashable {
 
     static func visibleCases(for capabilities: AppCapabilitySnapshot) -> [OnboardingStep] {
         allCases.filter { step in
-            step != .uiMap || capabilities.isEnabled(.uiMap)
+            (step != .uiMap || capabilities.isEnabled(.uiMap))
+                && (step != .guide || capabilities.isEnabled(.guideCapture))
         }
     }
 

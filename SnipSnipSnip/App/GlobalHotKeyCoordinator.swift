@@ -134,6 +134,12 @@ nonisolated enum GlobalHotKeyAction: UInt32, CaseIterable {
         .screenInspector: .i,
         .guide: .g
     ]
+
+    static func availableActions(for capabilities: AppCapabilitySnapshot) -> [GlobalHotKeyAction] {
+        allCases.filter {
+            $0 != .guide || capabilities.isEnabled(.guideCapture)
+        }
+    }
 }
 
 final class GlobalHotKeyCoordinator {
@@ -147,6 +153,7 @@ final class GlobalHotKeyCoordinator {
     private var eventsByID: [UInt32: GlobalHotKeyEvent] = [:]
     private var notificationObservers: [NSObjectProtocol] = []
     private var isEnabled = false
+    private var enabledActions = Set(GlobalHotKeyAction.allCases)
     private var actionKeys: [GlobalHotKeyAction: GlobalHotKeyKey] = GlobalHotKeyAction.defaultKeys
     private var presetKeys: [UUID: GlobalHotKeyKey] = [:]
 
@@ -179,6 +186,11 @@ final class GlobalHotKeyCoordinator {
 
     func setActionKeys(_ actionKeys: [GlobalHotKeyAction: GlobalHotKeyKey]) {
         self.actionKeys = actionKeys
+        refreshRegistrations()
+    }
+
+    func setEnabledActions(_ actions: Set<GlobalHotKeyAction>) {
+        enabledActions = actions
         refreshRegistrations()
     }
 
@@ -274,7 +286,7 @@ final class GlobalHotKeyCoordinator {
             return
         }
 
-        for action in GlobalHotKeyAction.allCases {
+        for action in GlobalHotKeyAction.allCases where enabledActions.contains(action) {
             let key = actionKeys[action] ?? GlobalHotKeyAction.defaultKeys[action] ?? .one
             register(key: key, id: action.rawValue, event: .action(action))
         }

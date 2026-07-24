@@ -1,5 +1,7 @@
 import AppKit
+#if !APP_STORE_BUILD
 @preconcurrency import ApplicationServices
+#endif
 import CoreGraphics
 import Foundation
 @preconcurrency import ScreenCaptureKit
@@ -55,7 +57,10 @@ nonisolated enum CapturePermissionRequirement: CaseIterable, Identifiable {
 
     static func availableCases(for capabilities: AppCapabilitySnapshot) -> [CapturePermissionRequirement] {
         var requirements: [CapturePermissionRequirement] = [.screenRecording]
-        if capabilities.isEnabled(.scrollingCapture) {
+        if capabilities.isEnabled(.scrollingCapture)
+            || capabilities.isEnabled(.accessibilityAutomation)
+            || capabilities.isEnabled(.uiMap)
+            || capabilities.isEnabled(.guideCapture) {
             requirements.append(.accessibility)
         }
         return requirements
@@ -97,7 +102,11 @@ enum ScreenCapturePermissions {
     }
 
     nonisolated(unsafe) static var accessibilityStatusProvider: @Sendable () -> Bool = {
+#if APP_STORE_BUILD
+        false
+#else
         AXIsProcessTrusted()
+#endif
     }
 
     nonisolated(unsafe) static var screenRecordingAccessVerifier: @Sendable () async -> Bool = {
@@ -109,8 +118,12 @@ enum ScreenCapturePermissions {
     }
 
     nonisolated(unsafe) static var accessibilityAccessRequester: @Sendable () -> Bool = {
+#if APP_STORE_BUILD
+        false
+#else
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as NSString: true] as CFDictionary
         return AXIsProcessTrustedWithOptions(options)
+#endif
     }
 
     nonisolated(unsafe) static var systemSettingsOpener: @Sendable (CapturePermissionRequirement) -> Void = { requirement in

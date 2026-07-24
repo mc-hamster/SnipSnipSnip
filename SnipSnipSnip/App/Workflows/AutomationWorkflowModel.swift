@@ -86,7 +86,8 @@ final class AutomationWorkflowModel: AutomationHost, AutomationOutputPort {
             supportsUIMap: false,
             supportsScrollingCapture: false,
             supportsConnectedDeviceCapture: false,
-            supportsCurrentEditorExport: false
+            supportsCurrentEditorExport: false,
+            supportsGuide: false
         )
     }
 
@@ -161,6 +162,13 @@ final class AutomationWorkflowModel: AutomationHost, AutomationOutputPort {
     }
 
     func guideAutomation(_ command: GuideAutomationCommand, request: AutomationRequest) async -> AutomationResultEnvelope {
+        guard automationCapabilities.supportsGuide else {
+            return .failure(
+                requestID: request.id,
+                code: .proFeatureRequired,
+                message: "Guide capture and Guide automation are available in SnipSnipSnip Pro."
+            )
+        }
         if case .export(let format) = command {
             guard let documentPort else {
                 return .failure(requestID: request.id, code: .internalError, message: "Guide export is unavailable.")

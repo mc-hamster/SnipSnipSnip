@@ -127,6 +127,7 @@ nonisolated enum AppModelPreferenceKey {
     static let uiMapPinnedOverlayDefaults = "appModel.uiMapPinnedOverlayDefaults"
     static let hasDismissedWelcomeCard = "appModel.hasDismissedWelcomeCard"
     static let hasPresentedWelcomeWindow = "appModel.hasPresentedWelcomeWindow"
+    static let hasPresentedGuideDocumentProNotice = "appModel.hasPresentedGuideDocumentProNotice"
     static let regionCaptureOverlayMode = "appModel.regionCaptureOverlayMode"
     static let regionCaptureShowsActionControls = "appModel.regionCaptureShowsActionControls"
     static let regionCaptureAdvancedControlsEnabled = "appModel.regionCaptureAdvancedControlsEnabled"

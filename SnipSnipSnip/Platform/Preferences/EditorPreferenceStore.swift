@@ -105,6 +105,14 @@ nonisolated struct EditorPreferenceStore {
         uiMapPinnedOverlayPreference.save(options, to: storage)
     }
 
+    func hasPresentedGuideDocumentProNotice() -> Bool {
+        storage.bool(forKey: AppModelPreferenceKey.hasPresentedGuideDocumentProNotice)
+    }
+
+    func markGuideDocumentProNoticePresented() {
+        storage.set(true, forKey: AppModelPreferenceKey.hasPresentedGuideDocumentProNotice)
+    }
+
     static func clampedCropOutsideOverlayAlpha(_ value: CGFloat) -> CGFloat {
         min(max(value, 0), 0.9)
     }

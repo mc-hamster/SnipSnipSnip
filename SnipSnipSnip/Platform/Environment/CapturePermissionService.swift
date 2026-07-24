@@ -120,7 +120,7 @@ nonisolated struct SystemCapturePermissionService: CapturePermissionServicing {
             return capabilities.isEnabled(.accessibilityAutomation)
                 || capabilities.isEnabled(.uiMap)
                 || capabilities.isEnabled(.scrollingCapture)
-                || capabilities.isEnabled(.guide)
+                || capabilities.isEnabled(.guideCapture)
         }
     }
 
@@ -145,6 +145,9 @@ nonisolated struct SystemCapturePermissionService: CapturePermissionServicing {
 
     @MainActor
     func openSystemSettings(for requirement: CapturePermissionRequirement) {
+        guard canRequest(requirement) else {
+            return
+        }
         client.systemSettingsOpener(requirement)
     }
 
