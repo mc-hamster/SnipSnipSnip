@@ -908,7 +908,9 @@ final class GuideCaptureCoordinator: ObservableObject {
                 redactions: redactions,
                 sourceCoordinateRect: composition.sourceRect,
                 sourcePixelSize: CGSize(width: composition.image.width, height: composition.image.height),
-                showsCursor: preferences.showsCursorInSteps
+                showsCursor: preferences.showsCursorInSteps,
+                showsStepNumber: preferences.resolvedShowsStepNumbers,
+                showsActionTarget: preferences.resolvedShowsActionTargets
             )
         )
         project.steps.append(step)

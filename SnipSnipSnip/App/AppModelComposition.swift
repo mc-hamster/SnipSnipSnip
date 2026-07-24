@@ -49,7 +49,8 @@ struct AppModelComposition {
             lifecycle: lifecycleWorkflow,
             capture: captureWorkflow,
             permissions: permissionWorkflow,
-            video: videoWorkflow
+            video: videoWorkflow,
+            appWindowPresenter: appWindowPresenter
         )
         let archiveWorkflow = Self.makeArchiveWorkflow(
             context: context,

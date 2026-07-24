@@ -185,7 +185,7 @@ final class GuideWorkflowTests: XCTestCase {
     func testGuideMarkerDragUpdatesLiveAndCreatesOneUndoableMove() throws {
         let originalTarget = CGPoint(x: 50, y: 40)
         let originalTail = CGPoint(x: 120, y: 100)
-        let step = GuideStep(
+        var step = GuideStep(
             sequence: 1,
             eventKind: .click,
             caption: "Click Continue.",
@@ -262,7 +262,7 @@ final class GuideWorkflowTests: XCTestCase {
     func testRenderedGuideTargetLeavesClickedPixelVisible() throws {
         let sourceColor = PixelSample(red: 51, green: 128, blue: 204, alpha: 255)
         let source = makeSolidImage(width: 100, height: 100, color: sourceColor)
-        let step = GuideStep(
+        var step = GuideStep(
             sequence: 1,
             eventKind: .click,
             caption: "Click the control.",
@@ -285,6 +285,104 @@ final class GuideWorkflowTests: XCTestCase {
 
         XCTAssertEqual(samplePixel(in: rendered, topLeftX: 122, topLeftY: 122), sourceColor)
         XCTAssertNotEqual(samplePixel(in: rendered, topLeftX: 144, topLeftY: 122), sourceColor)
+
+        step.session.showsActionTarget = false
+        let withoutCrosshairs = try XCTUnwrap(GuideRenderer.renderStepCard(
+            step: step,
+            image: source,
+            theme: GuideTheme(),
+            cardWidth: 400
+        ))
+
+        XCTAssertEqual(samplePixel(in: withoutCrosshairs, topLeftX: 144, topLeftY: 122), sourceColor)
+    }
+
+    func testPerStepNumberVisibilityOverridesLegacyThemeBehavior() {
+        var theme = GuideTheme()
+        var step = GuideStep(
+            sequence: 1,
+            eventKind: .click,
+            caption: "Click the control.",
+            session: GuideStepSession(
+                sourceCoordinateRect: CGRect(x: 0, y: 0, width: 100, height: 100),
+                sourcePixelSize: CGSize(width: 100, height: 100)
+            )
+        )
+
+        XCTAssertTrue(step.showsStepNumber(using: theme))
+
+        theme.showsNumberedMarkers = false
+        XCTAssertFalse(step.showsStepNumber(using: theme))
+
+        step.session.showsStepNumber = true
+        XCTAssertTrue(step.showsStepNumber(using: theme))
+
+        theme.showsNumberedMarkers = true
+        step.session.showsStepNumber = false
+        XCTAssertFalse(step.showsStepNumber(using: theme))
+
+        XCTAssertTrue(step.showsActionTarget(using: theme))
+        theme.showsClickHighlight = false
+        XCTAssertFalse(step.showsActionTarget(using: theme))
+        step.session.showsActionTarget = true
+        XCTAssertTrue(step.showsActionTarget(using: theme))
+        theme.showsClickHighlight = true
+        step.session.showsActionTarget = false
+        XCTAssertFalse(step.showsActionTarget(using: theme))
+    }
+
+    func testRendererHidesNumberForOnlyTheSelectedStep() throws {
+        let sourceColor = PixelSample(red: 51, green: 128, blue: 204, alpha: 255)
+        let source = makeSolidImage(width: 100, height: 100, color: sourceColor)
+        var step = GuideStep(
+            sequence: 1,
+            eventKind: .click,
+            caption: "Click the control.",
+            session: GuideStepSession(
+                marker: GuideMarker(
+                    target: CGPoint(x: 50, y: 50),
+                    tail: CGPoint(x: 10, y: 10)
+                ),
+                sourceCoordinateRect: CGRect(x: 0, y: 0, width: 100, height: 100),
+                sourcePixelSize: CGSize(width: 100, height: 100),
+                showsStepNumber: true
+            )
+        )
+
+        let numbered = try XCTUnwrap(GuideRenderer.renderStepCard(
+            step: step,
+            image: source,
+            theme: GuideTheme(),
+            cardWidth: 400
+        ))
+        step.session.showsStepNumber = false
+        let unnumbered = try XCTUnwrap(GuideRenderer.renderStepCard(
+            step: step,
+            image: source,
+            theme: GuideTheme(),
+            cardWidth: 400
+        ))
+
+        XCTAssertNotEqual(samplePixel(in: numbered, topLeftX: 82, topLeftY: 82), sourceColor)
+        XCTAssertEqual(samplePixel(in: unnumbered, topLeftX: 82, topLeftY: 82), sourceColor)
+    }
+
+    func testLegacyGuideCapturePreferencesDefaultToNumberedSteps() throws {
+        var preferences = GuideCapturePreferences()
+        preferences.showsStepNumbers = false
+        preferences.showsActionTargets = false
+        let encoded = try JSONEncoder().encode(preferences)
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        json.removeValue(forKey: "showsStepNumbers")
+        json.removeValue(forKey: "showsActionTargets")
+
+        let decoded = try JSONDecoder().decode(
+            GuideCapturePreferences.self,
+            from: JSONSerialization.data(withJSONObject: json)
+        )
+
+        XCTAssertTrue(decoded.resolvedShowsStepNumbers)
+        XCTAssertTrue(decoded.resolvedShowsActionTargets)
     }
 
     func testLegacyGuideThemeWithoutLegalStatementStillDecodes() throws {
@@ -365,7 +463,9 @@ final class GuideWorkflowTests: XCTestCase {
 
         let narratedVideo = GuideCaptureSetupIntent(
             output: .stepsAndVideo,
-            audio: .narrationAndAppAudio
+            audio: .narrationAndAppAudio,
+            showsStepNumbers: false,
+            showsActionTargets: false
         ).applying(to: base)
 
         XCTAssertTrue(narratedVideo.sourceVideoEnabled)
@@ -374,9 +474,16 @@ final class GuideWorkflowTests: XCTestCase {
         XCTAssertEqual(narratedVideo.framesPerSecond, 60)
         XCTAssertTrue(narratedVideo.showsCursorInSteps)
         XCTAssertFalse(narratedVideo.hidesDesktopIcons)
+        XCTAssertFalse(narratedVideo.resolvedShowsStepNumbers)
+        XCTAssertFalse(narratedVideo.resolvedShowsActionTargets)
         XCTAssertEqual(
             GuideCaptureSetupIntent(preferences: narratedVideo),
-            GuideCaptureSetupIntent(output: .stepsAndVideo, audio: .narrationAndAppAudio)
+            GuideCaptureSetupIntent(
+                output: .stepsAndVideo,
+                audio: .narrationAndAppAudio,
+                showsStepNumbers: false,
+                showsActionTargets: false
+            )
         )
     }
 
@@ -394,6 +501,38 @@ final class GuideWorkflowTests: XCTestCase {
         XCTAssertFalse(stepsOnly.sourceVideoEnabled)
         XCTAssertFalse(stepsOnly.capturesMicrophone)
         XCTAssertFalse(stepsOnly.capturesSystemAudio)
+    }
+
+    func testGuideTargetKindBuildsWindowAndAppSourcesFromLiveSelection() {
+        let window = CaptureWindowSummary(
+            id: 42,
+            ownerName: "Example App",
+            ownerPID: 7,
+            title: "Settings",
+            frame: CGRect(x: 10, y: 20, width: 800, height: 600),
+            layer: 0,
+            focusRank: 1,
+            thumbnail: nil
+        )
+
+        XCTAssertEqual(
+            GuideTargetPickerKind.window.source(for: window),
+            .window(
+                id: 42,
+                ownerPID: 7,
+                name: "Example App - Settings",
+                frame: window.frame
+            )
+        )
+        XCTAssertEqual(
+            GuideTargetPickerKind.app.source(for: window),
+            .app(
+                processID: 7,
+                bundleIdentifier: nil,
+                name: "Example App",
+                initialFrame: window.frame
+            )
+        )
     }
 
     func testGuideRequestsInitialMicrophoneAccessOnlyWhenRecordingNarration() async throws {

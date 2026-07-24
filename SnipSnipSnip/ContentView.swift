@@ -136,6 +136,15 @@ struct ContentView: View {
         .sheet(isPresented: $guide.isShowingQuickStart) {
             GuideQuickStartView(guide: guide, permissions: permissions)
         }
+        .sheet(item: $guide.targetPickerKind) { kind in
+            GuideTargetPickerView(
+                kind: kind,
+                windows: guide.targetWindows,
+                onSelect: { guide.selectTarget($0, as: kind) },
+                onPickOnScreen: { guide.pickTargetOnScreen(as: kind) },
+                onCancel: guide.cancelTargetSelection
+            )
+        }
         .sheet(isPresented: capturePresetNamingSheetBinding) {
             CapturePresetNamingSheetView(capture: capture)
                 .frame(width: 420)

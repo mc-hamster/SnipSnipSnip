@@ -1,7 +1,7 @@
 ---
 description: "Canonical native macOS design language for SnipSnipSnip SwiftUI and AppKit interfaces."
 status: active
-last_reviewed: 2026-07-21
+last_reviewed: 2026-07-23
 ---
 
 # SnipSnipSnip Design Language
@@ -104,7 +104,7 @@ Every explicit custom Glass or fixed-dark app surface must appear here. New entr
 | Editor and Presentation canvas notices — `Editor/EditorView.swift` and `Editor/PresentationModeCanvasView.swift` | A notice or export-preview badge must remain legible over arbitrary screenshot pixels | Uses the adaptive floating-overlay behavior and semantic text; canvas colors never communicate application state |
 | History preview overlays — `Editor/EditorInspectorView.swift` | Full-size screenshot previews temporarily float over the editor and include an instruction badge and actions | Overlay panels become opaque, strengthen boundaries, retain labeled actions, and suppress nonessential movement under the corresponding accessibility settings |
 | Floating screenshot reference controls — `App/FloatingReferenceController.swift` | Controls overlay the referenced screenshot and must stay legible without materially covering it | System materials provide an opaque fallback and increased boundary contrast; every action is labeled and movement is direct-manipulation only |
-| Capture feedback and selection overlays — `Capture/CaptureFeedbackOverlay.swift`, `Capture/RegionSelectionOverlay.swift`, `Capture/WindowSelectionOverlay.swift`, and `Capture/ScrollingCaptureProgressOverlay.swift` | Must remain visible on top of arbitrary desktop pixels during direct manipulation | Use simultaneous border/fill/label cues; strengthen boundaries for Increase Contrast; avoid transparency-dependent meaning; animation is functional progress or direct manipulation |
+| Capture feedback and selection overlays — `Capture/CaptureFeedbackOverlay.swift`, `Capture/RegionSelectionOverlay.swift`, `Capture/WindowSelectionOverlay.swift`, `Capture/DisplaySelectionOverlay.swift`, and `Capture/ScrollingCaptureProgressOverlay.swift` | Must remain visible on top of arbitrary desktop pixels during direct manipulation | Use simultaneous border/fill/label cues; strengthen boundaries for Increase Contrast; avoid transparency-dependent meaning; animation is functional progress or direct manipulation |
 | Screen Ruler and Screen Inspector — `App/ScreenRulerController.swift` and `App/ScreenInspectorController.swift` | Desktop measurement tools intentionally float over arbitrary content; the inspector magnifier is a fixed-dark content viewport | System materials provide opaque and increased-contrast fallbacks for controls; measurement marks use simultaneous lines and labels; reduced motion removes no information |
 | Connected-device preview — `Capture/ConnectedDevicePreviewWindowController.swift` | Unused preview area is black to preserve the connected display's content and aspect ratio | Black is confined to the media viewport; all surrounding controls use adaptive system chrome and labeled state |
 

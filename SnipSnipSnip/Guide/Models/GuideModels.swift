@@ -151,6 +151,12 @@ nonisolated struct GuideStepSession: Codable, Equatable, Sendable {
     var sourcePixelSize: CGSize
     var styleOverrides: GuideStepStyleOverrides?
     var showsCursor = false
+    /// Optional so Guide documents created before per-step numbering continue
+    /// to use their saved theme's numbered-marker behavior.
+    var showsStepNumber: Bool? = nil
+    /// Optional so older Guide documents retain their saved theme's action
+    /// target behavior.
+    var showsActionTarget: Bool? = nil
 }
 
 nonisolated struct GuideStepStyleOverrides: Codable, Equatable, Sendable {
@@ -213,6 +219,14 @@ nonisolated struct GuideStep: Codable, Equatable, Identifiable, Sendable {
         self.session = session
         self.captionRevision = 0
         self.userEditedCaption = false
+    }
+
+    func showsStepNumber(using theme: GuideTheme) -> Bool {
+        session.showsStepNumber ?? theme.showsNumberedMarkers
+    }
+
+    func showsActionTarget(using theme: GuideTheme) -> Bool {
+        session.showsActionTarget ?? theme.showsClickHighlight
     }
 }
 

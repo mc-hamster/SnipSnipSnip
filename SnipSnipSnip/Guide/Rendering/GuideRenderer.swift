@@ -20,12 +20,15 @@ nonisolated enum GuideRenderer {
         let number = displayNumber ?? step.sequence
         let margin: CGFloat = 72
         let caption = step.caption.trimmingCharacters(in: .whitespacesAndNewlines)
+        let showsStepNumber = step.showsStepNumber(using: theme)
+        let showsActionTarget = step.showsActionTarget(using: theme)
+        let numberedCaption = showsStepNumber ? "\(number). \(caption)" : caption
         let note = step.note.trimmingCharacters(in: .whitespacesAndNewlines)
         // The card is the shared visual representation for the editor preview
         // and every still-image export. Reserve enough space for both pieces of
         // step copy so notes do not silently disappear outside document exports.
         let captionHeight = textHeight(
-            "\(number). \(caption)",
+            numberedCaption,
             font: CTFontCreateWithName("Helvetica-Bold" as CFString, 30, nil),
             width: CGFloat(cardWidth) - margin * 2
         )
@@ -86,6 +89,8 @@ nonisolated enum GuideRenderer {
             drawMarker(
                 marker,
                 number: number,
+                showsNumber: showsStepNumber,
+                showsActionTarget: showsActionTarget,
                 in: imageRect,
                 sourceSize: step.session.sourcePixelSize,
                 theme: theme,
@@ -110,7 +115,7 @@ nonisolated enum GuideRenderer {
             width: size.width - margin * 2,
             height: captionHeight
         )
-        drawCaption(caption, number: number, rect: captionRect, theme: theme, context: context)
+        drawCaption(caption, number: showsStepNumber ? number : nil, rect: captionRect, theme: theme, context: context)
         if !note.isEmpty {
             drawNote(note, rect: noteRect, theme: theme, context: context)
         }
@@ -147,11 +152,20 @@ nonisolated enum GuideRenderer {
         )
     }
 
-    private static func drawMarker(_ marker: GuideMarker, number: Int, in imageRect: CGRect, sourceSize: CGSize, theme: GuideTheme, context: CGContext) {
+    private static func drawMarker(
+        _ marker: GuideMarker,
+        number: Int,
+        showsNumber: Bool,
+        showsActionTarget: Bool,
+        in imageRect: CGRect,
+        sourceSize: CGSize,
+        theme: GuideTheme,
+        context: CGContext
+    ) {
         let target = mapped(marker.target, sourceSize: sourceSize, destination: imageRect)
         let tail = mapped(marker.tail, sourceSize: sourceSize, destination: imageRect)
         let markerColor = color(marker.colorHex ?? theme.markerColorHex, fallback: CGColor(red: 0.9, green: 0.1, blue: 0.08, alpha: 1))
-        let targetRadius = theme.showsClickHighlight ? GuideMarkerGeometry.targetOuterRadius : 5
+        let targetRadius = showsActionTarget ? GuideMarkerGeometry.targetOuterRadius : 5
         context.setStrokeColor(markerColor)
         context.setFillColor(markerColor)
         context.setLineWidth(marker.lineWidth ?? theme.markerLineWidth)
@@ -172,12 +186,15 @@ nonisolated enum GuideRenderer {
                 context: context
             )
         }
-        if theme.showsClickHighlight {
+        if showsActionTarget {
             drawTransparentTarget(at: target, color: markerColor, context: context)
         }
+        guard showsNumber else { return }
+        // Older themes can store "none" as the number style. An explicit
+        // per-step opt-in should still produce a useful, visible number.
+        let numberStyle = theme.markerNumberStyle == "none" ? "circle" : theme.markerNumberStyle
         let badgeRect = CGRect(x: tail.x - 18, y: tail.y - 18, width: 36, height: 36)
-        switch theme.markerNumberStyle {
-        case "none": return
+        switch numberStyle {
         case "plain": break
         case "square":
             context.addPath(CGPath(roundedRect: badgeRect, cornerWidth: 7, cornerHeight: 7, transform: nil))
@@ -186,7 +203,7 @@ nonisolated enum GuideRenderer {
         }
         let text = NSAttributedString(string: String(number), attributes: [
             .font: CTFontCreateWithName("Helvetica-Bold" as CFString, 20, nil),
-            .foregroundColor: theme.markerNumberStyle == "plain" ? markerColor : CGColor(gray: 1, alpha: 1)
+            .foregroundColor: numberStyle == "plain" ? markerColor : CGColor(gray: 1, alpha: 1)
         ])
         let line = CTLineCreateWithAttributedString(text)
         let bounds = CTLineGetBoundsWithOptions(line, [])
@@ -255,8 +272,9 @@ nonisolated enum GuideRenderer {
         context.restoreGState()
     }
 
-    private static func drawCaption(_ caption: String, number: Int, rect: CGRect, theme: GuideTheme, context: CGContext) {
-        let text = NSAttributedString(string: "\(number). \(caption)", attributes: [
+    private static func drawCaption(_ caption: String, number: Int?, rect: CGRect, theme: GuideTheme, context: CGContext) {
+        let value = number.map { "\($0). \(caption)" } ?? caption
+        let text = NSAttributedString(string: value, attributes: [
             .font: CTFontCreateWithName("Helvetica-Bold" as CFString, 30, nil),
             .foregroundColor: CGColor(gray: theme.appearance == .dark ? 0.96 : 0.08, alpha: 1)
         ])

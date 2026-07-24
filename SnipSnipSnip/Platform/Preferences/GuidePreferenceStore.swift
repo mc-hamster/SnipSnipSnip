@@ -14,6 +14,20 @@ nonisolated struct GuideCapturePreferences: Codable, Equatable, Sendable {
     var menuBarIncludedForDisplays = false
     var hudCorner = "topRight"
     var hudPreviewsEnabled = true
+    /// Optional so capture preferences saved before per-step numbering remain
+    /// decodable. Existing preferences keep the historical numbered default.
+    var showsStepNumbers: Bool? = nil
+    /// Optional for compatibility with preferences saved before action targets
+    /// became a per-step capture choice.
+    var showsActionTargets: Bool? = nil
+
+    var resolvedShowsStepNumbers: Bool {
+        showsStepNumbers ?? true
+    }
+
+    var resolvedShowsActionTargets: Bool {
+        showsActionTargets ?? true
+    }
 }
 
 nonisolated struct GuidePreferenceStore {

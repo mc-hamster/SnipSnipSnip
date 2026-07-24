@@ -104,12 +104,14 @@ extension AppModelComposition {
         lifecycle: AppLifecycleModel,
         capture: CaptureWorkflowModel,
         permissions: PermissionWorkflowModel,
-        video: VideoWorkflowModel
+        video: VideoWorkflowModel,
+        appWindowPresenter: any AppWindowPresenting
     ) -> GuideWorkflowModel {
         GuideWorkflowModel(
             dependencies: GuideWorkflowDependencies(
                 capabilities: context.environment.capabilities,
                 systemServices: context.environment.systemServices,
+                appWindowPresenter: appWindowPresenter,
                 permissions: permissions,
                 lifecycle: lifecycle,
                 capture: capture,

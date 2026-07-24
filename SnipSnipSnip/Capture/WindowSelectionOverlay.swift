@@ -19,6 +19,24 @@ private enum WindowPickerDiagnostics {
     }
 }
 
+nonisolated struct WindowSelectionPrompt {
+    let instructionText: String
+    let listButtonTitle: String?
+    let windowLabel: @Sendable (CaptureWindowSummary) -> String
+
+    static let capture = WindowSelectionPrompt(
+        instructionText: "Hover a window, then click to capture. Esc cancels.",
+        listButtonTitle: nil,
+        windowLabel: \.displayTitle
+    )
+}
+
+nonisolated enum WindowSelectionOutcome {
+    case window(CaptureWindowSummary)
+    case chooseFromList
+    case cancelled
+}
+
 @MainActor
 final class WindowSelectionSession: NSObject {
     private let snapshot: DesktopCompositeSnapshot
@@ -26,7 +44,8 @@ final class WindowSelectionSession: NSObject {
     private let capabilities: AppCapabilitySnapshot
     private let accessibility: any AccessibilityPlatform
     private let screens: any ScreenTopologyProviding
-    private var continuation: CheckedContinuation<CaptureWindowSummary?, Never>?
+    private let prompt: WindowSelectionPrompt
+    private var continuation: CheckedContinuation<WindowSelectionOutcome, Never>?
     private var overlayWindows: [WindowSelectionWindow] = []
 
     init(
@@ -34,16 +53,26 @@ final class WindowSelectionSession: NSObject {
         windows: [CaptureWindowSummary],
         capabilities: AppCapabilitySnapshot,
         accessibility: any AccessibilityPlatform = LiveAccessibilityPlatform(),
-        screens: any ScreenTopologyProviding = SystemScreenTopologyService()
+        screens: any ScreenTopologyProviding = SystemScreenTopologyService(),
+        prompt: WindowSelectionPrompt = .capture
     ) {
         self.snapshot = snapshot
         self.windows = windows
         self.capabilities = capabilities
         self.accessibility = accessibility
         self.screens = screens
+        self.prompt = prompt
     }
 
     func begin() async -> CaptureWindowSummary? {
+        let outcome = await beginOutcome()
+        guard case .window(let window) = outcome else {
+            return nil
+        }
+        return window
+    }
+
+    func beginOutcome() async -> WindowSelectionOutcome {
         await withCheckedContinuation { continuation in
             self.continuation = continuation
             presentOverlay()
@@ -94,9 +123,10 @@ final class WindowSelectionSession: NSObject {
                 desktopFrame: snapshot.globalFrame,
                 capabilities: capabilities,
                 accessibility: accessibility,
-                screens: screens
-            ) { [weak self] window in
-                self?.finish(with: window)
+                screens: screens,
+                prompt: prompt
+            ) { [weak self] outcome in
+                self?.finish(with: outcome)
             }
 
             overlay.orderFrontRegardless()
@@ -106,12 +136,12 @@ final class WindowSelectionSession: NSObject {
         overlayWindows.first?.makeKeyAndOrderFront(nil)
     }
 
-    private func finish(with selectedWindow: CaptureWindowSummary?) {
+    private func finish(with outcome: WindowSelectionOutcome) {
         let continuation = continuation
         self.continuation = nil
         overlayWindows.forEach { $0.orderOut(nil) }
         overlayWindows = []
-        continuation?.resume(returning: selectedWindow)
+        continuation?.resume(returning: outcome)
     }
 }
 
@@ -125,7 +155,8 @@ private final class WindowSelectionWindow: NSWindow {
         capabilities: AppCapabilitySnapshot,
         accessibility: any AccessibilityPlatform,
         screens: any ScreenTopologyProviding,
-        onComplete: @escaping (CaptureWindowSummary?) -> Void
+        prompt: WindowSelectionPrompt,
+        onComplete: @escaping (WindowSelectionOutcome) -> Void
     ) {
         self.displayFrame = displayPreview.snapshot.overlayFrame
         super.init(
@@ -151,6 +182,7 @@ private final class WindowSelectionWindow: NSWindow {
             capabilities: capabilities,
             accessibility: accessibility,
             screens: screens,
+            prompt: prompt,
             onComplete: onComplete
         )
         makeFirstResponder(contentView)
@@ -169,7 +201,8 @@ private final class WindowSelectionView: NSView {
     private let capabilities: AppCapabilitySnapshot
     private let accessibility: any AccessibilityPlatform
     private let screens: any ScreenTopologyProviding
-    private let onComplete: (CaptureWindowSummary?) -> Void
+    private let prompt: WindowSelectionPrompt
+    private let onComplete: (WindowSelectionOutcome) -> Void
     private var hoveredWindowID: CGWindowID?
     // Screen-space (AppKit) rect of the hovered window, refreshed each mouseMoved.
     private var hoveredScreenRect: CGRect?
@@ -183,13 +216,15 @@ private final class WindowSelectionView: NSView {
         capabilities: AppCapabilitySnapshot,
         accessibility: any AccessibilityPlatform,
         screens: any ScreenTopologyProviding,
-        onComplete: @escaping (CaptureWindowSummary?) -> Void
+        prompt: WindowSelectionPrompt,
+        onComplete: @escaping (WindowSelectionOutcome) -> Void
     ) {
         self.windows = windows
         self.displayTransform = displayPreview.snapshot.captureDisplayTransform
         self.capabilities = capabilities
         self.accessibility = accessibility
         self.screens = screens
+        self.prompt = prompt
 #if APP_STORE_BUILD
         self.accessibilityTransform = nil
 #else
@@ -200,6 +235,22 @@ private final class WindowSelectionView: NSView {
         self.onComplete = onComplete
         super.init(frame: CGRect(origin: .zero, size: displayPreview.snapshot.overlayFrame.size))
         wantsLayer = true
+        if let listButtonTitle = prompt.listButtonTitle {
+            let listButton = NSButton(
+                title: listButtonTitle,
+                target: self,
+                action: #selector(chooseFromList)
+            )
+            listButton.bezelStyle = .rounded
+            listButton.controlSize = .large
+            listButton.translatesAutoresizingMaskIntoConstraints = false
+            listButton.setAccessibilityHelp("Open a list of capturable targets.")
+            addSubview(listButton)
+            NSLayoutConstraint.activate([
+                listButton.topAnchor.constraint(equalTo: topAnchor, constant: 20),
+                listButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -24)
+            ])
+        }
     }
 
     required init?(coder: NSCoder) {
@@ -264,7 +315,7 @@ private final class WindowSelectionView: NSView {
             dimPath.fill()
         }
 
-        let instructions = NSString(string: "Hover a window, then click to capture. Esc cancels.")
+        let instructions = NSString(string: prompt.instructionText)
         instructions.draw(
             in: CGRect(x: 24, y: 24, width: 440, height: 24),
             withAttributes: [
@@ -294,16 +345,20 @@ private final class WindowSelectionView: NSView {
             return
         }
 
-        onComplete(selected)
+        onComplete(.window(selected))
     }
 
     override func keyDown(with event: NSEvent) {
         switch event.keyCode {
         case 53:
-            onComplete(nil)
+            onComplete(.cancelled)
         default:
             super.keyDown(with: event)
         }
+    }
+
+    @objc private func chooseFromList() {
+        onComplete(.chooseFromList)
     }
 
     private func drawLabel(for window: CaptureWindowSummary, rect: CGRect) {
@@ -318,7 +373,7 @@ private final class WindowSelectionView: NSView {
         NSColor.black.withAlphaComponent(0.82).setFill()
         background.fill()
 
-        let text = NSString(string: window.displayTitle)
+        let text = NSString(string: prompt.windowLabel(window))
         text.draw(
             in: labelRect.insetBy(dx: 14, dy: 10),
             withAttributes: [

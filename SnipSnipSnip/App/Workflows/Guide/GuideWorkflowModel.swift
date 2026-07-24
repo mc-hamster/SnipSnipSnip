@@ -7,6 +7,7 @@ import ImageIO
 struct GuideWorkflowDependencies {
     let capabilities: AppCapabilitySnapshot
     let systemServices: AppSystemServices
+    let appWindowPresenter: any AppWindowPresenting
     let permissions: any PermissionGatekeeping
     let lifecycle: any WorkflowLifecyclePresenting
     let capture: any GuideCaptureWorkflowPort
@@ -17,6 +18,12 @@ enum GuideWorkflowOutput {
     case guideCompleted(EditableGuideDocument, exportImmediately: Bool)
     case presentError(String)
     case requestMainWindowPresentation
+}
+
+private enum GuideTargetSelectionResult {
+    case source(GuideCaptureSource)
+    case chooseFromList(GuideTargetPickerKind)
+    case cancelled
 }
 
 nonisolated struct GuideExitContext: Equatable, Sendable {
@@ -58,6 +65,8 @@ final class GuideWorkflowModel: ObservableObject {
     @Published var selectedWindowID: CGWindowID?
     @Published var selectedDisplayID: CGDirectDisplayID?
     @Published var selectedSourceKind = "window"
+    @Published var targetPickerKind: GuideTargetPickerKind?
+    @Published private(set) var targetWindows: [CaptureWindowSummary] = []
     @Published var storageEstimateMinutes = 30
     @Published var isShowingFirstUseSetup: Bool
     @Published var hasRecoverableGuide = false
@@ -109,6 +118,7 @@ final class GuideWorkflowModel: ObservableObject {
         // setup sheet is where people can switch between Window, App, Region, and
         // Display; remembering the previous choice should set a sensible default,
         // not hide those choices.
+        targetPickerKind = nil
         if !isShowingQuickStart { restoreLastSourceSelection() }
         isShowingQuickStart = true
     }
@@ -151,28 +161,68 @@ final class GuideWorkflowModel: ObservableObject {
         setDefaultLogo(logo)
     }
 
-    func startSelectedSource() {
-        switch selectedSourceKind {
-        case "window":
-            guard let window = selectedWindow else { return }
-            start(source: .window(id: window.id, ownerPID: window.ownerPID, name: window.displayTitle, frame: window.frame))
-        case "app":
-            guard let window = selectedWindow else { return }
-            start(source: .app(processID: window.ownerPID, bundleIdentifier: nil, name: window.ownerName, initialFrame: window.frame))
-        case "region": selectAndStartRegion()
-        default: startSelectedDisplay()
+    func beginSelectedSourceSelection() {
+        guard dependencies.permissions.preflight(
+            [.screenRecording, .accessibility],
+            featureName: "Guide"
+        ).isGranted else {
+            return
+        }
+
+        targetPickerKind = nil
+        isShowingQuickStart = false
+        let sourceKind = selectedSourceKind
+        Task { @MainActor [weak self] in
+            await self?.selectTargetOnScreen(sourceKind: sourceKind)
         }
     }
 
+    func selectTarget(_ window: CaptureWindowSummary, as kind: GuideTargetPickerKind) {
+        targetPickerKind = nil
+        selectedSourceKind = kind.rawValue
+        selectedWindowID = window.id
+        start(source: kind.source(for: window))
+    }
+
+    func pickTargetOnScreen(as kind: GuideTargetPickerKind) {
+        guard dependencies.permissions.preflight(
+            [.screenRecording, .accessibility],
+            featureName: "Guide"
+        ).isGranted else {
+            returnToQuickStart()
+            return
+        }
+
+        targetPickerKind = nil
+        selectedSourceKind = kind.rawValue
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            try? await dependencies.systemServices.scheduler.sleep(nanoseconds: 180_000_000)
+            await selectTargetOnScreen(sourceKind: kind.rawValue)
+        }
+    }
+
+    func cancelTargetSelection() {
+        returnToQuickStart()
+    }
+
     func start(source: GuideCaptureSource) {
-        guard !isActive,
-              dependencies.permissions.preflight([.screenRecording, .accessibility], featureName: "Guide").isGranted else { return }
+        guard !isActive else { return }
+        guard dependencies.permissions.preflight(
+            [.screenRecording, .accessibility],
+            featureName: "Guide"
+        ).isGranted else {
+            returnToQuickStart()
+            return
+        }
         isShowingQuickStart = false
+        targetPickerKind = nil
         Task { @MainActor [weak self] in
             guard let self else { return }
             do {
                 try await startImmediately(source: source, privateCapture: dependencies.capture.privateCaptureEnabled)
             } catch {
+                returnToQuickStart()
                 outputSink?.handle(GuideWorkflowOutput.presentError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription))
             }
         }
@@ -345,22 +395,6 @@ final class GuideWorkflowModel: ObservableObject {
         }
     }
 
-    private var selectedWindow: CaptureWindowSummary? {
-        if let selectedWindowID, let match = availableWindows.first(where: { $0.id == selectedWindowID }) { return match }
-        return availableWindows.first
-    }
-
-    private func startSelectedDisplay() {
-        if let selectedDisplayID,
-           dependencies.systemServices.screens.screen(withDisplayID: selectedDisplayID) != nil {
-            start(source: .displays(.selected([selectedDisplayID])))
-            return
-        }
-        let point = dependencies.systemServices.mouse.appKitGlobalLocation
-        guard let screen = dependencies.systemServices.screens.screen(containing: point) ?? dependencies.systemServices.screens.mainScreen else { return }
-        start(source: .displays(.selected([screen.displayID])))
-    }
-
     private func restoreLastSourceSelection() {
         guard let source = preferenceStore.loadLastSource() else { return }
         switch source {
@@ -380,25 +414,136 @@ final class GuideWorkflowModel: ObservableObject {
         }
     }
 
-    private func selectAndStartRegion() {
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            do {
-                let selection = try await dependencies.capture.videoWindowSelectionSnapshot(fallbackWindows: availableWindows)
-                let session = RegionSelectionSession(
-                    snapshot: selection.snapshot,
-                    windows: selection.windows,
-                    preferences: dependencies.capture.regionCapturePreferences,
-                    constraint: .singleDisplay,
-                    livePreviewCapturePlatform: dependencies.systemServices.screenCapturePlatform
-                )
-                guard let result = await session.begin() else { return }
-                switch result {
-                case .region(let rect, _): start(source: .region(rect))
-                case .window(let window): start(source: .window(id: window.id, ownerPID: window.ownerPID, name: window.displayTitle, frame: window.frame))
-                }
-            } catch { outputSink?.handle(GuideWorkflowOutput.presentError(error.localizedDescription)) }
+    private func selectTargetOnScreen(sourceKind: String) async {
+        let hiddenWindow = dependencies.appWindowPresenter.hideAppWindowIfNeeded()
+        try? await dependencies.systemServices.scheduler.sleep(nanoseconds: 200_000_000)
+
+        let result: GuideTargetSelectionResult
+        do {
+            result = try await targetSelectionResult(for: sourceKind)
+        } catch {
+            dependencies.appWindowPresenter.restoreAppWindowIfNeeded(hiddenWindow)
+            returnToQuickStart()
+            outputSink?.handle(GuideWorkflowOutput.presentError(error.localizedDescription))
+            return
         }
+
+        dependencies.appWindowPresenter.restoreAppWindowIfNeeded(hiddenWindow)
+        await Task.yield()
+
+        switch result {
+        case .source(let source):
+            start(source: source)
+        case .chooseFromList(let kind):
+            targetPickerKind = kind
+        case .cancelled:
+            returnToQuickStart()
+        }
+    }
+
+    private func targetSelectionResult(for sourceKind: String) async throws -> GuideTargetSelectionResult {
+        let selection = try await dependencies.capture.videoWindowSelectionSnapshot(fallbackWindows: [])
+        targetWindows = mergedTargetWindows(selection.windows)
+
+        switch sourceKind {
+        case "region":
+            let session = RegionSelectionSession(
+                snapshot: selection.snapshot,
+                windows: targetWindows,
+                preferences: dependencies.capture.regionCapturePreferences,
+                constraint: .singleDisplay,
+                livePreviewCapturePlatform: dependencies.systemServices.screenCapturePlatform
+            )
+            guard let result = await session.begin() else {
+                return .cancelled
+            }
+            switch result {
+            case .region(let rect, _):
+                return .source(.region(rect))
+            case .window(let window):
+                selectedSourceKind = GuideTargetPickerKind.window.rawValue
+                selectedWindowID = window.id
+                return .source(GuideTargetPickerKind.window.source(for: window))
+            }
+
+        case "window", "app":
+            let kind = GuideTargetPickerKind(rawValue: sourceKind) ?? .window
+            let session = WindowSelectionSession(
+                snapshot: selection.snapshot,
+                windows: targetWindows,
+                capabilities: dependencies.capabilities,
+                accessibility: dependencies.systemServices.accessibility,
+                screens: dependencies.systemServices.screens,
+                prompt: windowSelectionPrompt(for: kind)
+            )
+            switch await session.beginOutcome() {
+            case .window(let window):
+                selectedWindowID = window.id
+                return .source(kind.source(for: window))
+            case .chooseFromList:
+                return .chooseFromList(kind)
+            case .cancelled:
+                return .cancelled
+            }
+
+        default:
+            let displays = selection.snapshot.displays
+            guard !displays.isEmpty else {
+                throw ScreenCaptureError.noDisplays
+            }
+
+            let displayID: CGDirectDisplayID?
+            if displays.count == 1 {
+                displayID = displays[0].displayID
+            } else {
+                displayID = await DisplaySelectionSession(displays: displays).begin()
+            }
+
+            guard let displayID else {
+                return .cancelled
+            }
+            selectedDisplayID = displayID
+            return .source(.displays(.selected([displayID])))
+        }
+    }
+
+    private func windowSelectionPrompt(for kind: GuideTargetPickerKind) -> WindowSelectionPrompt {
+        switch kind {
+        case .window:
+            WindowSelectionPrompt(
+                instructionText: "Hover a window, then click to start the Guide. Esc returns to setup.",
+                listButtonTitle: "Choose from List…",
+                windowLabel: \.displayTitle
+            )
+        case .app:
+            WindowSelectionPrompt(
+                instructionText: "Hover any window from an app, then click to follow that app. Esc returns to setup.",
+                listButtonTitle: "Choose from List…",
+                windowLabel: \.ownerName
+            )
+        }
+    }
+
+    private func mergedTargetWindows(_ windows: [CaptureWindowSummary]) -> [CaptureWindowSummary] {
+        var cachedWindows = Dictionary(uniqueKeysWithValues: availableWindows.map { ($0.id, $0) })
+        targetWindows.forEach { cachedWindows[$0.id] = $0 }
+        return windows.map { window in
+            CaptureWindowSummary(
+                id: window.id,
+                ownerName: window.ownerName,
+                ownerPID: window.ownerPID,
+                title: window.title,
+                frame: window.frame,
+                layer: window.layer,
+                focusRank: window.focusRank,
+                thumbnail: window.thumbnail ?? cachedWindows[window.id]?.thumbnail
+            )
+        }
+    }
+
+    private func returnToQuickStart() {
+        targetPickerKind = nil
+        isShowingQuickStart = true
     }
 
     private func startImmediately(source: GuideCaptureSource, privateCapture: Bool) async throws {

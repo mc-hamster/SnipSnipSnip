@@ -7,6 +7,8 @@ struct GuideQuickStartView: View {
 
     @State private var outputIntent: GuideOutputIntent
     @State private var audioIntent: GuideAudioIntent
+    @State private var showsStepNumbers: Bool
+    @State private var showsActionTargets: Bool
     @State private var isShowingFineTune = false
 
     init(guide: GuideWorkflowModel, permissions: PermissionWorkflowModel) {
@@ -15,6 +17,8 @@ struct GuideQuickStartView: View {
         let intent = GuideCaptureSetupIntent(preferences: guide.capturePreferences)
         _outputIntent = State(initialValue: intent.output)
         _audioIntent = State(initialValue: intent.audio)
+        _showsStepNumbers = State(initialValue: intent.showsStepNumbers)
+        _showsActionTargets = State(initialValue: intent.showsActionTargets)
     }
 
     var body: some View {
@@ -45,7 +49,6 @@ struct GuideQuickStartView: View {
         }
         .frame(width: 760, height: 730)
         .background(Color(nsColor: .windowBackgroundColor))
-        .onAppear(perform: prepareSourceSelection)
     }
 
     private var header: some View {
@@ -53,7 +56,7 @@ struct GuideQuickStartView: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text("Create a Guide")
                     .font(.title2.weight(.semibold))
-                Text("Choose the capture, then adjust only the options you need.")
+                Text("Choose what to make and what Guide should follow.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -98,6 +101,24 @@ struct GuideQuickStartView: View {
                 : "Also keeps the source recording for full-motion and action-highlight video exports.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            Toggle("Number each step", isOn: $showsStepNumbers)
+                .help("Choose whether newly captured steps start with a visible step number. You can change this later for any individual step.")
+
+            Text(showsStepNumbers
+                ? "Each captured step starts with a number. You can hide it for an individual step in the editor."
+                : "Steps start without numbers. You can show one for an individual step in the editor.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Toggle("Show action crosshairs", isOn: $showsActionTargets)
+                .help("Choose whether newly captured steps mark where the action happened. You can change this later for any individual step.")
+
+            Text(showsActionTargets
+                ? "Each captured step marks the action with crosshairs. You can hide them for an individual step in the editor."
+                : "Steps start without crosshairs. You can show them for an individual step in the editor.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -123,7 +144,7 @@ struct GuideQuickStartView: View {
 
     private var sourceQuestion: some View {
         Section("\(outputIntent == .stepsAndVideo ? 3 : 2). What will you capture?") {
-            Text("Use the same capture choices as the main window, or follow every window from one app.")
+            Text("Choose how Guide should follow your work. You’ll select the exact target after Start Guide.")
                 .foregroundStyle(.secondary)
 
             Picker("Source", selection: $guide.selectedSourceKind) {
@@ -134,45 +155,12 @@ struct GuideQuickStartView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .onChange(of: guide.selectedSourceKind) { _, _ in prepareSourceSelection() }
 
             Text(sourceHelp(for: guide.selectedSourceKind))
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            sourcePicker
-        }
-    }
-
-    @ViewBuilder
-    private var sourcePicker: some View {
-        switch guide.selectedSourceKind {
-        case "window":
-            Picker("Window", selection: $guide.selectedWindowID) {
-                ForEach(guide.availableWindows) { window in
-                    Text(window.displayTitle).tag(Optional(window.id))
-                }
-            }
-            .pickerStyle(.menu)
-            .help("Choose the window the Guide should follow.")
-        case "app":
-            Picker("App", selection: $guide.selectedWindowID) {
-                ForEach(availableApps) { app in
-                    Text(app.ownerName).tag(Optional(app.id))
-                }
-            }
-            .pickerStyle(.menu)
-            .help("Choose the app the Guide should follow.")
-        case "display":
-            Picker("Display", selection: $guide.selectedDisplayID) {
-                ForEach(guide.dependencies.systemServices.screens.screens, id: \.displayID) { display in
-                    Text(display.name).tag(Optional(display.displayID))
-                }
-            }
-            .pickerStyle(.menu)
-            .help("Choose which display the Guide should capture.")
-        default:
-            Label("Choose the region on screen after clicking Start Guide.", systemImage: "cursorarrow.rays")
+            Label(targetSelectionPrompt, systemImage: "cursorarrow.rays")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 2)
@@ -246,12 +234,11 @@ struct GuideQuickStartView: View {
                 Button("Start Guide") {
                     applyIntent()
                     guide.completeFirstUseSetup()
-                    guide.startSelectedSource()
+                    guide.beginSelectedSourceSelection()
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
-                .disabled(!canStart)
-                .help(canStart ? "Start capturing this Guide with the choices shown in the summary." : "Open an app window before starting this Guide.")
+                .help("Choose the target on screen, then start capturing this Guide.")
             }
 
             HStack(spacing: 12) {
@@ -274,27 +261,6 @@ struct GuideQuickStartView: View {
         .padding(.vertical, 14)
     }
 
-    private var availableApps: [CaptureWindowSummary] {
-        var seen = Set<pid_t>()
-        return guide.availableWindows
-            .sorted { $0.ownerName.localizedCaseInsensitiveCompare($1.ownerName) == .orderedAscending }
-            .filter { seen.insert($0.ownerPID).inserted }
-    }
-
-    private var selectedWindow: CaptureWindowSummary? {
-        guard let selectedWindowID = guide.selectedWindowID else { return guide.availableWindows.first }
-        return guide.availableWindows.first { $0.id == selectedWindowID } ?? guide.availableWindows.first
-    }
-
-    private var selectedDisplayName: String? {
-        guard let selectedDisplayID = guide.selectedDisplayID else { return nil }
-        return guide.dependencies.systemServices.screens.screens.first { $0.displayID == selectedDisplayID }?.name
-    }
-
-    private var canStart: Bool {
-        !(["window", "app"].contains(guide.selectedSourceKind) && guide.availableWindows.isEmpty)
-    }
-
     private var captureSummary: String {
         let output = outputIntent == .stepsOnly ? "Editable steps" : "Editable steps + full-motion video"
         let sound: String
@@ -308,15 +274,29 @@ struct GuideQuickStartView: View {
             case .narrationAndAppAudio: sound = "narration + app audio"
             }
         }
-        return "\(output) • \(sound) • \(sourceSummary)"
+        let numbering = showsStepNumbers ? "numbered steps" : "no step numbers"
+        return "\(output) • \(numbering) • \(sound) • \(sourceSummary)"
     }
 
     private var sourceSummary: String {
         switch guide.selectedSourceKind {
-        case "window": return selectedWindow?.displayTitle ?? "one window"
-        case "app": return selectedWindow?.ownerName ?? "one app"
-        case "region": return "an area you choose"
-        default: return selectedDisplayName ?? "one display"
+        case "window": return "choose a window after Start"
+        case "app": return "choose an app after Start"
+        case "region": return "draw a region after Start"
+        default: return "choose a display after Start"
+        }
+    }
+
+    private var targetSelectionPrompt: String {
+        switch guide.selectedSourceKind {
+        case "window":
+            return "After Start Guide, click the window to follow or choose it from a list."
+        case "app":
+            return "After Start Guide, click any window from the app to follow or choose it from a list."
+        case "region":
+            return "After Start Guide, draw the region on screen."
+        default:
+            return "After Start Guide, click the display to capture."
         }
     }
 
@@ -341,29 +321,22 @@ struct GuideQuickStartView: View {
     private func sourceHelp(for value: String) -> String {
         switch value {
         case "window":
-            return "Capture one specific window. Other windows from the same app stay out of the Guide."
+            return "Follow one specific window as it moves or resizes. Other windows from the same app stay out of the Guide."
         case "app":
             return "Follow one app as you move between its windows, sheets, and panels."
         case "region":
-            return "Draw a custom area after starting. Only activity inside that area appears in the Guide."
+            return "Keep a fixed custom area in the Guide. Only activity inside that area appears."
         default:
             return "Capture everything visible on one display, including movement between apps."
-        }
-    }
-
-    private func prepareSourceSelection() {
-        if guide.selectedWindowID == nil || selectedWindow == nil {
-            guide.selectedWindowID = guide.availableWindows.first?.id
-        }
-        if guide.selectedDisplayID == nil {
-            guide.selectedDisplayID = guide.dependencies.systemServices.screens.mainScreen?.displayID
         }
     }
 
     private func applyIntent() {
         guide.capturePreferences = GuideCaptureSetupIntent(
             output: outputIntent,
-            audio: audioIntent
+            audio: audioIntent,
+            showsStepNumbers: showsStepNumbers,
+            showsActionTargets: showsActionTargets
         ).applying(to: guide.capturePreferences)
     }
 }
