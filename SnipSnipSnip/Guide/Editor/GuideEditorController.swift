@@ -26,7 +26,13 @@ final class GuideEditorController: ObservableObject {
     private let thumbnailLoader = GuideThumbnailLoader()
     private var thumbnailTasks: [UUID: Task<Void, Never>] = [:]
     private var imageRevisions: [UUID: Int] = [:]
+    private var activeMarkerDrag: ActiveMarkerDrag?
     private static let maximumUndoCommands = 50
+
+    private struct ActiveMarkerDrag {
+        var stepID: UUID
+        var before: GuideProject
+    }
 
     init(document: EditableGuideDocument) {
         project = document.project
@@ -48,6 +54,10 @@ final class GuideEditorController: ObservableObject {
 
     var selectedStep: GuideStep? { project.steps.first { selection.contains($0.id) } }
     var includedSteps: [GuideStep] { project.steps.filter { $0.isIncluded && !$0.isDeleted } }
+
+    func displayNumber(for stepID: UUID) -> Int? {
+        GuideStepNumbering.activeNumber(for: stepID, in: project.steps)
+    }
 
     func requestThumbnail(for stepID: UUID, priority: TaskPriority = .utility) {
         guard stepThumbnails[stepID] == nil,
@@ -188,7 +198,7 @@ final class GuideEditorController: ObservableObject {
         let capture = document?.capture ?? CapturedScreenshot(
             image: image,
             kind: .region,
-            sourceName: "Guide Step \(step.sequence)",
+            sourceName: "Guide Step \(displayNumber(for: step.id) ?? step.sequence)",
             sourceRect: step.session.sourceCoordinateRect,
             capturedAt: step.capturedAt
         )
@@ -225,12 +235,40 @@ final class GuideEditorController: ObservableObject {
 
     func updateMarker(stepID: UUID, target: CGPoint? = nil, tail: CGPoint? = nil) {
         update(name: "Move Step Marker") { project in
-            guard let index = project.steps.firstIndex(where: { $0.id == stepID }),
-                  var marker = project.steps[index].session.marker else { return }
-            if let target { marker.target = clamped(target, to: project.steps[index].session.sourcePixelSize) }
-            if let tail { marker.tail = clamped(tail, to: project.steps[index].session.sourcePixelSize) }
-            project.steps[index].session.marker = marker
+            updateMarker(in: &project, stepID: stepID, target: target, tail: tail)
         }
+    }
+
+    func beginMarkerDrag(stepID: UUID) {
+        if activeMarkerDrag?.stepID == stepID { return }
+        finishMarkerDrag()
+        activeMarkerDrag = ActiveMarkerDrag(stepID: stepID, before: project)
+    }
+
+    func updateMarkerDuringDrag(stepID: UUID, target: CGPoint? = nil, tail: CGPoint? = nil) {
+        beginMarkerDrag(stepID: stepID)
+        var updated = project
+        updateMarker(in: &updated, stepID: stepID, target: target, tail: tail)
+        guard updated != project else { return }
+        replaceProjectWithoutCommand(updated)
+    }
+
+    func endMarkerDrag(stepID: UUID, target: CGPoint? = nil, tail: CGPoint? = nil) {
+        updateMarkerDuringDrag(stepID: stepID, target: target, tail: tail)
+        finishMarkerDrag(stepID: stepID)
+    }
+
+    func finishMarkerDrag(stepID: UUID? = nil) {
+        guard let drag = activeMarkerDrag,
+              stepID == nil || stepID == drag.stepID else { return }
+        activeMarkerDrag = nil
+        let after = project
+        guard drag.before != after else { return }
+        execute(GuideProjectCommand(
+            name: "Move Step Marker",
+            before: drag.before,
+            after: after
+        ))
     }
 
     func updateMarkerLength(stepID: UUID, length: Double) {
@@ -261,6 +299,7 @@ final class GuideEditorController: ObservableObject {
     }
 
     func undo() {
+        finishMarkerDrag()
         guard let command = undoCommands.popLast() else { return }
         command.undo(on: self)
         redoCommands.append(command)
@@ -269,6 +308,7 @@ final class GuideEditorController: ObservableObject {
     }
 
     func redo() {
+        finishMarkerDrag()
         guard let command = redoCommands.popLast() else { return }
         command.apply(to: self)
         undoCommands.append(command)
@@ -278,6 +318,7 @@ final class GuideEditorController: ObservableObject {
     }
 
     func execute(_ command: any GuideCommand) {
+        finishMarkerDrag()
         command.apply(to: self)
         let now = Date()
         if let incoming = command as? GuideProjectCommand,
@@ -325,6 +366,23 @@ final class GuideEditorController: ObservableObject {
     private func updateCommandState() {
         canUndo = !undoCommands.isEmpty
         canRedo = !redoCommands.isEmpty
+    }
+
+    private func updateMarker(
+        in project: inout GuideProject,
+        stepID: UUID,
+        target: CGPoint?,
+        tail: CGPoint?
+    ) {
+        guard let index = project.steps.firstIndex(where: { $0.id == stepID }),
+              var marker = project.steps[index].session.marker else { return }
+        if let target {
+            marker.target = clamped(target, to: project.steps[index].session.sourcePixelSize)
+        }
+        if let tail {
+            marker.tail = clamped(tail, to: project.steps[index].session.sourcePixelSize)
+        }
+        project.steps[index].session.marker = marker
     }
 
     private func trimUndoHistory() {

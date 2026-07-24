@@ -54,7 +54,10 @@ struct GuideEditorView: View {
             List(selection: $controller.selection) {
                 ForEach(visibleSteps) { step in
                     HStack(alignment: .top, spacing: 8) {
-                        Text("\(step.sequence)").font(.headline).frame(width: 24)
+                        Text(controller.displayNumber(for: step.id).map(String.init) ?? "–")
+                            .font(.headline)
+                            .foregroundStyle(step.isDeleted ? .tertiary : .primary)
+                            .frame(width: 24)
                         if let image = controller.stepThumbnails[step.id] {
                             Image(decorative: image, scale: 1).resizable().scaledToFill().frame(width: 86, height: 54).clipped().clipShape(RoundedRectangle(cornerRadius: 5))
                         } else {
@@ -126,21 +129,32 @@ struct GuideEditorView: View {
         ZStack {
             Color(nsColor: .windowBackgroundColor)
             if let step = controller.selectedStep, let image = controller.stepImages[step.id],
-               let rendered = GuideRenderer.renderStepCard(step: step, image: image, theme: controller.project.theme, advancedEdit: controller.advancedEdits[step.id], logo: controller.logoImage) {
+               let rendered = GuideRenderer.renderStepCard(
+                   step: step,
+                   image: image,
+                   theme: controller.project.theme,
+                   advancedEdit: controller.advancedEdits[step.id],
+                   logo: controller.logoImage,
+                   displayNumber: controller.displayNumber(for: step.id) ?? step.sequence
+               ) {
                 GeometryReader { proxy in
                     ZStack {
                         Image(decorative: rendered, scale: 1).resizable().scaledToFit().padding(30)
                         if let marker = step.session.marker, !marker.isHidden {
                             GuideMarkerHandles(
-                                number: step.sequence,
+                                number: controller.displayNumber(for: step.id) ?? step.sequence,
                                 showsNumber: controller.project.theme.showsNumberedMarkers,
                                 viewportSize: proxy.size,
                                 cardPixelSize: CGSize(width: CGFloat(rendered.width), height: CGFloat(rendered.height)),
                                 sourceImageSize: CGSize(width: CGFloat(image.width), height: CGFloat(image.height)),
                                 sourceCoordinateSize: step.session.sourcePixelSize,
                                 marker: marker,
-                                onMoveTarget: { controller.updateMarker(stepID: step.id, target: $0) },
-                                onMoveTail: { controller.updateMarker(stepID: step.id, tail: $0) }
+                                onBeginMove: { controller.beginMarkerDrag(stepID: step.id) },
+                                onMoveTarget: { controller.updateMarkerDuringDrag(stepID: step.id, target: $0) },
+                                onEndMoveTarget: { controller.endMarkerDrag(stepID: step.id, target: $0) },
+                                onMoveTail: { controller.updateMarkerDuringDrag(stepID: step.id, tail: $0) },
+                                onEndMoveTail: { controller.endMarkerDrag(stepID: step.id, tail: $0) },
+                                onFinishMove: { controller.finishMarkerDrag(stepID: step.id) }
                             )
                         }
                     }
@@ -189,7 +203,7 @@ struct GuideEditorView: View {
                         Toggle("Show numbered step markers", isOn: themeBoolBinding(\.showsNumberedMarkers))
                             .help("Show or hide the numbered marker on every still step in this Guide.")
                         Toggle("Show click target highlights", isOn: themeBoolBinding(\.showsClickHighlight))
-                            .help("Show a target ring on still steps and a brief pulse at clicks in video exports.")
+                            .help("Show transparent target rings on still steps and a brief pulse at clicks in video exports.")
                         Toggle("Add screenshot shadows", isOn: themeBoolBinding(\.showsScreenshotShadow))
                             .help("Add a soft shadow around screenshots throughout this Guide.")
                         DisclosureGroup("Fine-tune marker and card style") {
@@ -250,8 +264,8 @@ struct GuideEditorView: View {
                                 }
                                 Toggle("Show marker", isOn: markerVisibleBinding(step.id))
                                 Text(controller.project.theme.showsNumberedMarkers
-                                     ? "Drag the white target and numbered handle directly in the preview."
-                                     : "Drag the white target directly in the preview.")
+                                     ? "Drag the transparent target ring or numbered marker ring directly in the preview."
+                                     : "Drag the transparent target ring directly in the preview.")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -273,7 +287,11 @@ struct GuideEditorView: View {
                         }
                         .padding(.vertical, 4)
                     } label: {
-                        Text("Selected Step \(step.sequence)").font(.headline)
+                        if let displayNumber = controller.displayNumber(for: step.id) {
+                            Text("Selected Step \(displayNumber)").font(.headline)
+                        } else {
+                            Text("Deleted Step").font(.headline)
+                        }
                     }
                 }
             }.padding(16)
@@ -328,8 +346,12 @@ private struct GuideMarkerHandles: View {
     let sourceImageSize: CGSize
     let sourceCoordinateSize: CGSize
     let marker: GuideMarker
+    let onBeginMove: () -> Void
     let onMoveTarget: (CGPoint) -> Void
+    let onEndMoveTarget: (CGPoint) -> Void
     let onMoveTail: (CGPoint) -> Void
+    let onEndMoveTail: (CGPoint) -> Void
+    let onFinishMove: () -> Void
 
     var body: some View {
         let target = viewPoint(for: marker.target)
@@ -337,29 +359,43 @@ private struct GuideMarkerHandles: View {
         ZStack {
             handle(
                 at: target,
-                color: .white,
-                foreground: .black,
                 accessibilityLabel: "Marker target",
                 help: "Drag to point the marker at the action."
             ) {
-                Image(systemName: "scope")
+                ZStack {
+                    Circle()
+                        .stroke(.black.opacity(0.8), lineWidth: 4)
+                    Circle()
+                        .stroke(
+                            .white,
+                            style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [4, 3])
+                        )
+                }
             } onMove: {
                 onMoveTarget($0)
+            } onEnd: {
+                onEndMoveTarget($0)
             }
 
             if showsNumber {
                 handle(
                     at: tail,
-                    color: .accentColor,
-                    foreground: .white,
                     accessibilityLabel: "Step \(number) number handle",
                     help: "Drag to move the Step \(number) number."
                 ) {
-                    Text("\(number)")
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.65)
+                    ZStack {
+                        Circle()
+                            .stroke(.black.opacity(0.72), lineWidth: 4)
+                        Circle()
+                            .stroke(
+                                Color.accentColor,
+                                style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [4, 3])
+                            )
+                    }
                 } onMove: {
                     onMoveTail($0)
+                } onEnd: {
+                    onEndMoveTail($0)
                 }
             }
         }
@@ -367,27 +403,30 @@ private struct GuideMarkerHandles: View {
         .coordinateSpace(name: "guideMarkerCanvas")
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Marker handles")
+        .onDisappear(perform: onFinishMove)
     }
 
     private func handle<Content: View>(
         at point: CGPoint,
-        color: Color,
-        foreground: Color,
         accessibilityLabel: String,
         help: String,
         @ViewBuilder content: () -> Content,
-        onMove: @escaping (CGPoint) -> Void
+        onMove: @escaping (CGPoint) -> Void,
+        onEnd: @escaping (CGPoint) -> Void
     ) -> some View {
         content()
-            .font(.system(size: 15, weight: .bold))
-            .foregroundStyle(foreground)
-            .frame(width: 28, height: 28)
-            .background(color, in: Circle())
-            .overlay(Circle().stroke(.black.opacity(0.45), lineWidth: 1))
+            .frame(width: 34, height: 34)
+            .contentShape(Circle())
             .position(point)
             .gesture(
                 DragGesture(minimumDistance: 0, coordinateSpace: .named("guideMarkerCanvas"))
-                    .onEnded { value in onMove(sourcePoint(for: value.location)) }
+                    .onChanged { value in
+                        onBeginMove()
+                        onMove(sourcePoint(for: value.location))
+                    }
+                    .onEnded { value in
+                        onEnd(sourcePoint(for: value.location))
+                    }
             )
             .help(help)
             .accessibilityLabel(accessibilityLabel)

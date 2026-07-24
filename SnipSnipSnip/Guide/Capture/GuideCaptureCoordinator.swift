@@ -858,7 +858,22 @@ final class GuideCaptureCoordinator: ObservableObject {
             return
         }
         let point = sourcePixelPoint(event.location, sourceRect: composition.sourceRect, image: composition.image)
-        let tail = automaticTail(for: point, size: CGSize(width: composition.image.width, height: composition.image.height))
+        let imageSize = CGSize(width: composition.image.width, height: composition.image.height)
+        let targetRect = captionResult.metadata?.frame.map {
+            sourcePixelRect($0, sourceRect: composition.sourceRect, image: composition.image)
+        }
+        // Marker chrome is drawn at a stable presentation size even when a
+        // Retina capture is scaled down for a Guide card. Convert that visual
+        // size back into source pixels before choosing a collision-free tail.
+        let presentationScale = max(min((1_440 - 144) / imageSize.width, 1), 0.001)
+        let tail = GuideMarkerGeometry.automaticTail(
+            for: point,
+            avoiding: targetRect,
+            in: imageSize,
+            preferredLength: CGFloat(project.theme.markerLength) / presentationScale,
+            badgeRadius: GuideMarkerGeometry.badgeRadius / presentationScale,
+            targetClearance: GuideMarkerGeometry.targetOuterRadius / presentationScale
+        )
         var redactions: [GuideRedaction] = []
         if preferences.masksSecureFields,
            captionResult.metadata?.isSecure == true,
@@ -1228,11 +1243,5 @@ final class GuideCaptureCoordinator: ObservableObject {
                 height: rect.height / sourceRect.height * CGFloat(image.height)
             )
         ).standardized.intersection(CGRect(x: 0, y: 0, width: image.width, height: image.height))
-    }
-
-    private func automaticTail(for target: CGPoint, size: CGSize) -> CGPoint {
-        let dx: CGFloat = target.x < size.width / 2 ? 80 : -80
-        let dy: CGFloat = target.y < size.height / 2 ? 80 : -80
-        return CGPoint(x: min(max(target.x + dx, 24), size.width - 24), y: min(max(target.y + dy, 24), size.height - 24))
     }
 }

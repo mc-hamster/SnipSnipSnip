@@ -11,11 +11,13 @@ nonisolated enum GuideRenderer {
         theme: GuideTheme,
         cardWidth: Int = 1440,
         advancedEdit: EditableScreenshotDocument? = nil,
-        logo: CGImage? = nil
+        logo: CGImage? = nil,
+        displayNumber: Int? = nil
     ) -> CGImage? {
         let renderedImage = advancedEdit.flatMap {
             ScreenshotPresentationRenderer.render(baseImage: image, snapshot: $0.session.currentSnapshot)
         } ?? image
+        let number = displayNumber ?? step.sequence
         let margin: CGFloat = 72
         let caption = step.caption.trimmingCharacters(in: .whitespacesAndNewlines)
         let note = step.note.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -23,7 +25,7 @@ nonisolated enum GuideRenderer {
         // and every still-image export. Reserve enough space for both pieces of
         // step copy so notes do not silently disappear outside document exports.
         let captionHeight = textHeight(
-            "\(step.sequence). \(caption)",
+            "\(number). \(caption)",
             font: CTFontCreateWithName("Helvetica-Bold" as CFString, 30, nil),
             width: CGFloat(cardWidth) - margin * 2
         )
@@ -81,7 +83,14 @@ nonisolated enum GuideRenderer {
         }
 
         if let marker = step.session.marker, !marker.isHidden {
-            drawMarker(marker, number: step.sequence, in: imageRect, sourceSize: step.session.sourcePixelSize, theme: theme, context: context)
+            drawMarker(
+                marker,
+                number: number,
+                in: imageRect,
+                sourceSize: step.session.sourcePixelSize,
+                theme: theme,
+                context: context
+            )
         }
         if step.session.showsCursor, let marker = step.session.marker {
             drawCursor(at: mapped(marker.target, sourceSize: step.session.sourcePixelSize, destination: imageRect), context: context)
@@ -101,7 +110,7 @@ nonisolated enum GuideRenderer {
             width: size.width - margin * 2,
             height: captionHeight
         )
-        drawCaption(caption, number: step.sequence, rect: captionRect, theme: theme, context: context)
+        drawCaption(caption, number: number, rect: captionRect, theme: theme, context: context)
         if !note.isEmpty {
             drawNote(note, rect: noteRect, theme: theme, context: context)
         }
@@ -122,14 +131,19 @@ nonisolated enum GuideRenderer {
         advancedEdits: [UUID: EditableScreenshotDocument] = [:],
         logo: CGImage? = nil
     ) -> CGImage? {
-        guard let step = project.steps.first(where: { !$0.isDeleted }), let image = images[step.id] else { return nil }
+        guard let step = project.steps.first(where: { !$0.isDeleted }),
+              let image = images[step.id],
+              let displayNumber = GuideStepNumbering.activeNumber(for: step.id, in: project.steps) else {
+            return nil
+        }
         return renderStepCard(
             step: step,
             image: image,
             theme: project.theme,
             cardWidth: 960,
             advancedEdit: advancedEdits[step.id],
-            logo: logo
+            logo: logo,
+            displayNumber: displayNumber
         )
     }
 
@@ -137,28 +151,29 @@ nonisolated enum GuideRenderer {
         let target = mapped(marker.target, sourceSize: sourceSize, destination: imageRect)
         let tail = mapped(marker.tail, sourceSize: sourceSize, destination: imageRect)
         let markerColor = color(marker.colorHex ?? theme.markerColorHex, fallback: CGColor(red: 0.9, green: 0.1, blue: 0.08, alpha: 1))
+        let targetRadius = theme.showsClickHighlight ? GuideMarkerGeometry.targetOuterRadius : 5
         context.setStrokeColor(markerColor)
         context.setFillColor(markerColor)
         context.setLineWidth(marker.lineWidth ?? theme.markerLineWidth)
         context.setLineCap(.round)
-        context.move(to: tail)
-        context.addLine(to: target)
-        context.strokePath()
-        let angle = atan2(target.y - tail.y, target.x - tail.x)
-        let head: CGFloat = 18
-        if theme.markerHeadStyle == "circle" {
-            context.fillEllipse(in: CGRect(x: target.x - 8, y: target.y - 8, width: 16, height: 16))
-        } else {
-            context.move(to: target)
-            context.addLine(to: CGPoint(x: target.x - head * cos(angle - .pi / 6), y: target.y - head * sin(angle - .pi / 6)))
-            context.addLine(to: CGPoint(x: target.x - head * cos(angle + .pi / 6), y: target.y - head * sin(angle + .pi / 6)))
-            if theme.markerHeadStyle == "open" { context.strokePath() }
-            else { context.closePath(); context.fillPath() }
+        if let connector = GuideMarkerGeometry.connector(
+            from: tail,
+            to: target,
+            targetRadius: targetRadius
+        ) {
+            context.move(to: connector.start)
+            context.addLine(to: connector.end)
+            context.strokePath()
+            drawMarkerHead(
+                style: theme.markerHeadStyle,
+                at: connector.end,
+                angle: atan2(connector.end.y - connector.start.y, connector.end.x - connector.start.x),
+                color: markerColor,
+                context: context
+            )
         }
         if theme.showsClickHighlight {
-            context.setStrokeColor(markerColor.copy(alpha: 0.45) ?? markerColor)
-            context.setLineWidth(5)
-            context.strokeEllipse(in: CGRect(x: target.x - 24, y: target.y - 24, width: 48, height: 48))
+            drawTransparentTarget(at: target, color: markerColor, context: context)
         }
         let badgeRect = CGRect(x: tail.x - 18, y: tail.y - 18, width: 36, height: 36)
         switch theme.markerNumberStyle {
@@ -177,6 +192,67 @@ nonisolated enum GuideRenderer {
         let bounds = CTLineGetBoundsWithOptions(line, [])
         context.textPosition = CGPoint(x: tail.x - bounds.width / 2, y: tail.y - bounds.height / 2 - 2)
         CTLineDraw(line, context)
+    }
+
+    private static func drawMarkerHead(
+        style: String,
+        at point: CGPoint,
+        angle: CGFloat,
+        color: CGColor,
+        context: CGContext
+    ) {
+        let head: CGFloat = 13
+        context.setStrokeColor(color)
+        context.setFillColor(color)
+        if style == "circle" {
+            context.setLineWidth(3)
+            context.strokeEllipse(in: CGRect(x: point.x - 5, y: point.y - 5, width: 10, height: 10))
+            return
+        }
+
+        context.move(to: point)
+        context.addLine(to: CGPoint(
+            x: point.x - head * cos(angle - .pi / 6),
+            y: point.y - head * sin(angle - .pi / 6)
+        ))
+        context.addLine(to: CGPoint(
+            x: point.x - head * cos(angle + .pi / 6),
+            y: point.y - head * sin(angle + .pi / 6)
+        ))
+        if style == "open" {
+            context.strokePath()
+        } else {
+            context.closePath()
+            context.fillPath()
+        }
+    }
+
+    private static func drawTransparentTarget(
+        at target: CGPoint,
+        color: CGColor,
+        context: CGContext
+    ) {
+        let outerRadius = GuideMarkerGeometry.targetOuterRadius
+        let innerRadius: CGFloat = 9
+        context.saveGState()
+        context.setFillColor(CGColor(gray: 0, alpha: 0))
+        context.setStrokeColor(color.copy(alpha: 0.88) ?? color)
+        context.setLineWidth(3)
+        context.strokeEllipse(in: CGRect(
+            x: target.x - outerRadius,
+            y: target.y - outerRadius,
+            width: outerRadius * 2,
+            height: outerRadius * 2
+        ))
+        context.setStrokeColor(color.copy(alpha: 0.58) ?? color)
+        context.setLineWidth(2)
+        context.strokeEllipse(in: CGRect(
+            x: target.x - innerRadius,
+            y: target.y - innerRadius,
+            width: innerRadius * 2,
+            height: innerRadius * 2
+        ))
+        context.restoreGState()
     }
 
     private static func drawCaption(_ caption: String, number: Int, rect: CGRect, theme: GuideTheme, context: CGContext) {

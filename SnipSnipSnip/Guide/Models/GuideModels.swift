@@ -349,3 +349,31 @@ nonisolated struct GuideProject: Codable, Equatable, Identifiable, Sendable {
         modifiedAt = Date()
     }
 }
+
+nonisolated enum GuideStepNumbering {
+    /// Returns the step's visible editor number without changing its persisted
+    /// capture sequence. Deleted steps do not reserve a number.
+    static func activeNumber(for stepID: UUID, in steps: [GuideStep]) -> Int? {
+        var number = 0
+        for step in steps where !step.isDeleted {
+            number += 1
+            if step.id == stepID {
+                return number
+            }
+        }
+        return nil
+    }
+
+    /// Exports operate on value copies so deleted and excluded steps can be
+    /// removed and the remaining visible numbering can start at one.
+    static func exportSteps(from steps: [GuideStep]) -> [GuideStep] {
+        steps
+            .filter { $0.isIncluded && !$0.isDeleted }
+            .enumerated()
+            .map { index, step in
+                var numberedStep = step
+                numberedStep.sequence = index + 1
+                return numberedStep
+            }
+    }
+}

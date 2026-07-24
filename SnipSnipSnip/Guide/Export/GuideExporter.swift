@@ -205,7 +205,7 @@ nonisolated enum GuideExporter {
         progress: GuideExportProgressHandler? = nil
     ) async throws -> URL {
         try Task.checkCancellation()
-        let steps = document.project.steps.filter { $0.isIncluded && !$0.isDeleted }
+        let steps = GuideStepNumbering.exportSteps(from: document.project.steps)
         guard !steps.isEmpty else { throw GuideExportError.noSteps }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try GuideStorageGuardrails.ensureCanExport(

@@ -37,6 +37,35 @@ final class GuideWorkflowTests: XCTestCase {
         XCTAssertTrue(controller.project.steps[1].isDeleted)
         XCTAssertEqual(controller.selection, [steps[2].id])
         XCTAssertEqual(controller.includedSteps.map { $0.id }, [steps[0].id, steps[2].id])
+        XCTAssertEqual(controller.displayNumber(for: steps[0].id), 1)
+        XCTAssertNil(controller.displayNumber(for: steps[1].id))
+        XCTAssertEqual(controller.displayNumber(for: steps[2].id), 2)
+    }
+
+    func testGuideStepNumberingSkipsDeletedAndExcludedStepsWithoutChangingStoredSequence() {
+        var steps = (1...4).map { sequence in
+            GuideStep(
+                sequence: sequence,
+                eventKind: .manual,
+                caption: "Step \(sequence)",
+                session: GuideStepSession(
+                    sourceCoordinateRect: CGRect(x: 0, y: 0, width: 10, height: 10),
+                    sourcePixelSize: CGSize(width: 10, height: 10)
+                )
+            )
+        }
+        steps[0].isDeleted = true
+        steps[2].isIncluded = false
+
+        XCTAssertNil(GuideStepNumbering.activeNumber(for: steps[0].id, in: steps))
+        XCTAssertEqual(GuideStepNumbering.activeNumber(for: steps[1].id, in: steps), 1)
+        XCTAssertEqual(GuideStepNumbering.activeNumber(for: steps[2].id, in: steps), 2)
+        XCTAssertEqual(GuideStepNumbering.activeNumber(for: steps[3].id, in: steps), 3)
+
+        let exported = GuideStepNumbering.exportSteps(from: steps)
+        XCTAssertEqual(exported.map { $0.id }, [steps[1].id, steps[3].id])
+        XCTAssertEqual(exported.map { $0.sequence }, [1, 2])
+        XCTAssertEqual(steps.map { $0.sequence }, [1, 2, 3, 4])
     }
 
     func testGuideStorageGuardrailsRejectLowDiskBeforeCaptureAndExport() throws {
@@ -150,6 +179,112 @@ final class GuideWorkflowTests: XCTestCase {
         theme.showsNumberedMarkers = true
         XCTAssertTrue(theme.showsNumberedMarkers)
         XCTAssertEqual(theme.markerNumberStyle, "circle")
+    }
+
+    @MainActor
+    func testGuideMarkerDragUpdatesLiveAndCreatesOneUndoableMove() throws {
+        let originalTarget = CGPoint(x: 50, y: 40)
+        let originalTail = CGPoint(x: 120, y: 100)
+        let step = GuideStep(
+            sequence: 1,
+            eventKind: .click,
+            caption: "Click Continue.",
+            session: GuideStepSession(
+                marker: GuideMarker(target: originalTarget, tail: originalTail),
+                sourceCoordinateRect: CGRect(x: 0, y: 0, width: 400, height: 300),
+                sourcePixelSize: CGSize(width: 400, height: 300)
+            )
+        )
+        var project = GuideProject(source: .region(CGRect(x: 0, y: 0, width: 400, height: 300)))
+        project.steps = [step]
+        let controller = GuideEditorController(document: EditableGuideDocument(
+            project: project,
+            stepImages: [step.id: try image(width: 400, height: 300)],
+            previewImage: nil,
+            logoImage: nil,
+            mediaSegmentURLs: [:]
+        ))
+
+        controller.beginMarkerDrag(stepID: step.id)
+        controller.updateMarkerDuringDrag(stepID: step.id, tail: CGPoint(x: 180, y: 140))
+        XCTAssertEqual(controller.selectedStep?.session.marker?.tail, CGPoint(x: 180, y: 140))
+
+        controller.updateMarkerDuringDrag(stepID: step.id, tail: CGPoint(x: 220, y: 160))
+        controller.endMarkerDrag(stepID: step.id, tail: CGPoint(x: 240, y: 180))
+        XCTAssertEqual(controller.selectedStep?.session.marker?.tail, CGPoint(x: 240, y: 180))
+        XCTAssertTrue(controller.canUndo)
+
+        controller.undo()
+        XCTAssertEqual(controller.selectedStep?.session.marker?.target, originalTarget)
+        XCTAssertEqual(controller.selectedStep?.session.marker?.tail, originalTail)
+        XCTAssertFalse(controller.canUndo)
+    }
+
+    func testAutomaticGuideMarkerPlacementAvoidsClickedElementAndCanvasEdges() {
+        let canvas = CGSize(width: 600, height: 400)
+        let targetRect = CGRect(x: 200, y: 150, width: 200, height: 100)
+        let tail = GuideMarkerGeometry.automaticTail(
+            for: CGPoint(x: 300, y: 200),
+            avoiding: targetRect,
+            in: canvas,
+            preferredLength: 80,
+            badgeRadius: 18,
+            targetClearance: 22
+        )
+        let badgeRect = CGRect(x: tail.x - 18, y: tail.y - 18, width: 36, height: 36)
+
+        XCTAssertFalse(badgeRect.intersects(targetRect))
+        XCTAssertTrue(CGRect(x: 22, y: 22, width: 556, height: 356).contains(tail))
+
+        let cornerTail = GuideMarkerGeometry.automaticTail(
+            for: CGPoint(x: 390, y: 290),
+            avoiding: CGRect(x: 360, y: 260, width: 40, height: 40),
+            in: CGSize(width: 400, height: 300),
+            preferredLength: 80,
+            badgeRadius: 18,
+            targetClearance: 22
+        )
+        XCTAssertTrue(CGRect(x: 22, y: 22, width: 356, height: 256).contains(cornerTail))
+    }
+
+    func testGuideMarkerConnectorStopsBeforeBadgeAndClickTarget() throws {
+        let badge = CGPoint(x: 20, y: 20)
+        let target = CGPoint(x: 120, y: 120)
+        let connector = try XCTUnwrap(GuideMarkerGeometry.connector(
+            from: badge,
+            to: target
+        ))
+
+        XCTAssertEqual(hypot(connector.start.x - badge.x, connector.start.y - badge.y), 21, accuracy: 0.001)
+        XCTAssertEqual(hypot(connector.end.x - target.x, connector.end.y - target.y), 25, accuracy: 0.001)
+    }
+
+    func testRenderedGuideTargetLeavesClickedPixelVisible() throws {
+        let sourceColor = PixelSample(red: 51, green: 128, blue: 204, alpha: 255)
+        let source = makeSolidImage(width: 100, height: 100, color: sourceColor)
+        let step = GuideStep(
+            sequence: 1,
+            eventKind: .click,
+            caption: "Click the control.",
+            session: GuideStepSession(
+                marker: GuideMarker(
+                    target: CGPoint(x: 50, y: 50),
+                    tail: CGPoint(x: 10, y: 10)
+                ),
+                sourceCoordinateRect: CGRect(x: 0, y: 0, width: 100, height: 100),
+                sourcePixelSize: CGSize(width: 100, height: 100)
+            )
+        )
+
+        let rendered = try XCTUnwrap(GuideRenderer.renderStepCard(
+            step: step,
+            image: source,
+            theme: GuideTheme(),
+            cardWidth: 400
+        ))
+
+        XCTAssertEqual(samplePixel(in: rendered, topLeftX: 122, topLeftY: 122), sourceColor)
+        XCTAssertNotEqual(samplePixel(in: rendered, topLeftX: 144, topLeftY: 122), sourceColor)
     }
 
     func testLegacyGuideThemeWithoutLegalStatementStillDecodes() throws {
@@ -388,10 +523,13 @@ final class GuideWorkflowTests: XCTestCase {
 
     func testFrameBufferSelectsNewestPreEventFrameAndHonorsMemoryBudget() throws {
         let buffer = GuideFrameBuffer()
-        for index in 0..<5 {
-            buffer.append(GuideBufferedFrame(timestamp: CMTime(value: Int64(index), timescale: 10), pixelBuffer: try pixelBuffer(width: 8, height: 8)))
+        // Frame delivery can be delayed relative to input handling. Selection
+        // must follow the frame timestamp rather than callback arrival order.
+        for index in [0, 4, 1, 3, 2] {
+            buffer.append(GuideBufferedFrame(timestamp: CMTime(value: Int64(index), timescale: 100), pixelBuffer: try pixelBuffer(width: 8, height: 8)))
         }
-        XCTAssertEqual(buffer.newestFrame(before: CMTime(value: 25, timescale: 100))?.timestamp, CMTime(value: 2, timescale: 10))
+        XCTAssertEqual(buffer.newestFrame(before: CMTime(value: 25, timescale: 1_000))?.timestamp, CMTime(value: 2, timescale: 100))
+        XCTAssertEqual(buffer.newestFrame(before: .positiveInfinity)?.timestamp, CMTime(value: 4, timescale: 100))
         XCTAssertLessThanOrEqual(buffer.memoryUsage, GuideFrameBuffer.maximumBytes)
         buffer.flush()
         XCTAssertNil(buffer.newestFrame(before: .positiveInfinity))

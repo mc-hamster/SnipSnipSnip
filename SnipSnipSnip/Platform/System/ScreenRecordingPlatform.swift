@@ -139,6 +139,34 @@ protocol ScreenRecordingPlatform: Sendable {
     ) async throws -> any ScreenRecordingPlatformSession
 }
 
+/// ScreenCaptureKit delivers frames on a serial sample queue, while the session
+/// itself is main-actor isolated. Publishing through this relay preserves the
+/// stream's frame order and avoids building a backlog of unstructured main-actor
+/// tasks that can leave Guide selecting an old frame for later actions.
+nonisolated private final class ScreenRecordingFrameSinkRelay: @unchecked Sendable {
+    private let lock = NSLock()
+    private weak var sink: (any ScreenRecordingPlatformFrameSink)?
+
+    func setSink(_ sink: (any ScreenRecordingPlatformFrameSink)?) {
+        lock.lock()
+        self.sink = sink
+        lock.unlock()
+    }
+
+    var hasSink: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return sink != nil
+    }
+
+    func publish(_ frame: GuideBufferedFrame) {
+        lock.lock()
+        let sink = sink
+        lock.unlock()
+        sink?.recordingPlatformDidOutputFrame(frame)
+    }
+}
+
 struct LiveScreenRecordingPlatform: ScreenRecordingPlatform {
     nonisolated func shareableContent() async throws -> ScreenContentSnapshot {
         try await LiveScreenCapturePlatform().shareableContent()
@@ -262,11 +290,11 @@ struct LiveScreenRecordingPlatform: ScreenRecordingPlatform {
 @MainActor
 private final class LiveScreenRecordingPlatformSession: NSObject, ScreenRecordingPlatformSession, SCRecordingOutputDelegate, SCStreamDelegate, SCStreamOutput {
     nonisolated private static let sampleOutputQueue = DispatchQueue(label: "com.oontz.SnipSnipSnip.ScreenRecordingSampleOutput")
+    nonisolated private let frameSinkRelay = ScreenRecordingFrameSinkRelay()
 
     private var stream: SCStream!
     private var target: ScreenRecordingTarget
     private weak var eventSink: (any ScreenRecordingPlatformEventSink)?
-    private weak var frameSink: (any ScreenRecordingPlatformFrameSink)?
     private var outputByToken: [ScreenRecordingSegmentToken: SCRecordingOutput] = [:]
     private var tokenByOutputID: [ObjectIdentifier: ScreenRecordingSegmentToken] = [:]
     private var configuration: ScreenRecordingConfiguration
@@ -291,11 +319,11 @@ private final class LiveScreenRecordingPlatformSession: NSObject, ScreenRecordin
     }
 
     func setFrameSink(_ sink: (any ScreenRecordingPlatformFrameSink)?) {
-        frameSink = sink
+        frameSinkRelay.setSink(sink)
     }
 
     func startCapture() async throws {
-        if frameSink != nil {
+        if frameSinkRelay.hasSink {
             try ensureSampleOutputsAttached(for: configuration)
         }
         try await stream.startCapture()
@@ -430,14 +458,10 @@ private final class LiveScreenRecordingPlatformSession: NSObject, ScreenRecordin
            Self.isUsableScreenFrame(sampleBuffer),
            let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
             let frame = GuideBufferedFrame(
-                // Event selection also uses the host clock. Stream presentation timestamps do
-                // not share the CGEvent epoch in every capture configuration.
-                timestamp: CMClockGetTime(CMClockGetHostTimeClock()),
+                timestamp: Self.screenFrameTimestamp(sampleBuffer),
                 pixelBuffer: pixelBuffer
             )
-            Task { @MainActor [weak self] in
-                self?.frameSink?.recordingPlatformDidOutputFrame(frame)
-            }
+            frameSinkRelay.publish(frame)
             return
         }
 
@@ -471,6 +495,18 @@ private final class LiveScreenRecordingPlatformSession: NSObject, ScreenRecordin
             return true
         }
         return status == .complete || status == .started
+    }
+
+    nonisolated private static func screenFrameTimestamp(_ sampleBuffer: CMSampleBuffer) -> CMTime {
+        guard let attachmentArray = CMSampleBufferGetSampleAttachmentsArray(
+            sampleBuffer,
+            createIfNecessary: false
+        ) as? [[SCStreamFrameInfo: Any]],
+        let attachment = attachmentArray.first,
+        let displayTime = attachment[.displayTime] as? UInt64 else {
+            return CMClockGetTime(CMClockGetHostTimeClock())
+        }
+        return CMClockMakeHostTimeFromSystemUnits(displayTime)
     }
 
     private func shouldPublishAudioLevel(for source: ScreenRecordingAudioSource) -> Bool {

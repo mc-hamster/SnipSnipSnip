@@ -22,9 +22,14 @@ nonisolated final class GuideFrameBuffer: @unchecked Sendable {
     func append(_ frame: GuideBufferedFrame) {
         lock.lock()
         defer { lock.unlock() }
-        frames.append(frame)
+        let insertionIndex = frames.firstIndex {
+            CMTimeCompare($0.timestamp, frame.timestamp) > 0
+        } ?? frames.endIndex
+        frames.insert(frame, at: insertionIndex)
         bytes += frame.byteCount
-        trim(relativeTo: frame.timestamp)
+        if let latestTimestamp = frames.last?.timestamp {
+            trim(relativeTo: latestTimestamp)
+        }
     }
 
     func newestFrame(before timestamp: CMTime) -> GuideBufferedFrame? {
