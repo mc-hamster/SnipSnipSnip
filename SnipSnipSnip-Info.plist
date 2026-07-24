@@ -98,6 +98,8 @@
 	<string>public.app-category.productivity</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>LSMultipleInstancesProhibited</key>
+	<true/>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSHumanReadableCopyright</key>

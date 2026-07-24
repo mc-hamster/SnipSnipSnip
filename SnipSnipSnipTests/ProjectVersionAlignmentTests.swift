@@ -45,6 +45,18 @@ final class ProjectVersionAlignmentTests: XCTestCase {
         }
     }
 
+    func testAppInfoPlistProhibitsMultipleInstances() throws {
+        let appInfo = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip-Info.plist"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(
+            appInfo.contains("<key>LSMultipleInstancesProhibited</key>\n\t<true/>"),
+            "Keep Launch Services configured to reject a second SnipSnipSnip process."
+        )
+    }
+
     func testReleaseAutomationRunsTheCompleteSuiteAndRequiresHumanConfirmations() throws {
         let ciWorkflow = try String(
             contentsOf: repositoryRoot.appendingPathComponent(".github/workflows/ci-tests.yml"),
