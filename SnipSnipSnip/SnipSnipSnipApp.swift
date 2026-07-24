@@ -561,19 +561,21 @@ struct SnipSnipSnipApp: App {
             guide: model.guide,
             documents: model.documents
         )
-        MenuBarStatusController.shared.configure(
-            lifecycle: model.lifecycle,
-            capture: model.capture,
-            clipboard: model.clipboard,
-            video: model.video,
-            guide: model.guide,
-            tools: model.tools,
-            floatingReferences: model.documents.floatingReferenceCoordinator,
-            capabilities: model.capabilities,
-            workflowCoordinator: model.workflowCoordinator,
-            consumeOnboardingWindowPresentationFlag: model.lifecycle.consumeOnboardingWindowPresentationFlag,
-            consumeMainWindowPresentationFlag: model.lifecycle.consumeMainWindowPresentationFlag
-        )
+        if !AppModel.isRunningUnitTests {
+            MenuBarStatusController.shared.configure(
+                lifecycle: model.lifecycle,
+                capture: model.capture,
+                clipboard: model.clipboard,
+                video: model.video,
+                guide: model.guide,
+                tools: model.tools,
+                floatingReferences: model.documents.floatingReferenceCoordinator,
+                capabilities: model.capabilities,
+                workflowCoordinator: model.workflowCoordinator,
+                consumeOnboardingWindowPresentationFlag: model.lifecycle.consumeOnboardingWindowPresentationFlag,
+                consumeMainWindowPresentationFlag: model.lifecycle.consumeMainWindowPresentationFlag
+            )
+        }
         AutomationAppleScriptBridge.configure(
             automation: model.automation,
             automationService: model.automationService

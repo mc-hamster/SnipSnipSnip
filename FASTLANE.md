@@ -400,6 +400,8 @@ Set it to `true` if the app really does use non-exempt encryption.
 - `MARKETING_VERSION` is the user-facing version, for example `1.0.1`.
 - `CURRENT_PROJECT_VERSION` is the build number.
 - The Fastlane lanes auto-increment the build number before each upload.
+- Fastlane updates `CURRENT_PROJECT_VERSION` without replacing the shipped
+  Info.plists' `$(CURRENT_PROJECT_VERSION)` references.
 - If you pass `version:...`, Fastlane updates `MARKETING_VERSION` before building.
 
 ## Troubleshooting

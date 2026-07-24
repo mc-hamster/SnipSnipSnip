@@ -32,9 +32,11 @@ final class AppModelRuntimeBindings {
             shouldStartArchiveMaintenance: shouldStartArchiveMaintenance,
             isRunningUnitTests: isRunningUnitTests
         )
-        bindExternalChangeNotifications(
-            workflowCoordinator: workflowCoordinator
-        )
+        if !isRunningUnitTests {
+            bindExternalChangeNotifications(
+                workflowCoordinator: workflowCoordinator
+            )
+        }
     }
 
     private func bindHotKeyPreferences(from capture: CaptureWorkflowModel) {

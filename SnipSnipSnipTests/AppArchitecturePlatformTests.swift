@@ -1761,6 +1761,28 @@ final class AppArchitecturePlatformTests: XCTestCase {
         )
     }
 
+    func testAppRuntimeDoesNotObserveApplicationActivationDuringUnitTests() throws {
+        let bindings = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/App/AppModelRuntimeBindings.swift"),
+            encoding: .utf8
+        )
+        let testGuard = try XCTUnwrap(
+            bindings.range(of: "if !isRunningUnitTests")
+        )
+        let notificationBinding = try XCTUnwrap(
+            bindings.range(
+                of: "bindExternalChangeNotifications(",
+                range: testGuard.lowerBound..<bindings.endIndex
+            )
+        )
+
+        XCTAssertLessThan(
+            testGuard.lowerBound,
+            notificationBinding.lowerBound,
+            "The XCTest app host must not turn activation notifications into live ScreenCaptureKit probes."
+        )
+    }
+
     func testWindowCaptureQuickMenuUsesContextAndWorkflowsInsteadOfAppModel() throws {
         let quickMenu = try String(
             contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/App/WindowCaptureQuickMenu.swift"),

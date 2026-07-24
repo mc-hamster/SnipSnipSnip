@@ -45,6 +45,22 @@ final class ProjectVersionAlignmentTests: XCTestCase {
         }
     }
 
+    func testFastlaneBuildNumberBumpsPreserveSharedBuildSettingReferences() throws {
+        let fastfile = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("fastlane/Fastfile"),
+            encoding: .utf8
+        )
+        let incrementCallCount = fastfile.components(separatedBy: "increment_build_number(").count - 1
+        let preservingOptionCount = fastfile.components(separatedBy: "skip_info_plist: true").count - 1
+
+        XCTAssertGreaterThan(incrementCallCount, 0)
+        XCTAssertEqual(
+            preservingOptionCount,
+            incrementCallCount,
+            "Every Fastlane build-number bump must preserve Info.plist references to CURRENT_PROJECT_VERSION."
+        )
+    }
+
     func testAppInfoPlistProhibitsMultipleInstances() throws {
         let appInfo = try String(
             contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip-Info.plist"),
@@ -81,6 +97,25 @@ final class ProjectVersionAlignmentTests: XCTestCase {
             enforcement.lowerBound,
             modelCreation.lowerBound,
             "Reject duplicate processes before constructing app services or shared-state stores."
+        )
+    }
+
+    func testAppHostedUnitTestsDoNotConfigureLiveMenuBarCaptureServices() throws {
+        let appSource = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/SnipSnipSnipApp.swift"),
+            encoding: .utf8
+        )
+        let testGuard = try XCTUnwrap(
+            appSource.range(of: "if !AppModel.isRunningUnitTests")
+        )
+        let menuBarConfiguration = try XCTUnwrap(
+            appSource.range(of: "MenuBarStatusController.shared.configure(")
+        )
+
+        XCTAssertLessThan(
+            testGuard.lowerBound,
+            menuBarConfiguration.lowerBound,
+            "The XCTest app host must not start the menu bar's live window-thumbnail refresh."
         )
     }
 

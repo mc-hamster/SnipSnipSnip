@@ -9,7 +9,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>130</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>The command-line helper sends automation commands only to SnipSnipSnip when you run it.</string>
 </dict>
