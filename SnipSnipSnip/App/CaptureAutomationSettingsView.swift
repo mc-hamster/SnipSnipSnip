@@ -28,7 +28,7 @@ struct CaptureAutomationSettingsView: View {
         TabView(selection: $lifecycle.selectedSettingsTab) {
             SettingsTabContainer(
                 title: "General",
-                summary: "Capture shortcuts, naming defaults, and editor behavior stay together here."
+                summary: "Startup, background behavior, Help, updates, and settings recovery."
             ) {
                 Section("Startup") {
                     Toggle("Launch \(AppBranding.displayName) at Login", isOn: launchAtLoginBinding)
@@ -69,12 +69,34 @@ struct CaptureAutomationSettingsView: View {
                         : "Replay onboarding whenever you want a guided walkthrough. Support requests and feature requests start from the support page.")
                 }
 
+                Section("Reset Settings") {
+                    Button("Reset All Settings to Defaults", role: .destructive) {
+                        isShowingResetDefaultsConfirmation = true
+                    }
+                    .disabled(!canResetPreferencesToDefaults)
+
+                    SettingsHelpText("This restores capture, shortcuts, recording, output, Library, naming, and privacy settings to their default values. It does not delete archived captures or Recycle Bin items.")
+                }
+            }
+            .tabItem {
+                Label("General", systemImage: "gearshape")
+            }
+            .tag(AppSettingsTab.general)
+
+            SettingsTabContainer(
+                title: "Capture",
+                summary: "Screenshot behavior and specialized screen tools."
+            ) {
                 Section("Screenshot Capture") {
                     Toggle("Include Cursor as Editable Overlay", isOn: $capture.screenshotIncludesCursor)
                     SettingsHelpText("When enabled, region, window, frontmost-window, fullscreen, and repeat screenshots add the current cursor as a movable, resizable, removable overlay. Scrolling Capture always excludes the cursor while stitching.")
 
-                    Toggle("Enable Precision Region Controls", isOn: regionCaptureBinding(\.advancedControlsEnabled))
-                    SettingsHelpText("Keep this off for the fastest drag-to-capture workflow. When enabled, region capture pauses after dragging so you can resize, type dimensions, lock aspect ratio, nudge with arrow keys, then press Return to capture.")
+                    Picker("After Selecting a Region", selection: regionCaptureCommitModeBinding) {
+                        ForEach(RegionCaptureCommitMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    SettingsHelpText(capture.regionCapturePreferences.commitMode.detail)
 
                     Picker("Fullscreen Screenshot", selection: $capture.screenshotFullscreenDisplayMode) {
                         ForEach(ScreenshotFullscreenDisplayMode.allCases) { mode in
@@ -93,55 +115,47 @@ struct CaptureAutomationSettingsView: View {
                     SettingsHelpText(capture.screenshotFullscreenDisplayMode.detail)
 
                     if capabilities.isEnabled(.uiMap) {
-                        Toggle("Enable UI Map for Window captures", isOn: uiMapBinding)
-                        SettingsHelpText("Save available names, roles, identifiers, and locations of visible interface elements when capturing a window. Region, fullscreen, scrolling, recording, and connected-device captures do not include UI Map metadata.")
+                        DisclosureGroup("Advanced") {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Toggle("Enable UI Map for Window captures", isOn: uiMapBinding)
+                                SettingsHelpText("Save available names, roles, identifiers, and locations of visible interface elements when capturing a window. Region, fullscreen, scrolling, recording, and connected-device captures do not include UI Map metadata.")
 
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Pinned UI Map Overlay Defaults")
-                                .font(.subheadline.weight(.semibold))
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Pinned UI Map Overlay Defaults")
+                                        .font(.subheadline.weight(.semibold))
 
-                            Toggle("Show outline", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsOutline))
-                            Toggle("Show source", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsSource))
-                            Toggle("Show name", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsLabel))
-                            Toggle("Show accessibility label", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsAccessibilityLabel))
-                            Toggle("Show identifier", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsIdentifier))
-                            Toggle("Show role", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsRole))
-                            Toggle("Show value", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsValue))
-                            Toggle("Show coordinates", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsCoordinates))
-                            Toggle("Show dimensions", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsDimensions))
-                            Toggle("Show owning app", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsOwningApplication))
-                            Toggle("Show bundle identifier", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsBundleIdentifier))
-                            Toggle("Show parent hierarchy", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsParentHierarchy))
-                        }
-
-                        SettingsHelpText("Choose which details are shown by default when pinned UI Map elements are rendered on copied, shared, or exported screenshots.")
-
-                        if capture.windowUIMapNeedsAccessibilityAccess {
-                            HStack(alignment: .firstTextBaseline) {
-                                Label("Window UI Map needs Accessibility access before metadata can be captured.", systemImage: "lock.trianglebadge.exclamationmark.fill")
-                                    .foregroundStyle(.orange)
-
-                                Spacer()
-
-                                Button("Set Up") {
-                                    permissions.requestAccessibilityAccess()
+                                    Toggle("Show outline", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsOutline))
+                                    Toggle("Show source", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsSource))
+                                    Toggle("Show name", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsLabel))
+                                    Toggle("Show accessibility label", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsAccessibilityLabel))
+                                    Toggle("Show identifier", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsIdentifier))
+                                    Toggle("Show role", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsRole))
+                                    Toggle("Show value", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsValue))
+                                    Toggle("Show coordinates", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsCoordinates))
+                                    Toggle("Show dimensions", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsDimensions))
+                                    Toggle("Show owning app", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsOwningApplication))
+                                    Toggle("Show bundle identifier", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsBundleIdentifier))
+                                    Toggle("Show parent hierarchy", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsParentHierarchy))
                                 }
-                                .disabled(permissions.activePermissionRequest != nil)
+
+                                SettingsHelpText("Choose which details are shown by default when pinned UI Map elements are rendered on copied, shared, or exported screenshots.")
+
+                                if capture.windowUIMapNeedsAccessibilityAccess {
+                                    HStack(alignment: .firstTextBaseline) {
+                                        Label("Window UI Map needs Accessibility access before metadata can be captured.", systemImage: "lock.trianglebadge.exclamationmark.fill")
+                                            .foregroundStyle(.orange)
+
+                                        Spacer()
+
+                                        Button("Set Up") {
+                                            permissions.requestAccessibilityAccess()
+                                        }
+                                        .disabled(permissions.activePermissionRequest != nil)
+                                    }
+                                }
                             }
                         }
                     }
-                }
-
-                Section("Editor") {
-                    Picker("Default Tool", selection: $documents.editorStartupToolPreference) {
-                        Text(EditorStartupToolPreference.default.label).tag(EditorStartupToolPreference.default)
-                        Divider()
-                        ForEach(EditorTool.startupDefaultTools) { tool in
-                            Text(tool.label).tag(EditorStartupToolPreference.tool(tool))
-                        }
-                    }
-
-                    SettingsHelpText("Choose Last Used to start each new editor session with the tool you selected most recently, or choose a specific tool to always start there.")
                 }
 
                 Section("Screen Ruler") {
@@ -224,7 +238,42 @@ struct CaptureAutomationSettingsView: View {
 
                     SettingsHelpText("Screen Inspector is a floating live magnifier that samples pixels under the cursor, shows coordinates and color values, and can stay visible while you work in other apps.")
                 }
+            }
+            .tabItem {
+                Label("Capture", systemImage: "camera.viewfinder")
+            }
+            .tag(AppSettingsTab.capture)
 
+            SettingsTabContainer(
+                title: "Presets",
+                summary: "Saved screenshot setups for repeating common captures quickly."
+            ) {
+                Section("Capture Presets") {
+                    SettingsHelpText("Presets rerun a saved screenshot target with the timer, cursor, display, region, and Window UI Map options captured when the preset was created.")
+
+                    if capture.capturePresets.isEmpty {
+                        SettingsHelpText("Capture a screenshot, then choose Presets > Save Last Capture as Preset to add it here.")
+                        Button("Open Capture Window") {
+                            lifecycle.requestMainWindowPresentation()
+                        }
+                    } else {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(capture.capturePresets) { preset in
+                                capturePresetRow(preset)
+                            }
+                        }
+                    }
+                }
+            }
+            .tabItem {
+                Label("Presets", systemImage: "star")
+            }
+            .tag(AppSettingsTab.presets)
+
+            SettingsTabContainer(
+                title: "Editor & Output",
+                summary: "Editor defaults, canvas aids, Presentation resources, naming, and rendered output."
+            ) {
                 Section("Naming") {
                     TextField("Filename Template", text: $capture.screenshotFilenameTemplate)
 
@@ -253,6 +302,16 @@ struct CaptureAutomationSettingsView: View {
                 }
 
                 Section("Editor") {
+                    Picker("Default Tool", selection: $documents.editorStartupToolPreference) {
+                        Text(EditorStartupToolPreference.default.label).tag(EditorStartupToolPreference.default)
+                        Divider()
+                        ForEach(EditorTool.startupDefaultTools) { tool in
+                            Text(tool.label).tag(EditorStartupToolPreference.tool(tool))
+                        }
+                    }
+
+                    SettingsHelpText("Choose Last Used to start each new editor session with the tool you selected most recently, or choose a specific tool to always start there.")
+
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text("Crop Outside Dimming")
@@ -338,32 +397,9 @@ struct CaptureAutomationSettingsView: View {
                 }
             }
             .tabItem {
-                Label("General", systemImage: "gearshape")
+                Label("Editor & Output", systemImage: "slider.horizontal.3")
             }
-            .tag(AppSettingsTab.general)
-
-            SettingsTabContainer(
-                title: "Presets",
-                summary: "Saved screenshot setups for repeating common captures quickly."
-            ) {
-                Section("Capture Presets") {
-                    SettingsHelpText("Presets rerun a saved screenshot target with the timer, cursor, display, region, and Window UI Map options captured when the preset was created.")
-
-                    if capture.capturePresets.isEmpty {
-                        SettingsHelpText("Capture a screenshot, then choose Presets > Save Last Capture as Preset to add it here.")
-                    } else {
-                        VStack(alignment: .leading, spacing: 10) {
-                            ForEach(capture.capturePresets) { preset in
-                                capturePresetRow(preset)
-                            }
-                        }
-                    }
-                }
-            }
-            .tabItem {
-                Label("Presets", systemImage: "star")
-            }
-            .tag(AppSettingsTab.presets)
+            .tag(AppSettingsTab.editorOutput)
 
             SettingsTabContainer(
                 title: "Shortcuts",
@@ -378,6 +414,12 @@ struct CaptureAutomationSettingsView: View {
                                 Text("Command-Shift-" + key.label).tag(key)
                             }
                         }
+
+                        if let warning = capture.automationPreferences.key(for: action).knownSystemConflictWarning {
+                            Label(warning, systemImage: "exclamationmark.triangle")
+                                .font(.footnote)
+                                .foregroundStyle(.orange)
+                        }
                     }
 
                     SettingsHelpText("Global hotkeys run while \(AppBranding.displayName) is not frontmost, so the active app keeps those shortcuts when \(AppBranding.displayName) is already focused.")
@@ -391,6 +433,7 @@ struct CaptureAutomationSettingsView: View {
                 Section("Shortcut Reference") {
                     ShortcutCatalogListView(
                         sections: AppShortcut.catalogSections(
+                            preferences: capture.automationPreferences,
                             includesGuideCapture: capabilities.isEnabled(.guideCapture)
                         )
                     )
@@ -567,10 +610,19 @@ struct CaptureAutomationSettingsView: View {
             }
 
             SettingsTabContainer(
-                title: "Archive",
-                summary: "History storage, size limits, and deleted-item cleanup live in one place."
+                title: "Library",
+                summary: "Snip recovery and Clipboard History share one task-oriented destination."
             ) {
-                Section("Archive History") {
+                Picker("Library Page", selection: $lifecycle.selectedLibrarySettingsSection) {
+                    ForEach(LibrarySettingsSection.allCases) { section in
+                        Text(section.title).tag(section)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("settings.library.section")
+
+                if lifecycle.selectedLibrarySettingsSection == .snips {
+                    Section("Archive History") {
                     SettingsHelpText("Archive history is local to this Mac. It stores editable .sss checkpoints, previews, searchable annotation text, and background OCR text unless Private Capture is enabled.")
 
                     VStack(alignment: .leading, spacing: 6) {
@@ -616,12 +668,12 @@ struct CaptureAutomationSettingsView: View {
                     SettingsHelpText("\(AppBranding.displayName) periodically trims the oldest archived checkpoints until the archive is back under the configured limit.")
                 }
 
-                Section("Recycle Bin") {
+                    Section("Recycle Bin") {
                     Stepper(value: Binding(get: {
                         archive.recycleBinRetentionDays
                     }, set: { value in
                         archive.updateRecycleBinRetentionDays(value)
-                    }), in: ArchiveWorkflowConstants.minimumRecycleBinRetentionDays...30, step: 1) {
+                    }), in: ArchiveWorkflowConstants.minimumRecycleBinRetentionDays...ArchiveWorkflowConstants.maximumRecycleBinRetentionDays, step: 1) {
                         Text("Empty Deleted Snips After: \(archive.recycleBinRetentionDays) day\(archive.recycleBinRetentionDays == 1 ? "" : "s")")
                     }
 
@@ -635,19 +687,10 @@ struct CaptureAutomationSettingsView: View {
                     Button("Empty Now", role: .destructive, action: documents.emptyRecycleBin)
                         .disabled(documents.recycleBinEntries.isEmpty)
 
-                    SettingsHelpText("Deleted snips move to the recycle bin first. The scheduled cleanup permanently removes items after the configured retention period; the default is 2 days.")
-                }
-            }
-            .tabItem {
-                Label("Archive", systemImage: "archivebox")
-            }
-            .tag(AppSettingsTab.archive)
-
-            SettingsTabContainer(
-                title: "Clipboard",
-                summary: "Clipboard history, screenshot timeline entries, and ignored apps are configured here."
-            ) {
-                Section("History") {
+                    SettingsHelpText("Deleted snips move to the recycle bin first. The scheduled cleanup permanently removes items after the configured retention period; the default is 30 days. Choose from 1 to 180 days.")
+                    }
+                } else {
+                    Section("Clipboard History") {
                     Toggle("Enable Clipboard History", isOn: Binding(get: {
                         clipboard.preferences.isEnabled
                     }, set: { value in
@@ -734,7 +777,7 @@ struct CaptureAutomationSettingsView: View {
                     SettingsHelpText("When enabled, clipboard history stays encrypted on this Mac with a key protected by Keychain. Turning it off stops monitoring and unloads decrypted history and cached previews while preserving the encrypted history unless you clear it. The history and its key are not loaded on the next launch. Private Capture always stays out of clipboard history.")
                 }
 
-                Section("Ignored Apps") {
+                    Section("Ignored Apps") {
                     SettingsHelpText("\(AppBranding.displayName) skips concealed and transient clipboard types and ignores Apple Passwords plus common password managers by default.")
 
                     HStack(spacing: 10) {
@@ -804,22 +847,23 @@ struct CaptureAutomationSettingsView: View {
                     }
 
                     Button("Restore Default Ignored Apps", action: clipboard.resetIgnoredClipboardApps)
+                    }
                 }
             }
             .tabItem {
-                Label("Clipboard", systemImage: "clipboard")
+                Label("Library", systemImage: "books.vertical")
             }
-            .tag(AppSettingsTab.clipboard)
+            .tag(AppSettingsTab.library)
 
             SettingsTabContainer(
                 title: "Privacy",
-                summary: "Private capture, permissions, and settings recovery are kept together for faster troubleshooting."
+                summary: "Private Capture, permissions, and diagnostics."
             ) {
                 Section("Private Capture") {
                     Toggle("Private Capture", isOn: privateCaptureBinding)
                         .disabled(!capture.canChangePrivateCapture)
 
-                    SettingsHelpText("Private Capture keeps the current capture out of archive history, recycle bin retention, and background OCR indexing. You can still explicitly save or export the result. The setting is locked while a capture or recording is active so the in-progress capture uses the privacy choice it started with.")
+                    SettingsHelpText("Private Capture keeps the current capture out of archive history, Recent Snips, the Recycle Bin, Clipboard History, and background OCR indexing. You can still explicitly save or export the result. The setting is locked while a capture or recording is active so the in-progress capture uses the privacy choice it started with.")
                 }
 
                 Section("Permission Diagnostics") {
@@ -844,14 +888,6 @@ struct CaptureAutomationSettingsView: View {
                     )
                 }
 
-                Section("Reset") {
-                    Button("Reset All Settings to Defaults", role: .destructive) {
-                        isShowingResetDefaultsConfirmation = true
-                    }
-                    .disabled(!canResetPreferencesToDefaults)
-
-                    SettingsHelpText("This restores capture, shortcuts, recording, export and sharing, archive, recycle-bin, naming, and privacy settings to their default values. It does not delete archived captures or recycle-bin items.")
-                }
             }
             .tabItem {
                 Label("Privacy", systemImage: "hand.raised")
@@ -922,17 +958,28 @@ struct CaptureAutomationSettingsView: View {
 
     private var shouldShowAccessibilityPermissionDiagnostics: Bool {
         capabilities.isEnabled(.scrollingCapture)
+            || capabilities.isEnabled(.guideCapture)
             || (capabilities.isEnabled(.uiMap) && capture.uiMapEnabled)
     }
 
     private var accessibilityPermissionDiagnosticsDetail: String {
         let requirementSummary: String
         if capabilities.isEnabled(.scrollingCapture),
+           capabilities.isEnabled(.guideCapture),
            capabilities.isEnabled(.uiMap),
            capture.uiMapEnabled {
-            requirementSummary = "Accessibility is only required for Scrolling Capture and Window UI Map."
+            requirementSummary = "Accessibility is only required for Scrolling Capture, Guide capture, and Window UI Map."
+        } else if capabilities.isEnabled(.guideCapture),
+                  capabilities.isEnabled(.uiMap),
+                  capture.uiMapEnabled {
+            requirementSummary = "Accessibility is only required for Guide capture and Window UI Map."
+        } else if capabilities.isEnabled(.scrollingCapture),
+                  capabilities.isEnabled(.guideCapture) {
+            requirementSummary = "Accessibility is only required for Scrolling Capture and Guide capture."
         } else if capabilities.isEnabled(.uiMap), capture.uiMapEnabled {
             requirementSummary = "Accessibility is only required for Window UI Map."
+        } else if capabilities.isEnabled(.guideCapture) {
+            requirementSummary = "Accessibility is only required for Guide capture."
         } else {
             requirementSummary = "Accessibility is only required for Scrolling Capture."
         }
@@ -1166,6 +1213,17 @@ struct CaptureAutomationSettingsView: View {
             set: { newValue in
                 var preferences = capture.regionCapturePreferences
                 preferences[keyPath: keyPath] = newValue
+                capture.regionCapturePreferences = preferences
+            }
+        )
+    }
+
+    private var regionCaptureCommitModeBinding: Binding<RegionCaptureCommitMode> {
+        Binding(
+            get: { capture.regionCapturePreferences.commitMode },
+            set: { newValue in
+                var preferences = capture.regionCapturePreferences
+                preferences.commitMode = newValue
                 capture.regionCapturePreferences = preferences
             }
         )

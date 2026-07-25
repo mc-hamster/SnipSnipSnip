@@ -67,7 +67,13 @@ final class VideoEditorController: ObservableObject {
     @Published private(set) var currentTimeSeconds: TimeInterval
     @Published private(set) var isPlaying = false
     @Published private(set) var timelineThumbnails: [CGImage] = []
-    @Published var errorMessage: String?
+    @Published var errorMessage: String? {
+        didSet {
+            if let errorMessage, errorMessage != oldValue {
+                AppAccessibility.announce("Video editor error: \(errorMessage)", priority: .high)
+            }
+        }
+    }
     @Published private(set) var statusMessage: String?
     @Published private(set) var exportProgress: VideoExportProgress?
     @Published private(set) var persistenceRevision = 0

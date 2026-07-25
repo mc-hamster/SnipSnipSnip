@@ -47,6 +47,8 @@ private struct LayersListView: View {
                     .onMove(perform: moveLayers)
                 }
                 .listStyle(.inset)
+                .accessibilityLabel("Annotation Layers")
+                .accessibilityIdentifier("layers.list")
                 .onChange(of: selection) { _, newSelection in
                     syncSelectionToController(newSelection)
                 }
@@ -181,6 +183,17 @@ private struct LayerRow: View {
             }
         }
         .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(annotation.kind.layerTitle)
+        .accessibilityValue(
+            [
+                annotation.kind.layerDetail,
+                annotation.groupID == nil ? nil : "Grouped",
+                isSelected ? "Selected" : "Not selected",
+            ]
+            .compactMap(\.self)
+            .joined(separator: ", ")
+        )
     }
 }
 

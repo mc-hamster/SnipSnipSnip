@@ -37,6 +37,7 @@ struct AppModelCompositionContext {
         self.shouldPresentOnboardingWindowOnLaunch = preferenceStores.lifecycle.loadCompletedOnboardingVersion(
             currentVersion: AppLifecycleConstants.currentOnboardingVersion
         ) < AppLifecycleConstants.currentOnboardingVersion
+            || preferenceStores.lifecycle.loadOnboardingResumeCheckpoint() != nil
         self.shouldPresentMainWindowOnLaunch = pendingRecoverySession != nil
         self.floatingReferenceCoordinator = FloatingReferenceCoordinator()
     }

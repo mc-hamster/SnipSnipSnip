@@ -106,6 +106,19 @@ nonisolated enum AppLifecyclePreferenceKeys {
     static let confirmsBeforeQuitting = "SSSConfirmsBeforeQuitting"
 }
 
+enum AppCloseShortcutDisposition: Equatable {
+    case miniaturize
+    case orderOut
+    case hideApplication
+}
+
+@MainActor
+enum NativePanelShortcutPolicy {
+    static func suspendsCaptureKeyEquivalents(for window: NSWindow?) -> Bool {
+        window is NSOpenPanel || window is NSSavePanel
+    }
+}
+
 @MainActor
 final class AppOpenBridge: NSObject, NSApplicationDelegate {
     private var localEventMonitor: Any?
@@ -160,12 +173,23 @@ final class AppOpenBridge: NSObject, NSApplicationDelegate {
         PendingDocumentOpenRequests.enqueue(fileURLs)
     }
 
-    static func minimizeActiveWindow() {
-        guard let window = NSApp.keyWindow ?? NSApp.mainWindow else {
-            return
+    static func handleCloseShortcut() {
+        let window = NSApp.keyWindow ?? NSApp.mainWindow
+        switch closeShortcutDisposition(for: window?.styleMask) {
+        case .miniaturize:
+            window?.miniaturize(nil)
+        case .orderOut:
+            window?.orderOut(nil)
+        case .hideApplication:
+            NSApp.hide(nil)
         }
+    }
 
-        window.performMiniaturize(nil)
+    static func closeShortcutDisposition(for styleMask: NSWindow.StyleMask?) -> AppCloseShortcutDisposition {
+        guard let styleMask else {
+            return .hideApplication
+        }
+        return styleMask.contains(.miniaturizable) ? .miniaturize : .orderOut
     }
 
     private func handleWindowShortcut(_ event: NSEvent) -> NSEvent? {
@@ -187,7 +211,7 @@ final class AppOpenBridge: NSObject, NSApplicationDelegate {
                 AppTerminationController.shared.requestQuit()
             }
         } else {
-            Self.minimizeActiveWindow()
+            Self.handleCloseShortcut()
         }
         return nil
     }

@@ -102,11 +102,12 @@ enum ImageExporter {
 
     nonisolated static func editedFilename(
         suggestedFilename: String,
-        format: ImageExportFormat
+        format: ImageExportFormat,
+        appearance: ScreenshotOutputAppearance
     ) -> String {
         let baseName = (suggestedFilename as NSString).deletingPathExtension
         let normalizedBaseName = baseName.isEmpty ? suggestedFilename : baseName
-        return "\(normalizedBaseName)-edited.\(format.fileExtension)"
+        return "\(normalizedBaseName)-\(appearance.filenameSuffix).\(format.fileExtension)"
     }
 
     nonisolated static func pngData(for image: CGImage) throws -> Data {
@@ -175,9 +176,14 @@ enum ImageExporter {
         _ image: CGImage,
         suggestedFilename: String,
         format: ImageExportFormat,
+        appearance: ScreenshotOutputAppearance,
         options: ImageExportOptions = .default
     ) async throws {
-        guard let url = await destinationURL(suggestedFilename: suggestedFilename, format: format) else {
+        guard let url = await destinationURL(
+            suggestedFilename: suggestedFilename,
+            format: format,
+            appearance: appearance
+        ) else {
             return
         }
 
@@ -185,8 +191,13 @@ enum ImageExporter {
     }
 
     @MainActor
-    static func destinationURL(suggestedFilename: String, format: ImageExportFormat) async -> URL? {
+    static func destinationURL(
+        suggestedFilename: String,
+        format: ImageExportFormat,
+        appearance: ScreenshotOutputAppearance
+    ) async -> URL? {
         let panel = destinationPanel(suggestedFilename: suggestedFilename, format: format)
+        panel.message = "Exporting \(appearance.title) screenshot output."
         return await presentSavePanel(panel)
     }
 

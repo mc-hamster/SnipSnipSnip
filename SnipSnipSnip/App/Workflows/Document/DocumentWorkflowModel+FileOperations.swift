@@ -51,23 +51,24 @@ extension DocumentWorkflowModel {
     }
 
     func exportAnnotatedImage() {
-        exportAnnotatedImage(as: .png)
+        exportAnnotatedImage(as: .png, appearance: .plain)
     }
-
-    func exportAnnotatedImage(as format: ImageExportFormat) {
+    func exportAnnotatedImage(as format: ImageExportFormat, appearance: ScreenshotOutputAppearance) {
         editorController?.saveAnnotatedImage(
+            appearance: appearance,
             format: format,
             filenameTemplate: ScreenshotFilenameTemplate(pattern: screenshotFilenameTemplate),
             exportOptions: screenshotImageExportOptions
         )
     }
 
-    func shareAnnotatedImage() {
-        editorController?.shareAnnotatedImage()
+    func shareAnnotatedImage(appearance: ScreenshotOutputAppearance) {
+        editorController?.shareAnnotatedImage(appearance: appearance)
     }
 
-    func promisedAnnotatedImagePayload() -> PromisedFilePayload? {
+    func promisedAnnotatedImagePayload(appearance: ScreenshotOutputAppearance) -> PromisedFilePayload? {
         editorController?.promisedImagePayload(
+            appearance: appearance,
             requestedFormat: screenshotDragOutFormat,
             filenameTemplate: ScreenshotFilenameTemplate(pattern: screenshotFilenameTemplate),
             exportOptions: screenshotImageExportOptions
@@ -82,7 +83,8 @@ extension DocumentWorkflowModel {
         from controller: EditorController,
         to destination: CapturePresetExportDestination
     ) async throws -> URL {
-        if controller.exportFormatRequiresPNG(), destination.format != .png {
+        let appearance = controller.automationOutputAppearance
+        if controller.exportFormatRequiresPNG(appearance: appearance), destination.format != .png {
             throw ImageExportError.transparentPresentationRequiresPNG
         }
 
@@ -91,7 +93,7 @@ extension DocumentWorkflowModel {
         let url = destination.folderURL
             .appendingPathComponent(filename)
             .appendingPathExtension(destination.format.fileExtension)
-        let image = try await controller.renderedImageForExport()
+        let image = try await controller.renderedImageForExport(appearance: appearance)
         try await ImageExporter.write(image, format: destination.format, to: url, options: screenshotImageExportOptions)
         return url
     }
@@ -171,7 +173,7 @@ extension DocumentWorkflowModel {
             editableRedactionSaveWarningAcknowledgedEditorIDs.insert(controllerID)
             return true
         case .exportFlattenedPNG:
-            exportAnnotatedImage(as: .png)
+            exportAnnotatedImage(as: .png, appearance: .plain)
             return false
         case .cancel:
             return false

@@ -17,6 +17,7 @@ struct ContentView: View {
     let performAutomationRequest: (AutomationRequest) async -> Void
     @Environment(\.openURL) private var openURL
     @Environment(\.openWindow) private var openWindow
+    @State private var isPermissionDiagnosticExpanded = false
 
     private let windowRefreshTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -33,16 +34,21 @@ struct ContentView: View {
                 EditorCommandBar(
                     controller: editorController,
                     onBack: documents.closeEditor,
-                    onFloatReference: documents.floatCurrentEditorReference,
-                    onExportPNG: { documents.exportAnnotatedImage(as: .png) },
-                    onExportJPEG: { documents.exportAnnotatedImage(as: .jpeg) },
-                    onExportPDF: { documents.exportAnnotatedImage(as: .pdf) },
-                    onCopyStyled: documents.copyCurrentEditorImageToClipboard,
-                    onCopyPlain: documents.copyCurrentPlainEditorImageToClipboard,
-                    onShare: documents.shareAnnotatedImage,
+                    onFloatReference: { documents.floatCurrentEditorReference(appearance: $0) },
+                    onExportPNG: { documents.exportAnnotatedImage(as: .png, appearance: $0) },
+                    onExportJPEG: { documents.exportAnnotatedImage(as: .jpeg, appearance: $0) },
+                    onExportPDF: { documents.exportAnnotatedImage(as: .pdf, appearance: $0) },
+                    onCopy: { appearance in
+                        if appearance == .styled {
+                            documents.copyCurrentStyledEditorImageToClipboard()
+                        } else {
+                            documents.copyCurrentPlainEditorImageToClipboard()
+                        }
+                    },
+                    onShare: { documents.shareAnnotatedImage(appearance: $0) },
                     onShowLayers: showLayersWindow,
                     onShowUIMap: showUIMapWindow,
-                    dragOutPayloadProvider: documents.promisedAnnotatedImagePayload
+                    dragOutPayloadProvider: { documents.promisedAnnotatedImagePayload(appearance: $0) }
                 )
                 Divider()
             }
@@ -164,14 +170,6 @@ struct ContentView: View {
             )
             .frame(width: 460)
         }
-        .alert("Presentation Mode is Experimental", isPresented: $lifecycle.isShowingPresentationExperimentalNotice) {
-            Button("Join Discord") {
-                openURL(AppLinks.presentationFeedbackDiscord)
-            }
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Presentation mode is still experimental. Join our Discord to share feedback about the feature.")
-        }
         .alert("Capture Error", isPresented: Binding(get: {
             lifecycle.errorMessage != nil
         }, set: { value in
@@ -290,7 +288,14 @@ struct ContentView: View {
             captureHeaderActions
 
             if !headerCaptureReady {
-                headerPermissionCallout
+                if hasOpenDocument {
+                    compactPermissionStrip
+                    if isPermissionDiagnosticExpanded {
+                        headerPermissionCallout
+                    }
+                } else {
+                    headerPermissionCallout
+                }
             }
         }
         .padding(.horizontal, 14)
@@ -304,6 +309,49 @@ struct ContentView: View {
         .padding(.top, 8)
         .padding(.bottom, 10)
         .background(Color(nsColor: .windowBackgroundColor))
+        .onChange(of: permissions.activePermissionRequest) { _, request in
+            if request != nil, hasOpenDocument {
+                isPermissionDiagnosticExpanded = true
+            }
+        }
+        .onChange(of: permissions.permissionStatus) { oldStatus, newStatus in
+            guard oldStatus != newStatus else {
+                return
+            }
+            AppAccessibility.announce(
+                newStatus.hasScreenRecording
+                    ? "Screenshot capture is available."
+                    : "Screenshot capture is unavailable. Screen Recording access is required.",
+                priority: .high
+            )
+        }
+    }
+
+    private var hasOpenDocument: Bool {
+        documents.editorController != nil
+            || documents.videoEditorController != nil
+            || documents.guideEditorController != nil
+    }
+
+    private var compactPermissionStrip: some View {
+        Button {
+            isPermissionDiagnosticExpanded.toggle()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "lock.trianglebadge.exclamationmark.fill")
+                    .foregroundStyle(.orange)
+                Text("Screenshot capture unavailable")
+                    .font(.caption.weight(.medium))
+                Spacer(minLength: 8)
+                Text(isPermissionDiagnosticExpanded ? "Hide Setup" : "Set Up")
+                    .font(.caption.weight(.semibold))
+            }
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Screenshot capture unavailable")
+        .accessibilityHint(isPermissionDiagnosticExpanded ? "Collapse permission diagnostics." : "Expand permission setup and diagnostics.")
+        .accessibilityIdentifier("capture.permission.compactStrip")
     }
 
     private var captureHeaderIdentity: some View {
@@ -568,11 +616,15 @@ struct ContentView: View {
     }
 
     private var quickStartShortcutEntries: [ShortcutCatalogEntry] {
-        let appOpen = AppShortcut.catalogSections
+        let currentSections = AppShortcut.catalogSections(
+            preferences: capture.automationPreferences,
+            includesGuideCapture: capabilities.isEnabled(.guideCapture)
+        )
+        let appOpen = currentSections
             .first { $0.title == "App" }?
             .entries
             .first { $0.action == "Open SnipSnipSnip" }
-        let captures = AppShortcut.catalogSections
+        let captures = currentSections
             .first { $0.title == "Default Global Capture" }
             .map { Array($0.entries.prefix(5)) } ?? []
 
@@ -994,7 +1046,7 @@ struct ContentView: View {
         case "Region":
             return "Drag to capture a selected region of the screen."
         case "Full", "Fullscreen", "Full Screen":
-            return "Capture the full desktop across connected displays."
+            return capture.screenshotFullscreenDisplayMode.detail
         case "Window":
             if capabilities.isEnabled(.uiMap), capture.uiMapEnabled {
                 return "Open quick window capture choices. UI Map enabled for Window captures."

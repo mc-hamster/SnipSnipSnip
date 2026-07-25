@@ -56,6 +56,8 @@ final class ScrollingCaptureProgressOverlay {
     private var globalKeyMonitor: Any?
     private let onCancel: () -> Void
     private let onDone: () -> Void
+    private var lastAnnouncedSegmentCount = 0
+    private var lastAnnouncedWarning: String?
 
     init(onCancel: @escaping () -> Void, onDone: @escaping () -> Void) {
         self.onCancel = onCancel
@@ -78,7 +80,10 @@ final class ScrollingCaptureProgressOverlay {
 
     func show() {
         window.orderFrontRegardless()
+        window.makeKey()
+        window.makeFirstResponder(view)
         installKeyMonitors()
+        AppAccessibility.announce("Scrolling capture started. Press Return to keep the captured result or Escape to cancel.")
     }
 
     func show(avoiding rect: CGRect) {
@@ -92,6 +97,17 @@ final class ScrollingCaptureProgressOverlay {
         view.capacityFraction = capacityFraction
         view.warning = warning
         view.previewImage = previewImage
+        view.updateAccessibilityStatus()
+
+        if warning != nil, warning != lastAnnouncedWarning {
+            lastAnnouncedWarning = warning
+            AppAccessibility.announce(warning ?? "", priority: .high)
+        } else if segmentCount == 1 || segmentCount - lastAnnouncedSegmentCount >= 5 {
+            lastAnnouncedSegmentCount = segmentCount
+            AppAccessibility.announce(
+                "\(segmentCount) scrolling segments, \(max(outputHeight, 0)) pixels captured."
+            )
+        }
     }
 
     func close() {
@@ -204,7 +220,13 @@ private final class ScrollingCaptureProgressView: NSView {
         self.onDone = onDone
         super.init(frame: CGRect(x: 0, y: 0, width: 420, height: 220))
         wantsLayer = true
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        setAccessibilityLabel("Scrolling capture progress")
+        setAccessibilityHelp("Press Return to keep the captured result or Escape to cancel.")
+        setAccessibilityIdentifier("capture.scrolling.progress")
         configureButtons()
+        updateAccessibilityStatus()
     }
 
     required init?(coder: NSCoder) {
@@ -354,6 +376,14 @@ private final class ScrollingCaptureProgressView: NSView {
         default:
             super.keyDown(with: event)
         }
+    }
+
+    func updateAccessibilityStatus() {
+        let warningSummary = warning.map { " Warning: \($0)" } ?? ""
+        setAccessibilityValue(
+            "\(segmentCount) segment\(segmentCount == 1 ? "" : "s"), \(max(outputHeight, 0)) pixels captured, \(AccessibilityValueFormatter.percentage(capacityFraction)) capacity.\(warningSummary)"
+        )
+        NSAccessibility.post(element: self, notification: .valueChanged)
     }
 
     private func configureButtons() {

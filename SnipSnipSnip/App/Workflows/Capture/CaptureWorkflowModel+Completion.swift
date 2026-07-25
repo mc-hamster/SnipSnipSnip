@@ -82,6 +82,7 @@ extension CaptureWorkflowModel {
             workflowPreset: activeWorkflowPreset
         )))
         activeWorkflowPresetID = nil
+        AppAccessibility.announce("Capture complete. \(Int(capture.pixelSize.width)) by \(Int(capture.pixelSize.height)) pixels.")
     }
 
     func completeScreenInspectorSnip(_ sample: ScreenInspectorSample) {
@@ -120,6 +121,7 @@ extension CaptureWorkflowModel {
             uiMapSkipReason: nil,
             workflowPreset: nil
         )))
+        AppAccessibility.announce("Screen Inspector capture complete.")
     }
 
     private var activeWorkflowPreset: CapturePreset? {

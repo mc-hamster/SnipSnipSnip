@@ -127,7 +127,7 @@ extension CaptureWorkflowModel {
             selectedScreenshotFullscreenDisplayID = nil
             captureCurrentDisplay()
         case .chooseDisplay:
-            dependencies.lifecycle.presentSettings(tab: .general)
+            dependencies.lifecycle.presentSettings(tab: .capture)
         case .captureVisibleArea:
             captureRegion()
         case .chooseAnotherArea:

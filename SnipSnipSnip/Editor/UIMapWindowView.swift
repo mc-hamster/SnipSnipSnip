@@ -50,6 +50,7 @@ private struct UIMapPanelView: View {
     @State private var showsPinnedOnly = false
     @State private var collapsedElementIDs: Set<UUID> = []
     @FocusState private var treeHasKeyboardFocus: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var pinnedElementIDs: Set<UUID> {
         Set(controller.snapshot.pinnedUIMapElementIDs)
@@ -443,8 +444,12 @@ private struct UIMapPanelView: View {
             return
         }
 
-        withAnimation(.snappy(duration: 0.12)) {
+        if reduceMotion {
             proxy.scrollTo(elementID, anchor: .center)
+        } else {
+            withAnimation(.snappy(duration: 0.12)) {
+                proxy.scrollTo(elementID, anchor: .center)
+            }
         }
     }
 

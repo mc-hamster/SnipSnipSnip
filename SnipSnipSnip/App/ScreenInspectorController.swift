@@ -40,6 +40,7 @@ final class ScreenInspectorCoordinator: ObservableObject {
     private var onSnip: (ScreenInspectorSample) -> Void
     private let capturePlatform: any ScreenCapturePlatform
     private let screens: any ScreenTopologyProviding
+    private let permissions: any CapturePermissionServicing
     private var eventHandlerRef: EventHandlerRef?
     private var hotKeyRefs: [Shortcut: EventHotKeyRef] = [:]
 
@@ -47,6 +48,9 @@ final class ScreenInspectorCoordinator: ObservableObject {
         preferences: ScreenInspectorPreferences = .default,
         capturePlatform: any ScreenCapturePlatform = LiveScreenCapturePlatform(),
         screens: any ScreenTopologyProviding = SystemScreenTopologyService(),
+        permissions: any CapturePermissionServicing = SystemCapturePermissionService(
+            capabilities: AppCapabilitySnapshot(buildTarget: .dev, enabledCapabilities: Set(AppCapability.allCases))
+        ),
         onPreferencesChange: @escaping (ScreenInspectorPreferences) -> Void = { _ in },
         onSnip: @escaping (ScreenInspectorSample) -> Void = { _ in }
     ) {
@@ -55,6 +59,7 @@ final class ScreenInspectorCoordinator: ObservableObject {
         self.onSnip = onSnip
         self.capturePlatform = capturePlatform
         self.screens = screens
+        self.permissions = permissions
     }
 
     func setPreferencesChangeHandler(_ handler: @escaping (ScreenInspectorPreferences) -> Void) {
@@ -97,6 +102,7 @@ final class ScreenInspectorCoordinator: ObservableObject {
             preferences: preferences,
             capturePlatform: capturePlatform,
             screens: screens,
+            permissions: permissions,
             onSnip: { [weak self] sample in
                 self?.onSnip(sample)
             }
@@ -239,6 +245,7 @@ final class ScreenInspectorWindowModel: ObservableObject {
     @Published private(set) var measurement: ScreenInspectorMeasurement?
 
     private let sampler: ScreenInspectorSampler
+    private let permissions: any CapturePermissionServicing
     private let onSnip: (ScreenInspectorSample) -> Void
     private var timer: Timer?
     private var pendingSampleTask: Task<Void, Never>?
@@ -250,10 +257,14 @@ final class ScreenInspectorWindowModel: ObservableObject {
         preferences: ScreenInspectorPreferences,
         capturePlatform: any ScreenCapturePlatform = LiveScreenCapturePlatform(),
         screens: any ScreenTopologyProviding = SystemScreenTopologyService(),
+        permissions: any CapturePermissionServicing = SystemCapturePermissionService(
+            capabilities: AppCapabilitySnapshot(buildTarget: .dev, enabledCapabilities: Set(AppCapability.allCases))
+        ),
         onSnip: @escaping (ScreenInspectorSample) -> Void = { _ in }
     ) {
         self.preferences = preferences.sanitized()
         self.sampler = ScreenInspectorSampler(platform: capturePlatform, screens: screens)
+        self.permissions = permissions
         self.onSnip = onSnip
     }
 
@@ -279,6 +290,23 @@ final class ScreenInspectorWindowModel: ObservableObject {
         }
 
         return "Lock"
+    }
+
+    var hasScreenRecordingAccess: Bool {
+        permissions.currentStatus().hasScreenRecording
+    }
+
+    func setUpScreenRecording() {
+        _ = permissions.requestAccess(for: .screenRecording)
+        permissions.openSystemSettings(for: .screenRecording)
+    }
+
+    func openPermissionHelp() {
+        NSWorkspace.shared.open(AppLinks.support)
+    }
+
+    func checkPermissionAgain() {
+        refresh()
     }
 
     func start() {
@@ -554,12 +582,24 @@ private struct ScreenInspectorWindowView: View {
                         .scaledToFill()
                         .frame(width: proxy.size.width, height: proxy.size.height)
                         .clipped()
+                } else if !model.hasScreenRecordingAccess {
+                    VStack(spacing: 10) {
+                        Label("Screen Recording permission required", systemImage: "lock.trianglebadge.exclamationmark")
+                            .font(.caption.weight(.semibold))
+                            .multilineTextAlignment(.center)
+                        HStack {
+                            Button("Set Up", action: model.setUpScreenRecording)
+                            Button("Help", action: model.openPermissionHelp)
+                            Button("Check Again", action: model.checkPermissionAgain)
+                        }
+                        .controlSize(.small)
+                    }
+                    .foregroundStyle(.secondary)
+                    .padding()
+                    .accessibilityElement(children: .contain)
                 } else {
-                    Text("Screen Recording permission required")
-                        .font(.caption)
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.secondary)
-                        .padding()
+                    ProgressView("Sampling screen…")
+                        .controlSize(.small)
                 }
 
                 if model.preferences.showsPixelGrid {

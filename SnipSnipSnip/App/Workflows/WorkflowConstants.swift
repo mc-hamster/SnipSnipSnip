@@ -20,6 +20,7 @@ nonisolated enum ArchiveWorkflowConstants {
     static let maintenanceDebounceNanoseconds: UInt64 = 300_000_000_000
     static let defaultMaximumSizeMB = 1_024
     static let minimumMaximumSizeMB = 100
-    static let defaultRecycleBinRetentionDays = 2
+    static let defaultRecycleBinRetentionDays = 30
     static let minimumRecycleBinRetentionDays = 1
+    static let maximumRecycleBinRetentionDays = 180
 }

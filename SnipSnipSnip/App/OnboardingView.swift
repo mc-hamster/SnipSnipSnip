@@ -3,38 +3,35 @@ import SwiftUI
 
 private enum OnboardingStep: Int, CaseIterable, Identifiable, Hashable {
     case welcome
-    case guide
-    case uiMap
-    case startup
+    case captureAccess
+    case firstSnip
     case clipboard
-    case support
-    case permissions
+    case discoverMore
+    case startup
+    case ready
 
     var id: Int { rawValue }
 
     static func visibleCases(for capabilities: AppCapabilitySnapshot) -> [OnboardingStep] {
-        allCases.filter { step in
-            (step != .uiMap || capabilities.isEnabled(.uiMap))
-                && (step != .guide || capabilities.isEnabled(.guideCapture))
-        }
+        allCases
     }
 
     var title: String {
         switch self {
         case .welcome:
             return "Welcome"
-        case .permissions:
-            return "Permissions"
-        case .guide:
-            return "Guide"
-        case .uiMap:
-            return "UI Map"
+        case .captureAccess:
+            return "Capture Access"
+        case .firstSnip:
+            return "Try Your First Snip"
         case .startup:
-            return "Launch at Login"
+            return "Keep Ready"
         case .clipboard:
             return "Clipboard History"
-        case .support:
-            return "Support"
+        case .discoverMore:
+            return "Discover More"
+        case .ready:
+            return "Ready"
         }
     }
 
@@ -42,30 +39,18 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable, Hashable {
         switch self {
         case .welcome:
             return "Capture faster, edit immediately, and keep recovery close by."
-        case .permissions:
-            if capabilities.isEnabled(.scrollingCapture) {
-                return "Set up capture pixels and scrolling capture, then see which permissions are asked later."
-            }
-
-            if capabilities.isEnabled(.uiMap) {
-                return "Set up capture pixels, live window thumbnails, recording, and optional Window UI Map access."
-            }
-
-            if capabilities.isEnabled(.connectedDeviceCapture) {
-                return "Set up capture pixels, live window thumbnails, recording, and learn when connected-device preview asks for Camera access."
-            }
-
-            return "Set up capture pixels, live window thumbnails, and recording with one-time macOS permissions."
-        case .guide:
-            return "Turn normal actions into editable, polished instructions—without uploading your screen."
-        case .uiMap:
-            return "Choose whether screenshots save visible interface metadata."
+        case .captureAccess:
+            return "Allow Screen Recording so macOS can provide screenshot pixels and live previews."
+        case .firstSnip:
+            return "Take a guided region capture now, or skip the tutorial and continue setup."
         case .startup:
-            return "Keep \(AppBranding.displayName) ready right after login if you want the easiest setup."
+            return "Choose whether \(AppBranding.displayName) stays ready after login and in the background."
         case .clipboard:
             return "Choose whether to monitor copied content and protect its local history with Keychain."
-        case .support:
-            return "Find help fast and send support requests or feature requests from the support page."
+        case .discoverMore:
+            return "See the other local capture, documentation, presentation, recovery, and automation workflows."
+        case .ready:
+            return "Review your choices and keep Help and Support close by."
         }
     }
 
@@ -73,18 +58,18 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable, Hashable {
         switch self {
         case .welcome:
             return "sparkles"
-        case .permissions:
+        case .captureAccess:
             return "hand.raised.fill"
-        case .guide:
-            return "list.number"
-        case .uiMap:
-            return "rectangle.3.group"
+        case .firstSnip:
+            return "viewfinder"
         case .startup:
             return "power.circle.fill"
         case .clipboard:
             return "clipboard.fill"
-        case .support:
-            return "bubble.left.and.bubble.right.fill"
+        case .discoverMore:
+            return "square.grid.2x2"
+        case .ready:
+            return "checkmark.circle.fill"
         }
     }
 }
@@ -120,6 +105,7 @@ struct OnboardingView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var selectedStep: OnboardingStep = .welcome
+    @State private var hasMadeClipboardChoice = false
     @State private var launchAtLoginErrorMessage: String?
 
     init(
@@ -140,6 +126,12 @@ struct OnboardingView: View {
         self.capabilities = capabilities
         self.skipOnboardingAction = skipOnboarding
         self.completeOnboardingAction = completeOnboarding
+        if lifecycle.onboardingResumeCheckpoint == .firstSnip {
+            _selectedStep = State(initialValue: .firstSnip)
+        }
+        _hasMadeClipboardChoice = State(
+            initialValue: lifecycle.hasAcknowledgedOnboardingClipboardChoice
+        )
     }
 
     var body: some View {
@@ -244,7 +236,9 @@ struct OnboardingView: View {
 
     private func onboardingStatusCard(metrics: OnboardingLayoutMetrics) -> some View {
         InsetGroupBox {
-            Text("After Screen Recording is set up, onboarding can be skipped and every step can be revisited later from Settings > General.")
+            Text(lifecycle.onboardingPresentationMode == .firstRun
+                ? "Screen Recording and an explicit Clipboard History choice are required. The first capture tutorial is optional."
+                : "Replay mode reflects your current settings and never blocks completion.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -301,18 +295,18 @@ struct OnboardingView: View {
         switch selectedStep {
         case .welcome:
             welcomeStep(metrics: metrics)
-        case .permissions:
+        case .captureAccess:
             permissionsStep(metrics: metrics)
-        case .guide:
-            guideStep(metrics: metrics)
-        case .uiMap:
-            uiMapStep(metrics: metrics)
+        case .firstSnip:
+            firstSnipStep(metrics: metrics)
         case .startup:
             startupStep(metrics: metrics)
         case .clipboard:
             clipboardStep(metrics: metrics)
-        case .support:
-            supportStep(metrics: metrics)
+        case .discoverMore:
+            discoverMoreStep(metrics: metrics)
+        case .ready:
+            readyStep(metrics: metrics)
         }
     }
 
@@ -368,9 +362,6 @@ struct OnboardingView: View {
     private func permissionsStep(metrics: OnboardingLayoutMetrics) -> some View {
         VStack(alignment: .leading, spacing: metrics.cardSpacing) {
             permissionCard(requirement: .screenRecording, metrics: metrics)
-            if shouldIncludeAccessibilityPermissionInOnboarding {
-                permissionCard(requirement: .accessibility, metrics: metrics)
-            }
 
             if let restartSummaryText = permissionRestartSummaryText {
                 Label(restartSummaryText, systemImage: "arrow.clockwise.circle.fill")
@@ -387,11 +378,14 @@ struct OnboardingView: View {
                         .buttonStyle(.glassProminent)
                         .tint(.orange)
                 } else {
-                    Button("Set Up Next") {
-                        permissions.requestNextMissingSetupRequirement(in: onboardingPermissionRequirements)
+                    Button("Set Up Screen Recording") {
+                        permissions.requestPermission(.screenRecording)
                     }
                     .buttonStyle(.glassProminent)
-                    .disabled(permissions.activePermissionRequest != nil)
+                    .disabled(
+                        permissions.permissionStatus.hasScreenRecording
+                            || permissions.activePermissionRequest != nil
+                    )
                 }
 
                 Button("Open Help Guide") {
@@ -405,6 +399,39 @@ struct OnboardingView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func firstSnipStep(metrics: OnboardingLayoutMetrics) -> some View {
+        VStack(alignment: .leading, spacing: metrics.cardSpacing) {
+            InsetGroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Drag around anything on screen. Release to capture immediately, or use the review controls you chose in Settings.")
+                        .foregroundStyle(.secondary)
+
+                    actionGroup {
+                        Button("Start Guided Region Capture") {
+                            selectedStep = .clipboard
+                            capture.captureRegion()
+                        }
+                        .buttonStyle(.glassProminent)
+                        .disabled(!permissions.permissionStatus.hasScreenRecording)
+                        .accessibilityIdentifier("onboarding.firstSnip.start")
+
+                        Button("Skip Tutorial") {
+                            selectedStep = .clipboard
+                        }
+                        .buttonStyle(.glass)
+                        .accessibilityIdentifier("onboarding.firstSnip.skip")
+                    }
+                }
+            } label: {
+                Label("Your First Snip", systemImage: "viewfinder")
+            }
+
+            Text("The tutorial is optional. Region capture remains available from the menu bar, Capture menu, and Shift-Command-1.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -544,15 +571,30 @@ struct OnboardingView: View {
                     .font(.body)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Toggle("Enable Clipboard History", isOn: clipboardHistoryBinding)
-                    .toggleStyle(.switch)
-                    .controlSize(.large)
+                actionGroup {
+                    Button("Enable Clipboard History") {
+                        clipboard.updateClipboardHistoryEnabled(true)
+                        acknowledgeClipboardChoice()
+                    }
+                    .buttonStyle(.glass)
+                    .accessibilityValue(clipboard.preferences.isEnabled ? "Selected" : "Not selected")
+                    .accessibilityIdentifier("onboarding.clipboard.enable")
 
-                Toggle("Also add screenshots that were not copied", isOn: uncopiedScreenshotsBinding)
-                    .toggleStyle(.switch)
-                    .disabled(!clipboard.preferences.isEnabled)
+                    Button("Keep Off") {
+                        clipboard.updateClipboardHistoryEnabled(false)
+                        acknowledgeClipboardChoice()
+                    }
+                    .buttonStyle(.glass)
+                    .accessibilityValue(!clipboard.preferences.isEnabled && hasMadeClipboardChoice ? "Selected" : "Not selected")
+                    .accessibilityIdentifier("onboarding.clipboard.keepOff")
+                }
 
-                Text("You can change either choice later in Settings > Clipboard. Private Capture screenshots are never added, and Clipboard History does not upload its contents.")
+                if clipboard.preferences.isEnabled {
+                    Toggle("Also add screenshots that were not copied", isOn: uncopiedScreenshotsBinding)
+                        .toggleStyle(.switch)
+                }
+
+                Text("You can change either choice later in Settings > Library > Clipboard. Private Capture screenshots are never added, and Clipboard History does not upload its contents.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -571,6 +613,115 @@ struct OnboardingView: View {
                     systemImage: "lock.shield.fill",
                     metrics: metrics
                 )
+            }
+        }
+    }
+
+    private func discoverMoreStep(metrics: OnboardingLayoutMetrics) -> some View {
+        VStack(alignment: .leading, spacing: metrics.cardSpacing) {
+            if capabilities.isEnabled(.guideCapture) {
+                onboardingFeatureCard(
+                    title: "Guide",
+                    detail: "Turn normal actions into editable, polished instructions while keeping source material local.",
+                    systemImage: "list.number",
+                    metrics: metrics
+                )
+            }
+            if capabilities.isEnabled(.uiMap) {
+                onboardingFeatureCard(
+                    title: "UI Map",
+                    detail: "Save available names, roles, identifiers, and locations with Window captures.",
+                    systemImage: "rectangle.3.group",
+                    metrics: metrics
+                )
+            }
+            if capabilities.isEnabled(.screenRecording) {
+                onboardingFeatureCard(
+                    title: "Screen Recording",
+                    detail: "Record a display or window with configurable audio, cursor, and click feedback.",
+                    systemImage: "record.circle",
+                    metrics: metrics
+                )
+            }
+            if capabilities.isEnabled(.presentation) {
+                onboardingFeatureCard(
+                    title: "Presentation Beta",
+                    detail: "Turn a screenshot into polished plain or styled output without changing its editable source.",
+                    systemImage: "sparkles.rectangle.stack",
+                    metrics: metrics
+                )
+            }
+            if capabilities.isEnabled(.recovery) {
+                onboardingFeatureCard(
+                    title: "Recovery",
+                    detail: "Recent Snips, archive checkpoints, and the Recycle Bin protect unfinished work.",
+                    systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90",
+                    metrics: metrics
+                )
+            }
+            if capabilities.isEnabled(.automation) {
+                onboardingFeatureCard(
+                    title: "Automation",
+                    detail: "Run supported capture and export workflows from Shortcuts, AppleScript, URLs, or the command line.",
+                    systemImage: "gearshape.2",
+                    metrics: metrics
+                )
+            }
+
+            if shouldIncludeAccessibilityPermissionInOnboarding {
+                InsetGroupBox {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(accessibilityPermissionPurposeText + " uses Accessibility only when that workflow needs to observe or control another app. Region and Fullscreen capture do not require it.")
+                            .foregroundStyle(.secondary)
+                        if permissions.permissionStatus.hasAccessibility {
+                            Label("Accessibility allowed", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        } else {
+                            Button("Set Up Accessibility") {
+                                permissions.requestPermission(.accessibility)
+                            }
+                            .buttonStyle(.glass)
+                        }
+                    }
+                } label: {
+                    Label("Optional Access", systemImage: "accessibility")
+                }
+            }
+        }
+    }
+
+    private func readyStep(metrics: OnboardingLayoutMetrics) -> some View {
+        VStack(alignment: .leading, spacing: metrics.cardSpacing) {
+            InsetGroupBox {
+                VStack(alignment: .leading, spacing: 10) {
+                    Label(
+                        permissions.permissionStatus.hasScreenRecording ? "Screen Recording allowed" : "Screen Recording needs setup",
+                        systemImage: permissions.permissionStatus.hasScreenRecording ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                    )
+                    Label(
+                        clipboard.preferences.isEnabled ? "Clipboard History enabled" : "Clipboard History kept off",
+                        systemImage: clipboard.preferences.isEnabled ? "checkmark.circle.fill" : "minus.circle"
+                    )
+                    Label(
+                        lifecycle.launchAtLoginStatus.prefersEnabledToggle ? "Launch at Login enabled" : "Launch at Login off",
+                        systemImage: lifecycle.launchAtLoginStatus.prefersEnabledToggle ? "checkmark.circle.fill" : "minus.circle"
+                    )
+                }
+            } label: {
+                Label("Setup Summary", systemImage: "checklist")
+            }
+
+            actionGroup {
+                Button("Open Help Guide") {
+                    openWindow(id: AppSceneID.helpWindow)
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+                .buttonStyle(.glass)
+
+                Button("Open Support Page") {
+                    openURL(AppLinks.support)
+                }
+                .buttonStyle(.glass)
             }
         }
     }
@@ -646,18 +797,21 @@ struct OnboardingView: View {
     }
 
     private var primaryFooterTitle: String {
-        if selectedStep == .permissions,
+        if lifecycle.onboardingPresentationMode == .firstRun,
+           selectedStep == .captureAccess,
            permissions.screenRecordingSetupNeedsAttention,
            permissions.activePermissionRequest != nil {
             return "Waiting for Settings"
         }
 
-        if selectedStep == .permissions,
+        if lifecycle.onboardingPresentationMode == .firstRun,
+           selectedStep == .captureAccess,
            permissions.screenRecordingSetupNeedsAttention {
             return "Restart SnipSnipSnip"
         }
 
-        if selectedStep == .permissions,
+        if lifecycle.onboardingPresentationMode == .firstRun,
+           selectedStep == .captureAccess,
            !permissions.permissionStatus.hasScreenRecording {
             return "Set Up Screen Recording"
         }
@@ -666,17 +820,31 @@ struct OnboardingView: View {
     }
 
     private var isPrimaryFooterDisabled: Bool {
-        selectedStep == .permissions && permissions.activePermissionRequest != nil
+        if lifecycle.onboardingPresentationMode == .firstRun,
+           selectedStep == .captureAccess {
+            return permissions.activePermissionRequest != nil
+        }
+        if selectedStep == .clipboard,
+           lifecycle.onboardingPresentationMode == .firstRun {
+            return !hasMadeClipboardChoice
+        }
+        if selectedStep == .ready,
+           lifecycle.onboardingPresentationMode == .firstRun {
+            return !permissions.permissionStatus.hasScreenRecording || !hasMadeClipboardChoice
+        }
+        return false
     }
 
     private func primaryFooterAction() {
-        if selectedStep == .permissions,
+        if lifecycle.onboardingPresentationMode == .firstRun,
+           selectedStep == .captureAccess,
            permissions.screenRecordingSetupNeedsAttention {
             restartAfterPermissionSetup()
             return
         }
 
-        if selectedStep == .permissions,
+        if lifecycle.onboardingPresentationMode == .firstRun,
+           selectedStep == .captureAccess,
            !permissions.permissionStatus.hasScreenRecording {
             permissions.requestPermission(.screenRecording)
             return
@@ -1124,6 +1292,7 @@ struct OnboardingView: View {
 
     private var shouldIncludeAccessibilityPermissionInOnboarding: Bool {
         capabilities.isEnabled(.scrollingCapture)
+            || capabilities.isEnabled(.guideCapture)
             || (capabilities.isEnabled(.uiMap) && capture.uiMapEnabled)
     }
 
@@ -1141,24 +1310,32 @@ struct OnboardingView: View {
 
     private func sidebarStatus(for step: OnboardingStep) -> String? {
         switch step {
-        case .welcome, .guide, .support:
+        case .welcome, .firstSnip, .discoverMore:
             return nil
-        case .uiMap:
-            return capture.uiMapEnabled ? "On" : "Off"
         case .startup:
             return lifecycle.launchAtLoginStatus.stateLabel
         case .clipboard:
+            if lifecycle.onboardingPresentationMode == .firstRun && !hasMadeClipboardChoice {
+                return "Choose"
+            }
             return clipboard.preferences.isEnabled ? "On" : "Off"
-        case .permissions:
-            let screenRecordingAllowed = permissions.permissionStatus.hasScreenRecording
-            let accessibilityAllowed = !shouldIncludeAccessibilityPermissionInOnboarding
-                || permissions.permissionStatus.hasAccessibility
-            return screenRecordingAllowed && accessibilityAllowed ? "Allowed" : "Needs Setup"
+        case .captureAccess:
+            return permissions.permissionStatus.hasScreenRecording ? "Allowed" : "Needs Setup"
+        case .ready:
+            return canCompleteOnboarding ? "Ready" : "Needs Setup"
         }
     }
 
     private var canBypassOnboarding: Bool {
-        permissions.permissionStatus.hasScreenRecording
+        canCompleteOnboarding
+    }
+
+    private var canCompleteOnboarding: Bool {
+        OnboardingCompletionPolicy.canComplete(
+            mode: lifecycle.onboardingPresentationMode,
+            hasScreenRecording: permissions.permissionStatus.hasScreenRecording,
+            hasMadeClipboardChoice: hasMadeClipboardChoice
+        )
     }
 
     private func refreshOnboardingPermissions() {
@@ -1193,7 +1370,7 @@ struct OnboardingView: View {
 
     private func skipOnboarding() {
         guard canBypassOnboarding else {
-            selectedStep = .permissions
+            selectedStep = permissions.permissionStatus.hasScreenRecording ? .clipboard : .captureAccess
             return
         }
 
@@ -1202,17 +1379,22 @@ struct OnboardingView: View {
     }
 
     private func restartAfterPermissionSetup() {
-        completeOnboardingAction()
+        lifecycle.saveOnboardingResumeCheckpoint(.firstSnip)
         AppTerminationController.shared.requestRestartWithoutConfirmation()
     }
 
     private func completeOnboarding() {
         guard canBypassOnboarding else {
-            selectedStep = .permissions
+            selectedStep = permissions.permissionStatus.hasScreenRecording ? .clipboard : .captureAccess
             return
         }
 
         completeOnboardingAction()
         dismiss()
+    }
+
+    private func acknowledgeClipboardChoice() {
+        hasMadeClipboardChoice = true
+        lifecycle.acknowledgeOnboardingClipboardChoice()
     }
 }

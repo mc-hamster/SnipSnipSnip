@@ -116,10 +116,62 @@ nonisolated enum RegionCaptureOverlayMode: Int, CaseIterable, Codable, Identifia
     }
 }
 
+nonisolated enum RegionCaptureCommitMode: String, CaseIterable, Identifiable {
+    case captureImmediately
+    case showCaptureAndCancel
+    case showPrecisionControls
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .captureImmediately:
+            "Capture Immediately"
+        case .showCaptureAndCancel:
+            "Show Capture & Cancel"
+        case .showPrecisionControls:
+            "Show Precision Controls"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .captureImmediately:
+            "Capture as soon as you release the pointer."
+        case .showCaptureAndCancel:
+            "Review the selected region before capturing or cancelling."
+        case .showPrecisionControls:
+            "Review the region and adjust its exact position and size."
+        }
+    }
+}
+
 nonisolated struct RegionCapturePreferences: Codable, Equatable {
     var overlayMode: RegionCaptureOverlayMode = .crosshairAndMagnifyingGlass
     var showsActionControls = false
     var advancedControlsEnabled = false
+
+    var commitMode: RegionCaptureCommitMode {
+        get {
+            if advancedControlsEnabled {
+                return .showPrecisionControls
+            }
+            return showsActionControls ? .showCaptureAndCancel : .captureImmediately
+        }
+        set {
+            switch newValue {
+            case .captureImmediately:
+                showsActionControls = false
+                advancedControlsEnabled = false
+            case .showCaptureAndCancel:
+                showsActionControls = true
+                advancedControlsEnabled = false
+            case .showPrecisionControls:
+                showsActionControls = false
+                advancedControlsEnabled = true
+            }
+        }
+    }
 
     var autoCapturesOnMouseUp: Bool {
         !showsActionControls && !advancedControlsEnabled

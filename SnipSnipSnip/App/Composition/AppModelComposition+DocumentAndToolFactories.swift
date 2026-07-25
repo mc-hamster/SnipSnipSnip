@@ -46,7 +46,8 @@ extension AppModelComposition {
             screenInspectorCoordinator: ScreenInspectorCoordinator(
                 preferences: screenInspectorPreferences,
                 capturePlatform: context.environment.systemServices.screenCapturePlatform,
-                screens: context.environment.systemServices.screens
+                screens: context.environment.systemServices.screens,
+                permissions: context.environment.permissions
             ),
             preferenceStore: context.preferenceStores.screenTools,
             screenRulerPreferences: screenRulerPreferences,

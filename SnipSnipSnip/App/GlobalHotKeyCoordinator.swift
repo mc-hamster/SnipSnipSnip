@@ -1,6 +1,7 @@
 import AppKit
 import Carbon
 import Foundation
+import SwiftUI
 
 nonisolated enum GlobalHotKeyKey: String, CaseIterable, Codable, Identifiable {
     case one
@@ -95,6 +96,23 @@ nonisolated enum GlobalHotKeyKey: String, CaseIterable, Codable, Identifiable {
             return UInt32(kVK_ANSI_G)
         }
     }
+
+    var keyEquivalent: KeyEquivalent {
+        KeyEquivalent(Character(label.lowercased()))
+    }
+
+    var knownSystemConflictWarning: String? {
+        switch self {
+        case .three:
+            "Shift-Command-3 is also the standard macOS full-screen screenshot shortcut."
+        case .four:
+            "Shift-Command-4 is also the standard macOS selection screenshot shortcut."
+        case .five:
+            "Shift-Command-5 is also the standard macOS Screenshot and recording controls shortcut."
+        default:
+            nil
+        }
+    }
 }
 
 nonisolated enum GlobalHotKeyAction: UInt32, CaseIterable {
@@ -130,9 +148,9 @@ nonisolated enum GlobalHotKeyAction: UInt32, CaseIterable {
         .window: .two,
         .fullscreen: .three,
         .frontmostWindow: .four,
-        .repeatLastCapture: .r,
-        .screenInspector: .i,
-        .guide: .g
+        .repeatLastCapture: .seven,
+        .screenInspector: .eight,
+        .guide: .nine
     ]
 
     static func availableActions(for capabilities: AppCapabilitySnapshot) -> [GlobalHotKeyAction] {

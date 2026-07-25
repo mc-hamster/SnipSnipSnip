@@ -112,14 +112,12 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     var lastAutosavedState: AutosaveState?
     var editorRenderObserver: AnyCancellable?
     var editorPersistenceObserver: AnyCancellable?
-    var editorWorkspaceModeObserver: AnyCancellable?
     var videoPersistenceObserver: AnyCancellable?
     var guidePersistenceObserver: AnyCancellable?
     var savedGuideProject: GuideProject?
     var pendingEditorAction: (() -> Void)?
     var editableRedactionSaveConfirmationHandler: @MainActor () -> EditableRedactionSaveDecision = DocumentWorkflowModel.presentEditableRedactionSaveConfirmation
     var editableRedactionSaveWarningAcknowledgedEditorIDs: Set<ObjectIdentifier> = []
-    var hasShownPresentationExperimentalNoticeThisStartup = false
     init(
         dependencies: DocumentWorkflowDependencies,
         recoveryStore: DocumentRecoveryStore,
@@ -215,10 +213,6 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
 
     func clearError() {
         dependencies.lifecycle.clearError()
-    }
-
-    func presentPresentationExperimentalNotice() {
-        dependencies.lifecycle.presentPresentationExperimentalNotice()
     }
 
     var currentDocumentFilename: String {

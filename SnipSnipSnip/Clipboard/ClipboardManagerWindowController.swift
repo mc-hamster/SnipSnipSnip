@@ -238,7 +238,7 @@ struct ClipboardManagerView: View {
             ContentUnavailableView(
                 "Clipboard History Disabled",
                 systemImage: "clipboard",
-                description: Text("Enable clipboard history in Settings > Clipboard.")
+                description: Text("Enable clipboard history in Settings > Library > Clipboard.")
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if filteredItems.isEmpty {

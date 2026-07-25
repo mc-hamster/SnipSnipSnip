@@ -606,15 +606,29 @@ final class EditorControllerTests: XCTestCase {
 
         controller.updatePresentationPadding(24)
 
-        let plainImage = try XCTUnwrap(controller.exportedImage(usingPresentation: false))
+        let plainImage = try controller.exportedImage(appearance: .plain)
 
         XCTAssertEqual(plainImage.width, 160)
         XCTAssertEqual(plainImage.height, 120)
 
-        let styledImage = try XCTUnwrap(controller.exportedImage(usingPresentation: true))
+        let styledImage = try controller.exportedImage(appearance: .styled)
 
         XCTAssertGreaterThan(styledImage.width, plainImage.width)
         XCTAssertGreaterThan(styledImage.height, plainImage.height)
+    }
+
+    @MainActor
+    func testOutputAppearanceControlsFormatEligibilityAndAutomationCompatibility() throws {
+        let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
+
+        XCTAssertEqual(controller.automationOutputAppearance, .plain)
+        XCTAssertThrowsError(try controller.exportedImage(appearance: .styled))
+
+        controller.updatePresentationPadding(24)
+
+        XCTAssertEqual(controller.automationOutputAppearance, .styled)
+        XCTAssertFalse(controller.exportFormatRequiresPNG(appearance: .plain))
+        XCTAssertTrue(controller.exportFormatRequiresPNG(appearance: .styled))
     }
 
     @MainActor
@@ -1215,6 +1229,22 @@ final class EditorControllerTests: XCTestCase {
         controller.redo()
 
         XCTAssertEqual(controller.snapshot.annotations[0].boundingRect, CGRect(x: 13, y: 18, width: 60, height: 40))
+    }
+
+    func testAccessibleResizeClampsSelectionToMinimumSizeAndIsUndoable() {
+        let selected = Annotation.makeRectangle(in: CGRect(x: 10, y: 20, width: 12, height: 9))
+        let controller = makeController(snapshot: makeEditorSnapshot(
+            annotations: [selected],
+            selectedAnnotationIDs: [selected.id]
+        ))
+
+        controller.resizeSelectedAnnotations(widthDelta: -100, heightDelta: -100)
+
+        XCTAssertEqual(controller.selectedAnnotation?.boundingRect.size, CGSize(width: 4, height: 4))
+        XCTAssertTrue(controller.canUndo)
+
+        controller.undo()
+        XCTAssertEqual(controller.selectedAnnotation?.boundingRect, selected.boundingRect)
     }
 
     func testUpdateRedactionModeFallsBackToMatchingActiveToolWithoutSelection() {

@@ -34,16 +34,36 @@ struct EditorView: View {
                     .zIndex(1)
             }
 
-            if let noticeMessage = controller.noticeMessage {
-                Text(noticeMessage)
-                    .font(.caption.weight(.medium))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .sssFloatingOverlaySurface(cornerRadius: 18, shadowOpacity: 0.10)
-                    .padding(16)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .transition(.opacity)
-                    .zIndex(2)
+            if let notice = controller.notice {
+                HStack(spacing: 10) {
+                    Text(notice.message)
+                        .font(.caption.weight(.medium))
+
+                    if let action = notice.action {
+                        Button(action.title) {
+                            performNoticeAction(action)
+                        }
+                        .buttonStyle(.borderless)
+                    }
+
+                    Button {
+                        controller.dismissNotice()
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Dismiss notification")
+                    .help("Dismiss notification")
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .sssFloatingOverlaySurface(cornerRadius: 18, shadowOpacity: 0.10)
+                .padding(16)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(notice.accessibilityAnnouncement)
+                .transition(.opacity)
+                .zIndex(2)
             }
         }
         .background(Color(nsColor: .underPageBackgroundColor))
@@ -113,6 +133,16 @@ struct EditorView: View {
                 previewedHistoryEntry = nil
             }
         }
+    }
+
+    private func performNoticeAction(_ action: EditorNoticeAction) {
+        switch action {
+        case .open(let url):
+            NSWorkspace.shared.open(url)
+        case .reveal(let url):
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        }
+        controller.dismissNotice()
     }
 }
 
@@ -296,16 +326,15 @@ struct EditorCommandBar: View {
 
     @ObservedObject var controller: EditorController
     let onBack: () -> Void
-    let onFloatReference: () -> Void
-    let onExportPNG: () -> Void
-    let onExportJPEG: () -> Void
-    let onExportPDF: () -> Void
-    let onCopyStyled: () -> Void
-    let onCopyPlain: () -> Void
-    let onShare: () -> Void
+    let onFloatReference: (ScreenshotOutputAppearance) -> Void
+    let onExportPNG: (ScreenshotOutputAppearance) -> Void
+    let onExportJPEG: (ScreenshotOutputAppearance) -> Void
+    let onExportPDF: (ScreenshotOutputAppearance) -> Void
+    let onCopy: (ScreenshotOutputAppearance) -> Void
+    let onShare: (ScreenshotOutputAppearance) -> Void
     let onShowLayers: () -> Void
     let onShowUIMap: () -> Void
-    let dragOutPayloadProvider: @MainActor () -> PromisedFilePayload?
+    let dragOutPayloadProvider: @MainActor (ScreenshotOutputAppearance) -> PromisedFilePayload?
     var mode: EditorToolbarMode = .standard
 
     var body: some View {
@@ -425,14 +454,16 @@ struct EditorCommandBar: View {
                     .buttonBorderShape(.capsule)
                 }
                 EditorCommandGroup("Output") {
-                    Button(action: onCopyStyled) {
+                    Button {
+                        onCopy(.styled)
+                    } label: {
                         Label("Copy Styled", systemImage: "doc.on.doc")
                     }
                     .buttonStyle(.bordered)
                     .buttonBorderShape(.capsule)
 
-                    exportMenu
-                    shareButton
+                    exportMenu(primaryAppearance: .styled)
+                    shareMenu(primaryAppearance: .styled)
                 }
                 EditorCommandGroup("References and drag out") {
                     referenceCommands
@@ -450,6 +481,8 @@ struct EditorCommandBar: View {
         .buttonStyle(.bordered)
         .buttonBorderShape(.circle)
         .help("Show Layers")
+        .accessibilityLabel("Show Layers")
+        .accessibilityIdentifier("editor.layers.show")
 
         if controller.capabilities.isEnabled(.uiMap), controller.capture.kind == .window {
             Button(action: onShowUIMap) {
@@ -458,6 +491,7 @@ struct EditorCommandBar: View {
             .buttonStyle(.bordered)
             .buttonBorderShape(.circle)
             .help(uiMapButtonHelpText)
+            .accessibilityLabel("Show UI Map")
             .disabled(controller.uiMapSnapshot == nil && !controller.isProcessingUIMap)
 
             toolButton(.uiMapInspect)
@@ -469,6 +503,7 @@ struct EditorCommandBar: View {
         .buttonStyle(.bordered)
         .buttonBorderShape(.circle)
         .help("Rotate selected annotation 90 degrees clockwise.")
+        .accessibilityLabel("Rotate Clockwise")
         .disabled(!controller.canRotateSelection)
 
         Button(action: controller.deleteSelected) {
@@ -488,6 +523,7 @@ struct EditorCommandBar: View {
         .buttonStyle(.bordered)
         .buttonBorderShape(.circle)
         .help("Undo")
+        .accessibilityLabel("Undo")
         .disabled(!controller.canUndo)
     }
 
@@ -498,6 +534,7 @@ struct EditorCommandBar: View {
         .buttonStyle(.bordered)
         .buttonBorderShape(.circle)
         .help("Redo")
+        .accessibilityLabel("Redo")
         .disabled(!controller.canRedo)
     }
 
@@ -509,11 +546,14 @@ struct EditorCommandBar: View {
         .buttonStyle(.bordered)
         .buttonBorderShape(.circle)
         .help("Zoom Out")
+        .accessibilityLabel("Zoom Out")
         .disabled(!controller.canZoomOut)
 
         Text(controller.zoomPercentageLabel)
             .font(.caption.monospacedDigit().weight(.semibold))
             .frame(minWidth: 42)
+            .accessibilityLabel("Zoom")
+            .accessibilityValue(controller.zoomPercentageLabel)
 
         Button(action: controller.zoomIn) {
             Image(systemName: "plus.magnifyingglass")
@@ -521,6 +561,7 @@ struct EditorCommandBar: View {
         .buttonStyle(.bordered)
         .buttonBorderShape(.circle)
         .help("Zoom In")
+        .accessibilityLabel("Zoom In")
         .disabled(!controller.canZoomIn)
 
         Button(action: controller.zoomToFit) {
@@ -529,6 +570,7 @@ struct EditorCommandBar: View {
         .buttonStyle(.bordered)
         .buttonBorderShape(.circle)
         .help("Fit to Window")
+        .accessibilityLabel("Fit to Window")
 
         Button(action: controller.zoomToActualSize) {
             Image(systemName: "1.magnifyingglass")
@@ -536,30 +578,53 @@ struct EditorCommandBar: View {
         .buttonStyle(.bordered)
         .buttonBorderShape(.circle)
         .help("Actual Size")
+        .accessibilityLabel("Actual Size")
     }
 
     private var presentationButton: some View {
-        Button {
-            controller.setWorkspaceMode(.presentation)
-        } label: {
-            Label("Presentation", systemImage: EditorWorkspaceMode.presentation.systemImage)
+        return HStack(spacing: 6) {
+            Button {
+                controller.setWorkspaceMode(.presentation)
+            } label: {
+                Label("Presentation", systemImage: EditorWorkspaceMode.presentation.systemImage)
+            }
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.capsule)
+            .help("Open Presentation mode to style the final copy, share, and export output.")
+            .accessibilityIdentifier("editor.presentation.open")
+
+            Text("Beta")
+                .font(.caption2.weight(.semibold))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(.quaternary, in: .capsule)
+                .accessibilityLabel("Presentation, Beta")
+                .help("Presentation is in beta. Your editable screenshot remains unchanged.")
+
+            Text(controller.styledOutputConfigurationLabel)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .help(controller.styledOutputConfigurationLabel)
         }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .help("Open Presentation mode to style the final copy, share, and export output.")
     }
 
     @ViewBuilder
     private var documentOutputCommands: some View {
-        Button(action: onCopyPlain) {
-            Label("Copy", systemImage: "doc.on.doc")
+        Menu {
+            Button("Copy Plain") { onCopy(.plain) }
+            Button("Copy Styled") { onCopy(.styled) }
+                .disabled(!controller.hasStyledOutputConfigured)
+        } label: {
+            Label("Copy Plain", systemImage: "doc.on.doc")
+        } primaryAction: {
+            onCopy(.plain)
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
         .help("Copy the plain annotated screenshot.")
 
-        exportMenu
-        shareButton
+        exportMenu(primaryAppearance: .plain)
+        shareMenu(primaryAppearance: .plain)
     }
 
     @ViewBuilder
@@ -568,45 +633,75 @@ struct EditorCommandBar: View {
         dragControl
     }
 
-    private var exportMenu: some View {
+    private func exportMenu(primaryAppearance: ScreenshotOutputAppearance) -> some View {
         Menu {
-            Button(controller.presentation.isEnabled ? "Styled PNG…" : "PNG…", action: onExportPNG)
-            Button(controller.presentation.isEnabled ? "Styled JPEG…" : "JPEG…", action: onExportJPEG)
-                .disabled(controller.requiresPNGForFaithfulExport)
-            Button(controller.presentation.isEnabled ? "Styled PDF…" : "PDF…", action: onExportPDF)
-                .disabled(controller.requiresPNGForFaithfulExport)
+            outputFormatMenu(appearance: primaryAppearance)
+            Divider()
+            outputFormatMenu(appearance: primaryAppearance == .plain ? .styled : .plain)
         } label: {
-            Label("Export", systemImage: "square.and.arrow.down")
+            Label("Export \(primaryAppearance.title)", systemImage: "square.and.arrow.down")
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
-        .help("Export the rendered image as PNG, JPEG, or PDF.")
+        .help("Export explicit Plain or Styled output as PNG, JPEG, or PDF.")
     }
 
-    private var shareButton: some View {
-        Button(action: onShare) {
-            Label("Share", systemImage: "square.and.arrow.up")
+    private func outputFormatMenu(appearance: ScreenshotOutputAppearance) -> some View {
+        Menu(appearance.title) {
+            Button("\(appearance.title) PNG…") { onExportPNG(appearance) }
+            Button("\(appearance.title) JPEG…") { onExportJPEG(appearance) }
+                .disabled(
+                    appearance == .styled
+                        && (!controller.hasStyledOutputConfigured || controller.requiresPNGForFaithfulExport)
+                )
+            Button("\(appearance.title) PDF…") { onExportPDF(appearance) }
+                .disabled(
+                    appearance == .styled
+                        && (!controller.hasStyledOutputConfigured || controller.requiresPNGForFaithfulExport)
+                )
+        }
+        .disabled(appearance == .styled && !controller.hasStyledOutputConfigured)
+    }
+
+    private func shareMenu(primaryAppearance: ScreenshotOutputAppearance) -> some View {
+        Menu {
+            Button("Share Plain") { onShare(.plain) }
+            Button("Share Styled") { onShare(.styled) }
+                .disabled(!controller.hasStyledOutputConfigured)
+        } label: {
+            Label("Share \(primaryAppearance.title)", systemImage: "square.and.arrow.up")
+        } primaryAction: {
+            onShare(primaryAppearance)
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
+        .disabled(primaryAppearance == .styled && !controller.hasStyledOutputConfigured)
     }
 
     private var floatButton: some View {
-        Button(action: onFloatReference) {
-            Label("Float", systemImage: "pin")
+        let appearance: ScreenshotOutputAppearance = controller.workspaceMode == .presentation ? .styled : .plain
+        return Button {
+            onFloatReference(appearance)
+        } label: {
+            Label("Float \(appearance.title)", systemImage: "pin")
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
+        .disabled(appearance == .styled && !controller.hasStyledOutputConfigured)
     }
 
     private var dragControl: some View {
-        PromisedFileDragView(
-            accessibilityLabel: controller.workspaceMode == .presentation
-                ? "Drag styled presentation to share"
-                : "Drag rendered screenshot to share",
-            payloadProvider: dragOutPayloadProvider
-        )
-        .frame(width: 68, height: 30)
+        let appearance: ScreenshotOutputAppearance = controller.workspaceMode == .presentation ? .styled : .plain
+        return HStack(spacing: 4) {
+            PromisedFileDragView(
+                accessibilityLabel: "Drag \(appearance.title) screenshot to share",
+                payloadProvider: { dragOutPayloadProvider(appearance) }
+            )
+            .frame(width: 28, height: 30)
+            Text("Drag \(appearance.title)")
+                .font(.caption)
+        }
+        .disabled(appearance == .styled && !controller.hasStyledOutputConfigured)
     }
 
     @ViewBuilder
@@ -650,6 +745,8 @@ struct EditorCommandBar: View {
         }
         .buttonStyle(EditorDirectToolButtonStyle(isSelected: controller.activeTool.defaultRedactionMode != nil))
         .help("Redaction: \(controller.currentRedactionMode.label). Click to use; open the menu to change mode.")
+        .accessibilityLabel("Redaction")
+        .accessibilityHint("Current mode: \(controller.currentRedactionMode.label). Press to activate or open the menu to change mode.")
         .accessibilityValue(controller.activeTool.defaultRedactionMode != nil ? "Selected" : "Not selected")
     }
 

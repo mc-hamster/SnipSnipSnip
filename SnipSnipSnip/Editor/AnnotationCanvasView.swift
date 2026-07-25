@@ -1095,6 +1095,7 @@ final class AnnotationCanvasView: NSView {
     private lazy var textEditorOverlayView = AnnotationTextEditorOverlayView(controller: controller)
     private var controllerChangeObserver: AnyCancellable?
     private var displayedBaseImageCrop: CGRect?
+    private var lastAccessibilitySelectedIDs: Set<UUID> = []
 
     init(controller: EditorController) {
         self.controller = controller
@@ -1107,6 +1108,11 @@ final class AnnotationCanvasView: NSView {
         addSubview(stableContentView)
         addSubview(overlayView)
         addSubview(textEditorOverlayView)
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        setAccessibilityLabel("Screenshot annotation canvas")
+        setAccessibilityHelp("Tab through annotations. Use arrow keys to move a selection and Option-arrow keys to resize it.")
+        setAccessibilityIdentifier("editor.annotationCanvas")
         bindController()
     }
 
@@ -1133,6 +1139,7 @@ final class AnnotationCanvasView: NSView {
         cropMaskView.refreshAfterLayout()
         stableContentView.refreshAfterLayout()
         overlayView.refreshAfterLayout()
+        refreshAccessibilityElements(postNotification: false)
     }
 
     func refreshCanvasDisplay() {
@@ -1179,6 +1186,7 @@ final class AnnotationCanvasView: NSView {
             }
             self.overlayView.controllerDidChange()
             self.textEditorOverlayView.synchronize()
+            self.refreshAccessibilityElements(postNotification: true)
         }
 
         synchronizeBaseImagePresentation()
@@ -1186,6 +1194,7 @@ final class AnnotationCanvasView: NSView {
         stableContentView.controllerDidChange()
         overlayView.controllerDidChange()
         textEditorOverlayView.synchronize()
+        refreshAccessibilityElements(postNotification: false)
     }
 
     private func synchronizeViewportToBounds() {
@@ -1221,6 +1230,132 @@ final class AnnotationCanvasView: NSView {
 
     fileprivate func updateDraftCropMask(_ rect: CGRect?) {
         cropMaskView.updateDraftCropRect(rect)
+    }
+
+    func performAccessibilityAction(
+        _ action: AnnotationAccessibilityAction,
+        for annotationID: UUID
+    ) -> Bool {
+        let isAlreadySelected = controller.snapshot.selectedAnnotationIDs.contains(annotationID)
+        if !isAlreadySelected {
+            controller.select(annotationID)
+        }
+
+        switch action {
+        case .select:
+            controller.select(annotationID)
+        case .toggleSelection:
+            controller.select(annotationID, additive: true, toggle: true)
+        case .editText:
+            guard controller.snapshot.annotations.first(where: { $0.id == annotationID })?.isTextEditable == true else {
+                return false
+            }
+            controller.select(annotationID)
+            window?.makeFirstResponder(overlayView)
+        case .delete:
+            controller.deleteSelected()
+        case .duplicate:
+            controller.duplicateSelectedAnnotations()
+        case .bringForward:
+            controller.bringForward()
+        case .sendBackward:
+            controller.sendBackward()
+        case .bringToFront:
+            controller.sendToFront()
+        case .sendToBack:
+            controller.sendToBack()
+        case .group:
+            controller.groupSelected()
+        case .ungroup:
+            controller.ungroupSelected()
+        }
+        refreshAccessibilityElements(postNotification: true)
+        return true
+    }
+
+    fileprivate func traverseAnnotations(backward: Bool) {
+        let orderedIDs = controller.snapshot.annotations.reversed().map(\.id)
+        guard !orderedIDs.isEmpty else {
+            return
+        }
+        let currentID = controller.snapshot.selectedAnnotationIDs.last
+        let currentIndex = currentID.flatMap { orderedIDs.firstIndex(of: $0) }
+        let nextIndex: Int
+        if let currentIndex {
+            nextIndex = backward
+                ? (currentIndex - 1 + orderedIDs.count) % orderedIDs.count
+                : (currentIndex + 1) % orderedIDs.count
+        } else {
+            nextIndex = backward ? orderedIDs.count - 1 : 0
+        }
+        controller.select(orderedIDs[nextIndex])
+        refreshAccessibilityElements(postNotification: true, focusedAnnotationID: orderedIDs[nextIndex])
+    }
+
+    fileprivate func toggleSelectedAnnotation() {
+        guard let annotationID = controller.snapshot.selectedAnnotationIDs.last else {
+            traverseAnnotations(backward: false)
+            return
+        }
+        controller.select(annotationID, additive: true, toggle: true)
+        refreshAccessibilityElements(postNotification: true)
+    }
+
+    fileprivate func returnAccessibilityFocusToCanvas() {
+        NSAccessibility.post(element: self, notification: .focusedUIElementChanged)
+    }
+
+    private func refreshAccessibilityElements(
+        postNotification: Bool,
+        focusedAnnotationID: UUID? = nil
+    ) {
+        let annotations = Array(controller.snapshot.annotations.reversed())
+        let selectedIDs = Set(controller.snapshot.selectedAnnotationIDs)
+        let selectionChanged = selectedIDs != lastAccessibilitySelectedIDs
+        lastAccessibilitySelectedIDs = selectedIDs
+        let projection = DocumentProjection(
+            sourceDocumentRect: controller.capture.documentRect,
+            destinationBounds: controller.viewport.imageRect
+        )
+        let selectedCount = selectedIDs.count
+
+        let elements = annotations.enumerated().map { index, annotation in
+            let descriptor = AnnotationAccessibilityDescriptor(
+                annotation: annotation,
+                isSelected: selectedIDs.contains(annotation.id),
+                layerPosition: index + 1,
+                layerCount: annotations.count,
+                canGroup: selectedCount > 1 && selectedIDs.contains(annotation.id),
+                canUngroup: annotation.groupID != nil
+            )
+            let localFrame = projection.destinationRect(fromDocumentRect: annotation.boundingRect)
+            let windowFrame = convert(localFrame, to: nil)
+            let screenFrame = window?.convertToScreen(windowFrame) ?? .zero
+            return AnnotationAccessibilityElement(canvas: self, descriptor: descriptor, frame: screenFrame)
+        }
+        setAccessibilityChildren(elements)
+
+        guard postNotification else {
+            return
+        }
+        NSAccessibility.post(element: self, notification: .layoutChanged)
+        NSAccessibility.post(element: self, notification: .selectedChildrenChanged)
+        if selectionChanged {
+            let announcement: String
+            if selectedIDs.isEmpty {
+                announcement = "No annotations selected."
+            } else if selectedIDs.count == 1,
+                      let annotation = annotations.first(where: { selectedIDs.contains($0.id) }) {
+                announcement = "\(annotation.kind.displayName) selected."
+            } else {
+                announcement = "\(selectedIDs.count) annotations selected."
+            }
+            AppAccessibility.announce(announcement)
+        }
+        if let focusedAnnotationID,
+           let focusedElement = elements.first(where: { $0.annotationID == focusedAnnotationID }) {
+            NSAccessibility.post(element: focusedElement, notification: .focusedUIElementChanged)
+        }
     }
 }
 
@@ -1784,6 +1919,25 @@ private final class AnnotationCanvasOverlayView: NSView {
     override func keyDown(with event: NSEvent) {
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
+        if event.keyCode == 48 {
+            canvasView?.traverseAnnotations(backward: modifiers.contains(.shift))
+            return
+        }
+        if event.keyCode == 49, modifiers == [.shift] {
+            canvasView?.toggleSelectedAnnotation()
+            return
+        }
+        if event.keyCode == 53 {
+            canvasView?.returnAccessibilityFocusToCanvas()
+            return
+        }
+        if modifiers == [.option], handleArrowResize(event, step: 1) {
+            return
+        }
+        if modifiers == [.option, .shift], handleArrowResize(event, step: 10) {
+            return
+        }
+
         if handleTextEntryKey(event, modifiers: modifiers) {
             needsDisplay = true
             return
@@ -1836,6 +1990,24 @@ private final class AnnotationCanvasOverlayView: NSView {
         }
 
         controller.nudgeSelectedAnnotations(by: delta)
+        return true
+    }
+
+    private func handleArrowResize(_ event: NSEvent, step: CGFloat) -> Bool {
+        let delta: CGSize
+        switch event.keyCode {
+        case 123:
+            delta = CGSize(width: -step, height: 0)
+        case 124:
+            delta = CGSize(width: step, height: 0)
+        case 125:
+            delta = CGSize(width: 0, height: step)
+        case 126:
+            delta = CGSize(width: 0, height: -step)
+        default:
+            return false
+        }
+        controller.resizeSelectedAnnotations(widthDelta: delta.width, heightDelta: delta.height)
         return true
     }
 

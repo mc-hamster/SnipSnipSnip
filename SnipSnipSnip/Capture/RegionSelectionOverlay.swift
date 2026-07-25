@@ -755,6 +755,11 @@ private final class RegionSelectionView: NSView, NSTextFieldDelegate {
         )
         super.init(frame: CGRect(origin: .zero, size: displayPreview.snapshot.overlayFrame.size))
         wantsLayer = true
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        setAccessibilityLabel("Region capture")
+        setAccessibilityHelp("\(coordinator.instructionText) Mode: \(coordinator.preferences.commitMode.title). Use arrow keys with precision controls, Return to capture, and Escape to cancel.")
+        setAccessibilityIdentifier("capture.region.selection")
         configureDynamicViews()
         configureButtons()
         coordinator.register(self)
@@ -830,6 +835,13 @@ private final class RegionSelectionView: NSView, NSTextFieldDelegate {
 
     func refreshSelectionState() {
         let selectionRect = coordinator.selectionRect
+        if let selectionRect {
+            setAccessibilityValue(
+                "Selected region, width \(Int(selectionRect.width)), height \(Int(selectionRect.height)). \(coordinator.preferences.commitMode.title)."
+            )
+        } else {
+            setAccessibilityValue("No region selected. \(coordinator.preferences.commitMode.title).")
+        }
         let showsActionControls = coordinator.shouldShowActionControls(on: displayPreview.snapshot.displayID)
         let isActivelyDraggingSelection = coordinator.isActivelyDraggingSelection
 

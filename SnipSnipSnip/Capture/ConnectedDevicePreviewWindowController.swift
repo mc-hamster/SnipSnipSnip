@@ -245,7 +245,8 @@ private final class ConnectedDevicePreviewViewModel: ObservableObject {
                 try await ImageExporter.save(
                     capture.image,
                     suggestedFilename: screenshotFilenameTemplate.resolvedFilename(for: capture, formatExtension: "png"),
-                    format: .png
+                    format: .png,
+                    appearance: .plain
                 )
             } catch {
                 present(error)

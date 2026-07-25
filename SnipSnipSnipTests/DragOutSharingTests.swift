@@ -166,11 +166,11 @@ final class DragOutSharingTests: XCTestCase {
 
     func testEditedFilenamePlacesSuffixBeforeExtension() {
         XCTAssertEqual(
-            ImageExporter.editedFilename(suggestedFilename: "Screenshot.png", format: .png),
+            ImageExporter.editedFilename(suggestedFilename: "Screenshot.png", format: .png, appearance: .plain),
             "Screenshot-edited.png"
         )
         XCTAssertEqual(
-            ImageExporter.editedFilename(suggestedFilename: "Screenshot.jpg", format: .pdf),
+            ImageExporter.editedFilename(suggestedFilename: "Screenshot.jpg", format: .pdf, appearance: .plain),
             "Screenshot-edited.pdf"
         )
     }
@@ -250,11 +250,13 @@ final class DragOutSharingTests: XCTestCase {
         )
         let controller = EditorController(capture: capture)
         let lowQualityPayload = controller.promisedImagePayload(
+            appearance: .plain,
             requestedFormat: .jpeg,
             filenameTemplate: ScreenshotFilenameTemplate(pattern: "Shared"),
             exportOptions: ImageExportOptions(jpegQuality: 0.2)
         )
         let highQualityPayload = controller.promisedImagePayload(
+            appearance: .plain,
             requestedFormat: .jpeg,
             filenameTemplate: ScreenshotFilenameTemplate(pattern: "Shared"),
             exportOptions: ImageExportOptions(jpegQuality: 1)
@@ -270,8 +272,8 @@ final class DragOutSharingTests: XCTestCase {
             try? FileManager.default.removeItem(at: highQualityURL)
         }
 
-        try await lowQualityPayload.write(to: lowQualityURL)
-        try await highQualityPayload.write(to: highQualityURL)
+        try await XCTUnwrap(lowQualityPayload).write(to: lowQualityURL)
+        try await XCTUnwrap(highQualityPayload).write(to: highQualityURL)
 
         let lowQualitySize = try FileManager.default.attributesOfItem(atPath: lowQualityURL.path)[.size] as? Int
         let highQualitySize = try FileManager.default.attributesOfItem(atPath: highQualityURL.path)[.size] as? Int
@@ -292,17 +294,19 @@ final class DragOutSharingTests: XCTestCase {
             session: makeEditorDocumentSession(initialSnapshot: snapshot, currentSnapshot: snapshot)
         )
         let payload = controller.promisedImagePayload(
+            appearance: .styled,
             requestedFormat: .jpeg,
             filenameTemplate: ScreenshotFilenameTemplate(pattern: "Shared-{source}")
         )
-        let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent(payload.suggestedFilename)
+        let resolvedPayload = try XCTUnwrap(payload)
+        let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent(resolvedPayload.suggestedFilename)
         defer { try? FileManager.default.removeItem(at: outputURL) }
 
-        XCTAssertEqual(payload.contentType, .png)
-        XCTAssertEqual(payload.suggestedFilename, "Shared-Display-edited.png")
+        XCTAssertEqual(resolvedPayload.contentType, .png)
+        XCTAssertEqual(resolvedPayload.suggestedFilename, "Shared-Display-styled.png")
         XCTAssertEqual(controller.noticeMessage, "PNG used to preserve transparent presentation styling.")
 
-        try await payload.write(to: outputURL)
+        try await resolvedPayload.write(to: outputURL)
 
         let source = try XCTUnwrap(CGImageSourceCreateWithURL(outputURL as CFURL, nil))
         let decoded = try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))

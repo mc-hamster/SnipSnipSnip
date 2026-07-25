@@ -78,11 +78,6 @@ extension AppModel {
         set { lifecycle.mainWindowPresentationRequest = newValue }
     }
 
-    var isShowingPresentationExperimentalNotice: Bool {
-        get { lifecycle.isShowingPresentationExperimentalNotice }
-        set { lifecycle.isShowingPresentationExperimentalNotice = newValue }
-    }
-
     var showsWelcomeCard: Bool {
         get { lifecycle.showsWelcomeCard }
         set { lifecycle.showsWelcomeCard = newValue }

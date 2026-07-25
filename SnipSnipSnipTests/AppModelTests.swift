@@ -114,59 +114,6 @@ final class AppModelTests: XCTestCase {
         )
     }
 
-    func testPresentationExperimentalNoticeShowsOncePerStartup() {
-        let suiteName = "AppModelTests.presentationExperimentalNotice"
-        let defaults = makeDefaults(named: suiteName)
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        let model = AppModel(
-            defaults: defaults,
-            recoveryStore: DocumentRecoveryStore(baseURL: nil),
-            captureService: ScreenCaptureService(),
-            shouldCheckCompatibilityOnLaunch: false,
-            shouldStartArchiveMaintenance: false
-        )
-        let controller = retainForTestLifetime(EditorController(capture: makeCapturedScreenshot(), defaults: defaults))
-
-        model.documents.installEditorController(
-            controller,
-            documentURL: nil,
-            savedSession: nil,
-            shouldCreateRecoverySession: false
-        )
-
-        XCTAssertFalse(model.isShowingPresentationExperimentalNotice)
-
-        controller.setWorkspaceMode(.presentation)
-
-        XCTAssertTrue(model.isShowingPresentationExperimentalNotice)
-
-        model.isShowingPresentationExperimentalNotice = false
-        controller.setWorkspaceMode(.edit)
-        controller.setWorkspaceMode(.presentation)
-
-        XCTAssertFalse(model.isShowingPresentationExperimentalNotice)
-
-        let restartedModel = AppModel(
-            defaults: defaults,
-            recoveryStore: DocumentRecoveryStore(baseURL: nil),
-            captureService: ScreenCaptureService(),
-            shouldCheckCompatibilityOnLaunch: false,
-            shouldStartArchiveMaintenance: false
-        )
-        let restartedController = retainForTestLifetime(EditorController(capture: makeCapturedScreenshot(), defaults: defaults))
-
-        restartedModel.documents.installEditorController(
-            restartedController,
-            documentURL: nil,
-            savedSession: nil,
-            shouldCreateRecoverySession: false
-        )
-        restartedController.setWorkspaceMode(.presentation)
-
-        XCTAssertTrue(restartedModel.isShowingPresentationExperimentalNotice)
-    }
-
     func testCapturePresetsSaveLastCaptureWithFallbackNameAndPersist() {
         let suiteName = "AppModelTests.capturePresetsPersist"
         let defaults = makeDefaults(named: suiteName)

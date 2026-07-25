@@ -167,9 +167,15 @@ final class AutomationOutputService {
             port.requestAutomationEditorPresentation()
             return [.init(kind: .openedEditor)]
         case .copyRenderedImage:
-            guard let controller = port.automationCurrentEditorController,
-                  let image = controller.exportedImage(usingPresentation: true) else {
+            guard let controller = port.automationCurrentEditorController else {
                 ShortcutsAutomationLog.logger.error("output.write copy failed current editor/image unavailable")
+                throw AutomationExecutionError(code: .targetUnavailable, message: "There is no current screenshot to copy.")
+            }
+            let image: CGImage
+            do {
+                image = try controller.exportedImage(appearance: controller.automationOutputAppearance)
+            } catch {
+                ShortcutsAutomationLog.logger.error("output.write copy failed rendered image unavailable")
                 throw AutomationExecutionError(code: .targetUnavailable, message: "There is no current screenshot to copy.")
             }
             ShortcutsAutomationLog.logger.info(
@@ -196,7 +202,10 @@ final class AutomationOutputService {
                 ShortcutsAutomationLog.logger.error("output.write saveFile failed current editor unavailable")
                 throw AutomationExecutionError(code: .targetUnavailable, message: "There is no current screenshot to export.")
             }
-            guard let image = controller.exportedImage(usingPresentation: true) else {
+            let image: CGImage
+            do {
+                image = try controller.exportedImage(appearance: controller.automationOutputAppearance)
+            } catch {
                 ShortcutsAutomationLog.logger.error("output.write saveFile failed exported image unavailable")
                 throw AutomationExecutionError(code: .targetUnavailable, message: "There is no current screenshot to export.")
             }

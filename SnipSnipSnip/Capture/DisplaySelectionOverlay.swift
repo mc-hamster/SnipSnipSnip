@@ -86,7 +86,9 @@ private final class DisplaySelectionView: NSView {
         setAccessibilityElement(true)
         setAccessibilityRole(.button)
         setAccessibilityLabel("Capture \(display.name)")
+        setAccessibilityValue("Available display")
         setAccessibilityHelp("Select this display and start the Guide.")
+        setAccessibilityIdentifier("capture.display.\(display.displayID)")
     }
 
     required init?(coder: NSCoder) {
@@ -174,7 +176,10 @@ private final class DisplaySelectionView: NSView {
             return
         }
         isHovering = hovering
+        setAccessibilitySelected(hovering)
+        setAccessibilityValue(hovering ? "Selected display" : "Available display")
         needsDisplay = true
+        NSAccessibility.post(element: self, notification: .valueChanged)
     }
 
     private func drawInstructions() {

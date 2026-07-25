@@ -1,5 +1,24 @@
 import Foundation
 
+nonisolated enum OnboardingPresentationMode: Equatable {
+    case firstRun
+    case replay
+}
+
+nonisolated enum OnboardingResumeCheckpoint: String {
+    case firstSnip
+}
+
+nonisolated enum OnboardingCompletionPolicy {
+    static func canComplete(
+        mode: OnboardingPresentationMode,
+        hasScreenRecording: Bool,
+        hasMadeClipboardChoice: Bool
+    ) -> Bool {
+        mode == .replay || (hasScreenRecording && hasMadeClipboardChoice)
+    }
+}
+
 enum LastCaptureRequest {
     case region(CGRect)
     case scrolling(CGRect)
@@ -75,15 +94,29 @@ enum WindowPickerMode {
     case capturePresetReplacement(CapturePreset.ID)
 }
 
-enum AppSettingsTab: Hashable {
+enum AppSettingsTab: Hashable, CaseIterable {
     case general
+    case capture
     case presets
+    case editorOutput
     case shortcuts
     case recording
     case guide
-    case archive
-    case clipboard
+    case library
     case privacy
+}
+
+enum LibrarySettingsSection: String, CaseIterable, Identifiable {
+    case snips
+    case clipboard
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .snips: "Snips"
+        case .clipboard: "Clipboard"
+        }
+    }
 }
 
 struct PermissionSetupGuide: Identifiable {
@@ -121,6 +154,8 @@ nonisolated enum AppModelPreferenceKey {
     static let editorStartupToolPreference = "appModel.editorStartupToolPreference"
     static let editorLastUsedTool = "appModel.editorLastUsedTool"
     static let completedOnboardingVersion = "appModel.completedOnboardingVersion"
+    static let onboardingResumeCheckpoint = "appModel.onboardingResumeCheckpoint"
+    static let onboardingClipboardChoiceAcknowledged = "appModel.onboardingClipboardChoiceAcknowledged"
     static let editorCropOutsideOverlayAlpha = "appModel.editorCropOutsideOverlayAlpha"
     static let editorOutOfCapturePatternSettings = "appModel.editorOutOfCapturePatternSettings"
     static let presentationScenesRootPath = "appModel.presentationScenesRootPath"
@@ -132,6 +167,7 @@ nonisolated enum AppModelPreferenceKey {
     static let regionCaptureShowsActionControls = "appModel.regionCaptureShowsActionControls"
     static let regionCaptureAdvancedControlsEnabled = "appModel.regionCaptureAdvancedControlsEnabled"
     static let recycleBinRetentionDays = "appModel.recycleBinRetentionDays"
+    static let recycleBinRetentionDefaultMigrationCompleted = "appModel.recycleBinRetentionDefaultMigrationCompleted"
     static let screenInspectorPreferences = "appModel.screenInspectorPreferences"
     static let screenRulerPreferences = "appModel.screenRulerPreferences"
     static let screenshotFilenameTemplate = "appModel.screenshotFilenameTemplate"

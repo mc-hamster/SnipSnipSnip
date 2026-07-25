@@ -58,17 +58,40 @@ nonisolated struct ArchivePreferenceStore {
     }
 
     func loadRecycleBinRetentionDays() -> Int {
-        let configuredDays = storage.object(forKey: AppModelPreferenceKey.recycleBinRetentionDays) as? Int
-            ?? storage.integer(forKey: AppModelPreferenceKey.recycleBinRetentionDays)
-
-        guard configuredDays > 0 else {
-            return AppPreferenceDefaults.recycleBinRetentionDays
+        if storage.object(forKey: AppModelPreferenceKey.recycleBinRetentionDays) != nil {
+            let configuredDays = storage.integer(forKey: AppModelPreferenceKey.recycleBinRetentionDays)
+            let sanitizedDays = sanitizeRecycleBinRetentionDays(configuredDays)
+            storage.set(sanitizedDays, forKey: AppModelPreferenceKey.recycleBinRetentionDays)
+            storage.set(true, forKey: AppModelPreferenceKey.recycleBinRetentionDefaultMigrationCompleted)
+            return sanitizedDays
         }
 
-        return max(configuredDays, AppPreferenceDefaults.minimumRecycleBinRetentionDays)
+        let hasCompletedOnboarding = (storage.object(forKey: AppModelPreferenceKey.completedOnboardingVersion) as? Int ?? 0) > 0
+        let hasLegacyWelcomeState = storage.object(forKey: AppModelPreferenceKey.hasPresentedWelcomeWindow) != nil
+            || storage.object(forKey: AppModelPreferenceKey.hasDismissedWelcomeCard) != nil
+        let migrationCompleted = storage.bool(forKey: AppModelPreferenceKey.recycleBinRetentionDefaultMigrationCompleted)
+
+        let defaultDays: Int
+        if !migrationCompleted && (hasCompletedOnboarding || hasLegacyWelcomeState) {
+            defaultDays = AppPreferenceDefaults.legacyRecycleBinRetentionDays
+        } else {
+            defaultDays = AppPreferenceDefaults.recycleBinRetentionDays
+        }
+
+        storage.set(defaultDays, forKey: AppModelPreferenceKey.recycleBinRetentionDays)
+        storage.set(true, forKey: AppModelPreferenceKey.recycleBinRetentionDefaultMigrationCompleted)
+        return defaultDays
     }
 
     func saveRecycleBinRetentionDays(_ value: Int) {
-        storage.set(value, forKey: AppModelPreferenceKey.recycleBinRetentionDays)
+        storage.set(sanitizeRecycleBinRetentionDays(value), forKey: AppModelPreferenceKey.recycleBinRetentionDays)
+        storage.set(true, forKey: AppModelPreferenceKey.recycleBinRetentionDefaultMigrationCompleted)
+    }
+
+    private func sanitizeRecycleBinRetentionDays(_ value: Int) -> Int {
+        min(
+            max(value, AppPreferenceDefaults.minimumRecycleBinRetentionDays),
+            AppPreferenceDefaults.maximumRecycleBinRetentionDays
+        )
     }
 }

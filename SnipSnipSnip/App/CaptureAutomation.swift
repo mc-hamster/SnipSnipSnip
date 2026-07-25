@@ -7,9 +7,9 @@ nonisolated struct CaptureAutomationPreferences: Codable, Equatable {
     var windowHotkey: GlobalHotKeyKey = .two
     var fullscreenHotkey: GlobalHotKeyKey = .three
     var frontmostWindowHotkey: GlobalHotKeyKey = .four
-    var repeatLastCaptureHotkey: GlobalHotKeyKey = .r
-    var screenInspectorHotkey: GlobalHotKeyKey = .i
-    var guideHotkey: GlobalHotKeyKey = .g
+    var repeatLastCaptureHotkey: GlobalHotKeyKey = .seven
+    var screenInspectorHotkey: GlobalHotKeyKey = .eight
+    var guideHotkey: GlobalHotKeyKey = .nine
 
     private enum CodingKeys: String, CodingKey {
         case globalHotkeysEnabled
@@ -28,9 +28,9 @@ nonisolated struct CaptureAutomationPreferences: Codable, Equatable {
         windowHotkey: GlobalHotKeyKey = .two,
         fullscreenHotkey: GlobalHotKeyKey = .three,
         frontmostWindowHotkey: GlobalHotKeyKey = .four,
-        repeatLastCaptureHotkey: GlobalHotKeyKey = .r,
-        screenInspectorHotkey: GlobalHotKeyKey = .i,
-        guideHotkey: GlobalHotKeyKey = .g
+        repeatLastCaptureHotkey: GlobalHotKeyKey = .seven,
+        screenInspectorHotkey: GlobalHotKeyKey = .eight,
+        guideHotkey: GlobalHotKeyKey = .nine
     ) {
         self.globalHotkeysEnabled = globalHotkeysEnabled
         self.regionHotkey = regionHotkey
@@ -50,9 +50,9 @@ nonisolated struct CaptureAutomationPreferences: Codable, Equatable {
             windowHotkey: try container.decodeIfPresent(GlobalHotKeyKey.self, forKey: .windowHotkey) ?? .two,
             fullscreenHotkey: try container.decodeIfPresent(GlobalHotKeyKey.self, forKey: .fullscreenHotkey) ?? .three,
             frontmostWindowHotkey: try container.decodeIfPresent(GlobalHotKeyKey.self, forKey: .frontmostWindowHotkey) ?? .four,
-            repeatLastCaptureHotkey: try container.decodeIfPresent(GlobalHotKeyKey.self, forKey: .repeatLastCaptureHotkey) ?? .r,
-            screenInspectorHotkey: try container.decodeIfPresent(GlobalHotKeyKey.self, forKey: .screenInspectorHotkey) ?? .i,
-            guideHotkey: try container.decodeIfPresent(GlobalHotKeyKey.self, forKey: .guideHotkey) ?? .g
+            repeatLastCaptureHotkey: try container.decodeIfPresent(GlobalHotKeyKey.self, forKey: .repeatLastCaptureHotkey) ?? .seven,
+            screenInspectorHotkey: try container.decodeIfPresent(GlobalHotKeyKey.self, forKey: .screenInspectorHotkey) ?? .eight,
+            guideHotkey: try container.decodeIfPresent(GlobalHotKeyKey.self, forKey: .guideHotkey) ?? .nine
         )
     }
 

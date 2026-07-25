@@ -31,7 +31,10 @@ final class ArchiveWorkflowModel: ObservableObject {
     }
     @Published var recycleBinRetentionDays: Int {
         didSet {
-            let sanitizedValue = max(recycleBinRetentionDays, ArchiveWorkflowConstants.minimumRecycleBinRetentionDays)
+            let sanitizedValue = min(
+                max(recycleBinRetentionDays, ArchiveWorkflowConstants.minimumRecycleBinRetentionDays),
+                ArchiveWorkflowConstants.maximumRecycleBinRetentionDays
+            )
 
             guard sanitizedValue == recycleBinRetentionDays else {
                 recycleBinRetentionDays = sanitizedValue

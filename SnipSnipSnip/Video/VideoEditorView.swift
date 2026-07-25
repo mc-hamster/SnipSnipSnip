@@ -354,6 +354,8 @@ struct VideoEditorView: View {
         .buttonBorderShape(.circle)
         .contentShape(Circle())
         .help(controller.isPlaying ? "Pause playback." : "Play the selected trim range.")
+        .accessibilityLabel(controller.isPlaying ? "Pause" : "Play")
+        .accessibilityValue(controller.currentTimeLabel)
     }
 
     private var trimPanelTitle: some View {
@@ -462,6 +464,14 @@ private struct VideoTrimTimelineView: View {
                                 startHandleDragOrigin = nil
                             }
                     )
+                    .accessibilityElement()
+                    .accessibilityLabel("Trim start")
+                    .accessibilityValue(controller.trimStartLabel)
+                    .accessibilityAdjustableAction { direction in
+                        let delta = direction == .increment ? 0.1 : -0.1
+                        controller.updateTrimStart(controller.session.trimStartSeconds + delta)
+                    }
+                    .accessibilityIdentifier("video.trim.start")
 
                 handle(height: trackHeight)
                     .offset(x: min(max(endLeading, 0), max(width - handleHitWidth, 0)), y: trackInsetY)
@@ -486,12 +496,28 @@ private struct VideoTrimTimelineView: View {
                                 endHandleDragOrigin = nil
                             }
                     )
+                    .accessibilityElement()
+                    .accessibilityLabel("Trim end")
+                    .accessibilityValue(controller.trimEndLabel)
+                    .accessibilityAdjustableAction { direction in
+                        let delta = direction == .increment ? 0.1 : -0.1
+                        controller.updateTrimEnd(controller.session.trimEndSeconds + delta)
+                    }
+                    .accessibilityIdentifier("video.trim.end")
 
                 Rectangle()
                     .fill(Color.white)
                     .frame(width: 2, height: trackHeight - 8)
                     .shadow(color: .black.opacity(0.45), radius: 4, y: 1)
                     .offset(x: min(max(currentX - 1, 0), max(width - 2, 0)), y: trackInsetY + 4)
+                    .accessibilityElement()
+                    .accessibilityLabel("Playhead")
+                    .accessibilityValue(controller.currentTimeLabel)
+                    .accessibilityAdjustableAction { direction in
+                        let delta = direction == .increment ? 0.1 : -0.1
+                        controller.scrub(to: controller.currentTimeSeconds + delta)
+                    }
+                    .accessibilityIdentifier("video.trim.playhead")
             }
             .frame(width: width, height: height)
             .coordinateSpace(name: "timeline")

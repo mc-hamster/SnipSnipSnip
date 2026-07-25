@@ -1,0 +1,54 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Annotation canvas" : {
+      "comment" : "Accessibility label for the screenshot annotation canvas."
+    },
+    "Capture complete." : {
+      "comment" : "Accessibility announcement after a screenshot capture completes."
+    },
+    "Check Again" : {
+      "comment" : "Rechecks a missing macOS permission."
+    },
+    "Dismiss notification" : {
+      "comment" : "Accessibility label for dismissing an editor notice."
+    },
+    "Drag Plain" : {
+      "comment" : "Label for dragging a screenshot without Presentation styling."
+    },
+    "Drag Styled" : {
+      "comment" : "Label for dragging a screenshot with Presentation styling."
+    },
+    "Layers" : {
+      "comment" : "Accessibility label for the annotation layers list and command."
+    },
+    "Not selected" : {
+      "comment" : "Accessibility value for an unselected item."
+    },
+    "Presentation Beta" : {
+      "comment" : "Accessibility label for the Presentation workspace beta badge."
+    },
+    "Screenshot capture is available." : {
+      "comment" : "Accessibility announcement after Screen Recording access becomes available."
+    },
+    "Screenshot capture is unavailable. Screen Recording access is required." : {
+      "comment" : "Accessibility announcement when screenshot capture permission is missing."
+    },
+    "Screenshot capture unavailable" : {
+      "comment" : "Compact permission status shown while a document is open."
+    },
+    "Selected" : {
+      "comment" : "Accessibility value for a selected item."
+    },
+    "Set Up" : {
+      "comment" : "Action that starts setup for a missing macOS permission."
+    },
+    "Styled output not configured" : {
+      "comment" : "Accessibility and visible status when Presentation styling has not been configured."
+    },
+    "Toggle Selection" : {
+      "comment" : "VoiceOver custom action that adds or removes an annotation from selection."
+    }
+  },
+  "version" : "1.0"
+}

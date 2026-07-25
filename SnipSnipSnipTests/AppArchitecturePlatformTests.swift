@@ -559,8 +559,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
         )
         XCTAssertTrue(
             workflowModels.contains("func presentError(_ message: String)")
-                && workflowModels.contains("func updateWorkingMessage(_ message: String)")
-                && workflowModels.contains("func presentPresentationExperimentalNotice()"),
+                && workflowModels.contains("func updateWorkingMessage(_ message: String)"),
             "WorkflowLifecyclePresenting should expose lifecycle commands instead of mutable state."
         )
         XCTAssertTrue(
@@ -574,7 +573,6 @@ final class AppArchitecturePlatformTests: XCTestCase {
         for forbiddenLifecycleMutation in [
             "dependencies.lifecycle.errorMessage",
             "dependencies.lifecycle.workingMessage",
-            "dependencies.lifecycle.isShowingPresentationExperimentalNotice",
             "lifecycle?.errorMessage",
             "lifecycle?.onboardingPresentationRequest",
         ] {

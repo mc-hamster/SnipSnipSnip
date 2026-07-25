@@ -139,8 +139,15 @@ final class EditorController: ObservableObject {
             invalidateCanvas()
         }
     }
-    @Published var errorMessage: String?
-    @Published private(set) var noticeMessage: String?
+    @Published var errorMessage: String? {
+        didSet {
+            if let errorMessage, errorMessage != oldValue {
+                AppAccessibility.announce("Editor error: \(errorMessage)", priority: .high)
+            }
+        }
+    }
+    @Published private(set) var notice: EditorNotice?
+    var noticeMessage: String? { notice?.message }
     var editorSingleKeyToolShortcutsEnabled = true
     @Published private(set) var toolStyles: [EditorTool: AnnotationStyle]
     @Published private(set) var canvasRevision = 0
@@ -659,6 +666,41 @@ final class EditorController: ObservableObject {
         }
 
         updateAnnotations(selectedAnnotations.map { $0.translated(by: delta) })
+    }
+
+    func resizeSelectedAnnotations(widthDelta: CGFloat, heightDelta: CGFloat, minimumSize: CGFloat = 4) {
+        guard let oldBounds = selectionBoundingRect, !selectedAnnotations.isEmpty else {
+            return
+        }
+
+        let newBounds = CGRect(
+            x: oldBounds.minX,
+            y: oldBounds.minY,
+            width: max(minimumSize, oldBounds.width + widthDelta),
+            height: max(minimumSize, oldBounds.height + heightDelta)
+        )
+        updateAnnotations(selectedAnnotations.map { $0.scaled(from: oldBounds, to: newBounds) })
+    }
+
+    func duplicateSelectedAnnotations(offset: CGSize = CGSize(width: 10, height: 10)) {
+        guard !selectedAnnotations.isEmpty else {
+            return
+        }
+
+        let duplicates = selectedAnnotations.map { annotation in
+            let translated = annotation.translated(by: offset)
+            return Annotation(
+                id: UUID(),
+                groupID: nil,
+                kind: translated.kind,
+                style: translated.style,
+                rotationDegrees: translated.rotationDegrees
+            )
+        }
+        for duplicate in duplicates {
+            execute(AddAnnotationCommand(annotation: duplicate))
+        }
+        execute(SetSelectionCommand(annotationIDs: duplicates.map(\.id)), undoable: false)
     }
 
     func select(_ annotationID: UUID?, additive: Bool = false, toggle: Bool = false) {
@@ -1500,11 +1542,15 @@ final class EditorController: ObservableObject {
         }
     }
 
-    func exportedImage(usingPresentation: Bool = true) -> CGImage? {
-        presentationPreviewImage(
-            presentation: usingPresentation ? nil : .plain,
-            context: usingPresentation ? "exportedImage.styled" : "exportedImage.plain"
-        )
+    func exportedImage(appearance: ScreenshotOutputAppearance) throws -> CGImage {
+        let input = try exportRenderInput(for: appearance)
+        guard let image = presentationPreviewImage(
+            presentation: input.snapshot.presentation,
+            context: "exportedImage.\(appearance.rawValue)"
+        ) else {
+            throw ScreenshotOutputError.renderingFailed
+        }
+        return image
     }
 
     func applySampledColor(at point: CGPoint, toFill: Bool = false) {
@@ -1706,65 +1752,72 @@ final class EditorController: ObservableObject {
         addImageOverlay(image)
     }
 
-    func copyAnnotatedImage() {
-        copyAnnotatedImage(usingPresentation: true)
+    var hasStyledOutputConfigured: Bool {
+        snapshot.presentation.isEnabled
     }
 
-    func exportFormatRequiresPNG() -> Bool {
-        snapshot.presentation.requiresPNGForFaithfulExport
-    }
-
-    func renderedImageForExport() async throws -> CGImage {
-        let input = EditorExportRenderInput(
-            baseImage: capture.image,
-            snapshot: snapshot,
-            pinnedUIMapElements: pinnedUIMapElements,
-            uiMapOverlayOptions: uiMapOverlayOptions
-        )
-        return try await EditorExportRenderer.renderImage(from: input)
-    }
-
-    func copyPlainAnnotatedImage() {
-        copyAnnotatedImage(usingPresentation: false)
-    }
-
-    private func copyAnnotatedImage(usingPresentation: Bool) {
-        var exportSnapshot = snapshot
-        if !usingPresentation {
-            exportSnapshot.presentation = .plain
+    var styledOutputConfigurationLabel: String {
+        guard hasStyledOutputConfigured else {
+            return "Styled output not configured"
         }
+        if let scene = snapshot.presentation.scene {
+            return "Styled output configured · \(scene.name)"
+        }
+        if let template = presentationTemplates.first(where: { $0.presentation == snapshot.presentation }) {
+            return "Styled output configured · \(template.name)"
+        }
+        return "Styled output configured · Custom style"
+    }
 
-        let input = EditorExportRenderInput(
-            baseImage: capture.image,
-            snapshot: exportSnapshot,
-            pinnedUIMapElements: pinnedUIMapElements,
-            uiMapOverlayOptions: uiMapOverlayOptions
-        )
+    var automationOutputAppearance: ScreenshotOutputAppearance {
+        hasStyledOutputConfigured ? .styled : .plain
+    }
 
-        Task { @MainActor [weak self] in
-            do {
-                let pngData = try await EditorExportRenderer.renderPNGData(from: input)
-                try ImageExporter.copyPNGDataToClipboard(pngData)
-            } catch {
-                self?.errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+    func copyAnnotatedImage(appearance: ScreenshotOutputAppearance) {
+        do {
+            let input = try exportRenderInput(for: appearance)
+            Task { @MainActor [weak self] in
+                do {
+                    let pngData = try await EditorExportRenderer.renderPNGData(from: input)
+                    try ImageExporter.copyPNGDataToClipboard(pngData)
+                    self?.showNotice(EditorNotice(
+                        message: "Copied \(appearance.title) screenshot.",
+                        accessibilityAnnouncement: "\(appearance.title) screenshot copied to the clipboard."
+                    ))
+                } catch {
+                    self?.errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                }
             }
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
+    }
+
+    func exportFormatRequiresPNG(appearance: ScreenshotOutputAppearance) -> Bool {
+        (try? exportRenderInput(for: appearance).snapshot.presentation.requiresPNGForFaithfulExport) ?? false
+    }
+
+    func renderedImageForExport(appearance: ScreenshotOutputAppearance) async throws -> CGImage {
+        try await EditorExportRenderer.renderImage(from: exportRenderInput(for: appearance))
     }
 
     func saveAnnotatedImage(
+        appearance: ScreenshotOutputAppearance,
         format: ImageExportFormat = .png,
         filenameTemplate: ScreenshotFilenameTemplate = ScreenshotFilenameTemplate.default,
         exportOptions: ImageExportOptions = .default
     ) {
-        let input = EditorExportRenderInput(
-            baseImage: capture.image,
-            snapshot: snapshot,
-            pinnedUIMapElements: pinnedUIMapElements,
-            uiMapOverlayOptions: uiMapOverlayOptions
-        )
+        let input: EditorExportRenderInput
+        do {
+            input = try exportRenderInput(for: appearance)
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            return
+        }
         let suggestedFilename = ImageExporter.editedFilename(
             suggestedFilename: filenameTemplate.resolvedFilename(for: capture, formatExtension: format.fileExtension),
-            format: format
+            format: format,
+            appearance: appearance
         )
 
         Task { @MainActor [weak self] in
@@ -1773,25 +1826,35 @@ final class EditorController: ObservableObject {
                     throw ImageExportError.transparentPresentationRequiresPNG
                 }
 
-                guard let url = await ImageExporter.destinationURL(suggestedFilename: suggestedFilename, format: format) else {
+                guard let url = await ImageExporter.destinationURL(
+                    suggestedFilename: suggestedFilename,
+                    format: format,
+                    appearance: appearance
+                ) else {
                     return
                 }
 
                 let image = try await EditorExportRenderer.renderImage(from: input)
                 try await ImageExporter.write(image, format: format, to: url, options: exportOptions)
+                self?.showNotice(EditorNotice(
+                    message: "Exported \(appearance.title) \(format.label) to \(url.lastPathComponent).",
+                    action: .reveal(url),
+                    dismissalDelaySeconds: 6
+                ))
             } catch {
                 self?.errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             }
         }
     }
 
-    func shareAnnotatedImage() {
-        let input = EditorExportRenderInput(
-            baseImage: capture.image,
-            snapshot: snapshot,
-            pinnedUIMapElements: pinnedUIMapElements,
-            uiMapOverlayOptions: uiMapOverlayOptions
-        )
+    func shareAnnotatedImage(appearance: ScreenshotOutputAppearance) {
+        let input: EditorExportRenderInput
+        do {
+            input = try exportRenderInput(for: appearance)
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            return
+        }
 
         Task { @MainActor [weak self] in
             do {
@@ -1804,23 +1867,26 @@ final class EditorController: ObservableObject {
     }
 
     func promisedImagePayload(
+        appearance: ScreenshotOutputAppearance,
         requestedFormat: ImageExportFormat,
         filenameTemplate: ScreenshotFilenameTemplate,
         exportOptions: ImageExportOptions = .default
-    ) -> PromisedFilePayload {
-        let input = EditorExportRenderInput(
-            baseImage: capture.image,
-            snapshot: snapshot,
-            pinnedUIMapElements: pinnedUIMapElements,
-            uiMapOverlayOptions: uiMapOverlayOptions
-        )
+    ) -> PromisedFilePayload? {
+        let input: EditorExportRenderInput
+        do {
+            input = try exportRenderInput(for: appearance)
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            return nil
+        }
         let format = ImageExporter.dragOutFormat(
             requestedFormat: requestedFormat,
             requiresPNGForFaithfulExport: input.snapshot.presentation.requiresPNGForFaithfulExport
         )
         let suggestedFilename = ImageExporter.editedFilename(
             suggestedFilename: filenameTemplate.resolvedFilename(for: capture, formatExtension: format.fileExtension),
-            format: format
+            format: format,
+            appearance: appearance
         )
 
         if format != requestedFormat {
@@ -1851,15 +1917,50 @@ final class EditorController: ObservableObject {
     }
 
     func showNotice(_ message: String) {
+        showNotice(EditorNotice(message: message))
+    }
+
+    func showNotice(_ newNotice: EditorNotice) {
         noticeTask?.cancel()
-        noticeMessage = message
+        notice = newNotice
+        AppAccessibility.announce(newNotice.accessibilityAnnouncement)
+        guard let dismissalDelaySeconds = newNotice.dismissalDelaySeconds else {
+            return
+        }
         noticeTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(3))
+            try? await Task.sleep(for: .seconds(dismissalDelaySeconds))
             guard !Task.isCancelled else {
                 return
             }
-            self?.noticeMessage = nil
+            guard self?.notice?.id == newNotice.id else {
+                return
+            }
+            self?.notice = nil
         }
+    }
+
+    func dismissNotice() {
+        noticeTask?.cancel()
+        notice = nil
+    }
+
+    private func exportRenderInput(for appearance: ScreenshotOutputAppearance) throws -> EditorExportRenderInput {
+        var exportSnapshot = snapshot
+        switch appearance {
+        case .plain:
+            exportSnapshot.presentation = .plain
+        case .styled:
+            guard exportSnapshot.presentation.isEnabled else {
+                throw ScreenshotOutputError.styledOutputNotConfigured
+            }
+        }
+
+        return EditorExportRenderInput(
+            baseImage: capture.image,
+            snapshot: exportSnapshot,
+            pinnedUIMapElements: pinnedUIMapElements,
+            uiMapOverlayOptions: uiMapOverlayOptions
+        )
     }
 
     func commitPendingTextEdits() {

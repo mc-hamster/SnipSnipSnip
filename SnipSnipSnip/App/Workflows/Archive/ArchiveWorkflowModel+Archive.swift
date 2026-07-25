@@ -76,7 +76,10 @@ extension ArchiveWorkflowModel {
     }
 
     func updateRecycleBinRetentionDays(_ value: Int) {
-        recycleBinRetentionDays = max(value, ArchiveWorkflowConstants.minimumRecycleBinRetentionDays)
+        recycleBinRetentionDays = min(
+            max(value, ArchiveWorkflowConstants.minimumRecycleBinRetentionDays),
+            ArchiveWorkflowConstants.maximumRecycleBinRetentionDays
+        )
     }
 
     func clearArchive() {

@@ -92,6 +92,20 @@ This document is the required design reference for user-visible SwiftUI and AppK
 - **Keyboard and VoiceOver:** every icon-only action has a label and help text; controls participate in native focus order; primary and cancel actions use the appropriate keyboard shortcuts.
 - **Overlay interaction:** decorative backgrounds, borders, shadows, and status ornaments must be click-through so floating HUD buttons and toggles retain their full native hit targets.
 
+### Release-level accessibility conventions
+
+- Treat the editor canvas as an accessibility group with synthetic annotation children ordered from front to back. Each child reports type, selected state, layer position, visible text when safe, and document geometry. Redaction contents are never exposed.
+- Mirror pointer-only annotation operations through keyboard commands and VoiceOver custom actions. Layers remains the complete alternative for selection and arrangement.
+- Transfer focus into sheets, popovers, inspectors, and auxiliary windows when they open, then restore it when they close. Announce permission changes, capture completion, selection changes, progress, errors, and export completion.
+- Use stable accessibility identifiers for automated coverage and shared formatters for geometry, time, percentages, and color values.
+- Add accessibility-specific English strings to the String Catalog when introducing new labels, values, hints, or announcements, even when broader localization is deferred.
+
+### Permission and output status patterns
+
+- On the empty capture screen, missing Screen Recording access uses the full permission card. When a screenshot, video, or Guide is open, retain a one-line action strip so setup remains discoverable without displacing the primary workspace; selecting the strip expands the full diagnostics.
+- Screenshot output actions must name their appearance at the boundary: Plain or Styled. Edit uses Plain as the primary appearance; Presentation uses Styled. Do not infer appearance from a visually nearby control, and do not disable Plain JPEG or PDF merely because the configured Styled output needs PNG.
+- Nonblocking product maturity labels use a compact accessible badge and contextual Help. Do not interrupt recurring workflows with a startup modal solely to repeat beta status.
+
 ## Custom Surface Exception Registry
 
 Every explicit custom Glass or fixed-dark app surface must appear here. New entries require a specific content-driven reason and accessibility behavior.

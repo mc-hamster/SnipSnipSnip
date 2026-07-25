@@ -56,6 +56,12 @@ struct CaptureWindowPickerView: View {
                             .padding(.vertical, 4)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(window.displayTitle)
+                        .accessibilityValue(
+                            "\(Int(window.frame.width)) by \(Int(window.frame.height)) pixels"
+                        )
+                        .accessibilityHint("Capture this window.")
+                        .accessibilityIdentifier("capture.window.list.\(window.id)")
                     }
                 }
             }

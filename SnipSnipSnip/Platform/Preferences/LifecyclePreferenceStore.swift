@@ -22,6 +22,27 @@ nonisolated struct LifecyclePreferenceStore {
         storage.set(version, forKey: AppModelPreferenceKey.completedOnboardingVersion)
     }
 
+    func loadOnboardingResumeCheckpoint() -> OnboardingResumeCheckpoint? {
+        storage.string(forKey: AppModelPreferenceKey.onboardingResumeCheckpoint)
+            .flatMap(OnboardingResumeCheckpoint.init(rawValue:))
+    }
+
+    func saveOnboardingResumeCheckpoint(_ checkpoint: OnboardingResumeCheckpoint?) {
+        if let checkpoint {
+            storage.set(checkpoint.rawValue, forKey: AppModelPreferenceKey.onboardingResumeCheckpoint)
+        } else {
+            storage.removeObject(forKey: AppModelPreferenceKey.onboardingResumeCheckpoint)
+        }
+    }
+
+    func loadOnboardingClipboardChoiceAcknowledged() -> Bool {
+        storage.bool(forKey: AppModelPreferenceKey.onboardingClipboardChoiceAcknowledged)
+    }
+
+    func saveOnboardingClipboardChoiceAcknowledged(_ acknowledged: Bool) {
+        storage.set(acknowledged, forKey: AppModelPreferenceKey.onboardingClipboardChoiceAcknowledged)
+    }
+
     func saveWelcomeCardDismissed() {
         storage.set(true, forKey: AppModelPreferenceKey.hasDismissedWelcomeCard)
     }

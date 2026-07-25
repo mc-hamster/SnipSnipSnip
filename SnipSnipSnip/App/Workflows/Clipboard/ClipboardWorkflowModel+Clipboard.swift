@@ -254,7 +254,7 @@ extension ClipboardWorkflowModel {
     ) {
         guard preferences.isEnabled,
               preferences.recordsUncopiedSnips,
-              let image = controller.exportedImage(),
+              let image = try? controller.exportedImage(appearance: controller.automationOutputAppearance),
               let pngData = try? ImageExporter.pngData(for: image) else {
             return
         }

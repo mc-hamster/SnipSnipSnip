@@ -387,7 +387,6 @@ private final class TestWorkflowLifecyclePresenter: WorkflowLifecyclePresenting 
     var presentedErrors: [String] = []
     var didRequestMainWindowPresentation = false
     var workingMessages: [String] = []
-    var didPresentExperimentalNotice = false
 
     func presentError(_ message: String) {
         presentedErrors.append(message)
@@ -399,10 +398,6 @@ private final class TestWorkflowLifecyclePresenter: WorkflowLifecyclePresenting 
 
     func updateWorkingMessage(_ message: String) {
         workingMessages.append(message)
-    }
-
-    func presentPresentationExperimentalNotice() {
-        didPresentExperimentalNotice = true
     }
 
     func requestMainWindowPresentation() {

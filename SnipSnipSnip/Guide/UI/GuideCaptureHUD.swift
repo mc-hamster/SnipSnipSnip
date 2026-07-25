@@ -273,8 +273,7 @@ private struct GuideCaptureHUD: View {
                     .fixedSize()
                     .padding(.horizontal, 8)
                     .padding(.vertical, 5)
-                    .background(.regularMaterial, in: Capsule())
-                    .overlay(Capsule().stroke(.white.opacity(0.22)))
+                    .sssFloatingOverlaySurface(cornerRadius: 12, shadowOpacity: 0)
                     .padding(.bottom, 5)
                     .allowsHitTesting(false)
                     .zIndex(100)
@@ -282,6 +281,27 @@ private struct GuideCaptureHUD: View {
         }
         .padding(12)
         .sssFloatingOverlaySurface(cornerRadius: 20, shadowOpacity: 0.12)
+        .onChange(of: capture.state) { _, state in
+            let announcement: String
+            switch state {
+            case .idle:
+                announcement = "Guide capture stopped."
+            case .starting:
+                announcement = "Guide capture starting."
+            case .recording:
+                announcement = "Guide capture recording."
+            case .paused:
+                announcement = "Guide capture paused."
+            case .finishing:
+                announcement = "Guide capture finished recording and is preparing the editor."
+            }
+            AppAccessibility.announce(announcement)
+        }
+        .onChange(of: capture.finalizationProgress?.detail) { _, detail in
+            if let detail, !detail.isEmpty {
+                AppAccessibility.announce(detail)
+            }
+        }
     }
 
     private func guideAudioControl(
@@ -407,7 +427,6 @@ private struct GuideCaptureThumbnailPreview: View {
         }
         .padding(14)
         .frame(width: 320, alignment: .leading)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(.white.opacity(0.2)))
+        .sssFloatingOverlaySurface(cornerRadius: 14, shadowOpacity: 0.08)
     }
 }

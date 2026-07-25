@@ -172,6 +172,11 @@ struct PresentationInspectorView: View {
             InsetGroupBox("Variants") {
                 savedPresentationLibrary
             }
+
+            Link(destination: AppLinks.presentationFeedbackDiscord) {
+                Label("Send Presentation Feedback", systemImage: "bubble.left.and.bubble.right")
+            }
+            .accessibilityIdentifier("presentation.feedback")
         }
         .onAppear {
             syncSelectedPresentationTemplate()
@@ -1294,6 +1299,8 @@ private func presentationPaletteRow(selection: RGBAColor, action: @escaping @Mai
             }
             .buttonStyle(.plain)
             .help(option.label)
+            .accessibilityLabel(option.label)
+            .accessibilityValue(selection == option.color ? "Selected" : "Not selected")
         }
     }
     .frame(maxWidth: .infinity, alignment: .leading)

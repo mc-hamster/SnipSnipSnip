@@ -966,6 +966,8 @@ struct EditorInspectorView: View {
                 }
                 .buttonStyle(.plain)
                 .help(option.label)
+                .accessibilityLabel(option.label)
+                .accessibilityValue(selection == option.color ? "Selected" : "Not selected")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1042,6 +1044,7 @@ private struct ColorSampleSwatchView: View {
             }
             .frame(width: 18, height: 18)
             .accessibilityLabel("Current color")
+            .accessibilityValue(AccessibilityValueFormatter.color(color))
     }
 }
 
@@ -1648,6 +1651,8 @@ private struct HistoryEntryRowView: View, Equatable {
                 }
                 .buttonStyle(.plain)
                 .help(previewHelp)
+                .accessibilityLabel("Preview \(title)")
+                .accessibilityHint(previewHelp)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)

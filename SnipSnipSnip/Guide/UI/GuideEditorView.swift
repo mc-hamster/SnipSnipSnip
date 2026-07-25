@@ -719,16 +719,15 @@ private struct GuideAdvancedEditorSheet: View {
             EditorCommandBar(
                 controller: editor,
                 onBack: onCancel,
-                onFloatReference: {},
-                onExportPNG: {},
-                onExportJPEG: {},
-                onExportPDF: {},
-                onCopyStyled: {},
-                onCopyPlain: {},
-                onShare: {},
+                onFloatReference: { _ in },
+                onExportPNG: { _ in },
+                onExportJPEG: { _ in },
+                onExportPDF: { _ in },
+                onCopy: { _ in },
+                onShare: { _ in },
                 onShowLayers: {},
                 onShowUIMap: {},
-                dragOutPayloadProvider: { nil },
+                dragOutPayloadProvider: { _ in nil },
                 mode: .guideStep(onApply: onCommit)
             )
             Divider()

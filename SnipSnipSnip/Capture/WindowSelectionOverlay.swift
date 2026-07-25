@@ -235,6 +235,11 @@ private final class WindowSelectionView: NSView {
         self.onComplete = onComplete
         super.init(frame: CGRect(origin: .zero, size: displayPreview.snapshot.overlayFrame.size))
         wantsLayer = true
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        setAccessibilityLabel("Window capture targets")
+        setAccessibilityHelp("Choose a visible window or open the list of capturable targets.")
+        setAccessibilityIdentifier("capture.window.targets")
         if let listButtonTitle = prompt.listButtonTitle {
             let listButton = NSButton(
                 title: listButtonTitle,
@@ -251,6 +256,7 @@ private final class WindowSelectionView: NSView {
                 listButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -24)
             ])
         }
+        refreshAccessibilityTargets(postNotification: false)
     }
 
     required init?(coder: NSCoder) {
@@ -391,6 +397,50 @@ private final class WindowSelectionView: NSView {
         hoveredWindowID = windowID
         hoveredScreenRect = screenRect
         needsDisplay = true
+        refreshAccessibilityTargets(postNotification: true)
+    }
+
+    fileprivate func captureWindowForAccessibility(id: CGWindowID) -> Bool {
+        guard let selected = windows.first(where: { $0.id == id }) else {
+            return false
+        }
+        onComplete(.window(selected))
+        return true
+    }
+
+    private func refreshAccessibilityTargets(postNotification: Bool) {
+        let boundsSources = visibleWindowBoundsSources(desktopFrame: desktopFrame)
+        let targets = windows.compactMap { candidate -> WindowCaptureAccessibilityElement? in
+            let convertedRect = resolvedOverlayScreenRect(
+                for: candidate,
+                using: boundsSources.converted,
+                storedBoundsSpace: .overlayScreen,
+                displayTransform: displayTransform
+            )
+            let rawRect = resolvedOverlayScreenRect(
+                for: candidate,
+                using: boundsSources.raw,
+                storedBoundsSpace: .overlayScreen,
+                displayTransform: displayTransform
+            )
+            let visibleRect = gscPreferredHighlightRect(
+                primary: rawRect,
+                alternate: convertedRect
+            ).intersection(displayFrame)
+            guard !visibleRect.isNull, visibleRect.width > 0, visibleRect.height > 0 else {
+                return nil
+            }
+            return WindowCaptureAccessibilityElement(
+                target: self,
+                window: candidate,
+                frame: visibleRect,
+                isSelected: candidate.id == hoveredWindowID
+            )
+        }
+        setAccessibilityChildren(targets)
+        if postNotification {
+            NSAccessibility.post(element: self, notification: .selectedChildrenChanged)
+        }
     }
 
     // Convert event position to AppKit global screen coords.
@@ -565,7 +615,7 @@ private final class WindowSelectionView: NSView {
             #endif
             return (converted, convertedRect)
         }
-    }
+}
 
 #if !APP_STORE_BUILD
     private func resolveAccessibilityWindow(
@@ -811,6 +861,40 @@ private final class WindowSelectionView: NSView {
         let intersection = rect.intersection(displayFrame)
         let overlap = max(intersection.width, 0) * max(intersection.height, 0)
         return overlap / area
+    }
+}
+
+nonisolated private final class WindowCaptureAccessibilityElement: NSAccessibilityElement {
+    weak var target: WindowSelectionView?
+    private let windowID: CGWindowID
+
+    init(
+        target: WindowSelectionView,
+        window: CaptureWindowSummary,
+        frame: CGRect,
+        isSelected: Bool
+    ) {
+        self.target = target
+        self.windowID = window.id
+        super.init()
+        setAccessibilityParent(target)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel(window.displayTitle)
+        setAccessibilityValue(
+            "\(Int(window.frame.width)) by \(Int(window.frame.height)) pixels"
+        )
+        setAccessibilitySelected(isSelected)
+        setAccessibilityFrame(frame)
+        setAccessibilityHelp("Press to capture this window.")
+        setAccessibilityIdentifier("capture.window.target.\(window.id)")
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        let target = target
+        let windowID = windowID
+        return MainActor.assumeIsolated { [weak target] in
+            target?.captureWindowForAccessibility(id: windowID) ?? false
+        }
     }
 }
 

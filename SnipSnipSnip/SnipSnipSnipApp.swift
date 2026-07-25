@@ -22,20 +22,20 @@ private struct CaptureCommands: Commands {
 
         CommandMenu("Capture") {
             Button("Region Capture", action: capture.captureRegion)
-                .keyboardShortcut("1", modifiers: AppShortcut.modifiers)
-                .disabled(isCaptureOrRecordingActive)
+                .keyboardShortcut(hotKey(for: .region), modifiers: AppShortcut.modifiers)
+                .disabled(isCaptureOrRecordingActive || isNativeFilePanelActive)
 
             Button("Window Capture", action: capture.presentWindowPicker)
-                .keyboardShortcut("2", modifiers: AppShortcut.modifiers)
-                .disabled(isCaptureOrRecordingActive)
+                .keyboardShortcut(hotKey(for: .window), modifiers: AppShortcut.modifiers)
+                .disabled(isCaptureOrRecordingActive || isNativeFilePanelActive)
 
             Button("Full Screen Capture", action: capture.captureCurrentDisplay)
-                .keyboardShortcut("3", modifiers: AppShortcut.modifiers)
-                .disabled(isCaptureOrRecordingActive)
+                .keyboardShortcut(hotKey(for: .fullscreen), modifiers: AppShortcut.modifiers)
+                .disabled(isCaptureOrRecordingActive || isNativeFilePanelActive)
 
             Button("Frontmost Window Capture", action: capture.captureFrontmostWindow)
-                .keyboardShortcut("4", modifiers: AppShortcut.modifiers)
-                .disabled(isCaptureOrRecordingActive)
+                .keyboardShortcut(hotKey(for: .frontmostWindow), modifiers: AppShortcut.modifiers)
+                .disabled(isCaptureOrRecordingActive || isNativeFilePanelActive)
 
             if capabilities.isEnabled(.scrollingCapture) {
                 Button("Scrolling Capture", action: capture.captureScrollingArea)
@@ -53,8 +53,8 @@ private struct CaptureCommands: Commands {
 
             if capabilities.isEnabled(.guideCapture) {
                 Button(guide.isActive ? "Stop Guide" : "Guide", action: guide.presentQuickStart)
-                    .keyboardShortcut("g", modifiers: AppShortcut.modifiers)
-                    .disabled((isCaptureOrRecordingActive && !guide.isActive) || capture.isConnectedDeviceSessionActive)
+                    .keyboardShortcut(hotKey(for: .guide), modifiers: AppShortcut.modifiers)
+                    .disabled((isCaptureOrRecordingActive && !guide.isActive) || capture.isConnectedDeviceSessionActive || isNativeFilePanelActive)
 
                 if guide.isActive {
                     Button(guide.captureCoordinator.state == .paused ? "Resume Guide" : "Pause Guide", action: guide.togglePauseResume)
@@ -93,8 +93,8 @@ private struct CaptureCommands: Commands {
             Divider()
 
             Button("Repeat Last Capture", action: capture.repeatLastCapture)
-                .keyboardShortcut("r", modifiers: AppShortcut.modifiers)
-                .disabled(isCaptureOrRecordingActive || !capture.canRepeatLastCapture)
+                .keyboardShortcut(hotKey(for: .repeatLastCapture), modifiers: AppShortcut.modifiers)
+                .disabled(isCaptureOrRecordingActive || !capture.canRepeatLastCapture || isNativeFilePanelActive)
 
             Divider()
 
@@ -125,7 +125,8 @@ private struct CaptureCommands: Commands {
 
             Menu("Screen Inspector") {
                 Button("Open Screen Inspector", action: tools.presentScreenInspector)
-                    .keyboardShortcut("i", modifiers: AppShortcut.modifiers)
+                    .keyboardShortcut(hotKey(for: .screenInspector), modifiers: AppShortcut.modifiers)
+                    .disabled(isNativeFilePanelActive)
 
                 if tools.screenInspectorCoordinator.isVisible {
                     Button("Close Screen Inspector", action: tools.closeScreenInspector)
@@ -197,6 +198,14 @@ private struct CaptureCommands: Commands {
 
     private var isRecordingVideo: Bool {
         video.activeVideoRecording != nil
+    }
+
+    private func hotKey(for action: GlobalHotKeyAction) -> KeyEquivalent {
+        capture.automationPreferences.key(for: action).keyEquivalent
+    }
+
+    private var isNativeFilePanelActive: Bool {
+        NativePanelShortcutPolicy.suspendsCaptureKeyEquivalents(for: NSApp.keyWindow)
     }
 }
 
@@ -341,25 +350,47 @@ private struct DocumentCommands: Commands {
                     }
 
                 } else {
-                    Button("Export PNG…") {
-                        documents.exportAnnotatedImage(as: .png)
+                    Menu("Plain") {
+                        Button("Plain PNG…") {
+                            documents.exportAnnotatedImage(as: .png, appearance: .plain)
+                        }
+                        Button("Plain JPEG…") {
+                            documents.exportAnnotatedImage(as: .jpeg, appearance: .plain)
+                        }
+                        Button("Plain PDF…") {
+                            documents.exportAnnotatedImage(as: .pdf, appearance: .plain)
+                        }
                     }
 
-                    Button("Export JPEG…") {
-                        documents.exportAnnotatedImage(as: .jpeg)
-                    }
-                    .disabled(documents.editorController?.requiresPNGForFaithfulExport ?? false)
+                    Menu("Styled") {
+                        Button("Styled PNG…") {
+                            documents.exportAnnotatedImage(as: .png, appearance: .styled)
+                        }
+                        Button("Styled JPEG…") {
+                            documents.exportAnnotatedImage(as: .jpeg, appearance: .styled)
+                        }
+                        .disabled(documents.editorController?.exportFormatRequiresPNG(appearance: .styled) ?? false)
 
-                    Button("Export PDF…") {
-                        documents.exportAnnotatedImage(as: .pdf)
+                        Button("Styled PDF…") {
+                            documents.exportAnnotatedImage(as: .pdf, appearance: .styled)
+                        }
+                        .disabled(documents.editorController?.exportFormatRequiresPNG(appearance: .styled) ?? false)
                     }
-                    .disabled(documents.editorController?.requiresPNGForFaithfulExport ?? false)
+                    .disabled(documents.editorController?.hasStyledOutputConfigured != true)
                 }
             }
             .disabled(documents.editorController == nil && documents.videoEditorController == nil && documents.guideEditorController == nil)
 
-            Button("Share…", action: documents.shareAnnotatedImage)
-                .disabled(documents.editorController == nil)
+            Menu("Share") {
+                Button("Share Plain…") {
+                    documents.shareAnnotatedImage(appearance: .plain)
+                }
+                Button("Share Styled…") {
+                    documents.shareAnnotatedImage(appearance: .styled)
+                }
+                .disabled(documents.editorController?.hasStyledOutputConfigured != true)
+            }
+            .disabled(documents.editorController == nil)
         }
     }
 
@@ -382,17 +413,21 @@ private struct PasteboardCommands: Commands {
         CommandGroup(replacing: .pasteboard) {
             Button("Cut", action: cut)
                 .keyboardShortcut("x", modifiers: .command)
+                .disabled(!canCut)
 
             Button("Copy", action: copy)
                 .keyboardShortcut("c", modifiers: .command)
+                .disabled(!canCopy)
 
             Button("Paste", action: paste)
                 .keyboardShortcut("v", modifiers: .command)
+                .disabled(!canPaste)
 
             Divider()
 
             Button("Select All", action: selectAll)
                 .keyboardShortcut("a", modifiers: .command)
+                .disabled(!canSelectAll)
 
             Button("Unselect", action: unselect)
                 .keyboardShortcut("a", modifiers: [.command, .shift])
@@ -401,7 +436,14 @@ private struct PasteboardCommands: Commands {
     }
 
     private func cut() {
-        _ = sendAction(#selector(NSText.cut(_:)))
+        if sendAction(#selector(NSText.cut(_:))) {
+            return
+        }
+        guard documents.editorController?.hasSelection == true else {
+            return
+        }
+        documents.copyCurrentPlainEditorImageToClipboard()
+        documents.editorController?.deleteSelected()
     }
 
     private func copy() {
@@ -421,7 +463,10 @@ private struct PasteboardCommands: Commands {
     }
 
     private func selectAll() {
-        _ = sendAction(#selector(NSText.selectAll(_:)))
+        if sendAction(#selector(NSText.selectAll(_:))) {
+            return
+        }
+        documents.editorController?.selectAll()
     }
 
     private func unselect() {
@@ -431,6 +476,33 @@ private struct PasteboardCommands: Commands {
     @discardableResult
     private func sendAction(_ selector: Selector) -> Bool {
         NSApp.sendAction(selector, to: nil, from: nil)
+    }
+
+    private var canCut: Bool {
+        hasNativeTarget(for: #selector(NSText.cut(_:)))
+            || documents.editorController?.hasSelection == true
+    }
+
+    private var canCopy: Bool {
+        hasNativeTarget(for: #selector(NSText.copy(_:)))
+            || documents.editorController != nil
+    }
+
+    private var canPaste: Bool {
+        hasNativeTarget(for: #selector(NSText.paste(_:)))
+            || (
+                documents.editorController != nil
+                    && NSPasteboard.general.canReadObject(forClasses: [NSImage.self], options: nil)
+            )
+    }
+
+    private var canSelectAll: Bool {
+        hasNativeTarget(for: #selector(NSText.selectAll(_:)))
+            || documents.editorController?.snapshot.annotations.isEmpty == false
+    }
+
+    private func hasNativeTarget(for selector: Selector) -> Bool {
+        NSApp.target(forAction: selector, to: nil, from: nil) != nil
     }
 }
 
@@ -508,12 +580,20 @@ private struct EditorCommands: Commands {
 
             Button("Delete", action: deleteSelection)
                 .keyboardShortcut(.delete, modifiers: [])
-                .disabled(documents.editorController?.selectedCount == 0)
+                .disabled(!canDelete)
         }
     }
 
     private func deleteSelection() {
+        if NSApp.sendAction(#selector(NSResponder.deleteBackward(_:)), to: nil, from: nil) {
+            return
+        }
         documents.editorController?.deleteSelected()
+    }
+
+    private var canDelete: Bool {
+        NSApp.target(forAction: #selector(NSResponder.deleteBackward(_:)), to: nil, from: nil) != nil
+            || (documents.editorController?.selectedCount ?? 0) > 0
     }
 
     private func showLayersWindow() {
@@ -677,7 +757,7 @@ struct SnipSnipSnipApp: App {
         .restorationBehavior(.disabled)
 
         Window("\(AppBranding.displayName) Help", id: AppSceneID.helpWindow) {
-            HelpGuideView(capabilities: model.capabilities)
+            HelpGuideView(capabilities: model.capabilities, capture: model.capture)
         }
         .defaultSize(width: 920, height: 760)
 

@@ -7,7 +7,6 @@ protocol WorkflowLifecyclePresenting: AnyObject {
     func presentError(_ message: String)
     func clearError()
     func updateWorkingMessage(_ message: String)
-    func presentPresentationExperimentalNotice()
     func requestMainWindowPresentation()
     func presentSettings(tab: AppSettingsTab)
 }
@@ -21,13 +20,20 @@ extension WorkflowLifecyclePresenting {
 @MainActor
 final class AppLifecycleModel: ObservableObject {
     @Published var selectedSettingsTab: AppSettingsTab = .general
+    @Published var selectedLibrarySettingsSection: LibrarySettingsSection = .snips
     @Published var onboardingPresentationRequest = 0
     @Published var showsWelcomeCard = false
-    @Published var errorMessage: String?
+    @Published var errorMessage: String? {
+        didSet {
+            if let errorMessage, errorMessage != oldValue {
+                AppAccessibility.announce("Error: \(errorMessage)", priority: .high)
+            }
+        }
+    }
     @Published var mainWindowPresentationRequest = 0
     @Published var workingMessage = "Capturing"
     @Published var isCheckingProUpdates = false
-    @Published var isShowingPresentationExperimentalNotice = false
+    @Published private(set) var onboardingPresentationMode: OnboardingPresentationMode
     @Published var confirmsBeforeQuitting: Bool {
         didSet {
             preferenceStore.saveConfirmsBeforeQuitting(confirmsBeforeQuitting)
@@ -61,6 +67,10 @@ final class AppLifecycleModel: ObservableObject {
         self.proUpdateFetcher = proUpdateFetcher
         self.shouldPresentOnboardingWindowOnLaunch = shouldPresentOnboardingWindowOnLaunch
         self.shouldPresentMainWindowOnLaunch = shouldPresentMainWindowOnLaunch
+        let hasCompletedCurrentOnboarding = preferenceStore.loadCompletedOnboardingVersion(
+            currentVersion: AppLifecycleConstants.currentOnboardingVersion
+        ) >= AppLifecycleConstants.currentOnboardingVersion
+        self.onboardingPresentationMode = hasCompletedCurrentOnboarding ? .replay : .firstRun
     }
 
     var launchAtLoginStatus: LaunchAtLoginStatus {
@@ -96,10 +106,6 @@ final class AppLifecycleModel: ObservableObject {
         workingMessage = message
     }
 
-    func presentPresentationExperimentalNotice() {
-        isShowingPresentationExperimentalNotice = true
-    }
-
     func presentBusyHotKeyFeedback(message: String) {
         updateWorkingMessage(message)
         NSSound.beep()
@@ -126,6 +132,7 @@ final class AppLifecycleModel: ObservableObject {
 
     func requestOnboardingPresentation() {
         shouldOpenMainWindowAfterOnboarding = false
+        onboardingPresentationMode = .replay
         onboardingPresentationRequest += 1
     }
 
@@ -139,14 +146,36 @@ final class AppLifecycleModel: ObservableObject {
         NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
     }
 
+    func presentLibrarySettings(_ section: LibrarySettingsSection) {
+        selectedLibrarySettingsSection = section
+        presentSettings(tab: .library)
+    }
+
     func completeOnboarding(requestMainWindowPresentation: () -> Void) {
         preferenceStore.saveCompletedOnboardingVersion(AppLifecycleConstants.currentOnboardingVersion)
+        preferenceStore.saveOnboardingResumeCheckpoint(nil)
 
         if shouldOpenMainWindowAfterOnboarding {
             requestMainWindowPresentation()
         }
 
         shouldOpenMainWindowAfterOnboarding = false
+    }
+
+    var onboardingResumeCheckpoint: OnboardingResumeCheckpoint? {
+        preferenceStore.loadOnboardingResumeCheckpoint()
+    }
+
+    var hasAcknowledgedOnboardingClipboardChoice: Bool {
+        preferenceStore.loadOnboardingClipboardChoiceAcknowledged()
+    }
+
+    func saveOnboardingResumeCheckpoint(_ checkpoint: OnboardingResumeCheckpoint?) {
+        preferenceStore.saveOnboardingResumeCheckpoint(checkpoint)
+    }
+
+    func acknowledgeOnboardingClipboardChoice() {
+        preferenceStore.saveOnboardingClipboardChoiceAcknowledged(true)
     }
 
     func skipOnboarding(requestMainWindowPresentation: () -> Void) {

@@ -7,11 +7,20 @@ extension DocumentWorkflowModel {
         guard let controller = editorController else {
             return
         }
+        floatCurrentEditorReference(appearance: controller.automationOutputAppearance)
+    }
+
+    func floatCurrentEditorReference(appearance: ScreenshotOutputAppearance) {
+        guard let controller = editorController else {
+            return
+        }
 
         controller.commitPendingTextEdits()
 
-        let usesPresentation = controller.workspaceMode == .presentation
-        guard let image = controller.exportedImage(usingPresentation: usesPresentation) else {
+        let image: CGImage
+        do {
+            image = try controller.exportedImage(appearance: appearance)
+        } catch {
             presentError("The floating reference image could not be rendered.")
             return
         }
@@ -95,8 +104,6 @@ extension DocumentWorkflowModel {
         guard let controller = editorController else {
             editorRenderObserver = nil
             editorPersistenceObserver = nil
-            editorWorkspaceModeObserver = nil
-
             if videoEditorController == nil && guideEditorController == nil {
                 resetEditorSessionState()
             }
@@ -140,23 +147,8 @@ extension DocumentWorkflowModel {
                 self.scheduleAutosave(for: controller)
             }
 
-        editorWorkspaceModeObserver = controller.$workspaceMode
-            .sink { [weak self] mode in
-                self?.handleEditorWorkspaceModeChange(mode)
-            }
-
         updateDocumentChangeTracking()
         refreshRecoveryPresentationState()
-    }
-
-    func handleEditorWorkspaceModeChange(_ mode: EditorWorkspaceMode) {
-        guard mode == .presentation,
-              !hasShownPresentationExperimentalNoticeThisStartup else {
-            return
-        }
-
-        hasShownPresentationExperimentalNoticeThisStartup = true
-        presentPresentationExperimentalNotice()
     }
 
     func copyCurrentEditorImageToClipboard() {
@@ -167,14 +159,8 @@ extension DocumentWorkflowModel {
             return
         }
 
-        pendingAutoCopyTask = Task { [weak self, weak controller] in
-            guard let self, let controller else {
-                return
-            }
-
-            await self.copyRenderedImageToClipboardAsync(from: controller)
-            self.pendingAutoCopyTask = nil
-        }
+        controller.copyAnnotatedImage(appearance: controller.automationOutputAppearance)
+        clipboardMonitor.markCurrentPasteboardChangeAsHandled()
     }
 
     func cancelPendingAutoCopy() {
@@ -183,19 +169,23 @@ extension DocumentWorkflowModel {
     }
 
     func copyCurrentAnnotatedImageToClipboard() {
-        editorController?.copyAnnotatedImage()
+        editorController?.copyAnnotatedImage(appearance: .plain)
         clipboardMonitor.markCurrentPasteboardChangeAsHandled()
     }
 
     func copyCurrentPlainEditorImageToClipboard() {
-        editorController?.copyPlainAnnotatedImage()
+        editorController?.copyAnnotatedImage(appearance: .plain)
+        clipboardMonitor.markCurrentPasteboardChangeAsHandled()
+    }
+
+    func copyCurrentStyledEditorImageToClipboard() {
+        editorController?.copyAnnotatedImage(appearance: .styled)
         clipboardMonitor.markCurrentPasteboardChangeAsHandled()
     }
 
     func resetEditorSessionState() {
         editorRenderObserver = nil
         editorPersistenceObserver = nil
-        editorWorkspaceModeObserver = nil
         videoPersistenceObserver = nil
         textRecognitionCoordinator.cancelAll()
         pendingAutoCopyTask?.cancel()
@@ -225,19 +215,26 @@ extension DocumentWorkflowModel {
         syncMainWindowDocumentState()
     }
 
-    func copyRenderedImageToClipboard(from controller: EditorController) throws {
-        guard let image = controller.exportedImage() else {
-            return
-        }
-
+    func copyRenderedImageToClipboard(
+        from controller: EditorController,
+        appearance: ScreenshotOutputAppearance
+    ) throws {
+        let image = try controller.exportedImage(appearance: appearance)
         try ImageExporter.copyToClipboard(image, pasteboard: systemServices.pasteboard)
         clipboardMonitor.markCurrentPasteboardChangeAsHandled()
     }
 
-    func copyRenderedImageToClipboardAsync(from controller: EditorController) async {
+    func copyRenderedImageToClipboardAsync(
+        from controller: EditorController,
+        appearance: ScreenshotOutputAppearance
+    ) async {
+        var exportSnapshot = controller.snapshot
+        if appearance == .plain {
+            exportSnapshot.presentation = .plain
+        }
         let renderInput = ExportRenderInput(
             baseImage: controller.capture.image,
-            snapshot: controller.snapshot,
+            snapshot: exportSnapshot,
             pinnedUIMapElements: controller.pinnedUIMapElements,
             uiMapOverlayOptions: controller.uiMapOverlayOptions
         )
@@ -271,7 +268,10 @@ extension DocumentWorkflowModel {
                 return
             }
 
-            await self.copyRenderedImageToClipboardAsync(from: controller)
+            await self.copyRenderedImageToClipboardAsync(
+                from: controller,
+                appearance: controller.automationOutputAppearance
+            )
 
             self.pendingAutoCopyTask = nil
         }

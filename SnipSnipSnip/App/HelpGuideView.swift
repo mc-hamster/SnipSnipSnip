@@ -1,5 +1,33 @@
 import SwiftUI
 
+nonisolated enum HelpSearchSelectionPolicy {
+    struct Result: Equatable {
+        let selectedID: String?
+        let preSearchID: String?
+    }
+
+    static func resolve(
+        currentID: String?,
+        preSearchID: String?,
+        oldQuery: String,
+        newQuery: String,
+        matchingIDs: [String],
+        defaultID: String
+    ) -> Result {
+        let oldQuery = oldQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let newQuery = newQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rememberedID = oldQuery.isEmpty && !newQuery.isEmpty ? currentID : preSearchID
+
+        guard !newQuery.isEmpty else {
+            return Result(selectedID: rememberedID ?? defaultID, preSearchID: nil)
+        }
+        if let currentID, matchingIDs.contains(currentID) {
+            return Result(selectedID: currentID, preSearchID: rememberedID)
+        }
+        return Result(selectedID: matchingIDs.first, preSearchID: rememberedID)
+    }
+}
+
 private struct HelpCategory: Identifiable {
     let title: String
     let articles: [HelpArticle]
@@ -51,14 +79,20 @@ struct HelpGuideView: View {
     private static let defaultArticleID = "get-started"
 
     @State private var selectedArticleID: HelpArticle.ID? = Self.defaultArticleID
+    @State private var selectedArticleIDBeforeSearch: HelpArticle.ID?
     @State private var searchText = ""
+    @ObservedObject private var capture: CaptureWorkflowModel
     private let capabilities: AppCapabilitySnapshot
 
-    init(capabilities: AppCapabilitySnapshot) {
+    init(capabilities: AppCapabilitySnapshot, capture: CaptureWorkflowModel) {
         self.capabilities = capabilities
+        self.capture = capture
     }
 
-    private static func categories(for capabilities: AppCapabilitySnapshot) -> [HelpCategory] {
+    private static func categories(
+        for capabilities: AppCapabilitySnapshot,
+        fullscreenDisplayMode: ScreenshotFullscreenDisplayMode
+    ) -> [HelpCategory] {
         let scrollingCaptureEnabled = capabilities.isEnabled(.scrollingCapture)
         let connectedDeviceCaptureEnabled = capabilities.isEnabled(.connectedDeviceCapture)
         let uiMapEnabled = capabilities.isEnabled(.uiMap)
@@ -87,8 +121,10 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "First launch onboarding",
                             steps: [
-                                "The first launch brings a setup window to the front and confirms that SnipSnipSnip is running in your menu bar. Its standard sidebar covers capture basics, UI Map disclosure when available, launch-at-login, an optional Clipboard History choice, support links, and permissions as the final step. Select a sidebar step to review it; status text identifies completed and attention-needed items without relying on color.",
-                                "Screen Recording must be set up before onboarding can be skipped or completed because macOS requires it for screenshot pixels and live window thumbnails.",
+                                "New installations walk through Welcome, Capture Access, an optional guided First Snip, Clipboard History, Discover More, startup behavior, and a final readiness summary. Existing users can replay the walkthrough without changing their choices.",
+                                "Screen Recording must be set up before first-run onboarding can finish because macOS requires it for screenshot pixels and live window thumbnails. The setup resumes at First Snip after a permission-driven restart.",
+                                "Choose Enable or Keep Off for Clipboard History before first-run setup continues. The option to add screenshots that were not copied appears only after Clipboard History is enabled.",
+                                "Try Your First Snip is prominent but optional; choose Skip Tutorial to continue without taking a capture.",
                                 "Open Settings > General > Show Onboarding Again any time to replay it."
                             ]
                         ),
@@ -98,8 +134,8 @@ struct HelpGuideView: View {
                                 "Open SnipSnipSnip from the menu bar icon or the Help menu.",
                                 "Choose Region, Window, or Fullscreen to take a screenshot.",
                                 "Use the editor to crop, annotate, redact, or copy text.",
-                                "Use Float when you want the rendered screenshot to stay above other apps as a temporary reference.",
-                                "Use Copy, Share, or Export when you are ready to send a flattened result.",
+                                "Use Float Plain or Float Styled when you want the selected appearance to stay above other apps as a temporary reference.",
+                                "Choose an explicit Plain or Styled Copy, Share, Export, or Drag action when you are ready to send a flattened result.",
                                 "Use Save or Save As when you want to keep an editable .sss document."
                             ]
                         ),
@@ -142,7 +178,7 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Screen Recording",
-                            body: "Required for screenshot pixels, live window thumbnails, and screen recording. If it is missing, captures can be blank and window previews may not appear.",
+                            body: "Required for screenshot pixels, live window thumbnails, and screen recording. The main capture screen shows the full setup card. While a screenshot, video, or Guide is open, a compact “Screenshot capture unavailable — Set Up” strip remains visible and expands to the full diagnostics when selected or when a capture is attempted.",
                             steps: [
                                 "Click Set Up beside Screen Recording in SnipSnipSnip. If macOS does not show a prompt, SnipSnipSnip opens the Screen Recording settings pane.",
                                 "Allow SnipSnipSnip in System Settings > Privacy & Security > Screen Recording.",
@@ -215,7 +251,7 @@ struct HelpGuideView: View {
                     sections: uiMapEnabled ? [
                         HelpArticleSection(
                             title: "Enable UI Map for Window captures",
-                            body: "UI Map is a SnipSnipSnip Pro feature. Open Settings > General > Screenshot Capture and turn on Enable UI Map for Window captures. Window screenshots then try to save available metadata for visible interface elements in the selected window, including names, labels, identifiers, roles, positions, sizes, parent hierarchy, and owning app. This makes a Window screenshot searchable and inspectable as structured interface data, not just pixels. Settings also controls the default visible details for pinned UI Map overlays; only Show outline is enabled by default."
+                            body: "UI Map is a SnipSnipSnip Pro feature. Open Settings > Capture > Advanced and turn on Enable UI Map for Window captures. Window screenshots then try to save available metadata for visible interface elements in the selected window, including names, labels, identifiers, roles, positions, sizes, parent hierarchy, and owning app. This makes a Window screenshot searchable and inspectable as structured interface data, not just pixels. Settings also controls the default visible details for pinned UI Map overlays; only Show outline is enabled by default."
                         ),
                         HelpArticleSection(
                             title: "Capture behavior",
@@ -267,11 +303,11 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Open clipboard history",
-                            body: "Clipboard History is optional and off by default. Enable it during onboarding or in Settings > Clipboard, then choose Clipboard History from the menu bar icon or use Command-Shift-V. Search is focused when the floating window opens. Press Command-W to close the window."
+                            body: "Clipboard History is optional and off by default. Make an explicit choice during onboarding or enable it in Settings > Library > Clipboard, then choose Clipboard History from the menu bar icon or use Command-Shift-V. Search is focused when the floating window opens. Press Command-W to close the window."
                         ),
                         HelpArticleSection(
                             title: "What appears",
-                            body: "Clipboard History saves copied plain and rich text, links, images, PDFs, files, and non-private SnipSnipSnip screenshots. It preserves compatible original clipboard representations so normal paste can retain formatting and multi-item selections. Settings > Clipboard controls whether screenshots that were not copied are also added. Private Capture screenshots are never added."
+                            body: "Clipboard History saves copied plain and rich text, links, images, PDFs, files, and non-private SnipSnipSnip screenshots. It preserves compatible original clipboard representations so normal paste can retain formatting and multi-item selections. Settings > Library > Clipboard controls whether screenshots that were not copied are also added. Private Capture screenshots are never added."
                         ),
                         HelpArticleSection(
                             title: "Copy and paste actions",
@@ -283,11 +319,11 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Pause and retention",
-                            body: "Use the Recording menu in Clipboard History or Settings > Clipboard to pause monitoring for five minutes, one hour, or until restart. Settings also controls unpinned item retention, the item and storage targets, and the maximum size accepted for a single item. Clear actions require confirmation."
+                            body: "Use the Recording menu in Clipboard History or Settings > Library > Clipboard to pause monitoring for five minutes, one hour, or until restart. Settings also controls unpinned item retention, the item and storage targets, and the maximum size accepted for a single item. Clear actions require confirmation."
                         ),
                         HelpArticleSection(
                             title: "Ignore apps",
-                            body: "Open Settings > Clipboard to manage ignored apps. Use Ignore Running App for apps that are currently open, Choose App to pick an app from Applications, or Ignore beside a recent clipboard source."
+                            body: "Open Settings > Library > Clipboard to manage ignored apps. Use Ignore Running App for apps that are currently open, Choose App to pick an app from Applications, or Ignore beside a recent clipboard source."
                         ),
                         HelpArticleSection(
                             title: "Privacy defaults",
@@ -325,7 +361,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Configure rulers",
-                            body: "Settings > General > Screen Ruler controls opacity, tick spacing, major tick frequency, horizontal and vertical tick edges, zero-origin positions, half markers, and mouse-distance labels for all open rulers."
+                            body: "Settings > Capture > Screen Ruler controls opacity, tick spacing, major tick frequency, horizontal and vertical tick edges, zero-origin positions, half markers, and mouse-distance labels for all open rulers."
                         )
                     ],
                     important: [
@@ -342,7 +378,7 @@ struct HelpGuideView: View {
                             title: "Open the inspector",
                             bullets: [
                                 "Choose Screen Inspector from the menu bar icon or the Capture menu.",
-                                "Use Command-Shift-I by default, or change the shortcut in Settings > Shortcuts.",
+                                "Use Command-Shift-8 by default, or change the shortcut in Settings > Shortcuts.",
                                 "The inspector floats above other apps so you can keep working while it follows the cursor."
                             ]
                         ),
@@ -385,7 +421,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Capture a workflow",
                             steps: [
-                                "Choose Guide from the main window, Capture menu, menu bar, or press Command-Shift-G.",
+                                "Choose Guide from the main window, Capture menu, menu bar, or press Command-Shift-9.",
                                 "Choose what you want to make: an editable step-by-step Guide, or a Guide that also keeps full-motion video for a complete walkthrough or action highlights.",
                                 "If you keep video, choose whether it should be silent, use your microphone narration, include app audio, or record narration and app audio together. Guide derives the recording settings from that choice. Audio is captured live; a silent source video cannot be given audio later in the Guide editor.",
                                 "Choose Number each step to make every captured step start with a visible number. Leave it off for unnumbered steps. In either case, you can show or hide the number later for any individual step in the Step inspector.",
@@ -397,7 +433,7 @@ struct HelpGuideView: View {
                                 "Use the floating HUD to pause, add a manual step, delete a recent step, stop, or discard. Discard closes the HUD immediately while Guide removes the live capture and its recovery checkpoint. Its System Audio and Mic controls use the same live meters and switches as the recording controls; turn either source on or off for the active Guide while it is recording. The newest 20 step previews stay available in the HUD without making a long session progressively heavier; all earlier steps remain in the Guide. Hover a preview to see a larger version with its step number and captured instruction. When source video needs a moment to close safely, the HUD replaces the recording timer with the real finalization stage: stopping media, preparing the document, rendering the preview, or saving recovery. It does not invent a time estimate.",
                                 "Guide checks capture permissions and temporary storage during long sessions. If permission changes, the capture stream stops, or disk headroom becomes low, Guide pauses and explains the issue in the HUD. Restore the permission or free space, then choose Resume; completed steps and finalized video segments stay intact.",
                                 "Stop always ends capture. If no steps were recorded, it discards the empty Guide instead of opening the editor.",
-                                "Press Command-Shift-G again to stop and open the Guide editor."
+                                "Press Command-Shift-9 again to stop and open the Guide editor."
                             ]
                         ),
                         HelpArticleSection(
@@ -512,7 +548,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Use precision region controls",
-                            body: "Settings > General > Screenshot Capture includes Enable Precision Region Controls. Leave it off for basic drag-to-capture. Turn it on when you want region capture to pause after dragging so you can resize with handles, type width and height, lock the aspect ratio, nudge with arrow keys, press Return to capture, or press Esc to cancel."
+                            body: "Settings > Capture offers three region commit modes. Capture Immediately finishes as soon as you release the pointer. Show Capture & Cancel pauses with simple confirmation controls. Show Precision Controls adds handles, numeric width and height, aspect-ratio lock, arrow-key nudging, Return to capture, and Escape to cancel. Existing preferences and presets keep their prior behavior."
                         ),
                         HelpArticleSection(
                             title: "Capture a window",
@@ -525,7 +561,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Capture the screen",
-                            body: "Choose Fullscreen to capture the current display by default. Settings > General > Screenshot Capture can switch fullscreen screenshots to a selected display or all displays. Choose Repeat Last Capture to rerun the previous capture when the target can still be found. When captured content opens or resizes the editor, the main window keeps the placement you chose and only moves as much as needed to remain on-screen."
+                            body: "Choose Fullscreen to use your setting in Settings > Capture. \(fullscreenDisplayMode.detail) Choose Repeat Last Capture or press Command-Shift-7 to rerun the previous capture when the target can still be found. When captured content opens or resizes the editor, the main window keeps the placement you chose and only moves as much as needed to remain on-screen."
                         ),
                     ] + (connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(
@@ -547,7 +583,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Include an editable cursor",
-                            body: "Turn on Include Cursor from the Capture menu, menu bar extra, or Settings > General > Screenshot Capture. Region, window, frontmost-window, fullscreen, and repeat screenshots add the cursor as an editable overlay that you can move, resize, fade, or delete. Region capture keeps the fast drag-to-capture default unless you enable Precision Region Controls in Settings. Scrolling Capture always excludes the cursor while stitching."
+                            body: "Turn on Include Cursor from the Capture menu, menu bar extra, or Settings > Capture. Region, window, frontmost-window, fullscreen, and repeat screenshots add the cursor as an editable overlay that you can move, resize, fade, or delete. Region capture follows the selected region commit mode in Settings. Scrolling Capture always excludes the cursor while stitching."
                         )
                     ],
                     important: [],
@@ -646,7 +682,13 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Select and arrange annotations",
-                            body: "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. Use the trash button in Layers and Arrangement, press Delete, or right-click an annotation and choose Delete. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing, moving, and resizing."
+                            body: "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. Use the trash button in Layers and Arrangement, press Delete, or right-click an annotation and choose Delete. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing, moving, and resizing.",
+                            bullets: [
+                                "With VoiceOver or Full Keyboard Access, Tab and Shift-Tab traverse annotations from front to back. Space selects and Shift-Space toggles additive selection; Escape returns focus to the canvas.",
+                                "Arrow keys move a selected annotation by 1 pixel and Shift-arrows move it by 10. Option-arrows resize by 1 pixel and Shift-Option-arrows resize by 10.",
+                                "Each accessible annotation provides actions for selection, editing text when applicable, duplication, deletion, layer ordering, and grouping. Redacted content is never announced.",
+                                "Layers remains the complete accessible alternative for selection and arrangement."
+                            ]
                         ),
                         HelpArticleSection(
                             title: "Use the inspector",
@@ -654,7 +696,7 @@ struct HelpGuideView: View {
                         )
                     ],
                     important: [
-                        "The editor keeps the base screenshot separate from annotation state. Copy, Share, and Export create the flattened rendered result."
+                        "The editor keeps the base screenshot separate from annotation state. Every Copy, Share, Export, Float, and drag-out action names whether it creates Plain or Styled output."
                     ],
                     relatedIDs: ["floating-references", "crop-navigate", "annotate-style", "redact"]
                 ),
@@ -666,8 +708,8 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Create a floating reference",
                             bullets: [
-                                "Click Float in the lower editor command row to pin the current annotated screenshot without the Presentation wrapper.",
-                                "In Presentation mode, click Float to pin the styled presentation output.",
+                                "Click Float Plain in the Edit workspace to pin the annotated screenshot without the Presentation wrapper.",
+                                "In Presentation mode, click Float Styled to pin the styled presentation output.",
                                 "Choose Reference > Float Current Screenshot when you prefer the menu command; it follows the active editor workspace.",
                                 "Open a Change History, Recent Snip, Capture History, or Recycle Bin preview and click Float Reference to pin that snapshot."
                             ]
@@ -823,11 +865,11 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Use Copy or Share",
-                            body: "Use Copy in the lower editor command row to copy the plain annotated screenshot with crop, annotations, pinned UI Map overlays, and flattened redactions. In Presentation mode, use Copy Styled to copy the styled presentation output. Presentation styling changes do not auto-copy while you are in Presentation mode; use Copy Styled when you want the current styled result on the clipboard."
+                            body: "In the Edit workspace, Copy Plain is the primary action and its menu also offers Copy Styled. Export and Share expose separate Plain and Styled choices. Plain includes crop, annotations, pinned UI Map overlays, and flattened redactions while forcing Presentation off. Styled requires a configured Presentation style or scene. In Presentation, Styled actions are primary and Plain variants remain in secondary menus. Presentation styling changes do not auto-copy; Auto Copy behavior is unchanged."
                         ),
                         HelpArticleSection(
                             title: "Export screenshots",
-                            body: "Choose Presentation in the lower editor command row to switch into a focused export workspace. The first time you enter Presentation mode after each app startup, SnipSnipSnip shows an experimental-feature notice with a Discord feedback link. Presentation mode replaces the tool row with Back to Edit while retaining zoom, Save Variant, Copy Styled, Export, Share, Float, and drag-out actions. Float in Presentation mode opens the styled result; Float after returning to edit opens the plain annotated editor result. The Style tab handles fast native polish such as transparent, solid, gradient, spotlight, or blurred-screenshot backgrounds, spacing, corners, and shadows. Use the Scene tab for browser, window, phone, tablet, and other template-driven layouts. Transparent presentation output uses PNG so rounded corners and shadows can stay on alpha."
+                            body: "Choose Presentation in the lower editor command row to switch into a focused export workspace. An accessible Beta badge identifies the feature without interrupting every startup; use Send Presentation Feedback in the inspector footer to share feedback. Presentation mode replaces the tool row with Back to Edit while retaining zoom, Save Variant, Copy Styled, explicit Styled and Plain Export and Share options, Float Styled, and Drag Styled. Back to Edit preserves styling and changes only the workspace. The Style tab handles native polish such as transparent, solid, gradient, spotlight, or blurred-screenshot backgrounds, spacing, corners, and shadows. Use the Scene tab for browser, window, phone, tablet, and other layouts. Transparent Styled output forces PNG without disabling Plain JPEG or PDF."
                         ),
                         HelpArticleSection(
                             title: "Use Presentation Scenes",
@@ -843,7 +885,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Manage scene files",
-                            body: "The Scene tab includes Scene Files controls for revealing the User scenes folder and reloading scene files. Settings > General > Editor still lets you choose, reveal, reset, or reload the root Presentation Scenes folder. The default folder contains Bundled and User subfolders. Add custom SVG files to User. Bundled scenes use a metadata block with schema com.oontz.snipsnipsnip.presentation-scene and data-sss-slot markers; remote URLs, file URLs, scripts, foreignObject, animation, and event handlers are rejected. Scene diagnostics appear only when there is something to review."
+                            body: "The Scene tab includes Scene Files controls for revealing the User scenes folder and reloading scene files. Settings > Editor & Output lets you choose, reveal, reset, or reload the root Presentation Scenes folder. The default folder contains Bundled and User subfolders. Add custom SVG files to User. Bundled scenes use a metadata block with schema com.oontz.snipsnipsnip.presentation-scene and data-sss-slot markers; remote URLs, file URLs, scripts, foreignObject, animation, and event handlers are rejected. Scene diagnostics appear only when there is something to review."
                         ),
                         HelpArticleSection(
                             title: "Import from Finder or Photos",
@@ -851,7 +893,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Drag output into another app",
-                            body: "Drag the file icon beside Share to send the current rendered screenshot to Finder, Mail, or another app. If you click without dragging, SnipSnipSnip shows a short reminder explaining how to use drag-out sharing. During the drag, the editor window temporarily hides so you can reach the destination, then returns when the drag finishes. Settings > General > Export & Sharing controls whether screenshot drag-out normally uses PNG, JPEG, or PDF and sets JPEG quality. Transparent presentation shadows automatically use PNG so the result stays faithful."
+                            body: "Drag Plain in Edit or Drag Styled in Presentation to send the named appearance to Finder, Mail, or another app. If you click without dragging, SnipSnipSnip shows a short reminder. During the drag, the editor window temporarily hides so you can reach the destination, then returns when the drag finishes. Settings > Editor & Output controls whether screenshot drag-out normally uses PNG, JPEG, or PDF and sets JPEG quality. Transparent Styled output automatically uses PNG so the result stays faithful."
                         ),
                         HelpArticleSection(
                             title: "Save editable work",
@@ -859,7 +901,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Filename suggestions",
-                            body: "Settings > General controls filename templates for Save As and export. Supported tokens include {kind}, {source}, {width}, {height}, {format}, and date patterns such as {yyyy-MM-dd-HH-mm-ss}."
+                            body: "Settings > Editor & Output controls filename templates for Save As and export. Supported tokens include {kind}, {source}, {width}, {height}, {format}, and date patterns such as {yyyy-MM-dd-HH-mm-ss}. Plain exports use the -edited suffix and Styled exports use -styled; save panels identify the selected appearance."
                         )
                     ],
                     important: [
@@ -909,7 +951,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Restore deleted snips",
-                            body: "Deleted snips move to the Recycle Bin first. Preview and restore them from the main capture screen or the bottom of the editor inspector before retention cleanup removes them."
+                            body: "Deleted snips move to the Recycle Bin first. Preview and restore them from the main capture screen or the bottom of the editor inspector before retention cleanup removes them. New installations and Reset Defaults use 30 days. Configure any value from 1 through 180 days in Settings > Library > Snips; Empty Now and scheduled cleanup behavior are unchanged."
                         )
                     ],
                     important: [
@@ -933,7 +975,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Private Capture",
-                            body: "Private Capture keeps the current capture out of archive checkpoints, Recent Snips recovery, Recycle Bin retention, and background OCR indexing. The setting is locked while a capture or recording is active."
+                            body: "Private Capture keeps the current capture out of archive history, Recent Snips, the Recycle Bin, Clipboard History, and background OCR indexing. The setting is locked while a capture or recording is active."
                         ),
                         HelpArticleSection(
                             title: "Rendered output",
@@ -960,7 +1002,7 @@ struct HelpGuideView: View {
                             bullets: [
                                 "Use the menu bar icon > Screen Ruler to add horizontal and vertical rulers.",
                                 "Use the menu bar icon > Screen Inspector to inspect live pixels, colors, and coordinates.",
-                                "Use Settings > General to adjust ruler appearance and inspector display options."
+                                "Use Settings > Capture to adjust ruler appearance and inspector display options."
                             ]
                         )
                     ],
@@ -1055,13 +1097,19 @@ struct HelpGuideView: View {
     }
 
     private var allArticles: [HelpArticle] {
-        Self.categories(for: capabilities).flatMap(\.articles)
+        Self.categories(
+            for: capabilities,
+            fullscreenDisplayMode: capture.screenshotFullscreenDisplayMode
+        ).flatMap(\.articles)
     }
 
     private var displayedCategories: [HelpCategory] {
         let normalizedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedQuery.isEmpty else {
-            return Self.categories(for: capabilities)
+            return Self.categories(
+                for: capabilities,
+                fullscreenDisplayMode: capture.screenshotFullscreenDisplayMode
+            )
         }
 
         let matches = allArticles.filter { article in
@@ -1071,17 +1119,25 @@ struct HelpGuideView: View {
         return [HelpCategory(title: "Search Results", articles: matches)]
     }
 
-    private var selectedArticle: HelpArticle {
+    private var displayedArticles: [HelpArticle] {
+        displayedCategories.flatMap(\.articles)
+    }
+
+    private var selectedArticle: HelpArticle? {
         if let selectedArticleID,
-           let article = allArticles.first(where: { $0.id == selectedArticleID }) {
+           let article = displayedArticles.first(where: { $0.id == selectedArticleID }) {
             return article
         }
 
-        return allArticles[0]
+        return displayedArticles.first
     }
 
     private var relatedArticles: [HelpArticle] {
-        selectedArticle.relatedIDs.compactMap { id in
+        guard let selectedArticle else {
+            return []
+        }
+
+        return selectedArticle.relatedIDs.compactMap { id in
             allArticles.first(where: { $0.id == id })
         }
     }
@@ -1105,16 +1161,41 @@ struct HelpGuideView: View {
             }
             .listStyle(.sidebar)
             .searchable(text: $searchText, placement: .sidebar, prompt: "Search Help")
+            .onChange(of: searchText) { oldValue, newValue in
+                updateSelectionForSearchChange(from: oldValue, to: newValue)
+            }
             .navigationTitle("\(AppBranding.displayName) Help")
             .navigationSplitViewColumnWidth(min: 220, ideal: 270, max: 340)
         } detail: {
-            HelpArticleView(
-                article: selectedArticle,
-                relatedArticles: relatedArticles,
-                onSelectRelated: { selectedArticleID = $0.id }
-            )
+            if let selectedArticle {
+                HelpArticleView(
+                    article: selectedArticle,
+                    relatedArticles: relatedArticles,
+                    onSelectRelated: { selectedArticleID = $0.id }
+                )
+            } else {
+                ContentUnavailableView.search(text: searchText)
+                    .accessibilityIdentifier("help.search.noResults")
+            }
         }
         .background(Color(nsColor: .textBackgroundColor))
+    }
+
+    private func updateSelectionForSearchChange(from oldValue: String, to newValue: String) {
+        let newQuery = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let matches = allArticles.filter {
+            $0.searchText.localizedCaseInsensitiveContains(newQuery)
+        }
+        let result = HelpSearchSelectionPolicy.resolve(
+            currentID: selectedArticleID,
+            preSearchID: selectedArticleIDBeforeSearch,
+            oldQuery: oldValue,
+            newQuery: newValue,
+            matchingIDs: matches.map(\.id),
+            defaultID: Self.defaultArticleID
+        )
+        selectedArticleID = result.selectedID
+        selectedArticleIDBeforeSearch = result.preSearchID
     }
 }
 
