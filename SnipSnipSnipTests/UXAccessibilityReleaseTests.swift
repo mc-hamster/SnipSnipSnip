@@ -66,14 +66,22 @@ final class UXAccessibilityReleaseTests: XCTestCase {
 
             XCTAssertNil(store.loadOnboardingResumeCheckpoint())
             XCTAssertFalse(store.loadOnboardingClipboardChoiceAcknowledged())
+            XCTAssertFalse(store.loadPostOnboardingDiscoveryPending())
 
-            store.saveOnboardingResumeCheckpoint(.firstSnip)
+            store.saveOnboardingResumeCheckpoint(.clipboard)
             store.saveOnboardingClipboardChoiceAcknowledged(true)
-            XCTAssertEqual(store.loadOnboardingResumeCheckpoint(), .firstSnip)
+            store.savePostOnboardingDiscoveryPending(true)
+            XCTAssertEqual(store.loadOnboardingResumeCheckpoint(), .clipboard)
             XCTAssertTrue(store.loadOnboardingClipboardChoiceAcknowledged())
+            XCTAssertTrue(store.loadPostOnboardingDiscoveryPending())
+
+            defaults.set("firstSnip", forKey: AppModelPreferenceKey.onboardingResumeCheckpoint)
+            XCTAssertEqual(store.loadOnboardingResumeCheckpoint()?.currentStep, .clipboard)
 
             store.saveOnboardingResumeCheckpoint(nil)
+            store.savePostOnboardingDiscoveryPending(false)
             XCTAssertNil(store.loadOnboardingResumeCheckpoint())
+            XCTAssertFalse(store.loadPostOnboardingDiscoveryPending())
         }
     }
 

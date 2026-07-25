@@ -6,7 +6,18 @@ nonisolated enum OnboardingPresentationMode: Equatable {
 }
 
 nonisolated enum OnboardingResumeCheckpoint: String {
+    case clipboard
+
+    // Retained so an interrupted setup from the earlier onboarding flow can
+    // still resume safely after updating.
     case firstSnip
+
+    var currentStep: OnboardingResumeCheckpoint {
+        switch self {
+        case .clipboard, .firstSnip:
+            return .clipboard
+        }
+    }
 }
 
 nonisolated enum OnboardingCompletionPolicy {
@@ -156,6 +167,7 @@ nonisolated enum AppModelPreferenceKey {
     static let completedOnboardingVersion = "appModel.completedOnboardingVersion"
     static let onboardingResumeCheckpoint = "appModel.onboardingResumeCheckpoint"
     static let onboardingClipboardChoiceAcknowledged = "appModel.onboardingClipboardChoiceAcknowledged"
+    static let postOnboardingDiscoveryPending = "appModel.postOnboardingDiscoveryPending"
     static let editorCropOutsideOverlayAlpha = "appModel.editorCropOutsideOverlayAlpha"
     static let editorOutOfCapturePatternSettings = "appModel.editorOutOfCapturePatternSettings"
     static let presentationScenesRootPath = "appModel.presentationScenesRootPath"

@@ -35,10 +35,12 @@ This document is the required design reference for user-visible SwiftUI and AppK
 
 ### Onboarding
 
-- Use a standard setup sidebar with native selection and a grouped-form detail area.
+- Keep first-run setup to the smallest sequence of required decisions. Use a compact native progress indicator for short linear setup flows instead of dedicating window width to a persistent sidebar.
+- Present replay as a single grouped-form setup summary so existing users can review or update choices without repeating the first-run sequence.
 - Use one accent color for selection and primary actions.
 - Show On/Off, Allowed/Needs Setup, or other status text when a step has meaningful state.
-- Keep Back, Skip, and Continue in a functional footer. Continue is the sole prominent action.
+- Keep Back and Continue in a functional footer. Continue is the sole prominent action, and permission setup or restart replaces Continue when it is required.
+- Place optional capability discovery behind a native disclosure during setup and follow first-run completion with a concise, dismissible exploration card in the main capture window.
 - Do not use full-window decorative gradients, colored glow fields, per-step accent themes, or content Glass cards.
 
 ### Sheets and setup flows

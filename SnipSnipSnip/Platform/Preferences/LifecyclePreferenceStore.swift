@@ -43,6 +43,14 @@ nonisolated struct LifecyclePreferenceStore {
         storage.set(acknowledged, forKey: AppModelPreferenceKey.onboardingClipboardChoiceAcknowledged)
     }
 
+    func loadPostOnboardingDiscoveryPending() -> Bool {
+        storage.bool(forKey: AppModelPreferenceKey.postOnboardingDiscoveryPending)
+    }
+
+    func savePostOnboardingDiscoveryPending(_ pending: Bool) {
+        storage.set(pending, forKey: AppModelPreferenceKey.postOnboardingDiscoveryPending)
+    }
+
     func saveWelcomeCardDismissed() {
         storage.set(true, forKey: AppModelPreferenceKey.hasDismissedWelcomeCard)
     }

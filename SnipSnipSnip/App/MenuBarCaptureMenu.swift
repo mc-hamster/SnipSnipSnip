@@ -74,6 +74,7 @@ struct CapturePresetMenuContent: View {
     @ObservedObject var capture: CaptureWorkflowModel
     @ObservedObject var video: VideoWorkflowModel
     @ObservedObject var lifecycle: AppLifecycleModel
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         if capture.capturePresets.isEmpty {
@@ -102,11 +103,10 @@ struct CapturePresetMenuContent: View {
         Button("Save Last Capture as Preset...", action: capture.beginSavingLastCaptureAsPreset)
             .disabled(!capture.canSaveLastCaptureAsPreset || isCaptureActionDisabled)
 
-        SettingsLink {
-            Text("Manage Presets...")
-        }
-        .onAppear {
+        Button("Manage Presets...") {
             lifecycle.selectedSettingsTab = .presets
+            openSettings()
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
 

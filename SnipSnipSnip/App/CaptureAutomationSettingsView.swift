@@ -938,6 +938,9 @@ struct CaptureAutomationSettingsView: View {
         } message: {
             Text("This permanently removes pinned and unpinned clipboard items from this Mac.")
         }
+        .onDisappear {
+            lifecycle.selectedSettingsTab = .general
+        }
     }
 
     private var supportDiagnosticsSnapshot: SupportDiagnosticsSnapshot {

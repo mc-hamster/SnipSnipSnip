@@ -1172,6 +1172,46 @@ final class AppModelTests: XCTestCase {
         XCTAssertFalse(reloadedModel.consumeOnboardingWindowPresentationFlag())
     }
 
+    func testFirstRunCompletionShowsDismissibleDiscoveryOnlyUntilDismissed() {
+        let suiteName = "AppModelTests.postOnboardingDiscovery"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+
+        XCTAssertFalse(model.showsWelcomeCard)
+        model.completeOnboarding()
+        XCTAssertTrue(model.showsWelcomeCard)
+        XCTAssertTrue(defaults.bool(forKey: AppModelPreferenceKey.postOnboardingDiscoveryPending))
+
+        let reloaded = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        XCTAssertTrue(reloaded.showsWelcomeCard)
+
+        reloaded.lifecycle.dismissWelcomeCard()
+        XCTAssertFalse(reloaded.showsWelcomeCard)
+
+        let dismissedReload = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        XCTAssertFalse(dismissedReload.showsWelcomeCard)
+    }
+
     func testLegacyWelcomePreferencesSuppressOnboardingMigration() {
         let suiteName = "AppModelTests.legacyWelcomeMigration"
         let defaults = makeDefaults(named: suiteName)
@@ -1187,6 +1227,30 @@ final class AppModelTests: XCTestCase {
         )
 
         XCTAssertFalse(model.consumeOnboardingWindowPresentationFlag())
+        XCTAssertFalse(model.showsWelcomeCard)
+    }
+
+    func testReplayCompletionDoesNotIntroduceDiscoveryForExistingUsers() {
+        let suiteName = "AppModelTests.replayDoesNotAddDiscovery"
+        let defaults = makeDefaults(named: suiteName)
+        defaults.set(
+            AppLifecycleConstants.currentOnboardingVersion,
+            forKey: AppModelPreferenceKey.completedOnboardingVersion
+        )
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+
+        model.completeOnboarding()
+
+        XCTAssertFalse(model.showsWelcomeCard)
+        XCTAssertFalse(defaults.bool(forKey: AppModelPreferenceKey.postOnboardingDiscoveryPending))
     }
 
     func testResetPreferencesToDefaultsPreservesCompletedOnboardingVersion() {

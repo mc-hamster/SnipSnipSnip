@@ -383,7 +383,7 @@ nonisolated struct ClipboardPreferences: Codable, Equatable, Sendable {
         ignoredApps: defaultIgnoredApps,
         retentionDays: 0,
         maxItemSizeMB: 25,
-        recordsUncopiedSnips: false
+        recordsUncopiedSnips: true
     )
 
     var isEnabled: Bool

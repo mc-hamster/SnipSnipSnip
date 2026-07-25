@@ -735,16 +735,9 @@ struct SnipSnipSnipApp: App {
         Window("Welcome to \(AppBranding.displayName)", id: AppSceneID.onboardingWindow) {
             OnboardingView(
                 lifecycle: model.lifecycle,
-                capture: model.capture,
                 permissions: model.permissions,
                 clipboard: model.clipboard,
-                guide: model.guide,
                 capabilities: model.capabilities,
-                skipOnboarding: {
-                    model.lifecycle.skipOnboarding(
-                        requestMainWindowPresentation: model.workflowCoordinator.requestMainWindowPresentation
-                    )
-                },
                 completeOnboarding: {
                     model.lifecycle.completeOnboarding(
                         requestMainWindowPresentation: model.workflowCoordinator.requestMainWindowPresentation
@@ -752,8 +745,11 @@ struct SnipSnipSnipApp: App {
                 }
             )
         }
-        .defaultSize(width: 980, height: 700)
-        .windowResizability(.contentSize)
+        .defaultSize(
+            width: OnboardingWindowLayout.idealSize.width,
+            height: OnboardingWindowLayout.idealSize.height
+        )
+        .windowResizability(.contentMinSize)
         .restorationBehavior(.disabled)
 
         Window("\(AppBranding.displayName) Help", id: AppSceneID.helpWindow) {

@@ -121,11 +121,11 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "First launch onboarding",
                             steps: [
-                                "New installations walk through Welcome, Capture Access, an optional guided First Snip, Clipboard History, Discover More, startup behavior, and a final readiness summary. Existing users can replay the walkthrough without changing their choices.",
-                                "Screen Recording must be set up before first-run onboarding can finish because macOS requires it for screenshot pixels and live window thumbnails. The setup resumes at First Snip after a permission-driven restart.",
-                                "Choose Enable or Keep Off for Clipboard History before first-run setup continues. The option to add screenshots that were not copied appears only after Clipboard History is enabled.",
-                                "Try Your First Snip is prominent but optional; choose Skip Tutorial to continue without taking a capture.",
-                                "Open Settings > General > Show Onboarding Again any time to replay it."
+                                "New installations use a three-step setup: Capture Access, Clipboard History, and Ready. The compact progress indicator shows where you are without adding a separate navigation sidebar.",
+                                "Screen Recording must be set up before first-run onboarding can finish because macOS requires it for screenshot pixels and live window thumbnails. After a permission-driven restart, setup resumes at Clipboard History.",
+                                "Choose Enable or Keep Off in the Clipboard History radio group before first-run setup continues. The selected option stays visibly marked. When Clipboard History is enabled, adding screenshots that were not copied is on by default for new and reset installations.",
+                                "The Ready step contains Launch at Login, the essential capture shortcuts, and an optional More Tools disclosure. Finish setup without taking a tutorial capture.",
+                                "After first-run setup, a dismissible Explore More card introduces advanced capabilities in the main capture window. Open Settings > General > Show Onboarding Again to review every setup choice on one summary page."
                             ]
                         ),
                         HelpArticleSection(
@@ -307,7 +307,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "What appears",
-                            body: "Clipboard History saves copied plain and rich text, links, images, PDFs, files, and non-private SnipSnipSnip screenshots. It preserves compatible original clipboard representations so normal paste can retain formatting and multi-item selections. Settings > Library > Clipboard controls whether screenshots that were not copied are also added. Private Capture screenshots are never added."
+                            body: "Clipboard History saves copied plain and rich text, links, images, PDFs, files, and non-private SnipSnipSnip screenshots. It preserves compatible original clipboard representations so normal paste can retain formatting and multi-item selections. Adding screenshots that were not copied is on by default for new and reset installations, and Settings > Library > Clipboard controls it. Private Capture screenshots are never added."
                         ),
                         HelpArticleSection(
                             title: "Copy and paste actions",

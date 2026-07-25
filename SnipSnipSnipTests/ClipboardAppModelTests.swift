@@ -45,7 +45,7 @@ final class ClipboardAppModelTests: XCTestCase {
         let preferences = ClipboardWorkflowModel.loadClipboardPreferences(from: defaults)
 
         XCTAssertFalse(preferences.isEnabled)
-        XCTAssertFalse(preferences.recordsUncopiedSnips)
+        XCTAssertTrue(preferences.recordsUncopiedSnips)
     }
 
     func testCompletedCaptureRecordsSnipWhenAutoCopyIsDisabled() async throws {
@@ -182,6 +182,29 @@ final class ClipboardAppModelTests: XCTestCase {
         XCTAssertFalse(reloaded.recordsUncopiedSnips)
         XCTAssertTrue(reloaded.ignoredApps.contains(where: { $0.match == "com.example.SecretApp" }))
         XCTAssertTrue(reloaded.ignoredApps.contains(where: { $0.match == "com.mseven.mSecure" }))
+    }
+
+    func testResetDefaultsRestoresUncopiedScreenshotRecording() {
+        let suiteName = "ClipboardAppModelTests.resetUncopiedScreenshotDefault"
+        let storeName = "ClipboardAppModelTests.resetUncopiedScreenshotDefault.store"
+        let defaults = makeDefaults(named: suiteName)
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+            removeClipboardStore(named: storeName)
+        }
+
+        let model = retainForTestLifetime(AppModel(
+            defaults: defaults,
+            recoveryStore: makeRecoveryStore(named: "ClipboardAppModelTests.resetUncopiedScreenshotDefault.recovery"),
+            clipboardHistoryStore: makeClipboardStore(named: storeName),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        ))
+        model.clipboard.updateRecordsUncopiedSnips(false)
+
+        model.resetPreferencesToDefaults()
+
+        XCTAssertTrue(model.clipboard.preferences.recordsUncopiedSnips)
     }
 }
 

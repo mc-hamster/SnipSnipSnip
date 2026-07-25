@@ -1847,10 +1847,39 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertTrue(view.contains("@ObservedObject var capture: CaptureWorkflowModel"))
         XCTAssertTrue(view.contains("@ObservedObject var video: VideoWorkflowModel"))
         XCTAssertTrue(view.contains("@ObservedObject var lifecycle: AppLifecycleModel"))
+        XCTAssertTrue(view.contains("@Environment(\\.openSettings) private var openSettings"))
+        XCTAssertTrue(view.contains("lifecycle.selectedSettingsTab = .presets"))
+        XCTAssertTrue(view.contains("openSettings()"))
+        XCTAssertFalse(
+            view.contains(".onAppear"),
+            "Merely presenting the Presets menu must not change the default Settings destination."
+        )
         XCTAssertFalse(
             view.contains("AppModel"),
             "CapturePresetMenuContent should not observe the app shell."
         )
+    }
+
+    func testNativeSettingsCommandIsNotDuplicatedAndSettingsResetToGeneralWhenDismissed() throws {
+        let app = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/SnipSnipSnipApp.swift"),
+            encoding: .utf8
+        )
+        let commandStart = try XCTUnwrap(app.range(of: "private struct AppLifecycleCommands: Commands"))
+        let commandEnd = try XCTUnwrap(
+            app.range(of: "private struct HelpCommands: Commands", range: commandStart.upperBound..<app.endIndex)
+        )
+        let commands = String(app[commandStart.lowerBound..<commandEnd.lowerBound])
+
+        XCTAssertFalse(commands.contains(".appSettings"))
+        XCTAssertFalse(commands.contains("openSettings()"))
+
+        let settings = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/App/CaptureAutomationSettingsView.swift"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(settings.contains(".onDisappear"))
+        XCTAssertTrue(settings.contains("lifecycle.selectedSettingsTab = .general"))
     }
 
     func testAppCommandSurfacesReceiveExplicitWorkflowsInsteadOfObservingAppModel() throws {
@@ -1960,16 +1989,17 @@ final class AppArchitecturePlatformTests: XCTestCase {
             "Onboarding should observe lifecycle workflow state directly."
         )
         XCTAssertTrue(
-            onboarding.contains("@ObservedObject var capture: CaptureWorkflowModel"),
-            "Onboarding should observe capture workflow UI Map state directly."
-        )
-        XCTAssertTrue(
             onboarding.contains("@ObservedObject var permissions: PermissionWorkflowModel"),
             "Onboarding should observe permission workflow state directly."
         )
         XCTAssertTrue(
             onboarding.contains("@ObservedObject var clipboard: ClipboardWorkflowModel"),
             "Onboarding should receive the clipboard workflow directly for the opt-in choice."
+        )
+        XCTAssertFalse(
+            onboarding.contains("@ObservedObject var capture: CaptureWorkflowModel")
+                || onboarding.contains("@ObservedObject var guide: GuideWorkflowModel"),
+            "The compact setup assistant should not retain feature workflows it no longer configures."
         )
         XCTAssertFalse(
             onboarding.contains("AppModel"),
@@ -2099,13 +2129,53 @@ final class AppArchitecturePlatformTests: XCTestCase {
             contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/App/OnboardingView.swift"),
             encoding: .utf8
         )
+        let app = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/SnipSnipSnipApp.swift"),
+            encoding: .utf8
+        )
         let quickStart = try String(
             contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/Guide/UI/GuideQuickStartView.swift"),
             encoding: .utf8
         )
 
-        XCTAssertTrue(onboarding.contains("NavigationSplitView"))
+        XCTAssertFalse(onboarding.contains("HSplitView"))
+        XCTAssertFalse(onboarding.contains("NavigationSplitView"))
+        XCTAssertFalse(onboarding.contains(".listStyle(.sidebar)"))
         XCTAssertTrue(onboarding.contains("Form"))
+        XCTAssertTrue(onboarding.contains("ProgressView("))
+        XCTAssertTrue(onboarding.contains("Step \\(currentStepNumber) of"))
+        XCTAssertTrue(onboarding.contains("private var replaySummary"))
+        XCTAssertFalse(
+            onboarding.contains("GeometryReader"),
+            "A root GeometryReader creates a content-size feedback loop that can blank the onboarding window."
+        )
+        XCTAssertEqual(OnboardingWindowLayout.minimumSize, CGSize(width: 680, height: 430))
+        XCTAssertEqual(OnboardingWindowLayout.idealSize, CGSize(width: 720, height: 460))
+        XCTAssertTrue(onboarding.contains("case captureAccess\n    case clipboard\n    case ready"))
+        XCTAssertTrue(onboarding.contains("@State private var selectedStep: OnboardingStep = .captureAccess"))
+        XCTAssertFalse(onboarding.contains("case welcome"))
+        XCTAssertFalse(onboarding.contains("case discoverMore"))
+        XCTAssertFalse(onboarding.contains("case startup"))
+        XCTAssertFalse(onboarding.contains("case firstSnip"))
+        XCTAssertFalse(onboarding.contains("Try Your First Snip"))
+        XCTAssertTrue(onboarding.contains("Picker(\"Clipboard History\", selection: clipboardChoiceBinding)"))
+        XCTAssertTrue(onboarding.contains(".pickerStyle(.radioGroup)"))
+        XCTAssertTrue(onboarding.contains("onboarding.clipboard.uncopiedScreenshots"))
+        XCTAssertTrue(onboarding.contains("Label(\"More tools to explore\", systemImage: \"sparkles\")"))
+        XCTAssertTrue(onboarding.contains("Array($0.entries.prefix(3))"))
+
+        let onboardingSceneStart = try XCTUnwrap(
+            app.range(of: "Window(\"Welcome to \\(AppBranding.displayName)\"")
+        )
+        let helpSceneStart = try XCTUnwrap(
+            app.range(of: "Window(\"\\(AppBranding.displayName) Help\"", range: onboardingSceneStart.upperBound..<app.endIndex)
+        )
+        let onboardingScene = app[onboardingSceneStart.lowerBound..<helpSceneStart.lowerBound]
+        XCTAssertTrue(
+            onboardingScene.contains(".windowResizability(.contentMinSize)"),
+            "Onboarding must preserve its compact minimum size without locking out user resizing."
+        )
+
         XCTAssertTrue(quickStart.contains("Form"))
         XCTAssertTrue(quickStart.contains("Picker("))
 

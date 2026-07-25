@@ -71,6 +71,7 @@ final class AppLifecycleModel: ObservableObject {
             currentVersion: AppLifecycleConstants.currentOnboardingVersion
         ) >= AppLifecycleConstants.currentOnboardingVersion
         self.onboardingPresentationMode = hasCompletedCurrentOnboarding ? .replay : .firstRun
+        self.showsWelcomeCard = preferenceStore.loadPostOnboardingDiscoveryPending()
     }
 
     var launchAtLoginStatus: LaunchAtLoginStatus {
@@ -152,8 +153,15 @@ final class AppLifecycleModel: ObservableObject {
     }
 
     func completeOnboarding(requestMainWindowPresentation: () -> Void) {
+        let completedFirstRun = onboardingPresentationMode == .firstRun
         preferenceStore.saveCompletedOnboardingVersion(AppLifecycleConstants.currentOnboardingVersion)
         preferenceStore.saveOnboardingResumeCheckpoint(nil)
+
+        if completedFirstRun {
+            showsWelcomeCard = true
+            preferenceStore.savePostOnboardingDiscoveryPending(true)
+        }
+        onboardingPresentationMode = .replay
 
         if shouldOpenMainWindowAfterOnboarding {
             requestMainWindowPresentation()
@@ -188,6 +196,7 @@ final class AppLifecycleModel: ObservableObject {
         }
 
         showsWelcomeCard = false
+        preferenceStore.savePostOnboardingDiscoveryPending(false)
         preferenceStore.saveWelcomeCardDismissed()
     }
 

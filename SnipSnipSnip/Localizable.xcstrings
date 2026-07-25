@@ -1,53 +1,2978 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Annotation canvas" : {
-      "comment" : "Accessibility label for the screenshot annotation canvas."
+    "" : {
+
     },
-    "Capture complete." : {
-      "comment" : "Accessibility announcement after a screenshot capture completes."
+    "%.1f pt" : {
+
+    },
+    "%.1fs" : {
+
+    },
+    "%@ • %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ • %2$@"
+          }
+        }
+      }
+    },
+    "%@ • %@%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ • %2$@%3$@"
+          }
+        }
+      }
+    },
+    "%@ → %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ → %2$@"
+          }
+        }
+      }
+    },
+    "%@ ⌥⌘F" : {
+
+    },
+    "%@ ⌥⌘M" : {
+
+    },
+    "%@ alignment" : {
+
+    },
+    "%@ Help" : {
+
+    },
+    "%@ JPEG…" : {
+
+    },
+    "%@ PDF…" : {
+
+    },
+    "%@ PNG…" : {
+
+    },
+    "%@ shadow" : {
+
+    },
+    "%@…" : {
+
+    },
+    "%lld" : {
+
+    },
+    "%lld × %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld × %2$lld"
+          }
+        }
+      }
+    },
+    "%lld by %lld pixels" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld by %2$lld pixels"
+          }
+        }
+      }
+    },
+    "%lld captured element%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld captured element%2$@"
+          }
+        }
+      }
+    },
+    "%lld deleted snip%@ available to restore." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld deleted snip%2$@ available to restore."
+          }
+        }
+      }
+    },
+    "%lld file%@ ready." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld file%2$@ ready."
+          }
+        }
+      }
+    },
+    "%lld included" : {
+
+    },
+    "%lld percent" : {
+
+    },
+    "%lld pt" : {
+
+    },
+    "%lld shown" : {
+
+    },
+    "%lld steps" : {
+
+    },
+    "%lld." : {
+
+    },
+    "%lld. What will you capture?" : {
+
+    },
+    "%lld%%" : {
+
+    },
+    "•" : {
+
+    },
+    "+%lld earlier" : {
+
+    },
+    "⌘⇧%@" : {
+
+    },
+    "⌥%lld" : {
+
+    },
+    "1 Hour" : {
+
+    },
+    "1. What do you want to make?" : {
+
+    },
+    "2. How should the video sound?" : {
+
+    },
+    "3 Seconds" : {
+
+    },
+    "5 Minutes" : {
+
+    },
+    "5 Seconds" : {
+
+    },
+    "10 Seconds" : {
+
+    },
+    "15 fps" : {
+
+    },
+    "30 fps · Balanced" : {
+
+    },
+    "60 fps" : {
+
+    },
+    "A4" : {
+
+    },
+    "About %@" : {
+
+    },
+    "Absolute POSIX path or file URL." : {
+
+    },
+    "Accent" : {
+
+    },
+    "Action" : {
+
+    },
+    "Action Highlights MP4" : {
+
+    },
+    "Actual Size" : {
+
+    },
+    "Actual Size (1:1)" : {
+
+    },
+    "Add" : {
+
+    },
+    "Add a soft shadow around screenshots throughout this Guide." : {
+
+    },
+    "Add an editable solid cover over detected password and other secure fields in still steps. Secure text itself is never saved." : {
+
+    },
+    "Add Manual Step" : {
+
+    },
+    "Add screenshot shadows" : {
+
+    },
+    "Add Screenshots That Were Not Copied" : {
+
+    },
+    "Add the cursor as an editable screenshot overlay. Scrolling Capture always excludes it." : {
+
+    },
+    "Add to favorites." : {
+
+    },
+    "Adjust" : {
+
+    },
+    "Adjust the fill or background color for tools that render one." : {
+
+    },
+    "Adjust the primary color used by the current tool or selection." : {
+
+    },
+    "Adjust the selected image overlay opacity." : {
+
+    },
+    "Advanced" : {
+
+    },
+    "Advanced Step Edit" : {
+
+    },
+    "After 1 Day" : {
+
+    },
+    "After 7 Days" : {
+
+    },
+    "After 30 Days" : {
+
+    },
+    "After 90 Days" : {
+
+    },
+    "After Selecting a Region" : {
+
+    },
+    "Align" : {
+
+    },
+    "Align selected annotations to the %@ edge or axis." : {
+
+    },
+    "All Collections" : {
+
+    },
+    "All Displays" : {
+
+    },
+    "All Sources" : {
+
+    },
+    "All Types" : {
+
+    },
+    "Allow %@" : {
+
+    },
+    "Allowed" : {
+
+    },
+    "Also add screenshots that were not copied" : {
+
+    },
+    "Also keeps the source recording for full-motion and action-highlight video exports." : {
+
+    },
+    "Always Capture on Mouse Up" : {
+
+    },
+    "Animated Loops" : {
+
+    },
+    "Annotation Layers" : {
+
+    },
+    "APNG" : {
+
+    },
+    "APNG • %@" : {
+
+    },
+    "App" : {
+
+    },
+    "App audio" : {
+
+    },
+    "App Default" : {
+
+    },
+    "Appearance" : {
+
+    },
+    "Applies to every step" : {
+
+    },
+    "Apply Duration to %lld Steps" : {
+
+    },
+    "Apply the %@ presentation scene." : {
+
+    },
+    "Apply the %@ presentation template." : {
+
+    },
+    "Apply the saved %@ presentation from this document." : {
+
+    },
+    "Apply to Step" : {
+
+    },
+    "Archive History" : {
+
+    },
+    "Arrange" : {
+
+    },
+    "Arrow Label" : {
+
+    },
+    "Arrow Length: %.0f pt" : {
+
+    },
+    "Arrow Width: %.0f pt" : {
+
+    },
+    "Arrowhead" : {
+
+    },
+    "Aspect" : {
+
+    },
+    "Audio" : {
+
+    },
+    "Audio signal level" : {
+
+    },
+    "Auto Copy" : {
+
+    },
+    "Auto Crop" : {
+
+    },
+    "Auto Refresh" : {
+
+    },
+    "Automatic" : {
+
+    },
+    "Automatically copy the current rendered snip after captures and editor changes." : {
+
+    },
+    "Autosave history appears here after edits or saves." : {
+
+    },
+    "Back" : {
+
+    },
+    "Back to Edit" : {
+
+    },
+    "Back to Editing" : {
+
+    },
+    "Background" : {
+
+    },
+    "Balanced · 30 fps" : {
+
+    },
+    "Bend the selected arrow into a curved connector." : {
+
+    },
+    "Best for PDF, Word, images, GIF, or a slideshow. No source video or audio is retained." : {
+
+    },
+    "Beta" : {
+
+    },
+    "Border" : {
+
+    },
+    "Bottom Left" : {
+
+    },
+    "Bottom Right" : {
+
+    },
+    "Bring Forward" : {
+
+    },
+    "Bring to Front" : {
+
+    },
+    "Bundled contains app-managed examples." : {
+
+    },
+    "Callout Style" : {
+
+    },
+    "Cancel" : {
+
+    },
+    "Cancel Export" : {
+
+    },
+    "Cancelling…" : {
+
+    },
+    "Capture" : {
+
+    },
+    "Capture a fixed region or start interactive region capture with SnipSnipSnip." : {
+
+    },
+    "Capture clicks, scrolling, and shortcuts as an editable step-by-step guide." : {
+
+    },
+    "Capture Delay" : {
+
+    },
+    "Capture Error" : {
+
+    },
+    "Capture Frontmost" : {
+
+    },
+    "Capture Fullscreen" : {
+
+    },
+    "Capture history search appears here after you have autosaves, recent snips, or saved checkpoints to search." : {
+
+    },
+    "Capture HUD" : {
+
+    },
+    "Capture Preset" : {
+
+    },
+    "Capture Presets" : {
+
+    },
+    "Capture Region" : {
+
+    },
+    "Capture SnipSnipSnip Frontmost Window" : {
+
+    },
+    "Capture SnipSnipSnip Fullscreen" : {
+
+    },
+    "Capture SnipSnipSnip Region" : {
+
+    },
+    "Capture SnipSnipSnip Window" : {
+
+    },
+    "Capture Sources" : {
+
+    },
+    "Capture the frontmost eligible window with SnipSnipSnip." : {
+
+    },
+    "Capture the frontmost shareable window immediately." : {
+
+    },
+    "Capture the fullscreen target with SnipSnipSnip." : {
+
+    },
+    "Capture the selected region immediately when you release the mouse instead of showing Capture and Cancel buttons." : {
+
+    },
+    "Capture this window." : {
+
+    },
+    "Capture Window" : {
+
+    },
+    "Captured Cursor" : {
+
     },
     "Check Again" : {
       "comment" : "Rechecks a missing macOS permission."
     },
+    "Check for Pro Updates..." : {
+
+    },
+    "Check SnipSnipSnip automation capabilities and permissions." : {
+
+    },
+    "Checking for Pro Updates..." : {
+
+    },
+    "Choose %@ Folder…" : {
+
+    },
+    "Choose a ready-made shadow style." : {
+
+    },
+    "Choose a step to preview and edit it." : {
+
+    },
+    "Choose App..." : {
+
+    },
+    "Choose export folder" : {
+
+    },
+    "Choose Folder" : {
+
+    },
+    "Choose Folder & Export" : {
+
+    },
+    "Choose Freeform for an unconstrained crop, or a fixed aspect ratio for new crop drags and crop handle resizing." : {
+
+    },
+    "Choose how Guide should follow your work. You’ll select the exact target after Start Guide." : {
+
+    },
+    "Choose how the redaction selection is rendered." : {
+
+    },
+    "Choose Location…" : {
+
+    },
+    "Choose Logo…" : {
+
+    },
+    "Choose one or more formats, then choose where to save them." : {
+
+    },
+    "Choose Scenes Folder..." : {
+
+    },
+    "Choose the target on screen, then start capturing this Guide." : {
+
+    },
+    "Choose what to make and what Guide should follow." : {
+
+    },
+    "Choose what viewers should hear. You can change either source from the Guide controls while recording." : {
+
+    },
+    "Choose whether newly captured steps mark where the action happened. You can change this later for any individual step." : {
+
+    },
+    "Choose whether newly captured steps start with a visible step number. You can change this later for any individual step." : {
+
+    },
+    "Choose whether region capture shows a full-screen crosshair, the magnifying glass, or both during region capture." : {
+
+    },
+    "Choose Window" : {
+
+    },
+    "Circle" : {
+
+    },
+    "Clear" : {
+
+    },
+    "Clear all clipboard history?" : {
+
+    },
+    "Clear Archive" : {
+
+    },
+    "Clear Clipboard History" : {
+
+    },
+    "Clear Scene" : {
+
+    },
+    "Clear Selection" : {
+
+    },
+    "Clear the distance measurement." : {
+
+    },
+    "Clear unpinned clipboard history" : {
+
+    },
+    "Clear unpinned clipboard history?" : {
+
+    },
+    "Clear Unpinned History" : {
+
+    },
+    "Click a thumbnail to inspect a snapshot before restoring it." : {
+
+    },
+    "Click outside the preview to dismiss" : {
+
+    },
+    "Click the screenshot to sample a color from the base image." : {
+
+    },
+    "Clipboard" : {
+
+    },
+    "Clipboard History" : {
+
+    },
+    "Clipboard History Disabled" : {
+
+    },
+    "Close" : {
+
+    },
+    "Close All Floating References" : {
+
+    },
+    "Close All Screen Rulers" : {
+
+    },
+    "Close Esc" : {
+
+    },
+    "Close Guide setup without starting a capture." : {
+
+    },
+    "Close Screen Inspector" : {
+
+    },
+    "Close the current connected-device preview before starting another connected-device session." : {
+
+    },
+    "Close the recycle bin." : {
+
+    },
+    "Close this floating reference." : {
+
+    },
+    "Close this preview and return to editing." : {
+
+    },
+    "Close this preview." : {
+
+    },
+    "Close this ruler." : {
+
+    },
+    "Collapse permission diagnostics." : {
+
+    },
+    "Collection" : {
+
+    },
+    "Collection name" : {
+
+    },
+    "Collections" : {
+
+    },
+    "Color" : {
+
+    },
+    "Compact · 144 dpi" : {
+
+    },
+    "Completed work stays protected" : {
+
+    },
+    "Confirm Before Quitting" : {
+
+    },
+    "Connected Device" : {
+
+    },
+    "Connected Device Preview Active" : {
+
+    },
+    "Continue in SnipSnipSnip to finish this automation." : {
+
+    },
+    "Control how strongly freehand strokes are curved during rendering." : {
+
+    },
+    "Control SnipSnipSnip Guide" : {
+
+    },
+    "Copied" : {
+
+    },
+    "Copied text, links, images, files, and %@ screenshots appear here." : {
+
+    },
+    "Copy" : {
+
+    },
+    "Copy Edited" : {
+
+    },
+    "Copy Files" : {
+
+    },
+    "Copy HEX ⌥⌘H" : {
+
+    },
+    "Copy Path" : {
+
+    },
+    "Copy Plain" : {
+
+    },
+    "Copy Plain Text" : {
+
+    },
+    "Copy RGB ⌥⌘R" : {
+
+    },
+    "Copy Screenshot" : {
+
+    },
+    "Copy Styled" : {
+
+    },
+    "Copy Text" : {
+
+    },
+    "Copy the current callouts as a numbered step guide." : {
+
+    },
+    "Copy the current color as HEX. Shortcut: Option-Command-H." : {
+
+    },
+    "Copy the current color as RGB. Shortcut: Option-Command-R." : {
+
+    },
+    "Copy the plain annotated screenshot." : {
+
+    },
+    "Copy. Press Option-%lld while Clipboard History is focused." : {
+
+    },
+    "Copyright / footer" : {
+
+    },
+    "Corner" : {
+
+    },
+    "Corner radius" : {
+
+    },
+    "Corners" : {
+
+    },
+    "Couldn't Update Launch at Login" : {
+
+    },
+    "Couldn’t Update Launch at Login" : {
+
+    },
+    "Create a Guide" : {
+
+    },
+    "Create Captions Automatically" : {
+
+    },
+    "Crop Outside Dimming" : {
+
+    },
+    "Crop Size" : {
+
+    },
+    "Crosshair" : {
+
+    },
+    "Current app" : {
+
+    },
+    "Current color" : {
+
+    },
+    "Current crop size in pixels." : {
+
+    },
+    "Current crop width and height in pixels." : {
+
+    },
+    "Current Display" : {
+
+    },
+    "Current fill color." : {
+
+    },
+    "Current format: %@" : {
+
+    },
+    "Current mode: %@. Press to activate or open the menu to change mode." : {
+
+    },
+    "Current picker color." : {
+
+    },
+    "Current Size" : {
+
+    },
+    "Cursor" : {
+
+    },
+    "Curve" : {
+
+    },
+    "Cut" : {
+
+    },
+    "Default" : {
+
+    },
+    "Default Brand Profile" : {
+
+    },
+    "Default Design & Export" : {
+
+    },
+    "Default Tool" : {
+
+    },
+    "Delay" : {
+
+    },
+    "Delete" : {
+
+    },
+    "Delete every history snapshot for this snip." : {
+
+    },
+    "Delete every recent snip except the one currently open." : {
+
+    },
+    "Delete Forever" : {
+
+    },
+    "Delete preset." : {
+
+    },
+    "Delete Selected Layers" : {
+
+    },
+    "Delete the selected steps. Deleted steps remain available to restore from their context menu." : {
+
+    },
+    "Delete Theme" : {
+
+    },
+    "Delete this capture and all of its checkpoints." : {
+
+    },
+    "Delete Unpinned Items" : {
+
+    },
+    "Deleted" : {
+
+    },
+    "Deleted Items" : {
+
+    },
+    "Deleted snips stay here temporarily and can be restored before the recycle bin is emptied." : {
+
+    },
+    "Deleted snips will appear here until retention expires or you empty the recycle bin." : {
+
+    },
+    "Deleted Step" : {
+
+    },
+    "Direction" : {
+
+    },
+    "Disabled" : {
+
+    },
+    "Discard" : {
+
+    },
+    "Discard Changes" : {
+
+    },
+    "Discard the current video editor session and return to the capture screen." : {
+
+    },
+    "Dismiss" : {
+
+    },
     "Dismiss notification" : {
       "comment" : "Accessibility label for dismissing an editor notice."
     },
-    "Drag Plain" : {
-      "comment" : "Label for dragging a screenshot without Presentation styling."
+    "Display" : {
+
     },
-    "Drag Styled" : {
-      "comment" : "Label for dragging a screenshot with Presentation styling."
+    "Document" : {
+
+    },
+    "Done" : {
+
+    },
+    "Dot Opacity" : {
+
+    },
+    "Dot Size" : {
+
+    },
+    "Drag %@" : {
+
+    },
+    "Drag the current trimmed export into Finder, Mail, or another app. Export starts after the drop is accepted." : {
+
+    },
+    "Drag the first selected Guide export format into Finder or another app." : {
+
+    },
+    "Drag the strip to scrub, or move the handles to trim." : {
+
+    },
+    "Drag the target handle to move the action, or the number handle to reposition the step number." : {
+
+    },
+    "Drag the target handle to move where this step points." : {
+
+    },
+    "Drag to move this floating reference." : {
+
+    },
+    "Draw the pointer at its recorded position in each still step. This does not add the pointer to the captured source video." : {
+
+    },
+    "Duplicate" : {
+
+    },
+    "Duration" : {
+
+    },
+    "Each captured step marks the action with crosshairs. You can hide them for an individual step in the editor." : {
+
+    },
+    "Each captured step starts with a number. You can hide it for an individual step in the editor." : {
+
+    },
+    "Edit Screenshot…" : {
+
+    },
+    "Edit what this step says and how it plays" : {
+
+    },
+    "Editable SnipSnipSnip Document" : {
+
+    },
+    "Editor" : {
+
+    },
+    "Editor & Output" : {
+
+    },
+    "Editor Error" : {
+
+    },
+    "Editor Shortcuts" : {
+
+    },
+    "Effect" : {
+
+    },
+    "Element region" : {
+
+    },
+    "Empty Deleted Snips After: %lld day%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Empty Deleted Snips After: %1$lld day%2$@"
+          }
+        }
+      }
+    },
+    "Empty Now" : {
+
+    },
+    "Enable Clipboard History" : {
+
+    },
+    "Enable clipboard history in Settings > Library > Clipboard." : {
+
+    },
+    "Enable Global Capture Hotkeys" : {
+
+    },
+    "Enable Single-Key Tool Shortcuts" : {
+
+    },
+    "Enable UI Map for Window captures" : {
+
+    },
+    "Enabled" : {
+
+    },
+    "Essential shortcuts" : {
+
+    },
+    "Estimated source video: %@ for %lld minutes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Estimated source video: %1$@ for %2$lld minutes"
+          }
+        }
+      }
+    },
+    "Exclude" : {
+
+    },
+    "Exclude Cursor" : {
+
+    },
+    "Expand permission setup and diagnostics." : {
+
+    },
+    "Export" : {
+
+    },
+    "Export & Sharing" : {
+
+    },
+    "Export %@" : {
+
+    },
+    "Export %@…" : {
+
+    },
+    "Export Action Highlights MP4" : {
+
+    },
+    "Export APNG" : {
+
+    },
+    "Export Current SnipSnipSnip Screenshot" : {
+
+    },
+    "Export Diagnostics…" : {
+
+    },
+    "Export explicit Plain or Styled output as PNG, JPEG, or PDF." : {
+
+    },
+    "Export Format" : {
+
+    },
+    "Export Full Motion MP4" : {
+
+    },
+    "Export GIF" : {
+
+    },
+    "Export Guide" : {
+
+    },
+    "Export Guide…" : {
+
+    },
+    "Export Images" : {
+
+    },
+    "Export JSON..." : {
+
+    },
+    "Export PDF" : {
+
+    },
+    "Export Slideshow MP4" : {
+
+    },
+    "Export structured UI Map metadata for debugging or review." : {
+
+    },
+    "Export the current SnipSnipSnip screenshot to a file." : {
+
+    },
+    "Export the trimmed video using MP4, GIF, APNG, or another available format." : {
+
+    },
+    "Export ZIP" : {
+
+    },
+    "Export…" : {
+
+    },
+    "Exporting Guide" : {
+
+    },
+    "Extra smooth · 60 fps" : {
+
+    },
+    "File" : {
+
+    },
+    "File Name" : {
+
+    },
+    "Filename Template" : {
+
+    },
+    "Fill" : {
+
+    },
+    "Fill Preset" : {
+
+    },
+    "Filter" : {
+
+    },
+    "Final Export Preview" : {
+
+    },
+    "Fine Tune Shadow" : {
+
+    },
+    "Fine-tune capture" : {
+
+    },
+    "Fit to View" : {
+
+    },
+    "Fit to Window" : {
+
+    },
+    "Float %@" : {
+
+    },
+    "Float Current Screenshot" : {
+
+    },
+    "Float Reference" : {
+
+    },
+    "Floating Reference" : {
+
+    },
+    "Floating reference image. Scroll to pan, pinch to zoom, or use the zoom controls." : {
+
+    },
+    "Folder Layout" : {
+
+    },
+    "Font" : {
+
+    },
+    "Format" : {
+
+    },
+    "Frame Rate" : {
+
+    },
+    "Framing" : {
+
+    },
+    "Freeze or unfreeze the inspector. Shortcut: Option-Command-F." : {
+
+    },
+    "Frontmost Window" : {
+
+    },
+    "Frontmost Window Capture" : {
+
+    },
+    "Full Motion MP4" : {
+
+    },
+    "Full Motion MP4 and Action Highlights include captured microphone and system audio." : {
+
+    },
+    "Full Motion MP4 and Action Highlights require source video." : {
+
+    },
+    "Full Screen Capture" : {
+
+    },
+    "Fullscreen Display" : {
+
+    },
+    "Fullscreen Recording" : {
+
+    },
+    "Fullscreen Screenshot" : {
+
+    },
+    "General" : {
+
+    },
+    "Get SnipSnipSnip Automation Status" : {
+
+    },
+    "GIF" : {
+
+    },
+    "GIF • %@" : {
+
+    },
+    "Global Capture Hotkeys" : {
+
+    },
+    "Grid" : {
+
+    },
+    "Group" : {
+
+    },
+    "Grouped" : {
+
+    },
+    "Guide" : {
+
+    },
+    "Guide + video" : {
+
+    },
+    "Guide Action" : {
+
+    },
+    "Guide Export" : {
+
+    },
+    "H" : {
+
+    },
+    "Head Ends" : {
+
+    },
+    "Head Style" : {
+
+    },
+    "Height" : {
+
+    },
+    "Help" : {
+
+    },
+    "Help & Onboarding" : {
+
+    },
+    "Hidden" : {
+
+    },
+    "Hide" : {
+
+    },
+    "Hide All" : {
+
+    },
+    "Hide desktop icons" : {
+
+    },
+    "Hide Desktop Icons" : {
+
+    },
+    "Hide Guide Inspector" : {
+
+    },
+    "Hide Inspector" : {
+
+    },
+    "Hide Setup" : {
+
+    },
+    "Hide this exploration card." : {
+
+    },
+    "Hide this window and choose a window directly from an on-screen overlay." : {
+
+    },
+    "Hide UI Map outlines for unselected elements." : {
+
+    },
+    "History Preview" : {
+
+    },
+    "History Storage Target: %lld MB (Pinned Kept)" : {
+
+    },
+    "Horizontal 0 Origin" : {
+
+    },
+    "Horizontal Tick Edge" : {
+
+    },
+    "Hover a visible window to highlight it, then click to capture." : {
+
+    },
+    "How long this step appears in step-based animated and video exports." : {
+
+    },
+    "Icon: %@" : {
+
+    },
+    "Ignore" : {
+
+    },
+    "Ignore Running App" : {
+
+    },
+    "Ignore this recovery session and remove the pending recovery prompt." : {
+
+    },
+    "Ignored" : {
+
+    },
+    "Ignored Apps" : {
+
+    },
+    "Immediate" : {
+
+    },
+    "Import Image…" : {
+
+    },
+    "Import Images…" : {
+
+    },
+    "Important" : {
+
+    },
+    "Include" : {
+
+    },
+    "Include Cursor" : {
+
+    },
+    "Include Cursor as Editable Overlay" : {
+
+    },
+    "Include in exports" : {
+
+    },
+    "Include Menu Bar in Display Guides" : {
+
+    },
+    "Include or mute microphone narration for this recording only." : {
+
+    },
+    "Include or mute system audio for this recording only." : {
+
+    },
+    "Include the macOS menu bar in full-display still steps and source video. This setting has no effect on window, app, or area captures." : {
+
+    },
+    "Include the menu bar" : {
+
+    },
+    "Include UI Map for Window Captures" : {
+
+    },
+    "Insert an image overlay." : {
+
+    },
+    "Insert Image" : {
+
+    },
+    "Inspector" : {
+
+    },
+    "Inspector scope" : {
+
+    },
+    "Instruction" : {
+
+    },
+    "Interactive" : {
+
+    },
+    "Items" : {
+
+    },
+    "JPEG" : {
+
+    },
+    "JPEG Quality" : {
+
+    },
+    "Keep a small, cancellable export status window open while files are generated." : {
+
+    },
+    "Keep capture ready" : {
+
+    },
+    "Keep Full-Motion Source Video" : {
+
+    },
+    "Keep Off" : {
+
+    },
+    "Keep this UI Map overlay visible in copied, shared, and exported screenshots." : {
+
+    },
+    "Keeps the menu bar capture actions and global shortcuts ready after login." : {
+
+    },
+    "Label" : {
+
+    },
+    "Label Box" : {
+
+    },
+    "Label Font" : {
+
+    },
+    "Label Position" : {
+
+    },
+    "Label Text" : {
+
+    },
+    "Landscape" : {
+
+    },
+    "Last autosave: %@" : {
+
+    },
+    "Launch %@ at Login" : {
+
     },
     "Layers" : {
       "comment" : "Accessibility label for the annotation layers list and command."
     },
+    "Legal statement" : {
+
+    },
+    "Length" : {
+
+    },
+    "Library" : {
+
+    },
+    "Library Page" : {
+
+    },
+    "Line" : {
+
+    },
+    "Line Opacity" : {
+
+    },
+    "Line width" : {
+
+    },
+    "List SnipSnipSnip Capture Presets" : {
+
+    },
+    "List the capture presets available to SnipSnipSnip automation." : {
+
+    },
+    "Loading available windows…" : {
+
+    },
+    "Location" : {
+
+    },
+    "Looking for Devices..." : {
+
+    },
+    "lowercase" : {
+
+    },
+    "macOS groups screenshot access under Screen Recording. SnipSnipSnip captures only when you choose a capture or recording action." : {
+
+    },
+    "Major Tick Every: %lld" : {
+
+    },
+    "Make Default for New Guides…" : {
+
+    },
+    "Manage" : {
+
+    },
+    "Manage Presets..." : {
+
+    },
+    "Manage Styles" : {
+
+    },
+    "Manage Variants" : {
+
+    },
+    "Manual framing is active." : {
+
+    },
+    "Mark" : {
+
+    },
+    "Mark Style" : {
+
+    },
+    "Marker" : {
+
+    },
+    "Marker handles" : {
+
+    },
+    "Mask secure fields" : {
+
+    },
+    "Mask Secure Fields" : {
+
+    },
+    "Max Archive Size: %lld MB" : {
+
+    },
+    "Maximum Item Size: %lld MB" : {
+
+    },
+    "Maximum Unpinned Items: %lld" : {
+
+    },
+    "Missing" : {
+
+    },
+    "Monitoring" : {
+
+    },
+    "More actions" : {
+
+    },
+    "More tools to explore" : {
+
+    },
+    "Move over a UI element in the screenshot to preview it, then click to pin it." : {
+
+    },
+    "Move preset down." : {
+
+    },
+    "Move preset up." : {
+
+    },
+    "MP4 Quality" : {
+
+    },
+    "MP4 Size Limit" : {
+
+    },
+    "My narration" : {
+
+    },
+    "Naming" : {
+
+    },
+    "Narration + app audio" : {
+
+    },
+    "Never" : {
+
+    },
+    "New Horizontal Ruler" : {
+
+    },
+    "New Vertical Ruler" : {
+
+    },
+    "No audio" : {
+
+    },
+    "No available running apps" : {
+
+    },
+    "No Capturable %@" : {
+
+    },
+    "No captures matched the current search." : {
+
+    },
+    "No Clipboard Items" : {
+
+    },
+    "No deleted snips." : {
+
+    },
+    "No help topics found" : {
+
+    },
+    "No Presets" : {
+
+    },
+    "No Selection" : {
+
+    },
+    "No shareable windows are currently available. Open an app window, then refresh." : {
+
+    },
+    "No Shortcut" : {
+
+    },
+    "No Step Selected" : {
+
+    },
+    "No valid scenes found. Add SVG scenes to the User folder or reload after restoring bundled examples." : {
+
+    },
+    "No variants saved in this document yet." : {
+
+    },
+    "None" : {
+
+    },
+    "Not Now" : {
+
+    },
     "Not selected" : {
       "comment" : "Accessibility value for an unselected item."
     },
-    "Presentation Beta" : {
-      "comment" : "Accessibility label for the Presentation workspace beta badge."
+    "Nudge" : {
+
     },
-    "Screenshot capture is available." : {
-      "comment" : "Accessibility announcement after Screen Recording access becomes available."
+    "Nudge down" : {
+
     },
-    "Screenshot capture is unavailable. Screen Recording access is required." : {
-      "comment" : "Accessibility announcement when screenshot capture permission is missing."
+    "Nudge left" : {
+
+    },
+    "Nudge right" : {
+
+    },
+    "Nudge up" : {
+
+    },
+    "Number each step" : {
+
+    },
+    "Number Only" : {
+
+    },
+    "Number style" : {
+
+    },
+    "OK" : {
+
+    },
+    "Opacity" : {
+
+    },
+    "Open" : {
+
+    },
+    "Open %@" : {
+
+    },
+    "Open a larger preview of this deleted snip." : {
+
+    },
+    "Open a live connected-device preview. macOS may ask for Camera access because trusted iPhone and iPad screens are exposed as video sources." : {
+
+    },
+    "Open an editable SnipSnipSnip .sss document." : {
+
+    },
+    "Open Capture Access Help" : {
+
+    },
+    "Open Capture Window" : {
+
+    },
+    "Open deleted snips. Deleted items can be restored until the recycle bin is emptied or retention expires." : {
+
+    },
+    "Open Editor" : {
+
+    },
+    "Open Help Guide" : {
+
+    },
+    "Open in Finder" : {
+
+    },
+    "Open Link" : {
+
+    },
+    "Open Login Items" : {
+
+    },
+    "Open Login Items in System Settings" : {
+
+    },
+    "Open optional settings for video smoothness, pointer visibility, desktop cleanup, instructions, and privacy." : {
+
+    },
+    "Open Presentation mode to style the final copy, share, and export output." : {
+
+    },
+    "Open Screen Inspector" : {
+
+    },
+    "Open Screenshot in Editor" : {
+
+    },
+    "Open Settings" : {
+
+    },
+    "Open Snip in Editor" : {
+
+    },
+    "Open SnipSnipSnip Document" : {
+
+    },
+    "Open Support Page" : {
+
+    },
+    "Open the %@ you want to follow, then return to Guide setup and try again." : {
+
+    },
+    "Open the current inspector sample in the editor. Shortcut: Option-Command-S." : {
+
+    },
+    "Open the full screenshot editor for this step." : {
+
+    },
+    "Open the most recent autosaved session in the editor." : {
+
+    },
+    "Open the most recent Guide that was autosaved before an interruption." : {
+
+    },
+    "Open this capture in the editor." : {
+
+    },
+    "Open this snapshot in an always-on-top floating reference window." : {
+
+    },
+    "Open…" : {
+
+    },
+    "Organization" : {
+
+    },
+    "Other access is requested only when used" : {
+
+    },
+    "Outcome" : {
+
+    },
+    "Outline" : {
+
+    },
+    "Outline Color" : {
+
+    },
+    "Output" : {
+
+    },
+    "Output Destination" : {
+
+    },
+    "Output File" : {
+
+    },
+    "Overwrite" : {
+
+    },
+    "Padded" : {
+
+    },
+    "Paste" : {
+
+    },
+    "Pattern Spacing" : {
+
+    },
+    "Pause" : {
+
+    },
+    "Pause for 1 Hour" : {
+
+    },
+    "Pause for 5 Minutes" : {
+
+    },
+    "Pause Guide" : {
+
+    },
+    "Pause playback." : {
+
+    },
+    "Pause the recording." : {
+
+    },
+    "Pause Until Restart" : {
+
+    },
+    "Paused" : {
+
+    },
+    "PDF" : {
+
+    },
+    "PDF Orientation" : {
+
+    },
+    "PDF Paper" : {
+
+    },
+    "PDF Quality" : {
+
+    },
+    "Permanently delete every item currently in the recycle bin." : {
+
+    },
+    "Permanently delete this snip from the recycle bin." : {
+
+    },
+    "Permission Diagnostics" : {
+
+    },
+    "Pick On Screen" : {
+
+    },
+    "Picker" : {
+
+    },
+    "Pin" : {
+
+    },
+    "Pin UI Map previews the element under the pointer. Click an element to pin it; click it again to unpin it." : {
+
+    },
+    "Pinned" : {
+
+    },
+    "Pinned items will be kept. This action cannot be undone." : {
+
+    },
+    "Pinned Only" : {
+
+    },
+    "Pinned overlays are included when copying, sharing, or exporting." : {
+
+    },
+    "Pinned overlays are included when you copy, share, or export the screenshot." : {
+
+    },
+    "Pinned UI Map Overlay Defaults" : {
+
+    },
+    "Plain" : {
+
+    },
+    "Plain JPEG…" : {
+
+    },
+    "Plain PDF…" : {
+
+    },
+    "Plain PNG…" : {
+
+    },
+    "Plain Text" : {
+
+    },
+    "Play" : {
+
+    },
+    "Play the selected trim range from the current playhead or trim start." : {
+
+    },
+    "Play the selected trim range." : {
+
+    },
+    "Playhead" : {
+
+    },
+    "PNG" : {
+
+    },
+    "Polish step instructions on this Mac" : {
+
+    },
+    "Portrait" : {
+
+    },
+    "Preparing files…" : {
+
+    },
+    "Presentation" : {
+
+    },
+    "Presentation is in beta. Your editable screenshot remains unchanged." : {
+
+    },
+    "Presentation Scenes" : {
+
+    },
+    "Presentation, Beta" : {
+
+    },
+    "Preset" : {
+
+    },
+    "Preset name" : {
+
+    },
+    "Presets" : {
+
+    },
+    "Press and drag on the image to preview %@ color; release to apply." : {
+
+    },
+    "Pretty Print JSON" : {
+
+    },
+    "Preview %@" : {
+
+    },
+    "Preview Trim" : {
+
+    },
+    "Print · 300 dpi" : {
+
+    },
+    "Privacy" : {
+
+    },
+    "Privacy Policy" : {
+
+    },
+    "Private and optional" : {
+
+    },
+    "Private by design" : {
+
+    },
+    "Private Capture" : {
+
+    },
+    "Private Guide" : {
+
+    },
+    "Progress…" : {
+
+    },
+    "Quality" : {
+
+    },
+    "Quit %@" : {
+
+    },
+    "Recent Snips" : {
+
+    },
+    "Recent snips appear here when a newer capture replaces the current editor session." : {
+
+    },
+    "Recent Sources" : {
+
+    },
+    "Recognized Text" : {
+
+    },
+    "Record Connected Device" : {
+
+    },
+    "Record Full Screen" : {
+
+    },
+    "Record Fullscreen" : {
+
+    },
+    "Record Microphone" : {
+
+    },
+    "Record Region" : {
+
+    },
+    "Record System Audio" : {
+
+    },
+    "Record Window" : {
+
+    },
+    "Recording" : {
+
+    },
+    "Recover Interrupted Guide" : {
+
+    },
+    "Recycle Bin" : {
+
+    },
+    "Recycle Bin is Empty" : {
+
+    },
+    "Redaction" : {
+
+    },
+    "Redaction: %@. Click to use; open the menu to change mode." : {
+
+    },
+    "Redo" : {
+
+    },
+    "Reduce jitter by dropping very small point changes from freehand strokes." : {
+
+    },
+    "Reference" : {
+
+    },
+    "Reference opacity" : {
+
+    },
+    "Refine Captions On Device" : {
+
+    },
+    "Refresh" : {
+
+    },
+    "Refresh Devices" : {
+
+    },
+    "Refresh the available window list automatically while this view is visible. When off, %@ still refreshes once when the app returns to the foreground." : {
+
+    },
+    "Region" : {
+
+    },
+    "Region Capture" : {
+
+    },
+    "Region Capture Overlay" : {
+
+    },
+    "Region Capture Settings" : {
+
+    },
+    "Reload" : {
+
+    },
+    "Reload Scenes" : {
+
+    },
+    "Reload the list of available windows." : {
+
+    },
+    "Remove" : {
+
+    },
+    "Remove Finder files and folders from the desktop in captured steps and source video. App windows are still captured normally." : {
+
+    },
+    "Remove from favorites." : {
+
+    },
+    "Remove Logo" : {
+
+    },
+    "Remove this UI Map overlay from copied, shared, and exported screenshots." : {
+
+    },
+    "Rename" : {
+
+    },
+    "Repeat Capture" : {
+
+    },
+    "Repeat Last Capture" : {
+
+    },
+    "Repeat Last SnipSnipSnip Capture" : {
+
+    },
+    "Repeat the last repeatable SnipSnipSnip capture." : {
+
+    },
+    "Replace Logo…" : {
+
+    },
+    "Replace the selected saved presentation with the current Presentation settings." : {
+
+    },
+    "Required capture access" : {
+
+    },
+    "Required for screenshot pixels, live window thumbnails, fullscreen capture, and video recording." : {
+
+    },
+    "Reset All Settings" : {
+
+    },
+    "Reset All Settings to Defaults" : {
+
+    },
+    "Reset all settings to defaults?" : {
+
+    },
+    "Reset Crop" : {
+
+    },
+    "Reset Framing" : {
+
+    },
+    "Reset opacity to 100%." : {
+
+    },
+    "Reset Settings" : {
+
+    },
+    "Reset to Default Folder" : {
+
+    },
+    "Resize Window for Zoom" : {
+
+    },
+    "Restart" : {
+
+    },
+    "Restart %@ without the normal quit confirmation so macOS applies Screen Recording access." : {
+
+    },
+    "Restart SnipSnipSnip to finish applying access." : {
+
+    },
+    "Restore" : {
+
+    },
+    "Restore Default Ignored Apps" : {
+
+    },
+    "Restore Snapshot" : {
+
+    },
+    "Restore the document to this history snapshot." : {
+
+    },
+    "Restore the editable area to the full captured image." : {
+
+    },
+    "Restore this deleted snip and open it in the editor." : {
+
+    },
+    "Restore this snip and open it in the editor." : {
+
+    },
+    "Resume" : {
+
+    },
+    "Resume Guide" : {
+
+    },
+    "Resume Now" : {
+
+    },
+    "Resume the recording." : {
+
+    },
+    "Return to Create a Guide." : {
+
+    },
+    "Reveal" : {
+
+    },
+    "Reveal App" : {
+
+    },
+    "Reveal in Finder" : {
+
+    },
+    "Reveal Scenes Folder" : {
+
+    },
+    "Reveal User Folder" : {
+
+    },
+    "Review Issues" : {
+
+    },
+    "Rewrite automatically generated instructions to sound more natural using on-device processing. Turn this off to keep the original action-based wording; nothing is uploaded." : {
+
+    },
+    "Rotate Clockwise" : {
+
+    },
+    "Rotate selected annotation 90 degrees clockwise." : {
+
+    },
+    "Round rectangle corners for rectangle annotations." : {
+
+    },
+    "Run a saved SnipSnipSnip capture preset." : {
+
+    },
+    "Run Preset" : {
+
+    },
+    "Run saved screenshot capture presets or save the last capture as a preset." : {
+
+    },
+    "Run SnipSnipSnip Capture Preset" : {
+
+    },
+    "Run this workflow." : {
+
+    },
+    "Sample From Image" : {
+
+    },
+    "Sampling screen…" : {
+
+    },
+    "Sanitize formatting by writing only the plain text value." : {
+
+    },
+    "Save" : {
+
+    },
+    "Save a repeatable capture workflow. You can open it for review, copy it, or export it directly to a folder." : {
+
+    },
+    "Save As…" : {
+
+    },
+    "Save available names, roles, identifiers, and locations of visible interface elements when capturing a window." : {
+
+    },
+    "Save Capture Preset" : {
+
+    },
+    "Save changes before continuing?" : {
+
+    },
+    "Save Current Theme…" : {
+
+    },
+    "Save Last Capture as Preset..." : {
+
+    },
+    "Save Style" : {
+
+    },
+    "Save supported copied items in an encrypted history protected by Keychain." : {
+
+    },
+    "Save the current native presentation style globally." : {
+
+    },
+    "Save the current presentation as a variant in this .sss document." : {
+
+    },
+    "Save Theme" : {
+
+    },
+    "Save these annotations on this Guide step and return to the Guide editor." : {
+
+    },
+    "Save this theme or make its branding and styling the default for new Guides." : {
+
+    },
+    "Save Variant" : {
+
+    },
+    "Saved Items" : {
+
+    },
+    "Saved Themes" : {
+
+    },
+    "Scenes Folder" : {
+
+    },
+    "Screen Inspector" : {
+
+    },
+    "Screen Recording" : {
+
+    },
+    "Screen Recording access is required before window thumbnails can be shown." : {
+
+    },
+    "Screen Recording and Accessibility access are required." : {
+
+    },
+    "Screen Recording permission required" : {
+
+    },
+    "Screen Ruler" : {
+
+    },
+    "Screenshot Capture" : {
+
+    },
+    "Screenshot Capture Settings" : {
+
     },
     "Screenshot capture unavailable" : {
       "comment" : "Compact permission status shown while a document is open."
     },
+    "Screenshot Format" : {
+
+    },
+    "Scrolling Capture" : {
+
+    },
+    "Search captures" : {
+
+    },
+    "Search clipboard history" : {
+
+    },
+    "Search Help" : {
+
+    },
+    "Search name, role, label, or identifier" : {
+
+    },
+    "Search steps" : {
+
+    },
+    "See also" : {
+
+    },
+    "Select a scene to edit its slots." : {
+
+    },
+    "Select a Step" : {
+
+    },
+    "Select a step, or choose Guide to edit shared styling." : {
+
+    },
+    "Select a UI Map element in the panel, or switch to Pin UI Map to pin elements directly from the screenshot." : {
+
+    },
+    "Select All" : {
+
+    },
     "Selected" : {
       "comment" : "Accessibility value for a selected item."
+    },
+    "Selected Display" : {
+
+    },
+    "Selected Element" : {
+
+    },
+    "Send Backward" : {
+
+    },
+    "Send Presentation Feedback" : {
+
+    },
+    "Send to Back" : {
+
+    },
+    "Set reference opacity. Click anywhere on the track or drag the knob." : {
+
+    },
+    "Set the arrow label background color. Transparent keeps the label unboxed." : {
+
+    },
+    "Set the arrow label font size." : {
+
+    },
+    "Set the blur or pixelation strength for redaction tools." : {
+
+    },
+    "Set the first point, then lock the current cursor as the second point. Shortcut: Option-Command-M." : {
+
+    },
+    "Set the frame rate for full-motion and action-highlight video. This does not change the quality of still steps; higher frame rates use more storage." : {
+
+    },
+    "Set the stroke thickness for the current tool or selection." : {
+
+    },
+    "Set the text size for text and callout annotations." : {
+
     },
     "Set Up" : {
       "comment" : "Action that starts setup for a missing macOS permission."
     },
-    "Styled output not configured" : {
-      "comment" : "Accessibility and visible status when Presentation styling has not been configured."
+    "Set up macOS %@ permission for %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Set up macOS %1$@ permission for %2$@."
+          }
+        }
+      }
     },
-    "Toggle Selection" : {
-      "comment" : "VoiceOver custom action that adds or removes an annotation from selection."
+    "Set up macOS Screen Recording permission before window thumbnails can be shown." : {
+
+    },
+    "Set up macOS Screen Recording permission for %@." : {
+
+    },
+    "Set Up Next" : {
+
+    },
+    "Set Up Screen Recording" : {
+
+    },
+    "Set up the next missing macOS privacy permission for %@." : {
+
+    },
+    "Setup progress" : {
+
+    },
+    "Shadow" : {
+
+    },
+    "Share" : {
+
+    },
+    "Share %@" : {
+
+    },
+    "Share Plain" : {
+
+    },
+    "Share Plain…" : {
+
+    },
+    "Share Styled" : {
+
+    },
+    "Share Styled…" : {
+
+    },
+    "Share…" : {
+
+    },
+    "Shortcut Reference" : {
+
+    },
+    "Shortcut: %@" : {
+
+    },
+    "Shortcuts" : {
+
+    },
+    "Show %@" : {
+
+    },
+    "Show a brief pulse at clicks in video exports. Crosshairs on still steps are controlled per step." : {
+
+    },
+    "Show accessibility label" : {
+
+    },
+    "Show action crosshairs" : {
+
+    },
+    "Show All" : {
+
+    },
+    "Show all captured elements" : {
+
+    },
+    "Show bundle identifier" : {
+
+    },
+    "Show click pulses in video" : {
+
+    },
+    "Show coordinates" : {
+
+    },
+    "Show Crosshair" : {
+
+    },
+    "Show Cursor" : {
+
+    },
+    "Show Cursor in Still Steps" : {
+
+    },
+    "Show dimensions" : {
+
+    },
+    "Show export progress window" : {
+
+    },
+    "Show Guide Inspector" : {
+
+    },
+    "Show Half Markers" : {
+
+    },
+    "Show identifier" : {
+
+    },
+    "Show Inspector" : {
+
+    },
+    "Show Layers" : {
+
+    },
+    "Show manual setup steps below if macOS does not list %@." : {
+
+    },
+    "Show marker" : {
+
+    },
+    "Show Mouse Clicks" : {
+
+    },
+    "Show Mouse Distance" : {
+
+    },
+    "Show name" : {
+
+    },
+    "Show Onboarding" : {
+
+    },
+    "Show Onboarding Again" : {
+
+    },
+    "Show only pinned UI Map elements in the tree, keeping parent rows for context." : {
+
+    },
+    "Show or hide the crosshairs marking where the action happened on this step." : {
+
+    },
+    "Show or hide the number on this step's card and marker." : {
+
+    },
+    "Show Out-of-Capture Crosshatch" : {
+
+    },
+    "Show outline" : {
+
+    },
+    "Show outlines for captured UI controls and leaf elements on the screenshot." : {
+
+    },
+    "Show owning app" : {
+
+    },
+    "Show parent hierarchy" : {
+
+    },
+    "Show Pixel Grid" : {
+
+    },
+    "Show Recent Step Previews" : {
+
+    },
+    "Show role" : {
+
+    },
+    "Show Screen Inspector" : {
+
+    },
+    "Show source" : {
+
+    },
+    "Show step number" : {
+
+    },
+    "Show the pointer in still steps" : {
+
+    },
+    "Show the selected element outline in pinned UI Map overlays." : {
+
+    },
+    "Show UI Map" : {
+
+    },
+    "Show UI Map outlines for captured controls and leaf elements without changing the screenshot." : {
+
+    },
+    "Show value" : {
+
+    },
+    "Show/Hide Inspector" : {
+
+    },
+    "Shown" : {
+
+    },
+    "Simplify" : {
+
+    },
+    "Size" : {
+
+    },
+    "Smaller file · 15 fps" : {
+
+    },
+    "Smoothing" : {
+
+    },
+    "Snip ⌥⌘S" : {
+
+    },
+    "Soft" : {
+
+    },
+    "Solid" : {
+
+    },
+    "Source" : {
+
+    },
+    "Source Frame Rate" : {
+
+    },
+    "Square" : {
+
+    },
+    "Standard" : {
+
+    },
+    "Standard · 216 dpi" : {
+
+    },
+    "Start · App" : {
+
+    },
+    "Start · Display" : {
+
+    },
+    "Start · Region" : {
+
+    },
+    "Start · Window" : {
+
+    },
+    "Start %@ automatically when I log in" : {
+
+    },
+    "Start a screen video recording." : {
+
+    },
+    "Start Guide" : {
+
+    },
+    "Start interactive window capture with SnipSnipSnip." : {
+
+    },
+    "Start, control, stop, or export a SnipSnipSnip Guide." : {
+
+    },
+    "Startup" : {
+
+    },
+    "Status" : {
+
+    },
+    "Step" : {
+
+    },
+    "Step %lld" : {
+
+    },
+    "Step %lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Step %1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "Step Guide" : {
+
+    },
+    "Step Image Format" : {
+
+    },
+    "Step Images" : {
+
+    },
+    "Step Slideshow MP4" : {
+
+    },
+    "Step-by-step guide" : {
+
+    },
+    "Steps & Privacy" : {
+
+    },
+    "Steps start without crosshairs. You can show them for an individual step in the editor." : {
+
+    },
+    "Steps start without numbers. You can show one for an individual step in the editor." : {
+
+    },
+    "Stop" : {
+
+    },
+    "Stop and save the recording." : {
+
+    },
+    "Stop Guide" : {
+
+    },
+    "Stop Recording" : {
+
+    },
+    "Style" : {
+
+    },
+    "Style Name" : {
+
+    },
+    "Styled" : {
+
+    },
+    "Styled JPEG…" : {
+
+    },
+    "Styled PDF…" : {
+
+    },
+    "Styled PNG…" : {
+
+    },
+    "Support" : {
+
+    },
+    "Switch back to an earlier snip without interrupting the current capture flow." : {
+
+    },
+    "Text alignment" : {
+
+    },
+    "The current %@ document has unsaved changes." : {
+
+    },
+    "Theme" : {
+
+    },
+    "Theme Name" : {
+
+    },
+    "This cursor was captured as an editable overlay. Move, resize, or delete it like any other image overlay." : {
+
+    },
+    "This keeps your current documents and archive contents, but it restores settings values to their shipped defaults." : {
+
+    },
+    "This permanently removes pinned and unpinned clipboard items from this Mac." : {
+
+    },
+    "This recovery includes unsaved changes." : {
+
+    },
+    "This snapshot includes edits that were not saved to disk." : {
+
+    },
+    "This snapshot reflects a saved state." : {
+
+    },
+    "Tick Spacing" : {
+
+    },
+    "Tighten the current crop around screenshot content and visible annotations." : {
+
+    },
+    "Tighten the current crop while keeping a small margin around screenshot content and visible annotations." : {
+
+    },
+    "Timer" : {
+
+    },
+    "Title" : {
+
+    },
+    "Top Left" : {
+
+    },
+    "Top Right" : {
+
+    },
+    "Transform" : {
+
+    },
+    "Triangle" : {
+
+    },
+    "Trim end" : {
+
+    },
+    "Trim start" : {
+
+    },
+    "Trim Video" : {
+
+    },
+    "Trim Whitespace" : {
+
+    },
+    "Turn on SnipSnipSnip in System Settings, then return here." : {
+
+    },
+    "Type" : {
+
+    },
+    "UI Map" : {
+
+    },
+    "Undo" : {
+
+    },
+    "Undo Last Guide Step" : {
+
+    },
+    "Ungroup" : {
+
+    },
+    "Unpin" : {
+
+    },
+    "Unsaved changes" : {
+
+    },
+    "Unselect" : {
+
+    },
+    "Until Restart" : {
+
+    },
+    "Untitled Guide" : {
+
+    },
+    "Update" : {
+
+    },
+    "UPPERCASE" : {
+
+    },
+    "US Letter" : {
+
+    },
+    "Use Default Location" : {
+
+    },
+    "Use source colors" : {
+
+    },
+    "Use Start Frame as Poster" : {
+
+    },
+    "Use the trim start frame as the package poster frame." : {
+
+    },
+    "User contains custom SVG scenes." : {
+
+    },
+    "v%lld" : {
+
+    },
+    "Variant Name" : {
+
+    },
+    "Vertical 0 Origin" : {
+
+    },
+    "Vertical Tick Edge" : {
+
+    },
+    "Video Error" : {
+
+    },
+    "Video Export" : {
+
+    },
+    "Video Recording" : {
+
+    },
+    "Video smoothness" : {
+
+    },
+    "W" : {
+
+    },
+    "Website" : {
+
+    },
+    "Welcome to %@" : {
+
+    },
+    "When" : {
+
+    },
+    "When capture finishes" : {
+
+    },
+    "Width" : {
+
+    },
+    "Window" : {
+
+    },
+    "Window Capture" : {
+
+    },
+    "Window UI Map needs Accessibility access before metadata can be captured." : {
+
+    },
+    "Windows" : {
+
+    },
+    "Work normally and each action becomes an editable step. Everything stays on this Mac, and secure fields are masked automatically." : {
+
+    },
+    "Working…" : {
+
+    },
+    "X" : {
+
+    },
+    "Y" : {
+
+    },
+    "You can replay this setup from Settings > General." : {
+
+    },
+    "You’ll always get editable steps. Choose whether to keep the full recording too." : {
+
+    },
+    "Your capture settings are still in place. Choose the quickest way to continue." : {
+
+    },
+    "ZIP" : {
+
+    },
+    "Zoom" : {
+
+    },
+    "Zoom In" : {
+
+    },
+    "Zoom in, zoom out, show actual size, fit the image, or resize the window as zoom changes." : {
+
+    },
+    "Zoom Level" : {
+
+    },
+    "Zoom Out" : {
+
     }
   },
   "version" : "1.0"

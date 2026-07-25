@@ -546,6 +546,10 @@ struct ContentView: View {
         GeometryReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    if lifecycle.showsWelcomeCard {
+                        exploreCard
+                    }
+
                     windowCaptureCard
 
                     captureHistoryCard
@@ -558,77 +562,39 @@ struct ContentView: View {
         }
     }
 
-    private var welcomeCard: some View {
+    private var exploreCard: some View {
         CaptureModeCard(
-            title: "Quick Start",
+            title: "Explore More",
             systemImage: "sparkles",
-            detail: quickStartDetail
+            detail: "Your core capture setup is complete. More tools are ready when you need them."
         ) {
-            VStack(alignment: .leading, spacing: 16) {
-                quickStartStep(
-                    systemImage: permissions.permissionStatus.hasScreenRecording ? "checkmark.shield" : "hand.raised.fill",
-                    title: "Set Up Capture Permissions",
-                    detail: permissions.permissionStatus.hasScreenRecording
-                        ? allowedPermissionsDetail
-                        : permissionCalloutSummary
-                )
-
-                quickStartStep(
-                    systemImage: "keyboard",
-                    title: "Capture From Anywhere",
-                    detail: "Use the app shortcuts while \(AppBranding.displayName) is active, use global hotkeys in the background, or trigger capture from the menu bar extra."
-                )
-
-                quickStartStep(
-                    systemImage: "bolt.badge.clock",
-                    title: "Edit Immediately",
-                    detail: "Each capture opens in the layered editor so you can annotate, redact, save, export, or search older captures from the inspector."
-                )
+            VStack(alignment: .leading, spacing: 12) {
+                Text(explorationFeatureNames.joined(separator: "  ·  "))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
 
                 HStack(spacing: 10) {
-                    if !permissions.permissionStatus.hasScreenRecording {
-                        Button("Set Up", action: permissions.requestScreenRecordingAccess)
-                            .buttonStyle(.glass)
-                            .disabled(permissions.activePermissionRequest != nil)
-                            .help("Set up macOS Screen Recording permission for \(AppBranding.displayName).")
+                    Button("Open Help Guide") {
+                        openWindow(id: AppSceneID.helpWindow)
+                        NSApp.activate(ignoringOtherApps: true)
                     }
 
                     Button("Dismiss", action: dismissWelcomeCard)
-                        .buttonStyle(.glass)
-                        .help("Hide this quick-start card.")
-
-                    Spacer(minLength: 8)
-
-                    Text(clipboard.autoCopyEnabled ? "Auto Copy is enabled by default." : "Auto Copy is currently off.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-                Divider()
-
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(quickStartShortcutEntries) { entry in
-                        shortcutRow(key: entry.keys, action: entry.action)
-                    }
+                        .help("Hide this exploration card.")
                 }
             }
         }
     }
 
-    private var quickStartShortcutEntries: [ShortcutCatalogEntry] {
-        let currentSections = AppShortcut.catalogSections(
-            preferences: capture.automationPreferences,
-            includesGuideCapture: capabilities.isEnabled(.guideCapture)
-        )
-        let appOpen = currentSections
-            .first { $0.title == "App" }?
-            .entries
-            .first { $0.action == "Open SnipSnipSnip" }
-        let captures = currentSections
-            .first { $0.title == "Default Global Capture" }
-            .map { Array($0.entries.prefix(5)) } ?? []
-
-        return [appOpen].compactMap { $0 } + captures
+    private var explorationFeatureNames: [String] {
+        var names: [String] = []
+        if capabilities.isEnabled(.guideCapture) { names.append("Guide") }
+        if capabilities.isEnabled(.screenRecording) { names.append("Screen Recording") }
+        if capabilities.isEnabled(.presentation) { names.append("Presentation") }
+        if capabilities.isEnabled(.recovery) { names.append("Recovery") }
+        if capabilities.isEnabled(.uiMap) { names.append("UI Map") }
+        if capabilities.isEnabled(.automation) { names.append("Automation") }
+        return names
     }
 
     private var windowCaptureCard: some View {
@@ -924,43 +890,6 @@ struct ContentView: View {
         return String(previewText.prefix(120))
     }
 
-    private func quickStartStep(systemImage: String, title: String, detail: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: systemImage)
-                .font(.system(size: 14, weight: .semibold))
-                .frame(width: 28, height: 28)
-                .foregroundStyle(Color.accentColor)
-                .background(Color.accentColor.opacity(0.12), in: .rect(cornerRadius: 8, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                Text(detail)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-
-    private func shortcutRow(key: String, action: String) -> some View {
-        HStack(spacing: 10) {
-            Text(key)
-                .font(.caption.monospaced())
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: 8, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(Color.primary.opacity(0.12), lineWidth: 1)
-                }
-
-            Text(AppBranding.branded(action))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-    }
-
     private func captureButton(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             headerActionLabel(title: title, systemImage: systemImage)
@@ -1224,37 +1153,6 @@ struct ContentView: View {
         }
     }
 
-    private var quickStartDetail: String {
-        if capabilities.isEnabled(.scrollingCapture) && capabilities.isEnabled(.uiMap) {
-            return "\(AppBranding.displayName) lives in the menu bar. Screen Recording enables capture pixels. Accessibility is only needed for Scrolling Capture and Window UI Map."
-        }
-
-        if capabilities.isEnabled(.uiMap) {
-            return "\(AppBranding.displayName) lives in the menu bar. Screen Recording enables capture pixels. Accessibility is only needed for Window UI Map."
-        }
-
-        if capabilities.isEnabled(.scrollingCapture) {
-            return "\(AppBranding.displayName) lives in the menu bar. Screen Recording enables capture pixels. Accessibility is only needed for Scrolling Capture."
-        }
-
-        return "\(AppBranding.displayName) lives in the menu bar. Screen Recording enables capture pixels, live window thumbnails, and recording."
-    }
-
-    private var allowedPermissionsDetail: String {
-        if capabilities.isEnabled(.scrollingCapture) && capabilities.isEnabled(.uiMap) {
-            return "Screen Recording is enabled. Accessibility can be allowed later for Scrolling Capture and Window UI Map."
-        }
-
-        if capabilities.isEnabled(.uiMap) {
-            return "Screen Recording is enabled. Accessibility can be allowed later for Window UI Map."
-        }
-
-        if capabilities.isEnabled(.scrollingCapture) {
-            return "Screen Recording is enabled. Accessibility can be allowed later for Scrolling Capture."
-        }
-
-        return "Screen Recording is enabled for this Mac session."
-    }
 }
 
 private struct CaptureModeCard<Content: View>: View {
