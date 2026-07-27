@@ -25,13 +25,66 @@ struct CLI {
         }
 
         print(result)
-        return exitCode(for: result)
+        return CLIExitCodeMapper.exitCode(for: result)
     }
 
     private func appleScriptCommand() -> String? {
+        let valueFlags: Set<String> = [
+            "--after-item-id",
+            "--appearance",
+            "--axis",
+            "--blink-interval",
+            "--destination",
+            "--difference-intensity",
+            "--display",
+            "--file",
+            "--first-item-id",
+            "--format",
+            "--freeform-height",
+            "--freeform-width",
+            "--grid-columns",
+            "--highlight-color",
+            "--highlight-threshold",
+            "--id",
+            "--layout",
+            "--mode",
+            "--name",
+            "--output",
+            "--overlay-opacity",
+            "--primary-label",
+            "--rect",
+            "--replace-item-id",
+            "--second-item-id",
+            "--secondary-label",
+            "--step-captions",
+            "--step-connector",
+            "--step-numbering",
+            "--step-start-index",
+            "--target",
+            "--target-aspect-ratio",
+            "--wipe-position",
+        ]
+        for (index, argument) in arguments.enumerated()
+        where valueFlags.contains(argument) {
+            guard arguments.indices.contains(index + 1),
+                  !arguments[index + 1].hasPrefix("--") else {
+                return nil
+            }
+        }
+
         var cursor = ArgumentCursor(arguments)
         _ = cursor.consumeFlag("--json")
         guard let first = cursor.next() else {
+            return nil
+        }
+        if cursor.contains("--after-item-id") {
+            guard let appendAfterItemID = cursor.value(after: "--after-item-id"),
+                  UUID(uuidString: appendAfterItemID) != nil else {
+                return nil
+            }
+        }
+        if cursor.contains("--after-item-id"),
+           cursor.value(after: "--destination")?.lowercased() != "append" {
             return nil
         }
 
@@ -105,6 +158,145 @@ struct CLI {
                 arguments.append("privateCapture:true")
             }
             return appleScriptCommand(commandName, arguments: arguments)
+        case "composition":
+            guard let action = cursor.next() else {
+                return nil
+            }
+            switch action {
+            case "layout":
+                guard let layout = cursor.value(after: "--layout"),
+                      ["auto", "compare", "steps", "row", "column", "grid", "freeform"]
+                        .contains(layout.lowercased()) else {
+                    return nil
+                }
+                var arguments = ["layout:\"\(escape(layout.lowercased()))\""]
+                if let axis = cursor.value(after: "--axis") {
+                    guard ["horizontal", "vertical"].contains(axis.lowercased()) else {
+                        return nil
+                    }
+                    arguments.append("axis:\"\(escape(axis.lowercased()))\"")
+                }
+                for (flag, argument) in [
+                    ("--step-numbering", "stepNumbering"),
+                    ("--step-connector", "stepConnector"),
+                ] {
+                    if let value = cursor.value(after: flag) {
+                        let normalized = value.lowercased()
+                        if flag == "--step-numbering",
+                           ![
+                               "none",
+                               "decimal",
+                               "uppercase-letters",
+                               "lowercase-letters",
+                               "uppercase-roman",
+                               "lowercase-roman",
+                           ]
+                            .contains(normalized) {
+                            return nil
+                        }
+                        if flag == "--step-connector",
+                           !["none", "line", "arrow"].contains(normalized) {
+                            return nil
+                        }
+                        arguments.append("\(argument):\"\(escape(value))\"")
+                    }
+                }
+                for (flag, argument) in [
+                    ("--grid-columns", "gridColumns"),
+                    ("--step-start-index", "stepStartIndex"),
+                ] {
+                    if let value = cursor.value(after: flag) {
+                        guard Int(value) != nil else {
+                            return nil
+                        }
+                        arguments.append("\(argument):\(value)")
+                    }
+                }
+                for (flag, argument) in [
+                    ("--target-aspect-ratio", "targetAspectRatio"),
+                    ("--freeform-width", "freeformWidth"),
+                    ("--freeform-height", "freeformHeight"),
+                ] {
+                    if let value = cursor.value(after: flag) {
+                        guard let number = Double(value), number.isFinite else {
+                            return nil
+                        }
+                        arguments.append("\(argument):\(value)")
+                    }
+                }
+                if let value = cursor.value(after: "--step-captions") {
+                    switch value.lowercased() {
+                    case "1", "true", "yes", "on":
+                        arguments.append("stepCaptions:true")
+                    case "0", "false", "no", "off":
+                        arguments.append("stepCaptions:false")
+                    default:
+                        return nil
+                    }
+                }
+                return appleScriptCommand("setCompositionLayout", arguments: arguments)
+            case "compare":
+                guard let mode = cursor.value(after: "--mode"),
+                      ["side-by-side", "sidebyside", "overlay", "wipe", "blink", "difference", "change-highlight", "changehighlight"]
+                        .contains(mode.lowercased()) else {
+                    return nil
+                }
+                var arguments = ["mode:\"\(escape(mode.lowercased()))\""]
+                for (flag, argument) in [
+                    ("--first-item-id", "firstItemID"),
+                    ("--second-item-id", "secondItemID"),
+                    ("--axis", "axis"),
+                    ("--highlight-color", "highlightColor"),
+                    ("--primary-label", "primaryLabel"),
+                    ("--secondary-label", "secondaryLabel"),
+                ] {
+                    if let value = cursor.value(after: flag) {
+                        if ["--first-item-id", "--second-item-id"].contains(flag),
+                           UUID(uuidString: value) == nil {
+                            return nil
+                        }
+                        if flag == "--axis",
+                           !["horizontal", "vertical"].contains(value.lowercased()) {
+                            return nil
+                        }
+                        arguments.append("\(argument):\"\(escape(value))\"")
+                    }
+                }
+                for (flag, argument) in [
+                    ("--wipe-position", "wipePosition"),
+                    ("--overlay-opacity", "overlayOpacity"),
+                    ("--blink-interval", "blinkInterval"),
+                    ("--difference-intensity", "differenceIntensity"),
+                    ("--highlight-threshold", "highlightThreshold"),
+                ] {
+                    if let value = cursor.value(after: flag) {
+                        guard let number = Double(value), number.isFinite else {
+                            return nil
+                        }
+                        arguments.append("\(argument):\(value)")
+                    }
+                }
+                return appleScriptCommand("setCompositionCompareMode", arguments: arguments)
+            case "template":
+                var arguments: [String] = []
+                if let id = cursor.value(after: "--id"),
+                   !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    arguments.append("id:\"\(escape(id))\"")
+                }
+                if let name = cursor.value(after: "--name"),
+                   !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    arguments.append("name:\"\(escape(name))\"")
+                }
+                guard !arguments.isEmpty else {
+                    return nil
+                }
+                return appleScriptCommand(
+                    "applyCompositionTemplate",
+                    arguments: arguments
+                )
+            default:
+                return nil
+            }
         case "guide":
             guard let action = cursor.next() else {
                 return nil
@@ -181,6 +373,22 @@ struct CLI {
             parts.append("overwrite:true")
         }
 
+        if let destination = cursor.value(after: "--destination") {
+            parts.append("destination:\"\(escape(destination))\"")
+        }
+
+        if let appendAfterItemID = cursor.value(after: "--after-item-id") {
+            parts.append("afterItemID:\"\(escape(appendAfterItemID))\"")
+        }
+
+        if let replaceItemID = cursor.value(after: "--replace-item-id") {
+            parts.append("replaceItemID:\"\(escape(replaceItemID))\"")
+        }
+
+        if let appearance = cursor.value(after: "--appearance") {
+            parts.append("appearance:\"\(escape(appearance))\"")
+        }
+
         return parts
     }
 
@@ -197,33 +405,6 @@ struct CLI {
             .replacingOccurrences(of: "\"", with: "\\\"")
     }
 
-    private func exitCode(for json: String) -> Int32 {
-        guard let data = json.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let status = object["status"] as? String else {
-            return 0
-        }
-
-        if status == "succeeded" {
-            return 0
-        }
-
-        let error = object["error"] as? [String: Any]
-        switch error?["code"] as? String {
-        case "invalidRequest":
-            return 64
-        case "featureUnavailable", "targetUnavailable", "proFeatureRequired":
-            return 69
-        case "outputFailed":
-            return 74
-        case "permissionDenied", "confirmationRequired":
-            return 77
-        case "userCancelled":
-            return 130
-        default:
-            return 70
-        }
-    }
 }
 
 struct ArgumentCursor {
