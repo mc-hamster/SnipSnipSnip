@@ -26,10 +26,11 @@ languages. For example, `06-capture-fullscreen-to-clipboard.sh` and
 `06-capture-fullscreen-to-clipboard.applescript` must exercise the same
 automation workflow through different interfaces. CLI and AppleScript samples
 must keep full procedure parity. URL samples must use the same basename for each
-procedure supported by v1 URL routes; URL intentionally omits file-output,
-list, open-document, export-current, and private-capture procedures because
-those are not exposed by the v1 URL contract. App Intents expose native
-Shortcuts actions and are not part of this filename parity matrix.
+procedure supported by v1 URL routes; URL intentionally omits list,
+open-document, private-capture, and general file-output procedures. The
+dedicated v1 current-export route is represented because it has explicit
+destination validation. App Intents expose native Shortcuts actions and are not
+part of this filename parity matrix.
 
 Current procedure matrix:
 
@@ -57,6 +58,12 @@ Current procedure matrix:
 | `20-add-guide-step` (Pro) | yes | yes | yes |
 | `21-stop-guide` (Pro) | yes | yes | yes |
 | `22-export-guide-pdf` (Pro) | yes | yes | yes |
+| `23-append-fullscreen-to-composition` | yes | yes | yes |
+| `24-set-composition-layout-steps` | yes | yes | yes |
+| `25-set-composition-compare-wipe` | yes | yes | yes |
+| `26-export-current-html` | yes | yes | yes |
+| `27-replace-frontmost-window-in-composition` | yes | yes | yes |
+| `28-apply-composition-template` | yes | yes | yes |
 
 Set these environment variables as needed:
 
@@ -66,4 +73,9 @@ export OUTPUT_DIR="$HOME/Downloads"
 export PRESET_ID="00000000-0000-0000-0000-000000000000"
 export PRESET_NAME="Daily Clip"
 export SSS_DOCUMENT="$HOME/Downloads/example.sss"
+export AFTER_ITEM_ID="00000000-0000-0000-0000-000000000001"
+export FIRST_ITEM_ID="00000000-0000-0000-0000-000000000001"
+export SECOND_ITEM_ID="00000000-0000-0000-0000-000000000002"
+export ITEM_ID="00000000-0000-0000-0000-000000000001"
+export TEMPLATE_ID="builtin.numbered-steps"
 ```

@@ -25,12 +25,17 @@ Implemented v1 coverage:
   entitled only for SnipSnipSnip's dedicated scripting access group.
 - App Intents for macOS Shortcuts, Spotlight, and system automation surfaces,
   backed by the same automation request/result contract.
+- Multi-capture composition contract coverage across CLI, AppleScript, URL, and
+  App Intents: new/append/replace capture destinations, exact append-after and
+  replacement item targeting, layout and comparison mutation, explicit output
+  appearance, composition payloads/errors, and PNG/JPEG/PDF/GIF/APNG/MP4/HTML/SSS
+  format identifiers.
 - GitHub-only sample scripts under `Docs/Automation/SampleScripts`.
 
 ## Goals
 
-- Provide a stable, product-level automation contract for capture, presets,
-  export, clipboard, document opening, and permission preflight.
+- Provide a stable, product-level automation contract for capture, composition,
+  presets, export, clipboard, document opening, and permission preflight.
 - Keep automation requests separate from internal UI implementation details.
 - Make Capture Presets the safest first-class automation target.
 - Support structured success, warning, and error results.
@@ -134,6 +139,10 @@ struct AutomationRequest: Codable, Sendable, Identifiable {
     var command: AutomationCommand
     var interactionPolicy: AutomationInteractionPolicy
     var privacy: AutomationPrivacyOptions
+    var captureDestination: AutomationCaptureDestination
+    var appendAfterCompositionItemID: UUID?
+    var replaceCompositionItemID: UUID?
+    var appearance: AutomationOutputAppearance
     var output: AutomationOutput
 }
 ```
@@ -187,9 +196,44 @@ enum AutomationCommand: Codable, Sendable {
     case repeatLastCapture
     case openDocument(OpenDocumentAutomationCommand)
     case exportCurrent(ExportCurrentAutomationCommand)
+    case composition(CompositionAutomationCommand)
     case guide(GuideAutomationCommand)
 }
 ```
+
+Capture destination is request-level so direct captures, preset runs, and repeat
+last share one deterministic behavior. `new` is the legacy decode and
+construction default. `append` accepts an optional exact active item UUID and
+inserts after it; when omitted, the selected-item/default append behavior is
+preserved. `replace` requires an exact item UUID. Append-after and replacement
+IDs are rejected outside their matching destinations. If the target document
+generation or item changes while capture is in flight, execution returns
+`staleDestination` rather than redirecting pixels into a different document.
+Output appearance similarly defaults to `appDefault`, preserving
+styled-when-configured behavior, while `plain` and `styled` are explicit.
+New automated captures initialize the internal Screenshot purpose. Append
+inherits an existing Comparison, Steps, or Collection purpose; an unattended
+append to a one-image Screenshot promotes it deterministically to Collection
+with Auto layout because no interactive goal chooser is available. Compare
+commands set Comparison purpose, Steps layout sets Steps purpose, and
+Auto/Row/Column/Grid/Freeform layouts or matching templates set Collection
+purpose. This synchronization is internal document state and does not change
+the v1 automation schema. Layout and compatible-template commands can activate
+Steps or Collection directly from a one-image Screenshot as one undoable
+change; Comparison continues to require two included images.
+
+Composition commands set one of the stable layout identifiers
+`auto|compare|steps|row|column|grid|freeform` or one of the comparison
+identifiers
+`sideBySide|overlay|wipe|blink|difference|changeHighlight`. Comparison payloads
+can include an explicit item pair, horizontal/vertical axis, wipe position,
+overlay opacity, blink interval, difference intensity, change-highlight
+color/threshold, and primary/secondary labels. Layout payloads also cover grid
+columns, target aspect ratio, paired freeform canvas dimensions, and complete
+step numbering (decimal, letter, or Roman), caption, and connector settings.
+They also apply built-in or user-saved composition templates by stable ID or
+exact display name. Template commands store no image data and reject
+incompatible item counts before committing one undoable change.
 
 Guide v1 keeps start (window, app, interactive region, or display), pause, resume, manual step, stop, open `.sssguide`, and export identifiers stable on every surface. Guide creation and dedicated control/export are Pro-only. The App Store edition decodes those requests and returns `proFeatureRequired` before permission or capture work; generic `.sssguide` opening remains shared. In Pro, interactive Guide regions are constrained to the display where selection begins and cross-display rectangles are rejected; normal screenshot-region automation remains unchanged. Window and app Guides resolve and follow the current source geometry without changing the persisted automation command.
 
@@ -271,13 +315,24 @@ enum AutomationExportFormat: String, Codable, Sendable {
     case jpeg
     case pdf
     case sss
+    case gif
+    case apng
+    case mp4
+    case html
 }
 ```
 
+GIF/APNG/MP4 are composition-aware Blink outputs with deterministic timing,
+crossfade, loop behavior, and a disclosed 4,096 px longest-side cap. HTML is a
+self-contained interactive Compare or Steps artifact built only from rendered,
+redacted pixels, with embedded assets and no runtime server or network
+dependency.
+
 `saveEditableDocument(.sss)` must preserve the existing redaction warning
 semantics. When the request has `interactionPolicy == .never` and the document
-contains redactions, the service should fail with `confirmationRequired` instead
-of saving an editable package that retains original pixels.
+contains redactions or Private captures, the service should fail with
+`confirmationRequired` instead of saving an editable package that retains
+original pixels.
 
 ### Result
 
@@ -297,6 +352,7 @@ enum AutomationPayload: Codable, Sendable {
     case presets([AutomationPresetSummary])
     case capture(AutomationCaptureSummary)
     case export(AutomationExportSummary)
+    case composition(AutomationCompositionSummary)
     case permissionStatus(AutomationPermissionSummary)
     case none
 }
@@ -329,6 +385,13 @@ enum AutomationErrorCode: String, Codable, Sendable {
     case unsupportedOutput
     case outputFailed
     case internalError
+    case noActiveComposition
+    case compositionItemNotFound
+    case compositionRequiresMultipleItems
+    case incompatibleCompositionItems
+    case unsupportedComparisonOutput
+    case oversizedOutput
+    case staleDestination
 }
 ```
 
@@ -361,14 +424,18 @@ snipsnipsnipctl capture fullscreen --display current --copy
 snipsnipsnipctl capture frontmost-window --output ~/Downloads/frontmost.png
 snipsnipsnipctl capture region --rect 100,120,800,450 --output ~/Downloads/region.png
 snipsnipsnipctl capture region --interactive --open-editor
+snipsnipsnipctl capture fullscreen --destination append --after-item-id <uuid> --appearance plain --open-editor
+snipsnipsnipctl composition layout --layout steps --axis vertical
+snipsnipsnipctl composition compare --mode wipe --first-item-id <uuid> --second-item-id <uuid> --wipe-position 0.4
 snipsnipsnipctl export current --format png --output ~/Downloads/current.png
+snipsnipsnipctl export current --format html --appearance styled --output ~/Downloads/comparison.html
 ```
 
 Exit code guidance:
 
 - `0`: success
 - `64`: invalid request
-- `69`: feature or target unavailable
+- `69`: feature, target, or capture destination unavailable/stale
 - `70`: internal error
 - `74`: output or file-system failure
 - `77`: permission denied or confirmation required
@@ -406,6 +473,9 @@ tell application "SnipSnipSnip"
     captureFrontmostWindow given output:"editor"
     captureRegion given rect:"100,100,640,480", outputPath:"/Users/me/Downloads/region.png", format:"png", overwrite:true
     captureWindow given interactive:true, output:"clipboard"
+    captureFullscreen given destination:"append", afterItemID:"…", appearance:"plain", output:"editor"
+    setCompositionLayout given layout:"steps", axis:"vertical"
+    setCompositionCompareMode given mode:"wipe", firstItemID:"…", secondItemID:"…", wipePosition:0.4
     repeatLastCapture given output:"editor"
     exportCurrentScreenshot given outputPath:"/Users/me/Downloads/current.png", format:"png", overwrite:true
 end tell
@@ -427,8 +497,11 @@ AppleScript best practices:
 Implementation notes:
 
 - AppleScript commands are synchronous from the script author's perspective.
-  Internally, command handlers should bridge to async service execution without
-  blocking long-running work on detached global state.
+  `NSScriptCommand.suspendExecution()` bridges to async service execution and
+  `resumeExecution(withResult:)` returns the authoritative envelope only after
+  non-interactive composition mutations and exports complete. The CLI's Apple
+  Event therefore has the same completion guarantee. Only genuinely
+  interactive workflows return `acceptedInteractiveWorkflow`.
 - The scripting dictionary should avoid exposing internal object graphs. Use
   records and scalar values instead of scriptable editor objects.
 - Add tests for command decoding and result mapping without launching
@@ -446,10 +519,15 @@ snipsnipsnip://v1/presets/run?id=<uuid>&output=clipboard
 snipsnipsnip://v1/presets/run?name=Docs%20Header&output=editor
 snipsnipsnip://v1/capture/fullscreen?display=current&output=clipboard
 snipsnipsnip://v1/capture/frontmost-window?output=editor
+snipsnipsnip://v1/capture/frontmost-window?destination=replace&item=<uuid>&output=editor
 snipsnipsnip://v1/capture/region?rect=100,100,640,480&output=editor
 snipsnipsnip://v1/capture/region?interactive=1&output=editor
 snipsnipsnip://v1/capture/window?output=clipboard
 snipsnipsnip://v1/repeat-last?output=editor
+snipsnipsnip://v1/composition/layout?layout=steps&axis=vertical
+snipsnipsnip://v1/composition/compare?mode=wipe&firstItemID=<uuid>&secondItemID=<uuid>&wipePosition=0.4
+snipsnipsnip://v1/composition/template?id=builtin.numbered-steps
+snipsnipsnip://v1/export/current?format=html&output=file&outputPath=/Users/me/Downloads/comparison.html&appearance=styled&overwrite=true
 snipsnipsnip://v1/status
 ```
 
@@ -490,8 +568,10 @@ macOS 26 implementation rules:
 - Passive intents such as status and preset listing support `.background`.
 - Action intents support `[.background, .foreground(.dynamic)]`.
 - Call `continueInForeground` before interactive region/window workflows,
-  repeat-last workflows, or outputs that present UI such as `openEditor` and
-  `floatReference`.
+  connected-device or scrolling repeat workflows, or outputs that present UI
+  such as `openEditor` and `floatReference`. Fixed-region, saved-window,
+  frontmost-window, and fullscreen repeats still await their capture and file
+  output before returning.
 - Register the live `AutomationIntentClient` with
   `AppDependencyManager.shared` during app startup.
 
@@ -507,12 +587,21 @@ Initial App Intents:
 - Repeat Last SnipSnipSnip Capture
 - Open SnipSnipSnip Document
 - Export Current SnipSnipSnip Screenshot
+- Add Capture to SnipSnipSnip Composition
+- Replace SnipSnipSnip Composition Item
+- Export SnipSnipSnip Composition
+- Set SnipSnipSnip Composition Layout
+- Set SnipSnipSnip Comparison Mode
+- Apply SnipSnipSnip Composition Template
 
 Supporting types:
 
 - `CapturePresetEntity` is backed by `AutomationService.listCapturePresets`.
 - App enums map Shortcuts choices to existing automation output, export format,
-  fullscreen display, delay, cursor, and UI Map values.
+  fullscreen display, delay, cursor, UI Map, composition destination, output
+  appearance, layout, comparison mode, and axis values. Every capture-producing
+  intent exposes the optional append-after item UUID alongside the replacement
+  item UUID.
 - File output accepts an absolute POSIX path or `file://` URL string, then maps
   to the existing `AutomationOutput` file validation. The sandboxed App Store
   build rejects unattended destinations outside Downloads with
@@ -543,6 +632,9 @@ Supporting types:
 - Private Capture should be available as an automation option for screenshot
   requests that should skip archive checkpoints, recycle-bin retention, and
   background OCR indexing.
+- Appending any private capture taints the whole composition as private. The
+  composition must then stay out of archive, recovery, recent items, search,
+  OCR/AI indexing, clipboard history, and external-drag staging.
 - Editable `.sss` output retains base screenshot pixels, annotation state, and
   hidden UI Map metadata. External automation docs must tell callers to use
   flattened image/PDF output when privacy flattening matters.
@@ -555,6 +647,9 @@ Supporting types:
   App Intent parameter mapping.
 - Unit-test permission preflight decisions for each capture target and output.
 - Unit-test result mapping so adapters preserve error codes.
+- Unit-test legacy decode defaults, destination invariants, composition
+  parameter ranges, exact append-after targeting, stale generation/item errors,
+  layout/mode coverage, and every export format identifier.
 - Unit-test App Intent preset entity queries with a fake
   `AutomationIntentClient`.
 - Add architecture tests that keep App Intent files behind
@@ -625,7 +720,8 @@ output behavior is added.
 
 - Complete: add versioned `snipsnipsnip://v1/...` automation parsing.
 - Complete: preserve `snipsnipsnip://import-pasteboard`.
-- Complete: keep URL outputs to editor, clipboard, float, or none.
+- Complete: keep capture URL outputs to editor, clipboard, float, or none; use
+  one explicit, validated `/export/current` route for file output.
 - Complete: add docs for URL examples and safety rules.
 
 ### Phase 5: AppleScript Adapter
@@ -644,6 +740,9 @@ output behavior is added.
 - Complete: support `--json`, structured errors, documented exit codes, output
   path handling, overwrite, private capture, editor, clipboard, and float
   outputs.
+- Complete: support capture destination, explicit appearance, composition
+  layout/comparison/template settings, and composition export format
+  identifiers.
 
 ### Phase 7: Documentation And Help
 
@@ -658,6 +757,37 @@ output behavior is added.
 - Complete: register the intent client through `AppDependencyManager`.
 - Complete: add Shortcuts actions and preset entity support for existing v1
   automation commands.
+
+### Phase 9: Multi-Capture Composition Automation
+
+- Complete: add backward-compatible request fields for capture destination,
+  optional append-after item targeting, and output appearance.
+- Complete: add layout/comparison command models, composition payload/error
+  models, and `supportsComposition`.
+- Complete: add template application by stable ID or exact name and dedicated
+  Add Capture, Replace Item, and Export Composition App Intents.
+- Complete: keep CLI, AppleScript, URL, App Intents, docs, and sample contracts
+  in exact parity.
+- Complete: expose `--after-item-id`, AppleScript `afterItemID`, URL `after`,
+  and the matching App Intent parameter across every capture-producing command;
+  validate active items and return `staleDestination` for in-flight target
+  changes.
+- Complete: make AppleScript and CLI await authoritative service completion,
+  report the exact affected `itemID`, and reserve accepted results for
+  interactive workflows.
+- Complete: use URL `item` as the canonical replacement target spelling while
+  continuing to accept legacy `replaceItemID`.
+- Complete: add GIF, APNG, MP4, and self-contained HTML format identifiers.
+- Complete: route direct, preset, repeat, and interactive capture completion
+  through generation-scoped new/append/replace intents, with exact-item
+  replacement and verified direct-capture mutation results.
+- Complete: dispatch layout/comparison commands through a focused composition
+  port as one undoable editor change, returning composition summaries,
+  `updatedComposition`, and actionable composition error codes.
+- Complete: resolve explicit Plain/Styled appearance in the shared output
+  writer; route static, animated, HTML, and editable `.sss` formats to their
+  matching exporters; and return structured unsupported-combination and
+  oversized-output errors.
 
 ## Recommended MVP
 

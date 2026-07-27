@@ -51,7 +51,7 @@ Repeat the essential workflow pass with:
 
 ## Screenshot editor
 
-- [ ] Tool, Fit, Layers, Redaction, color, selected-state, and Presentation controls announce semantic labels and values.
+- [ ] Tool, Fit, Layers, Redaction, color, selected-state, goal, stage, and Polish controls announce semantic labels and values.
 - [ ] Tab and Shift-Tab traverse annotations from front to back.
 - [ ] Space selects exclusively; Shift-Space toggles additive selection; Escape returns focus to the canvas.
 - [ ] Return starts editing text and callouts.
@@ -63,16 +63,47 @@ Repeat the essential workflow pass with:
 - [ ] Redacted pixels and hidden redaction content are never announced.
 - [ ] Layers remains fully usable for selection, ordering, grouping, and deletion.
 
-## Plain and Styled output
+## Intent-driven creation and multi-capture
 
-- [ ] Edit prioritizes Copy Plain, Plain output groups, Float Plain, and Drag Plain.
-- [ ] Presentation prioritizes Styled actions and exposes Plain alternatives.
-- [ ] Styled is unavailable until a Presentation style or scene is configured.
-- [ ] Transparent Styled output forces PNG; Plain JPEG and PDF remain available.
-- [ ] Plain filenames end in `-edited`; Styled filenames end in `-styled`.
-- [ ] Save panels identify Plain or Styled output.
+- [ ] Create asks what to make before what to capture, uses native radio selection, reveals only relevant conditional questions, announces its live summary, and exposes exactly one default action plus Cancel.
+- [ ] Direct Region, Window, and Full Screen shortcuts bypass Create as Screenshot without losing one-action behavior.
+- [ ] While a screenshot document is open, the contextual session row announces purpose, progress, and one primary next action; global capture shortcuts retain their new-document meaning.
+- [ ] The secondary Create entry remains keyboard- and VoiceOver-accessible with an open screenshot, and configured Polish is announced on its content-stage action without changing visible output.
+- [ ] Adding the first extra image asks Compare, Add as Step, or Combine once. Cancel and capture failure return focus without changing purpose, content, or selection; later additions do not ask again.
+- [ ] Screenshot exposes no layout controls; Comparison exposes no Grid or Steps controls; Steps exposes no comparison or general collection tiles; Collection exposes Auto, Row, Column, Grid, Freeform, and compatible templates.
+- [ ] Arrange draws no Polish subject frame or persistent unselected-item outlines. A selected boundary appears only after explicit canvas focus, hover remains neutral, and Differentiate Without Color preserves the distinction.
+- [ ] Every item's accessibility frame is contained by and aligned with its rendered panel after zoom, pan, resize, Look changes, and Mockup wrapping.
+- [ ] Arrange items announce caption or safe title, selected and shown state, order, Before/After role or step number, framing mode, and source-error state.
+- [ ] Tab and Shift-Tab traverse items in export order, or front to back in Freeform; Space selects and Shift-Space toggles additive selection.
+- [ ] Structured-layout arrows move spatial focus. In Freeform, arrows move by 1 px, Shift-arrows move by 10 px, Option-arrows resize by 1 px, and Shift-Option-arrows resize by 10 px.
+- [ ] Return enters Edit Selected Capture, Option-Return enters Adjust Framing, Delete removes an item when more than one remains, and Command-D duplicates.
+- [ ] Edit Selected Capture and Annotate Result announce their scope, move focus into the editor, expose Done, and return to the focused goal stage with the prior item selection, inspector position, viewport, and canvas focus restored.
+- [ ] Edit Selected Capture exposes only that source's crop and annotations. Annotate Result exposes whole-canvas annotations and does not present Crop as if it changed an item.
+- [ ] Items and Layers provide complete alternatives for reorder, resize, framing, replace, recapture, duplicate, include or exclude, and removal.
+- [ ] The Layers window announces its Items, Result, and Capture scope picker; changing Capture with Previous, Next, or its picker updates the announced source without losing keyboard focus.
+- [ ] Each Layers row exposes only currently valid VoiceOver actions. Move controls announce their direction, excluded and missing items announce their state without color, and Remove is unavailable when it would delete the final item.
+- [ ] Structured-layout dividers expose adjustable values and keyboard increments. Freeform move and resize guides remain understandable with Differentiate Without Color.
+- [ ] Comparison consistently announces Before and After. Show Both, Highlight Changes, Alternate, Overlay opacity, Wipe position and axis, Difference intensity, Blink poster, interval, playback, and Before/After controls expose semantic labels, values, and increments.
+- [ ] Reduce Motion prevents automatic Blink playback while preserving manual Before and After controls and exported animation.
+- [ ] Steps announces automatic number, caption, order, inclusion, and navigation. Reorder, exclusion, and removal announce the new numbering once.
+- [ ] Private Composition is announced when first tainted and remains visibly and semantically Private after the source that caused it is removed.
+- [ ] Cancelled add or replacement restores focus and makes no selection or document announcement implying success.
+- [ ] Partial batch-import failure announces the exact Added and Failed counts, then exposes Retry Failed and Details without discarding successful items.
+- [ ] Interactive HTML is tested in Safari with VoiceOver and keyboard only: heading structure, static numbered links, Previous/Next, Left/Right Arrow step navigation, comparison sliders, Blink Play/Pause and manual sides, focus visibility, Dark appearance, and browser zoom all remain usable.
+- [ ] Interactive HTML honors `prefers-reduced-motion`, contains useful static navigation without JavaScript, and does not depend on color alone for Difference output.
+
+## Current stage output
+
+- [ ] Edit, Arrange, Steps, and Comparison Review expose simple Copy, Export, Share, Float, and Drag actions for the visible unwrapped content without Styled terminology.
+- [ ] Polish exposes those same actions for the visible Look or Mockup and announces Polish once in the contextual session row.
+- [ ] Edit Selected Capture and Annotate Result hide document output, Add Image, and reference actions until Done returns to the focused goal stage.
+- [ ] Polish without a configured Look or Mockup exports the visible unwrapped content instead of failing.
+- [ ] Transparent Polish output forces PNG while content-stage JPEG and PDF remain available.
+- [ ] Content filenames retain the edited/composition convention; Polish filenames use the presentation convention for compatibility.
+- [ ] Routine save and output controls describe the visible stage without presenting competing Plain or Styled choices.
 - [ ] Export completion announces format, appearance, destination, and provides Reveal.
-- [ ] Automation resolves Styled only when Presentation is enabled and otherwise resolves Plain.
+- [ ] Interactive HTML export announces completion and identifies the result as a single offline file.
+- [ ] Automation retains explicit Plain and Styled behavior independently of the interactive stage vocabulary.
 
 ## Video and Guide
 
