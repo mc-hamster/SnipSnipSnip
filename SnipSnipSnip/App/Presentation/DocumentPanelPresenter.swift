@@ -34,6 +34,35 @@ struct LiveDocumentPanelPresenter: DocumentPanelPresenting {
         return panel.url
     }
 
+    func selectSingleCompositionSourceToImport() -> URL? {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image, .snipSnipDocument]
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.resolvesAliases = true
+        panel.prompt = "Add"
+        panel.message =
+            "Choose one image or SnipSnipSnip document to use as a screenshot."
+
+        guard panel.runModal() == .OK else {
+            return nil
+        }
+
+        return panel.url
+    }
+
+    func selectImagesToImport() -> [URL] {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image, .snipSnipDocument]
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.prompt = "Add"
+        panel.message = "Choose images or editable SnipSnipSnip documents to add to the current composition."
+        return panel.runModal() == .OK ? panel.urls : []
+    }
+
     func selectPresentationScenesRoot(initialDirectory: URL) -> URL? {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
@@ -41,7 +70,7 @@ struct LiveDocumentPanelPresenter: DocumentPanelPresenting {
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
         panel.directoryURL = initialDirectory
-        panel.prompt = "Use Scenes Folder"
+        panel.prompt = "Use Mockup Folder"
 
         guard panel.runModal() == .OK else {
             return nil

@@ -1,33 +1,52 @@
 import AppKit
 import CoreGraphics
 import Foundation
-import OSLog
 import Vision
 
 #if !APP_STORE_BUILD
 private enum UIMapCaptureDiagnostics {
-    nonisolated private static let logger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "com.oontz.SnipSnipSnip",
-        category: "UIMapCapture"
-    )
-
-    nonisolated static func notice(_ message: String) {
-        logger.notice("\(message, privacy: .public)")
+    nonisolated static func notice(
+        _ message: @autoclosure () -> String
+    ) {
+        CaptureContentDiagnostics.current.notice(
+            category: "UIMapCapture",
+            message()
+        )
     }
 
-    nonisolated static func failure(_ message: String) {
-        logger.error("\(message, privacy: .public)")
+    nonisolated static func failure(
+        _ message: @autoclosure () -> String
+    ) {
+        CaptureContentDiagnostics.current.error(
+            category: "UIMapCapture",
+            message()
+        )
     }
 }
 #endif
 
 protocol UIMapCaptureServiceType: Sendable {
-    nonisolated func captureUIMap(for capture: CapturedScreenshot) async -> UIMapSnapshot?
+    nonisolated func captureUIMap(
+        for capture: CapturedScreenshot,
+        isPrivateCapture: Bool
+    ) async -> UIMapSnapshot?
+}
+
+extension UIMapCaptureServiceType {
+    nonisolated func captureUIMap(
+        for capture: CapturedScreenshot
+    ) async -> UIMapSnapshot? {
+        await captureUIMap(for: capture, isPrivateCapture: false)
+    }
 }
 
 nonisolated struct UnavailableUIMapCaptureService: UIMapCaptureServiceType {
-    nonisolated func captureUIMap(for capture: CapturedScreenshot) async -> UIMapSnapshot? {
+    nonisolated func captureUIMap(
+        for capture: CapturedScreenshot,
+        isPrivateCapture: Bool
+    ) async -> UIMapSnapshot? {
         _ = capture
+        _ = isPrivateCapture
         return nil
     }
 }
@@ -168,17 +187,21 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
     private let accessibility: any AccessibilityPlatform
     private let screens: any ScreenTopologyProviding
     private let clock: any ClockProviding
+    private let diagnosticSink: any CaptureContentDiagnosticSink
 
     init(
         capabilities: AppCapabilitySnapshot,
         accessibility: any AccessibilityPlatform = LiveAccessibilityPlatform(),
         screens: any ScreenTopologyProviding = SystemScreenTopologyService(),
-        clock: any ClockProviding = SystemClock()
+        clock: any ClockProviding = SystemClock(),
+        diagnosticSink: any CaptureContentDiagnosticSink =
+            SystemCaptureContentDiagnosticSink()
     ) {
         self.capabilities = capabilities
         self.accessibility = accessibility
         self.screens = screens
         self.clock = clock
+        self.diagnosticSink = diagnosticSink
     }
 
     private struct WindowCandidate {
@@ -241,7 +264,23 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
     private let captureDeadlineSeconds: TimeInterval = 2.5
     private let minimumAXWindowMatchScore: CGFloat = 0.35
 
-    nonisolated func captureUIMap(for capture: CapturedScreenshot) async -> UIMapSnapshot? {
+    nonisolated func captureUIMap(
+        for capture: CapturedScreenshot,
+        isPrivateCapture: Bool
+    ) async -> UIMapSnapshot? {
+        await CaptureContentDiagnostics.$current.withValue(
+            CaptureContentDiagnostics(
+                isPrivateCapture: isPrivateCapture,
+                sink: diagnosticSink
+            )
+        ) {
+            await captureUIMapWithDiagnostics(for: capture)
+        }
+    }
+
+    private func captureUIMapWithDiagnostics(
+        for capture: CapturedScreenshot
+    ) async -> UIMapSnapshot? {
         UIMapCaptureDiagnostics.notice(
             "[UIMap] capture requested sourceName='\(capture.sourceName)' kind='\(capture.kind.rawValue)' sourceRect=\(Self.describe(capture.sourceRect)) documentRect=\(Self.describe(capture.documentRect)) pixelSize=\(Int(capture.pixelSize.width))x\(Int(capture.pixelSize.height)) featureEnabled=\(capabilities.isEnabled(.uiMap)) axTrusted=\(accessibility.isProcessTrusted())"
         )

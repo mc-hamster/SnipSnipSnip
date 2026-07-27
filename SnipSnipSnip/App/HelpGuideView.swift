@@ -134,8 +134,8 @@ struct HelpGuideView: View {
                                 "Open SnipSnipSnip from the menu bar icon or the Help menu.",
                                 "Choose Region, Window, or Fullscreen to take a screenshot.",
                                 "Use the editor to crop, annotate, redact, or copy text.",
-                                "Use Float Plain or Float Styled when you want the selected appearance to stay above other apps as a temporary reference.",
-                                "Choose an explicit Plain or Styled Copy, Share, Export, or Drag action when you are ready to send a flattened result.",
+                                "Use Float when you want the output currently shown in the active workspace to stay above other apps as a temporary reference.",
+                                "Choose Copy, Share, Export, or Drag when you are ready to send the output shown in the active content or Polish stage.",
                                 "Use Save or Save As when you want to keep an editable .sss document."
                             ]
                         ),
@@ -448,6 +448,8 @@ struct HelpGuideView: View {
                                 "Choose Guide at the top of the inspector to edit the title, theme, appearance, colors, video click pulses, screenshot shadows, branding, and advanced style shared by every step. The Theme menu can save the current theme or make its organization, logo, copyright, legal statement, and styling the default for new Guides.",
                                 "Guide uses the detected clicked control and available screenshot space to place a numbered marker outside the control when space allows, while keeping it inside the screenshot. Turn Show step number or Show action crosshairs off when a particular step reads better without them. The crosshairs use transparent rings so the clicked content remains visible. In the preview, drag the action handle to point at a different action, or drag the handle around a visible number to move it; the marker follows the pointer throughout the drag. Deleted steps are skipped when Guide calculates step numbers; hiding a number does not renumber the other steps.",
                                 "Choose Edit Screenshot when a step needs the full screenshot annotation toolset. The familiar two editor command rows appear with direct tool buttons; choose a tool, make the edits, then select Apply to Step. Cancel leaves the step unchanged.",
+                                String(localized: "Use Steps to arrange captures you already have. Use Guide to record a workflow automatically."),
+                                String(localized: "Guide remains separate from the manual Steps workflow. Guide can also capture source video, audio, actions, and markers."),
                                 "Save the editable project as .sssguide. Existing .sss and .sssvideo documents are unchanged."
                             ]
                         ),
@@ -678,7 +680,7 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Choose a tool",
-                            body: "The first editor command row keeps Discard and every editing tool in a stable, one-click position. Rounded group boundaries organize Selection (Select and Crop), Shapes (Rectangle, Ellipse, Line, Arrow, Status Mark, and Ruler), Drawing and Highlight (Freehand, Highlighter, Highlight Box, and Spotlight), Text and Callout, Redaction, and Recognition and Image (Copy Text, Pick Color, and Insert Image). The selected tool has a filled background and stronger boundary as well as its accessibility state. Open the Redaction button's menu to change between Blur, Pixelate, and Redact. The second row visibly groups History, Layers and Arrangement, Zoom, Workspace, Output, and References and Drag Out in workflow order. At narrow widths, scroll a row horizontally; the groups and commands keep their positions instead of collapsing into category menus or title-bar overflow."
+                            body: "The first editor command row keeps Discard and every editing tool in a stable, one-click position. Rounded group boundaries organize Selection (Select and Crop), Shapes (Rectangle, Ellipse, Line, Arrow, Status Mark, and Ruler), Drawing and Highlight (Freehand, Highlighter, Highlight Box, and Spotlight), Text and Callout, Redaction, and Recognition and Image (Copy Text, Pick Color, and Insert Image). The selected tool has a filled background and stronger boundary as well as its accessibility state. Open the Redaction button's menu to change between Blur, Pixelate, and Redact. The second row visibly groups History, Layers and Arrangement, Zoom, Inspector, Workspace, Output, and References and Drag Out in workflow order. At narrow widths, scroll a row horizontally; the groups and commands keep their positions instead of collapsing into category menus or title-bar overflow."
                         ),
                         HelpArticleSection(
                             title: "Select and arrange annotations",
@@ -692,13 +694,84 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Use the inspector",
-                            body: "The native right inspector changes with the active tool, selection, or workspace. Use it to adjust style, colors, text size, effect strength, image overlay opacity, UI Map display and pin options when available, crop values, Presentation Styles and Scenes, callout step guides, Change History, Recent Snips, search, and the Recycle Bin. It is visible by default and remembered for each window scene. Use the toolbar button or View > Show/Hide Inspector (Command-Option-I) to toggle it."
+                            body: "The native right inspector changes with the active tool, selection, goal, or stage. Use it to adjust style, colors, text size, effect strength, image overlay opacity, UI Map display and pin options when available, crop values, Comparison, Steps, Arrange, Look, and Mockup settings, callout step guides, Change History, Recent Snips, search, and the Recycle Bin. Irrelevant controls stay hidden. The inspector is visible by default and remembered for each window scene. Use the Inspector control immediately after Zoom, or View > Show/Hide Inspector (Command-Option-I), to toggle it."
                         )
                     ],
                     important: [
-                        "The editor keeps the base screenshot separate from annotation state. Every Copy, Share, Export, Float, and drag-out action names whether it creates Plain or Styled output."
+                        "The editor keeps the base screenshot separate from annotation state. Copy, Share, Export, Float, and Drag always use the output shown in the active Edit, Review, Steps, Arrange, or Polish stage."
                     ],
                     relatedIDs: ["floating-references", "crop-navigate", "annotate-style", "redact"]
+                ),
+                HelpArticle(
+                    id: "compose-screenshots",
+                    title: String(localized: "Compare, explain, or combine captures"),
+                    summary: String(localized: "Choose what you want to make, then see only the controls that help finish it."),
+                    sections: [
+                        HelpArticleSection(
+                            title: String(localized: "Choose what to make"),
+                            steps: [
+                                String(localized: "Choose Create when you want help starting a Screenshot, Comparison, Process, or Combined Image. Region, Window, and Full Screen remain one-action Screenshot shortcuts."),
+                                String(localized: "For a Process, choose Record as I work to continue to Guide, or Add captures myself to build manual Steps."),
+                                String(localized: "Choose Region, Window, Screen, or Add Existing. Add Existing includes files, the clipboard, Recent Snips, Capture History, and Archive. More and Fine-tune keep specialized sources and optional capture settings out of the main decision."),
+                                String(localized: "Review the summary and use the single primary action. Cancelling setup, target selection, permission setup, or capture leaves the current document and preferences unchanged.")
+                            ]
+                        ),
+                        HelpArticleSection(
+                            title: String(localized: "Add the first extra capture"),
+                            body: String(localized: "Choose Add in a one-image Screenshot and select Compare, Add as Step, or Combine. Region is ready by default, and the menu can preselect another source. The purpose changes only after the source is added successfully, and Undo returns to the original Screenshot. Later additions inherit the purpose without asking again. Option-Command-A invokes the same contextual action.")
+                        ),
+                        HelpArticleSection(
+                            title: String(localized: "Follow the session"),
+                            body: String(localized: "While a screenshot document is open, the header names its purpose and the next useful action: Capture After, Capture Next Step, Add Image, Review Changes, Order & Caption, Arrange, or Back to Content. Global Capture-menu commands and shortcuts continue creating new Screenshot documents.")
+                        ),
+                        HelpArticleSection(
+                            title: String(localized: "Arrange a combined image"),
+                            body: String(localized: "Combined Image offers Auto, Row, Column, Grid, Freeform, and compatible templates. Auto chooses a useful arrangement from item count and image shapes. Reorder items on the canvas or in Items, and adjust Fit, Fill, alignment, framing, captions, replacement, duplication, visibility, and removal. Freeform expands automatically until you set an explicit size. Trim to Items removes unused bounds and Auto Expand restores growth. Arrow keys move selected items; Option-arrows resize them; add Shift for 10-pixel changes. Align, Distribute, Match Size, and numeric geometry provide complete keyboard alternatives.")
+                        ),
+                        HelpArticleSection(
+                            title: String(localized: "Style the composition canvas"),
+                            body: String(localized: "Choose Apply Theme for a complete Clean, Cards, Dark, or Documentation appearance, then refine padding, gaps, fill, borders, corners, captions, and title type. Advanced Appearance exposes panel fill and shadow, caption and title backgrounds and padding, step badge colors and size, connector styling, and the comparison divider. Saving a composition template preserves this appearance together with the layout.")
+                        ),
+                        HelpArticleSection(
+                            title: String(localized: "Reuse a composition template"),
+                            body: String(localized: "Choose a built-in template for an adaptable Grid, comparison, Steps sequence, or Freeform board. Open Manage Templates to save the current structure and appearance, then rename, duplicate, delete, import, or export it. Saved templates require the same item count; built-in templates adapt to the compatible count. Templates never include captures, item identities, the composition title, or item captions.")
+                        ),
+                        HelpArticleSection(
+                            title: String(localized: "Edit the right level"),
+                            bullets: [
+                                String(localized: "Arrange changes item order, size, framing, and placement."),
+                                String(localized: "Choose Edit Selected Capture, double-click an item, or press Return to crop and annotate only that source. Done returns to the same goal stage with the item selected. Press Option-Return to adjust framing, then Escape to finish."),
+                                String(localized: "Choose Annotate Result to place annotations above the arranged items and below optional Polish. Anchored endpoints follow their items through layout changes; Pin Selection to Canvas keeps them in the overall result. Canvas bounds remain in Arrange."),
+                                String(localized: "Paste adds an item while Arrange owns focus, an item overlay while Edit Selected Capture is active, and a whole-result overlay while Annotate Result is active.")
+                            ]
+                        ),
+                        HelpArticleSection(
+                            title: String(localized: "Compare two items"),
+                            body: String(localized: "Comparison consistently uses Before and After. Show Both starts with side-by-side output, Highlight Changes uses automatic registration and local change detection, and Alternate switches between the images. More Options retains Overlay, Wipe, Difference, Blink, sensitivity, unchanged-content dimming, outline or pattern cues, timing, and poster-frame controls. Manual offsets remain available if automatic alignment is not reliable. Reduced Motion stops automatic Blink preview without changing exported timing.")
+                        ),
+                        HelpArticleSection(
+                            title: String(localized: "Build a manual step sequence"),
+                            body: String(localized: "Steps orders captures you already have, adds automatic numbers and captions, and supports row, column, or grid flow. Reordering, excluding, or removing an item renumbers the sequence. Steps is separate from Guide: use Steps to assemble existing captures, and use Guide when you want SnipSnipSnip Pro to observe a workflow and create action-aware steps automatically.")
+                        ),
+                        HelpArticleSection(
+                            title: String(localized: "Export stills, pages, and animation"),
+                            body: String(localized: "Copy, Share, Export, Float, and Drag use the visible stage. Edit, Review, Steps, and Arrange output unwrapped content; Polish outputs the visible Look or Mockup. PNG, JPEG, and PDF include the complete result and annotations. Before an oversized raster is created, choose Scale to Fit; a Steps PDF also offers Paginated PDF. Blink exports deterministic GIF, APNG, and MP4 output using its interval, crossfade, and loop settings, with a disclosed 4,096-pixel longest-side cap. Static Blink output defaults to After.")
+                        ),
+                        HelpArticleSection(
+                            title: String(localized: "Export interactive HTML"),
+                            body: String(localized: "Interactive HTML is one offline file. Steps preserves decimal, letter, Roman, starting-value, or hidden numbering and includes step links, Previous and Next controls, and direction-aware Left and Right Arrow navigation. Wipe and Overlay remain interactive; Difference and Change Highlight use the exact fully rendered result; Blink keeps manual and playback controls and prints its chosen poster. Printing shows every step, and navigation remains useful when JavaScript is unavailable. The file embeds newly encoded images, escapes titles and captions, includes no source paths or capture metadata, loads no remote scripts, fonts, images, or analytics, and uses a deny-by-default Content Security Policy.")
+                        ),
+                        HelpArticleSection(
+                            title: String(localized: "Private compositions"),
+                            body: String(localized: "Adding an item captured in a Private Capture session permanently marks the entire composition Private, even if that item is later removed. A Private composition remains editable and can be explicitly saved or exported, but it stays out of archive checkpoints, Recent Snips, the Recycle Bin, Clipboard History ingestion, OCR indexing, content diagnostics, and telemetry.")
+                        )
+                    ],
+                    important: [
+                        String(localized: "Every item keeps its own base image, crop, and annotations. Composition annotations remain a separate editable layer above all items."),
+                        String(localized: "Opening an editable multi-item .sss restores its Comparison, Steps, or Combined Image purpose and focused content stage."),
+                        String(localized: "Cancelling an Add, Replace, or Change Goal operation leaves the document unchanged.")
+                    ],
+                    relatedIDs: ["edit-screenshot", "copy-save-export", "create-guide", "privacy"]
                 ),
                 HelpArticle(
                     id: "floating-references",
@@ -708,8 +781,8 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Create a floating reference",
                             bullets: [
-                                "Click Float Plain in the Edit workspace to pin the annotated screenshot without the Presentation wrapper.",
-                                "In Presentation mode, click Float Styled to pin the styled presentation output.",
+                                "Click Float in a content stage to pin the annotated screenshot or assembled result without Polish.",
+                                "Click Float in Polish to pin the visible Look or Mockup preview.",
                                 "Choose Reference > Float Current Screenshot when you prefer the menu command; it follows the active editor workspace.",
                                 "Open a Change History, Recent Snip, Capture History, or Recycle Bin preview and click Float Reference to pin that snapshot."
                             ]
@@ -785,7 +858,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Manage layers",
-                            body: "Use the Layers button in the lower editor command row or Arrange > Show Layers to open a separate Layers window. The window shows editable annotations from front to back, lets you select one or more layers, drag to reorder, and provides Arrange, Group, and Delete controls above the list."
+                            body: "Use the Layers button in the lower editor command row or Arrange > Show Layers to open a separate Layers window. For a single screenshot, the window shows annotations from front to back. A multi-capture document adds explicit Items, Result, and Capture scopes. Items controls panel selection, order, visibility, duplication, removal, and Edit Selected Capture. Result shows annotations above the assembled canvas, while Capture shows the crop and annotations for one original source with Previous and Next controls. Drag to reorder, or use the visible move buttons, Arrange menu, keyboard shortcuts, context menus, and VoiceOver actions. Group, Ungroup, Delete, and the editing-scope buttons remain available without pointer input. A multi-capture document always keeps at least one item."
                         ),
                         HelpArticleSection(
                             title: "Sample colors",
@@ -865,27 +938,35 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Use Copy or Share",
-                            body: "In the Edit workspace, Copy Plain is the primary action and its menu also offers Copy Styled. Export and Share expose separate Plain and Styled choices. Plain includes crop, annotations, pinned UI Map overlays, and flattened redactions while forcing Presentation off. Styled requires a configured Presentation style or scene. In Presentation, Styled actions are primary and Plain variants remain in secondary menus. Presentation styling changes do not auto-copy; Auto Copy behavior is unchanged."
+                            body: "Copy, Export, Share, Float, and Drag follow the visible stage. Edit, Comparison Review, Steps, and Arrange use the unwrapped content, annotations, pinned UI Map overlays, and flattened redactions. Polish uses the visible Look or Mockup; when none is configured, it uses the same unwrapped content. Back to Content changes the boundary explicitly. Edit Selected Capture and Annotate Result hide document output until Done returns to the focused content stage. When Auto Copy runs after capture or an Edit change, it uses that same visible-stage output. Polish changes do not trigger Auto Copy."
                         ),
                         HelpArticleSection(
                             title: "Export screenshots",
-                            body: "Choose Presentation in the lower editor command row to switch into a focused export workspace. An accessible Beta badge identifies the feature without interrupting every startup; use Send Presentation Feedback in the inspector footer to share feedback. Presentation mode replaces the tool row with Back to Edit while retaining zoom, Save Variant, Copy Styled, explicit Styled and Plain Export and Share options, Float Styled, and Drag Styled. Back to Edit preserves styling and changes only the workspace. The Style tab handles native polish such as transparent, solid, gradient, spotlight, or blurred-screenshot backgrounds, spacing, corners, and shadows. Use the Scene tab for browser, window, phone, tablet, and other layouts. Transparent Styled output forces PNG without disabling Plain JPEG or PDF."
+                            body: "Choose Polish when you want optional finishing treatment. Look handles transparent, solid, gradient, spotlight, or blurred-screenshot backgrounds, spacing, corners, and shadows. Mockup applies browser, window, phone, tablet, and other designed SVG wrappers. Entering Polish does not apply a treatment automatically. Copy, Export, Share, Float, and Drag use the visible Polish preview; Back to Content restores unwrapped output. Transparent Polish output uses PNG without disabling JPEG or PDF in content stages."
                         ),
                         HelpArticleSection(
-                            title: "Use Presentation Scenes",
-                            body: "The Scene tab applies SVG templates from the Presentation Scenes folder. Scenes are grouped as Bundled or User, can expose editable text fields, and embed a sanitized snapshot of the SVG in the .sss document so the styled export can render later without depending on the original file. Use Framing to choose Auto, Show Full, Fill, edge focus presets, or Actual Size for the screenshot slot."
+                            title: "Export interactive compositions",
+                            body: "Choose Interactive HTML for a portable single-file composition that works offline. Step navigation and comparison controls remain interactive without contacting a server. SnipSnipSnip re-encodes embedded image pixels without source metadata, escapes user-authored text, and restricts the file with a deny-by-default Content Security Policy whose only executable resources are the exact exporter-owned style and interaction code."
                         ),
                         HelpArticleSection(
-                            title: "Adjust scene framing",
-                            body: "Auto tries to fit arbitrary screenshot sizes into the scene slot. If the result needs correction, open Adjust to change alignment, scale, or nudge the screenshot. Drag inside the scene screenshot slot to reposition it. Pinch, Command-scroll, and Option-scroll always zoom the full Presentation preview. Double-click the slot or use Reset Framing to return to the scene default."
+                            title: "Export composition animation and pages",
+                            body: "Steps PDF honors Steps per Page. If a raster composition exceeds 16,384 pixels on one side, 134,217,728 output pixels, or an estimated 1 GiB working set, export offers Scale to Fit; Steps PDF also offers one-step-per-page pagination. PDF pages render and write one at a time. Compare → Blink exports GIF, APNG, or MP4 using the composition’s timing, crossfade, and loop choices. Animated files use a 4,096-pixel longest-side safety limit and the completion message discloses scaling. PNG, JPEG, PDF, Copy, and Share use the configured Blink poster, defaulting to After."
                         ),
                         HelpArticleSection(
-                            title: "Save presentations in a document",
-                            body: "The Variants section stores named presentation variants inside the current .sss document. Save the current style or scene as a variant, then open Manage Variants to apply, rename, update, duplicate, or delete saved variants as the document evolves. Global Style templates remain app preferences; variants travel with the .sss file."
+                            title: "Use Mockups",
+                            body: "Polish → Mockup applies SVG templates from the Mockup folder. Mockups are grouped as Bundled or User, can expose editable text fields, and embed a sanitized snapshot in the .sss document so output can render later without depending on the original file. Use Framing to choose Auto, Show Full, Fill, edge focus presets, or Actual Size for the screenshot slot."
                         ),
                         HelpArticleSection(
-                            title: "Manage scene files",
-                            body: "The Scene tab includes Scene Files controls for revealing the User scenes folder and reloading scene files. Settings > Editor & Output lets you choose, reveal, reset, or reload the root Presentation Scenes folder. The default folder contains Bundled and User subfolders. Add custom SVG files to User. Bundled scenes use a metadata block with schema com.oontz.snipsnipsnip.presentation-scene and data-sss-slot markers; remote URLs, file URLs, scripts, foreignObject, animation, and event handlers are rejected. Scene diagnostics appear only when there is something to review."
+                            title: "Adjust Mockup framing",
+                            body: "Auto tries to fit arbitrary screenshot sizes into the Mockup slot. If the result needs correction, open Adjust to change alignment, scale, or nudge the screenshot. Drag inside the slot to reposition it. Pinch, Command-scroll, and Option-scroll zoom the full Polish preview. Double-click the slot or use Reset Framing to return to the Mockup default."
+                        ),
+                        HelpArticleSection(
+                            title: "Save Polish presets in a document",
+                            body: "Manage stores named Polish variants inside the current .sss document. Save the current Look or Mockup, then apply, rename, update, duplicate, or delete variants as the document evolves. Global Look templates remain app preferences; document variants travel with the .sss file."
+                        ),
+                        HelpArticleSection(
+                            title: "Manage Mockup files",
+                            body: "Mockup → Manage includes controls for revealing the User Mockups folder and reloading files. Settings > Editor & Output lets you choose, reveal, reset, or reload the root Mockup folder. The default folder contains Bundled and User subfolders. Add custom SVG files to User. For file-format compatibility, Mockups use the presentation-scene metadata schema and data-sss-slot markers; remote URLs, file URLs, scripts, foreignObject, animation, and event handlers are rejected. Diagnostics appear only when there is something to review."
                         ),
                         HelpArticleSection(
                             title: "Import from Finder or Photos",
@@ -893,21 +974,21 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Drag output into another app",
-                            body: "Drag Plain in Edit or Drag Styled in Presentation to send the named appearance to Finder, Mail, or another app. If you click without dragging, SnipSnipSnip shows a short reminder. During the drag, the editor window temporarily hides so you can reach the destination, then returns when the drag finishes. Settings > Editor & Output controls whether screenshot drag-out normally uses PNG, JPEG, or PDF and sets JPEG quality. Transparent Styled output automatically uses PNG so the result stays faithful."
+                            body: "Drag sends the output shown in the active content or Polish stage to Finder, Mail, or another app. If you click without dragging, SnipSnipSnip shows a short reminder. During the drag, the editor window temporarily hides so you can reach the destination, then returns when the drag finishes. Settings > Editor & Output controls whether screenshot drag-out normally uses PNG, JPEG, or PDF and sets JPEG quality. Transparent Polish output automatically uses PNG so the result stays faithful."
                         ),
                         HelpArticleSection(
                             title: "Save editable work",
-                            body: "Save and Save As write .sss screenshot packages or .sssvideo video packages. Use these formats when you may need to revise crop, annotations, redactions, trim range, or other editable state later."
+                            body: "Save and Save As write .sss screenshot and composition packages or .sssvideo video packages. Use these formats when you may need to revise item order, layout, crop, annotations, redactions, trim range, or other editable state later."
                         ),
                         HelpArticleSection(
                             title: "Filename suggestions",
-                            body: "Settings > Editor & Output controls filename templates for Save As and export. Supported tokens include {kind}, {source}, {width}, {height}, {format}, and date patterns such as {yyyy-MM-dd-HH-mm-ss}. Plain exports use the -edited suffix and Styled exports use -styled; save panels identify the selected appearance."
+                            body: "Settings > Editor & Output controls filename templates for Save As and export. Supported tokens include {kind}, {source}, {width}, {height}, {format}, and date patterns such as {yyyy-MM-dd-HH-mm-ss}. Content output uses the existing edited or composition suffix and Polish keeps the presentation suffix for compatibility; save panels describe the visible stage."
                         )
                     ],
                     important: [
                         "Exported and copied screenshots are newly encoded so source EXIF, TIFF, GPS, IPTC, and user metadata are not carried forward."
                     ],
-                    relatedIDs: ["editable-documents", "redact", "history-recovery"]
+                    relatedIDs: ["editable-documents", "compose-screenshots", "redact", "history-recovery"]
                 ),
                 HelpArticle(
                     id: "editable-documents",
@@ -916,7 +997,7 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: ".sss screenshot packages",
-                            body: "A .sss package keeps the base image, preview, crop, annotations, presentation settings, image overlay assets, undo and redo history, and searchable metadata."
+                            body: "A .sss package keeps the base image, preview, crop, annotations, optional Polish settings, image overlay assets, undo and redo history, and searchable metadata."
                         ),
                         HelpArticleSection(
                             title: ".sssvideo video packages",
@@ -1024,13 +1105,14 @@ struct HelpGuideView: View {
                                 "Get automation status and list capture presets.",
                                 "Run a capture preset by choosing a saved preset.",
                                 "Capture fullscreen, frontmost window, region, or interactive window.",
+                                "Add a capture to a composition, replace an exact item, set its layout or comparison, apply a saved template, and export the completed composition.",
                                 "Start, pause, resume, add a step to, stop, or export a Guide.",
                                 "Repeat the last capture, open an editable .sss document, or export the current screenshot."
                             ]
                         ),
                         HelpArticleSection(
                             title: "Foreground actions",
-                            body: "Status and preset listing can run in the background and show Shortcuts result summaries. Capture and export actions finish without success dialogs unless Shortcuts is configured to show result UI. Interactive region and window captures, repeat-last captures, editor output, and floating references continue in SnipSnipSnip so you can choose a target or see the resulting UI."
+                            body: "Status and preset listing can run in the background and show Shortcuts result summaries. Non-interactive capture, composition, export, and fixed-target repeat actions return only after the requested change or file output finishes. Interactive region and window captures, connected-device or scrolling repeats, editor output, and floating references continue in SnipSnipSnip so you can choose a target or see the resulting UI."
                         ),
                         HelpArticleSection(
                             title: "Output and privacy",

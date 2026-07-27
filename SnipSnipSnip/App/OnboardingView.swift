@@ -512,8 +512,8 @@ struct OnboardingView: View {
         }
         if capabilities.isEnabled(.presentation) {
             features.append(OnboardingFeature(
-                title: "Presentation",
-                detail: "Create styled output while keeping edits intact.",
+                title: "Create & Polish",
+                detail: "Compare, explain, combine, or add an optional finishing look.",
                 systemImage: "sparkles.rectangle.stack"
             ))
         }

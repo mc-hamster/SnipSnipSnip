@@ -6,17 +6,20 @@ nonisolated struct PresentationPreviewRenderInput: @unchecked Sendable {
     let contentImage: CGImage
     let presentation: ScreenshotPresentation
     let contentRevision: Int
+    let suppressesContentDiagnostics: Bool
 }
 
 extension EditorController {
     func presentationPreviewImage(
         presentation: ScreenshotPresentation? = nil,
         maxPixelDimension: CGFloat? = nil,
+        comparisonPhase: CompositionComparisonPhase? = nil,
         context: String = "previewImage"
     ) -> CGImage? {
         presentationPreviewRender(
             presentation: presentation,
             maxPixelDimension: maxPixelDimension,
+            comparisonPhase: comparisonPhase,
             context: context
         )?.image
     }
@@ -24,51 +27,79 @@ extension EditorController {
     func presentationPreviewRender(
         presentation: ScreenshotPresentation? = nil,
         maxPixelDimension: CGFloat? = nil,
+        comparisonPhase: CompositionComparisonPhase? = nil,
         context: String = "previewRender"
     ) -> ScreenshotPresentationRenderResult? {
-        guard let input = presentationPreviewRenderInput(presentation: presentation, context: context) else {
-            return nil
-        }
-
-        return PresentationPerformanceMetrics.measure(
-            "controller.presentationWrapper",
-            context: "source=\(context) revision=\(input.contentRevision) content=\(input.contentImage.width)x\(input.contentImage.height) \(PresentationPerformanceMetrics.presentationSummary(input.presentation, maxPixelDimension: maxPixelDimension))",
-            warnAfterMS: maxPixelDimension == nil ? 90 : 45
+        PresentationPerformanceMetrics.withLoggingSuppressed(
+            isPrivateDocument
         ) {
-            ScreenshotPresentationRenderer.renderWithLayout(
-                contentImage: input.contentImage,
-                presentation: input.presentation,
-                maxPixelDimension: maxPixelDimension
-            )
+            guard let input = presentationPreviewRenderInput(
+                presentation: presentation,
+                maxPixelDimension: maxPixelDimension,
+                comparisonPhase: comparisonPhase,
+                context: context
+            ) else {
+                return nil
+            }
+
+            return PresentationPerformanceMetrics.measure(
+                "controller.presentationWrapper",
+                context: "source=\(context) revision=\(input.contentRevision) content=\(input.contentImage.width)x\(input.contentImage.height) \(PresentationPerformanceMetrics.presentationSummary(input.presentation, maxPixelDimension: maxPixelDimension))",
+                warnAfterMS: maxPixelDimension == nil ? 90 : 45
+            ) {
+                ScreenshotPresentationRenderer.renderWithLayout(
+                    contentImage: input.contentImage,
+                    presentation: input.presentation,
+                    maxPixelDimension: maxPixelDimension
+                )
+            }
         }
     }
 
     func presentationPreviewRenderInput(
         presentation: ScreenshotPresentation? = nil,
+        maxPixelDimension: CGFloat? = nil,
+        comparisonPhase: CompositionComparisonPhase? = nil,
         context: String = "previewRenderInput"
     ) -> PresentationPreviewRenderInput? {
-        let effectivePresentation = presentation ?? snapshot.presentation
-        guard let contentImage = presentationContentImage(context: context) else {
-            return nil
+        PresentationPerformanceMetrics.withLoggingSuppressed(
+            isPrivateDocument
+        ) {
+            let effectivePresentation =
+                presentation ?? snapshot.presentation
+            let effectiveComparisonPhase =
+                resolvedCompositionPreviewPhase(comparisonPhase)
+            guard let contentImage = presentationContentImage(
+                targetMaximumPixelDimension: maxPixelDimension.map {
+                    max(Int($0.rounded(.up)), 1)
+                },
+                comparisonPhase: effectiveComparisonPhase,
+                context: context
+            ) else {
+                return nil
+            }
+
+            PresentationPerformanceMetrics.logEvent(
+                "controller.presentationInput.ready",
+                context: "source=\(context) revision=\(presentationContentRevision) content=\(contentImage.width)x\(contentImage.height) \(PresentationPerformanceMetrics.presentationSummary(effectivePresentation))"
+            )
+
+            return PresentationPreviewRenderInput(
+                contentImage: contentImage,
+                presentation: effectivePresentation,
+                contentRevision: presentationContentRevision,
+                suppressesContentDiagnostics: isPrivateDocument
+            )
         }
-
-        PresentationPerformanceMetrics.logEvent(
-            "controller.presentationInput.ready",
-            context: "source=\(context) revision=\(presentationContentRevision) content=\(contentImage.width)x\(contentImage.height) \(PresentationPerformanceMetrics.presentationSummary(effectivePresentation))"
-        )
-
-        return PresentationPreviewRenderInput(
-            contentImage: contentImage,
-            presentation: effectivePresentation,
-            contentRevision: presentationContentRevision
-        )
     }
 
     func setWorkspaceMode(_ mode: EditorWorkspaceMode) {
-        PresentationPerformanceMetrics.logEvent(
-            "controller.workspaceMode.set",
-            context: "from=\(workspaceMode.rawValue) to=\(mode.rawValue) contentRevision=\(presentationContentRevision) canvasRevision=\(canvasRevision) persistenceRevision=\(persistenceRevision)"
-        )
+        if !isPrivateDocument {
+            PresentationPerformanceMetrics.logEvent(
+                "controller.workspaceMode.set",
+                context: "from=\(workspaceMode.rawValue) to=\(mode.rawValue) contentRevision=\(presentationContentRevision) canvasRevision=\(canvasRevision) persistenceRevision=\(persistenceRevision)"
+            )
+        }
         workspaceMode = mode
 
         if mode == .edit {
@@ -321,7 +352,7 @@ extension EditorController {
     }
 
     @discardableResult
-    func saveCurrentPresentationToDocument(named requestedName: String = "Presentation") -> UUID? {
+    func saveCurrentPresentationToDocument(named requestedName: String = "Polish") -> UUID? {
         let now = Date()
         let name = uniqueSavedPresentationName(
             requestedName,
@@ -335,7 +366,7 @@ extension EditorController {
         )
         savedPresentations.append(saved)
         persistenceRevision += 1
-        showNotice("Saved presentation \"\(name)\" in this document.")
+        showNotice("Saved Polish variant \"\(name)\" in this document.")
         return saved.id
     }
 
@@ -368,7 +399,7 @@ extension EditorController {
         savedPresentations[index].presentation = snapshot.presentation
         savedPresentations[index].updatedAt = Date()
         persistenceRevision += 1
-        showNotice("Updated saved presentation \"\(savedPresentations[index].name)\".")
+        showNotice("Updated Polish variant \"\(savedPresentations[index].name)\".")
     }
 
     @discardableResult
@@ -756,10 +787,12 @@ extension EditorController {
         var presentation = snapshot.presentation
         mutation(&presentation)
         presentation.isEnabled = presentation != .plain
-        PresentationPerformanceMetrics.logEvent(
-            "controller.presentation.mutate",
-            context: "before=[\(PresentationPerformanceMetrics.presentationSummary(before))] after=[\(PresentationPerformanceMetrics.presentationSummary(presentation))]"
-        )
+        if !isPrivateDocument {
+            PresentationPerformanceMetrics.logEvent(
+                "controller.presentation.mutate",
+                context: "before=[\(PresentationPerformanceMetrics.presentationSummary(before))] after=[\(PresentationPerformanceMetrics.presentationSummary(presentation))]"
+            )
+        }
         execute(SetPresentationCommand(presentation: presentation))
     }
 
@@ -768,7 +801,7 @@ extension EditorController {
         excluding excludedID: UUID?
     ) -> String {
         let trimmed = requestedName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let baseName = trimmed.isEmpty ? "Presentation" : trimmed
+        let baseName = trimmed.isEmpty ? "Polish" : trimmed
         let existingNames = Set(savedPresentations.compactMap { saved -> String? in
             saved.id == excludedID ? nil : saved.name
         })
@@ -811,7 +844,7 @@ extension EditorController {
             try FileManager.default.createDirectory(at: userURL, withIntermediateDirectories: true)
             NSWorkspace.shared.activateFileViewerSelecting([userURL])
         } catch {
-            errorMessage = "The Presentation Scenes User folder could not be opened: \(error.localizedDescription)"
+            errorMessage = "The Mockup folder could not be opened: \(error.localizedDescription)"
         }
     }
 
@@ -829,16 +862,22 @@ extension EditorController {
             presentationSceneDiagnostics = [
                 PresentationSceneDiagnostic(
                     severity: .error,
-                    message: "Could not load presentation scenes: \(error.localizedDescription)",
+                    message: "Could not load Mockups: \(error.localizedDescription)",
                     fileURL: presentationScenesRootURL
                 ),
             ]
         }
     }
 
-    private func presentationContentImage(context: String) -> CGImage? {
+    private func presentationContentImage(
+        targetMaximumPixelDimension: Int?,
+        comparisonPhase: CompositionComparisonPhase,
+        context: String
+    ) -> CGImage? {
         if let presentationContentCache,
-           presentationContentCache.revision == presentationContentRevision {
+           presentationContentCache.revision == presentationContentRevision,
+           presentationContentCache.targetMaximumPixelDimension == targetMaximumPixelDimension,
+           presentationContentCache.comparisonPhase == comparisonPhase {
             PresentationPerformanceMetrics.logEvent(
                 "controller.contentCache.hit",
                 context: "source=\(context) revision=\(presentationContentRevision) image=\(PresentationPerformanceMetrics.imageSize(presentationContentCache.image))"
@@ -846,17 +885,38 @@ extension EditorController {
             return presentationContentCache.image
         }
 
-        let image = PresentationPerformanceMetrics.measure(
-            "controller.contentCache.miss.render",
-            context: "source=\(context) revision=\(presentationContentRevision) base=\(capture.image.width)x\(capture.image.height) crop=\(PresentationPerformanceMetrics.size(snapshot.cropRect.size)) annotations=\(snapshot.annotations.count) uiMapPins=\(pinnedUIMapElements.count)",
-            warnAfterMS: 60
-        ) {
-            EditorRenderer.render(
-                baseImage: capture.image,
-                snapshot: snapshot,
-                pinnedUIMapElements: pinnedUIMapElements,
-                uiMapOverlayOptions: uiMapOverlayOptions
-            )
+        let image: CGImage?
+        do {
+            // Capped live previews use the repository's descriptor-first,
+            // cell-size-aware path. Only uncapped output resolves full sources.
+            let compositionAssets = targetMaximumPixelDimension == nil
+                ? try compositionAssetsForRendering()
+                : [:]
+            var compositionOptions = CompositionRenderOptions()
+            compositionOptions.targetMaximumPixelDimension = targetMaximumPixelDimension
+            compositionOptions.comparisonPhase = comparisonPhase
+            let renderResult = try PresentationPerformanceMetrics.measure(
+                "controller.contentCache.miss.render",
+                context: "source=\(context) revision=\(presentationContentRevision) base=\(capture.image.width)x\(capture.image.height) crop=\(PresentationPerformanceMetrics.size(snapshot.cropRect.size)) annotations=\(snapshot.annotations.count) compositionItems=\(snapshot.composition?.items.count ?? 0) uiMapPins=\(pinnedUIMapElements.count)",
+                warnAfterMS: 60
+            ) {
+                try CompositionDocumentRenderer.renderContent(
+                    baseImage: capture.image,
+                    snapshot: snapshot,
+                    compositionAssets: compositionAssets,
+                    compositionAssetRepository: compositionAssetRepository,
+                    pinnedUIMapElements: pinnedUIMapElements,
+                    uiMapOverlayOptions: uiMapOverlayOptions,
+                    compositionOptions: compositionOptions
+                )
+            }
+            setCompositionRegistrationOutcome(renderResult?.registrationOutcome)
+            image = renderResult?.image
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription
+                ?? error.localizedDescription
+            image = nil
+            setCompositionRegistrationOutcome(nil)
         }
 
         guard let image else {
@@ -864,11 +924,50 @@ extension EditorController {
             return nil
         }
 
-        presentationContentCache = (presentationContentRevision, image)
+        presentationContentCache = (
+            presentationContentRevision,
+            targetMaximumPixelDimension,
+            comparisonPhase,
+            image
+        )
         PresentationPerformanceMetrics.logEvent(
             "controller.contentCache.store",
             context: "source=\(context) revision=\(presentationContentRevision) image=\(PresentationPerformanceMetrics.imageSize(image))"
         )
         return image
+    }
+
+    var effectiveCompositionComparisonPreviewPhase: CompositionComparisonPhase {
+        resolvedCompositionPreviewPhase(compositionComparisonPreviewPhase)
+    }
+
+    func setCompositionComparisonPreviewPhase(
+        _ phase: CompositionComparisonPhase,
+        pausesPlayback: Bool = true
+    ) {
+        compositionComparisonPreviewPhase = phase
+        if pausesPlayback {
+            isCompositionBlinkPreviewPlaying = false
+        }
+    }
+
+    func resetCompositionComparisonPreviewToPoster() {
+        compositionComparisonPreviewPhase = nil
+    }
+
+    private func resolvedCompositionPreviewPhase(
+        _ requestedPhase: CompositionComparisonPhase?
+    ) -> CompositionComparisonPhase {
+        if let requestedPhase {
+            return requestedPhase
+        }
+        guard let composition = snapshot.composition,
+              composition.layout.mode == .compare,
+              composition.comparison.mode == .blink else {
+            return .primary
+        }
+        return composition.comparison.posterFrame == .secondary
+            ? .secondary
+            : .primary
     }
 }

@@ -62,6 +62,7 @@ extension DocumentWorkflowModel {
         editorController = nil
         videoEditorController = nil
         savedVideoSession = nil
+        pendingCompositionImportRecovery = nil
         guideEditorController = controller
         currentDocumentURL = documentURL
         savedGuideProject = savedProject

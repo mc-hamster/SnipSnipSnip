@@ -8,14 +8,25 @@ extension CaptureWorkflowModel {
         request: LastCaptureRequest,
         minimizeAppWindow: Bool = false,
         runOptions: CaptureRunOptions? = nil,
+        completionContext: CaptureCompletionContext? = nil,
         _ action: () async throws -> CapturedScreenshot
     ) async -> Bool {
-        let resolvedRunOptions = runOptions ?? currentCaptureRunOptions()
+        let captureContext =
+            completionContext ?? activeCaptureContext
+        defer {
+            resetPreparedCaptureContext(ifMatching: captureContext)
+        }
+        let resolvedRunOptions =
+            runOptions ?? captureRunOptions(for: captureContext)
         guard ensureScreenshotCaptureAccess(for: request, runOptions: resolvedRunOptions) else {
             return false
         }
 
-        let isPrivateCapture = beginCapturePrivacyLock()
+        let isPrivateCapture = beginCapturePrivacyLock(
+            latchedPrivateCapture:
+                captureContext.oneShotOptions?.privateCapture
+                ?? privateCaptureEnabled
+        )
         defer { endCapturePrivacyLock() }
 
         let hiddenWindow = minimizeAppWindow ? hideAppWindowIfNeeded() : nil
@@ -37,10 +48,20 @@ extension CaptureWorkflowModel {
             try await runCaptureDelayIfNeeded(actionName: "Capturing", delay: resolvedRunOptions.captureDelay)
             let capture = try await action()
             showCapturedFeedback()
-            try completeCapture(capture, request: request, isPrivateCapture: isPrivateCapture, runOptions: resolvedRunOptions)
+            try completeCapture(
+                capture,
+                request: request,
+                isPrivateCapture: isPrivateCapture,
+                runOptions: resolvedRunOptions,
+                completionContext: captureContext
+            )
             return true
         } catch {
-            present(error, recovering: request)
+            present(
+                error,
+                recovering: request,
+                captureContext: captureContext
+            )
             return false
         }
     }

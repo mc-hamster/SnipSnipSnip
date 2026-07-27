@@ -6,6 +6,8 @@ import UniformTypeIdentifiers
 protocol DocumentPanelPresenting {
     func selectDocumentToOpen() -> URL?
     func selectImageToImport() -> URL?
+    func selectSingleCompositionSourceToImport() -> URL?
+    func selectImagesToImport() -> [URL]
     func selectPresentationScenesRoot(initialDirectory: URL) -> URL?
     func selectSaveDestination(suggestedFilename: String, contentType: UTType) async -> URL?
     func selectExportDirectory() -> URL?
@@ -14,6 +16,12 @@ protocol DocumentPanelPresenting {
 }
 
 extension DocumentPanelPresenting {
+    func selectSingleCompositionSourceToImport() -> URL? {
+        selectImagesToImport().first
+    }
+    func selectImagesToImport() -> [URL] {
+        selectImageToImport().map { [$0] } ?? []
+    }
     func selectExportDirectory() -> URL? { nil }
     func copyExportedFiles(_ urls: [URL]) {}
     func shareExportedFiles(_ urls: [URL]) {}

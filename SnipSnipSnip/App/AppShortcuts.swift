@@ -12,8 +12,14 @@ enum AppShortcut {
             ShortcutCatalogEntry(keys: "Command-Q", action: "Quit or run in background"),
             ShortcutCatalogEntry(keys: "Command-S", action: "Save"),
             ShortcutCatalogEntry(keys: "Shift-Command-S", action: "Save As"),
-            ShortcutCatalogEntry(keys: "Command-C", action: "Copy Plain screenshot"),
-            ShortcutCatalogEntry(keys: "Command-V", action: "Paste image overlay")
+            ShortcutCatalogEntry(
+                keys: "Command-C",
+                action: String(localized: "Copy current workspace output")
+            ),
+            ShortcutCatalogEntry(
+                keys: "Command-V",
+                action: String(localized: "Paste into the active editing scope")
+            )
         ]),
         ShortcutCatalogSection(title: "Default Global Capture", entries: [
             ShortcutCatalogEntry(keys: "Command-Shift-1", action: "Capture Region"),
@@ -29,6 +35,10 @@ enum AppShortcut {
             ShortcutCatalogEntry(keys: "Shift-Command-Z", action: "Redo"),
             ShortcutCatalogEntry(keys: "Command-A", action: "Select all annotations"),
             ShortcutCatalogEntry(keys: "Shift-Command-A", action: "Unselect annotations"),
+            ShortcutCatalogEntry(
+                keys: "Option-Command-A",
+                action: String(localized: "Add Region capture to composition")
+            ),
             ShortcutCatalogEntry(keys: "Delete", action: "Delete selection"),
             ShortcutCatalogEntry(keys: "Shift-Command-F", action: "Float current screenshot"),
             ShortcutCatalogEntry(keys: "Arrow Keys", action: "Nudge selected annotations 1 px"),

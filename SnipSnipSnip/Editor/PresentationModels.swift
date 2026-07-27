@@ -12,7 +12,7 @@ nonisolated enum EditorWorkspaceMode: String, CaseIterable, Identifiable {
         case .edit:
             return "Edit"
         case .presentation:
-            return "Presentation"
+            return "Result"
         }
     }
 

@@ -82,7 +82,7 @@ enum ImageExportError: LocalizedError {
         case .shareUnavailable:
             return "The current window is not available for sharing."
         case .transparentPresentationRequiresPNG:
-            return "Transparent background with shadow requires PNG export. Use Export PNG, Copy, or Share, or switch the presentation background to Solid."
+            return "Transparent background with shadow requires PNG export. Use Export PNG, Copy, or Share, or switch the Polish background to Solid."
         }
     }
 }
@@ -197,7 +197,9 @@ enum ImageExporter {
         appearance: ScreenshotOutputAppearance
     ) async -> URL? {
         let panel = destinationPanel(suggestedFilename: suggestedFilename, format: format)
-        panel.message = "Exporting \(appearance.title) screenshot output."
+        panel.message = String(
+            localized: "Export the output shown in the current workspace."
+        )
         return await presentSavePanel(panel)
     }
 

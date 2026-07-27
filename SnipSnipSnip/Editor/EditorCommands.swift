@@ -6,6 +6,40 @@ nonisolated protocol DocumentCommand {
     func apply(to snapshot: EditorSnapshot) -> EditorSnapshot
 }
 
+/// Changes the user's document goal and, when requested, its composition
+/// layout in one undo entry. Capture workflows use this to make first-add
+/// promotion atomic rather than leaving an intermediate mismatched goal.
+nonisolated struct SetDocumentPurposeCommand: DocumentCommand {
+    let purpose: ScreenshotDocumentPurpose
+    let layoutMode: CompositionLayoutMode?
+
+    var label: String { "Change Goal" }
+
+    func apply(to snapshot: EditorSnapshot) -> EditorSnapshot {
+        var updated = snapshot
+        updated.documentPurpose = purpose
+        if var composition = updated.composition {
+            if let layoutMode {
+                composition.layout.mode = layoutMode
+            }
+            switch purpose {
+            case .screenshot:
+                composition.isActivated = false
+            case .comparison:
+                // A Before-only comparison is a valid workflow state, but
+                // the two-panel renderer cannot activate until After exists.
+                composition.isActivated =
+                    composition.items.filter(\.isIncluded).count >= 2
+            case .steps, .collection:
+                composition.isActivated = true
+            }
+            composition.repairComparisonSelection()
+            updated.composition = composition
+        }
+        return updated
+    }
+}
+
 nonisolated struct AddAnnotationCommand: DocumentCommand {
     let annotation: Annotation
 
@@ -151,7 +185,7 @@ nonisolated struct SetPinnedUIMapElementsCommand: DocumentCommand {
 nonisolated struct SetPresentationCommand: DocumentCommand {
     let presentation: ScreenshotPresentation
 
-    var label: String { "Set Presentation" }
+    var label: String { "Set Polish" }
 
     func apply(to snapshot: EditorSnapshot) -> EditorSnapshot {
         var updated = snapshot

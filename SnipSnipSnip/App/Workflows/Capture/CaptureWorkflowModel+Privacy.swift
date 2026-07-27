@@ -3,7 +3,16 @@ import Foundation
 @MainActor
 extension CaptureWorkflowModel {
     func beginCapturePrivacyLock() -> Bool {
-        let latchedPrivateCapture = privateCaptureEnabled
+        beginCapturePrivacyLock(
+            latchedPrivateCapture:
+                activeCaptureContext.oneShotOptions?.privateCapture
+                ?? privateCaptureEnabled
+        )
+    }
+
+    func beginCapturePrivacyLock(
+        latchedPrivateCapture: Bool
+    ) -> Bool {
         capturePrivacyLockDepth += 1
         isCapturePrivacyLocked = true
         return latchedPrivateCapture

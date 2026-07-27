@@ -220,7 +220,9 @@ struct CaptureAutomationSettingsView: View {
                 }
 
                 Section("Screen Inspector") {
-                    Button(tools.screenInspectorCoordinator.isVisible ? "Show Screen Inspector" : "Open Screen Inspector", action: tools.presentScreenInspector)
+                    Button(tools.screenInspectorCoordinator.isVisible ? "Show Screen Inspector" : "Open Screen Inspector") {
+                        tools.presentScreenInspector()
+                    }
 
                     if tools.screenInspectorCoordinator.isVisible {
                         Button("Close Screen Inspector", action: tools.closeScreenInspector)
@@ -272,7 +274,7 @@ struct CaptureAutomationSettingsView: View {
 
             SettingsTabContainer(
                 title: "Editor & Output",
-                summary: "Editor defaults, canvas aids, Presentation resources, naming, and rendered output."
+                summary: "Editor defaults, canvas aids, Polish resources, naming, and rendered output."
             ) {
                 Section("Naming") {
                     TextField("Filename Template", text: $capture.screenshotFilenameTemplate)
@@ -298,7 +300,7 @@ struct CaptureAutomationSettingsView: View {
                         Slider(value: screenshotJPEGQualityBinding, in: ImageExportOptions.minimumJPEGQuality...ImageExportOptions.maximumJPEGQuality, step: 0.01)
                     }
 
-                    SettingsHelpText("Drag the file icon from the screenshot editor to share a rendered image. JPEG quality applies to Export JPEG and JPEG drag-out sharing. Transparent presentation shadows automatically use PNG so the styled result stays faithful.")
+                    SettingsHelpText("Drag the file icon from the screenshot editor to share the visible result. JPEG quality applies to Export JPEG and JPEG drag-out sharing. Transparent Polish output automatically uses PNG so the result stays faithful.")
                 }
 
                 Section("Editor") {
@@ -372,11 +374,11 @@ struct CaptureAutomationSettingsView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Presentation Scenes")
+                        Text("Mockups")
                             .font(.subheadline.weight(.semibold))
 
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Scenes Folder")
+                            Text("Mockup Folder")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.secondary)
                             Text(documents.presentationScenesRootDescription)
@@ -385,14 +387,14 @@ struct CaptureAutomationSettingsView: View {
                         }
 
                         HStack {
-                            Button("Choose Scenes Folder...", action: documents.choosePresentationScenesRoot)
-                            Button("Reveal Scenes Folder", action: documents.revealPresentationScenesRoot)
+                            Button("Choose Mockup Folder...", action: documents.choosePresentationScenesRoot)
+                            Button("Reveal Mockup Folder", action: documents.revealPresentationScenesRoot)
                             Button("Reset to Default Folder", action: documents.resetPresentationScenesRootToDefault)
                                 .disabled(documents.usesDefaultPresentationScenesRoot)
-                            Button("Reload Scenes", action: documents.reloadPresentationScenes)
+                            Button("Reload Mockups", action: documents.reloadPresentationScenes)
                         }
 
-                        SettingsHelpText("Presentation Scenes are SVG files. \(AppBranding.displayName) manages shipped examples in Bundled and reads custom scenes from User inside this folder.")
+                        SettingsHelpText("Mockups are sanitized SVG files. \(AppBranding.displayName) manages shipped examples in Bundled and reads custom Mockups from User inside this folder.")
                     }
                 }
             }

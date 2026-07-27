@@ -2,6 +2,14 @@ import CoreGraphics
 import Foundation
 
 extension DocumentWorkflowModel {
+    /// Archive presents one current document per retained session; Capture
+    /// History intentionally exposes every checkpoint and autosave revision.
+    var compositionArchiveEntries: [DocumentHistoryEntry] {
+        DocumentHistoryEntrySelection.latestPerSession(
+            from: allCaptureHistoryEntries
+        )
+    }
+
     func handleIncompatibleRecoveryEntriesOnLaunch() {
         let incompatibleEntries = recoveryStore.incompatibleHistoryEntries()
 
@@ -40,7 +48,14 @@ extension DocumentWorkflowModel {
     }
 
     func initialCaptureHistoryIndexImage(for controller: EditorController) -> CGImage {
-        controller.capture.image
+        guard controller.hasComposition else {
+            return controller.documentCapture.image
+        }
+        var snapshot = controller.documentSession.currentSnapshot
+        snapshot.presentation = .plain
+        let input = controller.compositionDocumentPreviewInput(snapshot: snapshot)
+        return (try? CompositionDocumentPreviewRenderer.render(input))
+            ?? controller.documentCapture.image
     }
 
     var filteredCaptureHistoryEntries: [DocumentHistoryEntry] {
@@ -98,7 +113,8 @@ extension DocumentWorkflowModel {
     }
 
     func indexCurrentCaptureIfNeeded(using controller: EditorController) {
-        guard let currentRecoverySessionID,
+        guard !controller.isPrivateDocument,
+              let currentRecoverySessionID,
               let entry = recoveryStore.historyEntries(for: currentRecoverySessionID).first else {
             return
         }
@@ -165,5 +181,18 @@ extension DocumentWorkflowModel {
         } catch {
             present(error)
         }
+    }
+}
+
+nonisolated enum DocumentHistoryEntrySelection {
+    static func latestPerSession(
+        from entries: [DocumentHistoryEntry]
+    ) -> [DocumentHistoryEntry] {
+        Dictionary(grouping: entries, by: \.sessionID)
+            .values
+            .compactMap { sessionEntries in
+                sessionEntries.max { $0.savedAt < $1.savedAt }
+            }
+            .sorted { $0.savedAt > $1.savedAt }
     }
 }

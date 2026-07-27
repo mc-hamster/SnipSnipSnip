@@ -457,7 +457,13 @@ nonisolated struct ClipboardPreferences: Codable, Equatable, Sendable {
             maxItemCount: min(max(maxItemCount, 10), 1_000),
             maxStorageMB: min(max(maxStorageMB, 25), 5_120),
             ignoredApps: Array(Dictionary(grouping: ignoredApps, by: \.id).compactMap { $0.value.first }
-                .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }),
+                .sorted {
+                    let nameOrder = $0.name.localizedCaseInsensitiveCompare($1.name)
+                    if nameOrder == .orderedSame {
+                        return $0.id < $1.id
+                    }
+                    return nameOrder == .orderedAscending
+                }),
             retentionDays: [0, 1, 7, 30, 90].contains(retentionDays) ? retentionDays : 0,
             maxItemSizeMB: min(max(maxItemSizeMB, 1), 250),
             recordsUncopiedSnips: recordsUncopiedSnips

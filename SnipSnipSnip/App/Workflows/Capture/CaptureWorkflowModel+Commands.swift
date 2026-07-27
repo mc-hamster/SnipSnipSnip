@@ -28,33 +28,31 @@ extension CaptureWorkflowModel {
     }
 
     var windowScreenshotCapturePermissionRequirements: [CapturePermissionRequirement] {
-        windowUIMapEnabled ? [.screenRecording, .accessibility] : [.screenRecording]
+        currentCaptureRunOptions().windowUIMapEnabled
+            ? [.screenRecording, .accessibility]
+            : [.screenRecording]
     }
 
     var windowScreenshotCaptureFeatureName: String {
-        windowUIMapEnabled ? "Window Capture with UI Map" : "Window Capture"
+        currentCaptureRunOptions().windowUIMapEnabled
+            ? "Window Capture with UI Map"
+            : "Window Capture"
     }
 
     func captureCurrentDisplay() {
-        runScreenshotCaptureWhenPermissionsReady(for: .fullscreen, pendingCommand: .currentDisplay) { [weak self] in
-            self?.beginFullscreenCapture()
-        }
+        captureCurrentDisplay(intent: .newDocument)
     }
 
     func captureRegion() {
-        runScreenshotCaptureWhenPermissionsReady(for: .region(.zero), pendingCommand: .region) { [weak self] in
-            self?.beginRegionCapture()
-        }
+        captureRegion(intent: .newDocument)
     }
 
     func captureFrontmostWindow() {
-        runScreenshotCaptureWhenPermissionsReady(for: .frontmostWindow, pendingCommand: .frontmostWindow) { [weak self] in
-            self?.beginFrontmostWindowCapture()
-        }
+        captureFrontmostWindow(intent: .newDocument)
     }
 
     func repeatLastCapture() {
-        beginRepeatLastCapture()
+        repeatLastCapture(intent: .newDocument)
     }
 
     func updatePrivateCaptureEnabled(_ enabled: Bool) {
@@ -68,8 +66,14 @@ extension CaptureWorkflowModel {
 
     func beginFullscreenCapture() {
         let runOptions = currentCaptureRunOptions()
+        let captureContext = activeCaptureContext
         Task {
-            await performCapture(request: .fullscreen, minimizeAppWindow: true, runOptions: runOptions) {
+            await performCapture(
+                request: .fullscreen,
+                minimizeAppWindow: true,
+                runOptions: runOptions,
+                completionContext: captureContext
+            ) {
                 try await captureService.captureFullscreen(
                     mode: runOptions.fullscreenDisplayMode,
                     selectedDisplayID: runOptions.selectedFullscreenDisplayID
@@ -80,8 +84,14 @@ extension CaptureWorkflowModel {
 
     func beginFrontmostWindowCapture() {
         let runOptions = currentCaptureRunOptions()
+        let captureContext = activeCaptureContext
         Task {
-            await performCapture(request: .frontmostWindow, minimizeAppWindow: true, runOptions: runOptions) {
+            await performCapture(
+                request: .frontmostWindow,
+                minimizeAppWindow: true,
+                runOptions: runOptions,
+                completionContext: captureContext
+            ) {
                 let window = try await captureService.frontmostWindow()
                 return try await captureService.captureWindow(window)
             }
@@ -90,12 +100,20 @@ extension CaptureWorkflowModel {
 
     func beginRegionCapture() {
         let runOptions = currentCaptureRunOptions()
+        let captureContext = activeCaptureContext
         Task {
+            defer {
+                resetPreparedCaptureContext(ifMatching: captureContext)
+            }
             guard ensureScreenshotCaptureAccess(for: .region(.zero), runOptions: runOptions) else {
                 return
             }
 
-            let isPrivateCapture = beginCapturePrivacyLock()
+            let isPrivateCapture = beginCapturePrivacyLock(
+                latchedPrivateCapture:
+                    captureContext.oneShotOptions?.privateCapture
+                    ?? privateCaptureEnabled
+            )
             defer { endCapturePrivacyLock() }
             let autosaveSuspension = suspendEditorAutosaveForInteractiveCapture()
             defer { resumeEditorAutosaveAfterInteractiveCapture(autosaveSuspension) }
@@ -120,6 +138,7 @@ extension CaptureWorkflowModel {
                 )
 
                 guard let selection = await session.begin() else {
+                    resetPreparedCaptureContext(ifMatching: captureContext)
                     return
                 }
 
@@ -140,7 +159,8 @@ extension CaptureWorkflowModel {
                         isPrivateCapture: isPrivateCapture,
                         cursorCaptureGlobalLocation: cursorCaptureGlobalLocation,
                         shouldAttemptUIMapCapture: true,
-                        runOptions: runOptions
+                        runOptions: runOptions,
+                        completionContext: captureContext
                     )
                 case .window(let window):
                     try await runCaptureDelayIfNeeded(actionName: "Capturing Window", delay: runOptions.captureDelay)
@@ -151,17 +171,24 @@ extension CaptureWorkflowModel {
                         capture,
                         request: .window(resolvedWindow),
                         isPrivateCapture: isPrivateCapture,
-                        runOptions: runOptions
+                        runOptions: runOptions,
+                        completionContext: captureContext
                     )
                 }
             } catch {
-                present(error)
+                present(
+                    error,
+                    recovering: nil,
+                    captureContext: captureContext
+                )
             }
         }
     }
 
     func beginRepeatLastCapture() {
+        let captureContext = activeCaptureContext
         guard let lastCaptureRequest else {
+            resetPreparedCaptureContext(ifMatching: captureContext)
             return
         }
 
@@ -170,63 +197,41 @@ extension CaptureWorkflowModel {
             repeatRegionCapture(region)
         case .scrolling(let region):
             guard dependencies.capabilities.isEnabled(.scrollingCapture) else {
+                resetPreparedCaptureContext(ifMatching: captureContext)
                 return
             }
             repeatScrollingCapture(region)
         case .window(let window):
             repeatWindowCapture(window)
         case .frontmostWindow:
-            captureFrontmostWindow()
+            captureFrontmostWindow(
+                intent: captureContext.intent,
+                completionRole: captureContext.role,
+                oneShotOptions: captureContext.oneShotOptions
+            )
         case .fullscreen:
-            captureCurrentDisplay()
+            captureCurrentDisplay(
+                intent: captureContext.intent,
+                completionRole: captureContext.role,
+                oneShotOptions: captureContext.oneShotOptions
+            )
         case .connectedDevice(let device):
-            captureConnectedDevice(device)
+            captureConnectedDevice(
+                device,
+                intent: captureContext.intent,
+                completionRole: captureContext.role,
+                oneShotOptions: captureContext.oneShotOptions
+            )
         }
-    }
-
-    func capturePreset(_ preset: CapturePreset) {
-        guard !isWorking, video?.isRecording != true, guide?.isActive != true, !isConnectedDeviceSessionActive else {
-            return
-        }
-
-        activeWorkflowPresetID = preset.id
-        markCapturePresetRan(id: preset.id)
-
-        switch preset.target {
-        case .region(let region):
-            capturePresetRegion(presetID: preset.id, savedRegion: region, options: preset.options)
-        case .window(let window):
-            capturePresetWindow(presetID: preset.id, savedWindow: window, options: preset.options)
-        case .frontmostWindow:
-            Task {
-                await performCapture(request: .frontmostWindow, minimizeAppWindow: true, runOptions: preset.options) {
-                    let window = try await captureService.frontmostWindow()
-                    return try await captureService.captureWindow(window)
-                }
-            }
-        case .fullscreen:
-            Task {
-                await performCapture(request: .fullscreen, minimizeAppWindow: true, runOptions: preset.options) {
-                    try await captureService.captureFullscreen(
-                        mode: preset.options.fullscreenDisplayMode,
-                        selectedDisplayID: preset.options.selectedFullscreenDisplayID
-                    )
-                }
-            }
-        }
-    }
-
-    func capturePreset(id: CapturePreset.ID) {
-        guard let preset = capturePresets.first(where: { $0.id == id }) else {
-            return
-        }
-
-        capturePreset(preset)
     }
 
     func repeatRegionCapture(_ region: CGRect) {
+        let captureContext = activeCaptureContext
         Task {
-            await performCapture(request: .region(region)) {
+            await performCapture(
+                request: .region(region),
+                completionContext: captureContext
+            ) {
                 try await captureService.captureRegion(in: region)
             }
         }
@@ -303,17 +308,22 @@ extension CaptureWorkflowModel {
         return "\(featureName) needs Screen Recording access to capture pixels and Accessibility access to save visible interface element names, roles, identifiers, and locations from the selected window. Click Set Up in the main window, then enable \(AppBranding.displayName) in System Settings > Privacy & Security."
     }
 
-    private func capturePresetRegion(
+    func capturePresetRegion(
         presetID: CapturePreset.ID,
         savedRegion: SavedCaptureRegion,
-        options: CaptureRunOptions
+        options: CaptureRunOptions,
+        captureContext: CaptureCompletionContext
     ) {
         Task {
             guard ensureScreenshotCaptureAccess(for: .region(savedRegion.rect), runOptions: options) else {
                 return
             }
 
-            let isPrivateCapture = beginCapturePrivacyLock()
+            let isPrivateCapture = beginCapturePrivacyLock(
+                latchedPrivateCapture:
+                    captureContext.oneShotOptions?.privateCapture
+                    ?? privateCaptureEnabled
+            )
             defer { endCapturePrivacyLock() }
             let hiddenWindow = hideAppWindowIfNeeded()
             defer { restoreAppWindowIfNeeded(hiddenWindow) }
@@ -333,7 +343,8 @@ extension CaptureWorkflowModel {
                     beginPresetRegionFallback(
                         presetID: presetID,
                         savedRegion: savedRegion,
-                        options: options
+                        options: options,
+                        captureContext: captureContext
                     )
                     return
                 }
@@ -352,10 +363,15 @@ extension CaptureWorkflowModel {
                     capture,
                     request: .region(capture.sourceRect),
                     isPrivateCapture: isPrivateCapture,
-                    runOptions: options
+                    runOptions: options,
+                    completionContext: captureContext
                 )
             } catch {
-                present(error)
+                present(
+                    error,
+                    recovering: nil,
+                    captureContext: captureContext
+                )
             }
         }
     }
@@ -363,14 +379,22 @@ extension CaptureWorkflowModel {
     private func beginPresetRegionFallback(
         presetID: CapturePreset.ID,
         savedRegion: SavedCaptureRegion,
-        options: CaptureRunOptions
+        options: CaptureRunOptions,
+        captureContext: CaptureCompletionContext
     ) {
         Task {
+            defer {
+                resetPreparedCaptureContext(ifMatching: captureContext)
+            }
             guard ensureScreenshotCaptureAccess(for: .region(savedRegion.rect), runOptions: options) else {
                 return
             }
 
-            let isPrivateCapture = beginCapturePrivacyLock()
+            let isPrivateCapture = beginCapturePrivacyLock(
+                latchedPrivateCapture:
+                    captureContext.oneShotOptions?.privateCapture
+                    ?? privateCaptureEnabled
+            )
             defer { endCapturePrivacyLock() }
             let autosaveSuspension = suspendEditorAutosaveForInteractiveCapture()
             defer { resumeEditorAutosaveAfterInteractiveCapture(autosaveSuspension) }
@@ -399,6 +423,7 @@ extension CaptureWorkflowModel {
                 )
 
                 guard let selection = await session.begin() else {
+                    resetPreparedCaptureContext(ifMatching: captureContext)
                     return
                 }
 
@@ -422,10 +447,15 @@ extension CaptureWorkflowModel {
                     request: .region(capture.sourceRect),
                     isPrivateCapture: isPrivateCapture,
                     cursorCaptureGlobalLocation: cursorCaptureGlobalLocation,
-                    runOptions: options
+                    runOptions: options,
+                    completionContext: captureContext
                 )
             } catch {
-                present(error)
+                present(
+                    error,
+                    recovering: nil,
+                    captureContext: captureContext
+                )
             }
         }
     }

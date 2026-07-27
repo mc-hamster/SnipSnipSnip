@@ -10,6 +10,16 @@
     "%.1fs" : {
 
     },
+    "%@ %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$lld"
+          }
+        }
+      }
+    },
     "%@ • %@" : {
       "localizations" : {
         "en" : {
@@ -49,26 +59,89 @@
     "%@ alignment" : {
 
     },
+    "%@ commands" : {
+
+    },
+    "%@ composition template" : {
+
+    },
     "%@ Help" : {
 
     },
-    "%@ JPEG…" : {
-
-    },
-    "%@ PDF…" : {
-
-    },
-    "%@ PNG…" : {
+    "%@ layout" : {
 
     },
     "%@ shadow" : {
 
+    },
+    "%@ using Region. Open the menu for another capture or image source." : {
+
+    },
+    "%@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
+    "%@, %@, framing, item %lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@, framing, item %3$lld of %4$lld"
+          }
+        }
+      }
+    },
+    "%@, %@, item %lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@, item %3$lld of %4$lld"
+          }
+        }
+      }
+    },
+    "%@: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: %2$@"
+          }
+        }
+      }
+    },
+    "%@. %@. Folder: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@. %2$@. Folder: %3$@"
+          }
+        }
+      }
     },
     "%@…" : {
 
     },
     "%lld" : {
 
+    },
+    "%lld %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld %2$@"
+          }
+        }
+      }
     },
     "%lld × %lld" : {
       "localizations" : {
@@ -123,6 +196,16 @@
     "%lld included" : {
 
     },
+    "%lld included • %lld selected" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld included • %2$lld selected"
+          }
+        }
+      }
+    },
     "%lld percent" : {
 
     },
@@ -137,6 +220,16 @@
     },
     "%lld." : {
 
+    },
+    "%lld. %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld. %2$@"
+          }
+        }
+      }
     },
     "%lld. What will you capture?" : {
 
@@ -157,6 +250,9 @@
 
     },
     "1 Hour" : {
+
+    },
+    "1, 2, 3" : {
 
     },
     "1. What do you want to make?" : {
@@ -186,6 +282,27 @@
     "60 fps" : {
 
     },
+    "A" : {
+
+    },
+    "A and B framing differs • %@" : {
+
+    },
+    "A and B framing matches • %@" : {
+
+    },
+    "A composition must keep at least one item" : {
+
+    },
+    "A composition must retain at least one item." : {
+
+    },
+    "a, b, c" : {
+
+    },
+    "A, B, C" : {
+
+    },
     "A4" : {
 
     },
@@ -204,6 +321,9 @@
     "Action Highlights MP4" : {
 
     },
+    "Actions for %@" : {
+
+    },
     "Actual Size" : {
 
     },
@@ -219,7 +339,58 @@
     "Add an editable solid cover over detected password and other secure fields in still steps. Secure text itself is never saved." : {
 
     },
+    "Add annotations that appear above every capture in the result." : {
+
+    },
+    "Add another capture or image, then choose whether to compare, explain with steps, or combine. Your annotations and optional Polish are preserved." : {
+
+    },
+    "Add as Flattened Item" : {
+
+    },
+    "Add as Step" : {
+
+    },
+    "Add Capture to SnipSnipSnip Composition" : {
+
+    },
+    "Add captures in order, then caption and number the steps." : {
+
+    },
+    "Add captures myself" : {
+
+    },
+    "Add Editable Items" : {
+
+    },
+    "Add Existing" : {
+
+    },
+    "Add files after this item" : {
+
+    },
+    "Add files before the first item" : {
+
+    },
+    "Add First Step" : {
+
+    },
+    "Add from" : {
+
+    },
+    "Add Here" : {
+
+    },
+    "Add Image" : {
+
+    },
+    "Add Images" : {
+
+    },
     "Add Manual Step" : {
+
+    },
+    "Add Region capture to composition" : {
 
     },
     "Add screenshot shadows" : {
@@ -228,16 +399,63 @@
     "Add Screenshots That Were Not Copied" : {
 
     },
+    "Add space around the complete composition." : {
+
+    },
     "Add the cursor as an editable screenshot overlay. Scrolling Capture always excludes it." : {
+
+    },
+    "Add the first extra capture" : {
+
+    },
+    "Add to Composition" : {
 
     },
     "Add to favorites." : {
 
     },
+    "Add…" : {
+
+    },
+    "Added %@. %lld captures in this result." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Added %1$@. %2$lld captures in this result."
+          }
+        }
+      }
+    },
+    "Added: %lld. Failed: %lld." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Added: %1$lld. Failed: %2$lld."
+          }
+        }
+      }
+    },
+    "Added: 0. Failed: %lld." : {
+
+    },
+    "Adding an item captured in a Private Capture session permanently marks the entire composition Private, even if that item is later removed. A Private composition remains editable and can be explicitly saved or exported, but it stays out of archive checkpoints, Recent Snips, the Recycle Bin, Clipboard History ingestion, OCR indexing, content diagnostics, and telemetry." : {
+
+    },
     "Adjust" : {
 
     },
+    "Adjust Framing" : {
+
+    },
+    "Adjust Manually" : {
+
+    },
     "Adjust the fill or background color for tools that render one." : {
+
+    },
+    "Adjust the opacity of every selected item." : {
 
     },
     "Adjust the primary color used by the current tool or selection." : {
@@ -247,6 +465,9 @@
 
     },
     "Advanced" : {
+
+    },
+    "Advanced Appearance" : {
 
     },
     "Advanced Step Edit" : {
@@ -270,7 +491,22 @@
     "Align" : {
 
     },
+    "Align local image content automatically, manually, or not at all." : {
+
+    },
     "Align selected annotations to the %@ edge or axis." : {
+
+    },
+    "Align, distribute, or match the selected freeform items. The first selected item supplies the match size." : {
+
+    },
+    "Aligned" : {
+
+    },
+    "Alignment" : {
+
+    },
+    "Alignment and Registration" : {
 
     },
     "All Collections" : {
@@ -300,10 +536,31 @@
     "Always Capture on Mouse Up" : {
 
     },
+    "Anchor each selected annotation endpoint to the visible item beneath it. Cross-panel lines and arrows can keep independent item anchors." : {
+
+    },
+    "Animated APNG…" : {
+
+    },
+    "Animated GIF" : {
+
+    },
+    "Animated GIF…" : {
+
+    },
     "Animated Loops" : {
 
     },
+    "Animated PNG" : {
+
+    },
+    "Annotate Result" : {
+
+    },
     "Annotation Layers" : {
+
+    },
+    "Annotations and redactions apply above every item and below optional Polish. Resize or trim the canvas in Layout." : {
 
     },
     "APNG" : {
@@ -324,28 +581,85 @@
     "Appearance" : {
 
     },
+    "Append After Composition Item ID" : {
+
+    },
+    "Append After Item ID" : {
+
+    },
+    "Append to Current Composition" : {
+
+    },
     "Applies to every step" : {
+
+    },
+    "Apply a compatible built-in or saved template to the current composition." : {
+
+    },
+    "Apply a complete reusable canvas, panel, caption, title, numbering, connector, and comparison appearance." : {
+
+    },
+    "Apply A’s Fit or Fill, alignment, zoom, and focal offset to B." : {
 
     },
     "Apply Duration to %lld Steps" : {
 
     },
-    "Apply the %@ presentation scene." : {
+    "Apply SnipSnipSnip Composition Template" : {
 
     },
-    "Apply the %@ presentation template." : {
+    "Apply the %@ Look." : {
 
     },
-    "Apply the saved %@ presentation from this document." : {
+    "Apply the %@ Mockup." : {
+
+    },
+    "Apply the built-in %@ template." : {
+
+    },
+    "Apply the saved %@ Polish variant from this document." : {
+
+    },
+    "Apply the saved %@ template." : {
+
+    },
+    "Apply Theme" : {
+
+    },
+    "Apply these edits and return to the focused content stage." : {
 
     },
     "Apply to Step" : {
+
+    },
+    "Archive" : {
 
     },
     "Archive History" : {
 
     },
     "Arrange" : {
+
+    },
+    "Arrange a combined image" : {
+
+    },
+    "Arrange changes item order, size, framing, and placement." : {
+
+    },
+    "Arrange several captures and images as one result." : {
+
+    },
+    "Arrange steps as a row, column, or grid." : {
+
+    },
+    "Arrangement layouts" : {
+
+    },
+    "Arranging" : {
+
+    },
+    "Arrow" : {
 
     },
     "Arrow Label" : {
@@ -369,10 +683,16 @@
     "Audio signal level" : {
 
     },
+    "Auto" : {
+
+    },
     "Auto Copy" : {
 
     },
     "Auto Crop" : {
+
+    },
+    "Auto Expand" : {
 
     },
     "Auto Refresh" : {
@@ -381,16 +701,22 @@
     "Automatic" : {
 
     },
+    "Automatic alignment could not find a reliable match." : {
+
+    },
     "Automatically copy the current rendered snip after captures and editor changes." : {
 
     },
     "Autosave history appears here after edits or saves." : {
 
     },
-    "Back" : {
+    "Axis" : {
 
     },
-    "Back to Edit" : {
+    "B" : {
+
+    },
+    "Back" : {
 
     },
     "Back to Editing" : {
@@ -399,7 +725,13 @@
     "Background" : {
 
     },
+    "Background Type" : {
+
+    },
     "Balanced · 30 fps" : {
+
+    },
+    "Before Captured" : {
 
     },
     "Bend the selected arrow into a curved connector." : {
@@ -408,10 +740,22 @@
     "Best for PDF, Word, images, GIF, or a slideshow. No source video or audio is retained." : {
 
     },
-    "Beta" : {
+    "Blink" : {
+
+    },
+    "Blink Interval" : {
+
+    },
+    "Blink MP4…" : {
 
     },
     "Border" : {
+
+    },
+    "Border Color" : {
+
+    },
+    "Bottom Edges" : {
 
     },
     "Bottom Left" : {
@@ -420,11 +764,27 @@
     "Bottom Right" : {
 
     },
+    "Bring %@ forward" : {
+
+    },
     "Bring Forward" : {
 
     },
     "Bring to Front" : {
 
+    },
+    "Build a manual step sequence" : {
+
+    },
+    "Built-in templates adapt to compatible item counts. Your saved templates require exactly %lld %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Built-in templates adapt to compatible item counts. Your saved templates require exactly %1$lld %2$@."
+          }
+        }
+      }
     },
     "Bundled contains app-managed examples." : {
 
@@ -438,7 +798,28 @@
     "Cancel Export" : {
 
     },
+    "Cancelling an Add, Replace, or Change Goal operation leaves the document unchanged." : {
+
+    },
     "Cancelling…" : {
+
+    },
+    "Canvas" : {
+
+    },
+    "Canvas Fill" : {
+
+    },
+    "Caption Alignment" : {
+
+    },
+    "Caption Color" : {
+
+    },
+    "Caption Weight" : {
+
+    },
+    "Captions and Type" : {
 
     },
     "Capture" : {
@@ -447,13 +828,37 @@
     "Capture a fixed region or start interactive region capture with SnipSnipSnip." : {
 
     },
+    "Capture a new image and replace one item in the current editable composition." : {
+
+    },
+    "Capture a replacement while retaining this item’s identity, caption, and anchored annotations." : {
+
+    },
+    "Capture a screenshot" : {
+
+    },
+    "Capture another image and append it to the current editable composition." : {
+
+    },
+    "Capture Before" : {
+
+    },
     "Capture clicks, scrolling, and shortcuts as an editable step-by-step guide." : {
 
     },
     "Capture Delay" : {
 
     },
+    "Capture Destination" : {
+
+    },
     "Capture Error" : {
+
+    },
+    "Capture First Image" : {
+
+    },
+    "Capture First Step" : {
 
     },
     "Capture Frontmost" : {
@@ -462,10 +867,19 @@
     "Capture Fullscreen" : {
 
     },
+    "Capture History" : {
+
+    },
     "Capture history search appears here after you have autosaves, recent snips, or saved checkpoints to search." : {
 
     },
     "Capture HUD" : {
+
+    },
+    "Capture one image, then annotate or polish it." : {
+
+    },
+    "Capture or import each step yourself, then add captions and numbering." : {
 
     },
     "Capture Preset" : {
@@ -475,6 +889,9 @@
 
     },
     "Capture Region" : {
+
+    },
+    "Capture Screenshot" : {
 
     },
     "Capture SnipSnipSnip Frontmost Window" : {
@@ -487,6 +904,9 @@
 
     },
     "Capture SnipSnipSnip Window" : {
+
+    },
+    "Capture Source" : {
 
     },
     "Capture Sources" : {
@@ -507,10 +927,31 @@
     "Capture this window." : {
 
     },
+    "Capture UI Map" : {
+
+    },
     "Capture Window" : {
 
     },
+    "Capture, mark up, and share one image." : {
+
+    },
     "Captured Cursor" : {
+
+    },
+    "Captures" : {
+
+    },
+    "Change Goal" : {
+
+    },
+    "Change Highlight" : {
+
+    },
+    "Change History" : {
+
+    },
+    "Change how these captures are organized without removing them." : {
 
     },
     "Check Again" : {
@@ -528,13 +969,49 @@
     "Choose %@ Folder…" : {
 
     },
+    "Choose a built-in template for an adaptable Grid, comparison, Steps sequence, or Freeform board. Open Manage Templates to save the current structure and appearance, then rename, duplicate, delete, import, or export it. Saved templates require the same item count; built-in templates adapt to the compatible count. Templates never include captures, item identities, the composition title, or item captions." : {
+
+    },
+    "Choose a Connected Device" : {
+
+    },
+    "Choose a fixed column count, or let Auto determine it." : {
+
+    },
+    "Choose a horizontal or vertical comparison." : {
+
+    },
     "Choose a ready-made shadow style." : {
+
+    },
+    "Choose a specific comparison method." : {
 
     },
     "Choose a step to preview and edit it." : {
 
     },
+    "Choose Add in a one-image Screenshot and select Compare, Add as Step, or Combine. Region is ready by default, and the menu can preselect another source. The purpose changes only after the source is added successfully, and Undo returns to the original Screenshot. Later additions inherit the purpose without asking again. Option-Command-A invokes the same contextual action." : {
+
+    },
+    "Choose Annotate Result to place annotations above the arranged items and below optional Polish. Anchored endpoints follow their items through layout changes; Pin Selection to Canvas keeps them in the overall result. Canvas bounds remain in Arrange." : {
+
+    },
     "Choose App..." : {
+
+    },
+    "Choose Apply Theme for a complete Clean, Cards, Dark, or Documentation appearance, then refine padding, gaps, fill, borders, corners, captions, and title type. Advanced Appearance exposes panel fill and shadow, caption and title backgrounds and padding, step badge colors and size, connector styling, and the comparison divider. Saving a composition template preserves this appearance together with the layout." : {
+
+    },
+    "Choose Before" : {
+
+    },
+    "Choose Create when you want help starting a Screenshot, Comparison, Process, or Combined Image. Region, Window, and Full Screen remain one-action Screenshot shortcuts." : {
+
+    },
+    "Choose Edit Selected Capture, double-click an item, or press Return to crop and annotate only that source. Done returns to the same goal stage with the item selected. Press Option-Return to adjust framing, then Escape to finish." : {
+
+    },
+    "Choose exactly how many included steps appear on each PDF page." : {
 
     },
     "Choose export folder" : {
@@ -561,19 +1038,61 @@
     "Choose Logo…" : {
 
     },
+    "Choose Mockup Folder..." : {
+
+    },
     "Choose one or more formats, then choose where to save them." : {
 
     },
-    "Choose Scenes Folder..." : {
+    "Choose Region, Window, Screen, or Add Existing. Add Existing includes files, the clipboard, Recent Snips, Capture History, and Archive. More and Fine-tune keep specialized sources and optional capture settings out of the main decision." : {
+
+    },
+    "Choose the After or B item." : {
+
+    },
+    "Choose the Before or A item." : {
+
+    },
+    "Choose the clearest way to communicate the difference." : {
+
+    },
+    "Choose the exact capture to use. Editable keeps its source items and annotations; Image uses only its rendered preview." : {
+
+    },
+    "Choose the exact iPhone or iPad to capture for this result." : {
+
+    },
+    "Choose the image used by static PNG, JPEG, and PDF output." : {
+
+    },
+    "Choose the marker format for the ordered sequence." : {
+
+    },
+    "Choose the number of columns in the step grid." : {
+
+    },
+    "Choose the result you want. You will not be asked again for this document." : {
 
     },
     "Choose the target on screen, then start capturing this Guide." : {
+
+    },
+    "Choose the target shape used by Auto and structured layouts." : {
+
+    },
+    "Choose what to make" : {
 
     },
     "Choose what to make and what Guide should follow." : {
 
     },
     "Choose what viewers should hear. You can change either source from the Guide controls while recording." : {
+
+    },
+    "Choose what you want to make, then capture or add its first image." : {
+
+    },
+    "Choose what you want to make, then see only the controls that help finish it." : {
 
     },
     "Choose whether newly captured steps mark where the action happened. You can change this later for any individual step." : {
@@ -601,9 +1120,6 @@
 
     },
     "Clear Clipboard History" : {
-
-    },
-    "Clear Scene" : {
 
     },
     "Clear Selection" : {
@@ -663,6 +1179,9 @@
     "Close the recycle bin." : {
 
     },
+    "Close these details and retry every failed file at its original composition destination." : {
+
+    },
     "Close this floating reference." : {
 
     },
@@ -678,6 +1197,15 @@
     "Collapse permission diagnostics." : {
 
     },
+    "Collapsed" : {
+
+    },
+    "Collect captures and images, then arrange them together." : {
+
+    },
+    "Collecting" : {
+
+    },
     "Collection" : {
 
     },
@@ -690,10 +1218,73 @@
     "Color" : {
 
     },
+    "Column" : {
+
+    },
+    "Columns" : {
+
+    },
+    "Combine" : {
+
+    },
+    "Combine images" : {
+
+    },
+    "Combined Image" : {
+
+    },
+    "Combined Image offers Auto, Row, Column, Grid, Freeform, and compatible templates. Auto chooses a useful arrangement from item count and image shapes. Reorder items on the canvas or in Items, and adjust Fit, Fill, alignment, framing, captions, replacement, duplication, visibility, and removal. Freeform expands automatically until you set an explicit size. Trim to Items removes unused bounds and Auto Expand restores growth. Arrow keys move selected items; Option-arrows resize them; add Shift for 10-pixel changes. Align, Distribute, Match Size, and numeric geometry provide complete keyboard alternatives." : {
+
+    },
     "Compact · 144 dpi" : {
 
     },
+    "Compare" : {
+
+    },
+    "Compare Captures" : {
+
+    },
+    "Compare two items" : {
+
+    },
+    "Compare two versions" : {
+
+    },
+    "Compare, explain, or combine captures" : {
+
+    },
+    "Comparison" : {
+
+    },
+    "Comparison consistently uses Before and After. Show Both starts with side-by-side output, Highlight Changes uses automatic registration and local change detection, and Alternate switches between the images. More Options retains Overlay, Wipe, Difference, Blink, sensitivity, unchanged-content dimming, outline or pattern cues, timing, and poster-frame controls. Manual offsets remain available if automatic alignment is not reliable. Reduced Motion stops automatic Blink preview without changing exported timing." : {
+
+    },
+    "Comparison Mode" : {
+
+    },
+    "Compatible composition templates" : {
+
+    },
     "Completed work stays protected" : {
+
+    },
+    "Composition Axis" : {
+
+    },
+    "Composition canvas" : {
+
+    },
+    "Composition Editing" : {
+
+    },
+    "Composition Items" : {
+      "comment" : "Accessibility label for the ordered capture panel list in Layers."
+    },
+    "Composition Layout" : {
+
+    },
+    "Configure comparison behavior for the current SnipSnipSnip composition." : {
 
     },
     "Confirm Before Quitting" : {
@@ -705,7 +1296,16 @@
     "Connected Device Preview Active" : {
 
     },
+    "Connectors" : {
+
+    },
+    "Content" : {
+
+    },
     "Continue in SnipSnipSnip to finish this automation." : {
+
+    },
+    "Continue to Guide" : {
 
     },
     "Control how strongly freehand strokes are curved during rendering." : {
@@ -717,10 +1317,16 @@
     "Copied" : {
 
     },
+    "Copied screenshot." : {
+
+    },
     "Copied text, links, images, files, and %@ screenshots appear here." : {
 
     },
     "Copy" : {
+
+    },
+    "Copy current workspace output" : {
 
     },
     "Copy Edited" : {
@@ -735,9 +1341,6 @@
     "Copy Path" : {
 
     },
-    "Copy Plain" : {
-
-    },
     "Copy Plain Text" : {
 
     },
@@ -745,9 +1348,6 @@
 
     },
     "Copy Screenshot" : {
-
-    },
-    "Copy Styled" : {
 
     },
     "Copy Text" : {
@@ -762,7 +1362,10 @@
     "Copy the current color as RGB. Shortcut: Option-Command-R." : {
 
     },
-    "Copy the plain annotated screenshot." : {
+    "Copy the output currently shown in this workspace." : {
+
+    },
+    "Copy, Share, Export, Float, and Drag use the visible stage. Edit, Review, Steps, and Arrange output unwrapped content; Polish outputs the visible Look or Mockup. PNG, JPEG, and PDF include the complete result and annotations. Before an oversized raster is created, choose Scale to Fit; a Steps PDF also offers Paginated PDF. Blink exports deterministic GIF, APNG, and MP4 output using its interval, crossfade, and loop settings, with a disclosed 4,096-pixel longest-side cap. Static Blink output defaults to After." : {
 
     },
     "Copy. Press Option-%lld while Clipboard History is focused." : {
@@ -790,6 +1393,12 @@
 
     },
     "Create Captions Automatically" : {
+
+    },
+    "Create…" : {
+
+    },
+    "Crop" : {
 
     },
     "Crop Outside Dimming" : {
@@ -829,6 +1438,9 @@
 
     },
     "Current Size" : {
+
+    },
+    "Current workflow" : {
 
     },
     "Cursor" : {
@@ -876,6 +1488,9 @@
     "Delete the selected steps. Deleted steps remain available to restore from their context menu." : {
 
     },
+    "Delete the selected user template." : {
+
+    },
     "Delete Theme" : {
 
     },
@@ -900,6 +1515,21 @@
     "Deleted Step" : {
 
     },
+    "Details…" : {
+
+    },
+    "Difference" : {
+
+    },
+    "Difference Cues" : {
+
+    },
+    "Difference Intensity" : {
+
+    },
+    "Dim unchanged content so differences remain prominent." : {
+
+    },
     "Direction" : {
 
     },
@@ -918,10 +1548,19 @@
     "Dismiss" : {
 
     },
+    "Dismiss Import Results" : {
+
+    },
+    "Dismiss import results." : {
+
+    },
     "Dismiss notification" : {
       "comment" : "Accessibility label for dismissing an editor notice."
     },
     "Display" : {
+
+    },
+    "Distribute" : {
 
     },
     "Document" : {
@@ -936,13 +1575,16 @@
     "Dot Size" : {
 
     },
-    "Drag %@" : {
+    "Drag items to reorder. Drop files between items to Add Here, or over an item to Replace Item. Move buttons and the item menu provide complete keyboard alternatives." : {
 
     },
     "Drag the current trimmed export into Finder, Mail, or another app. Export starts after the drop is accepted." : {
 
     },
     "Drag the first selected Guide export format into Finder or another app." : {
+
+    },
+    "Drag the output currently shown in this workspace." : {
 
     },
     "Drag the strip to scrub, or move the handles to trim." : {
@@ -957,10 +1599,25 @@
     "Drag to move this floating reference." : {
 
     },
+    "Draw a border around every included item." : {
+
+    },
+    "Draw no connector, a line, or an arrow between steps." : {
+
+    },
     "Draw the pointer at its recorded position in each still step. This does not add the pointer to the captured source video." : {
 
     },
+    "Drop image files or editable SnipSnipSnip documents here." : {
+
+    },
     "Duplicate" : {
+
+    },
+    "Duplicate the selected item while sharing its immutable source pixels." : {
+
+    },
+    "Duplicate the selected template as an exact-count user template." : {
 
     },
     "Duration" : {
@@ -972,13 +1629,37 @@
     "Each captured step starts with a number. You can hide it for an individual step in the editor." : {
 
     },
+    "Edit Next Item" : {
+
+    },
+    "Edit Previous Item" : {
+
+    },
     "Edit Screenshot…" : {
+
+    },
+    "Edit Selected Capture" : {
+
+    },
+    "Edit the right level" : {
+
+    },
+    "Edit the selected capture's crop and source annotations" : {
+
+    },
+    "Edit the selected source’s crop, annotations, redactions, and UI Map." : {
 
     },
     "Edit what this step says and how it plays" : {
 
     },
+    "Edit, replace, duplicate, include, exclude, or remove %@." : {
+
+    },
     "Editable SnipSnipSnip Document" : {
+
+    },
+    "Editing" : {
 
     },
     "Editor" : {
@@ -993,7 +1674,13 @@
     "Editor Shortcuts" : {
 
     },
+    "Edits, crop, UI Map pins, and redactions apply only to this source item." : {
+
+    },
     "Effect" : {
+
+    },
+    "Effects" : {
 
     },
     "Element region" : {
@@ -1043,22 +1730,34 @@
         }
       }
     },
+    "Every item keeps its own base image, crop, and annotations. Composition annotations remain a separate editable layer above all items." : {
+
+    },
+    "Exchange the A and B comparison roles." : {
+
+    },
     "Exclude" : {
 
     },
     "Exclude Cursor" : {
 
     },
+    "Excluded" : {
+
+    },
     "Expand permission setup and diagnostics." : {
+
+    },
+    "Expanded" : {
+
+    },
+    "Explain a process" : {
 
     },
     "Export" : {
 
     },
     "Export & Sharing" : {
-
-    },
-    "Export %@" : {
 
     },
     "Export %@…" : {
@@ -1070,13 +1769,13 @@
     "Export APNG" : {
 
     },
+    "Export Composition" : {
+
+    },
     "Export Current SnipSnipSnip Screenshot" : {
 
     },
     "Export Diagnostics…" : {
-
-    },
-    "Export explicit Plain or Styled output as PNG, JPEG, or PDF." : {
 
     },
     "Export Format" : {
@@ -1097,6 +1796,9 @@
     "Export Images" : {
 
     },
+    "Export interactive HTML" : {
+
+    },
     "Export JSON..." : {
 
     },
@@ -1106,10 +1808,31 @@
     "Export Slideshow MP4" : {
 
     },
+    "Export SnipSnipSnip Composition" : {
+
+    },
+    "Export Steps as multiple PDF pages." : {
+
+    },
+    "Export stills, pages, and animation" : {
+
+    },
     "Export structured UI Map metadata for debugging or review." : {
 
     },
+    "Export the current multi-capture composition after all pending rendering and comparison work finishes." : {
+
+    },
     "Export the current SnipSnipSnip screenshot to a file." : {
+
+    },
+    "Export the output currently shown in this workspace." : {
+
+    },
+    "Export the output shown in the current workspace." : {
+
+    },
+    "Export the selected template without captures or document-specific text." : {
 
     },
     "Export the trimmed video using MP4, GIF, APNG, or another available format." : {
@@ -1121,10 +1844,23 @@
     "Export…" : {
 
     },
+    "Exported %@ to %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Exported %1$@ to %2$@."
+          }
+        }
+      }
+    },
     "Exporting Guide" : {
 
     },
     "Extra smooth · 60 fps" : {
+
+    },
+    "Failed Imports" : {
 
     },
     "File" : {
@@ -1136,6 +1872,9 @@
     "Filename Template" : {
 
     },
+    "Files" : {
+
+    },
     "Fill" : {
 
     },
@@ -1145,13 +1884,22 @@
     "Filter" : {
 
     },
-    "Final Export Preview" : {
-
-    },
     "Fine Tune Shadow" : {
 
     },
+    "Fine-tune" : {
+
+    },
     "Fine-tune capture" : {
+
+    },
+    "Finish Framing" : {
+
+    },
+    "First Item ID" : {
+
+    },
+    "Fit all pixels, fill the frame, or display at actual pixel size." : {
 
     },
     "Fit to View" : {
@@ -1160,7 +1908,7 @@
     "Fit to Window" : {
 
     },
-    "Float %@" : {
+    "Float" : {
 
     },
     "Float Current Screenshot" : {
@@ -1169,16 +1917,28 @@
     "Float Reference" : {
 
     },
+    "Float the output currently shown in this workspace." : {
+
+    },
     "Floating Reference" : {
 
     },
     "Floating reference image. Scroll to pan, pinch to zoom, or use the zoom controls." : {
 
     },
+    "Flow" : {
+
+    },
     "Folder Layout" : {
 
     },
+    "Follow the session" : {
+
+    },
     "Font" : {
+
+    },
+    "For a Process, choose Record as I work to continue to Guide, or Add captures myself to build manual Steps." : {
 
     },
     "Format" : {
@@ -1188,6 +1948,21 @@
 
     },
     "Framing" : {
+
+    },
+    "Freeform" : {
+
+    },
+    "Freeform Canvas" : {
+
+    },
+    "Freeform Canvas Height" : {
+
+    },
+    "Freeform Canvas Width" : {
+
+    },
+    "Freeform Position and Size" : {
 
     },
     "Freeze or unfreeze the inspector. Shortcut: Option-Command-F." : {
@@ -1206,6 +1981,9 @@
 
     },
     "Full Motion MP4 and Action Highlights require source video." : {
+
+    },
+    "Full Screen" : {
 
     },
     "Full Screen Capture" : {
@@ -1232,10 +2010,22 @@
     "GIF • %@" : {
 
     },
+    "Give selected sections more or less space relative to the other items." : {
+
+    },
+    "Give the item a reusable semantic role for comparison, steps, and accessible output." : {
+
+    },
     "Global Capture Hotkeys" : {
 
     },
     "Grid" : {
+
+    },
+    "Grid Columns" : {
+
+    },
+    "Grid Columns: %lld" : {
 
     },
     "Group" : {
@@ -1256,6 +2046,18 @@
     "Guide Export" : {
 
     },
+    "Guide records your workflow and creates editable steps automatically." : {
+
+    },
+    "Guide remains separate from the manual Steps workflow. Guide can also capture source video, audio, actions, and markers." : {
+
+    },
+    "Guide will ask which app, window, or screen to record next." : {
+
+    },
+    "Guide will record your workflow and build editable steps." : {
+
+    },
     "H" : {
 
     },
@@ -1272,6 +2074,9 @@
 
     },
     "Help & Onboarding" : {
+
+    },
+    "Hex color as #RRGGBB or #RRGGBBAA." : {
 
     },
     "Hidden" : {
@@ -1307,22 +2112,49 @@
     "Hide UI Map outlines for unselected elements." : {
 
     },
+    "Highlight Color" : {
+
+    },
+    "Highlight Threshold" : {
+
+    },
     "History Preview" : {
 
     },
     "History Storage Target: %lld MB (Pinned Kept)" : {
 
     },
+    "Horizontal" : {
+
+    },
     "Horizontal 0 Origin" : {
+
+    },
+    "Horizontal Centers" : {
 
     },
     "Horizontal Tick Edge" : {
 
     },
+    "Horizontally" : {
+
+    },
     "Hover a visible window to highlight it, then click to capture." : {
 
     },
+    "How do you want to build it?" : {
+
+    },
+    "How do you want to use the second image?" : {
+
+    },
     "How long this step appears in step-based animated and video exports." : {
+
+    },
+    "i, ii, iii" : {
+
+    },
+    "I, II, III" : {
 
     },
     "Icon: %@" : {
@@ -1343,7 +2175,29 @@
     "Ignored Apps" : {
 
     },
+    "image" : {
+
+    },
+    "images" : {
+
+    },
     "Immediate" : {
+
+    },
+    "Import a composition template and bind it to the current item count." : {
+
+    },
+    "Import complete. %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Import complete. %1$@"
+          }
+        }
+      }
+    },
+    "Import Details" : {
 
     },
     "Import Image…" : {
@@ -1352,10 +2206,29 @@
     "Import Images…" : {
 
     },
+    "Import Results" : {
+
+    },
+    "Import results. %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Import results. %1$@"
+          }
+        }
+      }
+    },
+    "Import…" : {
+
+    },
     "Important" : {
 
     },
     "Include" : {
+
+    },
+    "Include at least two items before applying this comparison template." : {
 
     },
     "Include Cursor" : {
@@ -1376,6 +2249,9 @@
     "Include or mute system audio for this recording only." : {
 
     },
+    "Include Pointer" : {
+
+    },
     "Include the macOS menu bar in full-display still steps and source video. This setting has no effect on window, app, or area captures." : {
 
     },
@@ -1383,6 +2259,9 @@
 
     },
     "Include UI Map for Window Captures" : {
+
+    },
+    "Included" : {
 
     },
     "Insert an image overlay." : {
@@ -1403,6 +2282,36 @@
     "Interactive" : {
 
     },
+    "Interactive HTML" : {
+
+    },
+    "Interactive HTML is one offline file. Steps preserves decimal, letter, Roman, starting-value, or hidden numbering and includes step links, Previous and Next controls, and direction-aware Left and Right Arrow navigation. Wipe and Overlay remain interactive; Difference and Change Highlight use the exact fully rendered result; Blink keeps manual and playback controls and prints its chosen poster. Printing shows every step, and navigation remains useful when JavaScript is unavailable. The file embeds newly encoded images, escapes titles and captions, includes no source paths or capture metadata, loads no remote scripts, fonts, images, or analytics, and uses a deny-by-default Content Security Policy." : {
+
+    },
+    "Interactive HTML…" : {
+
+    },
+    "Item" : {
+
+    },
+    "Item %lld" : {
+
+    },
+    "Item Actions" : {
+
+    },
+    "Item alignment" : {
+
+    },
+    "Item Annotation Scope" : {
+      "comment" : "Accessibility label for choosing which composition item's annotations appear in Layers."
+    },
+    "Item ID" : {
+
+    },
+    "Item layer commands" : {
+      "comment" : "Accessibility label for the composition item command group in Layers."
+    },
     "Items" : {
 
     },
@@ -1412,10 +2321,19 @@
     "JPEG Quality" : {
 
     },
+    "JPEG…" : {
+
+    },
+    "Keep A and B framing changes synchronized." : {
+
+    },
     "Keep a small, cancellable export status window open while files are generated." : {
 
     },
     "Keep capture ready" : {
+
+    },
+    "Keep framing synchronized among the selected linked items." : {
 
     },
     "Keep Full-Motion Source Video" : {
@@ -1424,7 +2342,16 @@
     "Keep Off" : {
 
     },
+    "Keep selected items in the document while including or excluding them from this layout." : {
+
+    },
+    "Keep the selected annotation at a normalized position when the layout changes." : {
+
+    },
     "Keep this UI Map overlay visible in copied, shared, and exported screenshots." : {
+
+    },
+    "Keep Views Linked" : {
 
     },
     "Keeps the menu bar capture actions and global shortcuts ready after login." : {
@@ -1454,8 +2381,20 @@
     "Launch %@ at Login" : {
 
     },
+    "Layer Scope" : {
+      "comment" : "Accessibility label for the Items, Composition, and Item scope picker in Layers."
+    },
+    "Layer: %lld" : {
+
+    },
     "Layers" : {
       "comment" : "Accessibility label for the annotation layers list and command."
+    },
+    "Layout" : {
+
+    },
+    "Left Edges" : {
+
     },
     "Legal statement" : {
 
@@ -1478,6 +2417,9 @@
     "Line width" : {
 
     },
+    "Link Framing" : {
+
+    },
     "List SnipSnipSnip Capture Presets" : {
 
     },
@@ -1487,10 +2429,31 @@
     "Loading available windows…" : {
 
     },
+    "Locate Source…" : {
+
+    },
     "Location" : {
 
     },
+    "Look" : {
+
+    },
+    "Look Name" : {
+
+    },
+    "Looking for connected devices…" : {
+
+    },
     "Looking for Devices..." : {
+
+    },
+    "Looks" : {
+
+    },
+    "Looks, Mockups & Variants" : {
+
+    },
+    "Loop" : {
 
     },
     "lowercase" : {
@@ -1511,10 +2474,13 @@
     "Manage Presets..." : {
 
     },
-    "Manage Styles" : {
+    "Manage Templates" : {
 
     },
     "Manage Variants" : {
+
+    },
+    "Manage…" : {
 
     },
     "Manual framing is active." : {
@@ -1538,6 +2504,12 @@
     "Mask Secure Fields" : {
 
     },
+    "Match Framing" : {
+
+    },
+    "Match Size" : {
+
+    },
     "Max Archive Size: %lld MB" : {
 
     },
@@ -1547,7 +2519,31 @@
     "Maximum Unpinned Items: %lld" : {
 
     },
+    "Method" : {
+
+    },
     "Missing" : {
+
+    },
+    "Missing source" : {
+
+    },
+    "Mockup" : {
+
+    },
+    "Mockup Diagnostics" : {
+
+    },
+    "Mockup Folder" : {
+
+    },
+    "Mockup Framing" : {
+
+    },
+    "Mockups" : {
+
+    },
+    "Mode" : {
 
     },
     "Monitoring" : {
@@ -1556,8 +2552,41 @@
     "More actions" : {
 
     },
+    "More capture sources" : {
+
+    },
+    "More Options" : {
+
+    },
     "More tools to explore" : {
 
+    },
+    "Move %@" : {
+
+    },
+    "Move %@ down" : {
+
+    },
+    "Move %@ earlier" : {
+
+    },
+    "Move %@ later" : {
+
+    },
+    "Move %@ up" : {
+
+    },
+    "Move Earlier" : {
+      "comment" : "Moves the selected composition item toward the beginning of its ordered sequence."
+    },
+    "Move item down" : {
+
+    },
+    "Move item up" : {
+
+    },
+    "Move Later" : {
+      "comment" : "Moves the selected composition item toward the end of its ordered sequence."
     },
     "Move over a UI element in the screenshot to preview it, then click to pin it." : {
 
@@ -1568,10 +2597,28 @@
     "Move preset up." : {
 
     },
+    "Move the focal point left or right inside the frame." : {
+
+    },
+    "Move the focal point up or down inside the frame." : {
+
+    },
+    "Move the selected freeform item forward or backward in the layer order." : {
+
+    },
+    "Move to Beginning" : {
+
+    },
+    "Move to End" : {
+
+    },
     "MP4 Quality" : {
 
     },
     "MP4 Size Limit" : {
+
+    },
+    "MP4 Video" : {
 
     },
     "My narration" : {
@@ -1583,7 +2630,13 @@
     "Narration + app audio" : {
 
     },
+    "Needs alignment" : {
+
+    },
     "Never" : {
+
+    },
+    "New Document" : {
 
     },
     "New Horizontal Ruler" : {
@@ -1591,6 +2644,9 @@
     },
     "New Vertical Ruler" : {
 
+    },
+    "Next Item" : {
+      "comment" : "Moves the Item layer scope to the next capture panel."
     },
     "No audio" : {
 
@@ -1607,10 +2663,19 @@
     "No Clipboard Items" : {
 
     },
+    "No Connected Devices" : {
+
+    },
     "No deleted snips." : {
 
     },
     "No help topics found" : {
+
+    },
+    "No Polish" : {
+
+    },
+    "No Polish configured" : {
 
     },
     "No Presets" : {
@@ -1628,7 +2693,7 @@
     "No Step Selected" : {
 
     },
-    "No valid scenes found. Add SVG scenes to the User folder or reload after restoring bundled examples." : {
+    "No valid mockups found. Add SVG mockups to the User folder or reload after restoring bundled examples." : {
 
     },
     "No variants saved in this document yet." : {
@@ -1643,6 +2708,9 @@
     "Not selected" : {
       "comment" : "Accessibility value for an unselected item."
     },
+    "Nothing Available" : {
+
+    },
     "Nudge" : {
 
     },
@@ -1653,6 +2721,18 @@
 
     },
     "Nudge right" : {
+
+    },
+    "Nudge selected items down" : {
+
+    },
+    "Nudge selected items left" : {
+
+    },
+    "Nudge selected items right" : {
+
+    },
+    "Nudge selected items up" : {
 
     },
     "Nudge up" : {
@@ -1667,7 +2747,13 @@
     "Number style" : {
 
     },
+    "Numbering" : {
+
+    },
     "OK" : {
+
+    },
+    "One capture" : {
 
     },
     "Opacity" : {
@@ -1718,13 +2804,13 @@
     "Open optional settings for video smoothness, pointer visibility, desktop cleanup, instructions, and privacy." : {
 
     },
-    "Open Presentation mode to style the final copy, share, and export output." : {
-
-    },
     "Open Screen Inspector" : {
 
     },
     "Open Screenshot in Editor" : {
+
+    },
+    "Open Selected as New Screenshot" : {
 
     },
     "Open Settings" : {
@@ -1763,7 +2849,19 @@
     "Open…" : {
 
     },
+    "Opening an editable multi-item .sss restores its Comparison, Steps, or Combined Image purpose and focused content stage." : {
+
+    },
+    "Optional UUID of the composition item after which to insert." : {
+
+    },
+    "Order & Caption" : {
+
+    },
     "Organization" : {
+
+    },
+    "Orientation" : {
 
     },
     "Other access is requested only when used" : {
@@ -1781,10 +2879,19 @@
     "Output" : {
 
     },
+    "Output Appearance" : {
+
+    },
     "Output Destination" : {
 
     },
     "Output File" : {
+
+    },
+    "Overlay" : {
+
+    },
+    "Overlay Opacity" : {
 
     },
     "Overwrite" : {
@@ -1793,13 +2900,28 @@
     "Padded" : {
 
     },
+    "Paginate PDF" : {
+
+    },
     "Paste" : {
+
+    },
+    "Paste adds an item while Arrange owns focus, an item overlay while Edit Selected Capture is active, and a whole-result overlay while Annotate Result is active." : {
+
+    },
+    "Paste Image" : {
+
+    },
+    "Paste into the active editing scope" : {
 
     },
     "Pattern Spacing" : {
 
     },
     "Pause" : {
+
+    },
+    "Pause comparison preview" : {
 
     },
     "Pause for 1 Hour" : {
@@ -1812,6 +2934,9 @@
 
     },
     "Pause playback." : {
+
+    },
+    "Pause the Before and After preview." : {
 
     },
     "Pause the recording." : {
@@ -1835,6 +2960,9 @@
     "PDF Quality" : {
 
     },
+    "PDF…" : {
+
+    },
     "Permanently delete every item currently in the recycle bin." : {
 
     },
@@ -1851,6 +2979,12 @@
 
     },
     "Pin" : {
+
+    },
+    "Pin Selection to Canvas" : {
+
+    },
+    "Pin Selection to Items" : {
 
     },
     "Pin UI Map previews the element under the pointer. Click an element to pin it; click it again to unpin it." : {
@@ -1874,22 +3008,25 @@
     "Pinned UI Map Overlay Defaults" : {
 
     },
+    "Place captions above, below, over, or outside the item content." : {
+
+    },
+    "Placement" : {
+
+    },
     "Plain" : {
-
-    },
-    "Plain JPEG…" : {
-
-    },
-    "Plain PDF…" : {
-
-    },
-    "Plain PNG…" : {
 
     },
     "Plain Text" : {
 
     },
     "Play" : {
+
+    },
+    "Play comparison preview" : {
+
+    },
+    "Play the Before and After preview." : {
 
     },
     "Play the selected trim range from the current playhead or trim start." : {
@@ -1904,6 +3041,24 @@
     "PNG" : {
 
     },
+    "PNG…" : {
+
+    },
+    "Polish" : {
+
+    },
+    "Polish — Look" : {
+
+    },
+    "Polish — Mockup" : {
+
+    },
+    "Polish configured · %@" : {
+
+    },
+    "Polish configured · Custom look" : {
+
+    },
     "Polish step instructions on this Mac" : {
 
     },
@@ -1911,18 +3066,6 @@
 
     },
     "Preparing files…" : {
-
-    },
-    "Presentation" : {
-
-    },
-    "Presentation is in beta. Your editable screenshot remains unchanged." : {
-
-    },
-    "Presentation Scenes" : {
-
-    },
-    "Presentation, Beta" : {
 
     },
     "Preset" : {
@@ -1937,13 +3080,28 @@
     "Press and drag on the image to preview %@ color; release to apply." : {
 
     },
+    "Press to edit this composition annotation." : {
+
+    },
+    "Press to select. Custom actions edit, frame, arrange, duplicate, include, exclude, or remove this item." : {
+
+    },
     "Pretty Print JSON" : {
 
     },
     "Preview %@" : {
 
     },
+    "Preview Frame" : {
+
+    },
     "Preview Trim" : {
+
+    },
+    "Previous Item" : {
+      "comment" : "Moves the Item layer scope to the previous capture panel."
+    },
+    "Primary Label" : {
 
     },
     "Print · 300 dpi" : {
@@ -1955,6 +3113,9 @@
     "Privacy Policy" : {
 
     },
+    "Private" : {
+
+    },
     "Private and optional" : {
 
     },
@@ -1964,7 +3125,19 @@
     "Private Capture" : {
 
     },
+    "Private Composition" : {
+
+    },
+    "Private Composition remains private even if its private source is removed." : {
+
+    },
+    "Private compositions" : {
+
+    },
     "Private Guide" : {
+
+    },
+    "Private source" : {
 
     },
     "Progress…" : {
@@ -1974,6 +3147,15 @@
 
     },
     "Quit %@" : {
+
+    },
+    "Ready" : {
+
+    },
+    "Recapture" : {
+
+    },
+    "Recapture Item" : {
 
     },
     "Recent Snips" : {
@@ -1986,6 +3168,12 @@
 
     },
     "Recognized Text" : {
+
+    },
+    "Record a workflow or assemble numbered steps." : {
+
+    },
+    "Record as I work" : {
 
     },
     "Record Connected Device" : {
@@ -2033,6 +3221,9 @@
     "Reduce jitter by dropping very small point changes from freehand strokes." : {
 
     },
+    "Reduced Motion shows manual Before and After controls instead of automatic blinking." : {
+
+    },
     "Reference" : {
 
     },
@@ -2063,10 +3254,13 @@
     "Region Capture Settings" : {
 
     },
+    "Registration" : {
+
+    },
     "Reload" : {
 
     },
-    "Reload Scenes" : {
+    "Reload Mockups" : {
 
     },
     "Reload the list of available windows." : {
@@ -2084,13 +3278,25 @@
     "Remove Logo" : {
 
     },
+    "Remove Mockup" : {
+
+    },
+    "Remove selected items" : {
+
+    },
+    "Remove the selected items. The final item is always protected." : {
+
+    },
     "Remove this UI Map overlay from copied, shared, and exported screenshots." : {
 
     },
     "Rename" : {
 
     },
-    "Repeat Capture" : {
+    "Rename the selected user template." : {
+
+    },
+    "Repeat" : {
 
     },
     "Repeat Last Capture" : {
@@ -2099,19 +3305,43 @@
     "Repeat Last SnipSnipSnip Capture" : {
 
     },
+    "Repeat the Before and After animation." : {
+
+    },
     "Repeat the last repeatable SnipSnipSnip capture." : {
+
+    },
+    "Repeat the latest compatible capture into this item while retaining its identity." : {
+
+    },
+    "Replace" : {
+
+    },
+    "Replace Composition Item" : {
+
+    },
+    "Replace Composition Item ID" : {
+
+    },
+    "Replace Item" : {
 
     },
     "Replace Logo…" : {
 
     },
-    "Replace the selected saved presentation with the current Presentation settings." : {
+    "Replace SnipSnipSnip Composition Item" : {
+
+    },
+    "Replace the selected variant with the current Polish settings." : {
 
     },
     "Required capture access" : {
 
     },
     "Required for screenshot pixels, live window thumbnails, fullscreen capture, and video recording." : {
+
+    },
+    "Reserve caption space below each step." : {
 
     },
     "Reset All Settings" : {
@@ -2121,6 +3351,9 @@
 
     },
     "Reset all settings to defaults?" : {
+
+    },
+    "Reset Comparison" : {
 
     },
     "Reset Crop" : {
@@ -2153,7 +3386,13 @@
     "Restore" : {
 
     },
+    "Restore comparison controls while preserving the current A and B choices." : {
+
+    },
     "Restore Default Ignored Apps" : {
+
+    },
+    "Restore Fit, centered alignment, 100% zoom, and zero focal offset." : {
 
     },
     "Restore Snapshot" : {
@@ -2183,7 +3422,13 @@
     "Resume the recording." : {
 
     },
+    "Retry Failed" : {
+
+    },
     "Return to Create a Guide." : {
+
+    },
+    "Reuse a composition template" : {
 
     },
     "Reveal" : {
@@ -2195,16 +3440,28 @@
     "Reveal in Finder" : {
 
     },
-    "Reveal Scenes Folder" : {
+    "Reveal Mockup Folder" : {
 
     },
     "Reveal User Folder" : {
 
     },
+    "Review Comparison" : {
+
+    },
     "Review Issues" : {
 
     },
+    "Review the summary and use the single primary action. Cancelling setup, target selection, permission setup, or capture leaves the current document and preferences unchanged." : {
+
+    },
     "Rewrite automatically generated instructions to sound more natural using on-device processing. Turn this off to keep the original action-based wording; nothing is uploaded." : {
+
+    },
+    "Right Edges" : {
+
+    },
+    "Role" : {
 
     },
     "Rotate Clockwise" : {
@@ -2213,7 +3470,13 @@
     "Rotate selected annotation 90 degrees clockwise." : {
 
     },
+    "Round every item frame." : {
+
+    },
     "Round rectangle corners for rectangle annotations." : {
+
+    },
+    "Row" : {
 
     },
     "Run a saved SnipSnipSnip capture preset." : {
@@ -2258,22 +3521,28 @@
     "Save changes before continuing?" : {
 
     },
+    "Save Current" : {
+
+    },
     "Save Current Theme…" : {
 
     },
     "Save Last Capture as Preset..." : {
 
     },
-    "Save Style" : {
+    "Save layout structure and appearance without images, item identities, titles, or captions." : {
+
+    },
+    "Save Look" : {
 
     },
     "Save supported copied items in an encrypted history protected by Keychain." : {
 
     },
-    "Save the current native presentation style globally." : {
+    "Save the current Look globally." : {
 
     },
-    "Save the current presentation as a variant in this .sss document." : {
+    "Save the current Polish settings as a variant in this .sss document." : {
 
     },
     "Save Theme" : {
@@ -2285,16 +3554,13 @@
     "Save this theme or make its branding and styling the default for new Guides." : {
 
     },
-    "Save Variant" : {
-
-    },
     "Saved Items" : {
 
     },
     "Saved Themes" : {
 
     },
-    "Scenes Folder" : {
+    "Screen" : {
 
     },
     "Screen Inspector" : {
@@ -2315,6 +3581,9 @@
     "Screen Ruler" : {
 
     },
+    "Screenshot" : {
+
+    },
     "Screenshot Capture" : {
 
     },
@@ -2324,10 +3593,19 @@
     "Screenshot capture unavailable" : {
       "comment" : "Compact permission status shown while a document is open."
     },
+    "Screenshot copied to the clipboard." : {
+
+    },
     "Screenshot Format" : {
 
     },
+    "Scroll" : {
+
+    },
     "Scrolling Capture" : {
+
+    },
+    "Scrolling Content" : {
 
     },
     "Search captures" : {
@@ -2345,10 +3623,28 @@
     "Search steps" : {
 
     },
+    "Second Item ID" : {
+
+    },
+    "Secondary Label" : {
+
+    },
+    "Seconds between images." : {
+
+    },
+    "Section Sizing" : {
+
+    },
     "See also" : {
 
     },
-    "Select a scene to edit its slots." : {
+    "Select" : {
+
+    },
+    "Select %@. Shift-click or Command-click to extend the selection." : {
+
+    },
+    "Select a mockup to edit its framing and text." : {
 
     },
     "Select a Step" : {
@@ -2372,16 +3668,34 @@
     "Selected Element" : {
 
     },
+    "Selection bounds hidden" : {
+
+    },
+    "Selection bounds visible" : {
+
+    },
+    "Send %@ backward" : {
+
+    },
     "Send Backward" : {
 
     },
-    "Send Presentation Feedback" : {
+    "Send Polish Feedback" : {
 
     },
     "Send to Back" : {
 
     },
+    "Set Layout" : {
+
+    },
     "Set reference opacity. Click anywhere on the track or drag the knob." : {
+
+    },
+    "Set SnipSnipSnip Comparison Mode" : {
+
+    },
+    "Set SnipSnipSnip Composition Layout" : {
 
     },
     "Set the arrow label background color. Transparent keeps the label unboxed." : {
@@ -2393,10 +3707,22 @@
     "Set the blur or pixelation strength for redaction tools." : {
 
     },
+    "Set the custom target aspect ratio used by Auto and structured layouts." : {
+
+    },
     "Set the first point, then lock the current cursor as the second point. Shortcut: Option-Command-M." : {
 
     },
+    "Set the first visible step number." : {
+
+    },
     "Set the frame rate for full-motion and action-highlight video. This does not change the quality of still steps; higher frame rates use more storage." : {
+
+    },
+    "Set the layout of the current SnipSnipSnip multi-capture composition." : {
+
+    },
+    "Set the spacing between composition items." : {
 
     },
     "Set the stroke thickness for the current tool or selection." : {
@@ -2442,19 +3768,7 @@
     "Share" : {
 
     },
-    "Share %@" : {
-
-    },
-    "Share Plain" : {
-
-    },
-    "Share Plain…" : {
-
-    },
-    "Share Styled" : {
-
-    },
-    "Share Styled…" : {
+    "Share the output currently shown in this workspace." : {
 
     },
     "Share…" : {
@@ -2478,6 +3792,9 @@
     "Show accessibility label" : {
 
     },
+    "Show accessible A and B labels in the composition and exported output." : {
+
+    },
     "Show action crosshairs" : {
 
     },
@@ -2487,7 +3804,16 @@
     "Show all captured elements" : {
 
     },
+    "Show Before and After together or highlight what changed." : {
+
+    },
+    "Show Before/After Labels" : {
+
+    },
     "Show bundle identifier" : {
+
+    },
+    "Show Captions" : {
 
     },
     "Show click pulses in video" : {
@@ -2506,6 +3832,9 @@
 
     },
     "Show dimensions" : {
+
+    },
+    "Show each failed file and the reason it could not be added." : {
 
     },
     "Show export progress window" : {
@@ -2586,6 +3915,9 @@
     "Show source" : {
 
     },
+    "Show Step Captions" : {
+
+    },
     "Show step number" : {
 
     },
@@ -2608,6 +3940,9 @@
 
     },
     "Shown" : {
+
+    },
+    "Side by Side" : {
 
     },
     "Simplify" : {
@@ -2661,7 +3996,16 @@
     "Start %@ automatically when I log in" : {
 
     },
+    "Start a new Screenshot, Comparison, Steps, or Combined Image." : {
+
+    },
     "Start a screen video recording." : {
+
+    },
+    "Start a Screenshot, compare two versions, explain a process, or combine images." : {
+
+    },
+    "Start at %lld" : {
 
     },
     "Start Guide" : {
@@ -2670,13 +4014,22 @@
     "Start interactive window capture with SnipSnipSnip." : {
 
     },
+    "Start with Before, then add After and review what changed." : {
+
+    },
     "Start, control, stop, or export a SnipSnipSnip Guide." : {
 
     },
     "Startup" : {
 
     },
+    "Static Poster" : {
+
+    },
     "Status" : {
+
+    },
+    "step" : {
 
     },
     "Step" : {
@@ -2695,6 +4048,9 @@
         }
       }
     },
+    "Step Connector" : {
+
+    },
     "Step Guide" : {
 
     },
@@ -2704,14 +4060,42 @@
     "Step Images" : {
 
     },
+    "Step Numbering" : {
+
+    },
     "Step Slideshow MP4" : {
+
+    },
+    "Step Start Index" : {
 
     },
     "Step-by-step guide" : {
 
     },
+    "steps" : {
+
+    },
+    "Steps" : {
+
+    },
     "Steps & Privacy" : {
 
+    },
+    "Steps arranges captures you already have. Guide records a workflow automatically." : {
+
+    },
+    "Steps orders captures you already have, adds automatic numbers and captions, and supports row, column, or grid flow. Reordering, excluding, or removing an item renumbers the sequence. Steps is separate from Guide: use Steps to assemble existing captures, and use Guide when you want SnipSnipSnip Pro to observe a workflow and create action-aware steps automatically." : {
+
+    },
+    "Steps per Page: %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Steps per Page: %1$lld"
+          }
+        }
+      }
     },
     "Steps start without crosshairs. You can show them for an individual step in the editor." : {
 
@@ -2734,28 +4118,43 @@
     "Style" : {
 
     },
-    "Style Name" : {
+    "Style the composition canvas" : {
 
     },
     "Styled" : {
 
     },
-    "Styled JPEG…" : {
-
-    },
-    "Styled PDF…" : {
-
-    },
-    "Styled PNG…" : {
-
-    },
     "Support" : {
+
+    },
+    "Suppress small pixel differences or reveal subtler changes." : {
+
+    },
+    "Swap A/B" : {
 
     },
     "Switch back to an earlier snip without interrupting the current capture flow." : {
 
     },
+    "Target Aspect Ratio" : {
+
+    },
+    "Template ID" : {
+
+    },
+    "Template Name" : {
+
+    },
+    "Templates" : {
+
+    },
     "Text alignment" : {
+
+    },
+    "The canvas expands automatically as items move or resize." : {
+
+    },
+    "The canvas uses an explicit size. Items may extend beyond its export bounds." : {
 
     },
     "The current %@ document has unsaved changes." : {
@@ -2765,6 +4164,12 @@
 
     },
     "Theme Name" : {
+
+    },
+    "There are no captures in this source yet." : {
+
+    },
+    "These choices apply only to this creation and do not change your capture defaults." : {
 
     },
     "This cursor was captured as an editable overlay. Move, resize, or delete it like any other image overlay." : {
@@ -2800,6 +4205,24 @@
     "Title" : {
 
     },
+    "Title Alignment" : {
+
+    },
+    "Title Color" : {
+
+    },
+    "Title Type" : {
+
+    },
+    "Title Weight" : {
+
+    },
+    "Toggle Selection" : {
+
+    },
+    "Top Edges" : {
+
+    },
     "Top Left" : {
 
     },
@@ -2807,6 +4230,9 @@
 
     },
     "Transform" : {
+
+    },
+    "Transparent" : {
 
     },
     "Triangle" : {
@@ -2818,10 +4244,16 @@
     "Trim start" : {
 
     },
+    "Trim to Items" : {
+
+    },
     "Trim Video" : {
 
     },
     "Trim Whitespace" : {
+
+    },
+    "Try the failed files again at their original composition destination." : {
 
     },
     "Turn on SnipSnipSnip in System Settings, then return here." : {
@@ -2845,6 +4277,9 @@
     "Unpin" : {
 
     },
+    "Unreadable source" : {
+
+    },
     "Unsaved changes" : {
 
     },
@@ -2866,7 +4301,25 @@
     "US Letter" : {
 
     },
+    "Use Add… in the current workflow bar." : {
+
+    },
+    "Use as Image" : {
+
+    },
     "Use Default Location" : {
+
+    },
+    "Use Device" : {
+
+    },
+    "Use Editable Capture" : {
+
+    },
+    "Use equal sections or let each item have its own proportional weight." : {
+
+    },
+    "Use luminance, outlines, or patterns so differences never rely on color alone." : {
 
     },
     "Use source colors" : {
@@ -2875,22 +4328,52 @@
     "Use Start Frame as Poster" : {
 
     },
+    "Use Steps to arrange captures you already have. Use Guide to record a workflow automatically." : {
+
+    },
     "Use the trim start frame as the package poster frame." : {
 
     },
-    "User contains custom SVG scenes." : {
+    "User contains custom SVG mockups." : {
+
+    },
+    "Uses Region. Open the menu for another capture or image source." : {
+
+    },
+    "UUID of the composition item to replace." : {
+
+    },
+    "UUID of the item after which to insert when Capture Destination is Append." : {
+
+    },
+    "UUID of the item to replace when Capture Destination is Replace." : {
 
     },
     "v%lld" : {
 
     },
+    "Value from 0 through 1." : {
+
+    },
     "Variant Name" : {
+
+    },
+    "Variants" : {
+
+    },
+    "Vertical" : {
 
     },
     "Vertical 0 Origin" : {
 
     },
+    "Vertical Centers" : {
+
+    },
     "Vertical Tick Edge" : {
+
+    },
+    "Vertically" : {
 
     },
     "Video Error" : {
@@ -2914,13 +4397,28 @@
     "Welcome to %@" : {
 
     },
+    "What do you want to make?" : {
+
+    },
+    "What should people notice?" : {
+
+    },
+    "What will you capture?" : {
+
+    },
     "When" : {
 
     },
     "When capture finishes" : {
 
     },
+    "While a screenshot document is open, the header names its purpose and the next useful action: Capture After, Capture Next Step, Add Image, Review Changes, Order & Caption, Arrange, or Back to Content. Global Capture-menu commands and shortcuts continue creating new Screenshot documents." : {
+
+    },
     "Width" : {
+
+    },
+    "Width and Height" : {
 
     },
     "Window" : {
@@ -2933,6 +4431,12 @@
 
     },
     "Windows" : {
+
+    },
+    "Wipe" : {
+
+    },
+    "Wipe Position" : {
 
     },
     "Work normally and each action becomes an editable step. Everything stays on this Mac, and secure fields are masked automatically." : {
@@ -2960,6 +4464,9 @@
 
     },
     "Zoom" : {
+
+    },
+    "Zoom content inside the selected item frame." : {
 
     },
     "Zoom In" : {

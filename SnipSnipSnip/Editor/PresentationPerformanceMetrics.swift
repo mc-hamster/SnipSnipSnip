@@ -7,6 +7,7 @@ nonisolated enum PresentationPerformanceMetrics {
         subsystem: Bundle.main.bundleIdentifier ?? "com.oontz.SnipSnipSnip",
         category: "PresentationPerformance"
     )
+    @TaskLocal private static var isLoggingSuppressed = false
 
     nonisolated static var isVerboseEnabled: Bool {
         #if DEBUG
@@ -23,6 +24,10 @@ nonisolated enum PresentationPerformanceMetrics {
         warnAfterMS: Double = 75,
         _ body: () throws -> T
     ) rethrows -> T {
+        guard !isLoggingSuppressed else {
+            return try body()
+        }
+
         let start = DispatchTime.now().uptimeNanoseconds
 
         do {
@@ -47,12 +52,45 @@ nonisolated enum PresentationPerformanceMetrics {
         }
     }
 
-    nonisolated static func logEvent(_ event: String, context: String = "") {
-        guard isVerboseEnabled else {
+    nonisolated static func logEvent(
+        _ event: String,
+        context: @autoclosure () -> String = ""
+    ) {
+        guard !isLoggingSuppressed, isVerboseEnabled else {
             return
         }
 
-        logger.info("event=\(event, privacy: .public) \(context, privacy: .public)")
+        let resolvedContext = context()
+        logger.info(
+            "event=\(event, privacy: .public) \(resolvedContext, privacy: .public)"
+        )
+    }
+
+    /// Runs privacy-sensitive rendering without emitting public performance
+    /// context from this task or any nested renderer instrumentation.
+    nonisolated static func withLoggingSuppressed<T>(
+        _ suppressed: Bool,
+        _ body: () throws -> T
+    ) rethrows -> T {
+        guard suppressed, !isLoggingSuppressed else {
+            return try body()
+        }
+        return try $isLoggingSuppressed.withValue(true, operation: body)
+    }
+
+    /// Async counterpart used by export pipelines whose rendering and encoding
+    /// may suspend. Structured child tasks inherit the suppression value.
+    nonisolated static func withLoggingSuppressed<T>(
+        _ suppressed: Bool,
+        _ body: () async throws -> T
+    ) async rethrows -> T {
+        guard suppressed, !isLoggingSuppressed else {
+            return try await body()
+        }
+        return try await $isLoggingSuppressed.withValue(
+            true,
+            operation: body
+        )
     }
 
     nonisolated static func imageSize(_ image: CGImage?) -> String {

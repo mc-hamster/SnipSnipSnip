@@ -1,8 +1,17 @@
 import AppKit
 import SwiftUI
 
+extension Notification.Name {
+    /// Shared entry point for menu and shortcut commands that must follow the
+    /// active document's intent, including the first-add purpose chooser.
+    static let sssRequestContextualCaptureAddition = Notification.Name(
+        "sssRequestContextualCaptureAddition"
+    )
+}
+
 struct EditorView: View {
     @ObservedObject var controller: EditorController
+    @Binding var isInspectorPresented: Bool
     let historyEntries: [DocumentHistoryEntry]
     let recentSnipEntries: [DocumentHistoryEntry]
     let captureHistoryEntries: [DocumentHistoryEntry]
@@ -10,8 +19,8 @@ struct EditorView: View {
     @Binding var captureSearchQuery: String
     let captureHistorySearchResultsLabel: String
     let historyActions: EditorHistoryActions
+    var compositionActions: CompositionInspectorActions = .unavailable
     @State private var previewedHistoryEntry: DocumentHistoryEntry?
-    @SceneStorage("editor.inspector.isPresented") private var isInspectorPresented = true
 
     var body: some View {
         ZStack {
@@ -62,6 +71,7 @@ struct EditorView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(notice.accessibilityAnnouncement)
+                .accessibilityIdentifier("editor.notice")
                 .transition(.opacity)
                 .zIndex(2)
             }
@@ -77,22 +87,10 @@ struct EditorView: View {
                 captureSearchQuery: $captureSearchQuery,
                 captureHistorySearchResultsLabel: captureHistorySearchResultsLabel,
                 actions: historyActions,
+                compositionActions: compositionActions,
                 previewedHistoryEntry: $previewedHistoryEntry
             )
             .inspectorColumnWidth(min: 280, ideal: 320, max: 380)
-        }
-        .toolbar {
-            ToolbarItem(id: "editor-inspector", placement: .primaryAction) {
-                Button {
-                    isInspectorPresented.toggle()
-                } label: {
-                    Label(isInspectorPresented ? "Hide Inspector" : "Show Inspector", systemImage: "sidebar.right")
-                }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.capsule)
-                .help(isInspectorPresented ? "Hide Inspector" : "Show Inspector")
-                .accessibilityValue(isInspectorPresented ? "Shown" : "Hidden")
-            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .sssToggleEditorInspector)) { _ in
             isInspectorPresented.toggle()
@@ -317,6 +315,105 @@ enum EditorToolbarMode {
     }
 }
 
+struct CompositionAddSourceAction: Identifiable {
+    let id: String
+    let title: String
+    let action: () -> Void
+    let flattenedAction: () -> Void
+}
+
+struct CompositionAddActions {
+    let addRegion: () -> Void
+    let addWindow: () -> Void
+    let addFrontmostWindow: () -> Void
+    let addFullScreen: () -> Void
+    let addRepeat: () -> Void
+    let canRepeat: Bool
+    let captureDelay: CaptureDelay
+    let addTimedRegion: (CaptureDelay) -> Void
+    let addScrolling: (() -> Void)?
+    let addScreenInspector: (() -> Void)?
+    let connectedDevices: [CompositionAddSourceAction]
+    let importImages: () -> Void
+    let pasteImage: () -> Void
+    let recentSnips: [CompositionAddSourceAction]
+    let captureHistory: [CompositionAddSourceAction]
+    let archive: [CompositionAddSourceAction]
+    var actionsForCompletionRole:
+        ((CaptureCompletionRole) -> CompositionAddActions)? = nil
+}
+
+enum ContextualCompositionAdditionSource {
+    case region
+    case window
+    case frontmostWindow
+    case fullScreen
+    case repeatLast
+    case timedRegion(CaptureDelay)
+    case scrolling
+    case connectedDevice(String)
+    case screenInspector
+    case importImages
+    case pasteImage
+    case recentSnip(UUID, flattened: Bool)
+    case captureHistory(UUID, flattened: Bool)
+    case archive(UUID, flattened: Bool)
+
+    func perform(using actions: CompositionAddActions) {
+        switch self {
+        case .region:
+            actions.addRegion()
+        case .window:
+            actions.addWindow()
+        case .frontmostWindow:
+            actions.addFrontmostWindow()
+        case .fullScreen:
+            actions.addFullScreen()
+        case .repeatLast:
+            actions.addRepeat()
+        case .timedRegion(let delay):
+            actions.addTimedRegion(delay)
+        case .scrolling:
+            actions.addScrolling?()
+        case .connectedDevice(let deviceID):
+            actions.connectedDevices.first(where: { $0.id == deviceID })?.action()
+        case .screenInspector:
+            actions.addScreenInspector?()
+        case .importImages:
+            actions.importImages()
+        case .pasteImage:
+            actions.pasteImage()
+        case .recentSnip(let id, let flattened):
+            performHistoryAction(
+                actions.recentSnips.first(where: { $0.id == id.uuidString }),
+                flattened: flattened
+            )
+        case .captureHistory(let id, let flattened):
+            performHistoryAction(
+                actions.captureHistory.first(where: { $0.id == id.uuidString }),
+                flattened: flattened
+            )
+        case .archive(let id, let flattened):
+            performHistoryAction(
+                actions.archive.first(where: { $0.id == id.uuidString }),
+                flattened: flattened
+            )
+        }
+    }
+
+    private func performHistoryAction(
+        _ source: CompositionAddSourceAction?,
+        flattened: Bool
+    ) {
+        guard let source else { return }
+        if flattened {
+            source.flattenedAction()
+        } else {
+            source.action()
+        }
+    }
+}
+
 struct EditorCommandBar: View {
     private static let primaryTools: [EditorTool] = [.select, .crop]
     private static let shapeTools: [EditorTool] = [.rectangle, .ellipse, .line, .arrow, .statusMark, .measure]
@@ -325,17 +422,23 @@ struct EditorCommandBar: View {
     private static let utilityTools: [EditorTool] = [.ocrText, .colorPicker]
 
     @ObservedObject var controller: EditorController
+    @Binding var isInspectorPresented: Bool
     let onBack: () -> Void
     let onFloatReference: (ScreenshotOutputAppearance) -> Void
     let onExportPNG: (ScreenshotOutputAppearance) -> Void
     let onExportJPEG: (ScreenshotOutputAppearance) -> Void
     let onExportPDF: (ScreenshotOutputAppearance) -> Void
+    var onExportComposition: (CompositionOutputFormat, ScreenshotOutputAppearance) -> Void = { _, _ in }
     let onCopy: (ScreenshotOutputAppearance) -> Void
     let onShare: (ScreenshotOutputAppearance) -> Void
     let onShowLayers: () -> Void
     let onShowUIMap: () -> Void
     let dragOutPayloadProvider: @MainActor (ScreenshotOutputAppearance) -> PromisedFilePayload?
+    var compositionAddActions: CompositionAddActions?
     var mode: EditorToolbarMode = .standard
+    @State private var isShowingFirstAdditionPurpose = false
+    @State private var pendingFirstAddition:
+        ((CompositionAddActions) -> Void)?
 
     var body: some View {
         Group {
@@ -348,18 +451,88 @@ struct EditorCommandBar: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Color(nsColor: .controlBackgroundColor))
+        .confirmationDialog(
+            "How do you want to use the second image?",
+            isPresented: $isShowingFirstAdditionPurpose,
+            titleVisibility: .visible
+        ) {
+            Button("Compare") {
+                completeFirstAddition(with: .comparisonAfter)
+            }
+            Button("Add as Step") {
+                completeFirstAddition(with: .step)
+            }
+            Button("Combine") {
+                completeFirstAddition(with: .collectionItem)
+            }
+            Button("Cancel", role: .cancel) {
+                pendingFirstAddition = nil
+            }
+        } message: {
+            Text(
+                "Choose the result you want. You will not be asked again for this document."
+            )
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: .sssRequestContextualCaptureAddition
+            )
+        ) { notification in
+            let source =
+                notification.object
+                    as? ContextualCompositionAdditionSource
+                ?? .region
+            requestCompositionAddition {
+                source.perform(using: $0)
+            }
+        }
     }
 
     private var editCommands: some View {
         VStack(alignment: .leading, spacing: 8) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
-                    Button(action: onBack) {
-                        Label(mode.backTitle, systemImage: "xmark")
+                    if controller.compositionEditingScope != .layout, !mode.isGuideStep {
+                        Button(action: controller.finishCompositionEditing) {
+                            Label("Done", systemImage: "checkmark")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .buttonBorderShape(.capsule)
+                        .keyboardShortcut(.defaultAction)
+                        .help("Apply these edits and return to the focused content stage.")
+
+                        Text(controller.compositionEditingScopeTitle ?? "Composition Editing")
+                            .font(.headline)
+                            .lineLimit(1)
+                            .accessibilityAddTraits(.isHeader)
+
+                        if case .item = controller.compositionEditingScope {
+                            Button(action: controller.selectPreviousCompositionItemForEditing) {
+                                Image(systemName: "chevron.left")
+                            }
+                            .buttonStyle(.bordered)
+                            .buttonBorderShape(.circle)
+                            .disabled(!controller.canSelectPreviousCompositionItem)
+                            .help("Edit Previous Item")
+                            .accessibilityLabel("Edit Previous Item")
+
+                            Button(action: controller.selectNextCompositionItemForEditing) {
+                                Image(systemName: "chevron.right")
+                            }
+                            .buttonStyle(.bordered)
+                            .buttonBorderShape(.circle)
+                            .disabled(!controller.canSelectNextCompositionItem)
+                            .help("Edit Next Item")
+                            .accessibilityLabel("Edit Next Item")
+                        }
+                    } else {
+                        Button(action: onBack) {
+                            Label(mode.backTitle, systemImage: "xmark")
+                        }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.capsule)
+                        .help(mode.backHelp)
                     }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.capsule)
-                    .help(mode.backHelp)
 
                     if mode.isGuideStep {
                         Text("Advanced Step Edit")
@@ -402,16 +575,16 @@ struct EditorCommandBar: View {
                     EditorCommandGroup("Zoom") {
                         zoomCommands
                     }
+                    EditorCommandGroup("Inspector") {
+                        inspectorToggle
+                    }
 
                     if let applyAction = mode.applyAction {
                         Button("Apply to Step", action: applyAction)
                             .buttonStyle(.borderedProminent)
                             .buttonBorderShape(.capsule)
                             .help("Save these annotations on this Guide step and return to the Guide editor.")
-                    } else {
-                        EditorCommandGroup("Workspace") {
-                            presentationButton
-                        }
+                    } else if controller.compositionEditingScope == .layout {
                         EditorCommandGroup("Output") {
                             documentOutputCommands
                         }
@@ -422,19 +595,25 @@ struct EditorCommandBar: View {
                 }
                 .fixedSize(horizontal: true, vertical: false)
             }
+            .accessibilityIdentifier("editor.commandBar.edit.secondary.scroll")
         }
     }
 
     private var presentationCommands: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                Button {
-                    controller.setWorkspaceMode(.edit)
-                } label: {
-                    Label("Back to Edit", systemImage: EditorWorkspaceMode.edit.systemImage)
+                if controller.workflowStage != .polishing {
+                    Button(action: leaveCurrentWorkspace) {
+                        Label(
+                            "Annotate Result",
+                            systemImage: EditorWorkspaceMode.edit.systemImage
+                        )
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .help(currentWorkspaceBackHelp)
+                    .accessibilityIdentifier("editor.backToEdit")
                 }
-                .buttonStyle(.bordered)
-                .buttonBorderShape(.capsule)
 
                 EditorCommandGroup("History") {
                     undoButton
@@ -443,27 +622,12 @@ struct EditorCommandBar: View {
                 EditorCommandGroup("Zoom") {
                     zoomCommands
                 }
-
-                EditorCommandGroup("Presentation variants") {
-                    Button {
-                        _ = controller.saveCurrentPresentationToDocument()
-                    } label: {
-                        Label("Save Variant", systemImage: "plus.square.on.square")
-                    }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.capsule)
+                EditorCommandGroup("Inspector") {
+                    inspectorToggle
                 }
-                EditorCommandGroup("Output") {
-                    Button {
-                        onCopy(.styled)
-                    } label: {
-                        Label("Copy Styled", systemImage: "doc.on.doc")
-                    }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.capsule)
 
-                    exportMenu(primaryAppearance: .styled)
-                    shareMenu(primaryAppearance: .styled)
+                EditorCommandGroup("Output") {
+                    outputCommands(appearance: controller.currentWorkspaceOutputAppearance)
                 }
                 EditorCommandGroup("References and drag out") {
                     referenceCommands
@@ -471,6 +635,7 @@ struct EditorCommandBar: View {
             }
             .fixedSize(horizontal: true, vertical: false)
         }
+        .accessibilityIdentifier("editor.commandBar.presentation.scroll")
     }
 
     @ViewBuilder
@@ -581,50 +746,101 @@ struct EditorCommandBar: View {
         .accessibilityLabel("Actual Size")
     }
 
-    private var presentationButton: some View {
-        return HStack(spacing: 6) {
-            Button {
+    private func leaveCurrentWorkspace() {
+        if controller.workflowStage == .polishing {
+            controller.leavePolish()
+            if controller.documentPurpose == .screenshot {
+                controller.setWorkspaceMode(.edit)
+            } else {
+                controller.presentationInspectorTab = .layout
                 controller.setWorkspaceMode(.presentation)
-            } label: {
-                Label("Presentation", systemImage: EditorWorkspaceMode.presentation.systemImage)
             }
-            .buttonStyle(.bordered)
-            .buttonBorderShape(.capsule)
-            .help("Open Presentation mode to style the final copy, share, and export output.")
-            .accessibilityIdentifier("editor.presentation.open")
-
-            Text("Beta")
-                .font(.caption2.weight(.semibold))
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(.quaternary, in: .capsule)
-                .accessibilityLabel("Presentation, Beta")
-                .help("Presentation is in beta. Your editable screenshot remains unchanged.")
-
-            Text(controller.styledOutputConfigurationLabel)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .help(controller.styledOutputConfigurationLabel)
+        } else if controller.hasComposition {
+            controller.enterCompositionEditingFromPresentation()
+        } else {
+            controller.setWorkspaceMode(.edit)
         }
+    }
+
+    private var currentWorkspaceBackHelp: String {
+        if controller.workflowStage == .polishing {
+            return "Return to the unpolished content. Saved Polish settings remain available."
+        }
+        return controller.hasComposition
+            ? "Annotate the complete result. Done returns here."
+            : "Return to screenshot editing."
+    }
+
+    private func requestCompositionAddition(
+        _ action: @escaping (CompositionAddActions) -> Void
+    ) {
+        guard controller.documentPurpose == .screenshot else {
+            if let baseActions = compositionAddActions {
+                let role: CaptureCompletionRole
+                switch controller.documentPurpose {
+                case .screenshot:
+                    role = .standalone
+                case .comparison:
+                    role = .comparisonAfter
+                case .steps:
+                    role = .step
+                case .collection:
+                    role = .collectionItem
+                }
+                action(
+                    baseActions.actionsForCompletionRole?(role)
+                        ?? baseActions
+                )
+            }
+            return
+        }
+#if DEBUG
+        CompositionUITestLaunchSupport.forceMainWindowFront()
+#endif
+        pendingFirstAddition = action
+        isShowingFirstAdditionPurpose = true
+#if DEBUG
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(120))
+            guard isShowingFirstAdditionPurpose else {
+                return
+            }
+            CompositionUITestLaunchSupport.forceMainWindowFront()
+        }
+#endif
+    }
+
+    private func completeFirstAddition(
+        with role: CaptureCompletionRole
+    ) {
+        guard let action = pendingFirstAddition,
+              let baseActions = compositionAddActions else {
+            pendingFirstAddition = nil
+            return
+        }
+        let actions =
+            baseActions.actionsForCompletionRole?(role)
+            ?? baseActions
+        pendingFirstAddition = nil
+        action(actions)
+    }
+
+    private var inspectorToggle: some View {
+        Toggle(isOn: $isInspectorPresented) {
+            Label("Inspector", systemImage: "sidebar.right")
+        }
+        .toggleStyle(.button)
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .help(isInspectorPresented ? "Hide Inspector" : "Show Inspector")
+        .accessibilityLabel("Inspector")
+        .accessibilityValue(isInspectorPresented ? "Shown" : "Hidden")
+        .accessibilityIdentifier("editor.inspector.toggle")
     }
 
     @ViewBuilder
     private var documentOutputCommands: some View {
-        Menu {
-            Button("Copy Plain") { onCopy(.plain) }
-            Button("Copy Styled") { onCopy(.styled) }
-                .disabled(!controller.hasStyledOutputConfigured)
-        } label: {
-            Label("Copy Plain", systemImage: "doc.on.doc")
-        } primaryAction: {
-            onCopy(.plain)
-        }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .help("Copy the plain annotated screenshot.")
-
-        exportMenu(primaryAppearance: .plain)
-        shareMenu(primaryAppearance: .plain)
+        outputCommands(appearance: .plain)
     }
 
     @ViewBuilder
@@ -633,81 +849,132 @@ struct EditorCommandBar: View {
         dragControl
     }
 
-    private func exportMenu(primaryAppearance: ScreenshotOutputAppearance) -> some View {
+    @ViewBuilder
+    private func outputCommands(
+        appearance: ScreenshotOutputAppearance
+    ) -> some View {
+        Button {
+            onCopy(appearance)
+        } label: {
+            Label("Copy", systemImage: "doc.on.doc")
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .help("Copy the output currently shown in this workspace.")
+        .accessibilityValue(visibleOutputAccessibilityValue)
+        .accessibilityIdentifier("editor.output.copy.current")
+
+        exportMenu(appearance: appearance)
+        shareButton(appearance: appearance)
+    }
+
+    private func exportMenu(
+        appearance: ScreenshotOutputAppearance
+    ) -> some View {
         Menu {
-            outputFormatMenu(appearance: primaryAppearance)
+            outputFormatButtons(appearance: appearance)
+        } label: {
+            Label("Export", systemImage: "square.and.arrow.down")
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .help("Export the output currently shown in this workspace.")
+        .accessibilityValue(visibleOutputAccessibilityValue)
+        .accessibilityIdentifier(
+            "editor.output.export.current"
+        )
+    }
+
+    @ViewBuilder
+    private func outputFormatButtons(
+        appearance: ScreenshotOutputAppearance
+    ) -> some View {
+        Button("PNG…") { onExportPNG(appearance) }
+        Button("JPEG…") { onExportJPEG(appearance) }
+            .disabled(
+                appearance == .styled
+                    && controller.requiresPNGForFaithfulExport
+            )
+        Button("PDF…") { onExportPDF(appearance) }
+            .disabled(
+                appearance == .styled
+                    && controller.requiresPNGForFaithfulExport
+            )
+        if controller.hasComposition {
             Divider()
-            outputFormatMenu(appearance: primaryAppearance == .plain ? .styled : .plain)
+            Button("Animated GIF…") {
+                onExportComposition(.gif, appearance)
+            }
+            .disabled(!controller.supportsAnimatedCompositionOutput)
+            Button("Animated APNG…") {
+                onExportComposition(.apng, appearance)
+            }
+            .disabled(!controller.supportsAnimatedCompositionOutput)
+            Button("Blink MP4…") {
+                onExportComposition(.mp4, appearance)
+            }
+            .disabled(!controller.supportsAnimatedCompositionOutput)
+            Divider()
+            Button("Interactive HTML…") {
+                onExportComposition(.html, appearance)
+            }
+            .disabled(!controller.supportsInteractiveCompositionHTML)
+        }
+    }
+
+    private func shareButton(
+        appearance: ScreenshotOutputAppearance
+    ) -> some View {
+        Button {
+            onShare(appearance)
         } label: {
-            Label("Export \(primaryAppearance.title)", systemImage: "square.and.arrow.down")
+            Label("Share", systemImage: "square.and.arrow.up")
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
-        .help("Export explicit Plain or Styled output as PNG, JPEG, or PDF.")
-    }
-
-    private func outputFormatMenu(appearance: ScreenshotOutputAppearance) -> some View {
-        Menu(appearance.title) {
-            Button("\(appearance.title) PNG…") { onExportPNG(appearance) }
-            Button("\(appearance.title) JPEG…") { onExportJPEG(appearance) }
-                .disabled(
-                    appearance == .styled
-                        && (!controller.hasStyledOutputConfigured || controller.requiresPNGForFaithfulExport)
-                )
-            Button("\(appearance.title) PDF…") { onExportPDF(appearance) }
-                .disabled(
-                    appearance == .styled
-                        && (!controller.hasStyledOutputConfigured || controller.requiresPNGForFaithfulExport)
-                )
-        }
-        .disabled(appearance == .styled && !controller.hasStyledOutputConfigured)
-    }
-
-    private func shareMenu(primaryAppearance: ScreenshotOutputAppearance) -> some View {
-        Menu {
-            Button("Share Plain") { onShare(.plain) }
-            Button("Share Styled") { onShare(.styled) }
-                .disabled(!controller.hasStyledOutputConfigured)
-        } label: {
-            Label("Share \(primaryAppearance.title)", systemImage: "square.and.arrow.up")
-        } primaryAction: {
-            onShare(primaryAppearance)
-        }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .disabled(primaryAppearance == .styled && !controller.hasStyledOutputConfigured)
+        .help("Share the output currently shown in this workspace.")
+        .accessibilityValue(visibleOutputAccessibilityValue)
+        .accessibilityIdentifier("editor.output.share.current")
     }
 
     private var floatButton: some View {
-        let appearance: ScreenshotOutputAppearance = controller.workspaceMode == .presentation ? .styled : .plain
+        let appearance = controller.currentWorkspaceOutputAppearance
         return Button {
             onFloatReference(appearance)
         } label: {
-            Label("Float \(appearance.title)", systemImage: "pin")
+            Label("Float", systemImage: "pin")
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
-        .disabled(appearance == .styled && !controller.hasStyledOutputConfigured)
+        .help("Float the output currently shown in this workspace.")
+        .accessibilityValue(visibleOutputAccessibilityValue)
+        .accessibilityIdentifier("editor.output.float.current")
     }
 
     private var dragControl: some View {
-        let appearance: ScreenshotOutputAppearance = controller.workspaceMode == .presentation ? .styled : .plain
-        return HStack(spacing: 4) {
-            PromisedFileDragView(
-                accessibilityLabel: "Drag \(appearance.title) screenshot to share",
-                payloadProvider: { dragOutPayloadProvider(appearance) }
-            )
-            .frame(width: 28, height: 30)
-            Text("Drag \(appearance.title)")
-                .font(.caption)
-        }
-        .disabled(appearance == .styled && !controller.hasStyledOutputConfigured)
+        let appearance = controller.currentWorkspaceOutputAppearance
+        return PromisedFileDragView(
+            accessibilityLabel: "Drag current screenshot output",
+            payloadProvider: { dragOutPayloadProvider(appearance) }
+        )
+        .frame(width: 68, height: 30)
+        .accessibilityValue(visibleOutputAccessibilityValue)
+        .accessibilityIdentifier("editor.output.drag.current")
+        .help("Drag the output currently shown in this workspace.")
+    }
+
+    private var visibleOutputAccessibilityValue: String {
+        controller.workflowStage == .polishing
+            ? "Polished preview"
+            : "Content preview"
     }
 
     @ViewBuilder
     private func toolButtons(_ tools: [EditorTool]) -> some View {
         ForEach(tools) { tool in
-            toolButton(tool)
+            if tool != .crop || controller.compositionEditingScope != .composition {
+                toolButton(tool)
+            }
         }
     }
 

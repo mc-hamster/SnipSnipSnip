@@ -98,7 +98,12 @@ struct LiveDocumentWindowPresenter: DocumentWindowPresenting {
     }
 
     private var mainWindow: NSWindow? {
-        NSApp.windows.first { $0.identifier?.rawValue == AppSceneID.mainWindow }
+        guard let application = NSApp else {
+            return nil
+        }
+        return application.windows.first {
+            $0.identifier?.rawValue == AppSceneID.mainWindow
+        }
     }
 
     private func screenContext(for window: NSWindow) -> (visibleFrame: CGRect, scale: CGFloat)? {

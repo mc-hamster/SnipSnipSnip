@@ -138,8 +138,13 @@ extension DocumentWorkflowModel {
                 capture: document.capture,
                 session: document.session,
                 capabilities: capabilities,
-                uiMapOverlayOptions: uiMapPinnedOverlayDefaults
+                uiMapOverlayOptions: uiMapPinnedOverlayDefaults,
+                isPrivateDocument: document.isPrivate,
+                workflowResumeState: document.workflowResumeState,
+                sourceDocumentFormatVersion: document.sourceFormatVersion,
+                compositionStoredAssets: document.compositionStoredAssets
             )
+            controller.restoreWorkflowWorkspace()
             installEditorController(
                 controller,
                 documentURL: entry.sourceDocumentURL,
@@ -256,7 +261,8 @@ extension DocumentWorkflowModel {
     }
 
     func shouldAutosave(for controller: EditorController) -> Bool {
-        currentDocumentURL == nil || AutosaveState(controller: controller, documentURL: currentDocumentURL) != savedEditorAutosaveState
+        !controller.isPrivateDocument
+            && (currentDocumentURL == nil || AutosaveState(controller: controller, documentURL: currentDocumentURL) != savedEditorAutosaveState)
     }
 
     func suspendAutosaveForInteractiveCapture() -> InteractiveCaptureAutosaveSuspension {
@@ -333,10 +339,10 @@ extension DocumentWorkflowModel {
         pendingRecoveryRefreshTask = nil
         pendingCaptureHistorySearchTask?.cancel()
         pendingCaptureHistorySearchTask = nil
-        pendingRecoveryWriteTasks.values.forEach { $0.cancel() }
-        pendingRecoveryWriteTasks.removeAll()
-        recoveryWriteTail = nil
-        recoveryOperationIDsRequiredForConsistency.removeAll()
+        for (taskID, task) in pendingRecoveryWriteTasks
+        where !recoveryOperationIDsRequiredForConsistency.contains(taskID) {
+            task.cancel()
+        }
         lastAutosavedState = nil
         lastEnqueuedRecoveryState = nil
         recoverySessionsWithPendingClearEnqueued.removeAll()
@@ -349,6 +355,11 @@ extension DocumentWorkflowModel {
             refreshRecoveryPresentationState()
             return
         }
+        guard !controller.isPrivateDocument else {
+            currentRecoverySessionID = nil
+            refreshRecoveryPresentationState()
+            return
+        }
 
         currentRecoverySessionID = createRecoverySessionIfNeeded(for: controller, documentURL: currentDocumentURL)
         refreshRecoveryPresentationState()
@@ -356,7 +367,7 @@ extension DocumentWorkflowModel {
     }
 
     func recordRecoveryCheckpoint(for controller: EditorController, label: String, pendingRecovery: Bool) {
-        guard let currentRecoverySessionID else {
+        guard !controller.isPrivateDocument, let currentRecoverySessionID else {
             return
         }
 
@@ -371,13 +382,8 @@ extension DocumentWorkflowModel {
             title: recoverySessionTitle(for: controller, documentURL: currentDocumentURL),
             sourceDocumentURL: currentDocumentURL,
             label: label,
-            document: EditableScreenshotDocument(capture: controller.capture, session: controller.documentSession),
-            renderInput: ExportRenderInput(
-                baseImage: controller.capture.image,
-                snapshot: controller.snapshot,
-                pinnedUIMapElements: controller.pinnedUIMapElements,
-                uiMapOverlayOptions: controller.uiMapOverlayOptions
-            ),
+            document: controller.editableDocument,
+            renderInput: controller.compositionDocumentPreviewInput(),
             pendingRecovery: pendingRecovery,
             hasUnsavedChanges: hasUnsavedChanges,
             includeUIMapSearchText: windowUIMapEnabled
@@ -475,6 +481,58 @@ extension DocumentWorkflowModel {
         clearRecoveryPendingState(for: currentRecoverySessionID)
     }
 
+    func excludeCurrentPrivateDocumentFromRecoveryAndHistory() {
+        pendingAutosaveTask?.cancel()
+        pendingAutosaveTask = nil
+        pendingRecoveryRefreshTask?.cancel()
+        pendingRecoveryRefreshTask = nil
+        pendingCaptureHistorySearchTask?.cancel()
+        pendingCaptureHistorySearchTask = nil
+        captureHistorySearchGeneration += 1
+        recoveryRefreshGeneration += 1
+        textRecognitionCoordinator.cancelAll()
+        cancelPendingAutoCopy()
+
+        guard let sessionID = currentRecoverySessionID else {
+            pendingRecoverySession = nil
+            refreshRecoveryPresentationState()
+            return
+        }
+
+        // Publish the privacy boundary synchronously before canceling task
+        // handles. A detached checkpoint writer may already be inside package
+        // encoding and must observe this mark at its manifest commit boundary.
+        recoveryStore.registerPrivacyExclusion(for: sessionID)
+        pendingRecoveryWriteTasks.values.forEach { $0.cancel() }
+        pendingRecoveryWriteTasks.removeAll()
+        recoveryWriteTail = nil
+        recoveryOperationIDsRequiredForConsistency.removeAll()
+        currentRecoverySessionID = nil
+        lastAutosavedState = nil
+        lastEnqueuedRecoveryState = nil
+        pendingRecoverySession = nil
+        historyEntries.removeAll { $0.sessionID == sessionID }
+        allCaptureHistoryEntries.removeAll { $0.sessionID == sessionID }
+        recentSnipEntries.removeAll { $0.sessionID == sessionID }
+        recycleBinEntries.removeAll { $0.sessionID == sessionID }
+        let store = recoveryStore
+        enqueueRecoveryOperation(
+            mustComplete: true,
+            operation: {
+                try await RecoveryCheckpointWriter.performStoreMutation {
+                    try store.excludeSessionFromPresentation(sessionID)
+                }
+            },
+            onSuccess: { model in
+                model.recoverySessionsWithPendingClearEnqueued.remove(sessionID)
+                model.refreshRecoveryPresentationState()
+            },
+            onFailure: { model in
+                model.refreshRecoveryPresentationState()
+            }
+        )
+    }
+
     func clearRecoveryPendingState(for sessionID: UUID) {
         guard recoverySessionsWithPendingClearEnqueued.insert(sessionID).inserted else {
             return
@@ -553,24 +611,60 @@ extension DocumentWorkflowModel {
 struct AutosaveState: Equatable {
     let controllerID: ObjectIdentifier
     let documentURL: URL?
-    let cropRect: CGRect
-    let annotations: [Annotation]
-    let nextCalloutNumber: Int
-    let presentation: ScreenshotPresentation
-    let pinnedUIMapElementIDs: [UUID]
-    let toolStyles: [EditorTool: AnnotationStyle]
-    let savedPresentations: [SavedPresentation]
+    private let content: PersistedEditorContentFingerprint
+
+    var cropRect: CGRect { content.snapshot.cropRect }
+    var annotations: [Annotation] { content.snapshot.annotations }
+    var nextCalloutNumber: Int { content.snapshot.nextCalloutNumber }
+    var presentation: ScreenshotPresentation { content.snapshot.presentation }
+    var pinnedUIMapElementIDs: [UUID] {
+        content.snapshot.pinnedUIMapElementIDs
+    }
+    var toolStyles: [EditorTool: AnnotationStyle] { content.toolStyles }
+    var savedPresentations: [SavedPresentation] {
+        content.savedPresentations
+    }
 
     init(controller: EditorController, documentURL: URL?) {
         controllerID = ObjectIdentifier(controller)
         self.documentURL = documentURL
-        cropRect = controller.snapshot.cropRect
-        annotations = controller.snapshot.annotations
-        nextCalloutNumber = controller.snapshot.nextCalloutNumber
-        presentation = controller.snapshot.presentation
-        pinnedUIMapElementIDs = controller.snapshot.pinnedUIMapElementIDs
+        content = PersistedEditorContentFingerprint(controller: controller)
+    }
+}
+
+/// Exact process-local representation of content written to `.sss`. It
+/// deliberately strips focus/selection state while retaining the complete
+/// composition, document purpose, Presentation configuration, reusable
+/// styles, privacy provenance, and immutable source revisions.
+private struct PersistedEditorContentFingerprint: Equatable {
+    let snapshot: EditorSnapshot
+    let toolStyles: [EditorTool: AnnotationStyle]
+    let savedPresentations: [SavedPresentation]
+    let compositionAssets: [CompositionStoredAsset]
+    let isPrivate: Bool
+
+    init(controller: EditorController) {
+        var persistedSnapshot = controller.documentSession.currentSnapshot
+        persistedSnapshot.selectedAnnotationIDs = []
+        if var composition = persistedSnapshot.composition {
+            composition.selectedItemIDs = []
+            composition.canvas.selectedAnnotationIDs = []
+            for index in composition.items.indices {
+                composition.items[index].editState.selectedAnnotationIDs = []
+            }
+            persistedSnapshot.composition = composition
+        }
+
+        snapshot = persistedSnapshot
         toolStyles = controller.toolStyles
         savedPresentations = controller.savedPresentations
+        let currentAssetIDs = Set(
+            persistedSnapshot.composition?.items.map(\.assetID) ?? []
+        )
+        compositionAssets = controller.compositionAssetRepository.storedAssets(
+            referencedBy: currentAssetIDs
+        )
+        isPrivate = controller.isPrivateDocument
     }
 }
 
@@ -589,7 +683,7 @@ nonisolated private struct RecoveryCheckpointWritePayload: @unchecked Sendable {
     let sourceDocumentURL: URL?
     let label: String
     let document: EditableScreenshotDocument
-    let renderInput: ExportRenderInput
+    let renderInput: CompositionDocumentPreviewInput
     let pendingRecovery: Bool
     let hasUnsavedChanges: Bool
     let includeUIMapSearchText: Bool
@@ -637,14 +731,9 @@ nonisolated private enum RecoveryCheckpointWriter {
         let task = Task.detached(priority: .utility) {
             try Task.checkCancellation()
 
-            guard let previewImage = EditorRenderer.render(
-                baseImage: payload.renderInput.baseImage,
-                snapshot: payload.renderInput.snapshot,
-                pinnedUIMapElements: payload.renderInput.pinnedUIMapElements,
-                uiMapOverlayOptions: payload.renderInput.uiMapOverlayOptions
-            ) else {
-                throw ImageExportError.encodingFailed
-            }
+            let previewImage = try CompositionDocumentPreviewRenderer.render(
+                payload.renderInput
+            )
 
             try Task.checkCancellation()
 

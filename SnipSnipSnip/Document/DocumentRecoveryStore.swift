@@ -108,13 +108,23 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
     private static let maxCheckpointCount = 12
     private static let sharedBaseImageName = SSSDocumentPackage.baseImageFilename
     private static let sharedBaseImageRelativePath = "../../\(SSSDocumentPackage.baseImageFilename)"
+    private static let sharedCompositionAssetsDirectoryName =
+        SSSDocumentPackage.recoveryCompositionAssetsDirectoryName
+    static let privacyExclusionsDirectoryName = "privacy-exclusions"
+    private static let privacyExclusionFilenameExtension = "excluded"
 
     private let accessLock = NSRecursiveLock()
+    private let exclusionLock = NSLock()
     private let fileManager: FileManager
     private let files: any FileSystemServicing
     private let rootURL: URL
     private let sessionsURL: URL
     private let searchIndexURL: URL
+    private let privacyExclusionsURL: URL
+    private let checkpointPackageDidWrite: (@Sendable (UUID) -> Void)?
+    private let checkpointSessionDidCommit: (@Sendable (UUID) -> Void)?
+    private var registeredPrivacyExclusionIDs: Set<UUID> = []
+    private var pendingPrivacyExclusionPersistenceIDs: Set<UUID> = []
 
     static func defaultArchiveURL(fileManager: FileManager = .default) -> URL {
         let applicationSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -128,14 +138,25 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
         rootURL
     }
 
-    init(fileManager: FileManager = .default, baseURL: URL? = nil) {
+    init(
+        fileManager: FileManager = .default,
+        baseURL: URL? = nil,
+        checkpointPackageDidWrite: (@Sendable (UUID) -> Void)? = nil,
+        checkpointSessionDidCommit: (@Sendable (UUID) -> Void)? = nil
+    ) {
         self.fileManager = fileManager
         self.files = SystemFileService(fileManager: fileManager)
+        self.checkpointPackageDidWrite = checkpointPackageDidWrite
+        self.checkpointSessionDidCommit = checkpointSessionDidCommit
 
         rootURL = baseURL ?? Self.defaultArchiveURL(fileManager: fileManager)
 
         sessionsURL = rootURL.appendingPathComponent("sessions", isDirectory: true)
         searchIndexURL = rootURL.appendingPathComponent("search-index.json")
+        privacyExclusionsURL = rootURL.appendingPathComponent(
+            Self.privacyExclusionsDirectoryName,
+            isDirectory: true
+        )
     }
 
     func archiveSizeInBytes() throws -> Int64 {
@@ -163,7 +184,6 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
 
             var didPrune = false
             let sessions = try allSessionRecords()
-            var remainingCheckpointsBySession = Dictionary(uniqueKeysWithValues: sessions.map { ($0.id, $0.checkpoints.count) })
             let oldestFirstEntries = sessions
                 .flatMap { session in
                     session.checkpoints.map { historyEntry(from: $0, in: session) }
@@ -171,19 +191,11 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
                 .sorted { $0.savedAt < $1.savedAt }
 
             for entry in oldestFirstEntries where currentSize > maximumSizeBytes {
-                let deletionSize: Int64
-
-                if remainingCheckpointsBySession[entry.sessionID] == 1 {
-                    deletionSize = try directorySize(at: sessionDirectory(for: entry.sessionID))
-                } else {
-                    deletionSize = try (entry.packageSizeBytes ?? directorySize(at: entry.packageURL))
-                }
-
                 try permanentlyDeleteHistoryEntry(entry)
-                currentSize = max(0, currentSize - deletionSize)
-                if let remaining = remainingCheckpointsBySession[entry.sessionID] {
-                    remainingCheckpointsBySession[entry.sessionID] = max(remaining - 1, 0)
-                }
+                // A checkpoint deletion may also release shared composition
+                // captures. Recompute instead of subtracting only the package
+                // size so the archive cap accounts for reclaimed shared data.
+                currentSize = try archiveSizeInBytes()
                 didPrune = true
             }
 
@@ -194,11 +206,13 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
     func clearArchive() throws {
         try withLockedAccess {
             guard fileManager.fileExists(atPath: rootURL.path) else {
+                clearPrivacyExclusionRegistry()
                 return
             }
 
             try fileManager.removeItem(at: rootURL)
             try ensureRootDirectories()
+            clearPrivacyExclusionRegistry()
         }
     }
 
@@ -214,9 +228,33 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
                 updatedAt: Date(),
                 pendingRecovery: false,
                 baseImageName: nil,
-                checkpoints: []
+                checkpoints: [],
+                isExcludedFromPresentation: false
             ))
             return sessionID
+        }
+    }
+
+    /// Makes privacy exclusion visible before any potentially in-flight
+    /// recovery writer reaches its manifest commit boundary. Persistence is
+    /// completed separately so this operation never waits behind a large
+    /// checkpoint package write.
+    func registerPrivacyExclusion(for sessionID: UUID) {
+        exclusionLock.lock()
+        registeredPrivacyExclusionIDs.insert(sessionID)
+        pendingPrivacyExclusionPersistenceIDs.insert(sessionID)
+        exclusionLock.unlock()
+    }
+
+    /// Keeps pre-private checkpoints on disk while removing the session from
+    /// Recovery, Recent Snips, Capture History, Archive, Recycle Bin, and
+    /// search presentation. The standalone tombstone is committed before the
+    /// mutable session record so an older writer can never clear the exclusion.
+    func excludeSessionFromPresentation(_ sessionID: UUID) throws {
+        registerPrivacyExclusion(for: sessionID)
+
+        try withLockedAccess {
+            try persistPrivacyExclusion(for: sessionID)
         }
     }
 
@@ -231,8 +269,21 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
         hasUnsavedChanges: Bool,
         includeUIMapSearchText: Bool
     ) throws {
+        if document.isPrivate
+            || document.compositionStoredAssets.contains(
+                where: { $0.descriptor.isPrivate }
+            ) {
+            try excludeSessionFromPresentation(sessionID)
+            return
+        }
+
         try withLockedAccess {
             try ensureRootDirectories()
+            retryPendingPrivacyExclusionPersistence()
+
+            guard !isPrivacyExcluded(sessionID) else {
+                return
+            }
 
             var session = try loadSessionRecord(id: sessionID) ?? RecoverySessionRecord(
                 id: sessionID,
@@ -242,65 +293,155 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
                 updatedAt: Date(),
                 pendingRecovery: pendingRecovery,
                 baseImageName: nil,
-                checkpoints: []
+                checkpoints: [],
+                isExcludedFromPresentation: false
             )
 
             let checkpointID = UUID()
             let packageName = "checkpoint-\(checkpointID.uuidString).sss"
             let packageURL = checkpointsDirectory(for: sessionID).appendingPathComponent(packageName, isDirectory: true)
             let sharedBaseImageURL = sessionBaseImageURL(for: sessionID)
+            let sharedCompositionAssetsURL = sessionCompositionAssetsURL(
+                for: sessionID
+            )
             let searchableText = SSSDocumentPackage.searchableText(
                 for: document,
                 includeUIMapSearchText: includeUIMapSearchText
             )
             let changeSummary = RecoveryCheckpointSummary.summary(for: document.session, fallbackLabel: label)
             try fileManager.createDirectory(at: checkpointsDirectory(for: sessionID), withIntermediateDirectories: true)
-            try SSSDocumentPackage.save(
-                document: document,
-                previewImage: previewImage,
-                to: packageURL,
-                baseImageStorage: .shared(
-                    assetName: Self.sharedBaseImageRelativePath,
-                    fileURL: sharedBaseImageURL
-                ),
-                includeUIMapSearchText: includeUIMapSearchText,
-                files: files
-            )
-            let packageSizeBytes = try directorySize(at: packageURL)
+            do {
+                // Immutable pixels are written into the append-only session
+                // store first. The checkpoint package and session manifest are
+                // not committed until every referenced source is durable.
+                try SSSDocumentPackage.save(
+                    document: document,
+                    previewImage: previewImage,
+                    to: packageURL,
+                    baseImageStorage: .shared(
+                        assetName: Self.sharedBaseImageRelativePath,
+                        fileURL: sharedBaseImageURL
+                    ),
+                    compositionAssetStorage: .sharedRecovery(
+                        directoryURL: sharedCompositionAssetsURL
+                    ),
+                    includeUIMapSearchText: includeUIMapSearchText,
+                    files: files
+                )
+                checkpointPackageDidWrite?(sessionID)
+                let packageSizeBytes = try directorySize(at: packageURL)
 
-            session.title = title
-            session.sourceDocumentPath = sourceDocumentURL?.path
-            session.updatedAt = Date()
-            session.pendingRecovery = pendingRecovery
-            session.baseImageName = Self.sharedBaseImageName
-            session.checkpoints.append(RecoveryCheckpointRecord(
-                id: checkpointID,
-                label: label,
-                changeSummary: changeSummary,
-                savedAt: session.updatedAt,
-                packageName: packageName,
-                hasUnsavedChanges: hasUnsavedChanges,
-                previewAssetName: SSSDocumentPackage.previewImageFilename,
-                searchableText: searchableText,
-                packageSizeBytes: packageSizeBytes
-            ))
-            session.checkpoints.sort { $0.savedAt > $1.savedAt }
-
-            if session.checkpoints.count > Self.maxCheckpointCount {
-                let overflow = session.checkpoints.suffix(from: Self.maxCheckpointCount)
-                for checkpoint in overflow {
-                    try? fileManager.removeItem(at: checkpointsDirectory(for: sessionID).appendingPathComponent(checkpoint.packageName))
+                // A private capture can taint the session while this package is
+                // being encoded. Never let that older write publish a manifest.
+                guard !isPrivacyExcluded(sessionID) else {
+                    discardUncommittedCheckpoint(
+                        sessionID: sessionID,
+                        packageURL: packageURL
+                    )
+                    return
                 }
-                session.checkpoints = Array(session.checkpoints.prefix(Self.maxCheckpointCount))
-            }
 
-            try saveSessionRecord(session)
+                session.title = title
+                session.sourceDocumentPath = sourceDocumentURL?.path
+                session.updatedAt = Date()
+                session.pendingRecovery = pendingRecovery
+                session.baseImageName = Self.sharedBaseImageName
+                session.checkpoints.append(RecoveryCheckpointRecord(
+                    id: checkpointID,
+                    label: label,
+                    changeSummary: changeSummary,
+                    savedAt: session.updatedAt,
+                    packageName: packageName,
+                    hasUnsavedChanges: hasUnsavedChanges,
+                    previewAssetName: SSSDocumentPackage.previewImageFilename,
+                    searchableText: searchableText,
+                    packageSizeBytes: packageSizeBytes,
+                    compositionAssetIDs: document.compositionStoredAssets.map(
+                        \.descriptor.id
+                    )
+                ))
+                session.checkpoints.sort { $0.savedAt > $1.savedAt }
+
+                let overflow: [RecoveryCheckpointRecord]
+                if session.checkpoints.count > Self.maxCheckpointCount {
+                    overflow = Array(
+                        session.checkpoints.suffix(
+                            from: Self.maxCheckpointCount
+                        )
+                    )
+                    session.checkpoints = Array(
+                        session.checkpoints.prefix(Self.maxCheckpointCount)
+                    )
+                } else {
+                    overflow = []
+                }
+
+                // Commit the checkpoint manifest before removing anything
+                // from older retained history.
+                try saveSessionRecord(session)
+                checkpointSessionDidCommit?(sessionID)
+
+                // Close the small race between the precommit check and the
+                // atomic session write. If privacy was registered during that
+                // interval, remove the just-written checkpoint and force the
+                // pending bit back to false.
+                if isPrivacyExcluded(sessionID) {
+                    try discardCommittedCheckpoint(
+                        sessionID: sessionID,
+                        checkpointID: checkpointID,
+                        packageURL: packageURL
+                    )
+                    return
+                }
+
+                for checkpoint in overflow {
+                    try? fileManager.removeItem(
+                        at: checkpointsDirectory(for: sessionID)
+                            .appendingPathComponent(checkpoint.packageName)
+                    )
+                }
+                try pruneUnreferencedCompositionAssets(
+                    sessionID: sessionID,
+                    retainedCheckpoints: session.checkpoints
+                )
+            } catch {
+                // If session.json contains the checkpoint, its atomic commit
+                // succeeded and a later search-index failure must not tear it
+                // back out. Otherwise remove the uncommitted package and any
+                // newly orphaned shared assets.
+                let persistedSession = try? loadSessionRecord(id: sessionID)
+                if isPrivacyExcluded(sessionID) {
+                    try? discardCommittedCheckpoint(
+                        sessionID: sessionID,
+                        checkpointID: checkpointID,
+                        packageURL: packageURL
+                    )
+                    return
+                }
+                if persistedSession?.checkpoints.contains(where: {
+                    $0.id == checkpointID
+                }) == true {
+                    try? pruneUnreferencedCompositionAssets(
+                        sessionID: sessionID,
+                        retainedCheckpoints: persistedSession?.checkpoints ?? []
+                    )
+                    return
+                }
+                try? fileManager.removeItem(at: packageURL)
+                try? pruneUnreferencedCompositionAssets(
+                    sessionID: sessionID,
+                    retainedCheckpoints: persistedSession?.checkpoints ?? []
+                )
+                throw error
+            }
         }
     }
 
     func historyEntries(for sessionID: UUID) -> [DocumentHistoryEntry] {
         withLockedAccess {
-            guard let session = try? loadSessionRecord(id: sessionID) else {
+            retryPendingPrivacyExclusionPersistence()
+            guard let session = try? loadSessionRecord(id: sessionID),
+                  !isPrivacyExcluded(sessionID, knownSession: session) else {
                 return []
             }
 
@@ -313,12 +454,14 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
 
     func pendingRecoveryEntries(excluding excludedSessionID: UUID? = nil, limit: Int? = nil) -> [DocumentHistoryEntry] {
         withLockedAccess {
+            retryPendingPrivacyExclusionPersistence()
             guard let records = try? allSessionRecords() else {
                 return []
             }
 
             let entries = records.compactMap { session -> DocumentHistoryEntry? in
                 guard session.pendingRecovery,
+                      !isPrivacyExcluded(session.id, knownSession: session),
                       session.id != excludedSessionID,
                       let checkpoint = session.checkpoints.filter({ $0.deletedAt == nil }).max(by: { $0.savedAt < $1.savedAt }) else {
                     return nil
@@ -348,17 +491,25 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
 
     func restoreDocument(from entry: DocumentHistoryEntry) throws -> EditableScreenshotDocument {
         try withLockedAccess {
-            try SSSDocumentPackage.load(from: entry.packageURL, files: files)
+            try SSSDocumentPackage.load(
+                from: entry.packageURL,
+                allowsExternalRecoveryBase: true,
+                files: files
+            )
         }
     }
 
     func incompatibleHistoryEntries() -> [DocumentHistoryEntry] {
         withLockedAccess {
+            retryPendingPrivacyExclusionPersistence()
             guard let sessions = try? allSessionRecords() else {
                 return []
             }
 
             return sessions
+                .filter {
+                    !isPrivacyExcluded($0.id, knownSession: $0)
+                }
                 .flatMap { session in
                     session.checkpoints.map { historyEntry(from: $0, in: session) }
                 }
@@ -390,6 +541,10 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
                 session.pendingRecovery = session.pendingRecovery && session.checkpoints.contains { $0.deletedAt == nil }
                 session.updatedAt = Date()
                 try saveSessionRecord(session)
+                try pruneUnreferencedCompositionAssets(
+                    sessionID: sessionID,
+                    retainedCheckpoints: session.checkpoints
+                )
             }
         }
     }
@@ -427,7 +582,6 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
             }
 
             let checkpoint = session.checkpoints.remove(at: checkpointIndex)
-            try? fileManager.removeItem(at: checkpointsDirectory(for: entry.sessionID).appendingPathComponent(checkpoint.packageName))
 
             if session.checkpoints.isEmpty {
                 try? fileManager.removeItem(at: sessionDirectory(for: entry.sessionID))
@@ -437,6 +591,14 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
 
             session.updatedAt = Date()
             try saveSessionRecord(session)
+            try? fileManager.removeItem(
+                at: checkpointsDirectory(for: entry.sessionID)
+                    .appendingPathComponent(checkpoint.packageName)
+            )
+            try pruneUnreferencedCompositionAssets(
+                sessionID: entry.sessionID,
+                retainedCheckpoints: session.checkpoints
+            )
         }
     }
 
@@ -451,9 +613,6 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
                 return
             }
 
-            for checkpoint in deletedCheckpoints {
-                try? fileManager.removeItem(at: checkpointsDirectory(for: entry.sessionID).appendingPathComponent(checkpoint.packageName))
-            }
             session.checkpoints.removeAll { $0.deletedAt != nil }
 
             if session.checkpoints.isEmpty {
@@ -464,6 +623,16 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
 
             session.updatedAt = Date()
             try saveSessionRecord(session)
+            for checkpoint in deletedCheckpoints {
+                try? fileManager.removeItem(
+                    at: checkpointsDirectory(for: entry.sessionID)
+                        .appendingPathComponent(checkpoint.packageName)
+                )
+            }
+            try pruneUnreferencedCompositionAssets(
+                sessionID: entry.sessionID,
+                retainedCheckpoints: session.checkpoints
+            )
         }
     }
 
@@ -573,12 +742,17 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
 
     func allHistoryEntries(limit: Int? = nil) -> [DocumentHistoryEntry] {
         withLockedAccess {
+            retryPendingPrivacyExclusionPersistence()
             guard let index = try? loadSearchIndex() else {
                 return []
             }
+            let excludedSessionIDs = privacyExcludedSessionIDs()
 
             let entries = index.entries
-                .filter { $0.deletedAt == nil }
+                .filter {
+                    $0.deletedAt == nil
+                        && !excludedSessionIDs.contains($0.sessionID)
+                }
                 .map { historyEntry(from: $0) }
                 .sorted { $0.savedAt > $1.savedAt }
 
@@ -592,6 +766,7 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
 
     func searchHistoryEntries(matching query: String, limit: Int? = nil) -> [DocumentHistoryEntry] {
         withLockedAccess {
+            retryPendingPrivacyExclusionPersistence()
             let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
 
             guard !normalizedQuery.isEmpty else {
@@ -601,9 +776,14 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
             guard let index = try? loadSearchIndex() else {
                 return []
             }
+            let excludedSessionIDs = privacyExcludedSessionIDs()
 
             let entries = index.entries
-                .filter { $0.deletedAt == nil && $0.matches(normalizedQuery) }
+                .filter {
+                    $0.deletedAt == nil
+                        && !excludedSessionIDs.contains($0.sessionID)
+                        && $0.matches(normalizedQuery)
+                }
                 .map { historyEntry(from: $0) }
                 .sorted { $0.savedAt > $1.savedAt }
 
@@ -617,6 +797,7 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
 
     func recycledHistoryEntries(limit: Int? = nil) -> [DocumentHistoryEntry] {
         withLockedAccess {
+            retryPendingPrivacyExclusionPersistence()
             let entriesBySessionID = Dictionary(grouping: allRecycledHistoryEntries(), by: \.sessionID)
             let entries = entriesBySessionID.values
                 .compactMap { sessionEntries in
@@ -638,9 +819,13 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
         guard let index = try? loadSearchIndex() else {
             return []
         }
+        let excludedSessionIDs = privacyExcludedSessionIDs()
 
         return index.entries
-            .filter { $0.deletedAt != nil }
+            .filter {
+                $0.deletedAt != nil
+                    && !excludedSessionIDs.contains($0.sessionID)
+            }
             .map { historyEntry(from: $0) }
             .sorted { ($0.deletedAt ?? .distantPast) > ($1.deletedAt ?? .distantPast) }
     }
@@ -652,6 +837,7 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
         recycleBinLimit: Int
     ) -> RecoveryPresentationState {
         withLockedAccess {
+            retryPendingPrivacyExclusionPersistence()
             guard let index = try? loadSearchIndex() else {
                 return RecoveryPresentationState(
                     historyEntries: [],
@@ -661,11 +847,15 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
                     pendingRecoverySession: nil
                 )
             }
+            let excludedSessionIDs = privacyExcludedSessionIDs()
+            let visibleIndexEntries = index.entries.filter {
+                !excludedSessionIDs.contains($0.sessionID)
+            }
 
             let historyEntries: [DocumentHistoryEntry]
 
             if let currentSessionID {
-                historyEntries = index.entries
+                historyEntries = visibleIndexEntries
                     .filter { $0.sessionID == currentSessionID }
                     .filter { $0.deletedAt == nil }
                     .sorted { $0.savedAt > $1.savedAt }
@@ -674,12 +864,12 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
                 historyEntries = []
             }
 
-            let allCaptureHistoryEntries = index.entries
+            let allCaptureHistoryEntries = visibleIndexEntries
                 .filter { $0.deletedAt == nil }
                 .map { historyEntry(from: $0) }
                 .sorted { $0.savedAt > $1.savedAt }
 
-            let pendingEntries = Dictionary(grouping: index.entries.filter { $0.pendingRecovery && $0.deletedAt == nil }, by: \.sessionID)
+            let pendingEntries = Dictionary(grouping: visibleIndexEntries.filter { $0.pendingRecovery && $0.deletedAt == nil }, by: \.sessionID)
                 .values
                 .compactMap { sessionEntries in
                     sessionEntries.max { $0.savedAt < $1.savedAt }.map { historyEntry(from: $0) }
@@ -690,7 +880,7 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
             let pendingRecoverySession = pendingEntries.first.map {
                 PendingRecoverySession(id: $0.sessionID, title: $0.title, latestEntry: $0)
             }
-            let recycleBinEntriesBySessionID = Dictionary(grouping: index.entries.filter { $0.deletedAt != nil }.map { historyEntry(from: $0) }, by: \.sessionID)
+            let recycleBinEntriesBySessionID = Dictionary(grouping: visibleIndexEntries.filter { $0.deletedAt != nil }.map { historyEntry(from: $0) }, by: \.sessionID)
             let recycleBinEntries = recycleBinEntriesBySessionID.values
                 .compactMap { sessionEntries in
                     sessionEntries.max {
@@ -713,6 +903,237 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
         accessLock.lock()
         defer { accessLock.unlock() }
         return try operation()
+    }
+
+    private func clearPrivacyExclusionRegistry() {
+        exclusionLock.lock()
+        registeredPrivacyExclusionIDs.removeAll()
+        pendingPrivacyExclusionPersistenceIDs.removeAll()
+        exclusionLock.unlock()
+    }
+
+    private func registeredPrivacyExclusions() -> Set<UUID> {
+        exclusionLock.lock()
+        defer { exclusionLock.unlock() }
+        return registeredPrivacyExclusionIDs
+    }
+
+    private func pendingPrivacyExclusions() -> Set<UUID> {
+        exclusionLock.lock()
+        defer { exclusionLock.unlock() }
+        return pendingPrivacyExclusionPersistenceIDs
+    }
+
+    private func rememberPrivacyExclusions(
+        _ sessionIDs: Set<UUID>,
+        tombstonesAreDurable: Bool
+    ) {
+        guard !sessionIDs.isEmpty else {
+            return
+        }
+
+        exclusionLock.lock()
+        registeredPrivacyExclusionIDs.formUnion(sessionIDs)
+        if tombstonesAreDurable {
+            pendingPrivacyExclusionPersistenceIDs.subtract(sessionIDs)
+        } else {
+            pendingPrivacyExclusionPersistenceIDs.formUnion(sessionIDs)
+        }
+        exclusionLock.unlock()
+    }
+
+    private func isPrivacyExcluded(
+        _ sessionID: UUID,
+        knownSession: RecoverySessionRecord? = nil
+    ) -> Bool {
+        if registeredPrivacyExclusions().contains(sessionID) {
+            return true
+        }
+
+        if fileManager.fileExists(
+            atPath: privacyExclusionTombstoneURL(for: sessionID).path
+        ) {
+            rememberPrivacyExclusions(
+                [sessionID],
+                tombstonesAreDurable: true
+            )
+            return true
+        }
+
+        if knownSession?.isExcludedFromPresentation == true {
+            rememberPrivacyExclusions(
+                [sessionID],
+                tombstonesAreDurable: false
+            )
+            return true
+        }
+
+        if knownSession == nil,
+           let loadedSession = try? loadSessionRecord(id: sessionID),
+           loadedSession.isExcludedFromPresentation == true {
+            rememberPrivacyExclusions(
+                [sessionID],
+                tombstonesAreDurable: false
+            )
+            return true
+        }
+
+        return false
+    }
+
+    private func privacyExcludedSessionIDs() -> Set<UUID> {
+        var sessionIDs = registeredPrivacyExclusions()
+
+        var tombstonedSessionIDs: Set<UUID> = []
+        if let tombstoneURLs = try? fileManager.contentsOfDirectory(
+            at: privacyExclusionsURL,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) {
+            tombstonedSessionIDs.formUnion(tombstoneURLs.compactMap { url in
+                guard url.pathExtension == Self.privacyExclusionFilenameExtension else {
+                    return nil
+                }
+                return UUID(
+                    uuidString: url.deletingPathExtension().lastPathComponent
+                )
+            })
+            sessionIDs.formUnion(tombstonedSessionIDs)
+        }
+
+        var sessionRecordExclusionIDs: Set<UUID> = []
+        if let sessions = try? allSessionRecords() {
+            sessionRecordExclusionIDs.formUnion(
+                sessions.lazy
+                    .filter { $0.isExcludedFromPresentation == true }
+                    .map(\.id)
+            )
+            sessionIDs.formUnion(sessionRecordExclusionIDs)
+        }
+
+        rememberPrivacyExclusions(
+            tombstonedSessionIDs,
+            tombstonesAreDurable: true
+        )
+        rememberPrivacyExclusions(
+            sessionRecordExclusionIDs.subtracting(tombstonedSessionIDs),
+            tombstonesAreDurable: false
+        )
+        return sessionIDs
+    }
+
+    private func privacyExclusionTombstoneURL(for sessionID: UUID) -> URL {
+        privacyExclusionsURL
+            .appendingPathComponent(sessionID.uuidString)
+            .appendingPathExtension(Self.privacyExclusionFilenameExtension)
+    }
+
+    private func persistPrivacyExclusion(for sessionID: UUID) throws {
+        var firstPersistenceError: Error?
+
+        do {
+            try fileManager.createDirectory(
+                at: privacyExclusionsURL,
+                withIntermediateDirectories: true
+            )
+            try Data().write(
+                to: privacyExclusionTombstoneURL(for: sessionID),
+                options: .atomic
+            )
+        } catch {
+            firstPersistenceError = error
+        }
+
+        do {
+            if var session = try loadSessionRecord(id: sessionID) {
+                session.pendingRecovery = false
+                session.isExcludedFromPresentation = true
+                session.updatedAt = Date()
+                try saveSessionRecord(session)
+            }
+        } catch {
+            if firstPersistenceError == nil {
+                firstPersistenceError = error
+            }
+        }
+
+        // Search-index cleanup is redundant with query-time tombstone
+        // filtering, but keeping the cache clean reduces work after relaunch.
+        try? removeSearchIndexEntries(for: sessionID)
+
+        let hasTombstone = fileManager.fileExists(
+            atPath: privacyExclusionTombstoneURL(for: sessionID).path
+        )
+        let hasExcludedSessionRecord =
+            (try? loadSessionRecord(id: sessionID))?
+                .isExcludedFromPresentation == true
+
+        if hasTombstone {
+            rememberPrivacyExclusions(
+                [sessionID],
+                tombstonesAreDurable: true
+            )
+            return
+        }
+
+        if hasExcludedSessionRecord {
+            rememberPrivacyExclusions(
+                [sessionID],
+                tombstonesAreDurable: false
+            )
+            return
+        }
+
+        throw firstPersistenceError
+            ?? RecoveryPrivacyExclusionError.couldNotPersist(sessionID)
+    }
+
+    /// Failed low-disk writes remain fail-closed in memory and are retried on
+    /// the next store interaction. Once either the standalone tombstone or the
+    /// session flag is durable, a later store instance can enforce exclusion.
+    private func retryPendingPrivacyExclusionPersistence() {
+        for sessionID in pendingPrivacyExclusions() {
+            try? persistPrivacyExclusion(for: sessionID)
+        }
+    }
+
+    private func discardUncommittedCheckpoint(
+        sessionID: UUID,
+        packageURL: URL
+    ) {
+        try? fileManager.removeItem(at: packageURL)
+        let retainedCheckpoints =
+            (try? loadSessionRecord(id: sessionID))?.checkpoints ?? []
+        try? pruneUnreferencedCompositionAssets(
+            sessionID: sessionID,
+            retainedCheckpoints: retainedCheckpoints
+        )
+
+        if retainedCheckpoints.isEmpty {
+            try? fileManager.removeItem(at: sessionBaseImageURL(for: sessionID))
+        }
+    }
+
+    private func discardCommittedCheckpoint(
+        sessionID: UUID,
+        checkpointID: UUID,
+        packageURL: URL
+    ) throws {
+        guard var session = try loadSessionRecord(id: sessionID) else {
+            try? fileManager.removeItem(at: packageURL)
+            return
+        }
+
+        session.checkpoints.removeAll { $0.id == checkpointID }
+        session.pendingRecovery = false
+        session.isExcludedFromPresentation = true
+        session.updatedAt = Date()
+        try saveSessionRecord(session)
+        try? fileManager.removeItem(at: packageURL)
+        try pruneUnreferencedCompositionAssets(
+            sessionID: sessionID,
+            retainedCheckpoints: session.checkpoints
+        )
     }
 
     private func ensureRootDirectories() throws {
@@ -744,6 +1165,46 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
         sessionDirectory(for: sessionID).appendingPathComponent(Self.sharedBaseImageName)
     }
 
+    private func sessionCompositionAssetsURL(for sessionID: UUID) -> URL {
+        sessionDirectory(for: sessionID).appendingPathComponent(
+            Self.sharedCompositionAssetsDirectoryName,
+            isDirectory: true
+        )
+    }
+
+    /// Removes only immutable captures that no retained checkpoint references.
+    /// Deleted checkpoints in the Recycle Bin remain in `retainedCheckpoints`
+    /// and therefore keep their source pixels until permanent deletion.
+    private func pruneUnreferencedCompositionAssets(
+        sessionID: UUID,
+        retainedCheckpoints: [RecoveryCheckpointRecord]
+    ) throws {
+        let assetsURL = sessionCompositionAssetsURL(for: sessionID)
+        guard fileManager.fileExists(atPath: assetsURL.path) else {
+            return
+        }
+
+        let retainedIDs = Set(
+            retainedCheckpoints.flatMap { $0.compositionAssetIDs ?? [] }
+        )
+        let storedURLs = try fileManager.contentsOfDirectory(
+            at: assetsURL,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        )
+
+        for assetURL in storedURLs {
+            guard assetURL.pathExtension.localizedLowercase == "png",
+                  let id = UUID(
+                    uuidString: assetURL.deletingPathExtension().lastPathComponent
+                  ),
+                  !retainedIDs.contains(id) else {
+                continue
+            }
+            try fileManager.removeItem(at: assetURL)
+        }
+    }
+
     private func sessionMetadataURL(for sessionID: UUID) -> URL {
         sessionDirectory(for: sessionID).appendingPathComponent("session.json")
     }
@@ -764,7 +1225,13 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
         return try decoder.decode(RecoverySessionRecord.self, from: Data(contentsOf: metadataURL))
     }
 
-    private func saveSessionRecord(_ session: RecoverySessionRecord) throws {
+    private func saveSessionRecord(_ proposedSession: RecoverySessionRecord) throws {
+        var session = proposedSession
+        if isPrivacyExcluded(session.id, knownSession: session) {
+            session.pendingRecovery = false
+            session.isExcludedFromPresentation = true
+        }
+
         let directoryURL = sessionDirectory(for: session.id)
         try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
 
@@ -819,7 +1286,11 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
         if let persistedSummary = indexEntry.changeSummary {
             changeSummary = persistedSummary
         } else if derivingLegacySummary,
-                  let document = try? SSSDocumentPackage.load(from: packageURL, files: files) {
+                  let document = try? SSSDocumentPackage.load(
+                    from: packageURL,
+                    allowsExternalRecoveryBase: true,
+                    files: files
+                  ) {
             changeSummary = RecoveryCheckpointSummary.summary(for: document.session, fallbackLabel: indexEntry.label)
         } else {
             changeSummary = nil
@@ -866,7 +1337,12 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
 
     @discardableResult
     private func rebuildSearchIndex() throws -> RecoverySearchIndex {
-        let index = RecoverySearchIndex(entries: try allSessionRecords().flatMap(Self.searchIndexEntries(for:)))
+        let excludedSessionIDs = privacyExcludedSessionIDs()
+        let index = RecoverySearchIndex(
+            entries: try allSessionRecords()
+                .filter { !excludedSessionIDs.contains($0.id) }
+                .flatMap(Self.searchIndexEntries(for:))
+        )
         try saveSearchIndex(index)
         return index
     }
@@ -894,7 +1370,11 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
     }
 
     private static func searchIndexEntries(for session: RecoverySessionRecord) -> [RecoverySearchIndexEntry] {
-        session.checkpoints.map { checkpoint in
+        guard session.isExcludedFromPresentation != true else {
+            return []
+        }
+
+        return session.checkpoints.map { checkpoint in
             RecoverySearchIndexEntry(
                 id: checkpoint.id,
                 sessionID: session.id,
@@ -944,6 +1424,7 @@ nonisolated private struct RecoverySessionRecord: Codable {
     var pendingRecovery: Bool
     var baseImageName: String?
     var checkpoints: [RecoveryCheckpointRecord]
+    var isExcludedFromPresentation: Bool?
 }
 
 nonisolated private struct RecoveryCheckpointRecord: Codable {
@@ -957,6 +1438,7 @@ nonisolated private struct RecoveryCheckpointRecord: Codable {
     var searchableText: String?
     var packageSizeBytes: Int64?
     var deletedAt: Date?
+    var compositionAssetIDs: [UUID]?
 }
 
 nonisolated private struct RecoverySearchIndex: Codable {
@@ -992,6 +1474,10 @@ nonisolated private struct RecoverySearchIndexEntry: Codable {
     }
 }
 
+nonisolated private enum RecoveryPrivacyExclusionError: Error {
+    case couldNotPersist(UUID)
+}
+
 nonisolated private enum RecoveryCheckpointSummary {
     static func summary(for session: EditorDocumentSession, fallbackLabel: String) -> String {
         let previousSnapshot = session.undoStack.last ?? session.initialSnapshot
@@ -1006,7 +1492,7 @@ nonisolated private enum RecoveryCheckpointSummary {
         }
 
         if currentSnapshot.presentation != previousSnapshot.presentation {
-            return "Presentation changed"
+            return "Polish changed"
         }
 
         return fallbackLabel

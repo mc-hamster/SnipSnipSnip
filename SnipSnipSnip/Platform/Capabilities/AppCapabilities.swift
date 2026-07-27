@@ -11,6 +11,7 @@ nonisolated enum AppCapability: String, CaseIterable, Hashable, Sendable {
     case connectedDeviceCapture
     case editor
     case presentation
+    case composition
     case clipboardHistory
     case automation
     case privateCapture
@@ -94,6 +95,7 @@ nonisolated struct BuildTargetCapabilityProvider: AppCapabilityProvider {
         .timerCapture,
         .editor,
         .presentation,
+        .composition,
         .clipboardHistory,
         .automation,
         .privateCapture,

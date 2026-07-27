@@ -1573,6 +1573,195 @@ nonisolated enum AlignmentMode: String, CaseIterable, Identifiable {
             return "align.vertical.bottom"
         }
     }
+
+}
+
+nonisolated enum ScreenshotDocumentPurpose: String, CaseIterable, Codable, Identifiable, Sendable {
+    case screenshot
+    case comparison
+    case steps
+    case collection
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .screenshot:
+            return String(localized: "Screenshot")
+        case .comparison:
+            return String(localized: "Comparison")
+        case .steps:
+            return String(localized: "Steps")
+        case .collection:
+            return String(localized: "Combined Image")
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .screenshot:
+            return "camera.viewfinder"
+        case .comparison:
+            return "rectangle.split.2x1"
+        case .steps:
+            return "list.number"
+        case .collection:
+            return "rectangle.3.group"
+        }
+    }
+
+    func sessionTitle(
+        stage: ScreenshotWorkflowStage,
+        includedItemCount: Int
+    ) -> String {
+        if stage == .polishing {
+            return "\(label) · \(ScreenshotWorkflowStage.polishing.label)"
+        }
+        switch self {
+        case .screenshot:
+            return "\(label) · \(ScreenshotWorkflowStage.editing.label)"
+        case .comparison:
+            return "\(label) · \(stage.label)"
+        case .steps:
+            let noun = includedItemCount == 1
+                ? String(localized: "step")
+                : String(localized: "steps")
+            return "\(label) · \(includedItemCount) \(noun)"
+        case .collection:
+            let noun = includedItemCount == 1
+                ? String(localized: "image")
+                : String(localized: "images")
+            return "\(label) · \(includedItemCount) \(noun)"
+        }
+    }
+
+    static func inferred(from composition: CompositionSnapshot?) -> ScreenshotDocumentPurpose {
+        guard let composition,
+              composition.isActivated,
+              composition.items.count > 1 else {
+            return .screenshot
+        }
+
+        switch composition.layout.mode {
+        case .compare:
+            return .comparison
+        case .steps:
+            return .steps
+        case .auto, .row, .column, .grid, .freeform:
+            return .collection
+        }
+    }
+}
+
+nonisolated enum ScreenshotWorkflowStage: String, CaseIterable, Codable, Identifiable, Sendable {
+    case editing
+    case awaitingComparisonAfter
+    case collecting
+    case arranging
+    case reviewingComparison
+    case polishing
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .editing:
+            return String(localized: "Editing")
+        case .awaitingComparisonAfter:
+            return String(localized: "Before Captured")
+        case .collecting:
+            return String(localized: "Collecting")
+        case .arranging:
+            return String(localized: "Arranging")
+        case .reviewingComparison:
+            return String(localized: "Ready")
+        case .polishing:
+            return String(localized: "Polish")
+        }
+    }
+
+    func isCompatible(with purpose: ScreenshotDocumentPurpose) -> Bool {
+        switch self {
+        case .editing:
+            return purpose == .screenshot
+        case .awaitingComparisonAfter, .reviewingComparison:
+            return purpose == .comparison
+        case .collecting, .arranging:
+            return purpose == .steps || purpose == .collection
+        case .polishing:
+            return true
+        }
+    }
+}
+
+nonisolated struct ScreenshotWorkflowResumeState: Equatable, Codable, Sendable {
+    var stage: ScreenshotWorkflowStage
+    var returnStage: ScreenshotWorkflowStage?
+
+    init(
+        stage: ScreenshotWorkflowStage = .editing,
+        returnStage: ScreenshotWorkflowStage? = nil
+    ) {
+        self.stage = stage
+        self.returnStage = returnStage
+    }
+
+    static func inferred(
+        for purpose: ScreenshotDocumentPurpose,
+        composition: CompositionSnapshot?
+    ) -> ScreenshotWorkflowResumeState {
+        let stage: ScreenshotWorkflowStage
+        switch purpose {
+        case .screenshot:
+            stage = .editing
+        case .comparison:
+            let includedItemCount = composition?.items.filter(\.isIncluded).count ?? 1
+            stage = includedItemCount >= 2
+                ? .reviewingComparison
+                : .awaitingComparisonAfter
+        case .steps:
+            stage = .collecting
+        case .collection:
+            stage = composition?.isActivated == true
+                ? .arranging
+                : .collecting
+        }
+        return ScreenshotWorkflowResumeState(stage: stage)
+    }
+
+    func normalized(
+        for purpose: ScreenshotDocumentPurpose,
+        composition: CompositionSnapshot?
+    ) -> ScreenshotWorkflowResumeState {
+        let fallback = Self.inferred(for: purpose, composition: composition)
+        let includedItemCount = composition?.items.filter(\.isIncluded).count ?? 1
+        func isValidContentStage(_ candidate: ScreenshotWorkflowStage) -> Bool {
+            guard candidate.isCompatible(with: purpose) else {
+                return false
+            }
+            switch (purpose, candidate) {
+            case (.comparison, .awaitingComparisonAfter):
+                return includedItemCount < 2
+            case (.comparison, .reviewingComparison):
+                return includedItemCount >= 2
+            default:
+                return true
+            }
+        }
+        if stage == .polishing {
+            let normalizedReturnStage = returnStage.flatMap {
+                $0 != .polishing && isValidContentStage($0) ? $0 : nil
+            } ?? fallback.stage
+            return ScreenshotWorkflowResumeState(
+                stage: .polishing,
+                returnStage: normalizedReturnStage
+            )
+        }
+        guard isValidContentStage(stage) else {
+            return fallback
+        }
+        return ScreenshotWorkflowResumeState(stage: stage)
+    }
 }
 
 nonisolated struct EditorSnapshot: Equatable {
@@ -1582,6 +1771,14 @@ nonisolated struct EditorSnapshot: Equatable {
     var nextCalloutNumber: Int
     var presentation: ScreenshotPresentation = .plain
     var pinnedUIMapElementIDs: [UUID] = []
+    /// The user's durable communication goal. It lives in the snapshot so
+    /// promoting a screenshot to a comparison, sequence, or collection is one
+    /// chronological undo operation with the associated composition change.
+    var documentPurpose: ScreenshotDocumentPurpose = .screenshot
+    /// Nil is the legacy one-capture representation. A non-nil value makes
+    /// composition first-class document content while preserving exact v6
+    /// rendering for documents that have never combined captures.
+    var composition: CompositionSnapshot? = nil
 
     // MARK: - Layer Reordering
 

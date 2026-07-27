@@ -713,11 +713,13 @@ private struct GuideAdvancedEditorSheet: View {
     let onCancel: () -> Void
     let onCommit: () -> Void
     @State private var search = ""
+    @State private var isInspectorPresented = true
 
     var body: some View {
         VStack(spacing: 0) {
             EditorCommandBar(
                 controller: editor,
+                isInspectorPresented: $isInspectorPresented,
                 onBack: onCancel,
                 onFloatReference: { _ in },
                 onExportPNG: { _ in },
@@ -734,6 +736,7 @@ private struct GuideAdvancedEditorSheet: View {
 
             EditorView(
                 controller: editor,
+                isInspectorPresented: $isInspectorPresented,
                 historyEntries: [],
                 recentSnipEntries: [],
                 captureHistoryEntries: [],

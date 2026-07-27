@@ -3,7 +3,18 @@ import Foundation
 
 @MainActor
 final class AppModel: ObservableObject {
-    static let isRunningUnitTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    static let isRunningUnitTests: Bool = {
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+            return true
+        }
+#if DEBUG
+        return ProcessInfo.processInfo.arguments.contains(
+            "--snipsnipsnip-composition-ui-testing"
+        )
+#else
+        return false
+#endif
+    }()
 
     let lifecycle: AppLifecycleModel
     let capture: CaptureWorkflowModel
@@ -14,6 +25,7 @@ final class AppModel: ObservableObject {
     let guide: GuideWorkflowModel
     let archive: ArchiveWorkflowModel
     let tools: ToolWorkflowModel
+    let creation: CreationWorkflowModel
     let workflowCoordinator: AppWorkflowCoordinator
     let environment: AppEnvironment
     var capabilities: AppCapabilitySnapshot { environment.capabilities }
@@ -44,6 +56,7 @@ final class AppModel: ObservableObject {
         self.guide = composition.guide
         self.archive = composition.archive
         self.tools = composition.tools
+        self.creation = composition.creation
         self.automation = composition.automation
         self.automationService = AppAutomationService(host: composition.automation)
         self.workflowCoordinator = composition.workflowCoordinator

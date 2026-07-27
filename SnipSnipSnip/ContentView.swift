@@ -10,6 +10,8 @@ struct ContentView: View {
     @ObservedObject var clipboard: ClipboardWorkflowModel
     @ObservedObject var video: VideoWorkflowModel
     @ObservedObject var guide: GuideWorkflowModel
+    @ObservedObject var tools: ToolWorkflowModel
+    @ObservedObject var creation: CreationWorkflowModel
     let capabilities: AppCapabilitySnapshot
     let workflowCoordinator: AppWorkflowCoordinator
     let dismissWelcomeCard: () -> Void
@@ -18,6 +20,10 @@ struct ContentView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.openWindow) private var openWindow
     @State private var isPermissionDiagnosticExpanded = false
+    @SceneStorage("editor.inspector.isPresented")
+    private var isEditorInspectorPresented = true
+    @State private var compositionImportDetails:
+        CompositionImportRecoveryState?
 
     private let windowRefreshTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -33,11 +39,13 @@ struct ContentView: View {
             if let editorController = documents.editorController {
                 EditorCommandBar(
                     controller: editorController,
+                    isInspectorPresented: $isEditorInspectorPresented,
                     onBack: documents.closeEditor,
                     onFloatReference: { documents.floatCurrentEditorReference(appearance: $0) },
                     onExportPNG: { documents.exportAnnotatedImage(as: .png, appearance: $0) },
                     onExportJPEG: { documents.exportAnnotatedImage(as: .jpeg, appearance: $0) },
                     onExportPDF: { documents.exportAnnotatedImage(as: .pdf, appearance: $0) },
+                    onExportComposition: { documents.exportComposition(as: $0, appearance: $1) },
                     onCopy: { appearance in
                         if appearance == .styled {
                             documents.copyCurrentStyledEditorImageToClipboard()
@@ -48,7 +56,8 @@ struct ContentView: View {
                     onShare: { documents.shareAnnotatedImage(appearance: $0) },
                     onShowLayers: showLayersWindow,
                     onShowUIMap: showUIMapWindow,
-                    dragOutPayloadProvider: { documents.promisedAnnotatedImagePayload(appearance: $0) }
+                    dragOutPayloadProvider: { documents.promisedAnnotatedImagePayload(appearance: $0) },
+                    compositionAddActions: compositionAddActions(for: editorController)
                 )
                 Divider()
             }
@@ -68,6 +77,7 @@ struct ContentView: View {
                 } else if let editorController = documents.editorController {
                     EditorView(
                         controller: editorController,
+                        isInspectorPresented: $isEditorInspectorPresented,
                         historyEntries: documents.historyEntries,
                         recentSnipEntries: documents.recentSnipEntries,
                         captureHistoryEntries: documents.allCaptureHistoryEntries,
@@ -85,7 +95,8 @@ struct ContentView: View {
                             onRestoreRecycledHistoryEntry: documents.restoreRecycledHistoryEntry,
                             onPermanentlyDeleteRecycledHistoryEntry: documents.permanentlyDeleteRecycledHistoryEntry,
                             onEmptyRecycleBin: documents.emptyRecycleBin
-                        )
+                        ),
+                        compositionActions: compositionInspectorActions(for: editorController)
                     )
                     .id(ObjectIdentifier(editorController))
                 } else if let videoController = documents.videoEditorController {
@@ -134,13 +145,48 @@ struct ContentView: View {
                     capture.windowPickerMode = .screenshot
                 },
                 onCancel: {
-                    capture.isShowingWindowPicker = false
-                    capture.windowPickerMode = .screenshot
+                    capture.cancelScreenshotWindowPicker()
                 }
             )
         }
         .sheet(isPresented: $guide.isShowingQuickStart) {
             GuideQuickStartView(guide: guide, permissions: permissions)
+        }
+        .sheet(isPresented: creationQuickStartBinding) {
+            CreationQuickStartView(creation: creation)
+        }
+        .sheet(isPresented: existingCreationSourceBinding) {
+            if let plan = creation.pendingExistingSourcePlan {
+                CreationExistingSourcePickerView(
+                    sourceTitle: pendingExistingSourceTitle(plan),
+                    entries: pendingExistingSourceEntries(plan),
+                    onChoose: { entry, flattened in
+                        let didCreate = documents.createDocument(
+                            from: entry,
+                            flattened: flattened,
+                            completionRole:
+                                plan.captureCompletionRole ?? .standalone,
+                            forcePrivate:
+                                plan.captureOptions.privateCapture
+                        )
+                        if didCreate {
+                            creation.completeExistingSourceSelection()
+                        }
+                    },
+                    onCancel: creation.cancelExistingSourceSelection
+                )
+            }
+        }
+        .sheet(isPresented: connectedDeviceCreationBinding) {
+            CreationConnectedDevicePickerView(
+                devices: capture.connectedDevices,
+                isLoading: capture.isLoadingConnectedDevices,
+                emptyStateMessage:
+                    capture.connectedDeviceEmptyStateMessage,
+                onRefresh: capture.refreshConnectedDevices,
+                onChoose: creation.selectConnectedDevice,
+                onCancel: creation.cancelConnectedDeviceSelection
+            )
         }
         .sheet(item: $guide.targetPickerKind) { kind in
             GuideTargetPickerView(
@@ -169,6 +215,15 @@ struct ContentView: View {
                 dismiss: capture.dismissCaptureRecovery
             )
             .frame(width: 460)
+        }
+        .sheet(item: $compositionImportDetails) { recovery in
+            CompositionImportFailureDetailsView(
+                recovery: recovery,
+                retryFailed: {
+                    compositionImportDetails = nil
+                    documents.retryFailedCompositionImports()
+                }
+            )
         }
         .alert("Capture Error", isPresented: Binding(get: {
             lifecycle.errorMessage != nil
@@ -238,6 +293,261 @@ struct ContentView: View {
         }
     }
 
+    private func compositionAddActions(
+        for controller: EditorController,
+        completionRole: CaptureCompletionRole = .standalone
+    ) -> CompositionAddActions {
+        let intent = CaptureIntent.append(
+            documentGenerationID: controller.documentGenerationID,
+            afterItemID: controller.snapshot.composition?.selectedItemIDs.last
+        )
+        let historyActions: (DocumentHistoryEntry) -> CompositionAddSourceAction = { entry in
+            CompositionAddSourceAction(
+                id: entry.id.uuidString,
+                title: entry.title,
+                action: {
+                    documents.addHistoryEntryToCurrentComposition(
+                        entry,
+                        completionRole: completionRole
+                    )
+                },
+                flattenedAction: {
+                    documents.addHistoryEntryToCurrentComposition(
+                        entry,
+                        flattened: true,
+                        completionRole: completionRole
+                    )
+                }
+            )
+        }
+
+        return CompositionAddActions(
+            addRegion: {
+                capture.captureRegion(
+                    intent: intent,
+                    completionRole: completionRole
+                )
+            },
+            addWindow: {
+                capture.presentWindowPicker(
+                    intent: intent,
+                    completionRole: completionRole
+                )
+            },
+            addFrontmostWindow: {
+                capture.captureFrontmostWindow(
+                    intent: intent,
+                    completionRole: completionRole
+                )
+            },
+            addFullScreen: {
+                capture.captureCurrentDisplay(
+                    intent: intent,
+                    completionRole: completionRole
+                )
+            },
+            addRepeat: {
+                capture.repeatLastCapture(
+                    intent: intent,
+                    completionRole: completionRole
+                )
+            },
+            canRepeat: capture.canRepeatLastCapture,
+            captureDelay: capture.captureDelay,
+            addTimedRegion: { delay in
+                capture.captureDelay = delay
+                capture.captureRegion(
+                    intent: intent,
+                    completionRole: completionRole
+                )
+            },
+            addScrolling: capabilities.isEnabled(.scrollingCapture)
+                ? {
+                    capture.captureScrollingArea(
+                        intent: intent,
+                        completionRole: completionRole
+                    )
+                }
+                : nil,
+            addScreenInspector: capabilities.isEnabled(.screenInspector)
+                ? {
+                    let context =
+                        capture.prepareScreenInspectorCaptureIntent(
+                        intent,
+                        completionRole: completionRole
+                    )
+                    tools.presentScreenInspector {
+                        guard let sessionID =
+                            context.persistentSurfaceSessionID else {
+                            return
+                        }
+                        capture.resetPersistentCaptureSurfaceSession(
+                            sessionID
+                        )
+                    }
+                }
+                : nil,
+            connectedDevices: capture.connectedDevices.map { device in
+                CompositionAddSourceAction(
+                    id: device.id,
+                    title: device.displayName,
+                    action: {
+                        capture.captureConnectedDevice(
+                            device,
+                            intent: intent,
+                            completionRole: completionRole
+                        )
+                    },
+                    flattenedAction: {
+                        capture.captureConnectedDevice(
+                            device,
+                            intent: intent,
+                            completionRole: completionRole
+                        )
+                    }
+                )
+            },
+            importImages: {
+                documents.addImagesToCurrentCompositionPanel(
+                    completionRole: completionRole
+                )
+            },
+            pasteImage: {
+                documents.pasteImageIntoCurrentComposition(
+                    completionRole: completionRole
+                )
+            },
+            recentSnips: documents.recentSnipEntries.map(historyActions),
+            captureHistory: documents.allCaptureHistoryEntries.map(historyActions),
+            archive: documents.compositionArchiveEntries.map(historyActions),
+            actionsForCompletionRole: { role in
+                compositionAddActions(
+                    for: controller,
+                    completionRole: role
+                )
+            }
+        )
+    }
+
+    private var creationQuickStartBinding: Binding<Bool> {
+        Binding(
+            get: { creation.isShowingQuickStart },
+            set: { isPresented in
+                if !isPresented {
+                    creation.cancelQuickStart()
+                }
+            }
+        )
+    }
+
+    private var existingCreationSourceBinding: Binding<Bool> {
+        Binding(
+            get: { creation.pendingExistingSourcePlan != nil },
+            set: { isPresented in
+                if !isPresented {
+                    creation.cancelExistingSourceSelection()
+                }
+            }
+        )
+    }
+
+    private var connectedDeviceCreationBinding: Binding<Bool> {
+        Binding(
+            get: { creation.pendingConnectedDevicePlan != nil },
+            set: { isPresented in
+                if !isPresented {
+                    creation.cancelConnectedDeviceSelection()
+                }
+            }
+        )
+    }
+
+    private func pendingExistingSourceTitle(
+        _ plan: CreationPlan
+    ) -> String {
+        guard case .existing(let source) = plan.source else {
+            return "Choose an Image"
+        }
+        switch source {
+        case .recentSnips:
+            return "Choose a Recent Snip"
+        case .captureHistory:
+            return "Choose from Capture History"
+        case .archive:
+            return "Choose from Archive"
+        case .files:
+            return "Choose a File"
+        case .clipboard:
+            return "Choose from Clipboard"
+        }
+    }
+
+    private func pendingExistingSourceEntries(
+        _ plan: CreationPlan
+    ) -> [DocumentHistoryEntry] {
+        guard case .existing(let source) = plan.source else {
+            return []
+        }
+        switch source {
+        case .recentSnips:
+            return documents.recentSnipEntries
+        case .captureHistory:
+            return latestEntriesBySession(
+                from: documents.allCaptureHistoryEntries
+            )
+        case .archive:
+            return documents.compositionArchiveEntries
+        case .files, .clipboard:
+            return []
+        }
+    }
+
+    private func compositionInspectorActions(for controller: EditorController) -> CompositionInspectorActions {
+        let importRecovery = documents.pendingCompositionImportRecovery.map {
+            recovery in
+            CompositionImportRecoveryActions(
+                summary: recovery.summary,
+                retryFailed: documents.retryFailedCompositionImports,
+                showDetails: {
+                    compositionImportDetails = recovery
+                },
+                dismiss: documents.dismissCompositionImportRecovery
+            )
+        }
+
+        return CompositionInspectorActions(
+            addCapture: compositionAddActions(for: controller),
+            importRecovery: importRecovery,
+            editComposition: controller.enterCompositionEditing,
+            editItem: controller.enterCompositionItemEditing,
+            replaceItem: { itemID in
+                capture.captureRegion(
+                    intent: .replace(
+                        documentGenerationID: controller.documentGenerationID,
+                        itemID: itemID
+                    )
+                )
+            },
+            recaptureItem: { itemID in
+                capture.repeatLastCapture(
+                    intent: .replace(
+                        documentGenerationID: controller.documentGenerationID,
+                        itemID: itemID
+                    )
+                )
+            },
+            locateItem: documents.locateCompositionItemSource,
+            dropFiles: { urls, destination in
+                documents.handleCompositionFileDrop(
+                    urls,
+                    destination: destination
+                )
+            },
+            openSelectedAsScreenshot:
+                documents.openCompositionItemAsNewScreenshot
+        )
+    }
+
     @ToolbarContentBuilder
     private var appToolbarContent: some ToolbarContent {
         if let guideController = documents.guideEditorController {
@@ -275,13 +585,21 @@ struct ContentView: View {
                 HStack(alignment: .center, spacing: 10) {
                     captureHeaderIdentity
                     Spacer(minLength: 12)
+                    if documents.editorController != nil {
+                        contextualCreateButton
+                    }
                     autoCopyToggle
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
                     captureHeaderIdentity
-                    autoCopyToggle
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    HStack(spacing: 8) {
+                        Spacer(minLength: 0)
+                        if documents.editorController != nil {
+                            contextualCreateButton
+                        }
+                        autoCopyToggle
+                    }
                 }
             }
 
@@ -309,6 +627,8 @@ struct ContentView: View {
         .padding(.top, 8)
         .padding(.bottom, 10)
         .background(Color(nsColor: .windowBackgroundColor))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("capture.header")
         .onChange(of: permissions.activePermissionRequest) { _, request in
             if request != nil, hasOpenDocument {
                 isPermissionDiagnosticExpanded = true
@@ -408,29 +728,36 @@ struct ContentView: View {
     }
 
     private var captureHeaderActions: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) {
-                captureHeaderActionButtons
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    captureButton(title: "Region", systemImage: "selection.pin.in.out", action: capture.captureRegion)
-                    captureButton(title: "Full", systemImage: "macwindow", action: capture.captureCurrentDisplay)
-                    captureButton(title: "Window", systemImage: "rectangle.on.rectangle", action: captureWindowFromHeader)
-                }
-
-                HStack(spacing: 8) {
-                    if capabilities.isEnabled(.scrollingCapture) {
-                        captureButton(title: "Scroll", systemImage: "arrow.down.to.line", action: capture.captureScrollingArea)
+        Group {
+            if let controller = documents.editorController {
+                editorSessionBar(controller)
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) {
+                        captureHeaderActionButtons
                     }
-                    captureButton(title: "Repeat", systemImage: "arrow.clockwise", action: capture.repeatLastCapture)
-                        .disabled(!capture.canRepeatLastCapture)
-                    capturePresetsMenu
-                    if capabilities.isEnabled(.guideCapture) {
-                        guideButton
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            createButton
+                            captureButton(title: "Region", systemImage: "selection.pin.in.out", action: capture.captureRegion)
+                            captureButton(title: "Full", systemImage: "macwindow", action: capture.captureCurrentDisplay)
+                            captureButton(title: "Window", systemImage: "rectangle.on.rectangle", action: captureWindowFromHeader)
+                        }
+
+                        HStack(spacing: 8) {
+                            if capabilities.isEnabled(.scrollingCapture) {
+                                captureButton(title: "Scroll", systemImage: "arrow.down.to.line", action: capture.captureScrollingArea)
+                            }
+                            captureButton(title: "Repeat", systemImage: "arrow.clockwise", action: capture.repeatLastCapture)
+                                .disabled(!capture.canRepeatLastCapture)
+                            capturePresetsMenu
+                            if capabilities.isEnabled(.guideCapture) {
+                                guideButton
+                            }
+                            recordButton
+                        }
                     }
-                    recordButton
                 }
             }
         }
@@ -438,6 +765,7 @@ struct ContentView: View {
 
     @ViewBuilder
     private var captureHeaderActionButtons: some View {
+        createButton
         captureButton(title: "Region", systemImage: "selection.pin.in.out", action: capture.captureRegion)
         captureButton(title: "Full", systemImage: "macwindow", action: capture.captureCurrentDisplay)
         captureButton(title: "Window", systemImage: "rectangle.on.rectangle", action: captureWindowFromHeader)
@@ -451,6 +779,437 @@ struct ContentView: View {
             guideButton
         }
         recordButton
+    }
+
+    private var createButton: some View {
+        Button {
+            creation.presentQuickStart()
+        } label: {
+            headerActionLabel(
+                title: "Create…",
+                systemImage: "plus"
+            )
+        }
+        .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.capsule)
+        .controlSize(.small)
+        .disabled(capture.isWorking || isRecordingVideo || guide.isActive)
+        .help("Choose what you want to make, then capture or add its first image.")
+        .accessibilityIdentifier("creation.present")
+    }
+
+    private var contextualCreateButton: some View {
+        Button {
+            creation.presentQuickStart()
+        } label: {
+            Label("Create…", systemImage: "plus")
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .controlSize(.small)
+        .disabled(capture.isWorking || isRecordingVideo || guide.isActive)
+        .help("Start a new Screenshot, Comparison, Steps, or Combined Image.")
+        .accessibilityIdentifier("creation.present")
+    }
+
+    private func editorSessionBar(
+        _ controller: EditorController
+    ) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                editorSessionIdentity(controller)
+                editorSessionActions(controller)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                editorSessionIdentity(controller)
+                HStack(spacing: 8) {
+                    editorSessionActions(controller)
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(editorSessionTitle(controller))
+        .accessibilityHint("Current workflow")
+        .accessibilityIdentifier("capture.sessionBar")
+    }
+
+    private func editorSessionIdentity(
+        _ controller: EditorController
+    ) -> some View {
+        Label(
+            editorSessionTitle(controller),
+            systemImage: controller.documentPurpose.systemImage
+        )
+        .font(.subheadline.weight(.semibold))
+        .lineLimit(1)
+        .padding(.horizontal, 4)
+        .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private func editorSessionActions(
+        _ controller: EditorController
+    ) -> some View {
+        if controller.workflowStage == .polishing {
+            sessionPrimaryButton(
+                "Back to Content",
+                systemImage: "arrow.left"
+            ) {
+                controller.leavePolish()
+                if controller.documentPurpose == .screenshot {
+                    controller.setWorkspaceMode(.edit)
+                } else {
+                    controller.presentationInspectorTab = .layout
+                    controller.setWorkspaceMode(.presentation)
+                }
+            }
+        } else {
+            switch controller.documentPurpose {
+            case .screenshot:
+                sessionAdditionMenu(
+                    "Add…",
+                    systemImage: "plus.rectangle.on.rectangle",
+                    controller: controller
+                )
+                sessionPolishButton(controller)
+
+            case .comparison:
+                if controller.workflowStage == .awaitingComparisonAfter {
+                    sessionAdditionMenu(
+                        "Capture After",
+                        systemImage: "camera.viewfinder",
+                        controller: controller
+                    )
+                } else {
+                    sessionPrimaryButton(
+                        "Review Changes",
+                        systemImage: "rectangle.split.2x1"
+                    ) {
+                        openFocusedContent(controller)
+                    }
+                    sessionSecondaryButton(
+                        "Recapture",
+                        systemImage: "arrow.clockwise"
+                    ) {
+                        recaptureComparisonAfter(controller)
+                    }
+                    sessionPolishButton(controller)
+                }
+
+            case .steps:
+                sessionAdditionMenu(
+                    "Capture Next Step",
+                    systemImage: "plus.rectangle.on.rectangle",
+                    controller: controller
+                )
+                sessionSecondaryButton(
+                    "Order & Caption",
+                    systemImage: "list.number"
+                ) {
+                    openFocusedContent(controller)
+                }
+                sessionPolishButton(controller)
+
+            case .collection:
+                sessionAdditionMenu(
+                    "Add Image",
+                    systemImage: "plus.rectangle.on.rectangle",
+                    controller: controller
+                )
+                sessionSecondaryButton(
+                    "Arrange",
+                    systemImage: "rectangle.3.group"
+                ) {
+                    openFocusedContent(controller)
+                }
+                sessionPolishButton(controller)
+            }
+        }
+    }
+
+    private func sessionPrimaryButton(
+        _ title: String,
+        systemImage: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+        }
+        .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.capsule)
+        .controlSize(.small)
+        .disabled(capture.isWorking)
+        .accessibilityIdentifier("capture.session.primary")
+    }
+
+    private func sessionSecondaryButton(
+        _ title: String,
+        systemImage: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .controlSize(.small)
+        .disabled(capture.isWorking)
+    }
+
+    private func sessionPolishButton(
+        _ controller: EditorController
+    ) -> some View {
+        Button {
+            enterPolish(controller)
+        } label: {
+            Label {
+                HStack(spacing: 4) {
+                    Text("Polish")
+                    if controller.hasStyledOutputConfigured {
+                        Image(systemName: "checkmark.circle.fill")
+                            .imageScale(.small)
+                            .accessibilityHidden(true)
+                    }
+                }
+            } icon: {
+                Image(systemName: "sparkles")
+            }
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .controlSize(.small)
+        .disabled(capture.isWorking)
+        .help(controller.polishConfigurationLabel)
+        .accessibilityLabel("Polish")
+        .accessibilityValue(controller.polishConfigurationLabel)
+        .accessibilityIdentifier("capture.session.polish")
+    }
+
+    private func sessionAdditionMenu(
+        _ title: String,
+        systemImage: String,
+        controller: EditorController
+    ) -> some View {
+        let actions = compositionAddActions(for: controller)
+        return Menu {
+            sessionAdditionMenuContent(actions)
+        } label: {
+            Label(title, systemImage: systemImage)
+        } primaryAction: {
+            requestContextualAddition(.region)
+        }
+        .menuStyle(.button)
+        .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.capsule)
+        .controlSize(.small)
+        .disabled(capture.isWorking)
+        .help(
+            "\(title) using Region. Open the menu for another capture or image source."
+        )
+        .accessibilityLabel(title)
+        .accessibilityHint(
+            "Uses Region. Open the menu for another capture or image source."
+        )
+        .accessibilityIdentifier("capture.session.primary")
+    }
+
+    @ViewBuilder
+    private func sessionAdditionMenuContent(
+        _ actions: CompositionAddActions
+    ) -> some View {
+        Button("Region", systemImage: "viewfinder") {
+            requestContextualAddition(.region)
+        }
+        Button("Window", systemImage: "macwindow") {
+            requestContextualAddition(.window)
+        }
+        Button(
+            "Frontmost Window",
+            systemImage: "macwindow.on.rectangle"
+        ) {
+            requestContextualAddition(.frontmostWindow)
+        }
+        Button("Full Screen", systemImage: "rectangle.inset.filled") {
+            requestContextualAddition(.fullScreen)
+        }
+        Button("Repeat", systemImage: "arrow.clockwise") {
+            requestContextualAddition(.repeatLast)
+        }
+        .disabled(!actions.canRepeat)
+
+        Menu("Timer", systemImage: "timer") {
+            ForEach(CaptureDelay.allCases) { delay in
+                Button {
+                    requestContextualAddition(.timedRegion(delay))
+                } label: {
+                    if actions.captureDelay == delay {
+                        Label(delay.label, systemImage: "checkmark")
+                    } else {
+                        Text(delay.label)
+                    }
+                }
+            }
+        }
+
+        if actions.addScrolling != nil {
+            Button(
+                "Scroll",
+                systemImage: "arrow.up.and.down.text.horizontal"
+            ) {
+                requestContextualAddition(.scrolling)
+            }
+        }
+
+        if !actions.connectedDevices.isEmpty {
+            Menu("Connected Device", systemImage: "iphone.gen3") {
+                ForEach(actions.connectedDevices) { source in
+                    Button(source.title) {
+                        requestContextualAddition(
+                            .connectedDevice(source.id)
+                        )
+                    }
+                }
+            }
+        }
+
+        if actions.addScreenInspector != nil {
+            Button("Screen Inspector", systemImage: "scope") {
+                requestContextualAddition(.screenInspector)
+            }
+        }
+
+        Divider()
+
+        Button(
+            "Import Images…",
+            systemImage: "photo.on.rectangle.angled"
+        ) {
+            requestContextualAddition(.importImages)
+        }
+        Button("Paste Image", systemImage: "doc.on.clipboard") {
+            requestContextualAddition(.pasteImage)
+        }
+        sessionHistorySourceMenu(
+            "Recent Snips",
+            systemImage: "clock",
+            sources: actions.recentSnips,
+            source: { .recentSnip($0, flattened: $1) }
+        )
+        sessionHistorySourceMenu(
+            "Capture History",
+            systemImage: "clock.arrow.circlepath",
+            sources: actions.captureHistory,
+            source: { .captureHistory($0, flattened: $1) }
+        )
+        sessionHistorySourceMenu(
+            "Archive",
+            systemImage: "archivebox",
+            sources: actions.archive,
+            source: { .archive($0, flattened: $1) }
+        )
+    }
+
+    @ViewBuilder
+    private func sessionHistorySourceMenu(
+        _ title: String,
+        systemImage: String,
+        sources: [CompositionAddSourceAction],
+        source: @escaping (
+            UUID,
+            Bool
+        ) -> ContextualCompositionAdditionSource
+    ) -> some View {
+        if !sources.isEmpty {
+            Menu(title, systemImage: systemImage) {
+                ForEach(sources.prefix(20)) { entry in
+                    if let entryID = UUID(uuidString: entry.id) {
+                        Menu(entry.title) {
+                            Button("Add Editable Items") {
+                                requestContextualAddition(
+                                    source(entryID, false)
+                                )
+                            }
+                            Button("Add as Flattened Item") {
+                                requestContextualAddition(
+                                    source(entryID, true)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func editorSessionTitle(
+        _ controller: EditorController
+    ) -> String {
+        controller.documentPurpose.sessionTitle(
+            stage: controller.workflowStage,
+            includedItemCount: controller.includedCompositionItemCount
+        )
+    }
+
+    private func requestContextualAddition(
+        _ source: ContextualCompositionAdditionSource = .region
+    ) {
+        NotificationCenter.default.post(
+            name: .sssRequestContextualCaptureAddition,
+            object: source
+        )
+    }
+
+    private func openFocusedContent(
+        _ controller: EditorController
+    ) {
+        controller.presentationInspectorTab = .layout
+        switch controller.documentPurpose {
+        case .screenshot:
+            controller.setWorkflowStage(.editing)
+            controller.setWorkspaceMode(.edit)
+        case .comparison:
+            controller.setWorkflowStage(
+                controller.includedCompositionItemCount >= 2
+                    ? .reviewingComparison
+                    : .awaitingComparisonAfter
+            )
+            controller.setWorkspaceMode(.presentation)
+        case .steps:
+            controller.setWorkflowStage(.collecting)
+            controller.setWorkspaceMode(.presentation)
+        case .collection:
+            controller.setWorkflowStage(.arranging)
+            controller.setWorkspaceMode(.presentation)
+        }
+    }
+
+    private func enterPolish(
+        _ controller: EditorController
+    ) {
+        controller.enterPolish()
+        if controller.presentationInspectorTab == .layout {
+            controller.presentationInspectorTab = .style
+        }
+        controller.setWorkspaceMode(.presentation)
+    }
+
+    private func recaptureComparisonAfter(
+        _ controller: EditorController
+    ) {
+        guard let itemID =
+            controller.composition?.comparison.secondaryItemID
+        else {
+            requestContextualAddition()
+            return
+        }
+        capture.captureRegion(
+            intent: .replace(
+                documentGenerationID: controller.documentGenerationID,
+                itemID: itemID
+            ),
+            completionRole: .replacement
+        )
     }
 
     private func showLayersWindow() {
@@ -546,6 +1305,8 @@ struct ContentView: View {
         GeometryReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    createIntentCard
+
                     if lifecycle.showsWelcomeCard {
                         exploreCard
                     }
@@ -559,6 +1320,26 @@ struct ContentView: View {
                 .padding(24)
                 .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .topLeading)
             }
+        }
+    }
+
+    private var createIntentCard: some View {
+        CaptureModeCard(
+            title: String(localized: "What do you want to make?"),
+            systemImage: "plus.rectangle.on.rectangle",
+            detail: String(
+                localized:
+                    "Start a Screenshot, compare two versions, explain a process, or combine images."
+            )
+        ) {
+            Button {
+                creation.presentQuickStart()
+            } label: {
+                Label("Create…", systemImage: "plus")
+            }
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.capsule)
+            .accessibilityIdentifier("creation.empty.present")
         }
     }
 
@@ -590,7 +1371,7 @@ struct ContentView: View {
         var names: [String] = []
         if capabilities.isEnabled(.guideCapture) { names.append("Guide") }
         if capabilities.isEnabled(.screenRecording) { names.append("Screen Recording") }
-        if capabilities.isEnabled(.presentation) { names.append("Presentation") }
+        if capabilities.isEnabled(.presentation) { names.append("Polish") }
         if capabilities.isEnabled(.recovery) { names.append("Recovery") }
         if capabilities.isEnabled(.uiMap) { names.append("UI Map") }
         if capabilities.isEnabled(.automation) { names.append("Automation") }
@@ -1153,6 +1934,70 @@ struct ContentView: View {
         }
     }
 
+}
+
+private struct CompositionImportFailureDetailsView: View {
+    let recovery: CompositionImportRecoveryState
+    let retryFailed: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.orange)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Import Details")
+                        .font(.title3.weight(.semibold))
+                    Text(recovery.summary)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            List(recovery.failures) { failure in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(failure.url.lastPathComponent)
+                        .font(.body.weight(.semibold))
+                    Text(failure.reason)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(failure.url.deletingLastPathComponent().path)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .lineLimit(2)
+                }
+                .padding(.vertical, 4)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(
+                    String(
+                        localized: "\(failure.url.lastPathComponent). \(failure.reason). Folder: \(failure.url.deletingLastPathComponent().path)"
+                    )
+                )
+            }
+            .accessibilityLabel("Failed Imports")
+
+            HStack {
+                Button("Close") {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Spacer()
+
+                Button("Retry Failed") {
+                    retryFailed()
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .help("Close these details and retry every failed file at its original composition destination.")
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 520, idealWidth: 580, minHeight: 340, idealHeight: 420)
+    }
 }
 
 private struct CaptureModeCard<Content: View>: View {

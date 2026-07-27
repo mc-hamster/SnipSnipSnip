@@ -82,67 +82,128 @@ private enum PresentationBackgroundChoice: String, CaseIterable, Identifiable {
     }
 }
 
-private enum PresentationInspectorTab: String, CaseIterable, Identifiable {
+nonisolated enum PresentationInspectorTab: String, CaseIterable, Identifiable, Sendable {
+    case layout
     case style
     case scene
 
     var id: String { rawValue }
 
+    var workspaceTitle: String {
+        switch self {
+        case .layout:
+            return String(localized: "Content")
+        case .style:
+            return String(localized: "Polish — Look")
+        case .scene:
+            return String(localized: "Polish — Mockup")
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .layout:
+            return "rectangle.3.group"
+        case .style:
+            return "paintbrush"
+        case .scene:
+            return "rectangle.on.rectangle.angled"
+        }
+    }
+
     var label: String {
         switch self {
+        case .layout:
+            return "Content"
         case .style:
-            return "Style"
+            return "Look"
         case .scene:
-            return "Scene"
+            return "Mockup"
         }
     }
 }
 
 struct PresentationInspectorView: View {
     @ObservedObject var controller: EditorController
+    var compositionActions: CompositionInspectorActions = .unavailable
     @State private var isShowingShadowFineTuning = false
     @State private var selectedPresentationTemplateID: String?
-    @State private var presentationTemplateNameDraft = "Custom Style"
+    @State private var presentationTemplateNameDraft = "Custom Look"
     @State private var selectedSavedPresentationID: UUID?
-    @State private var savedPresentationNameDraft = "Presentation"
-    @State private var selectedTab: PresentationInspectorTab = .style
+    @State private var savedPresentationNameDraft = "Polish Variant"
     @State private var isShowingSceneFramingAdjustments = false
-    @State private var isShowingStyleManagement = false
+    @State private var isShowingPolishManagement = false
     @State private var isShowingSceneFiles = false
     @State private var isShowingSceneDiagnostics = false
     @State private var isShowingVariants = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            InsetGroupBox {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(presentationSummary)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+            if controller.workflowStage == .polishing {
+                InsetGroupBox {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(presentationSummary)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
 
-                    Picker("Type", selection: $selectedTab) {
-                        ForEach(PresentationInspectorTab.allCases) { tab in
-                            Text(tab.label).tag(tab)
+                        Button {
+                            selectedPresentationTemplateID = nil
+                            presentationTemplateNameDraft = "Custom Look"
+                            deferPublish {
+                                controller.applyPresentationPreset(.plain)
+                            }
+                        } label: {
+                            HStack {
+                                Label(
+                                    "No Polish",
+                                    systemImage: "circle.slash"
+                                )
+                                Spacer()
+                                if !controller.hasStyledOutputConfigured {
+                                    Image(systemName: "checkmark")
+                                        .accessibilityHidden(true)
+                                }
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityValue(
+                            controller.hasStyledOutputConfigured
+                                ? "Not selected"
+                                : "Selected"
+                        )
+                        .accessibilityIdentifier("polish.none")
+
+                        Picker(
+                            "Polish",
+                            selection: $controller.presentationInspectorTab
+                        ) {
+                            Text("Look")
+                                .tag(PresentationInspectorTab.style)
+                            Text("Mockup")
+                                .tag(PresentationInspectorTab.scene)
+                        }
+                        .pickerStyle(.segmented)
+                        .accessibilityIdentifier("polish.type")
+
+                        if controller.presentationInspectorTab == .style {
+                            presentationTemplateTiles
+
+                        } else if controller.presentationInspectorTab
+                            == .scene {
+                            presentationSceneLibrary
                         }
                     }
-                    .pickerStyle(.segmented)
-
-                    if selectedTab == .style {
-                        presentationTemplateTiles
-
-                        DisclosureGroup("Manage Styles", isExpanded: $isShowingStyleManagement) {
-                            presentationTemplateActions
-                                .padding(.top, 8)
-                        }
-                    } else {
-                        presentationSceneLibrary
-                    }
+                } label: {
+                    Label("Polish", systemImage: "sparkles")
                 }
-            } label: {
-                Label("Presentation", systemImage: EditorWorkspaceMode.presentation.systemImage)
             }
 
-            if selectedTab == .style {
+            if controller.workflowStage != .polishing {
+                CompositionLayoutInspectorView(
+                    controller: controller,
+                    actions: compositionActions
+                )
+            } else if controller.presentationInspectorTab == .style {
                 InsetGroupBox("Background") {
                     presentationBackgroundControls
                 }
@@ -151,16 +212,12 @@ struct PresentationInspectorView: View {
                     presentationEffectsControls
                 }
             } else {
-                InsetGroupBox("Scene Slots") {
+                InsetGroupBox("Mockup Framing") {
                     presentationSceneSlotControls
                 }
 
-                InsetGroupBox("Scene Files") {
-                    presentationSceneFileControls
-                }
-
                 if !controller.presentationSceneDiagnostics.isEmpty {
-                    InsetGroupBox("Scene Diagnostics") {
+                    InsetGroupBox("Mockup Diagnostics") {
                         DisclosureGroup("Review Issues", isExpanded: $isShowingSceneDiagnostics) {
                             presentationSceneDiagnostics
                                 .padding(.top, 8)
@@ -169,18 +226,58 @@ struct PresentationInspectorView: View {
                 }
             }
 
-            InsetGroupBox("Variants") {
-                savedPresentationLibrary
-            }
+            if controller.workflowStage == .polishing {
+                InsetGroupBox {
+                    DisclosureGroup(
+                        "Looks, Mockups & Variants",
+                        isExpanded: $isShowingPolishManagement
+                    ) {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Looks")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            presentationTemplateActions
 
-            Link(destination: AppLinks.presentationFeedbackDiscord) {
-                Label("Send Presentation Feedback", systemImage: "bubble.left.and.bubble.right")
+                            Divider()
+
+                            Text("Mockups")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            presentationSceneFileControls
+
+                            Divider()
+
+                            Text("Variants")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            savedPresentationLibrary
+                        }
+                        .padding(.top, 8)
+                    }
+                } label: {
+                    Label("Manage…", systemImage: "gearshape")
+                }
+
+                Link(destination: AppLinks.presentationFeedbackDiscord) {
+                    Label(
+                        "Send Polish Feedback",
+                        systemImage: "bubble.left.and.bubble.right"
+                    )
+                }
+                .accessibilityIdentifier("presentation.feedback")
             }
-            .accessibilityIdentifier("presentation.feedback")
         }
         .onAppear {
             syncSelectedPresentationTemplate()
             syncSelectedSavedPresentation()
+        }
+        .onChange(of: controller.hasComposition) { hadComposition, hasComposition in
+            if controller.workflowStage != .polishing,
+               hasComposition && !hadComposition {
+                controller.presentationInspectorTab = .layout
+            } else if !hasComposition && controller.presentationInspectorTab == .layout {
+                controller.presentationInspectorTab = .style
+            }
         }
         .onChange(of: controller.presentationTemplates) { _, _ in
             syncSelectedPresentationTemplate()
@@ -195,11 +292,11 @@ struct PresentationInspectorView: View {
             GridItem(.flexible(), spacing: 10),
             GridItem(.flexible(), spacing: 10),
         ], spacing: 10) {
-            ForEach(controller.presentationTemplates) { template in
+            ForEach(polishLookTemplates) { template in
                 PresentationTemplateTileView(
                     controller: controller,
                     template: template,
-                    isSelected: selectedPresentationTemplateID == template.id || controller.presentation == template.presentation,
+                    isSelected: controller.presentation == template.presentation,
                     isDefault: controller.defaultPresentationTemplateID == template.id,
                     action: {
                         selectedPresentationTemplateID = template.id
@@ -211,30 +308,50 @@ struct PresentationInspectorView: View {
         }
     }
 
+    private var polishLookTemplates: [PresentationTemplate] {
+        controller.presentationTemplates.filter {
+            $0.id != "builtin.plain"
+        }
+    }
+
     private var selectedPresentationTemplate: PresentationTemplate? {
         guard let selectedPresentationTemplateID else {
             return nil
         }
 
-        return controller.presentationTemplates.first { $0.id == selectedPresentationTemplateID }
+        return polishLookTemplates.first {
+            $0.id == selectedPresentationTemplateID
+        }
     }
 
     private var presentationSummary: String {
+        if controller.workflowStage != .polishing {
+            if let composition = controller.composition {
+                let included = composition.items.filter(\.isIncluded).count
+                return "\(composition.items.count) captures • \(included) included • \(controller.workflowStage.label)"
+            }
+            return "\(controller.documentPurpose.label) • \(controller.workflowStage.label)"
+        }
+
+        if !controller.hasStyledOutputConfigured {
+            return "No Polish applied"
+        }
+
         if let template = controller.presentationTemplates.first(where: { controller.presentation == $0.presentation }) {
-            return "Style: \(template.name)"
+            return "Look: \(template.name)"
         }
 
         if let scene = controller.presentation.scene {
-            return "Scene: \(scene.name)"
+            return "Mockup: \(scene.name)"
         }
 
-        return "Unsaved presentation"
+        return "Custom Look"
     }
 
     private var presentationSceneLibrary: some View {
         VStack(alignment: .leading, spacing: 12) {
             if controller.presentationScenes.isEmpty {
-                Label("No valid scenes found. Add SVG scenes to the User folder or reload after restoring bundled examples.", systemImage: "exclamationmark.triangle")
+                Label("No valid mockups found. Add SVG mockups to the User folder or reload after restoring bundled examples.", systemImage: "exclamationmark.triangle")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
@@ -267,7 +384,7 @@ struct PresentationInspectorView: View {
             Button {
                 deferPublish { controller.clearPresentationScene() }
             } label: {
-                Label("Clear Scene", systemImage: "xmark.circle")
+                Label("Remove Mockup", systemImage: "xmark.circle")
             }
             .buttonStyle(.glass)
             .disabled(controller.presentation.scene == nil)
@@ -295,7 +412,7 @@ struct PresentationInspectorView: View {
                     Label("Save", systemImage: "plus")
                 }
                 .buttonStyle(.glass)
-                .help("Save the current presentation as a variant in this .sss document.")
+                .help("Save the current Polish settings as a variant in this .sss document.")
             }
 
             if controller.savedPresentations.isEmpty {
@@ -361,7 +478,7 @@ struct PresentationInspectorView: View {
                 }
                 .buttonStyle(.glass)
                 .disabled(selectedSavedPresentation == nil)
-                .help("Replace the selected saved presentation with the current Presentation settings.")
+                .help("Replace the selected variant with the current Polish settings.")
             }
 
             HStack(spacing: 8) {
@@ -453,7 +570,7 @@ struct PresentationInspectorView: View {
                             value: scene.screenshotSlotSettings.scale,
                             range: (metadata?.primaryScreenshotSlot?.effectiveMinScale ?? 0.25)...(metadata?.primaryScreenshotSlot?.effectiveMaxScale ?? 3),
                             step: 0.01,
-                            help: "Scale the screenshot inside the scene slot.",
+                            help: "Scale the screenshot inside the mockup slot.",
                             action: controller.updateAppliedPresentationSceneFramingScale,
                             displaysPercent: true
                         )
@@ -481,7 +598,7 @@ struct PresentationInspectorView: View {
                 }
             }
         } else {
-            Text("Select a scene to edit its slots.")
+            Text("Select a mockup to edit its framing and text.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
@@ -564,7 +681,7 @@ struct PresentationInspectorView: View {
             DisclosureGroup("Folder Layout", isExpanded: $isShowingSceneFiles) {
                 VStack(alignment: .leading, spacing: 6) {
                     Label("Bundled contains app-managed examples.", systemImage: "shippingbox")
-                    Label("User contains custom SVG scenes.", systemImage: "person.crop.rectangle.stack")
+                    Label("User contains custom SVG mockups.", systemImage: "person.crop.rectangle.stack")
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -594,7 +711,7 @@ struct PresentationInspectorView: View {
 
     private var presentationTemplateActions: some View {
         VStack(alignment: .leading, spacing: 10) {
-            TextField("Style Name", text: $presentationTemplateNameDraft)
+            TextField("Look Name", text: $presentationTemplateNameDraft)
                 .textFieldStyle(.roundedBorder)
 
             HStack(spacing: 8) {
@@ -609,10 +726,10 @@ struct PresentationInspectorView: View {
                         }
                     }
                 } label: {
-                    Label("Save Style", systemImage: "plus")
+                    Label("Save Look", systemImage: "plus")
                 }
                 .buttonStyle(.glass)
-                .help("Save the current native presentation style globally.")
+                .help("Save the current Look globally.")
 
                 Button {
                     guard let selectedPresentationTemplateID else {
@@ -691,7 +808,7 @@ struct PresentationInspectorView: View {
 
     private var presentationBackgroundControls: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Picker("Style", selection: Binding(get: {
+            Picker("Background Type", selection: Binding(get: {
                 PresentationBackgroundChoice(background: controller.presentation.background)
             }, set: { choice in
                 deferPublish { controller.updatePresentationBackground(choice.background(current: controller.presentation.background)) }
@@ -783,17 +900,21 @@ struct PresentationInspectorView: View {
 
     private func syncSelectedPresentationTemplate() {
         if let selectedPresentationTemplateID,
-           let template = controller.presentationTemplates.first(where: { $0.id == selectedPresentationTemplateID }) {
+           let template = polishLookTemplates.first(
+               where: { $0.id == selectedPresentationTemplateID }
+           ) {
             presentationTemplateNameDraft = template.name
             return
         }
 
-        if let matchingTemplate = controller.presentationTemplates.first(where: { controller.presentation == $0.presentation }) {
+        if let matchingTemplate = polishLookTemplates.first(
+            where: { controller.presentation == $0.presentation }
+        ) {
             selectedPresentationTemplateID = matchingTemplate.id
             presentationTemplateNameDraft = matchingTemplate.name
         } else {
             selectedPresentationTemplateID = nil
-            presentationTemplateNameDraft = "Custom Style"
+            presentationTemplateNameDraft = "Custom Look"
         }
     }
 
@@ -809,7 +930,7 @@ struct PresentationInspectorView: View {
             savedPresentationNameDraft = matchingSaved.name
         } else {
             selectedSavedPresentationID = nil
-            savedPresentationNameDraft = "Presentation"
+            savedPresentationNameDraft = "Polish Variant"
         }
     }
 
@@ -968,7 +1089,10 @@ private struct LivePresentationThumbnailView: View {
         .shadow(color: .black.opacity(0.14), radius: 14, y: 6)
         .task(id: renderID) {
             let cacheKey = renderID
-            if let cachedImage = PresentationThumbnailCache.shared.image(for: cacheKey) {
+            if !controller.isPrivateDocument,
+               let cachedImage = PresentationThumbnailCache.shared.image(
+                   for: cacheKey
+               ) {
                 previewImage = cachedImage
                 PresentationPerformanceMetrics.logEvent(
                     "presentationTemplateTile.render.cacheHit",
@@ -977,67 +1101,84 @@ private struct LivePresentationThumbnailView: View {
                 return
             }
 
-            PresentationPerformanceMetrics.logEvent(
-                "presentationTemplateTile.render.schedule",
-                context: "size=\(Int(thumbnailSize.width))x\(Int(thumbnailSize.height)) selected=\(presentation == nil)"
-            )
+            if !controller.isPrivateDocument {
+                PresentationPerformanceMetrics.logEvent(
+                    "presentationTemplateTile.render.schedule",
+                    context: "size=\(Int(thumbnailSize.width))x\(Int(thumbnailSize.height)) selected=\(presentation == nil)"
+                )
+            }
             if previewImage != nil {
                 try? await Task.sleep(nanoseconds: 80_000_000)
             }
             guard !Task.isCancelled else {
-                PresentationPerformanceMetrics.logEvent(
-                    "presentationTemplateTile.render.cancel",
-                    context: "size=\(Int(thumbnailSize.width))x\(Int(thumbnailSize.height))"
-                )
+                if !controller.isPrivateDocument {
+                    PresentationPerformanceMetrics.logEvent(
+                        "presentationTemplateTile.render.cancel",
+                        context: "size=\(Int(thumbnailSize.width))x\(Int(thumbnailSize.height))"
+                    )
+                }
                 return
             }
             let maxPixelDimension = max(thumbnailSize.width, thumbnailSize.height) * 2
             guard let input = controller.presentationPreviewRenderInput(
                 presentation: presentation,
+                maxPixelDimension: maxPixelDimension,
                 context: "presentationTemplateTile"
             ) else {
                 previewImage = nil
-                PresentationPerformanceMetrics.logEvent(
-                    "presentationTemplateTile.render.noInput",
-                    context: "size=\(Int(thumbnailSize.width))x\(Int(thumbnailSize.height))"
-                )
+                if !controller.isPrivateDocument {
+                    PresentationPerformanceMetrics.logEvent(
+                        "presentationTemplateTile.render.noInput",
+                        context: "size=\(Int(thumbnailSize.width))x\(Int(thumbnailSize.height))"
+                    )
+                }
                 return
             }
 
-            PresentationPerformanceMetrics.logEvent(
-                "presentationTemplateTile.render.start",
-                context: "size=\(Int(thumbnailSize.width))x\(Int(thumbnailSize.height)) revision=\(input.contentRevision) cap=\(Int(maxPixelDimension.rounded()))"
-            )
+            if !input.suppressesContentDiagnostics {
+                PresentationPerformanceMetrics.logEvent(
+                    "presentationTemplateTile.render.start",
+                    context: "size=\(Int(thumbnailSize.width))x\(Int(thumbnailSize.height)) revision=\(input.contentRevision) cap=\(Int(maxPixelDimension.rounded()))"
+                )
+            }
             let image = await Task.detached(priority: .utility) {
-                PresentationPerformanceMetrics.measure(
-                    "presentationTemplateTile.detachedRender",
-                    context: "size=\(Int(thumbnailSize.width))x\(Int(thumbnailSize.height)) revision=\(input.contentRevision) \(PresentationPerformanceMetrics.presentationSummary(input.presentation, maxPixelDimension: maxPixelDimension))",
-                    warnAfterMS: 12
+                PresentationPerformanceMetrics.withLoggingSuppressed(
+                    input.suppressesContentDiagnostics
                 ) {
-                    ScreenshotPresentationRenderer.renderWithLayout(
-                        contentImage: input.contentImage,
-                        presentation: input.presentation,
-                        maxPixelDimension: maxPixelDimension
-                    )?.image
+                    PresentationPerformanceMetrics.measure(
+                        "presentationTemplateTile.detachedRender",
+                        context: "size=\(Int(thumbnailSize.width))x\(Int(thumbnailSize.height)) revision=\(input.contentRevision) \(PresentationPerformanceMetrics.presentationSummary(input.presentation, maxPixelDimension: maxPixelDimension))",
+                        warnAfterMS: 12
+                    ) {
+                        ScreenshotPresentationRenderer.renderWithLayout(
+                            contentImage: input.contentImage,
+                            presentation: input.presentation,
+                            maxPixelDimension: maxPixelDimension
+                        )?.image
+                    }
                 }
             }.value
 
             guard !Task.isCancelled else {
-                PresentationPerformanceMetrics.logEvent(
-                    "presentationTemplateTile.render.cancel",
-                    context: "size=\(Int(thumbnailSize.width))x\(Int(thumbnailSize.height))"
-                )
+                if !input.suppressesContentDiagnostics {
+                    PresentationPerformanceMetrics.logEvent(
+                        "presentationTemplateTile.render.cancel",
+                        context: "size=\(Int(thumbnailSize.width))x\(Int(thumbnailSize.height))"
+                    )
+                }
                 return
             }
 
             previewImage = image
-            if let image {
+            if let image, !input.suppressesContentDiagnostics {
                 PresentationThumbnailCache.shared.insert(image, for: cacheKey)
             }
-            PresentationPerformanceMetrics.logEvent(
-                "presentationTemplateTile.render.finish",
-                context: "size=\(Int(thumbnailSize.width))x\(Int(thumbnailSize.height)) image=\(PresentationPerformanceMetrics.imageSize(previewImage))"
-            )
+            if !input.suppressesContentDiagnostics {
+                PresentationPerformanceMetrics.logEvent(
+                    "presentationTemplateTile.render.finish",
+                    context: "size=\(Int(thumbnailSize.width))x\(Int(thumbnailSize.height)) image=\(PresentationPerformanceMetrics.imageSize(previewImage))"
+                )
+            }
         }
     }
 }
@@ -1120,7 +1261,7 @@ private struct PresentationTemplateTileView: View {
             }
         }
         .buttonStyle(.plain)
-        .help("Apply the \(template.name) presentation template.")
+        .help("Apply the \(template.name) Look.")
     }
 }
 
@@ -1186,7 +1327,7 @@ private struct PresentationSceneTileView: View {
             }
         }
         .buttonStyle(.plain)
-        .help("Apply the \(scene.name) presentation scene.")
+        .help("Apply the \(scene.name) Mockup.")
     }
 }
 
@@ -1233,7 +1374,7 @@ private struct SavedPresentationTileView: View {
             }
         }
         .buttonStyle(.plain)
-        .help("Apply the saved \(savedPresentation.name) presentation from this document.")
+        .help("Apply the saved \(savedPresentation.name) Polish variant from this document.")
     }
 }
 

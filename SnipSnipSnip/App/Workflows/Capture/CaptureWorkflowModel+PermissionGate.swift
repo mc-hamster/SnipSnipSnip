@@ -27,6 +27,39 @@ enum PendingCapturePermissionCommand {
 struct PendingCapturePermissionRequest {
     let requirements: [CapturePermissionRequirement]
     let command: PendingCapturePermissionCommand
+    let captureContext: CaptureCompletionContext
+
+    var captureIntent: CaptureIntent { captureContext.intent }
+    var completionRole: CaptureCompletionRole { captureContext.role }
+    var oneShotOptions: CaptureOneShotOptions? {
+        captureContext.oneShotOptions
+    }
+
+    init(
+        requirements: [CapturePermissionRequirement],
+        command: PendingCapturePermissionCommand,
+        captureIntent: CaptureIntent,
+        completionRole: CaptureCompletionRole = .standalone,
+        oneShotOptions: CaptureOneShotOptions? = nil
+    ) {
+        self.requirements = requirements
+        self.command = command
+        self.captureContext = CaptureCompletionContext(
+            intent: captureIntent,
+            role: completionRole,
+            oneShotOptions: oneShotOptions
+        )
+    }
+
+    init(
+        requirements: [CapturePermissionRequirement],
+        command: PendingCapturePermissionCommand,
+        captureContext: CaptureCompletionContext
+    ) {
+        self.requirements = requirements
+        self.command = command
+        self.captureContext = captureContext
+    }
 }
 
 @MainActor
@@ -46,10 +79,16 @@ extension CaptureWorkflowModel {
         action: @escaping @MainActor () -> Void
     ) {
         guard preflightPermissions(requirements, for: featureName) else {
+            let captureContext = activeCaptureContext
             pendingPermissionCommand = PendingCapturePermissionRequest(
                 requirements: CapturePermissionRequirement.allCases.filter { requirements.contains($0) },
-                command: pendingCommand
+                command: pendingCommand,
+                captureContext: captureContext
             )
+            // Permission deferral owns the operation now. Do not let its
+            // one-shot context affect a different capture while access is
+            // being granted or refused.
+            resetPreparedCaptureContext(ifMatching: captureContext)
             return
         }
 
@@ -64,7 +103,19 @@ extension CaptureWorkflowModel {
         }
 
         self.pendingPermissionCommand = nil
+        activeCaptureContext = pendingPermissionCommand.captureContext
         pendingPermissionCommand.command.perform(on: self)
+    }
+
+    func cancelPendingPermissionCommand() {
+        guard let pendingPermissionCommand else {
+            return
+        }
+        self.pendingPermissionCommand = nil
+        resetPreparedCaptureContext(
+            ifMatching: pendingPermissionCommand.captureContext
+        )
+        dependencies.lifecycle.requestMainWindowPresentation()
     }
 
     func updateUIMapEnabled(_ enabled: Bool, requestAccessIfNeeded: Bool = true) {
@@ -88,30 +139,51 @@ extension CaptureWorkflowModel {
         present(error, recovering: nil)
     }
 
-    func present(_ error: Error, recovering request: LastCaptureRequest?) {
+    func present(
+        _ error: Error,
+        recovering request: LastCaptureRequest?,
+        captureContext: CaptureCompletionContext? = nil
+    ) {
+        let failedCaptureContext =
+            captureContext ?? activeCaptureContext
+        resetPreparedCaptureContext(ifMatching: failedCaptureContext)
         guard !(error is CancellationError) else {
+            pendingRecoveryRequest = nil
+            pendingRecoveryCaptureContext = nil
+            pendingScrollingPartialCapture = nil
+            dependencies.lifecycle.requestMainWindowPresentation()
             return
         }
 
         _ = dependencies.permissions.reconcileScreenRecordingPermissionFailureIfNeeded(after: error)
         pendingRecoveryRequest = request ?? lastCaptureRequest
+        pendingRecoveryCaptureContext = failedCaptureContext
         captureRecovery = recovery(for: error)
         dependencies.lifecycle.requestMainWindowPresentation()
     }
 
     func dismissCaptureRecovery() {
         captureRecovery = nil
+        pendingRecoveryRequest = nil
+        pendingRecoveryCaptureContext = nil
+        pendingScrollingPartialCapture = nil
+        activeCaptureContext = .standalone
+        dependencies.lifecycle.requestMainWindowPresentation()
     }
 
     func performCaptureRecovery(_ action: CaptureRecoveryAction) {
         captureRecovery = nil
+        let captureContext =
+            pendingRecoveryCaptureContext ?? activeCaptureContext
+        pendingRecoveryCaptureContext = nil
+        activeCaptureContext = .standalone
         if action != .keepPartialResult {
             pendingScrollingPartialCapture = nil
         }
 
         switch action {
         case .retryLastCapture:
-            retryRecoveryCapture()
+            retryRecoveryCapture(with: captureContext)
         case .setUpScreenRecording:
             dependencies.permissions.requestPermission(.screenRecording)
         case .setUpAccessibility:
@@ -119,52 +191,86 @@ extension CaptureWorkflowModel {
         case .refreshWindows:
             refreshAvailableWindows(includeThumbnails: true, allowsCancellingPendingThumbnailRefresh: true)
         case .pickAnotherWindow:
-            presentWindowPicker()
+            presentWindowPicker(
+                intent: captureContext.intent,
+                completionRole: captureContext.role,
+                oneShotOptions: captureContext.oneShotOptions
+            )
         case .captureFrontmostWindow:
-            captureFrontmostWindow()
+            captureFrontmostWindow(
+                intent: captureContext.intent,
+                completionRole: captureContext.role,
+                oneShotOptions: captureContext.oneShotOptions
+            )
         case .useCurrentDisplay:
             screenshotFullscreenDisplayMode = .currentDisplay
             selectedScreenshotFullscreenDisplayID = nil
-            captureCurrentDisplay()
+            captureCurrentDisplay(
+                intent: captureContext.intent,
+                completionRole: captureContext.role,
+                oneShotOptions: captureContext.oneShotOptions
+            )
         case .chooseDisplay:
             dependencies.lifecycle.presentSettings(tab: .capture)
         case .captureVisibleArea:
-            captureRegion()
+            captureRegion(
+                intent: captureContext.intent,
+                completionRole: captureContext.role,
+                oneShotOptions: captureContext.oneShotOptions
+            )
         case .chooseAnotherArea:
             pendingScrollingPartialCapture = nil
-            captureScrollingArea()
+            captureScrollingArea(
+                intent: captureContext.intent,
+                completionRole: captureContext.role,
+                oneShotOptions: captureContext.oneShotOptions
+            )
         case .keepPartialResult:
-            keepPendingScrollingPartialResult()
+            keepPendingScrollingPartialResult(with: captureContext)
         case .openTroubleshooting:
             break
         }
     }
 
-    private func keepPendingScrollingPartialResult() {
+    private func keepPendingScrollingPartialResult(
+        with captureContext: CaptureCompletionContext
+    ) {
         guard let pending = pendingScrollingPartialCapture else {
             return
         }
 
         pendingScrollingPartialCapture = nil
+        activeCaptureContext = captureContext
+        let runOptions = captureRunOptions(for: captureContext)
         do {
             try completeCapture(
                 pending.result.capturedScreenshot,
                 request: .scrolling(pending.result.sourceViewportRect),
-                isPrivateCapture: pending.isPrivateCapture
+                isPrivateCapture: pending.isPrivateCapture,
+                runOptions: runOptions,
+                completionContext: captureContext
             )
             showCapturedFeedback()
             dependencies.lifecycle.presentError("Partial scrolling capture kept. Review the seams before sharing.")
         } catch {
-            present(error, recovering: .scrolling(pending.result.sourceViewportRect))
+            present(
+                error,
+                recovering:
+                    .scrolling(pending.result.sourceViewportRect),
+                captureContext: captureContext
+            )
         }
     }
 
-    private func retryRecoveryCapture() {
+    private func retryRecoveryCapture(
+        with captureContext: CaptureCompletionContext
+    ) {
         guard let pendingRecoveryRequest else {
             return
         }
 
         self.pendingRecoveryRequest = nil
+        activeCaptureContext = captureContext
         switch pendingRecoveryRequest {
         case .region(let region):
             repeatRegionCapture(region)
@@ -173,11 +279,24 @@ extension CaptureWorkflowModel {
         case .window(let window):
             repeatWindowCapture(window)
         case .frontmostWindow:
-            captureFrontmostWindow()
+            captureFrontmostWindow(
+                intent: captureContext.intent,
+                completionRole: captureContext.role,
+                oneShotOptions: captureContext.oneShotOptions
+            )
         case .fullscreen:
-            captureCurrentDisplay()
+            captureCurrentDisplay(
+                intent: captureContext.intent,
+                completionRole: captureContext.role,
+                oneShotOptions: captureContext.oneShotOptions
+            )
         case .connectedDevice(let device):
-            captureConnectedDevice(device)
+            captureConnectedDevice(
+                device,
+                intent: captureContext.intent,
+                completionRole: captureContext.role,
+                oneShotOptions: captureContext.oneShotOptions
+            )
         }
     }
 

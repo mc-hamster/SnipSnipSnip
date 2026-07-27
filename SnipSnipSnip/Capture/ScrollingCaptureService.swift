@@ -2,7 +2,6 @@
 import AppKit
 import CoreGraphics
 import Foundation
-import OSLog
 
 enum ScrollingCaptureError: LocalizedError {
     case accessibilityPermissionDenied
@@ -705,6 +704,18 @@ struct ScrollingCaptureService {
     }
 
     func resolveTarget(for request: ScrollingCaptureRequest) throws -> ScrollingCaptureTarget {
+        try CaptureContentDiagnostics.$current.withValue(
+            CaptureContentDiagnostics(
+                isPrivateCapture: request.isPrivateCapture
+            )
+        ) {
+            try resolveTargetWithDiagnostics(for: request)
+        }
+    }
+
+    private func resolveTargetWithDiagnostics(
+        for request: ScrollingCaptureRequest
+    ) throws -> ScrollingCaptureTarget {
         guard request.viewportRect.width > 8, request.viewportRect.height > 8 else {
             throw ScrollingCaptureError.invalidViewport
         }
@@ -720,6 +731,24 @@ struct ScrollingCaptureService {
         request: ScrollingCaptureRequest,
         cancellation: ScrollingCaptureCancellation,
         progressHandler: (@MainActor (ScrollingCaptureProgress) -> Void)? = nil
+    ) async throws -> ScrollingCaptureResult {
+        try await CaptureContentDiagnostics.$current.withValue(
+            CaptureContentDiagnostics(
+                isPrivateCapture: request.isPrivateCapture
+            )
+        ) {
+            try await captureWithDiagnostics(
+                request: request,
+                cancellation: cancellation,
+                progressHandler: progressHandler
+            )
+        }
+    }
+
+    private func captureWithDiagnostics(
+        request: ScrollingCaptureRequest,
+        cancellation: ScrollingCaptureCancellation,
+        progressHandler: (@MainActor (ScrollingCaptureProgress) -> Void)?
     ) async throws -> ScrollingCaptureResult {
         ScrollingCaptureDiagnostics.reset()
         ScrollingCaptureDiagnostics.info(
@@ -1098,26 +1127,37 @@ private final class ScrollingCaptureDiagnosticsClock: @unchecked Sendable {
 }
 
 private enum ScrollingCaptureDiagnostics {
-    nonisolated private static let logger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "com.oontz.SnipSnipSnip",
-        category: "ScrollingCapture"
-    )
     nonisolated private static let clock = ScrollingCaptureDiagnosticsClock()
 
     nonisolated static func reset() {
         clock.reset()
     }
 
-    nonisolated static func debug(_ message: String) {
-        logger.debug("\(clock.timestamped(message), privacy: .public)")
+    nonisolated static func debug(
+        _ message: @autoclosure () -> String
+    ) {
+        CaptureContentDiagnostics.current.debug(
+            category: "ScrollingCapture",
+            clock.timestamped(message())
+        )
     }
 
-    nonisolated static func info(_ message: String) {
-        logger.info("\(clock.timestamped(message), privacy: .public)")
+    nonisolated static func info(
+        _ message: @autoclosure () -> String
+    ) {
+        CaptureContentDiagnostics.current.info(
+            category: "ScrollingCapture",
+            clock.timestamped(message())
+        )
     }
 
-    nonisolated static func error(_ message: String) {
-        logger.error("\(clock.timestamped(message), privacy: .public)")
+    nonisolated static func error(
+        _ message: @autoclosure () -> String
+    ) {
+        CaptureContentDiagnostics.current.error(
+            category: "ScrollingCapture",
+            clock.timestamped(message())
+        )
     }
 }
 #endif

@@ -32,12 +32,22 @@ struct InsetGroupBox<Label: View, Content: View>: View {
 
 extension InsetGroupBox where Label == Text {
     init(
-        _ title: String,
+        _ title: LocalizedStringKey,
         spacing: CGFloat = 12,
         @ViewBuilder content: () -> Content
     ) {
         self.init(spacing: spacing, content: content) {
             Text(title)
+        }
+    }
+
+    init(
+        verbatim title: String,
+        spacing: CGFloat = 12,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.init(spacing: spacing, content: content) {
+            Text(verbatim: title)
         }
     }
 }

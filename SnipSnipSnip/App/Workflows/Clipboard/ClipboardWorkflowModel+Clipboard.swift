@@ -289,16 +289,17 @@ extension ClipboardWorkflowModel {
         let searchText = [title, searchableText, controller.capture.sourceName]
             .filter { !$0.isEmpty }
             .joined(separator: " ")
-        let renderInput = ExportRenderInput(
-            baseImage: controller.capture.image,
-            snapshot: controller.snapshot,
-            pinnedUIMapElements: controller.pinnedUIMapElements,
-            uiMapOverlayOptions: controller.uiMapOverlayOptions
-        )
 
         Task { @MainActor [weak self] in
             do {
-                let pngData = try await ClipboardSnipRenderer.renderPNGData(from: renderInput)
+                let image = try await controller.renderedImageForExport(
+                    appearance: controller.automationOutputAppearance
+                )
+                let pngData = try await Task.detached(
+                    priority: .utility
+                ) {
+                    try ImageExporter.pngData(for: image)
+                }.value
                 // This result is needed before the clipboard-history record
                 // is written. Match the capture task's QoS so Vision does not
                 // introduce a priority inversion while recognizing text.
@@ -323,54 +324,4 @@ extension ClipboardWorkflowModel {
         }
     }
 
-}
-
-nonisolated private enum ClipboardSnipRenderer {
-    static func renderPNGData(from input: ExportRenderInput) async throws -> Data {
-        let task = Task.detached(priority: .utility) {
-            try Task.checkCancellation()
-
-            let image = PresentationPerformanceMetrics.measure(
-                "clipboard.content",
-                context: "base=\(input.baseImage.width)x\(input.baseImage.height) crop=\(PresentationPerformanceMetrics.size(input.snapshot.cropRect.size)) annotations=\(input.snapshot.annotations.count)",
-                warnAfterMS: 80
-            ) {
-                EditorRenderer.render(
-                    baseImage: input.baseImage,
-                    snapshot: input.snapshot,
-                    pinnedUIMapElements: input.pinnedUIMapElements,
-                    uiMapOverlayOptions: input.uiMapOverlayOptions
-                )
-            }
-
-            let presentedImage = image.flatMap { image in
-                PresentationPerformanceMetrics.measure(
-                    "clipboard.presentation",
-                    context: "content=\(image.width)x\(image.height) \(PresentationPerformanceMetrics.presentationSummary(input.snapshot.presentation))",
-                    warnAfterMS: 100
-                ) {
-                    ScreenshotPresentationRenderer.render(contentImage: image, presentation: input.snapshot.presentation)
-                }
-            }
-
-            guard let presentedImage else {
-                throw ImageExportError.encodingFailed
-            }
-
-            try Task.checkCancellation()
-            return try PresentationPerformanceMetrics.measure(
-                "clipboard.encode",
-                context: "image=\(presentedImage.width)x\(presentedImage.height)",
-                warnAfterMS: 80
-            ) {
-                try ImageExporter.pngData(for: presentedImage)
-            }
-        }
-
-        return try await withTaskCancellationHandler {
-            try await task.value
-        } onCancel: {
-            task.cancel()
-        }
-    }
 }

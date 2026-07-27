@@ -22,6 +22,7 @@ extension PermissionWorkflowModel {
 
     func dismissPermissionSetupGuide() {
         permissionSetupGuide = nil
+        outputSink?.handle(.permissionSetupDismissed)
 
         guard activePermissionRequest == .screenRecording else {
             activePermissionRequest = nil

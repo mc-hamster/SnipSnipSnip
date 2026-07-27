@@ -10,7 +10,17 @@ protocol FileSystemServicing: Sendable {
     nonisolated func copyItem(at sourceURL: URL, to destinationURL: URL) throws
     nonisolated func moveItem(at sourceURL: URL, to destinationURL: URL) throws
     nonisolated func replaceItemAt(_ originalURL: URL, withItemAt newItemURL: URL) throws
+    /// Returns the logical byte length without materializing the file.
+    ///
+    /// Package readers use this as a trust-boundary preflight before calling
+    /// `readData(from:)`, so an untrusted sparse or oversized asset cannot be
+    /// copied into memory first.
+    nonisolated func fileSize(at url: URL) throws -> UInt64
     nonisolated func readData(from url: URL) throws -> Data
+    /// Reads at most `maximumBytes`, failing if the file contains more data.
+    /// Unlike a separate size check, the live implementation also bounds the
+    /// actual read if the file changes between preflight and consumption.
+    nonisolated func readData(from url: URL, maximumBytes: Int) throws -> Data
     nonisolated func writeData(_ data: Data, to url: URL, options: Data.WritingOptions) throws
 }
 
@@ -178,8 +188,41 @@ struct SystemFileService: FileSystemServicing, @unchecked Sendable {
         _ = try fileManager.replaceItemAt(originalURL, withItemAt: newItemURL)
     }
 
+    nonisolated func fileSize(at url: URL) throws -> UInt64 {
+        let attributes = try fileManager.attributesOfItem(atPath: url.path)
+        guard let number = attributes[.size] as? NSNumber else {
+            throw CocoaError(.fileReadUnknown)
+        }
+        return number.uint64Value
+    }
+
     nonisolated func readData(from url: URL) throws -> Data {
         try Data(contentsOf: url)
+    }
+
+    nonisolated func readData(from url: URL, maximumBytes: Int) throws -> Data {
+        guard maximumBytes >= 0 else {
+            throw CocoaError(.fileReadTooLarge)
+        }
+        let handle = try FileHandle(forReadingFrom: url)
+        defer {
+            try? handle.close()
+        }
+        let requestedCount = maximumBytes == Int.max ? Int.max : maximumBytes + 1
+        var data = Data()
+        data.reserveCapacity(min(requestedCount, 4 * 1_024 * 1_024))
+        while data.count < requestedCount {
+            let chunkSize = min(1 * 1_024 * 1_024, requestedCount - data.count)
+            guard let chunk = try handle.read(upToCount: chunkSize),
+                  !chunk.isEmpty else {
+                break
+            }
+            data.append(chunk)
+        }
+        guard data.count <= maximumBytes else {
+            throw CocoaError(.fileReadTooLarge)
+        }
+        return data
     }
 
     nonisolated func writeData(_ data: Data, to url: URL, options: Data.WritingOptions = []) throws {

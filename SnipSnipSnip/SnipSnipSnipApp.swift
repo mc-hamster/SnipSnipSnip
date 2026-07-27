@@ -2,6 +2,20 @@ import AppKit
 import AppIntents
 import SwiftUI
 
+/// Routes active-window output availability through SwiftUI's command focus
+/// graph. App-scoped `Commands` aren't descendants of `ContentView`, so
+/// observing the workflow alone doesn't reliably invalidate live menu items.
+struct DocumentOutputCommandAvailabilityKey: FocusedValueKey {
+    typealias Value = Bool
+}
+
+extension FocusedValues {
+    var documentOutputCommandIsAvailable: Bool? {
+        get { self[DocumentOutputCommandAvailabilityKey.self] }
+        set { self[DocumentOutputCommandAvailabilityKey.self] = newValue }
+    }
+}
+
 private struct CaptureCommands: Commands {
     @ObservedObject var lifecycle: AppLifecycleModel
     @ObservedObject var capture: CaptureWorkflowModel
@@ -124,7 +138,9 @@ private struct CaptureCommands: Commands {
             }
 
             Menu("Screen Inspector") {
-                Button("Open Screen Inspector", action: tools.presentScreenInspector)
+                Button("Open Screen Inspector") {
+                    tools.presentScreenInspector()
+                }
                     .keyboardShortcut(hotKey(for: .screenInspector), modifiers: AppShortcut.modifiers)
                     .disabled(isNativeFilePanelActive)
 
@@ -289,9 +305,20 @@ private struct DocumentCommands: Commands {
     @ObservedObject var documents: DocumentWorkflowModel
     @ObservedObject var video: VideoWorkflowModel
     @ObservedObject var guide: GuideWorkflowModel
+    @ObservedObject var creation: CreationWorkflowModel
+    @FocusedValue(\.documentOutputCommandIsAvailable)
+    private var focusedDocumentOutputIsAvailable
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
+            Button("Create…") {
+                creation.presentQuickStart()
+            }
+                .keyboardShortcut("n", modifiers: .command)
+                .disabled(!canOpenDocument)
+
+            Divider()
+
             Button("Open…", action: documents.openDocumentPanel)
                 .keyboardShortcut("o", modifiers: .command)
                 .disabled(!canOpenDocument)
@@ -311,86 +338,70 @@ private struct DocumentCommands: Commands {
         }
 
         CommandGroup(after: .importExport) {
-            Menu("Export") {
-                if documents.guideEditorController != nil {
-                    Button("Export Guide…", action: documents.exportCurrentGuide)
-                } else if documents.videoEditorController != nil {
-                    Button("Export \(video.exportPreferences.menuLabel)…") {
-                        video.exportVideo(using: video.defaultExportRequest)
-                    }
+            if canExportCurrentContent {
+                Menu("Export") {
+                    if documents.guideEditorController != nil {
+                        Button("Export Guide…", action: documents.exportCurrentGuide)
+                    } else if documents.videoEditorController != nil {
+                        Button("Export \(video.exportPreferences.menuLabel)…") {
+                            video.exportVideo(using: video.defaultExportRequest)
+                        }
 
-                    Divider()
+                        Divider()
 
-                    Menu("MP4 Quality") {
-                        ForEach(VideoExportQualityPreset.allCases) { preset in
-                            Button(preset.label) {
-                                video.exportVideo(using: VideoExportRequest(format: .mp4, target: .quality(preset)))
+                        Menu("MP4 Quality") {
+                            ForEach(VideoExportQualityPreset.allCases) { preset in
+                                Button(preset.label) {
+                                    video.exportVideo(using: VideoExportRequest(format: .mp4, target: .quality(preset)))
+                                }
                             }
                         }
-                    }
 
-                    Menu("MP4 Size Limit") {
-                        ForEach(VideoExportSizeLimit.allCases) { sizeLimit in
-                            Button(sizeLimit.label) {
-                                video.exportVideo(using: VideoExportRequest(format: .mp4, target: .sizeLimit(sizeLimit)))
+                        Menu("MP4 Size Limit") {
+                            ForEach(VideoExportSizeLimit.allCases) { sizeLimit in
+                                Button(sizeLimit.label) {
+                                    video.exportVideo(using: VideoExportRequest(format: .mp4, target: .sizeLimit(sizeLimit)))
+                                }
                             }
                         }
-                    }
 
-                    Menu("Animated Loops") {
-                        ForEach(VideoExportQualityPreset.allCases) { preset in
-                            Button("GIF • \(preset.label)") {
-                                video.exportVideo(using: VideoExportRequest(format: .gif, target: .quality(preset)))
+                        Menu("Animated Loops") {
+                            ForEach(VideoExportQualityPreset.allCases) { preset in
+                                Button("GIF • \(preset.label)") {
+                                    video.exportVideo(using: VideoExportRequest(format: .gif, target: .quality(preset)))
+                                }
+
+                                Button("APNG • \(preset.label)") {
+                                    video.exportVideo(using: VideoExportRequest(format: .apng, target: .quality(preset)))
+                                }
                             }
-
-                            Button("APNG • \(preset.label)") {
-                                video.exportVideo(using: VideoExportRequest(format: .apng, target: .quality(preset)))
-                            }
                         }
+
+                    } else {
+                        Button("PNG…") {
+                            documents.exportCurrentWorkspaceImage(as: .png)
+                        }
+                        Button("JPEG…") {
+                            documents.exportCurrentWorkspaceImage(as: .jpeg)
+                        }
+                        .disabled(documents.currentWorkspaceOutputRequiresPNG)
+                        Button("PDF…") {
+                            documents.exportCurrentWorkspaceImage(as: .pdf)
+                        }
+                        .disabled(documents.currentWorkspaceOutputRequiresPNG)
                     }
-
-                } else {
-                    Menu("Plain") {
-                        Button("Plain PNG…") {
-                            documents.exportAnnotatedImage(as: .png, appearance: .plain)
-                        }
-                        Button("Plain JPEG…") {
-                            documents.exportAnnotatedImage(as: .jpeg, appearance: .plain)
-                        }
-                        Button("Plain PDF…") {
-                            documents.exportAnnotatedImage(as: .pdf, appearance: .plain)
-                        }
-                    }
-
-                    Menu("Styled") {
-                        Button("Styled PNG…") {
-                            documents.exportAnnotatedImage(as: .png, appearance: .styled)
-                        }
-                        Button("Styled JPEG…") {
-                            documents.exportAnnotatedImage(as: .jpeg, appearance: .styled)
-                        }
-                        .disabled(documents.editorController?.exportFormatRequiresPNG(appearance: .styled) ?? false)
-
-                        Button("Styled PDF…") {
-                            documents.exportAnnotatedImage(as: .pdf, appearance: .styled)
-                        }
-                        .disabled(documents.editorController?.exportFormatRequiresPNG(appearance: .styled) ?? false)
-                    }
-                    .disabled(documents.editorController?.hasStyledOutputConfigured != true)
                 }
+            } else {
+                // A disabled placeholder makes the top-level native menu item
+                // accurately communicate that the scoped editing canvas is not
+                // an export preview. Disabling a SwiftUI submenu only disables
+                // its children and leaves the parent exposed as actionable.
+                Button("Export") {}
+                    .disabled(true)
             }
-            .disabled(documents.editorController == nil && documents.videoEditorController == nil && documents.guideEditorController == nil)
 
-            Menu("Share") {
-                Button("Share Plain…") {
-                    documents.shareAnnotatedImage(appearance: .plain)
-                }
-                Button("Share Styled…") {
-                    documents.shareAnnotatedImage(appearance: .styled)
-                }
-                .disabled(documents.editorController?.hasStyledOutputConfigured != true)
-            }
-            .disabled(documents.editorController == nil)
+            Button("Share", action: documents.shareCurrentWorkspaceImage)
+                .disabled(!documentOutputIsAvailable)
         }
     }
 
@@ -404,10 +415,25 @@ private struct DocumentCommands: Commands {
             && video.activeVideoRecording == nil
             && !guide.isActive
     }
+
+    private var canExportCurrentContent: Bool {
+        if documents.editorController != nil {
+            return documentOutputIsAvailable
+        }
+        return documents.videoEditorController != nil
+            || documents.guideEditorController != nil
+    }
+
+    private var documentOutputIsAvailable: Bool {
+        focusedDocumentOutputIsAvailable
+            ?? documents.isEditorDocumentOutputAvailable
+    }
 }
 
 private struct PasteboardCommands: Commands {
     @ObservedObject var documents: DocumentWorkflowModel
+    @FocusedValue(\.documentOutputCommandIsAvailable)
+    private var focusedDocumentOutputIsAvailable
 
     var body: some Commands {
         CommandGroup(replacing: .pasteboard) {
@@ -436,10 +462,12 @@ private struct PasteboardCommands: Commands {
     }
 
     private func cut() {
-        if sendAction(#selector(NSText.cut(_:))) {
+        if hasNativeTextTarget(for: #selector(NSText.cut(_:))),
+           sendAction(#selector(NSText.cut(_:))) {
             return
         }
-        guard documents.editorController?.hasSelection == true else {
+        guard documents.editorController?.isDocumentOutputAvailable == true,
+              documents.editorController?.hasSelection == true else {
             return
         }
         documents.copyCurrentPlainEditorImageToClipboard()
@@ -447,10 +475,14 @@ private struct PasteboardCommands: Commands {
     }
 
     private func copy() {
-        if sendAction(#selector(NSText.copy(_:))) {
+        if hasNativeTextTarget(for: #selector(NSText.copy(_:))),
+           sendAction(#selector(NSText.copy(_:))) {
             return
         }
 
+        guard documents.editorController?.isDocumentOutputAvailable == true else {
+            return
+        }
         documents.copyCurrentAnnotatedImageToClipboard()
     }
 
@@ -459,7 +491,16 @@ private struct PasteboardCommands: Commands {
             return
         }
 
-        _ = documents.editorController?.addImageOverlayFromPasteboard()
+        guard let controller = documents.editorController else {
+            return
+        }
+        if controller.workspaceMode == .presentation,
+           controller.presentationInspectorTab == .layout,
+           controller.compositionEditingScope == .layout {
+            documents.pasteImageIntoCurrentComposition()
+        } else {
+            _ = controller.addImageOverlayFromPasteboard()
+        }
     }
 
     private func selectAll() {
@@ -479,13 +520,16 @@ private struct PasteboardCommands: Commands {
     }
 
     private var canCut: Bool {
-        hasNativeTarget(for: #selector(NSText.cut(_:)))
-            || documents.editorController?.hasSelection == true
+        hasNativeTextTarget(for: #selector(NSText.cut(_:)))
+            || (
+                documentOutputIsAvailable
+                    && documents.editorController?.hasSelection == true
+            )
     }
 
     private var canCopy: Bool {
-        hasNativeTarget(for: #selector(NSText.copy(_:)))
-            || documents.editorController != nil
+        hasNativeTextTarget(for: #selector(NSText.copy(_:)))
+            || documentOutputIsAvailable
     }
 
     private var canPaste: Bool {
@@ -504,15 +548,41 @@ private struct PasteboardCommands: Commands {
     private func hasNativeTarget(for selector: Selector) -> Bool {
         NSApp.target(forAction: selector, to: nil, from: nil) != nil
     }
+
+    private func hasNativeTextTarget(for selector: Selector) -> Bool {
+        guard NSApp.keyWindow?.firstResponder is NSText else {
+            return false
+        }
+        return hasNativeTarget(for: selector)
+    }
+
+    private var documentOutputIsAvailable: Bool {
+        focusedDocumentOutputIsAvailable
+            ?? documents.isEditorDocumentOutputAvailable
+    }
 }
 
 private struct EditorCommands: Commands {
     @ObservedObject var documents: DocumentWorkflowModel
     let capabilities: AppCapabilitySnapshot
     @Environment(\.openWindow) private var openWindow
+    @FocusedValue(\.documentOutputCommandIsAvailable)
+    private var focusedDocumentOutputIsAvailable
 
     var body: some Commands {
         CommandGroup(after: .toolbar) {
+            Button("Add…") {
+                NotificationCenter.default.post(
+                    name: .sssRequestContextualCaptureAddition,
+                    object: nil
+                )
+            }
+            .keyboardShortcut("a", modifiers: [.command, .option])
+            .disabled(
+                documents.editorController == nil
+                    || !documentOutputIsAvailable
+            )
+
             Button("Show/Hide Inspector") {
                 NotificationCenter.default.post(name: .sssToggleEditorInspector, object: nil)
             }
@@ -607,17 +677,27 @@ private struct EditorCommands: Commands {
         NSApp.activate(ignoringOtherApps: true)
         NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.uiMapWindow })?.makeKeyAndOrderFront(nil)
     }
+
+    private var documentOutputIsAvailable: Bool {
+        focusedDocumentOutputIsAvailable
+            ?? documents.isEditorDocumentOutputAvailable
+    }
 }
 
 private struct ReferenceCommands: Commands {
     @ObservedObject var documents: DocumentWorkflowModel
     @ObservedObject var floatingReferences: FloatingReferenceCoordinator
+    @FocusedValue(\.documentOutputCommandIsAvailable)
+    private var focusedDocumentOutputIsAvailable
 
     var body: some Commands {
         CommandMenu("Reference") {
-            Button("Float Current Screenshot", action: documents.floatCurrentEditorReference)
+            Button(
+                "Float Current Screenshot",
+                action: documents.floatCurrentWorkspaceReference
+            )
                 .keyboardShortcut("f", modifiers: [.command, .shift])
-                .disabled(documents.editorController == nil)
+                .disabled(!documentOutputIsAvailable)
 
             Divider()
 
@@ -626,6 +706,11 @@ private struct ReferenceCommands: Commands {
             }
             .disabled(!floatingReferences.hasActiveReferences)
         }
+    }
+
+    private var documentOutputIsAvailable: Bool {
+        focusedDocumentOutputIsAvailable
+            ?? documents.isEditorDocumentOutputAvailable
     }
 }
 
@@ -636,7 +721,11 @@ struct SnipSnipSnipApp: App {
 
     init() {
         SingleInstanceCoordinator.enforceAtLaunch()
+#if DEBUG
+        let model = CompositionUITestLaunchSupport.makeAppModel()
+#else
         let model = AppModel()
+#endif
         _model = StateObject(wrappedValue: model)
         AppTerminationController.shared.configure(
             lifecycle: model.lifecycle,
@@ -664,6 +753,9 @@ struct SnipSnipSnipApp: App {
         )
         AutomationIntentDependencies.configure(automationService: model.automationService)
         SnipSnipSnipAutomationShortcuts.updateAppShortcutParameters()
+#if DEBUG
+        CompositionUITestLaunchSupport.installInitialDocumentIfNeeded(in: model)
+#endif
     }
 
     var body: some Scene {
@@ -677,6 +769,8 @@ struct SnipSnipSnipApp: App {
                     clipboard: model.clipboard,
                     video: model.video,
                     guide: model.guide,
+                    tools: model.tools,
+                    creation: model.creation,
                     capabilities: model.capabilities,
                     workflowCoordinator: model.workflowCoordinator,
                     dismissWelcomeCard: model.lifecycle.dismissWelcomeCard,
@@ -692,10 +786,24 @@ struct SnipSnipSnipApp: App {
                     }
                 )
             }
+            // Publish command availability from the scene's SwiftUI tree.
+            // ContentView is hosted inside an NSViewRepresentable so values
+            // published there cannot cross the nested NSHostingView boundary.
+            .modifier(
+                DocumentOutputCommandAvailabilityModifier(
+                    documents: model.documents
+                )
+            )
         }
         .defaultSize(width: 900, height: 600)
         .windowResizability(.contentSize)
+#if DEBUG
+        .defaultLaunchBehavior(
+            CompositionUITestLaunchSupport.isEnabled ? .presented : .suppressed
+        )
+#else
         .defaultLaunchBehavior(.suppressed)
+#endif
         .restorationBehavior(.disabled)
         .commands {
             AppInfoCommands()
@@ -713,10 +821,20 @@ struct SnipSnipSnipApp: App {
                 capture: model.capture,
                 documents: model.documents,
                 video: model.video,
-                guide: model.guide
+                guide: model.guide,
+                creation: model.creation
             )
             PasteboardCommands(documents: model.documents)
-            EditorCommands(documents: model.documents, capabilities: model.capabilities)
+            EditorCommands(
+                documents: model.documents,
+                capabilities: model.capabilities
+            )
+#if DEBUG
+            CompositionUITestCommands(
+                documents: model.documents,
+                capture: model.capture
+            )
+#endif
             ReferenceCommands(
                 documents: model.documents,
                 floatingReferences: model.documents.floatingReferenceCoordinator
@@ -795,6 +913,17 @@ struct SnipSnipSnipApp: App {
     }
 }
 
+private struct DocumentOutputCommandAvailabilityModifier: ViewModifier {
+    @ObservedObject var documents: DocumentWorkflowModel
+
+    func body(content: Content) -> some View {
+        content.focusedSceneValue(
+            \.documentOutputCommandIsAvailable,
+            documents.isEditorDocumentOutputAvailable
+        )
+    }
+}
+
 private struct FirstMouseHostingContainer<Content: View>: NSViewRepresentable {
     let content: Content
 
@@ -808,11 +937,33 @@ private struct FirstMouseHostingContainer<Content: View>: NSViewRepresentable {
 
     func updateNSView(_ nsView: FirstMouseHostingView<Content>, context: Context) {
         nsView.rootView = content
+        nsView.refreshWindowChrome()
     }
 }
 
-private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        refreshWindowChrome()
+    }
+
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         true
+    }
+
+    func refreshWindowChrome() {
+        guard let window else {
+            return
+        }
+        window.titlebarAppearsTransparent = true
+        window.titlebarSeparatorStyle = .none
+
+        // SwiftUI may install or reconfigure its toolbar after the hosting
+        // view enters the window. Reassert the native no-separator contract
+        // on the next run-loop turn so an empty screenshot toolbar cannot
+        // leave a stray horizontal line across the titlebar.
+        DispatchQueue.main.async { [weak window] in
+            window?.titlebarSeparatorStyle = .none
+        }
     }
 }

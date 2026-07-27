@@ -3,6 +3,16 @@ import Combine
 import Foundation
 
 extension DocumentWorkflowModel {
+    func floatCurrentWorkspaceReference() {
+        guard let controller = editorController,
+              controller.isDocumentOutputAvailable else {
+            return
+        }
+        floatCurrentEditorReference(
+            appearance: controller.currentWorkspaceOutputAppearance
+        )
+    }
+
     func floatCurrentEditorReference() {
         guard let controller = editorController else {
             return
@@ -19,7 +29,11 @@ extension DocumentWorkflowModel {
 
         let image: CGImage
         do {
-            image = try controller.exportedImage(appearance: appearance)
+            image = try controller.exportedImageForInteractiveUse(
+                appearance: appearance
+            )
+        } catch is CancellationError {
+            return
         } catch {
             presentError("The floating reference image could not be rendered.")
             return
@@ -104,6 +118,7 @@ extension DocumentWorkflowModel {
         guard let controller = editorController else {
             editorRenderObserver = nil
             editorPersistenceObserver = nil
+            editorCommandStateObserver = nil
             if videoEditorController == nil && guideEditorController == nil {
                 resetEditorSessionState()
             }
@@ -111,10 +126,12 @@ extension DocumentWorkflowModel {
             return
         }
 
-        var lastRenderedState = RenderedEditorState(snapshot: controller.snapshot)
+        var lastRenderedState = RenderedEditorState(
+            snapshot: controller.documentSession.currentSnapshot
+        )
         editorRenderObserver = controller.$snapshot
             .dropFirst()
-            .sink { [weak self, weak controller] snapshot in
+            .sink { [weak self, weak controller] _ in
                 guard let self else {
                     return
                 }
@@ -123,11 +140,14 @@ extension DocumentWorkflowModel {
 
                 guard self.autoCopyEnabled,
                       let controller,
+                      !controller.isPrivateDocument,
                       controller.workspaceMode != .presentation else {
                     return
                 }
 
-                let renderedState = RenderedEditorState(snapshot: snapshot)
+                let renderedState = RenderedEditorState(
+                    snapshot: controller.documentSession.currentSnapshot
+                )
                 guard renderedState != lastRenderedState else {
                     return
                 }
@@ -147,6 +167,21 @@ extension DocumentWorkflowModel {
                 self.scheduleAutosave(for: controller)
             }
 
+        editorCommandStateObserver = Publishers.CombineLatest(
+            controller.$workspaceMode,
+            controller.$compositionEditingScope
+        )
+        .sink { [weak self, weak controller] _, scope in
+            guard let self, self.editorController === controller else {
+                return
+            }
+
+            // Use the publisher's new scope value instead of reading through
+            // the controller while @Published is still committing it. SwiftUI
+            // Commands then observe stable state owned by this workflow.
+            publishEditorDocumentOutputAvailability(scope == .layout)
+        }
+
         updateDocumentChangeTracking()
         refreshRecoveryPresentationState()
     }
@@ -159,7 +194,9 @@ extension DocumentWorkflowModel {
             return
         }
 
-        controller.copyAnnotatedImage(appearance: controller.automationOutputAppearance)
+        controller.copyAnnotatedImage(
+            appearance: controller.currentWorkspaceOutputAppearance
+        )
         clipboardMonitor.markCurrentPasteboardChangeAsHandled()
     }
 
@@ -169,7 +206,13 @@ extension DocumentWorkflowModel {
     }
 
     func copyCurrentAnnotatedImageToClipboard() {
-        editorController?.copyAnnotatedImage(appearance: .plain)
+        guard let controller = editorController,
+              controller.isDocumentOutputAvailable else {
+            return
+        }
+        controller.copyAnnotatedImage(
+            appearance: controller.currentWorkspaceOutputAppearance
+        )
         clipboardMonitor.markCurrentPasteboardChangeAsHandled()
     }
 
@@ -186,6 +229,7 @@ extension DocumentWorkflowModel {
     func resetEditorSessionState() {
         editorRenderObserver = nil
         editorPersistenceObserver = nil
+        editorCommandStateObserver = nil
         videoPersistenceObserver = nil
         textRecognitionCoordinator.cancelAll()
         pendingAutoCopyTask?.cancel()
@@ -210,6 +254,7 @@ extension DocumentWorkflowModel {
         currentDocumentURL = nil
         savedDocumentSession = nil
         savedVideoSession = nil
+        pendingCompositionImportRecovery = nil
         hasUnsavedChanges = false
         refreshRecoveryPresentationState()
         syncMainWindowDocumentState()
@@ -219,7 +264,9 @@ extension DocumentWorkflowModel {
         from controller: EditorController,
         appearance: ScreenshotOutputAppearance
     ) throws {
-        let image = try controller.exportedImage(appearance: appearance)
+        let image = try controller.exportedImageForInteractiveUse(
+            appearance: appearance
+        )
         try ImageExporter.copyToClipboard(image, pasteboard: systemServices.pasteboard)
         clipboardMonitor.markCurrentPasteboardChangeAsHandled()
     }
@@ -228,21 +275,21 @@ extension DocumentWorkflowModel {
         from controller: EditorController,
         appearance: ScreenshotOutputAppearance
     ) async {
-        var exportSnapshot = controller.snapshot
-        if appearance == .plain {
-            exportSnapshot.presentation = .plain
-        }
-        let renderInput = ExportRenderInput(
-            baseImage: controller.capture.image,
-            snapshot: exportSnapshot,
-            pinnedUIMapElements: controller.pinnedUIMapElements,
-            uiMapOverlayOptions: controller.uiMapOverlayOptions
-        )
-
         do {
-            let pngData = try await AutoCopyRenderer.renderPNGData(from: renderInput)
+            let image = try await controller.renderedImageForExport(
+                appearance: appearance
+            )
+            let pngData = try await Task.detached(
+                priority: .utility
+            ) {
+                try Task.checkCancellation()
+                return try ImageExporter.pngData(for: image)
+            }.value
 
-            guard autoCopyEnabled, editorController === controller, !Task.isCancelled else {
+            guard autoCopyEnabled,
+                  !controller.isPrivateDocument,
+                  editorController === controller,
+                  !Task.isCancelled else {
                 return
             }
 
@@ -257,6 +304,10 @@ extension DocumentWorkflowModel {
 
     func scheduleAutoCopy(for controller: EditorController) {
         pendingAutoCopyTask?.cancel()
+        guard !controller.isPrivateDocument else {
+            pendingAutoCopyTask = nil
+            return
+        }
         pendingAutoCopyTask = Task { @MainActor [weak self, weak controller] in
             do {
                 try await self?.systemServices.scheduler.sleep(nanoseconds: ClipboardWorkflowConstants.autoCopyDebounceNanoseconds)
@@ -264,13 +315,17 @@ extension DocumentWorkflowModel {
                 return
             }
 
-            guard let self, self.autoCopyEnabled, let controller, self.editorController === controller else {
+            guard let self,
+                  self.autoCopyEnabled,
+                  let controller,
+                  !controller.isPrivateDocument,
+                  self.editorController === controller else {
                 return
             }
 
             await self.copyRenderedImageToClipboardAsync(
                 from: controller,
-                appearance: controller.automationOutputAppearance
+                appearance: controller.currentWorkspaceOutputAppearance
             )
 
             self.pendingAutoCopyTask = nil
@@ -291,6 +346,7 @@ extension DocumentWorkflowModel {
         savedGuideProject = nil
         cleanupTemporaryVideoSourceIfNeeded(previousTemporaryVideoURL)
         savedVideoSession = nil
+        pendingCompositionImportRecovery = nil
         currentDocumentURL = documentURL
         savedDocumentSession = savedSession
         savedEditorAutosaveState = savedSession.map { _ in
@@ -334,6 +390,10 @@ extension DocumentWorkflowModel {
         pendingAutosaveTask = nil
 
         guard let controller = editorController else {
+            return
+        }
+        guard !controller.isPrivateDocument else {
+            excludeCurrentPrivateDocumentFromRecoveryAndHistory()
             return
         }
 
@@ -461,27 +521,6 @@ extension DocumentWorkflowModel {
         return try await work()
     }
 
-    @discardableResult
-    func installCapturedScreenshot(_ result: CaptureWorkflowResult) -> EditorController {
-        shelveCurrentDocumentForRecents()
-        let controller = EditorController(
-            capture: result.capture,
-            capabilities: capabilities,
-            uiMapOverlayOptions: uiMapPinnedOverlayDefaults
-        )
-        if result.shouldProcessUIMap {
-            controller.beginUIMapProcessing()
-        }
-        installEditorController(
-            controller,
-            documentURL: nil,
-            savedSession: nil,
-            shouldCreateRecoverySession: !result.isPrivateCapture,
-            initialCheckpointLabel: result.isPrivateCapture ? nil : result.checkpointLabel
-        )
-        return controller
-    }
-
     func installCapturedRecording(_ recording: CapturedVideoRecording) {
         let controller = VideoEditorController(recording: recording)
         installVideoController(controller, documentURL: nil, savedSession: nil)
@@ -494,6 +533,7 @@ extension DocumentWorkflowModel {
         editorController = nil
         guideEditorController = nil
         savedGuideProject = nil
+        pendingCompositionImportRecovery = nil
         currentDocumentURL = documentURL
         savedVideoSession = savedSession
         videoEditorController = controller
@@ -564,8 +604,8 @@ extension DocumentWorkflowModel {
 
     static func presentEditableRedactionSaveConfirmation() -> EditableRedactionSaveDecision {
         let alert = NSAlert()
-        alert.messageText = "Save editable document with redactions?"
-        alert.informativeText = ".sss keeps original unredacted pixels. Use Copy, Share, or Export for flattened redactions."
+        alert.messageText = "Save original source pixels in this editable document?"
+        alert.informativeText = ".sss keeps every original source pixel, including private captures and content hidden by item or composition redactions. Use Copy, Share, or Export for flattened output."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Save Editable Anyway")
         alert.addButton(withTitle: "Export Flattened PNG")
@@ -580,75 +620,23 @@ extension DocumentWorkflowModel {
             return .cancel
         }
     }
-}
 
-nonisolated struct ExportRenderInput: @unchecked Sendable {
-    let baseImage: CGImage
-    let snapshot: EditorSnapshot
-    let pinnedUIMapElements: [UIMapElement]
-    let uiMapOverlayOptions: UIMapOverlayOptions
+    static func presentDocumentFormatMigrationConfirmation() -> DocumentFormatMigrationDecision {
+        let alert = NSAlert()
+        alert.messageText = "Update this document to .sss v7?"
+        alert.informativeText = "Multi-capture composition requires the current editable document format. The existing v6 package remains untouched if saving fails."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Save v7")
+        alert.addButton(withTitle: "Save a Copy")
+        alert.addButton(withTitle: "Cancel")
 
-    init(
-        baseImage: CGImage,
-        snapshot: EditorSnapshot,
-        pinnedUIMapElements: [UIMapElement] = [],
-        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions()
-    ) {
-        self.baseImage = baseImage
-        self.snapshot = snapshot
-        self.pinnedUIMapElements = pinnedUIMapElements
-        self.uiMapOverlayOptions = uiMapOverlayOptions
-    }
-}
-
-nonisolated private enum AutoCopyRenderer {
-    static func renderPNGData(from input: ExportRenderInput) async throws -> Data {
-        let task = Task.detached(priority: .utility) {
-            try Task.checkCancellation()
-
-            let image = PresentationPerformanceMetrics.measure(
-                "autoCopy.content",
-                context: "base=\(input.baseImage.width)x\(input.baseImage.height) crop=\(PresentationPerformanceMetrics.size(input.snapshot.cropRect.size)) annotations=\(input.snapshot.annotations.count)",
-                warnAfterMS: 80
-            ) {
-                EditorRenderer.render(
-                    baseImage: input.baseImage,
-                    snapshot: input.snapshot,
-                    pinnedUIMapElements: input.pinnedUIMapElements,
-                    uiMapOverlayOptions: input.uiMapOverlayOptions
-                )
-            }
-
-            guard let image else {
-                throw ImageExportError.encodingFailed
-            }
-
-            let presentedImage = PresentationPerformanceMetrics.measure(
-                "autoCopy.presentation",
-                context: "content=\(image.width)x\(image.height) \(PresentationPerformanceMetrics.presentationSummary(input.snapshot.presentation))",
-                warnAfterMS: 100
-            ) {
-                ScreenshotPresentationRenderer.render(contentImage: image, presentation: input.snapshot.presentation)
-            }
-
-            guard let presentedImage else {
-                throw ImageExportError.encodingFailed
-            }
-
-            try Task.checkCancellation()
-            return try PresentationPerformanceMetrics.measure(
-                "autoCopy.encode",
-                context: "image=\(presentedImage.width)x\(presentedImage.height)",
-                warnAfterMS: 80
-            ) {
-                try ImageExporter.pngData(for: presentedImage)
-            }
-        }
-
-        return try await withTaskCancellationHandler {
-            try await task.value
-        } onCancel: {
-            task.cancel()
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            return .saveV7
+        case .alertSecondButtonReturn:
+            return .saveCopy
+        default:
+            return .cancel
         }
     }
 }
@@ -660,7 +648,11 @@ nonisolated private enum FloatingReferenceHistoryLoader {
     ) async throws -> CGImage? {
         let task = Task.detached(priority: .userInitiated) { () throws -> CGImage? in
             try Task.checkCancellation()
-            return try SSSDocumentPackage.loadDisplayPreview(from: packageURL, files: files)?.image
+            return try SSSDocumentPackage.loadDisplayPreview(
+                from: packageURL,
+                allowsExternalRecoveryBase: true,
+                files: files
+            )?.image
         }
 
         return try await withTaskCancellationHandler(operation: {

@@ -21,7 +21,16 @@ protocol CaptureAutomationPort: AnyObject {
 }
 
 @MainActor
-protocol DocumentAutomationPort: AnyObject {
+protocol CompositionAutomationPort: AnyObject {
+    var automationCompositionSummary: AutomationCompositionSummary? { get }
+
+    func applyAutomationComposition(
+        _ command: CompositionAutomationCommand
+    ) throws -> AutomationCompositionSummary
+}
+
+@MainActor
+protocol DocumentAutomationPort: CompositionAutomationPort {
     var automationCurrentEditorController: EditorController? { get }
     var automationImageExportOptions: ImageExportOptions { get }
 
@@ -161,6 +170,49 @@ final class AutomationWorkflowModel: AutomationHost, AutomationOutputPort {
         return await documentPort.exportCurrentAutomationDocument(command, request: request)
     }
 
+    func compositionAutomation(
+        _ command: CompositionAutomationCommand,
+        request: AutomationRequest
+    ) async -> AutomationResultEnvelope {
+        guard automationCapabilities.supportsComposition else {
+            return .failure(
+                requestID: request.id,
+                code: .featureUnavailable,
+                message: "Composition is not available in this build."
+            )
+        }
+        guard let documentPort else {
+            return .failure(
+                requestID: request.id,
+                code: .internalError,
+                message: "Automation workflow is not available."
+            )
+        }
+
+        do {
+            let summary = try documentPort.applyAutomationComposition(command)
+            var outputs = try await writeAutomationOutput(
+                request.output,
+                appearance: request.appearance
+            )
+            outputs.removeAll { $0.kind == .none }
+            outputs.insert(.init(kind: .updatedComposition), at: 0)
+            return .success(
+                requestID: request.id,
+                payload: .composition(summary),
+                outputs: outputs
+            )
+        } catch let error as AutomationExecutionError {
+            return .failure(requestID: request.id, code: error.code, message: error.message)
+        } catch {
+            return .failure(
+                requestID: request.id,
+                code: .internalError,
+                message: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            )
+        }
+    }
+
     func guideAutomation(_ command: GuideAutomationCommand, request: AutomationRequest) async -> AutomationResultEnvelope {
         guard automationCapabilities.supportsGuide else {
             return .failure(
@@ -207,16 +259,35 @@ final class AutomationWorkflowModel: AutomationHost, AutomationOutputPort {
         sourceName: String?
     ) async -> AutomationResultEnvelope {
         do {
-            let outputs = try await AutomationOutputService(
-                port: self,
-                files: files,
-                workspace: workspace,
-                pasteboard: pasteboard
+            var outputs = try await writeAutomationOutput(
+                request.output,
+                appearance: request.appearance
             )
-            .write(request.output)
+            let compositionSummary: AutomationCompositionSummary?
+            switch request.captureDestination {
+            case .new:
+                compositionSummary = nil
+            case .append, .replace:
+                guard let summary = documentPort?.automationCompositionSummary else {
+                    return .failure(
+                        requestID: request.id,
+                        code: .noActiveComposition,
+                        message: "The capture completed, but its target composition is no longer active."
+                    )
+                }
+                compositionSummary = summary
+                outputs.removeAll { $0.kind == .none }
+                outputs.insert(.init(kind: .updatedComposition), at: 0)
+            }
+
             return .success(
                 requestID: request.id,
-                payload: .capture(AutomationCaptureSummary(kind: kind, sourceName: sourceName, acceptedInteractiveWorkflow: false)),
+                payload: compositionSummary.map(AutomationPayload.composition)
+                    ?? .capture(AutomationCaptureSummary(
+                        kind: kind,
+                        sourceName: sourceName,
+                        acceptedInteractiveWorkflow: false
+                    )),
                 outputs: outputs.isEmpty ? [.init(kind: .none)] : outputs
             )
         } catch let error as AutomationExecutionError {
@@ -224,5 +295,18 @@ final class AutomationWorkflowModel: AutomationHost, AutomationOutputPort {
         } catch {
             return .failure(requestID: request.id, code: .outputFailed, message: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
         }
+    }
+
+    private func writeAutomationOutput(
+        _ output: AutomationOutput,
+        appearance: AutomationOutputAppearance
+    ) async throws -> [AutomationOutputResult] {
+        try await AutomationOutputService(
+            port: self,
+            files: files,
+            workspace: workspace,
+            pasteboard: pasteboard
+        )
+        .write(output, appearance: appearance)
     }
 }

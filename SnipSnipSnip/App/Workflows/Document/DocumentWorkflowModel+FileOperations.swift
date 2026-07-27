@@ -53,7 +53,13 @@ extension DocumentWorkflowModel {
     func exportAnnotatedImage() {
         exportAnnotatedImage(as: .png, appearance: .plain)
     }
+
     func exportAnnotatedImage(as format: ImageExportFormat, appearance: ScreenshotOutputAppearance) {
+        if editorController?.hasComposition == true,
+           let compositionFormat = CompositionOutputFormat(imageFormat: format) {
+            exportComposition(as: compositionFormat, appearance: appearance)
+            return
+        }
         editorController?.saveAnnotatedImage(
             appearance: appearance,
             format: format,
@@ -118,7 +124,24 @@ extension DocumentWorkflowModel {
         let targetURL: URL
 
         if let currentDocumentURL {
-            targetURL = currentDocumentURL
+            if controller.requiresDocumentFormatMigration {
+                switch documentFormatMigrationDecisionHandler() {
+                case .saveV7:
+                    targetURL = currentDocumentURL
+                case .saveCopy:
+                    let suggestedFilename = currentDocumentURL
+                        .deletingPathExtension()
+                        .lastPathComponent + " v7"
+                    guard let selectedURL = await presentSaveDocumentPanel(suggestedFilename: suggestedFilename) else {
+                        return false
+                    }
+                    targetURL = selectedURL
+                case .cancel:
+                    return false
+                }
+            } else {
+                targetURL = currentDocumentURL
+            }
         } else {
             guard let selectedURL = await presentSaveDocumentPanel(suggestedFilename: ScreenshotFilenameTemplate(pattern: screenshotFilenameTemplate).resolvedFilename(for: controller.capture, formatExtension: "sss")) else {
                 return false
@@ -159,7 +182,7 @@ extension DocumentWorkflowModel {
 
     @discardableResult
     func handleEditableRedactionSaveIfNeeded(for controller: EditorController) -> Bool {
-        guard controller.containsRedactions else {
+        guard controller.containsRedactions || controller.isPrivateDocument else {
             return true
         }
 
@@ -184,15 +207,10 @@ extension DocumentWorkflowModel {
     func saveDocument(_ controller: EditorController, to url: URL) async -> Bool {
         controller.commitPendingTextEdits()
 
-        let document = EditableScreenshotDocument(capture: controller.capture, session: controller.documentSession)
+        let document = controller.editableDocument
         let payload = ScreenshotDocumentWritePayload(
             document: document,
-            renderInput: ExportRenderInput(
-                baseImage: controller.capture.image,
-                snapshot: controller.snapshot,
-                pinnedUIMapElements: controller.pinnedUIMapElements,
-                uiMapOverlayOptions: controller.uiMapOverlayOptions
-            ),
+            renderInput: controller.compositionDocumentPreviewInput(),
             url: url,
             includeUIMapSearchText: windowUIMapEnabled,
             files: systemServices.files
@@ -206,6 +224,7 @@ extension DocumentWorkflowModel {
             }
             currentDocumentURL = url
             savedDocumentSession = controller.documentSession
+            controller.markDocumentSavedInCurrentFormat()
             savedEditorAutosaveState = AutosaveState(controller: controller, documentURL: url)
             updateDocumentChangeTracking()
             recordRecoveryCheckpoint(for: controller, label: "Saved", pendingRecovery: false)
@@ -332,8 +351,13 @@ extension DocumentWorkflowModel {
                     capture: document.capture,
                     session: document.session,
                     capabilities: capabilities,
-                    uiMapOverlayOptions: uiMapPinnedOverlayDefaults
+                    uiMapOverlayOptions: uiMapPinnedOverlayDefaults,
+                    isPrivateDocument: document.isPrivate,
+                    workflowResumeState: document.workflowResumeState,
+                    sourceDocumentFormatVersion: document.sourceFormatVersion,
+                    compositionStoredAssets: document.compositionStoredAssets
                 )
+                controller.restoreWorkflowWorkspace()
                 installEditorController(controller, documentURL: url, savedSession: controller.documentSession)
             }
             requestMainWindowPresentation()
@@ -412,7 +436,7 @@ extension DocumentWorkflowModel {
 
 nonisolated private struct ScreenshotDocumentWritePayload: @unchecked Sendable {
     let document: EditableScreenshotDocument
-    let renderInput: ExportRenderInput
+    let renderInput: CompositionDocumentPreviewInput
     let url: URL
     let includeUIMapSearchText: Bool
     let files: any FileSystemServicing
@@ -430,37 +454,9 @@ nonisolated private enum DocumentPackageWriter {
         let task = Task.detached(priority: .userInitiated) {
             try Task.checkCancellation()
 
-            let previewImage = PresentationPerformanceMetrics.measure(
-                "package.preview.content",
-                context: "base=\(payload.renderInput.baseImage.width)x\(payload.renderInput.baseImage.height) crop=\(PresentationPerformanceMetrics.size(payload.renderInput.snapshot.cropRect.size)) annotations=\(payload.renderInput.snapshot.annotations.count)",
-                warnAfterMS: 80
-            ) {
-                EditorRenderer.render(
-                    baseImage: payload.renderInput.baseImage,
-                    snapshot: payload.renderInput.snapshot,
-                    pinnedUIMapElements: payload.renderInput.pinnedUIMapElements,
-                    uiMapOverlayOptions: payload.renderInput.uiMapOverlayOptions
-                )
-            }
-
-            guard let previewImage else {
-                throw ImageExportError.encodingFailed
-            }
-
-            let presentedPreviewImage = PresentationPerformanceMetrics.measure(
-                "package.preview.presentation",
-                context: "content=\(previewImage.width)x\(previewImage.height) \(PresentationPerformanceMetrics.presentationSummary(payload.renderInput.snapshot.presentation))",
-                warnAfterMS: 100
-            ) {
-                ScreenshotPresentationRenderer.render(
-                    contentImage: previewImage,
-                    presentation: payload.renderInput.snapshot.presentation
-                )
-            }
-
-            guard let presentedPreviewImage else {
-                throw ImageExportError.encodingFailed
-            }
+            let presentedPreviewImage = try CompositionDocumentPreviewRenderer.render(
+                payload.renderInput
+            )
 
             try Task.checkCancellation()
             try SSSDocumentPackage.save(

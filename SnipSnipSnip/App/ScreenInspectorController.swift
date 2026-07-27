@@ -38,6 +38,7 @@ final class ScreenInspectorCoordinator: ObservableObject {
     private var preferences: ScreenInspectorPreferences
     private var onPreferencesChange: (ScreenInspectorPreferences) -> Void
     private var onSnip: (ScreenInspectorSample) -> Void
+    private var sessionCloseHandler: (() -> Void)?
     private let capturePlatform: any ScreenCapturePlatform
     private let screens: any ScreenTopologyProviding
     private let permissions: any CapturePermissionServicing
@@ -90,7 +91,10 @@ final class ScreenInspectorCoordinator: ObservableObject {
         windowController?.model.preferences = sanitizedPreferences
     }
 
-    func present() {
+    func present(onClose: (() -> Void)? = nil) {
+        if let onClose {
+            sessionCloseHandler = onClose
+        }
         if let windowController {
             windowController.showWindow(nil)
             windowController.window?.orderFrontRegardless()
@@ -114,9 +118,7 @@ final class ScreenInspectorCoordinator: ObservableObject {
                 self?.onPreferencesChange(preferences)
             },
             onClose: { [weak self] in
-                self?.windowController = nil
-                self?.isVisible = false
-                self?.unregisterHotKeys()
+                self?.finishCloseSession()
             }
         )
 
@@ -133,9 +135,16 @@ final class ScreenInspectorCoordinator: ObservableObject {
 
     func close() {
         windowController?.close()
+        finishCloseSession()
+    }
+
+    private func finishCloseSession() {
         windowController = nil
         isVisible = false
         unregisterHotKeys()
+        let handler = sessionCloseHandler
+        sessionCloseHandler = nil
+        handler?()
     }
 
     private func registerHotKeys() {

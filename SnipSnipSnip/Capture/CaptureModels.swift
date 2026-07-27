@@ -10,7 +10,9 @@ nonisolated enum CaptureKind: String {
     case connectedDevice
 }
 
-nonisolated enum CaptureDelay: Int, CaseIterable, Codable, Identifiable {
+nonisolated enum CaptureDelay: Int, CaseIterable, Codable, Identifiable,
+    Sendable
+{
     case immediate = 0
     case threeSeconds = 3
     case fiveSeconds = 5
@@ -844,17 +846,20 @@ nonisolated struct ScrollingCaptureRequest: Equatable {
     let sourceName: String
     let maxSegmentCount: Int
     let maxOutputHeight: Int
+    let isPrivateCapture: Bool
 
     init(
         viewportRect: CGRect,
         sourceName: String = "Scrolling Capture",
         maxSegmentCount: Int = Self.defaultMaxSegmentCount,
-        maxOutputHeight: Int = Self.defaultMaxOutputHeight
+        maxOutputHeight: Int = Self.defaultMaxOutputHeight,
+        isPrivateCapture: Bool = false
     ) {
         self.viewportRect = viewportRect.gscIntegralStandardized
         self.sourceName = sourceName
         self.maxSegmentCount = max(maxSegmentCount, 2)
         self.maxOutputHeight = max(maxOutputHeight, 1)
+        self.isPrivateCapture = isPrivateCapture
     }
 }
 

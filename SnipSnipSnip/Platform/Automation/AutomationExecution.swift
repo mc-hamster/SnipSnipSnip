@@ -70,6 +70,7 @@ protocol AutomationCommandHandler: AnyObject {
     func repeatLastAutomationCapture(_ request: AutomationRequest) async -> AutomationResultEnvelope
     func openAutomationDocument(_ command: OpenDocumentAutomationCommand, request: AutomationRequest) async -> AutomationResultEnvelope
     func exportCurrentAutomationDocument(_ command: ExportCurrentAutomationCommand, request: AutomationRequest) async -> AutomationResultEnvelope
+    func compositionAutomation(_ command: CompositionAutomationCommand, request: AutomationRequest) async -> AutomationResultEnvelope
     func guideAutomation(_ command: GuideAutomationCommand, request: AutomationRequest) async -> AutomationResultEnvelope
 }
 
@@ -113,6 +114,8 @@ final class AutomationExecutor {
             return await handler.openAutomationDocument(command, request: request)
         case .exportCurrent(let command):
             return await handler.exportCurrentAutomationDocument(command, request: request)
+        case .composition(let command):
+            return await handler.compositionAutomation(command, request: request)
         case .guide(let command):
             return await handler.guideAutomation(command, request: request)
         }
@@ -152,7 +155,10 @@ final class AutomationOutputService {
         self.destinationPolicy = destinationPolicy
     }
 
-    func write(_ output: AutomationOutput) async throws -> [AutomationOutputResult] {
+    func write(
+        _ output: AutomationOutput,
+        appearance requestedAppearance: AutomationOutputAppearance = .appDefault
+    ) async throws -> [AutomationOutputResult] {
         ShortcutsAutomationLog.logger.info(
             "output.write start output=\(output.debugSummary, privacy: .public)"
         )
@@ -173,14 +179,25 @@ final class AutomationOutputService {
             }
             let image: CGImage
             do {
-                image = try controller.exportedImage(appearance: controller.automationOutputAppearance)
+                image = try controller.exportedImage(
+                    appearance: resolvedAppearance(
+                        requestedAppearance,
+                        controller: controller
+                    )
+                )
             } catch {
                 ShortcutsAutomationLog.logger.error("output.write copy failed rendered image unavailable")
-                throw AutomationExecutionError(code: .targetUnavailable, message: "There is no current screenshot to copy.")
+                throw AutomationExecutionError(
+                    code: .outputFailed,
+                    message: (error as? LocalizedError)?.errorDescription
+                        ?? error.localizedDescription
+                )
             }
-            ShortcutsAutomationLog.logger.info(
-                "output.write copy image width=\(image.width, privacy: .public) height=\(image.height, privacy: .public)"
-            )
+            if !controller.isPrivateDocument {
+                ShortcutsAutomationLog.logger.info(
+                    "output.write copy image width=\(image.width, privacy: .public) height=\(image.height, privacy: .public)"
+                )
+            }
             try ImageExporter.copyToClipboard(image, pasteboard: pasteboard)
             port.markAutomationPasteboardChangeAsHandled()
             ShortcutsAutomationLog.logger.info("output.write copy finished")
@@ -194,29 +211,46 @@ final class AutomationOutputService {
             ShortcutsAutomationLog.logger.info(
                 "output.write saveFile resolved url=\(url.path, privacy: .public) format=\(file.format.rawValue, privacy: .public) overwrite=\(file.overwrite, privacy: .public)"
             )
-            guard let format = ImageExportFormat(automationFormat: file.format) else {
-                ShortcutsAutomationLog.logger.error("output.write saveFile unsupported format=\(file.format.rawValue, privacy: .public)")
-                throw AutomationExecutionError(code: .unsupportedOutput, message: "Rendered file output supports PNG, JPEG, and PDF.")
-            }
             guard let controller = port.automationCurrentEditorController else {
                 ShortcutsAutomationLog.logger.error("output.write saveFile failed current editor unavailable")
                 throw AutomationExecutionError(code: .targetUnavailable, message: "There is no current screenshot to export.")
             }
-            let image: CGImage
-            do {
-                image = try controller.exportedImage(appearance: controller.automationOutputAppearance)
-            } catch {
-                ShortcutsAutomationLog.logger.error("output.write saveFile failed exported image unavailable")
-                throw AutomationExecutionError(code: .targetUnavailable, message: "There is no current screenshot to export.")
-            }
-            ShortcutsAutomationLog.logger.info(
-                "output.write saveFile image width=\(image.width, privacy: .public) height=\(image.height, privacy: .public)"
-            )
-            try await writeFile(to: url, overwrite: file.overwrite) {
-                ShortcutsAutomationLog.logger.info(
-                    "output.write saveFile invoking ImageExporter url=\(url.path, privacy: .public)"
+            guard let compositionFormat = CompositionOutputFormat(
+                automationFormat: file.format
+            ) else {
+                throw AutomationExecutionError(
+                    code: .unsupportedOutput,
+                    message: "Editable .sss output must use the editable-document destination."
                 )
-                try await ImageExporter.write(image, format: format, to: url, options: port.automationImageExportOptions)
+            }
+            do {
+                try await writeFile(to: url, overwrite: file.overwrite) {
+                    ShortcutsAutomationLog.logger.info(
+                        "output.write saveFile invoking composition output url=\(url.path, privacy: .public)"
+                    )
+                    _ = try await controller.exportComposition(
+                        format: compositionFormat,
+                        appearance: resolvedAppearance(
+                            requestedAppearance,
+                            controller: controller
+                        ),
+                        to: url,
+                        imageOptions: port.automationImageExportOptions
+                    )
+                }
+            } catch let error as CompositionOutputError {
+                let code: AutomationErrorCode
+                if error.isUnsupportedCombination {
+                    code = .unsupportedComparisonOutput
+                } else if error.isOversized {
+                    code = .oversizedOutput
+                } else {
+                    code = .outputFailed
+                }
+                throw AutomationExecutionError(
+                    code: code,
+                    message: error.errorDescription ?? "Composition export failed."
+                )
             }
             ShortcutsAutomationLog.logger.info(
                 "output.write saveFile finished url=\(url.path, privacy: .public) exists=\(self.files.fileExists(atPath: url.path), privacy: .public)"
@@ -232,9 +266,12 @@ final class AutomationOutputService {
                 ShortcutsAutomationLog.logger.error("output.write saveEditable failed current editor unavailable")
                 throw AutomationExecutionError(code: .targetUnavailable, message: "There is no current screenshot document to save.")
             }
-            if controller.containsRedactions {
-                ShortcutsAutomationLog.logger.error("output.write saveEditable rejected redactions")
-                throw AutomationExecutionError(code: .confirmationRequired, message: "Editable .sss output with redactions requires user confirmation because original pixels remain in the package.")
+            if controller.containsRedactions || controller.isPrivateDocument {
+                ShortcutsAutomationLog.logger.error("output.write saveEditable rejected source-pixel warning")
+                throw AutomationExecutionError(
+                    code: .confirmationRequired,
+                    message: "Editable .sss output with redactions or private captures requires user confirmation because original pixels remain in the package."
+                )
             }
             let url = try outputURL(file)
             ShortcutsAutomationLog.logger.info(
@@ -298,9 +335,23 @@ final class AutomationOutputService {
         }
         workspace.activateFileViewerSelecting([url])
     }
+
+    private func resolvedAppearance(
+        _ requested: AutomationOutputAppearance,
+        controller: EditorController
+    ) -> ScreenshotOutputAppearance {
+        switch requested {
+        case .appDefault:
+            controller.automationOutputAppearance
+        case .plain:
+            .plain
+        case .styled:
+            .styled
+        }
+    }
 }
 
-extension ImageExportFormat {
+extension CompositionOutputFormat {
     init?(automationFormat: AutomationExportFormat) {
         switch automationFormat {
         case .png:
@@ -309,6 +360,14 @@ extension ImageExportFormat {
             self = .jpeg
         case .pdf:
             self = .pdf
+        case .gif:
+            self = .gif
+        case .apng:
+            self = .apng
+        case .mp4:
+            self = .mp4
+        case .html:
+            self = .html
         case .sss:
             return nil
         }

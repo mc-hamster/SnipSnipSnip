@@ -1,21 +1,15 @@
 import AppKit
 import CoreGraphics
-import OSLog
 
 private enum WindowPickerDiagnostics {
-    nonisolated private static let logger = Logger(
-        subsystem: "com.oontz.SnipSnipSnip",
-        category: "WindowPicker"
-    )
-
-    nonisolated static let isEnabled = false
-
-    nonisolated static func log(_ message: String) {
-        guard isEnabled else {
-            return
-        }
-
-        logger.debug("\(message, privacy: .public)")
+    /// Window picking occurs before a capture finishes and can reveal titles,
+    /// owners, and desktop geometry. Keep this legacy debug hook permanently
+    /// non-emitting; capture-session diagnostics belong behind the explicit
+    /// privacy-aware sink.
+    nonisolated static func log(
+        _ message: @autoclosure () -> String
+    ) {
+        _ = message
     }
 }
 

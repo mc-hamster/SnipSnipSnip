@@ -29,10 +29,19 @@ protocol CoordinatorCapturePort: AnyObject {
 
     func resetCapturePreferencesToDefaults()
     func notifyPermissionsChanged()
+    func cancelPendingPermissionCommand()
     func retryPendingPermissionCommandIfSatisfied(_ status: CapturePermissionStatus)
     func recordCompletedCapture(request: LastCaptureRequest, runOptions: CaptureRunOptions)
-    func scheduleUIMapCapture(for controller: EditorController, capture: CapturedScreenshot)
-    func noticeSkippedUIMapCapture(reason: String?)
+    func scheduleUIMapCapture(
+        for controller: EditorController,
+        capture: CapturedScreenshot,
+        compositionAssetID: UUID?,
+        isPrivateCapture: Bool
+    )
+    func noticeSkippedUIMapCapture(
+        reason: String?,
+        isPrivateCapture: Bool
+    )
     func promoteToRegularApp()
     func demoteToAccessoryIfPossible()
     func refreshAvailableWindows(
@@ -60,7 +69,7 @@ protocol CoordinatorDocumentPort: AnyObject {
     var currentRecoverySessionID: UUID? { get }
 
     func resetDocumentPreferencesToDefaults()
-    func installCapturedScreenshot(_ result: CaptureWorkflowResult) -> EditorController
+    func installCapturedScreenshot(_ result: CaptureWorkflowResult) -> CaptureInstallationResult
     func scheduleAutoCopy(for controller: EditorController)
     func copyCurrentEditorImageToClipboard()
     func exportWorkflowCapture(
@@ -123,6 +132,7 @@ protocol CoordinatorArchivePort: AnyObject {
 protocol CoordinatorToolPort: AnyObject {
     func resetToolPreferencesToDefaults()
     func toggleScreenInspector()
+    func closeScreenInspector()
 }
 
 @MainActor

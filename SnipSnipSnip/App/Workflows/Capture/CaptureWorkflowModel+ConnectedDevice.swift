@@ -56,35 +56,78 @@ extension CaptureWorkflowModel {
     }
 
     func captureConnectedDevice(_ device: ConnectedAppleDevice) {
-        presentConnectedDevicePreview(for: device, intent: .screenshot)
+        captureConnectedDevice(device, intent: .newDocument)
+    }
+
+    func captureConnectedDevice(
+        _ device: ConnectedAppleDevice,
+        intent: CaptureIntent,
+        completionRole: CaptureCompletionRole = .standalone,
+        oneShotOptions: CaptureOneShotOptions? = nil
+    ) {
+        let captureContext = preparePersistentCaptureSurfaceIntent(
+            intent,
+            completionRole: completionRole,
+            oneShotOptions: oneShotOptions
+        )
+        let runOptions = currentCaptureRunOptions()
+        presentConnectedDevicePreview(
+            for: device,
+            intent: .screenshot,
+            captureContext: captureContext,
+            runOptions: runOptions
+        )
     }
 
     func recordConnectedDevice(_ device: ConnectedAppleDevice) {
         documents?.performAfterHandlingUnsavedChanges { [weak self] in
-            self?.presentConnectedDevicePreview(for: device, intent: .recording)
+            self?.presentConnectedDevicePreview(
+                for: device,
+                intent: .recording,
+                captureContext: .standalone,
+                runOptions: self?.currentCaptureRunOptions()
+                    ?? CaptureRunOptions()
+            )
         }
     }
 
     private func presentConnectedDevicePreview(
         for device: ConnectedAppleDevice,
-        intent: ConnectedDevicePreviewIntent
+        intent: ConnectedDevicePreviewIntent,
+        captureContext: CaptureCompletionContext,
+        runOptions: CaptureRunOptions
     ) {
         Task {
+            var sessionCaptureContext = captureContext
             guard dependencies.capabilities.isEnabled(.connectedDeviceCapture) else {
-                present(ConnectedDeviceCaptureError.publicScreenCaptureUnavailable)
+                present(
+                    ConnectedDeviceCaptureError
+                        .publicScreenCaptureUnavailable,
+                    recovering: .connectedDevice(device),
+                    captureContext: captureContext
+                )
                 return
             }
 
             guard video?.isRecording != true, guide?.isActive != true, connectedDevicePreviewController == nil else {
-                present(ConnectedDeviceCaptureError.sessionAlreadyActive)
+                present(
+                    ConnectedDeviceCaptureError.sessionAlreadyActive,
+                    recovering: .connectedDevice(device),
+                    captureContext: captureContext
+                )
                 return
             }
 
             guard await confirmConnectedDeviceCameraAccessIfNeeded() else {
+                resetPreparedCaptureContext(ifMatching: captureContext)
                 return
             }
 
-            let isPrivateCapture = beginCapturePrivacyLock()
+            let isPrivateCapture = beginCapturePrivacyLock(
+                latchedPrivateCapture:
+                    captureContext.oneShotOptions?.privateCapture
+                    ?? privateCaptureEnabled
+            )
 
             isWorking = true
             dependencies.lifecycle.updateWorkingMessage("Connected Device")
@@ -109,8 +152,18 @@ extension CaptureWorkflowModel {
                         try self.completeCapture(
                             capture,
                             request: .connectedDevice(device),
-                            isPrivateCapture: isPrivateCapture
+                            isPrivateCapture: isPrivateCapture,
+                            runOptions: runOptions,
+                            completionContext: sessionCaptureContext
                         )
+                        if let continuation =
+                            self.persistentSurfaceContinuationContext(
+                                after: sessionCaptureContext
+                            ) {
+                            sessionCaptureContext = continuation
+                        } else {
+                            self.connectedDevicePreviewController?.close()
+                        }
                         self.dependencies.lifecycle.requestMainWindowPresentation()
                     },
                     openRecording: { [weak self] recording in
@@ -121,7 +174,11 @@ extension CaptureWorkflowModel {
                         self.outputSink?.handle(.recordingCompleted(recording))
                     },
                     presentError: { [weak self] error in
-                        self?.present(error)
+                        self?.present(
+                            error,
+                            recovering: .connectedDevice(device),
+                            captureContext: sessionCaptureContext
+                        )
                     },
                     onClose: { [weak self] in
                         guard let self else {
@@ -130,6 +187,16 @@ extension CaptureWorkflowModel {
 
                         self.connectedDevicePreviewController = nil
                         self.isConnectedDeviceSessionActive = false
+                        if let sessionID = sessionCaptureContext
+                            .persistentSurfaceSessionID {
+                            self.resetPersistentCaptureSurfaceSession(
+                                sessionID
+                            )
+                        } else {
+                            self.resetPreparedCaptureContext(
+                                ifMatching: sessionCaptureContext
+                            )
+                        }
                         self.endCapturePrivacyLock()
                     }
                 )
@@ -145,7 +212,11 @@ extension CaptureWorkflowModel {
                 isConnectedDeviceSessionActive = false
                 isWorking = false
                 endCapturePrivacyLock()
-                present(error)
+                present(
+                    error,
+                    recovering: .connectedDevice(device),
+                    captureContext: captureContext
+                )
             }
         }
     }

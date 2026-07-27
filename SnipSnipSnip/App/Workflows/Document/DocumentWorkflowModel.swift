@@ -26,8 +26,11 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     @Published var editorController: EditorController? {
         didSet {
             applyEditorPreferences(to: editorController)
+            isEditorDocumentOutputAvailable =
+                editorController?.isDocumentOutputAvailable == true
         }
     }
+    @Published private(set) var isEditorDocumentOutputAvailable = false
     @Published var videoEditorController: VideoEditorController?
     @Published var guideEditorController: GuideEditorController?
     @Published var currentDocumentURL: URL?
@@ -44,6 +47,8 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     @Published var recentSnipEntries: [DocumentHistoryEntry]
     @Published var recycleBinEntries: [DocumentHistoryEntry]
     @Published var pendingRecoverySession: PendingRecoverySession?
+    @Published var pendingCompositionImportRecovery:
+        CompositionImportRecoveryState?
     @Published var isShowingUnsavedChangesPrompt = false
     @Published var editorSingleKeyToolShortcutsEnabled: Bool {
         didSet {
@@ -112,11 +117,19 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     var lastAutosavedState: AutosaveState?
     var editorRenderObserver: AnyCancellable?
     var editorPersistenceObserver: AnyCancellable?
+    var editorCommandStateObserver: AnyCancellable?
     var videoPersistenceObserver: AnyCancellable?
     var guidePersistenceObserver: AnyCancellable?
     var savedGuideProject: GuideProject?
     var pendingEditorAction: (() -> Void)?
     var editableRedactionSaveConfirmationHandler: @MainActor () -> EditableRedactionSaveDecision = DocumentWorkflowModel.presentEditableRedactionSaveConfirmation
+    var documentFormatMigrationDecisionHandler: @MainActor () -> DocumentFormatMigrationDecision = DocumentWorkflowModel.presentDocumentFormatMigrationConfirmation
+    var compositionEditableImportChoiceHandler:
+        @MainActor (Int) -> CompositionEditableImportChoice = {
+            DocumentWorkflowModel.presentCompositionEditableImportChoice(
+                itemCount: $0
+            )
+        }
     var editableRedactionSaveWarningAcknowledgedEditorIDs: Set<ObjectIdentifier> = []
     init(
         dependencies: DocumentWorkflowDependencies,
@@ -192,6 +205,10 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
         dependencies.capture.cancelPendingWindowThumbnailRefresh()
     }
 
+    func publishEditorDocumentOutputAvailability(_ isAvailable: Bool) {
+        isEditorDocumentOutputAvailable = isAvailable
+    }
+
     var activeVideoRecording: ActiveVideoRecording? {
         dependencies.video.activeVideoRecording
     }
@@ -213,23 +230,6 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
 
     func clearError() {
         dependencies.lifecycle.clearError()
-    }
-
-    var currentDocumentFilename: String {
-        if let currentDocumentURL {
-            return currentDocumentURL.lastPathComponent
-        }
-        if let controller = editorController {
-            return ScreenshotFilenameTemplate(pattern: screenshotFilenameTemplate).resolvedFilename(for: controller.capture, formatExtension: "sss") + ".sss"
-        }
-        if let controller = videoEditorController {
-            return controller.recording.defaultFilename + ".sssvideo"
-        }
-        if let controller = guideEditorController {
-            let title = controller.project.title.trimmingCharacters(in: .whitespacesAndNewlines)
-            return (title.isEmpty ? "Untitled Guide" : title) + ".sssguide"
-        }
-        return "Untitled.sss"
     }
 
     func updatePresentationScenesRootURL(_ url: URL, persists: Bool = true) {

@@ -162,6 +162,7 @@ struct EditorInspectorView: View {
     @Binding var captureSearchQuery: String
     let captureHistorySearchResultsLabel: String
     let actions: EditorHistoryActions
+    var compositionActions: CompositionInspectorActions = .unavailable
     @Binding var previewedHistoryEntry: DocumentHistoryEntry?
     @State private var isShowingRecycleBin = false
 
@@ -170,8 +171,15 @@ struct EditorInspectorView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if controller.workspaceMode == .presentation {
-                        PresentationInspectorView(controller: controller)
+                        PresentationInspectorView(
+                            controller: controller,
+                            compositionActions: compositionActions
+                        )
                     } else {
+                        if controller.compositionEditingScope != .layout {
+                            compositionEditingSection
+                        }
+
                         if showsUIMapInspectionSection {
                             uiMapInspectionSection
                         } else {
@@ -197,6 +205,11 @@ struct EditorInspectorView: View {
                 }
                 .padding(16)
             }
+            .scrollPosition(
+                id: $controller.compositionInspectorScrollPosition,
+                anchor: .top
+            )
+            .accessibilityIdentifier("editor.inspector.scroll")
 
             Divider()
 
@@ -213,6 +226,51 @@ struct EditorInspectorView: View {
 
     private var showsUIMapInspectionSection: Bool {
         controller.capabilities.isEnabled(.uiMap) && controller.isInspectingUIMap
+    }
+
+    private var compositionEditingSection: some View {
+        InsetGroupBox(
+            verbatim: controller.compositionEditingScopeTitle
+                ?? String(localized: "Composition Editing")
+        ) {
+            VStack(alignment: .leading, spacing: 10) {
+                switch controller.compositionEditingScope {
+                case .layout:
+                    EmptyView()
+                case .item:
+                    Text("Edits, crop, UI Map pins, and redactions apply only to this source item.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                case .composition:
+                    Text("Annotations and redactions apply above every item and below optional Polish. Resize or trim the canvas in Layout.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if controller.selectedCount > 0 {
+                        Button("Pin Selection to Items") {
+                            controller
+                                .pinSelectedCompositionAnnotationEndpointsToVisibleItems()
+                        }
+                        .buttonStyle(.bordered)
+                        .help(
+                            "Anchor each selected annotation endpoint to the visible item beneath it. Cross-panel lines and arrows can keep independent item anchors."
+                        )
+
+                        Button("Pin Selection to Canvas") {
+                            controller.pinSelectedCompositionAnnotationsToCanvas()
+                        }
+                        .buttonStyle(.bordered)
+                        .help("Keep the selected annotation at a normalized position when the layout changes.")
+                    }
+                }
+
+                Button("Done") {
+                    controller.finishCompositionEditing()
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
     }
 
     private var uiMapInspectionSection: some View {

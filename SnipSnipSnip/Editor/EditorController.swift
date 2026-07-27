@@ -94,6 +94,9 @@ enum EditorCanvasInvalidationReason: Equatable {
 
 @MainActor
 final class EditorController: ObservableObject {
+    /// A stable lifetime token used to route asynchronous capture results.
+    let documentGenerationID = UUID()
+
     enum ImageColorSamplingTarget: String {
         case picker
         case fill
@@ -139,6 +142,7 @@ final class EditorController: ObservableObject {
             invalidateCanvas()
         }
     }
+    @Published private(set) var workflowResumeState: ScreenshotWorkflowResumeState
     @Published var errorMessage: String? {
         didSet {
             if let errorMessage, errorMessage != oldValue {
@@ -175,14 +179,46 @@ final class EditorController: ObservableObject {
     }
     @Published private(set) var isProcessingUIMap = false
     @Published private(set) var capture: CapturedScreenshot
+    /// The immutable document-level capture remains stable while item and
+    /// whole-composition editing temporarily project another image into the
+    /// existing annotation canvas.
+    private(set) var documentCapture: CapturedScreenshot
+    @Published private(set) var compositionEditingScope: CompositionEditingScope = .layout
+    @Published var compositionFramingItemID: UUID?
+    @Published private(set) var hoveredCompositionItemID: UUID?
+
+    func setHoveredCompositionItem(_ itemID: UUID?) {
+        guard hoveredCompositionItemID != itemID else {
+            return
+        }
+        hoveredCompositionItemID = itemID
+    }
+
+    @Published private(set) var compositionCanvasFocusRequestRevision = 0
+    @Published private(set) var isPrivateDocument: Bool
+    /// The on-disk source version, used to require an explicit migration
+    /// choice before overwriting a legacy package.
+    @Published private(set) var sourceDocumentFormatVersion: Int
+    let compositionAssetRepository: CompositionAssetRepository
     @Published var presentationTemplates: [PresentationTemplate] = PresentationTemplate.builtInTemplates
+    @Published private(set) var compositionTemplates: [CompositionTemplate] = CompositionTemplateStore.builtInTemplates
+    @Published var presentationInspectorTab: PresentationInspectorTab = .style
+    @Published var compositionInspectorScrollPosition: String?
+    @Published var compositionComparisonPreviewPhase: CompositionComparisonPhase?
+    @Published private(set) var compositionRegistrationOutcome: CompositionRegistrationOutcome?
+    @Published var isCompositionBlinkPreviewPlaying = true
     @Published var defaultPresentationTemplateID: String?
     @Published var presentationScenesRootURL: URL = PresentationSceneStore.defaultRootURL
     @Published var presentationScenes: [PresentationSceneDefinition] = []
     @Published var presentationSceneDiagnostics: [PresentationSceneDiagnostic] = []
     @Published var savedPresentations: [SavedPresentation] = []
     @Published private(set) var presentationContentRevision = 0
-    var presentationContentCache: (revision: Int, image: CGImage)?
+    var presentationContentCache: (
+        revision: Int,
+        targetMaximumPixelDimension: Int?,
+        comparisonPhase: CompositionComparisonPhase,
+        image: CGImage
+    )?
 
     private let textRecognizer: any CaptureTextRecognizing
     private let initialSnapshot: EditorSnapshot
@@ -197,6 +233,17 @@ final class EditorController: ObservableObject {
     private var pendingTextEditingCommitTask: Task<Void, Never>?
     private var noticeTask: Task<Void, Never>?
     private var imageColorSamplingSourceTool: EditorTool?
+    private var compositionEditingRootState: ScreenshotEditState?
+    private var compositionEditingLayout: CompositionRenderLayout?
+    private var compositionEditingLogicalCanvasSize: CGSize?
+    private var compositionEditingReturnViewport: EditorViewport?
+    private var compositionEditingReturnInspectorTab: PresentationInspectorTab?
+    private var compositionEditingReturnInspectorScrollPosition: String?
+    /// Each nested operation keeps its own rollback point. Only the outermost
+    /// successful operation writes undo history, while a failed inner import
+    /// can roll back just its partial edits without discarding earlier valid
+    /// items in the same batch.
+    private var coalescedGestureInitialSnapshots: [EditorSnapshot] = []
 
     private var documentCanvasSize: CGSize {
         CGSize(width: capture.image.width, height: capture.image.height)
@@ -204,6 +251,67 @@ final class EditorController: ObservableObject {
 
     private var fullImageRect: CGRect {
         CGRect(origin: .zero, size: documentCanvasSize)
+    }
+
+    private static func embeddingDormantComposition(
+        in snapshot: EditorSnapshot,
+        capture: CapturedScreenshot,
+        assetID: UUID,
+        itemID: UUID
+    ) -> EditorSnapshot {
+        guard snapshot.composition == nil else {
+            return snapshot
+        }
+        let item = CompositionItem(
+            id: itemID,
+            assetID: assetID,
+            editState: ScreenshotEditState(
+                cropRect: snapshot.cropRect,
+                annotations: snapshot.annotations,
+                selectedAnnotationIDs: snapshot.selectedAnnotationIDs,
+                nextCalloutNumber: snapshot.nextCalloutNumber,
+                pinnedUIMapElementIDs: snapshot.pinnedUIMapElementIDs
+            ),
+            title: capture.sourceName,
+            accessibilityLabel: capture.sourceName
+        )
+        var updated = snapshot
+        updated.composition = CompositionSnapshot(
+            items: [item],
+            selectedItemIDs: [item.id],
+            isActivated: false,
+            layout: CompositionLayoutConfiguration(mode: .auto),
+            canvas: CompositionCanvasState(appearance: .pixelPreserving)
+        )
+        return updated
+    }
+
+    /// Intent-created Steps and Collection documents are composition content
+    /// from their first source, even though they contain only one item. Apply
+    /// that initial state before the document session is constructed so it
+    /// does not create a synthetic undo entry or dirty transition.
+    private static func configuringInitialComposition(
+        in snapshot: EditorSnapshot,
+        for purpose: ScreenshotDocumentPurpose
+    ) -> EditorSnapshot {
+        guard var composition = snapshot.composition else {
+            return snapshot
+        }
+        switch purpose {
+        case .screenshot, .comparison:
+            // A one-item Comparison is an explicit awaiting-After state. Keep
+            // its layout dormant because Compare geometry requires two items.
+            return snapshot
+        case .steps:
+            composition.layout.mode = .steps
+            composition.isActivated = true
+        case .collection:
+            composition.layout.mode = .auto
+            composition.isActivated = true
+        }
+        var updated = snapshot
+        updated.composition = composition
+        return updated
     }
 
     deinit {
@@ -217,36 +325,72 @@ final class EditorController: ObservableObject {
         defaults: UserDefaults = .standard,
         capabilities: AppCapabilitySnapshot,
         textRecognizer: any CaptureTextRecognizing = VisionCaptureTextRecognizer(),
-        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions()
+        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions(),
+        isPrivateDocument: Bool = false,
+        documentPurpose: ScreenshotDocumentPurpose = .screenshot,
+        workflowResumeState: ScreenshotWorkflowResumeState? = nil,
+        sourceDocumentFormatVersion: Int = SSSDocumentPackage.formatVersion,
+        compositionStoredAssets: [CompositionStoredAsset] = []
     ) {
         self.defaults = defaults
         self.capabilities = capabilities
         self.preferredRedactionMode = defaults.string(forKey: EditorPreferenceKey.lastRedactionMode)
             .flatMap(RedactionMode.init(rawValue:)) ?? .blur
         self.capture = capture
+        self.documentCapture = capture
+        self.isPrivateDocument = isPrivateDocument
+        self.sourceDocumentFormatVersion = sourceDocumentFormatVersion
+        let compositionAssetRepository = CompositionAssetRepository(
+            storedAssets: compositionStoredAssets
+        )
+        self.compositionAssetRepository = compositionAssetRepository
         self.textRecognizer = textRecognizer
         self.uiMapOverlayOptions = uiMapOverlayOptions
         self.presentationScenesRootURL = PresentationSceneStore.configuredRootURL(in: defaults)
+        self.compositionComparisonPreviewPhase = nil
         let capturedCursorAnnotation = capture.cursorOverlay.map {
             Annotation.makeImageOverlay(image: $0.image, in: $0.rect, role: .capturedCursor)
         }
         let initialAnnotations = capturedCursorAnnotation.map { [$0] } ?? []
-        let defaultPresentation = PresentationTemplateStore.defaultPresentation(in: defaults)
+        let baseSnapshot = EditorSnapshot(
+            cropRect: CGRect(
+                origin: .zero,
+                size: CGSize(
+                    width: capture.image.width,
+                    height: capture.image.height
+                )
+            ),
+            annotations: initialAnnotations,
+            selectedAnnotationIDs: [],
+            nextCalloutNumber: 1,
+            // A new capture always opens as the content the user captured.
+            // Legacy default looks remain available in Polish, but are never
+            // applied before the user explicitly enters that stage.
+            presentation: .plain,
+            documentPurpose: documentPurpose
+        )
+        let embeddedDocumentSnapshot: EditorSnapshot
+        if baseSnapshot.composition == nil,
+           let assetID = try? compositionAssetRepository.add(
+               capture: capture,
+               isPrivate: isPrivateDocument
+           ) {
+            embeddedDocumentSnapshot = Self.embeddingDormantComposition(
+                in: baseSnapshot,
+                capture: capture,
+                assetID: assetID,
+                itemID: UUID()
+            )
+        } else {
+            embeddedDocumentSnapshot = baseSnapshot
+        }
+        let initialDocumentSnapshot = Self.configuringInitialComposition(
+            in: embeddedDocumentSnapshot,
+            for: documentPurpose
+        )
         let session = EditorDocumentSession(
-            initialSnapshot: EditorSnapshot(
-                cropRect: CGRect(origin: .zero, size: CGSize(width: capture.image.width, height: capture.image.height)),
-                annotations: initialAnnotations,
-                selectedAnnotationIDs: [],
-                nextCalloutNumber: 1,
-                presentation: defaultPresentation
-            ),
-            currentSnapshot: EditorSnapshot(
-                cropRect: CGRect(origin: .zero, size: CGSize(width: capture.image.width, height: capture.image.height)),
-                annotations: initialAnnotations,
-                selectedAnnotationIDs: [],
-                nextCalloutNumber: 1,
-                presentation: defaultPresentation
-            ),
+            initialSnapshot: initialDocumentSnapshot,
+            currentSnapshot: initialDocumentSnapshot,
             undoStack: [],
             redoStack: [],
             toolStyles: Dictionary(uniqueKeysWithValues: EditorTool.allCases.map { ($0, AnnotationStyle.default(for: $0)) }),
@@ -254,9 +398,19 @@ final class EditorController: ObservableObject {
         )
         self.initialSnapshot = session.initialSnapshot
         self.snapshot = session.currentSnapshot
+        self.workflowResumeState = (
+            workflowResumeState ?? ScreenshotWorkflowResumeState.inferred(
+                for: initialDocumentSnapshot.documentPurpose,
+                composition: initialDocumentSnapshot.composition
+            )
+        ).normalized(
+            for: initialDocumentSnapshot.documentPurpose,
+            composition: initialDocumentSnapshot.composition
+        )
         self.toolStyles = Self.loadPersistedToolStyles(from: defaults, fallback: session.toolStyles)
         let documentCanvasSize = CGSize(width: capture.image.width, height: capture.image.height)
         self.viewport = EditorViewport(contentSize: documentCanvasSize)
+        reloadCompositionTemplateLibrary()
         reloadPresentationTemplateLibrary()
         reloadPresentationScenes()
     }
@@ -267,30 +421,100 @@ final class EditorController: ObservableObject {
         defaults: UserDefaults = .standard,
         capabilities: AppCapabilitySnapshot,
         textRecognizer: any CaptureTextRecognizing = VisionCaptureTextRecognizer(),
-        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions()
+        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions(),
+        isPrivateDocument: Bool = false,
+        workflowResumeState: ScreenshotWorkflowResumeState? = nil,
+        sourceDocumentFormatVersion: Int = SSSDocumentPackage.formatVersion,
+        compositionStoredAssets: [CompositionStoredAsset] = []
     ) {
         self.defaults = defaults
         self.capabilities = capabilities
         self.preferredRedactionMode = defaults.string(forKey: EditorPreferenceKey.lastRedactionMode)
             .flatMap(RedactionMode.init(rawValue:)) ?? .blur
         self.capture = capture
+        self.documentCapture = capture
+        self.isPrivateDocument = isPrivateDocument
+        self.sourceDocumentFormatVersion = sourceDocumentFormatVersion
+        let compositionAssetRepository = CompositionAssetRepository(
+            storedAssets: compositionStoredAssets
+        )
+        self.compositionAssetRepository = compositionAssetRepository
         self.textRecognizer = textRecognizer
         self.uiMapOverlayOptions = uiMapOverlayOptions
         self.presentationScenesRootURL = PresentationSceneStore.configuredRootURL(in: defaults)
-        self.initialSnapshot = session.initialSnapshot
-        self.snapshot = session.currentSnapshot
-        self.undoStack = session.undoStack
-        self.redoStack = session.redoStack
+        self.compositionComparisonPreviewPhase = nil
+        let canonicalSession: EditorDocumentSession
+        if session.currentSnapshot.composition == nil,
+           let assetID = try? compositionAssetRepository.add(
+               capture: capture,
+               isPrivate: isPrivateDocument
+           ) {
+            let itemID = UUID()
+            canonicalSession = EditorDocumentSession(
+                initialSnapshot: Self.embeddingDormantComposition(
+                    in: session.initialSnapshot,
+                    capture: capture,
+                    assetID: assetID,
+                    itemID: itemID
+                ),
+                currentSnapshot: Self.embeddingDormantComposition(
+                    in: session.currentSnapshot,
+                    capture: capture,
+                    assetID: assetID,
+                    itemID: itemID
+                ),
+                undoStack: session.undoStack.map {
+                    Self.embeddingDormantComposition(
+                        in: $0,
+                        capture: capture,
+                        assetID: assetID,
+                        itemID: itemID
+                    )
+                },
+                redoStack: session.redoStack.map {
+                    Self.embeddingDormantComposition(
+                        in: $0,
+                        capture: capture,
+                        assetID: assetID,
+                        itemID: itemID
+                    )
+                },
+                toolStyles: session.toolStyles,
+                savedPresentations: session.savedPresentations
+            )
+        } else {
+            canonicalSession = session
+        }
+        self.initialSnapshot = canonicalSession.initialSnapshot
+        self.snapshot = canonicalSession.currentSnapshot
+        self.workflowResumeState = (
+            workflowResumeState ?? ScreenshotWorkflowResumeState.inferred(
+                for: canonicalSession.currentSnapshot.documentPurpose,
+                composition: canonicalSession.currentSnapshot.composition
+            )
+        ).normalized(
+            for: canonicalSession.currentSnapshot.documentPurpose,
+            composition: canonicalSession.currentSnapshot.composition
+        )
+        self.undoStack = canonicalSession.undoStack
+        self.redoStack = canonicalSession.redoStack
         self.toolStyles = session.toolStyles
         self.savedPresentations = session.savedPresentations
         let documentCanvasSize = CGSize(width: capture.image.width, height: capture.image.height)
         self.viewport = EditorViewport(contentSize: documentCanvasSize)
+        reloadCompositionTemplateLibrary()
         reloadPresentationTemplateLibrary()
         reloadPresentationScenes()
     }
 
+    /// Replaces the derived template library while keeping its published
+    /// storage read-only to editor clients.
+    func replaceCompositionTemplateLibrary(_ templates: [CompositionTemplate]) {
+        compositionTemplates = templates
+    }
+
     var canUndo: Bool {
-        !undoStack.isEmpty || snapshot != initialSnapshot
+        !undoStack.isEmpty || canonicalCompositionEditingSnapshot(snapshot) != initialSnapshot
     }
 
     var canRedo: Bool {
@@ -303,7 +527,124 @@ final class EditorController: ObservableObject {
     }
 
     var containsRedactions: Bool {
-        snapshot.annotations.contains { $0.redactionMode != nil }
+        if snapshot.annotations.contains(where: { $0.redactionMode != nil }) {
+            return true
+        }
+        guard let composition = snapshot.composition else {
+            return false
+        }
+        return composition.canvas.annotations.contains { $0.redactionMode != nil }
+            || composition.items.contains { item in
+                item.editState.annotations.contains { $0.redactionMode != nil }
+            }
+    }
+
+    var requiresDocumentFormatMigration: Bool {
+        sourceDocumentFormatVersion < SSSDocumentPackage.formatVersion
+    }
+
+    var documentPurpose: ScreenshotDocumentPurpose {
+        snapshot.documentPurpose
+    }
+
+    var workflowStage: ScreenshotWorkflowStage {
+        workflowResumeState.stage
+    }
+
+    /// Updates purpose and optional layout through the regular command
+    /// pipeline. Callers that append a first additional capture should wrap
+    /// the append and this call in the existing coalesced gesture transaction
+    /// so both changes undo together.
+    func setDocumentPurpose(
+        _ purpose: ScreenshotDocumentPurpose,
+        layoutMode: CompositionLayoutMode? = nil
+    ) {
+        execute(
+            SetDocumentPurposeCommand(
+                purpose: purpose,
+                layoutMode: layoutMode
+            )
+        )
+    }
+
+    /// Restores package/recovery navigation without adding undo history or
+    /// changing the persisted-content revision used for dirty tracking.
+    func setWorkflowResumeState(_ state: ScreenshotWorkflowResumeState) {
+        let normalized = state.normalized(
+            for: documentPurpose,
+            composition: snapshot.composition
+        )
+        guard normalized != workflowResumeState else {
+            return
+        }
+        workflowResumeState = normalized
+    }
+
+    func setWorkflowStage(_ stage: ScreenshotWorkflowStage) {
+        setWorkflowResumeState(ScreenshotWorkflowResumeState(stage: stage))
+    }
+
+    func enterPolish() {
+        guard workflowResumeState.stage != .polishing else {
+            return
+        }
+        let returnStage = workflowResumeState.stage.isCompatible(
+            with: documentPurpose
+        ) ? workflowResumeState.stage : ScreenshotWorkflowResumeState.inferred(
+            for: documentPurpose,
+            composition: snapshot.composition
+        ).stage
+        setWorkflowResumeState(
+            ScreenshotWorkflowResumeState(
+                stage: .polishing,
+                returnStage: returnStage
+            )
+        )
+    }
+
+    func leavePolish() {
+        guard workflowResumeState.stage == .polishing else {
+            return
+        }
+        let destination = workflowResumeState.returnStage
+            ?? ScreenshotWorkflowResumeState.inferred(
+                for: documentPurpose,
+                composition: snapshot.composition
+            ).stage
+        setWorkflowStage(destination)
+    }
+
+    /// Restores transient navigation after opening a package or recovery
+    /// checkpoint. Workflow stage is persisted separately from editable
+    /// content, so installing a controller must explicitly re-enter the
+    /// matching workspace without creating undo or dirty-state changes.
+    func restoreWorkflowWorkspace() {
+        switch workflowStage {
+        case .polishing:
+            presentationInspectorTab =
+                snapshot.presentation.scene == nil ? .style : .scene
+            setWorkspaceMode(.presentation)
+        case .editing, .awaitingComparisonAfter:
+            presentationInspectorTab = .layout
+            setWorkspaceMode(.edit)
+        case .collecting, .arranging, .reviewingComparison:
+            presentationInspectorTab = .layout
+            setWorkspaceMode(.presentation)
+        }
+    }
+
+    func markDocumentPrivate() {
+        guard !isPrivateDocument else {
+            return
+        }
+
+        isPrivateDocument = true
+        persistenceRevision += 1
+        invalidateCanvas(.cropChrome)
+    }
+
+    func markDocumentSavedInCurrentFormat() {
+        sourceDocumentFormatVersion = SSSDocumentPackage.formatVersion
     }
 
     var selectedAnnotation: Annotation? {
@@ -539,7 +880,7 @@ final class EditorController: ObservableObject {
     }
 
     var showsCropControls: Bool {
-        true
+        compositionEditingScope != .composition
     }
 
     var maxLineWidth: CGFloat {
@@ -613,7 +954,7 @@ final class EditorController: ObservableObject {
     var documentSession: EditorDocumentSession {
         EditorDocumentSession(
             initialSnapshot: initialSnapshot,
-            currentSnapshot: snapshot,
+            currentSnapshot: canonicalCompositionEditingSnapshot(snapshot),
             undoStack: undoStack,
             redoStack: redoStack,
             toolStyles: toolStyles,
@@ -621,27 +962,81 @@ final class EditorController: ObservableObject {
         )
     }
 
+    var editableDocument: EditableScreenshotDocument {
+        EditableScreenshotDocument(
+            capture: documentCapture,
+            session: documentSession,
+            compositionStoredAssets: compositionAssetRepository.storedAssets(
+                referencedBy: documentSession.referencedCompositionAssetIDs
+            ),
+            workflowResumeState: workflowResumeState,
+            isPrivate: isPrivateDocument,
+            sourceFormatVersion: sourceDocumentFormatVersion
+        )
+    }
+
     func execute(_ command: DocumentCommand, undoable: Bool = true) {
         commitPendingTextEdits()
 
-        let updatedSnapshot = command.apply(to: snapshot)
+        let previousSnapshot = canonicalCompositionEditingSnapshot(snapshot)
+        let updatedSnapshot = canonicalCompositionEditingSnapshot(command.apply(to: snapshot))
 
-        guard updatedSnapshot != snapshot else {
+        guard updatedSnapshot != previousSnapshot else {
             return
         }
 
-        if undoable {
-            undoStack.append(snapshot)
+        if undoable, coalescedGestureInitialSnapshots.isEmpty {
+            undoStack.append(previousSnapshot)
             redoStack.removeAll()
         }
 
-        let invalidationReason = snapshot.isPresentationOnlyChange(to: updatedSnapshot) ? EditorCanvasInvalidationReason.cropChrome : .full
+        let invalidationReason = previousSnapshot.isPresentationOnlyChange(to: updatedSnapshot)
+            ? EditorCanvasInvalidationReason.cropChrome
+            : .full
         applySnapshot(
             updatedSnapshot,
-            fitViewportToCrop: updatedSnapshot.cropRect != snapshot.cropRect,
-            invalidationReason: invalidationReason
+            fitViewportToCrop: projectedCompositionEditingSnapshot(updatedSnapshot).cropRect
+                != projectedCompositionEditingSnapshot(previousSnapshot).cropRect,
+            invalidationReason: invalidationReason,
+            canonicalizesCompositionEditingChanges: false
         )
+        if coalescedGestureInitialSnapshots.isEmpty {
+            persistenceRevision += 1
+        }
+    }
+
+    func beginCoalescedEditorGesture() {
+        commitPendingTextEdits()
+        coalescedGestureInitialSnapshots.append(
+            canonicalCompositionEditingSnapshot(snapshot)
+        )
+    }
+
+    func endCoalescedEditorGesture() {
+        guard let initial = coalescedGestureInitialSnapshots.popLast() else {
+            return
+        }
+        guard coalescedGestureInitialSnapshots.isEmpty else {
+            return
+        }
+        let current = canonicalCompositionEditingSnapshot(snapshot)
+        guard current != initial else {
+            return
+        }
+        undoStack.append(initial)
+        redoStack.removeAll()
         persistenceRevision += 1
+    }
+
+    func cancelCoalescedEditorGesture() {
+        guard let initial = coalescedGestureInitialSnapshots.popLast() else {
+            return
+        }
+        applySnapshot(
+            initial,
+            fitViewportToCrop: false,
+            canonicalizesCompositionEditingChanges: false
+        )
     }
 
     func style(for tool: EditorTool) -> AnnotationStyle {
@@ -954,7 +1349,7 @@ final class EditorController: ObservableObject {
         let originalSnapshot = SetCropCommand(rect: initialRect).apply(to: snapshot)
         let committedSnapshot = SetCropCommand(rect: finalRect).apply(to: snapshot)
         applySnapshot(committedSnapshot, fitViewportToCrop: true)
-        undoStack.append(originalSnapshot)
+        undoStack.append(canonicalCompositionEditingSnapshot(originalSnapshot))
         redoStack.removeAll()
         persistenceRevision += 1
     }
@@ -1228,6 +1623,12 @@ final class EditorController: ObservableObject {
             setWorkspaceMode(.edit)
         }
 
+        if tool == .crop, compositionEditingScope == .composition {
+            activeTool = .select
+            showNotice("Use Layout canvas size and trim controls for the whole composition.")
+            return
+        }
+
         if tool == .blur {
             selectedUIMapElementID = nil
             hoveredUIMapElementID = nil
@@ -1312,10 +1713,21 @@ final class EditorController: ObservableObject {
 
     func undo() {
         commitPendingTextEdits()
+        let priorPurpose = documentPurpose
+        let priorStage = workflowStage
 
         if let previous = undoStack.popLast() {
-            redoStack.append(snapshot)
-            applySnapshot(previous, fitViewportToCrop: previous.cropRect != snapshot.cropRect)
+            redoStack.append(canonicalCompositionEditingSnapshot(snapshot))
+            applySnapshot(
+                previous,
+                fitViewportToCrop: projectedCompositionEditingSnapshot(previous).cropRect
+                    != snapshot.cropRect,
+                canonicalizesCompositionEditingChanges: false
+            )
+            restoreWorkflowWorkspaceAfterHistoryNavigation(
+                priorPurpose: priorPurpose,
+                priorStage: priorStage
+            )
             persistenceRevision += 1
             return
         }
@@ -1324,21 +1736,52 @@ final class EditorController: ObservableObject {
             return
         }
 
-        redoStack.append(snapshot)
-        applySnapshot(initialSnapshot, fitViewportToCrop: initialSnapshot.cropRect != snapshot.cropRect)
+        redoStack.append(canonicalCompositionEditingSnapshot(snapshot))
+        applySnapshot(
+            initialSnapshot,
+            fitViewportToCrop: projectedCompositionEditingSnapshot(initialSnapshot).cropRect
+                != snapshot.cropRect,
+            canonicalizesCompositionEditingChanges: false
+        )
+        restoreWorkflowWorkspaceAfterHistoryNavigation(
+            priorPurpose: priorPurpose,
+            priorStage: priorStage
+        )
         persistenceRevision += 1
     }
 
     func redo() {
         commitPendingTextEdits()
+        let priorPurpose = documentPurpose
+        let priorStage = workflowStage
 
         guard let next = redoStack.popLast() else {
             return
         }
 
-        undoStack.append(snapshot)
-        applySnapshot(next, fitViewportToCrop: next.cropRect != snapshot.cropRect)
+        undoStack.append(canonicalCompositionEditingSnapshot(snapshot))
+        applySnapshot(
+            next,
+            fitViewportToCrop: projectedCompositionEditingSnapshot(next).cropRect
+                != snapshot.cropRect,
+            canonicalizesCompositionEditingChanges: false
+        )
+        restoreWorkflowWorkspaceAfterHistoryNavigation(
+            priorPurpose: priorPurpose,
+            priorStage: priorStage
+        )
         persistenceRevision += 1
+    }
+
+    private func restoreWorkflowWorkspaceAfterHistoryNavigation(
+        priorPurpose: ScreenshotDocumentPurpose,
+        priorStage: ScreenshotWorkflowStage
+    ) {
+        guard compositionEditingScope == .layout,
+              documentPurpose != priorPurpose || workflowStage != priorStage else {
+            return
+        }
+        restoreWorkflowWorkspace()
     }
 
     func updateViewportCanvasSize(_ size: CGSize) {
@@ -1512,6 +1955,16 @@ final class EditorController: ObservableObject {
         }
 
         capture = capture.attachingUIMap(uiMap)
+        switch compositionEditingScope {
+        case .item(let itemID):
+            if let assetID = snapshot.composition?.items.first(where: { $0.id == itemID })?.assetID {
+                try? compositionAssetRepository.replaceUIMap(for: assetID, with: uiMap)
+            }
+        case .layout:
+            documentCapture = documentCapture.attachingUIMap(uiMap)
+        case .composition:
+            break
+        }
         persistenceRevision += 1
         invalidateCanvas()
     }
@@ -1543,14 +1996,23 @@ final class EditorController: ObservableObject {
     }
 
     func exportedImage(appearance: ScreenshotOutputAppearance) throws -> CGImage {
-        let input = try exportRenderInput(for: appearance)
-        guard let image = presentationPreviewImage(
-            presentation: input.snapshot.presentation,
-            context: "exportedImage.\(appearance.rawValue)"
-        ) else {
-            throw ScreenshotOutputError.renderingFailed
-        }
-        return image
+        try renderExportInput(
+            exportRenderInput(
+                for: appearance,
+                compositionSafetyPolicy: .fail
+            )
+        )
+    }
+
+    func exportedImageForInteractiveUse(
+        appearance: ScreenshotOutputAppearance
+    ) throws -> CGImage {
+        try renderExportInput(
+            exportRenderInput(
+                for: appearance,
+                compositionSafetyPolicy: .prompt
+            )
+        )
     }
 
     func applySampledColor(at point: CGPoint, toFill: Bool = false) {
@@ -1756,21 +2218,44 @@ final class EditorController: ObservableObject {
         snapshot.presentation.isEnabled
     }
 
-    var styledOutputConfigurationLabel: String {
+    var polishConfigurationLabel: String {
         guard hasStyledOutputConfigured else {
-            return "Styled output not configured"
+            return String(localized: "No Polish configured")
         }
         if let scene = snapshot.presentation.scene {
-            return "Styled output configured · \(scene.name)"
+            return String.localizedStringWithFormat(
+                String(localized: "Polish configured · %@"),
+                scene.name
+            )
         }
         if let template = presentationTemplates.first(where: { $0.presentation == snapshot.presentation }) {
-            return "Styled output configured · \(template.name)"
+            return String.localizedStringWithFormat(
+                String(localized: "Polish configured · %@"),
+                template.name
+            )
         }
-        return "Styled output configured · Custom style"
+        return String(localized: "Polish configured · Custom look")
     }
 
     var automationOutputAppearance: ScreenshotOutputAppearance {
         hasStyledOutputConfigured ? .styled : .plain
+    }
+
+    /// The direct UI follows the pixels currently shown in the active
+    /// workspace. Plain and Styled remain explicit automation/export model
+    /// values, but they are not exposed as competing choices in routine
+    /// editor chrome.
+    var currentWorkspaceOutputAppearance: ScreenshotOutputAppearance {
+        workflowStage == .polishing && hasStyledOutputConfigured
+            ? .styled
+            : .plain
+    }
+
+    /// Item and composition annotation scopes are temporary editing canvases,
+    /// not document output previews. Keep document-level output unavailable
+    /// until Done restores the Layout scope.
+    var isDocumentOutputAvailable: Bool {
+        compositionEditingScope == .layout
     }
 
     func copyAnnotatedImage(appearance: ScreenshotOutputAppearance) {
@@ -1781,24 +2266,34 @@ final class EditorController: ObservableObject {
                     let pngData = try await EditorExportRenderer.renderPNGData(from: input)
                     try ImageExporter.copyPNGDataToClipboard(pngData)
                     self?.showNotice(EditorNotice(
-                        message: "Copied \(appearance.title) screenshot.",
-                        accessibilityAnnouncement: "\(appearance.title) screenshot copied to the clipboard."
+                        message: String(localized: "Copied screenshot."),
+                        accessibilityAnnouncement: String(
+                            localized: "Screenshot copied to the clipboard."
+                        )
                     ))
                 } catch {
                     self?.errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
                 }
             }
+        } catch is CancellationError {
+            return
         } catch {
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
     }
 
     func exportFormatRequiresPNG(appearance: ScreenshotOutputAppearance) -> Bool {
-        (try? exportRenderInput(for: appearance).snapshot.presentation.requiresPNGForFaithfulExport) ?? false
+        appearance == .styled
+            && snapshot.presentation.requiresPNGForFaithfulExport
     }
 
     func renderedImageForExport(appearance: ScreenshotOutputAppearance) async throws -> CGImage {
-        try await EditorExportRenderer.renderImage(from: exportRenderInput(for: appearance))
+        try await EditorExportRenderer.renderImage(
+            from: exportRenderInput(
+                for: appearance,
+                compositionSafetyPolicy: .fail
+            )
+        )
     }
 
     func saveAnnotatedImage(
@@ -1810,6 +2305,8 @@ final class EditorController: ObservableObject {
         let input: EditorExportRenderInput
         do {
             input = try exportRenderInput(for: appearance)
+        } catch is CancellationError {
+            return
         } catch {
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             return
@@ -1837,7 +2334,9 @@ final class EditorController: ObservableObject {
                 let image = try await EditorExportRenderer.renderImage(from: input)
                 try await ImageExporter.write(image, format: format, to: url, options: exportOptions)
                 self?.showNotice(EditorNotice(
-                    message: "Exported \(appearance.title) \(format.label) to \(url.lastPathComponent).",
+                    message: String(
+                        localized: "Exported \(format.label) to \(url.lastPathComponent)."
+                    ),
                     action: .reveal(url),
                     dismissalDelaySeconds: 6
                 ))
@@ -1851,6 +2350,8 @@ final class EditorController: ObservableObject {
         let input: EditorExportRenderInput
         do {
             input = try exportRenderInput(for: appearance)
+        } catch is CancellationError {
+            return
         } catch {
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             return
@@ -1874,7 +2375,10 @@ final class EditorController: ObservableObject {
     ) -> PromisedFilePayload? {
         let input: EditorExportRenderInput
         do {
-            input = try exportRenderInput(for: appearance)
+            input = try exportRenderInput(
+                for: appearance,
+                compositionSafetyPolicy: .scaleToFit
+            )
         } catch {
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             return nil
@@ -1890,7 +2394,7 @@ final class EditorController: ObservableObject {
         )
 
         if format != requestedFormat {
-            showNotice("PNG used to preserve transparent presentation styling.")
+            showNotice("PNG used to preserve transparent Polish.")
         }
 
         return PromisedFilePayload(
@@ -1944,8 +2448,12 @@ final class EditorController: ObservableObject {
         notice = nil
     }
 
-    private func exportRenderInput(for appearance: ScreenshotOutputAppearance) throws -> EditorExportRenderInput {
-        var exportSnapshot = snapshot
+    private func exportRenderInput(
+        for appearance: ScreenshotOutputAppearance,
+        compositionSafetyPolicy:
+            EditorCompositionRasterSafetyPolicy = .prompt
+    ) throws -> EditorExportRenderInput {
+        var exportSnapshot = canonicalCompositionEditingSnapshot(snapshot)
         switch appearance {
         case .plain:
             exportSnapshot.presentation = .plain
@@ -1955,12 +2463,111 @@ final class EditorController: ObservableObject {
             }
         }
 
+        let compositionOutput: CompositionOutputInput?
+        let maximumOutputDimension: Int?
+        if exportSnapshot.composition?.isActivated == true {
+            let output = CompositionOutputInput(
+                baseImage: documentCapture.image,
+                snapshot: exportSnapshot,
+                compositionAssets: [:],
+                compositionAssetRepository:
+                    compositionAssetRepository,
+                compositionAssetDescriptors:
+                    compositionAssetRepository.descriptors,
+                pinnedUIMapElements: pinnedUIMapElements,
+                uiMapOverlayOptions: uiMapOverlayOptions,
+                appearance: appearance,
+                suppressesContentDiagnostics: isPrivateDocument
+            )
+            let preflight = try CompositionOutputExporter.preflight(
+                output,
+                format: .png
+            )
+            compositionOutput = output
+            if preflight.isOversized {
+                switch compositionSafetyPolicy {
+                case .fail:
+                    throw CompositionOutputError.outputTooLarge(
+                        width: Int(
+                            preflight.estimatedPixelSize.width.rounded(.up)
+                        ),
+                        height: Int(
+                            preflight.estimatedPixelSize.height.rounded(.up)
+                        )
+                    )
+                case .prompt:
+                    guard presentCompositionRasterScaleConfirmation(
+                        preflight
+                    ) else {
+                        throw CancellationError()
+                    }
+                    maximumOutputDimension =
+                        preflight.recommendedMaximumOutputDimension
+                case .scaleToFit:
+                    maximumOutputDimension =
+                        preflight.recommendedMaximumOutputDimension
+                    showNotice(
+                        "Output was scaled to fit the safe raster size and memory limits."
+                    )
+                }
+            } else {
+                maximumOutputDimension = nil
+            }
+        } else {
+            compositionOutput = nil
+            maximumOutputDimension = nil
+        }
+
         return EditorExportRenderInput(
-            baseImage: capture.image,
+            baseImage: documentCapture.image,
             snapshot: exportSnapshot,
+            compositionOutput: compositionOutput,
+            compositionMaximumOutputDimension: maximumOutputDimension,
             pinnedUIMapElements: pinnedUIMapElements,
-            uiMapOverlayOptions: uiMapOverlayOptions
+            uiMapOverlayOptions: uiMapOverlayOptions,
+            suppressesContentDiagnostics: isPrivateDocument
         )
+    }
+
+    private func renderExportInput(
+        _ input: EditorExportRenderInput
+    ) throws -> CGImage {
+        if let compositionOutput = input.compositionOutput {
+            return try CompositionOutputExporter.staticImage(
+                compositionOutput,
+                maximumOutputDimension:
+                    input.compositionMaximumOutputDimension
+            )
+        }
+        return try CompositionDocumentRenderer.renderImage(
+            baseImage: input.baseImage,
+            snapshot: input.snapshot,
+            pinnedUIMapElements: input.pinnedUIMapElements,
+            uiMapOverlayOptions: input.uiMapOverlayOptions
+        )
+    }
+
+    private func presentCompositionRasterScaleConfirmation(
+        _ preflight: CompositionOutputPreflight
+    ) -> Bool {
+        let workingSetMB = max(
+            1,
+            Int(
+                ceil(
+                    Double(preflight.estimatedWorkingSetBytes)
+                        / 1_048_576
+                )
+            )
+        )
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText =
+            "Composition Is Too Large for a Full-Size Raster"
+        alert.informativeText =
+            "The estimated output is \(preflight.sizeDescription) pixels and may use about \(workingSetMB) MB while rendering. Scale it to the safe raster limits?"
+        alert.addButton(withTitle: "Scale to Fit")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
     func commitPendingTextEdits() {
@@ -1975,11 +2582,12 @@ final class EditorController: ObservableObject {
 
         refitPendingTextBounds(for: session)
 
-        guard snapshot != session.originalSnapshot else {
+        guard canonicalCompositionEditingSnapshot(snapshot)
+            != canonicalCompositionEditingSnapshot(session.originalSnapshot) else {
             return
         }
 
-        undoStack.append(session.originalSnapshot)
+        undoStack.append(canonicalCompositionEditingSnapshot(session.originalSnapshot))
         redoStack.removeAll()
         persistenceRevision += 1
     }
@@ -2481,12 +3089,612 @@ final class EditorController: ObservableObject {
         }
     }
 
+    var compositionEditingScopeTitle: String? {
+        switch compositionEditingScope {
+        case .layout:
+            return nil
+        case .composition:
+            return "Annotate Result"
+        case .item(let itemID):
+            let title = snapshot.composition?.items.first(where: { $0.id == itemID })?.title
+            return title?.isEmpty == false
+                ? "Edit Selected Capture — \(title!)"
+                : "Edit Selected Capture"
+        }
+    }
+
+    var canSelectPreviousCompositionItem: Bool {
+        adjacentCompositionItemID(offset: -1) != nil
+    }
+
+    var canSelectNextCompositionItem: Bool {
+        adjacentCompositionItemID(offset: 1) != nil
+    }
+
+    func enterCompositionItemEditing(_ itemID: UUID) {
+        guard compositionEditingScope == .layout,
+              snapshot.composition?.items.contains(where: { $0.id == itemID }) == true else {
+            return
+        }
+
+        commitPendingTextEdits()
+        let canonical = snapshot
+        do {
+            let itemCapture = try compositionCapture(for: itemID)
+            rememberCompositionEditingReturnContext()
+            compositionEditingRootState = editState(from: canonical)
+            compositionEditingLayout = nil
+            compositionEditingLogicalCanvasSize = nil
+            capture = itemCapture
+            compositionEditingScope = .item(itemID)
+            workspaceMode = .edit
+            activeTool = .select
+            clearTransientToolState()
+            applySnapshot(
+                canonical,
+                fitViewportToCrop: true,
+                canonicalizesCompositionEditingChanges: false
+            )
+            showNotice("Editing one source item. Choose Done to return to Layout.")
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    func enterCompositionEditing() {
+        guard compositionEditingScope == .layout,
+              snapshot.composition != nil else {
+            return
+        }
+
+        commitPendingTextEdits()
+        let canonical = snapshot
+        do {
+            var options = CompositionRenderOptions()
+            options.drawsCanvasAnnotations = false
+            options.targetMaximumPixelDimension = 4_096
+            let logicalLayout = try CompositionLayoutEngine.layout(
+                composition: canonical.composition!,
+                assetDescriptors: compositionAssetRepository.descriptors
+            )
+            let result = try CompositionRenderer.renderPreview(
+                composition: canonical.composition!,
+                assetRepository: compositionAssetRepository,
+                options: options
+            )
+            rememberCompositionEditingReturnContext()
+            let bounds = CGRect(origin: .zero, size: result.layout.canvasSize)
+            let assembledCapture = CapturedScreenshot(
+                image: result.image,
+                kind: .region,
+                sourceName: "Composition",
+                sourceRect: bounds,
+                capturedAt: Date()
+            )
+            compositionEditingRootState = editState(from: canonical)
+            compositionEditingLayout = result.layout
+            compositionEditingLogicalCanvasSize = logicalLayout.canvasSize
+            capture = assembledCapture
+            compositionEditingScope = .composition
+            workspaceMode = .edit
+            activeTool = .select
+            clearTransientToolState()
+            applySnapshot(
+                canonical,
+                fitViewportToCrop: true,
+                canonicalizesCompositionEditingChanges: false
+            )
+            showNotice("Editing annotations over the complete composition. Choose Done to return to Layout.")
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    func enterCompositionEditingFromPresentation() {
+        presentationInspectorTab = .layout
+        enterCompositionEditing()
+    }
+
+    func finishCompositionEditing() {
+        guard compositionEditingScope != .layout else {
+            return
+        }
+
+        commitPendingTextEdits()
+        let canonical = canonicalCompositionEditingSnapshot(snapshot)
+        let returnViewport = compositionEditingReturnViewport
+        let returnInspectorTab = compositionEditingReturnInspectorTab
+        let returnInspectorScrollPosition = compositionEditingReturnInspectorScrollPosition
+        compositionEditingScope = .layout
+        capture = documentCapture
+        compositionEditingRootState = nil
+        compositionEditingLayout = nil
+        compositionEditingLogicalCanvasSize = nil
+        compositionEditingReturnViewport = nil
+        compositionEditingReturnInspectorTab = nil
+        compositionEditingReturnInspectorScrollPosition = nil
+        activeTool = .select
+        clearTransientToolState()
+        workspaceMode = .presentation
+        applySnapshot(canonical, fitViewportToCrop: false)
+        if let returnViewport {
+            objectWillChange.send()
+            viewport = returnViewport
+            invalidateCanvas(.viewport)
+        }
+        if let returnInspectorTab {
+            presentationInspectorTab = returnInspectorTab
+        }
+        compositionInspectorScrollPosition = returnInspectorScrollPosition
+        requestCompositionCanvasFocus()
+        showNotice("Composition edits applied.")
+    }
+
+    func requestCompositionCanvasFocus() {
+        compositionCanvasFocusRequestRevision &+= 1
+    }
+
+    private func rememberCompositionEditingReturnContext() {
+        compositionEditingReturnViewport = viewport
+        compositionEditingReturnInspectorTab = .layout
+        compositionEditingReturnInspectorScrollPosition = compositionInspectorScrollPosition
+    }
+
+    func selectPreviousCompositionItemForEditing() {
+        switchCompositionItemEditing(to: adjacentCompositionItemID(offset: -1))
+    }
+
+    func selectNextCompositionItemForEditing() {
+        switchCompositionItemEditing(to: adjacentCompositionItemID(offset: 1))
+    }
+
+    func pinSelectedCompositionAnnotationsToCanvas() {
+        retargetSelectedCompositionAnnotations(toItemID: nil)
+    }
+
+    func pinSelectedCompositionAnnotationEndpointsToVisibleItems() {
+        retargetSelectedCompositionAnnotations(
+            toItemID: nil,
+            usesItemsUnderEndpoints: true
+        )
+    }
+
+    func pinSelectedCompositionAnnotations(to itemID: UUID) {
+        retargetSelectedCompositionAnnotations(toItemID: itemID)
+    }
+
+    private func switchCompositionItemEditing(to itemID: UUID?) {
+        guard case .item = compositionEditingScope, let itemID else {
+            return
+        }
+        commitPendingTextEdits()
+        var canonical = canonicalCompositionEditingSnapshot(snapshot)
+        do {
+            let itemCapture = try compositionCapture(for: itemID)
+            canonical.composition?.selectedItemIDs = [itemID]
+            capture = itemCapture
+            compositionEditingScope = .item(itemID)
+            applySnapshot(
+                canonical,
+                fitViewportToCrop: true,
+                canonicalizesCompositionEditingChanges: false
+            )
+            activeTool = .select
+            clearTransientToolState()
+            AppAccessibility.announce(
+                compositionEditingScopeTitle ?? "Edit Selected Capture"
+            )
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    private func adjacentCompositionItemID(offset: Int) -> UUID? {
+        guard case .item(let currentID) = compositionEditingScope,
+              let items = snapshot.composition?.items,
+              let currentIndex = items.firstIndex(where: { $0.id == currentID }) else {
+            return nil
+        }
+        let targetIndex = currentIndex + offset
+        guard items.indices.contains(targetIndex) else {
+            return nil
+        }
+        return items[targetIndex].id
+    }
+
+    private func retargetSelectedCompositionAnnotations(
+        toItemID itemID: UUID?,
+        usesItemsUnderEndpoints: Bool = false
+    ) {
+        guard compositionEditingScope == .composition,
+              let layout = compositionEditingLayout else {
+            return
+        }
+        var canonical = canonicalCompositionEditingSnapshot(snapshot)
+        guard var composition = canonical.composition else {
+            return
+        }
+        let selectedIDs = Set(snapshot.selectedAnnotationIDs)
+        guard !selectedIDs.isEmpty else {
+            return
+        }
+        let canvasSize = layout.canvasSize
+        for annotation in composition.canvas.annotations where selectedIDs.contains(annotation.id) {
+            let points = compositionAnchorPoints(for: annotation)
+            let primaryItemID = usesItemsUnderEndpoints
+                ? compositionItemID(containing: points.primary, layout: layout)
+                : itemID
+            let primary = makeCompositionAnchor(
+                at: points.primary,
+                itemID: primaryItemID,
+                layout: layout,
+                canvasSize: canvasSize
+            )
+            let secondary = points.secondary.map {
+                let secondaryItemID = usesItemsUnderEndpoints
+                    ? compositionItemID(containing: $0, layout: layout)
+                    : itemID
+                return makeCompositionAnchor(
+                    at: $0,
+                    itemID: secondaryItemID,
+                    layout: layout,
+                    canvasSize: canvasSize
+                )
+            }
+            composition.canvas.annotationAnchors[annotation.id] = CompositionAnnotationAnchors(
+                primary: primary,
+                secondary: secondary
+            )
+        }
+        canonical.composition = composition
+        execute(SetCompositionCanvasCommand(canvas: composition.canvas))
+        if usesItemsUnderEndpoints {
+            showNotice(
+                "Pinned each selected annotation endpoint to the visible item beneath it."
+            )
+        } else {
+            showNotice(
+                itemID == nil
+                    ? "Pinned selected annotations to the canvas."
+                    : "Pinned selected annotations to the item."
+            )
+        }
+    }
+
+    private func canonicalCompositionEditingSnapshot(_ candidate: EditorSnapshot) -> EditorSnapshot {
+        guard let rootState = compositionEditingRootState,
+              compositionEditingScope != .layout,
+              var composition = candidate.composition else {
+            return candidate
+        }
+
+        switch compositionEditingScope {
+        case .layout:
+            break
+        case .item(let itemID):
+            if let index = composition.items.firstIndex(where: { $0.id == itemID }) {
+                composition.items[index].editState = editState(from: candidate)
+            }
+        case .composition:
+            let displayCanvasSize = capture.pixelSize
+            let logicalCanvasSize = compositionEditingLogicalCanvasSize
+                ?? displayCanvasSize
+            composition.canvas.annotations = candidate.annotations.map {
+                scaledCompositionEditingAnnotation(
+                    $0,
+                    from: displayCanvasSize,
+                    to: logicalCanvasSize
+                )
+            }
+            composition.canvas.selectedAnnotationIDs = candidate.selectedAnnotationIDs
+            composition.canvas.nextCalloutNumber = candidate.nextCalloutNumber
+            var displayCanvas = composition.canvas
+            displayCanvas.annotations = candidate.annotations
+            updateCompositionAnnotationAnchors(
+                in: &displayCanvas,
+                layout: compositionEditingLayout,
+                canvasSize: displayCanvasSize
+            )
+            composition.canvas.annotationAnchors = displayCanvas.annotationAnchors
+                .mapValues {
+                    scaledCompositionEditingAnchors(
+                        $0,
+                        from: displayCanvasSize,
+                        to: logicalCanvasSize
+                    )
+                }
+        }
+
+        var canonical = candidate
+        canonical.composition = composition
+        canonical.cropRect = rootState.cropRect
+            ?? CGRect(origin: .zero, size: documentCapture.pixelSize)
+        canonical.annotations = rootState.annotations
+        canonical.selectedAnnotationIDs = rootState.selectedAnnotationIDs
+        canonical.nextCalloutNumber = rootState.nextCalloutNumber
+        canonical.pinnedUIMapElementIDs = rootState.pinnedUIMapElementIDs
+        return canonical
+    }
+
+    private func projectedCompositionEditingSnapshot(_ canonical: EditorSnapshot) -> EditorSnapshot {
+        guard compositionEditingScope != .layout,
+              let composition = canonical.composition else {
+            return canonical
+        }
+
+        var projected = canonical
+        let projectedState: ScreenshotEditState
+        switch compositionEditingScope {
+        case .layout:
+            return canonical
+        case .item(let itemID):
+            guard let item = composition.items.first(where: { $0.id == itemID }) else {
+                return canonical
+            }
+            projectedState = item.editState
+        case .composition:
+            let logicalCanvasSize = compositionEditingLogicalCanvasSize
+                ?? capture.pixelSize
+            projectedState = ScreenshotEditState(
+                cropRect: CGRect(origin: .zero, size: capture.pixelSize),
+                annotations: composition.canvas.annotations.map {
+                    scaledCompositionEditingAnnotation(
+                        $0,
+                        from: logicalCanvasSize,
+                        to: capture.pixelSize
+                    )
+                },
+                selectedAnnotationIDs: composition.canvas.selectedAnnotationIDs,
+                nextCalloutNumber: composition.canvas.nextCalloutNumber
+            )
+        }
+        projected.cropRect = projectedState.cropRect
+            ?? CGRect(origin: .zero, size: capture.pixelSize)
+        projected.annotations = projectedState.annotations
+        projected.selectedAnnotationIDs = projectedState.selectedAnnotationIDs
+        projected.nextCalloutNumber = projectedState.nextCalloutNumber
+        projected.pinnedUIMapElementIDs = projectedState.pinnedUIMapElementIDs
+        return projected
+    }
+
+    private func scaledCompositionEditingAnnotation(
+        _ annotation: Annotation,
+        from sourceSize: CGSize,
+        to destinationSize: CGSize
+    ) -> Annotation {
+        guard sourceSize.width > 0,
+              sourceSize.height > 0,
+              destinationSize.width > 0,
+              destinationSize.height > 0,
+              sourceSize != destinationSize else {
+            return annotation
+        }
+        let sourceBounds = CGRect(origin: .zero, size: sourceSize)
+        let destinationBounds = CGRect(origin: .zero, size: destinationSize)
+        let styleScale = min(
+            destinationSize.width / sourceSize.width,
+            destinationSize.height / sourceSize.height
+        )
+        var scaled = annotation.scaled(
+            from: sourceBounds,
+            to: destinationBounds
+        )
+        var style = scaled.style.scaledForDisplay(by: styleScale)
+        style.effectRadius *= styleScale
+        scaled.style = style
+        if case .arrow(var shape) = scaled.kind {
+            shape.labelFontSize *= styleScale
+            scaled.kind = .arrow(shape)
+        }
+        return scaled
+    }
+
+    private func scaledCompositionEditingAnchors(
+        _ anchors: CompositionAnnotationAnchors,
+        from sourceSize: CGSize,
+        to destinationSize: CGSize
+    ) -> CompositionAnnotationAnchors {
+        CompositionAnnotationAnchors(
+            primary: scaledCompositionEditingAnchor(
+                anchors.primary,
+                from: sourceSize,
+                to: destinationSize
+            ),
+            secondary: anchors.secondary.map {
+                scaledCompositionEditingAnchor(
+                    $0,
+                    from: sourceSize,
+                    to: destinationSize
+                )
+            }
+        )
+    }
+
+    private func scaledCompositionEditingAnchor(
+        _ anchor: CompositionAnnotationAnchor,
+        from sourceSize: CGSize,
+        to destinationSize: CGSize
+    ) -> CompositionAnnotationAnchor {
+        guard sourceSize.width > 0, sourceSize.height > 0 else {
+            return anchor
+        }
+        let scaleX = destinationSize.width / sourceSize.width
+        let scaleY = destinationSize.height / sourceSize.height
+        func scaledPoint(_ point: CGPoint) -> CGPoint {
+            CGPoint(x: point.x * scaleX, y: point.y * scaleY)
+        }
+        let target: CompositionAnchorTarget
+        switch anchor.target {
+        case .canvasNormalized, .itemNormalized:
+            target = anchor.target
+        case .detachedCanvas(let point):
+            target = .detachedCanvas(scaledPoint(point))
+        }
+        return CompositionAnnotationAnchor(
+            target: target,
+            lastCanvasPoint: scaledPoint(anchor.lastCanvasPoint)
+        )
+    }
+
+    private func editState(from snapshot: EditorSnapshot) -> ScreenshotEditState {
+        ScreenshotEditState(
+            cropRect: snapshot.cropRect,
+            annotations: snapshot.annotations,
+            selectedAnnotationIDs: snapshot.selectedAnnotationIDs,
+            nextCalloutNumber: snapshot.nextCalloutNumber,
+            pinnedUIMapElementIDs: snapshot.pinnedUIMapElementIDs
+        )
+    }
+
+    private func updateCompositionAnnotationAnchors(
+        in canvas: inout CompositionCanvasState,
+        layout: CompositionRenderLayout?,
+        canvasSize: CGSize
+    ) {
+        let validIDs = Set(canvas.annotations.map(\.id))
+        canvas.annotationAnchors = canvas.annotationAnchors.filter { validIDs.contains($0.key) }
+        for annotation in canvas.annotations {
+            let points = compositionAnchorPoints(for: annotation)
+            let prior = canvas.annotationAnchors[annotation.id]
+            canvas.annotationAnchors[annotation.id] = CompositionAnnotationAnchors(
+                primary: updatedCompositionAnchor(
+                    prior?.primary,
+                    at: points.primary,
+                    layout: layout,
+                    canvasSize: canvasSize
+                ),
+                secondary: points.secondary.map {
+                    updatedCompositionAnchor(
+                        prior?.secondary,
+                        at: $0,
+                        layout: layout,
+                        canvasSize: canvasSize
+                    )
+                }
+            )
+        }
+    }
+
+    private func compositionAnchorPoints(for annotation: Annotation) -> (primary: CGPoint, secondary: CGPoint?) {
+        switch annotation.kind {
+        case .line(let shape):
+            return (shape.start, shape.end)
+        case .arrow(let shape):
+            return (shape.start, shape.end)
+        case .measurement(let shape):
+            return (shape.start, shape.end)
+        default:
+            return (annotation.boundingRect.origin, nil)
+        }
+    }
+
+    private func updatedCompositionAnchor(
+        _ prior: CompositionAnnotationAnchor?,
+        at point: CGPoint,
+        layout: CompositionRenderLayout?,
+        canvasSize: CGSize
+    ) -> CompositionAnnotationAnchor {
+        guard let prior else {
+            let itemID = layout.flatMap {
+                compositionItemID(containing: point, layout: $0)
+            }
+            return makeCompositionAnchor(
+                at: point,
+                itemID: itemID,
+                layout: layout,
+                canvasSize: canvasSize
+            )
+        }
+        let target: CompositionAnchorTarget
+        switch prior.target {
+        case .canvasNormalized:
+            target = .canvasNormalized(normalizedCompositionPoint(point, in: canvasSize))
+        case .detachedCanvas:
+            target = .detachedCanvas(point)
+        case .itemNormalized(let itemID, _):
+            if let itemLayout = layout?.itemLayout(for: itemID),
+               itemLayout.imageDrawRect.width > 0,
+               itemLayout.imageDrawRect.height > 0 {
+                target = .itemNormalized(
+                    itemID: itemID,
+                    point: CGPoint(
+                        x: (point.x - itemLayout.imageDrawRect.minX) / itemLayout.imageDrawRect.width,
+                        y: (point.y - itemLayout.imageDrawRect.minY) / itemLayout.imageDrawRect.height
+                    )
+                )
+            } else {
+                target = .detachedCanvas(point)
+            }
+        }
+        return CompositionAnnotationAnchor(target: target, lastCanvasPoint: point)
+    }
+
+    private func makeCompositionAnchor(
+        at point: CGPoint,
+        itemID: UUID?,
+        layout: CompositionRenderLayout?,
+        canvasSize: CGSize
+    ) -> CompositionAnnotationAnchor {
+        if let itemID,
+           let itemLayout = layout?.itemLayout(for: itemID),
+           itemLayout.imageDrawRect.width > 0,
+           itemLayout.imageDrawRect.height > 0 {
+            return CompositionAnnotationAnchor(
+                target: .itemNormalized(
+                    itemID: itemID,
+                    point: CGPoint(
+                        x: (point.x - itemLayout.imageDrawRect.minX) / itemLayout.imageDrawRect.width,
+                        y: (point.y - itemLayout.imageDrawRect.minY) / itemLayout.imageDrawRect.height
+                    )
+                ),
+                lastCanvasPoint: point
+            )
+        }
+        return CompositionAnnotationAnchor(
+            target: .canvasNormalized(normalizedCompositionPoint(point, in: canvasSize)),
+            lastCanvasPoint: point
+        )
+    }
+
+    private func compositionItemID(
+        containing point: CGPoint,
+        layout: CompositionRenderLayout
+    ) -> UUID? {
+        layout.items
+            .sorted {
+                if $0.zIndex == $1.zIndex {
+                    return $0.itemID.uuidString > $1.itemID.uuidString
+                }
+                return $0.zIndex > $1.zIndex
+            }
+            .first(where: {
+                $0.imageClipRect.contains(point)
+            })?
+            .itemID
+    }
+
+    private func normalizedCompositionPoint(_ point: CGPoint, in size: CGSize) -> CGPoint {
+        CGPoint(
+            x: size.width > 0 ? point.x / size.width : 0,
+            y: size.height > 0 ? point.y / size.height : 0
+        )
+    }
+
     private func applySnapshot(
         _ updatedSnapshot: EditorSnapshot,
         fitViewportToCrop: Bool,
-        invalidationReason: EditorCanvasInvalidationReason = .full
+        invalidationReason: EditorCanvasInvalidationReason = .full,
+        canonicalizesCompositionEditingChanges: Bool = true
     ) {
-        snapshot = updatedSnapshot
+        let canonical = canonicalizesCompositionEditingChanges
+            ? canonicalCompositionEditingSnapshot(updatedSnapshot)
+            : updatedSnapshot
+        let projected = projectedCompositionEditingSnapshot(canonical)
+        snapshot = projected
+        workflowResumeState = workflowResumeState.normalized(
+            for: projected.documentPurpose,
+            composition: projected.composition
+        )
         invalidateCanvas(invalidationReason)
         updateViewport(
             publishChange: fitViewportToCrop,
@@ -2498,11 +3706,11 @@ final class EditorController: ObservableObject {
                 return updatedViewport
             }
 
-            if updatedSnapshot.cropRect.gscIntegralStandardized == fullImageRect {
+            if projected.cropRect.gscIntegralStandardized == fullImageRect {
                 return updatedViewport.zoomedToFit()
             }
 
-            return updatedViewport.focused(on: updatedSnapshot.cropRect)
+            return updatedViewport.focused(on: projected.cropRect)
         }
     }
 
@@ -2532,11 +3740,22 @@ final class EditorController: ObservableObject {
         if reason == .full || reason == .uiMapOverlay {
             presentationContentRevision += 1
             presentationContentCache = nil
-            PresentationPerformanceMetrics.logEvent(
-                "controller.presentationContent.invalidate",
-                context: "reason=\(reason.metricName) revision=\(presentationContentRevision) canvasRevision=\(canvasRevision)"
-            )
+            compositionRegistrationOutcome = nil
+            if !isPrivateDocument {
+                PresentationPerformanceMetrics.logEvent(
+                    "controller.presentationContent.invalidate",
+                    context: "reason=\(reason.metricName) revision=\(presentationContentRevision) canvasRevision=\(canvasRevision)"
+                )
+            }
         }
+    }
+
+    func invalidateCompositionContent() {
+        invalidateCanvas(.full)
+    }
+
+    func setCompositionRegistrationOutcome(_ outcome: CompositionRegistrationOutcome?) {
+        compositionRegistrationOutcome = outcome
     }
 }
 
@@ -2571,22 +3790,38 @@ private extension EditorSnapshot {
     }
 }
 
+nonisolated private enum EditorCompositionRasterSafetyPolicy {
+    case fail
+    case prompt
+    case scaleToFit
+}
+
 nonisolated private struct EditorExportRenderInput: @unchecked Sendable {
     let baseImage: CGImage
     let snapshot: EditorSnapshot
+    let compositionOutput: CompositionOutputInput?
+    let compositionMaximumOutputDimension: Int?
     let pinnedUIMapElements: [UIMapElement]
     let uiMapOverlayOptions: UIMapOverlayOptions
+    let suppressesContentDiagnostics: Bool
 
     init(
         baseImage: CGImage,
         snapshot: EditorSnapshot,
+        compositionOutput: CompositionOutputInput? = nil,
+        compositionMaximumOutputDimension: Int? = nil,
         pinnedUIMapElements: [UIMapElement] = [],
-        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions()
+        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions(),
+        suppressesContentDiagnostics: Bool = false
     ) {
         self.baseImage = baseImage
         self.snapshot = snapshot
+        self.compositionOutput = compositionOutput
+        self.compositionMaximumOutputDimension =
+            compositionMaximumOutputDimension
         self.pinnedUIMapElements = pinnedUIMapElements
         self.uiMapOverlayOptions = uiMapOverlayOptions
+        self.suppressesContentDiagnostics = suppressesContentDiagnostics
     }
 }
 
@@ -2595,22 +3830,30 @@ nonisolated private enum EditorExportRenderer {
         let task = Task.detached(priority: .userInitiated) {
             try Task.checkCancellation()
 
-            let image = PresentationPerformanceMetrics.measure(
-                "export.renderImage",
-                context: "base=\(input.baseImage.width)x\(input.baseImage.height) crop=\(PresentationPerformanceMetrics.size(input.snapshot.cropRect.size)) annotations=\(input.snapshot.annotations.count) \(PresentationPerformanceMetrics.presentationSummary(input.snapshot.presentation))",
-                warnAfterMS: 120
-            ) {
-                ScreenshotPresentationRenderer.render(
-                    baseImage: input.baseImage,
-                    snapshot: input.snapshot,
-                    pinnedUIMapElements: input.pinnedUIMapElements,
-                    uiMapOverlayOptions: input.uiMapOverlayOptions
-                )
-            }
-
-            guard let image else {
-                throw ImageExportError.encodingFailed
-            }
+            let image = try PresentationPerformanceMetrics
+                .withLoggingSuppressed(
+                    input.suppressesContentDiagnostics
+                ) {
+                    try PresentationPerformanceMetrics.measure(
+                        "export.renderImage",
+                        context: "base=\(input.baseImage.width)x\(input.baseImage.height) crop=\(PresentationPerformanceMetrics.size(input.snapshot.cropRect.size)) annotations=\(input.snapshot.annotations.count) compositionItems=\(input.snapshot.composition?.items.count ?? 0) \(PresentationPerformanceMetrics.presentationSummary(input.snapshot.presentation))",
+                        warnAfterMS: 120
+                    ) {
+                        if let compositionOutput = input.compositionOutput {
+                            return try CompositionOutputExporter.staticImage(
+                                compositionOutput,
+                                maximumOutputDimension:
+                                    input.compositionMaximumOutputDimension
+                            )
+                        }
+                        return try CompositionDocumentRenderer.renderImage(
+                            baseImage: input.baseImage,
+                            snapshot: input.snapshot,
+                            pinnedUIMapElements: input.pinnedUIMapElements,
+                            uiMapOverlayOptions: input.uiMapOverlayOptions
+                        )
+                    }
+                }
 
             try Task.checkCancellation()
             return image
@@ -2627,32 +3870,42 @@ nonisolated private enum EditorExportRenderer {
         let task = Task.detached(priority: .userInitiated) {
             try Task.checkCancellation()
 
-            let image = PresentationPerformanceMetrics.measure(
-                "export.renderPNG.image",
-                context: "base=\(input.baseImage.width)x\(input.baseImage.height) crop=\(PresentationPerformanceMetrics.size(input.snapshot.cropRect.size)) annotations=\(input.snapshot.annotations.count) \(PresentationPerformanceMetrics.presentationSummary(input.snapshot.presentation))",
-                warnAfterMS: 120
-            ) {
-                ScreenshotPresentationRenderer.render(
-                    baseImage: input.baseImage,
-                    snapshot: input.snapshot,
-                    pinnedUIMapElements: input.pinnedUIMapElements,
-                    uiMapOverlayOptions: input.uiMapOverlayOptions
-                )
-            }
+            return try PresentationPerformanceMetrics
+                .withLoggingSuppressed(
+                    input.suppressesContentDiagnostics
+                ) {
+                    let image = try PresentationPerformanceMetrics.measure(
+                        "export.renderPNG.image",
+                        context: "base=\(input.baseImage.width)x\(input.baseImage.height) crop=\(PresentationPerformanceMetrics.size(input.snapshot.cropRect.size)) annotations=\(input.snapshot.annotations.count) compositionItems=\(input.snapshot.composition?.items.count ?? 0) \(PresentationPerformanceMetrics.presentationSummary(input.snapshot.presentation))",
+                        warnAfterMS: 120
+                    ) {
+                        if let compositionOutput = input.compositionOutput {
+                            return try CompositionOutputExporter.staticImage(
+                                compositionOutput,
+                                maximumOutputDimension:
+                                    input.compositionMaximumOutputDimension
+                            )
+                        }
+                        return try CompositionDocumentRenderer.renderImage(
+                            baseImage: input.baseImage,
+                            snapshot: input.snapshot,
+                            pinnedUIMapElements:
+                                input.pinnedUIMapElements,
+                            uiMapOverlayOptions:
+                                input.uiMapOverlayOptions
+                        )
+                    }
 
-            guard let image else {
-                throw ImageExportError.encodingFailed
+                    try Task.checkCancellation()
+                    return try PresentationPerformanceMetrics.measure(
+                        "export.renderPNG.encode",
+                        context: "image=\(image.width)x\(image.height)",
+                        warnAfterMS: 80
+                    ) {
+                        try ImageExporter.pngData(for: image)
+                    }
+                }
             }
-
-            try Task.checkCancellation()
-            return try PresentationPerformanceMetrics.measure(
-                "export.renderPNG.encode",
-                context: "image=\(image.width)x\(image.height)",
-                warnAfterMS: 80
-            ) {
-                try ImageExporter.pngData(for: image)
-            }
-        }
 
         return try await withTaskCancellationHandler {
             try await task.value

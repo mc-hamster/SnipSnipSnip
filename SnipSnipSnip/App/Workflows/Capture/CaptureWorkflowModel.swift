@@ -114,13 +114,28 @@ final class CaptureWorkflowModel: ObservableObject, AutomationStatusPort, Captur
     @Published var captureRecovery: CaptureRecovery?
     var pendingWindowThumbnailTask: Task<Void, Never>?
     var pendingPermissionCommand: PendingCapturePermissionRequest?
+    /// Captured when an operation starts and consumed only by a successful
+    /// completion. Permission deferral and recovery deliberately preserve the
+    /// destination and its user-facing workflow role as one value.
+    var activeCaptureContext = CaptureCompletionContext.standalone
     var pendingCapturePresetDraft: CapturePreset?
     var pendingRecoveryRequest: LastCaptureRequest?
+    /// Recovery owns a failed operation's destination independently from the
+    /// active slot. This prevents a failed Create capture from leaking its
+    /// role/options into an unrelated direct capture while still allowing an
+    /// explicit retry to resume the exact operation.
+    var pendingRecoveryCaptureContext: CaptureCompletionContext?
     var pendingScrollingPartialCapture: (result: ScrollingCaptureResult, isPrivateCapture: Bool)?
     var activeWorkflowPresetID: CapturePreset.ID?
     var capturePrivacyLockDepth = 0
     var interactiveCaptureAutosaveSuspensionDepth = 0
     var connectedDevicePreviewController: ConnectedDevicePreviewWindowController?
+    /// Modal window selection owns its destination independently from the
+    /// global capture slot so another asynchronous capture cannot retarget it.
+    var windowPickerCaptureContext: CaptureCompletionContext?
+    /// Screen Inspector is persistent and may coexist with another capture.
+    /// Its exact goal/destination therefore lives with the surface session.
+    var screenInspectorCaptureContext: CaptureCompletionContext?
 
     init(
         dependencies: CaptureWorkflowDependencies,

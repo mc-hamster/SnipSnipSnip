@@ -501,7 +501,10 @@ final class ClipboardHistoryStore: ObservableObject {
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             let data = try encoder.encode(StoredState(items: items))
             let encryptedData = try cryptor.encrypt(data)
-            try encryptedData.write(to: indexURL, options: [.atomic, .completeFileProtection])
+            try writeDataWithBestAvailableFileProtection(
+                encryptedData,
+                to: indexURL
+            )
         } catch {
             // Clipboard history should never block capture or copy workflows.
         }
@@ -515,7 +518,10 @@ final class ClipboardHistoryStore: ObservableObject {
         try? protectedRootURL.setResourceValues(resourceValues)
         let spotlightExclusionURL = rootURL.appendingPathComponent(".metadata_never_index")
         if !fileManager.fileExists(atPath: spotlightExclusionURL.path) {
-            try Data().write(to: spotlightExclusionURL, options: [.atomic, .completeFileProtection])
+            try writeDataWithBestAvailableFileProtection(
+                Data(),
+                to: spotlightExclusionURL
+            )
         }
     }
 
@@ -538,10 +544,26 @@ final class ClipboardHistoryStore: ObservableObject {
 
     private func writeEncryptedAsset(_ data: Data, named assetName: String) throws {
         let encryptedData = try cryptor.encrypt(data)
-        try encryptedData.write(
-            to: assetsURL.appendingPathComponent(assetName),
-            options: [.atomic, .completeFileProtection]
+        try writeDataWithBestAvailableFileProtection(
+            encryptedData,
+            to: assetsURL.appendingPathComponent(assetName)
         )
+    }
+
+    private func writeDataWithBestAvailableFileProtection(
+        _ data: Data,
+        to url: URL
+    ) throws {
+        do {
+            try data.write(
+                to: url,
+                options: [.atomic, .completeFileProtection]
+            )
+        } catch {
+            // File protection can be unavailable to unsigned hosts or on some
+            // macOS volumes. Clipboard payloads remain AES-GCM encrypted.
+            try data.write(to: url, options: .atomic)
+        }
     }
 
     private func migrateAssetsToEncryption() {
@@ -567,7 +589,7 @@ final class ClipboardHistoryStore: ObservableObject {
                   let encrypted = try? cryptor.encrypt(data) else {
                 continue
             }
-            try? encrypted.write(to: url, options: [.atomic, .completeFileProtection])
+            try? writeDataWithBestAvailableFileProtection(encrypted, to: url)
         }
     }
 

@@ -75,6 +75,8 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
             }
         case .requirementsMayNowBeSatisfied(let status):
             capture?.retryPendingPermissionCommandIfSatisfied(status)
+        case .permissionSetupDismissed:
+            capture?.cancelPendingPermissionCommand()
         case .requestMainWindowPresentation:
             lifecycle?.requestMainWindowPresentation()
         }
@@ -89,12 +91,18 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
                 return
             }
 
-            let controller = documents.installCapturedScreenshot(result)
+            let installation = documents.installCapturedScreenshot(result)
             capture?.recordCompletedCapture(request: result.request, runOptions: result.runOptions)
+            guard let controller = installation.controller else {
+                if installation.disposition == .unattachedRecent {
+                    lifecycle?.requestMainWindowPresentation()
+                }
+                return
+            }
             let workflowOutcome = result.workflowPreset?.outcome ?? .openInEditor
             let willBeCopied = workflowOutcome == .copyToClipboard || clipboard?.autoCopyEnabled == true
 
-            if !result.isPrivateCapture {
+            if !result.isPrivateCapture, installation.disposition == .newDocument {
                 clipboard?.scheduleClipboardSnipRecording(
                     from: controller,
                     searchableText: result.capture.sourceName,
@@ -115,16 +123,24 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
                         lifecycle?.presentError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
                     }
                 }
-            } else if clipboard?.autoCopyEnabled == true {
+            } else if clipboard?.autoCopyEnabled == true, installation.disposition == .newDocument {
                 documents.scheduleAutoCopy(for: controller)
             }
 
             if result.shouldProcessUIMap {
-                capture?.scheduleUIMapCapture(for: controller, capture: result.uiMapSourceCapture)
+                capture?.scheduleUIMapCapture(
+                    for: controller,
+                    capture: result.uiMapSourceCapture,
+                    compositionAssetID: installation.assetID,
+                    isPrivateCapture: result.isPrivateCapture
+                )
             } else if result.shouldAttemptUIMapCapture,
                       result.runOptions.windowUIMapEnabled,
                       result.capture.uiMap == nil {
-                capture?.noticeSkippedUIMapCapture(reason: result.uiMapSkipReason)
+                capture?.noticeSkippedUIMapCapture(
+                    reason: result.uiMapSkipReason,
+                    isPrivateCapture: result.isPrivateCapture
+                )
             }
 
             if workflowOutcome == .openInEditor {
@@ -136,6 +152,8 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
             lifecycle?.requestMainWindowPresentation()
         case .connectedDeviceSessionChanged(let isActive):
             capture?.setConnectedDeviceSessionActive(isActive)
+        case .closeScreenInspector:
+            tools?.closeScreenInspector()
         }
     }
 
@@ -413,6 +431,60 @@ struct CaptureWorkflowResult {
     let shouldProcessUIMap: Bool
     let uiMapSkipReason: String?
     let workflowPreset: CapturePreset?
+    let intent: CaptureIntent
+    let completionRole: CaptureCompletionRole
+
+    init(
+        capture: CapturedScreenshot,
+        uiMapSourceCapture: CapturedScreenshot,
+        request: LastCaptureRequest,
+        runOptions: CaptureRunOptions,
+        isPrivateCapture: Bool,
+        checkpointLabel: String,
+        shouldAttemptUIMapCapture: Bool,
+        shouldProcessUIMap: Bool,
+        uiMapSkipReason: String?,
+        workflowPreset: CapturePreset?,
+        intent: CaptureIntent,
+        completionRole: CaptureCompletionRole = .standalone
+    ) {
+        self.capture = capture
+        self.uiMapSourceCapture = uiMapSourceCapture
+        self.request = request
+        self.runOptions = runOptions
+        self.isPrivateCapture = isPrivateCapture
+        self.checkpointLabel = checkpointLabel
+        self.shouldAttemptUIMapCapture = shouldAttemptUIMapCapture
+        self.shouldProcessUIMap = shouldProcessUIMap
+        self.uiMapSkipReason = uiMapSkipReason
+        self.workflowPreset = workflowPreset
+        self.intent = intent
+        self.completionRole = completionRole
+    }
+}
+
+enum CaptureInstallationDisposition: Equatable {
+    case newDocument
+    case appended
+    case replaced
+    case unattachedRecent
+    case discarded
+}
+
+struct CaptureInstallationResult {
+    let controller: EditorController?
+    let disposition: CaptureInstallationDisposition
+    let itemID: UUID?
+    let assetID: UUID?
+
+    static func newDocument(_ controller: EditorController) -> CaptureInstallationResult {
+        CaptureInstallationResult(
+            controller: controller,
+            disposition: .newDocument,
+            itemID: nil,
+            assetID: nil
+        )
+    }
 }
 
 enum LifecycleWorkflowOutput {
@@ -424,6 +496,7 @@ enum LifecycleWorkflowOutput {
 enum PermissionWorkflowOutput {
     case permissionsChanged(CapturePermissionStatus)
     case requirementsMayNowBeSatisfied(CapturePermissionStatus)
+    case permissionSetupDismissed
     case requestMainWindowPresentation
     case presentError(String)
 }
@@ -431,6 +504,7 @@ enum PermissionWorkflowOutput {
 enum CaptureWorkflowOutput {
     case captureCompleted(CaptureWorkflowResult)
     case connectedDeviceSessionChanged(Bool)
+    case closeScreenInspector
     case presentError(String)
     case requestMainWindowPresentation
 }

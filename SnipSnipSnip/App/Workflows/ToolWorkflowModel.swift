@@ -55,8 +55,8 @@ final class ToolWorkflowModel: ObservableObject {
         screenRulerCoordinator.closeAll()
     }
 
-    func presentScreenInspector() {
-        screenInspectorCoordinator.present()
+    func presentScreenInspector(onClose: (() -> Void)? = nil) {
+        screenInspectorCoordinator.present(onClose: onClose)
     }
 
     func toggleScreenInspector() {

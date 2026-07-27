@@ -147,6 +147,12 @@ enum EditableRedactionSaveDecision {
     case cancel
 }
 
+enum DocumentFormatMigrationDecision {
+    case saveV7
+    case saveCopy
+    case cancel
+}
+
 nonisolated enum AppModelPreferenceKey {
     static let autoCopyEnabled = "appModel.autoCopyEnabled"
     static let autoRefreshWindowsEnabled = "appModel.autoRefreshWindowsEnabled"

@@ -4,19 +4,47 @@ import Foundation
 @MainActor
 extension CaptureWorkflowModel {
     func presentWindowPicker() {
+        presentWindowPicker(intent: .newDocument)
+    }
+
+    func presentWindowPicker(
+        intent: CaptureIntent,
+        completionRole: CaptureCompletionRole = .standalone,
+        oneShotOptions: CaptureOneShotOptions? = nil
+    ) {
+        prepareCaptureIntent(
+            intent,
+            completionRole: completionRole,
+            oneShotOptions: oneShotOptions
+        )
         runWindowScreenshotCaptureWhenPermissionsReady { [weak self] in
-            self?.windowPickerMode = .screenshot
-            self?.beginWindowPickerPresentation()
+            guard let self else {
+                return
+            }
+            self.windowPickerMode = .screenshot
+            self.windowPickerCaptureContext =
+                self.activeCaptureContext
+            self.beginWindowPickerPresentation()
         }
     }
 
     func pickWindowOnScreen() {
         let windows = availableWindows
-        let runOptions = currentCaptureRunOptions()
+        let captureContext =
+            windowPickerCaptureContext ?? activeCaptureContext
+        let runOptions = captureRunOptions(for: captureContext)
+        windowPickerCaptureContext = nil
         isShowingWindowPicker = false
 
         Task {
-            let isPrivateCapture = beginCapturePrivacyLock()
+            defer {
+                resetPreparedCaptureContext(ifMatching: captureContext)
+            }
+            let isPrivateCapture = beginCapturePrivacyLock(
+                latchedPrivateCapture:
+                    captureContext.oneShotOptions?.privateCapture
+                    ?? privateCaptureEnabled
+            )
             defer { endCapturePrivacyLock() }
             let autosaveSuspension = suspendEditorAutosaveForInteractiveCapture()
             defer { resumeEditorAutosaveAfterInteractiveCapture(autosaveSuspension) }
@@ -47,6 +75,7 @@ extension CaptureWorkflowModel {
                 )
 
                 guard let selectedWindow = await session.begin() else {
+                    resetPreparedCaptureContext(ifMatching: captureContext)
                     return
                 }
 
@@ -54,18 +83,37 @@ extension CaptureWorkflowModel {
                 let resolvedWindow = try await captureService.resolveWindowTarget(selectedWindow)
                 let capture = try await captureService.captureWindow(resolvedWindow)
                 showCapturedFeedback()
-                try completeCapture(capture, request: .window(resolvedWindow), isPrivateCapture: isPrivateCapture, runOptions: runOptions)
+                try completeCapture(
+                    capture,
+                    request: .window(resolvedWindow),
+                    isPrivateCapture: isPrivateCapture,
+                    runOptions: runOptions,
+                    completionContext: captureContext
+                )
             } catch {
-                present(error)
+                present(
+                    error,
+                    recovering: nil,
+                    captureContext: captureContext
+                )
             }
         }
     }
 
     func captureWindow(_ window: CaptureWindowSummary) {
+        let captureContext =
+            windowPickerCaptureContext ?? activeCaptureContext
+        let runOptions = captureRunOptions(for: captureContext)
+        windowPickerCaptureContext = nil
         isShowingWindowPicker = false
 
         Task {
-            await performCapture(request: .window(window), minimizeAppWindow: true) {
+            await performCapture(
+                request: .window(window),
+                minimizeAppWindow: true,
+                runOptions: runOptions,
+                completionContext: captureContext
+            ) {
                 let resolvedWindow = try await captureService.resolveWindowTarget(window)
                 return try await captureService.captureWindow(resolvedWindow)
             }
@@ -73,6 +121,10 @@ extension CaptureWorkflowModel {
     }
 
     func beginWindowPickerPresentation() {
+        if case .screenshot = windowPickerMode,
+           windowPickerCaptureContext == nil {
+            windowPickerCaptureContext = activeCaptureContext
+        }
         dependencies.lifecycle.requestMainWindowPresentation()
 
         Task {
@@ -80,64 +132,42 @@ extension CaptureWorkflowModel {
         }
     }
 
-    func replaceWindowTargetAndCapturePreset(id: CapturePreset.ID, with window: CaptureWindowSummary) {
-        updateWindowTarget(forPresetID: id, window: window)
-        capturePreset(id: id)
-    }
-
-    func pickWindowOnScreenForPresetReplacement(id presetID: CapturePreset.ID) {
-        let windows = availableWindows
+    /// Cancels a screenshot window choice without substituting a standalone
+    /// destination for the abandoned operation. This is important for
+    /// intent-created Before/Step/Collection captures because cancellation
+    /// must not leave their role available to a later direct capture.
+    func cancelScreenshotWindowPicker() {
+        let captureContext =
+            windowPickerCaptureContext ?? activeCaptureContext
+        windowPickerCaptureContext = nil
         isShowingWindowPicker = false
-
-        Task {
-            let autosaveSuspension = suspendEditorAutosaveForInteractiveCapture()
-            defer { resumeEditorAutosaveAfterInteractiveCapture(autosaveSuspension) }
-            let hiddenWindow = hideAppWindowIfNeeded()
-            defer { restoreAppWindowIfNeeded(hiddenWindow) }
-
-            if hiddenWindow != nil {
-                try? await dependencies.systemServices.scheduler.sleep(nanoseconds: 200_000_000)
-            }
-
-            guard ensureScreenshotCaptureAccess(for: .frontmostWindow, runOptions: capturePresets.first(where: { $0.id == presetID })?.options ?? currentCaptureRunOptions()) else {
-                return
-            }
-
-            isWorking = true
-            dependencies.lifecycle.updateWorkingMessage("Pick Window")
-            defer { isWorking = false }
-
-            do {
-                let windowOptions = windows.isEmpty ? try await captureService.listWindows(includeThumbnails: false) : windows
-                let snapshot = try await captureService.captureDesktopOverlaySnapshot()
-                let session = WindowSelectionSession(
-                    snapshot: snapshot,
-                    windows: windowOptions,
-                    capabilities: dependencies.capabilities,
-                    accessibility: dependencies.systemServices.accessibility,
-                    screens: dependencies.systemServices.screens
-                )
-
-                guard let selectedWindow = await session.begin() else {
-                    return
-                }
-
-                isWorking = false
-                updateWindowTarget(forPresetID: presetID, window: selectedWindow)
-                capturePreset(id: presetID)
-            } catch {
-                present(error)
-            }
-        }
+        windowPickerMode = .screenshot
+        resetPreparedCaptureContext(ifMatching: captureContext)
+        dependencies.lifecycle.requestMainWindowPresentation()
     }
 
     func repeatWindowCapture(_ window: CaptureWindowSummary) {
+        let captureContext = activeCaptureContext
+        let runOptions = captureRunOptions(for: captureContext)
         Task {
-            guard ensureScreenshotCaptureAccess(for: .window(window)) else {
+            var transfersContextToPicker = false
+            defer {
+                if !transfersContextToPicker {
+                    resetPreparedCaptureContext(ifMatching: captureContext)
+                }
+            }
+            guard ensureScreenshotCaptureAccess(
+                for: .window(window),
+                runOptions: runOptions
+            ) else {
                 return
             }
 
-            let isPrivateCapture = beginCapturePrivacyLock()
+            let isPrivateCapture = beginCapturePrivacyLock(
+                latchedPrivateCapture:
+                    captureContext.oneShotOptions?.privateCapture
+                    ?? privateCaptureEnabled
+            )
             defer { endCapturePrivacyLock() }
 
             let hiddenWindow = hideAppWindowIfNeeded()
@@ -148,71 +178,41 @@ extension CaptureWorkflowModel {
             }
 
             isWorking = true
-            dependencies.lifecycle.updateWorkingMessage(captureDelay == .immediate ? "Capturing Window" : captureDelay.shortLabel)
+            dependencies.lifecycle.updateWorkingMessage(
+                runOptions.captureDelay == .immediate
+                    ? "Capturing Window"
+                    : runOptions.captureDelay.shortLabel
+            )
             defer { isWorking = false }
 
             do {
-                try await runCaptureDelayIfNeeded(actionName: "Capturing Window")
+                try await runCaptureDelayIfNeeded(
+                    actionName: "Capturing Window",
+                    delay: runOptions.captureDelay
+                )
                 let resolvedWindow = try await captureService.resolveWindowTarget(window)
                 let capture = try await captureService.captureWindow(resolvedWindow)
                 showCapturedFeedback()
-                try completeCapture(capture, request: .window(resolvedWindow), isPrivateCapture: isPrivateCapture)
+                try completeCapture(
+                    capture,
+                    request: .window(resolvedWindow),
+                    isPrivateCapture: isPrivateCapture,
+                    runOptions: runOptions,
+                    completionContext: captureContext
+                )
             } catch let error as ScreenCaptureError where error == .windowImageUnavailable || error == .noWindowsAvailable {
+                transfersContextToPicker = true
+                windowPickerCaptureContext = captureContext
                 dependencies.lifecycle.requestMainWindowPresentation()
                 await loadAvailableWindows(requestAccessIfNeeded: false, presentPicker: true, showErrors: true, includeThumbnails: true)
             } catch {
-                present(error)
+                present(
+                    error,
+                    recovering: .window(window),
+                    captureContext: captureContext
+                )
             }
         }
     }
 
-    func capturePresetWindow(
-        presetID: CapturePreset.ID,
-        savedWindow: SavedWindowTarget,
-        options: CaptureRunOptions
-    ) {
-        Task {
-            guard ensureScreenshotCaptureAccess(for: .frontmostWindow, runOptions: options) else {
-                return
-            }
-
-            isWorking = true
-            dependencies.lifecycle.updateWorkingMessage("Finding Window")
-            defer { isWorking = false }
-
-            do {
-                let windows = try await captureService.listWindows(includeThumbnails: false)
-                guard let resolvedWindow = gscStrictSavedWindowMatch(for: savedWindow, in: windows) else {
-                    isWorking = false
-                    presentWindowReplacementPicker(forPresetID: presetID)
-                    return
-                }
-
-                isWorking = false
-                await performCapture(request: .window(resolvedWindow), minimizeAppWindow: true, runOptions: options) {
-                    let currentWindow = try await captureService.resolveWindowTarget(resolvedWindow)
-                    return try await captureService.captureWindow(currentWindow)
-                }
-            } catch {
-                present(error)
-            }
-        }
-    }
-
-    private func presentWindowReplacementPicker(forPresetID presetID: CapturePreset.ID) {
-        dependencies.lifecycle.presentError("That preset's saved window is not available. Choose a replacement window to update and run the preset.")
-        windowPickerMode = .capturePresetReplacement(presetID)
-        beginWindowPickerPresentation()
-    }
-
-    private func updateWindowTarget(forPresetID presetID: CapturePreset.ID, window: CaptureWindowSummary) {
-        guard let index = capturePresets.firstIndex(where: { $0.id == presetID }) else {
-            return
-        }
-
-        var preset = capturePresets[index]
-        preset.target = .window(SavedWindowTarget(window: window))
-        preset.updatedAt = dependencies.systemServices.clock.now()
-        capturePresets[index] = preset
-    }
 }

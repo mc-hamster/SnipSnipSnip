@@ -34,6 +34,20 @@
                ReferencedContainer = "container:SnipSnipSnip.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "C30000062F90000000A95020"
+               BuildableName = "SnipSnipSnipUITests.xctest"
+               BlueprintName = "SnipSnipSnipUITests"
+               ReferencedContainer = "container:SnipSnipSnip.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -63,6 +77,16 @@
                ReferencedContainer = "container:SnipSnipSnip.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "C30000062F90000000A95020"
+               BuildableName = "SnipSnipSnipUITests.xctest"
+               BlueprintName = "SnipSnipSnipUITests"
+               ReferencedContainer = "container:SnipSnipSnip.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction
@@ -89,6 +113,26 @@
          <EnvironmentVariable
             key = "SNIP_HISTORY_PREVIEW_DEBUG"
             value = "1"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "SSS_RUN_EXTERNAL_HTML_BROWSER_TESTS"
+            value = "$(SSS_RUN_EXTERNAL_HTML_BROWSER_TESTS)"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "SSS_REQUIRE_EXTERNAL_HTML_BROWSERS"
+            value = "$(SSS_REQUIRE_EXTERNAL_HTML_BROWSERS)"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "SSS_GOOGLE_CHROME_BINARY"
+            value = "$(SSS_GOOGLE_CHROME_BINARY)"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "SSS_FIREFOX_BINARY"
+            value = "$(SSS_FIREFOX_BINARY)"
             isEnabled = "YES">
          </EnvironmentVariable>
       </EnvironmentVariables>

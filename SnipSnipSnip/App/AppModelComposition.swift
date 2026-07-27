@@ -12,6 +12,7 @@ struct AppModelComposition {
     let guide: GuideWorkflowModel
     let archive: ArchiveWorkflowModel
     let tools: ToolWorkflowModel
+    let creation: CreationWorkflowModel
     let automation: AutomationWorkflowModel
     let workflowCoordinator: AppWorkflowCoordinator
     let configuredArchiveLocationURL: URL?
@@ -66,6 +67,10 @@ struct AppModelComposition {
             archive: archiveWorkflow
         )
         let toolWorkflow = Self.makeToolWorkflow(context: context)
+        let creationWorkflow = Self.makeCreationWorkflow(
+            capabilities: context.environment.capabilities, capture: captureWorkflow,
+            documents: documentWorkflow, guide: guideWorkflow, tools: toolWorkflow
+        )
         let automationWorkflow = Self.makeAutomationWorkflow(
             context: context,
             capture: captureWorkflow,
@@ -96,7 +101,6 @@ struct AppModelComposition {
             archive: archiveWorkflow,
             tools: toolWorkflow
         )
-
         self.environment = context.environment
         self.lifecycle = lifecycleWorkflow
         self.capture = captureWorkflow
@@ -107,6 +111,7 @@ struct AppModelComposition {
         self.guide = guideWorkflow
         self.archive = archiveWorkflow
         self.tools = toolWorkflow
+        self.creation = creationWorkflow
         self.automation = automationWorkflow
         self.workflowCoordinator = workflowCoordinator
         self.configuredArchiveLocationURL = context.configuredArchiveLocationURL

@@ -14,7 +14,7 @@ nonisolated enum ScreenshotOutputAppearance: String, CaseIterable, Identifiable,
     var filenameSuffix: String {
         switch self {
         case .plain: "edited"
-        case .styled: "styled"
+        case .styled: "presentation"
         }
     }
 }
@@ -26,7 +26,7 @@ nonisolated enum ScreenshotOutputError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .styledOutputNotConfigured:
-            "Styled output is not configured. Open Presentation and choose a style or scene first."
+            "Styled automation output is not configured. Open Polish and choose a Look or Mockup first."
         case .renderingFailed:
             "The screenshot output could not be rendered."
         }
