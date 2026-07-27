@@ -19,9 +19,13 @@
       <parameter name="name" code="SSnm" type="text" optional="yes" description="Preset name."/>
       <parameter name="output" code="SSou" type="text" optional="yes" description="editor, clipboard, float, or none."/>
       <parameter name="outputPath" code="SSop" type="text" optional="yes" description="POSIX output path for rendered file or .sss package."/>
-      <parameter name="format" code="SSfm" type="text" optional="yes" description="png, jpeg, pdf, or sss."/>
+      <parameter name="format" code="SSfm" type="text" optional="yes" description="png, jpeg, pdf, sss, gif, apng, mp4, or html."/>
       <parameter name="overwrite" code="SSow" type="boolean" optional="yes" description="Replace an existing file."/>
       <parameter name="privateCapture" code="SSpv" type="boolean" optional="yes" description="Run as Private Capture."/>
+      <parameter name="destination" code="SSdt" type="text" optional="yes" description="new, append, or replace."/>
+      <parameter name="afterItemID" code="SSai" type="text" optional="yes" description="Composition item UUID after which append inserts; valid only for append."/>
+      <parameter name="replaceItemID" code="SSri" type="text" optional="yes" description="Composition item UUID required for replace."/>
+      <parameter name="appearance" code="SSap" type="text" optional="yes" description="app-default, plain, or styled."/>
       <result type="text" description="JSON automation result."/>
     </command>
     <command name="capture fullscreen" code="SSSaCFUL" description="Capture the configured fullscreen target.">
@@ -29,20 +33,28 @@
       <access-group identifier="com.oontz.SnipSnipSnip.automation"/>
       <parameter name="display" code="SSds" type="text" optional="yes" description="app-default, current, selected, or all."/>
       <parameter name="output" code="SSou" type="text" optional="yes" description="editor, clipboard, float, or none."/>
-      <parameter name="outputPath" code="SSop" type="text" optional="yes" description="POSIX output path for rendered file."/>
-      <parameter name="format" code="SSfm" type="text" optional="yes" description="png, jpeg, or pdf."/>
+      <parameter name="outputPath" code="SSop" type="text" optional="yes" description="POSIX output path for rendered file or .sss package."/>
+      <parameter name="format" code="SSfm" type="text" optional="yes" description="png, jpeg, pdf, sss, gif, apng, mp4, or html."/>
       <parameter name="overwrite" code="SSow" type="boolean" optional="yes" description="Replace an existing file."/>
       <parameter name="privateCapture" code="SSpv" type="boolean" optional="yes" description="Run as Private Capture."/>
+      <parameter name="destination" code="SSdt" type="text" optional="yes" description="new, append, or replace."/>
+      <parameter name="afterItemID" code="SSai" type="text" optional="yes" description="Composition item UUID after which append inserts; valid only for append."/>
+      <parameter name="replaceItemID" code="SSri" type="text" optional="yes" description="Composition item UUID required for replace."/>
+      <parameter name="appearance" code="SSap" type="text" optional="yes" description="app-default, plain, or styled."/>
       <result type="text" description="JSON automation result."/>
     </command>
     <command name="capture frontmost window" code="SSSaCFRW" description="Capture the frontmost eligible window.">
       <cocoa class="SSSCaptureFrontmostWindowCommand"/>
       <access-group identifier="com.oontz.SnipSnipSnip.automation"/>
       <parameter name="output" code="SSou" type="text" optional="yes" description="editor, clipboard, float, or none."/>
-      <parameter name="outputPath" code="SSop" type="text" optional="yes" description="POSIX output path for rendered file."/>
-      <parameter name="format" code="SSfm" type="text" optional="yes" description="png, jpeg, or pdf."/>
+      <parameter name="outputPath" code="SSop" type="text" optional="yes" description="POSIX output path for rendered file or .sss package."/>
+      <parameter name="format" code="SSfm" type="text" optional="yes" description="png, jpeg, pdf, sss, gif, apng, mp4, or html."/>
       <parameter name="overwrite" code="SSow" type="boolean" optional="yes" description="Replace an existing file."/>
       <parameter name="privateCapture" code="SSpv" type="boolean" optional="yes" description="Run as Private Capture."/>
+      <parameter name="destination" code="SSdt" type="text" optional="yes" description="new, append, or replace."/>
+      <parameter name="afterItemID" code="SSai" type="text" optional="yes" description="Composition item UUID after which append inserts; valid only for append."/>
+      <parameter name="replaceItemID" code="SSri" type="text" optional="yes" description="Composition item UUID required for replace."/>
+      <parameter name="appearance" code="SSap" type="text" optional="yes" description="app-default, plain, or styled."/>
       <result type="text" description="JSON automation result."/>
     </command>
     <command name="capture region" code="SSSaCREG" description="Capture a fixed region or start interactive region capture.">
@@ -51,10 +63,14 @@
       <parameter name="rect" code="SSrc" type="text" optional="yes" description="Region rectangle as x,y,width,height in screen points."/>
       <parameter name="interactive" code="SSin" type="boolean" optional="yes" description="Start user-selected region capture."/>
       <parameter name="output" code="SSou" type="text" optional="yes" description="editor, clipboard, float, or none."/>
-      <parameter name="outputPath" code="SSop" type="text" optional="yes" description="POSIX output path for rendered file."/>
-      <parameter name="format" code="SSfm" type="text" optional="yes" description="png, jpeg, or pdf."/>
+      <parameter name="outputPath" code="SSop" type="text" optional="yes" description="POSIX output path for rendered file or .sss package."/>
+      <parameter name="format" code="SSfm" type="text" optional="yes" description="png, jpeg, pdf, sss, gif, apng, mp4, or html."/>
       <parameter name="overwrite" code="SSow" type="boolean" optional="yes" description="Replace an existing file."/>
       <parameter name="privateCapture" code="SSpv" type="boolean" optional="yes" description="Run as Private Capture."/>
+      <parameter name="destination" code="SSdt" type="text" optional="yes" description="new, append, or replace."/>
+      <parameter name="afterItemID" code="SSai" type="text" optional="yes" description="Composition item UUID after which append inserts; valid only for append."/>
+      <parameter name="replaceItemID" code="SSri" type="text" optional="yes" description="Composition item UUID required for replace."/>
+      <parameter name="appearance" code="SSap" type="text" optional="yes" description="app-default, plain, or styled."/>
       <result type="text" description="JSON automation result."/>
     </command>
     <command name="capture window" code="SSSaCWIN" description="Start interactive window capture.">
@@ -62,19 +78,27 @@
       <access-group identifier="com.oontz.SnipSnipSnip.automation"/>
       <parameter name="interactive" code="SSin" type="boolean" optional="yes" description="Start user-selected window capture."/>
       <parameter name="output" code="SSou" type="text" optional="yes" description="editor, clipboard, float, or none."/>
-      <parameter name="outputPath" code="SSop" type="text" optional="yes" description="POSIX output path for rendered file."/>
-      <parameter name="format" code="SSfm" type="text" optional="yes" description="png, jpeg, or pdf."/>
+      <parameter name="outputPath" code="SSop" type="text" optional="yes" description="POSIX output path for rendered file or .sss package."/>
+      <parameter name="format" code="SSfm" type="text" optional="yes" description="png, jpeg, pdf, sss, gif, apng, mp4, or html."/>
       <parameter name="overwrite" code="SSow" type="boolean" optional="yes" description="Replace an existing file."/>
       <parameter name="privateCapture" code="SSpv" type="boolean" optional="yes" description="Run as Private Capture."/>
+      <parameter name="destination" code="SSdt" type="text" optional="yes" description="new, append, or replace."/>
+      <parameter name="afterItemID" code="SSai" type="text" optional="yes" description="Composition item UUID after which append inserts; valid only for append."/>
+      <parameter name="replaceItemID" code="SSri" type="text" optional="yes" description="Composition item UUID required for replace."/>
+      <parameter name="appearance" code="SSap" type="text" optional="yes" description="app-default, plain, or styled."/>
       <result type="text" description="JSON automation result."/>
     </command>
     <command name="repeat last capture" code="SSSaREPT" description="Repeat the last repeatable capture.">
       <cocoa class="SSSRepeatLastCaptureCommand"/>
       <access-group identifier="com.oontz.SnipSnipSnip.automation"/>
       <parameter name="output" code="SSou" type="text" optional="yes" description="editor, clipboard, float, or none."/>
-      <parameter name="outputPath" code="SSop" type="text" optional="yes" description="POSIX output path for rendered file."/>
-      <parameter name="format" code="SSfm" type="text" optional="yes" description="png, jpeg, or pdf."/>
+      <parameter name="outputPath" code="SSop" type="text" optional="yes" description="POSIX output path for rendered file or .sss package."/>
+      <parameter name="format" code="SSfm" type="text" optional="yes" description="png, jpeg, pdf, sss, gif, apng, mp4, or html."/>
       <parameter name="overwrite" code="SSow" type="boolean" optional="yes" description="Replace an existing file."/>
+      <parameter name="destination" code="SSdt" type="text" optional="yes" description="new, append, or replace."/>
+      <parameter name="afterItemID" code="SSai" type="text" optional="yes" description="Composition item UUID after which append inserts; valid only for append."/>
+      <parameter name="replaceItemID" code="SSri" type="text" optional="yes" description="Composition item UUID required for replace."/>
+      <parameter name="appearance" code="SSap" type="text" optional="yes" description="app-default, plain, or styled."/>
       <result type="text" description="JSON automation result."/>
     </command>
     <command name="open snip document" code="SSSaOPEN" description="Open an editable SnipSnipSnip document.">
@@ -82,18 +106,59 @@
       <access-group identifier="com.oontz.SnipSnipSnip.automation"/>
       <parameter name="path" code="SSpa" type="text" description="POSIX path to a .sss document."/>
       <parameter name="output" code="SSou" type="text" optional="yes" description="editor, clipboard, float, or none."/>
-      <parameter name="outputPath" code="SSop" type="text" optional="yes" description="POSIX output path for rendered file."/>
-      <parameter name="format" code="SSfm" type="text" optional="yes" description="png, jpeg, or pdf."/>
+      <parameter name="outputPath" code="SSop" type="text" optional="yes" description="POSIX output path for rendered file or .sss package."/>
+      <parameter name="format" code="SSfm" type="text" optional="yes" description="png, jpeg, pdf, sss, gif, apng, mp4, or html."/>
       <parameter name="overwrite" code="SSow" type="boolean" optional="yes" description="Replace an existing file."/>
+      <parameter name="appearance" code="SSap" type="text" optional="yes" description="app-default, plain, or styled."/>
       <result type="text" description="JSON automation result."/>
     </command>
-    <command name="export current screenshot" code="SSSaEXPT" description="Export the current screenshot.">
+    <command name="export current screenshot" code="SSSaEXPT" description="Export the current screenshot or composition.">
       <cocoa class="SSSExportCurrentScreenshotCommand"/>
       <access-group identifier="com.oontz.SnipSnipSnip.automation"/>
-      <parameter name="format" code="SSfm" type="text" optional="yes" description="png, jpeg, or pdf."/>
+      <parameter name="format" code="SSfm" type="text" optional="yes" description="png, jpeg, pdf, sss, gif, apng, mp4, or html."/>
       <parameter name="output" code="SSou" type="text" optional="yes" description="editor, clipboard, float, or none."/>
-      <parameter name="outputPath" code="SSop" type="text" optional="yes" description="POSIX output path for rendered file."/>
+      <parameter name="outputPath" code="SSop" type="text" optional="yes" description="POSIX output path for rendered file or .sss package."/>
       <parameter name="overwrite" code="SSow" type="boolean" optional="yes" description="Replace an existing file."/>
+      <parameter name="appearance" code="SSap" type="text" optional="yes" description="app-default, plain, or styled."/>
+      <result type="text" description="JSON automation result."/>
+    </command>
+    <command name="set composition layout" code="SSSaSCLY" description="Set the current multi-capture composition layout.">
+      <cocoa class="SSSSetCompositionLayoutCommand"/>
+      <access-group identifier="com.oontz.SnipSnipSnip.automation"/>
+      <parameter name="layout" code="SSly" type="text" description="auto, compare, steps, row, column, grid, or freeform."/>
+      <parameter name="axis" code="SSax" type="text" optional="yes" description="horizontal or vertical."/>
+      <parameter name="gridColumns" code="SSgc" type="integer" optional="yes" description="Number of grid columns."/>
+      <parameter name="targetAspectRatio" code="SSar" type="real" optional="yes" description="Automatic-layout target width divided by height."/>
+      <parameter name="freeformWidth" code="SSfw" type="real" optional="yes" description="Freeform canvas width."/>
+      <parameter name="freeformHeight" code="SSfh" type="real" optional="yes" description="Freeform canvas height."/>
+      <parameter name="stepNumbering" code="SSsn" type="text" optional="yes" description="none, decimal, uppercase-letters, lowercase-letters, uppercase-roman, or lowercase-roman."/>
+      <parameter name="stepStartIndex" code="SSsi" type="integer" optional="yes" description="First displayed step number."/>
+      <parameter name="stepCaptions" code="SSsc" type="boolean" optional="yes" description="Show item captions in the step sequence."/>
+      <parameter name="stepConnector" code="SScn" type="text" optional="yes" description="none, line, or arrow."/>
+      <result type="text" description="JSON automation result."/>
+    </command>
+    <command name="set composition compare mode" code="SSSaSCCM" description="Configure comparison behavior for the current multi-capture composition.">
+      <cocoa class="SSSSetCompositionCompareModeCommand"/>
+      <access-group identifier="com.oontz.SnipSnipSnip.automation"/>
+      <parameter name="mode" code="SScm" type="text" description="side-by-side, overlay, wipe, blink, difference, or change-highlight."/>
+      <parameter name="firstItemID" code="SSf1" type="text" optional="yes" description="First composition item UUID."/>
+      <parameter name="secondItemID" code="SSf2" type="text" optional="yes" description="Second composition item UUID."/>
+      <parameter name="axis" code="SSax" type="text" optional="yes" description="horizontal or vertical."/>
+      <parameter name="wipePosition" code="SSwp" type="real" optional="yes" description="Wipe position from 0 through 1."/>
+      <parameter name="overlayOpacity" code="SSoo" type="real" optional="yes" description="Overlay opacity from 0 through 1."/>
+      <parameter name="blinkInterval" code="SSbi" type="real" optional="yes" description="Blink interval in seconds."/>
+      <parameter name="differenceIntensity" code="SSdi" type="real" optional="yes" description="Difference intensity from 0 through 1."/>
+      <parameter name="highlightColor" code="SShc" type="text" optional="yes" description="Highlight color as #RRGGBB or #RRGGBBAA."/>
+      <parameter name="highlightThreshold" code="SSht" type="real" optional="yes" description="Change threshold from 0 through 1."/>
+      <parameter name="primaryLabel" code="SSp1" type="text" optional="yes" description="Label for the first comparison item."/>
+      <parameter name="secondaryLabel" code="SSp2" type="text" optional="yes" description="Label for the second comparison item."/>
+      <result type="text" description="JSON automation result."/>
+    </command>
+    <command name="apply composition template" code="SSSaACTP" description="Apply a built-in or saved template to the current multi-capture composition.">
+      <cocoa class="SSSApplyCompositionTemplateCommand"/>
+      <access-group identifier="com.oontz.SnipSnipSnip.automation"/>
+      <parameter name="id" code="SSti" type="text" optional="yes" description="Stable composition template identifier."/>
+      <parameter name="name" code="SStn" type="text" optional="yes" description="Composition template name; used when id is omitted or unavailable."/>
       <result type="text" description="JSON automation result."/>
     </command>
     <command name="guide" code="SSSaGUID" description="Start, pause, resume, add a step, stop, or export a Guide.">

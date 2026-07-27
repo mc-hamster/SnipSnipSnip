@@ -144,6 +144,8 @@ nonisolated enum AutomationIntentResultFormatter {
             return "SnipSnipSnip captured \(summary.kind)."
         case .export:
             return "SnipSnipSnip exported the current screenshot."
+        case .composition(let summary):
+            return "SnipSnipSnip updated the \(summary.itemCount)-item composition."
         case .permissionStatus(let summary):
             return summary.hasScreenRecording
                 ? "Screen Recording permission is allowed."
@@ -175,7 +177,7 @@ extension AutomationRequest {
         case .guide(let command):
             if case .start(.region) = command { return true }
             return false
-        case .status, .listPresets, .runPreset, .openDocument, .exportCurrent:
+        case .status, .listPresets, .runPreset, .openDocument, .exportCurrent, .composition:
             return false
         }
     }
@@ -194,7 +196,7 @@ extension AutomationOutput {
 
 extension AutomationRequest {
     nonisolated var debugSummary: String {
-        "source=\(source.kind.rawValue) caller=\(source.caller ?? "nil") command=\(command.debugSummary) interaction=\(interactionPolicy.rawValue) private=\(privacy.privateCapture) output=\(output.debugSummary) validation=\(validationError?.message ?? "none") foreground=\(requiresAppIntentForeground)"
+        "source=\(source.kind.rawValue) caller=\(source.caller ?? "nil") command=\(command.debugSummary) interaction=\(interactionPolicy.rawValue) private=\(privacy.privateCapture) destination=\(captureDestination.rawValue) appendAfterItem=\(appendAfterCompositionItemID?.uuidString ?? "nil") replaceItem=\(replaceCompositionItemID?.uuidString ?? "nil") appearance=\(appearance.rawValue) output=\(output.debugSummary) validation=\(validationError?.message ?? "none") foreground=\(requiresAppIntentForeground)"
     }
 }
 
@@ -215,8 +217,23 @@ extension AutomationCommand {
             return "openDocument(url=\(command.url.path))"
         case .exportCurrent(let command):
             return "exportCurrent(format=\(command.format.rawValue))"
+        case .composition(let command):
+            return "composition(\(command.debugSummary))"
         case .guide(let command):
             return "guide(\(String(describing: command)))"
+        }
+    }
+}
+
+extension CompositionAutomationCommand {
+    nonisolated var debugSummary: String {
+        switch self {
+        case .setLayout(let command):
+            return "layout(mode=\(command.layout.rawValue), axis=\(command.axis?.rawValue ?? "nil"))"
+        case .setCompareMode(let command):
+            return "compare(mode=\(command.mode.rawValue), first=\(command.firstItemID?.uuidString ?? "nil"), second=\(command.secondItemID?.uuidString ?? "nil"))"
+        case .applyTemplate(let command):
+            return "template(id=\(command.id ?? "nil"), name=\(command.name ?? "nil"))"
         }
     }
 }
@@ -292,6 +309,8 @@ extension AutomationPayload {
             return "capture(kind=\(summary.kind), source=\(summary.sourceName ?? "nil"), interactive=\(summary.acceptedInteractiveWorkflow))"
         case .export(let summary):
             return "export(format=\(summary.format?.rawValue ?? "nil"), source=\(summary.source))"
+        case .composition(let summary):
+            return "composition(items=\(summary.itemCount), item=\(summary.itemID?.uuidString ?? "nil"), layout=\(summary.layout.rawValue), compare=\(summary.compareMode?.rawValue ?? "nil"))"
         case .permissionStatus(let summary):
             return "permissionStatus(screen=\(summary.hasScreenRecording), accessibility=\(summary.hasAccessibility))"
         case .guide(let summary):

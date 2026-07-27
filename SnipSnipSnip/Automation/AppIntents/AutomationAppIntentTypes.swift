@@ -61,6 +61,10 @@ nonisolated enum AutomationIntentExportFormat: String, AppEnum {
     case jpeg
     case pdf
     case sss
+    case gif
+    case apng
+    case mp4
+    case html
 
     static let typeDisplayRepresentation: TypeDisplayRepresentation = "Export Format"
 
@@ -68,7 +72,11 @@ nonisolated enum AutomationIntentExportFormat: String, AppEnum {
         .png: "PNG",
         .jpeg: "JPEG",
         .pdf: "PDF",
-        .sss: "Editable SnipSnipSnip Document"
+        .sss: "Editable SnipSnipSnip Document",
+        .gif: "Animated GIF",
+        .apng: "Animated PNG",
+        .mp4: "MP4 Video",
+        .html: "Interactive HTML"
     ]
 
     var automationFormat: AutomationExportFormat {
@@ -81,7 +89,206 @@ nonisolated enum AutomationIntentExportFormat: String, AppEnum {
             return .pdf
         case .sss:
             return .sss
+        case .gif:
+            return .gif
+        case .apng:
+            return .apng
+        case .mp4:
+            return .mp4
+        case .html:
+            return .html
         }
+    }
+}
+
+nonisolated enum AutomationIntentCaptureDestination: String, AppEnum {
+    case new
+    case append
+    case replace
+
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Capture Destination"
+    static let caseDisplayRepresentations: [AutomationIntentCaptureDestination: DisplayRepresentation] = [
+        .new: "New Document",
+        .append: "Append to Current Composition",
+        .replace: "Replace Composition Item"
+    ]
+
+    var automationDestination: AutomationCaptureDestination {
+        AutomationCaptureDestination(rawValue: rawValue) ?? .new
+    }
+}
+
+nonisolated enum AutomationIntentCompositionCaptureSource: String, AppEnum {
+    case region
+    case window
+    case frontmostWindow
+    case fullscreen
+    case repeatLast
+
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Capture Source"
+    static let caseDisplayRepresentations: [AutomationIntentCompositionCaptureSource: DisplayRepresentation] = [
+        .region: "Region",
+        .window: "Window",
+        .frontmostWindow: "Frontmost Window",
+        .fullscreen: "Full Screen",
+        .repeatLast: "Repeat Last Capture",
+    ]
+
+    func automationCommand(
+        display: AutomationIntentFullscreenDisplayMode?
+    ) -> (command: AutomationCommand, policy: AutomationInteractionPolicy) {
+        switch self {
+        case .region:
+            return (
+                .capture(CaptureAutomationCommand(target: .interactiveRegion)),
+                .requireUserSelection
+            )
+        case .window:
+            return (
+                .capture(CaptureAutomationCommand(target: .interactiveWindow)),
+                .requireUserSelection
+            )
+        case .frontmostWindow:
+            return (
+                .capture(CaptureAutomationCommand(target: .frontmostWindow)),
+                .promptIfNeeded
+            )
+        case .fullscreen:
+            return (
+                .capture(CaptureAutomationCommand(target: .fullscreen(
+                    FullscreenCaptureTarget(
+                        displayMode: (display ?? .appDefault).automationDisplayMode
+                    )
+                ))),
+                .promptIfNeeded
+            )
+        case .repeatLast:
+            return (.repeatLastCapture, .promptIfNeeded)
+        }
+    }
+}
+
+nonisolated enum AutomationIntentOutputAppearance: String, AppEnum {
+    case appDefault
+    case plain
+    case styled
+
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Output Appearance"
+    static let caseDisplayRepresentations: [AutomationIntentOutputAppearance: DisplayRepresentation] = [
+        .appDefault: "App Default",
+        .plain: "Plain",
+        .styled: "Styled"
+    ]
+
+    var automationAppearance: AutomationOutputAppearance {
+        switch self {
+        case .appDefault: .appDefault
+        case .plain: .plain
+        case .styled: .styled
+        }
+    }
+}
+
+nonisolated enum AutomationIntentCompositionLayout: String, AppEnum {
+    case auto
+    case compare
+    case steps
+    case row
+    case column
+    case grid
+    case freeform
+
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Composition Layout"
+    static let caseDisplayRepresentations: [AutomationIntentCompositionLayout: DisplayRepresentation] = [
+        .auto: "Automatic",
+        .compare: "Comparison",
+        .steps: "Steps",
+        .row: "Row",
+        .column: "Column",
+        .grid: "Grid",
+        .freeform: "Freeform"
+    ]
+
+    var automationLayout: AutomationCompositionLayout {
+        AutomationCompositionLayout(rawValue: rawValue) ?? .auto
+    }
+}
+
+nonisolated enum AutomationIntentCompositionCompareMode: String, AppEnum {
+    case sideBySide
+    case overlay
+    case wipe
+    case blink
+    case difference
+    case changeHighlight
+
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Comparison Mode"
+    static let caseDisplayRepresentations: [AutomationIntentCompositionCompareMode: DisplayRepresentation] = [
+        .sideBySide: "Side by Side",
+        .overlay: "Overlay",
+        .wipe: "Wipe",
+        .blink: "Blink",
+        .difference: "Difference",
+        .changeHighlight: "Change Highlight"
+    ]
+
+    var automationMode: AutomationCompositionCompareMode {
+        AutomationCompositionCompareMode(rawValue: rawValue) ?? .sideBySide
+    }
+}
+
+nonisolated enum AutomationIntentCompositionAxis: String, AppEnum {
+    case horizontal
+    case vertical
+
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Composition Axis"
+    static let caseDisplayRepresentations: [AutomationIntentCompositionAxis: DisplayRepresentation] = [
+        .horizontal: "Horizontal",
+        .vertical: "Vertical"
+    ]
+
+    var automationAxis: AutomationCompositionAxis {
+        AutomationCompositionAxis(rawValue: rawValue) ?? .horizontal
+    }
+}
+
+nonisolated enum AutomationIntentCompositionStepNumberingStyle: String, AppEnum {
+    case none
+    case decimal
+    case uppercaseLetters
+    case lowercaseLetters
+    case uppercaseRoman
+    case lowercaseRoman
+
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Step Numbering"
+    static let caseDisplayRepresentations: [AutomationIntentCompositionStepNumberingStyle: DisplayRepresentation] = [
+        .none: "None",
+        .decimal: "1, 2, 3",
+        .uppercaseLetters: "A, B, C",
+        .lowercaseLetters: "a, b, c",
+        .uppercaseRoman: "I, II, III",
+        .lowercaseRoman: "i, ii, iii"
+    ]
+
+    var automationStyle: AutomationCompositionStepNumberingStyle {
+        AutomationCompositionStepNumberingStyle(rawValue: rawValue) ?? .decimal
+    }
+}
+
+nonisolated enum AutomationIntentCompositionStepConnectorStyle: String, AppEnum {
+    case none
+    case line
+    case arrow
+
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Step Connector"
+    static let caseDisplayRepresentations: [AutomationIntentCompositionStepConnectorStyle: DisplayRepresentation] = [
+        .none: "None",
+        .line: "Line",
+        .arrow: "Arrow"
+    ]
+
+    var automationStyle: AutomationCompositionStepConnectorStyle {
+        AutomationCompositionStepConnectorStyle(rawValue: rawValue) ?? .arrow
     }
 }
 
@@ -270,6 +477,10 @@ nonisolated enum AutomationIntentRequestFactory {
         command: AutomationCommand,
         interactionPolicy: AutomationInteractionPolicy = .never,
         privacy: AutomationPrivacyOptions = AutomationPrivacyOptions(),
+        captureDestination: AutomationIntentCaptureDestination? = nil,
+        appendAfterCompositionItemID: String? = nil,
+        replaceCompositionItemID: String? = nil,
+        appearance: AutomationIntentOutputAppearance? = nil,
         output: AutomationOutput = .appDefault
     ) -> AutomationRequest {
         AutomationRequest(
@@ -277,6 +488,10 @@ nonisolated enum AutomationIntentRequestFactory {
             command: command,
             interactionPolicy: interactionPolicy,
             privacy: privacy,
+            captureDestination: (captureDestination ?? .new).automationDestination,
+            appendAfterCompositionItemID: appendAfterCompositionItemID.flatMap(UUID.init(uuidString:)),
+            replaceCompositionItemID: replaceCompositionItemID.flatMap(UUID.init(uuidString:)),
+            appearance: (appearance ?? .appDefault).automationAppearance,
             output: output
         )
     }
