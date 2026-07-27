@@ -748,19 +748,16 @@ private_lane :run_release_test_gate do |options|
     UI.message("Running release test gate in #{derived_data_path}")
 
     only_testing_args = release_test_targets(options).flat_map do |test_target|
-      ["-only-testing", Shellwords.escape(test_target)]
+      ["--only-testing", Shellwords.escape(test_target)]
     end
 
     Actions.sh(
       [
-        "xcodebuild",
-        "test",
-        "-project", Shellwords.escape(PROJECT_PATH),
-        "-scheme", Shellwords.escape(SCHEME),
-        "-destination", Shellwords.escape("platform=macOS,arch=arm64"),
-        "-derivedDataPath", Shellwords.escape(derived_data_path),
-        *only_testing_args,
-        "CODE_SIGNING_ALLOWED=NO"
+        Shellwords.escape(File.join(REPOSITORY_ROOT, "Tools", "run-release-test-gate.sh")),
+        "--project", Shellwords.escape(PROJECT_PATH),
+        "--scheme", Shellwords.escape(SCHEME),
+        "--derived-data", Shellwords.escape(derived_data_path),
+        *only_testing_args
       ].join(" ")
     )
   end
@@ -1005,8 +1002,9 @@ platform :mac do
     upload_app_store_build(options)
   end
 
-  desc "Build a website-distribution package with Self Release feature flags"
+  desc "Test and build a website-distribution package with Self Release feature flags"
   lane :self_release do |options|
+    run_release_test_gate(options)
     ensure_self_release_signing_ready
 
     prepared = prepare_local_version_and_build_number(

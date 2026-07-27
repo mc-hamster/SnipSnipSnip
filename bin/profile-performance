@@ -3,7 +3,8 @@ set -eu
 
 PROJECT="SnipSnipSnip.xcodeproj"
 SCHEME="SnipSnipSnip"
-DESTINATION="platform=macOS,arch=arm64"
+HOST_ARCH="$(uname -m)"
+DESTINATION="${SNIP_PERF_DESTINATION:-platform=macOS,arch=$HOST_ARCH,name=My Mac}"
 DERIVED_DATA_DEFAULT="/private/tmp/SnipSnipSnip-PerfDerivedData"
 OUTPUT_ROOT_DEFAULT="build/profiling"
 
@@ -25,7 +26,24 @@ LOG_PATH="$OUTPUT_ROOT/performance-tests.log"
 TIME_TRACE="$OUTPUT_ROOT/time-profiler.trace"
 ALLOC_TRACE="$OUTPUT_ROOT/allocations.trace"
 
-PERF_TESTS="-only-testing:SnipSnipSnipTests/EditorRendererTests/testRenderPerformanceDenseAnnotationScene -only-testing:SnipSnipSnipTests/ScrollingStitcherTests/testAppendPerformanceLongScrollingSession"
+PERF_TESTS="
+-only-testing:SnipSnipSnipTests/EditorRendererTests/testRenderPerformanceDenseAnnotationScene
+-only-testing:SnipSnipSnipTests/EditorRendererTests/testRenderPerformanceCommonAnnotationScene
+-only-testing:SnipSnipSnipTests/AppModelPerformanceTests/testCaptureEntryPointPerformance
+-only-testing:SnipSnipSnipTests/AppModelPerformanceTests/testScreenshotRenderAndStreamingExportBudget
+-only-testing:SnipSnipSnipTests/AppModelPerformanceTests/testArchiveIndexedSearchBudget
+-only-testing:SnipSnipSnipTests/AppModelPerformanceTests/testVideoExportPlanningAndStorageBudget
+-only-testing:SnipSnipSnipTests/ScrollingStitcherTests/testAppendPerformanceLongScrollingSession
+-only-testing:SnipSnipSnipTests/ScrollingStitcherTests/testAppendPerformanceManySmallScrollingFrames
+-only-testing:SnipSnipSnipTests/CompositionPerformanceTests/testLayoutP95BudgetAcrossDeterministicCountsAndModes
+-only-testing:SnipSnipSnipTests/CompositionPerformanceTests/testCappedAppend4KPreviewFixtureMeetsWarmAndColdBudgets
+-only-testing:SnipSnipSnipTests/CompositionPerformanceTests/testTwoItem4KComparisonPreviewAt1800PixelCapBudget
+-only-testing:SnipSnipSnipTests/CompositionPerformanceTests/testTwelveItem1080pGridPreviewAt1800PixelCapBudget
+-only-testing:SnipSnipSnipTests/CompositionPerformanceTests/testFourItem1080pFullPNGExportBudget
+-only-testing:SnipSnipSnipTests/CompositionPerformanceTests/testTwelveItem1080pExportStaysWithinPeakMemoryGate
+-only-testing:SnipSnipSnipTests/CompositionPerformanceTests/testCompositionPreviewBenchmarkMetrics
+-only-testing:SnipSnipSnipTests/CompositionPerformanceTests/testRepeatedCompositionPreviewCyclesStayWithinPeakMemoryGate
+"
 
 mkdir -p "$OUTPUT_ROOT"
 
@@ -34,18 +52,30 @@ if [ -d "$RESULT_BUNDLE" ]; then
 fi
 rm -rf "$TIME_TRACE" "$ALLOC_TRACE"
 
+ensure_single_instance_is_available() {
+  if pgrep -x "SnipSnipSnip" >/dev/null 2>&1; then
+    echo "error: SnipSnipSnip is already running." >&2
+    echo "       Quit the running copy before starting app-hosted performance tests." >&2
+    exit 2
+  fi
+}
+
 run_perf_tests() {
+  ensure_single_instance_is_available
   "$XCODEBUILD" test \
     -project "$PROJECT" \
     -scheme "$SCHEME" \
     -destination "$DESTINATION" \
     -derivedDataPath "$DERIVED_DATA" \
     -resultBundlePath "$RESULT_BUNDLE" \
+    -parallel-testing-enabled NO \
+    -maximum-parallel-testing-workers 1 \
     $PERF_TESTS | tee "$LOG_PATH"
 }
 
 echo "[profile] Output: $OUTPUT_ROOT"
 echo "[profile] Result bundle: $RESULT_BUNDLE"
+echo "[profile] Destination: $DESTINATION"
 echo "[profile] Running focused performance tests..."
 run_perf_tests
 
@@ -64,6 +94,8 @@ exec "$XCODEBUILD" test \
   -scheme "$SCHEME" \
   -destination "$DESTINATION" \
   -derivedDataPath "$DERIVED_DATA" \
+  -parallel-testing-enabled NO \
+  -maximum-parallel-testing-workers 1 \
   $PERF_TESTS
 EOF
   chmod +x "$TRACE_WRAPPER"
@@ -77,6 +109,7 @@ run_trace() {
   trace_log="$OUTPUT_ROOT/xctrace-$(echo "$template" | tr ' ' '-').log"
 
   echo "[profile] Capturing $template trace..."
+  ensure_single_instance_is_available
 
   set +e
   "$XCTRACE" record \

@@ -30,7 +30,27 @@ permissions:
   contents: write
 
 jobs:
+  preflight:
+    runs-on: macos-26
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select latest Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Run release test gate
+        env:
+          SSS_RUN_EXTERNAL_HTML_BROWSER_TESTS: "1"
+          SSS_REQUIRE_EXTERNAL_HTML_BROWSERS: "1"
+        run: |
+          Tools/run-release-test-gate.sh \
+            --derived-data "$RUNNER_TEMP/DerivedDataReleaseGate"
+
   release:
+    needs: preflight
     runs-on: macos-26
     timeout-minutes: 90
 
@@ -50,6 +70,7 @@ jobs:
       - name: Fastlane self release publish
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_SKIP_TESTS: "true"
         run: |
           lane_args="prerelease:${{ inputs.prerelease }} draft:${{ inputs.draft }}"
 

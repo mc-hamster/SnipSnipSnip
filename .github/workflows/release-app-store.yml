@@ -51,14 +51,12 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode.app
 
       - name: Run release test gate
+        env:
+          SSS_RUN_EXTERNAL_HTML_BROWSER_TESTS: "1"
+          SSS_REQUIRE_EXTERNAL_HTML_BROWSERS: "1"
         run: |
-          set -o pipefail
-          xcodebuild test \
-            -project SnipSnipSnip.xcodeproj \
-            -scheme SnipSnipSnip \
-            -destination 'platform=macOS,arch=arm64' \
-            -derivedDataPath "$RUNNER_TEMP/DerivedDataReleaseGate" \
-            CODE_SIGNING_ALLOWED=NO
+          Tools/run-release-test-gate.sh \
+            --derived-data "$RUNNER_TEMP/DerivedDataReleaseGate"
 
   release:
     needs: preflight

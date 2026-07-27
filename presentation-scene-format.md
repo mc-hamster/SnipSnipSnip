@@ -1,6 +1,6 @@
 # Presentation Scene SVG Format
 
-`SnipSnipSnip` Presentation Scenes are SVG templates used by screenshot Presentation mode. They are plain SVG files with a small SnipSnipSnip metadata block and slot markers that tell the app where to place the rendered screenshot and editable text values.
+`SnipSnipSnip` Presentation Scenes are the internal SVG format behind the user-facing Polish → Mockup workflow. They are plain SVG files with a small SnipSnipSnip metadata block and slot markers that tell the app where to place the rendered screenshot and editable text values.
 
 Presentation Scenes are intentionally local, inspectable, and non-executable:
 
@@ -10,14 +10,25 @@ Presentation Scenes are intentionally local, inspectable, and non-executable:
 - Applying a scene stores a sanitized SVG snapshot inside the `.sss` document.
 - Loading a saved `.sss` document does not require the original scene file to still exist.
 
-## Relationship To Presentation Styles
+## Relationship To Intent-Driven Composition And Polish
 
-Presentation mode has two layers:
+The user-facing workflow has two coordinated layers:
 
-- **Presentation Styles** are native Swift settings for fast polish such as backgrounds, spacing, rounded corners, and shadows.
-- **Presentation Scenes** are SVG templates for richer layouts that place the rendered screenshot into a designed scene.
+- **Content stages** follow the document purpose: Screenshot editing, Comparison Review, manual Steps, or Collection Arrange. Collection owns Auto, Row, Column, Grid, and Freeform geometry.
+- **Polish** optionally wraps that resolved content. Look provides native Swift backgrounds, spacing, rounded corners, and shadows; Mockup applies these SVG Presentation Scenes.
 
-When a scene is applied, SnipSnipSnip renders the screenshot and annotations, then substitutes that rendered image into the selected Presentation Scene. Native Presentation Style output is used when no scene is applied.
+The content stage resolves items and result-level annotations first. When a Mockup is applied, SnipSnipSnip substitutes that single rendered result into the selected Presentation Scene's `primaryScreenshot` slot. Native Look output is used when no scene is applied.
+
+Scene schema v1 intentionally remains a one-image-slot contract. Scene authors do not address composition items individually, and a scene never owns item order, captions, comparison pairing, step numbering, or per-item framing. Those remain editable purpose-specific content state in the `.sss` document, which keeps existing scenes compatible with single- and multi-capture documents.
+
+## Composition And Guide Separation
+
+Steps is a manually assembled screenshot-document purpose for captures and images the user already has. Guide is a separate action-aware workflow with its own `.sssguide` model, capture permissions, event metadata, markers, source video, audio, recovery, and exports.
+
+- Scene files do not import, export, or convert Guide steps.
+- Composition documents do not embed `.sssguide` projects.
+- Collection templates describe multi-image geometry; Presentation Scenes describe the Mockup around the resolved content.
+- Interactive HTML rasterizes any applied Scene locally and embeds newly encoded PNG pixels. It never places source SVG, scene metadata, remote assets, or executable scene content into the exported HTML.
 
 ## Scenes Folder Layout
 
@@ -119,7 +130,7 @@ V1 requires exactly one image slot with:
 }
 ```
 
-The `primaryScreenshot` slot receives the rendered screenshot content. V1 supports one screenshot image slot plus optional text slots.
+The `primaryScreenshot` slot receives the rendered screenshot or resolved multi-item composition content. V1 supports one image slot plus optional text slots.
 
 Supported `defaultFraming` values are `auto`, `showFull`, `fillFrame`, `focusTop`, `focusBottom`, `focusLeft`, `focusRight`, and `actualSize`.
 
@@ -290,15 +301,18 @@ When a scene is applied to a document, the `.sss` document stores an applied sce
 
 ## Rendering Pipeline
 
-The scene renderer:
+The Presentation and scene renderers:
 
-1. Validates the embedded sanitized SVG text.
-2. Locates the `primaryScreenshot` image slot rectangle.
-3. Computes Auto or preset screenshot placement inside that slot.
-4. Draws the rendered screenshot and annotations into a transparent slot-sized PNG.
-5. Replaces the `primaryScreenshot` image `href` with the slot PNG data URI and sets `preserveAspectRatio="none"`.
-6. Replaces text slot contents from `textSlotValues`.
-7. Rasterizes the prepared SVG to the metadata canvas size using AppKit SVG support.
+1. Render every item's crop and per-item annotations.
+2. Resolve Layout order, geometry, framing, captions, comparison treatment or step numbering.
+3. Render composition-level annotations above the arranged items.
+4. Validate the embedded sanitized SVG text.
+5. Locate the `primaryScreenshot` image slot rectangle.
+6. Compute Auto or preset composition placement inside that slot.
+7. Draw the resolved composition into a transparent slot-sized PNG.
+8. Replace the `primaryScreenshot` image `href` with the slot PNG data URI and set `preserveAspectRatio="none"`.
+9. Replace text slot contents from `textSlotValues`.
+10. Rasterize the prepared SVG to the metadata canvas size using AppKit SVG support.
 
 In DEBUG builds, scene preparation, slot substitution, and rasterization emit performance diagnostics.
 
