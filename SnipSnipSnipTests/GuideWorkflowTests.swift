@@ -185,7 +185,7 @@ final class GuideWorkflowTests: XCTestCase {
     func testGuideMarkerDragUpdatesLiveAndCreatesOneUndoableMove() throws {
         let originalTarget = CGPoint(x: 50, y: 40)
         let originalTail = CGPoint(x: 120, y: 100)
-        var step = GuideStep(
+        let step = GuideStep(
             sequence: 1,
             eventKind: .click,
             caption: "Click Continue.",

@@ -184,6 +184,16 @@ final class ClipboardAppModelTests: XCTestCase {
         XCTAssertTrue(reloaded.ignoredApps.contains(where: { $0.match == "com.mseven.mSecure" }))
     }
 
+    func testClipboardPreferenceSanitizationIsIdempotentForDuplicateDisplayNames() {
+        let sanitized = ClipboardPreferences.default.sanitized()
+
+        XCTAssertEqual(sanitized.sanitized(), sanitized)
+        XCTAssertEqual(
+            sanitized.ignoredApps.filter { $0.name == "mSecure" }.map(\.id),
+            ["com.mseven.msecure", "msecure"]
+        )
+    }
+
     func testResetDefaultsRestoresUncopiedScreenshotRecording() {
         let suiteName = "ClipboardAppModelTests.resetUncopiedScreenshotDefault"
         let storeName = "ClipboardAppModelTests.resetUncopiedScreenshotDefault.store"

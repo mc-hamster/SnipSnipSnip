@@ -16,20 +16,48 @@ final class AppModelTests: XCTestCase {
         AppEnvironment(defaults: defaults, permissions: TestCapturePermissionService(status: permissionStatus))
     }
 
+    private func makeCaptureWorkflowResult(
+        sourceName: String,
+        intent: CaptureIntent,
+        role: CaptureCompletionRole,
+        isPrivateCapture: Bool = false
+    ) -> CaptureWorkflowResult {
+        let capture = makeCapturedScreenshot(
+            kind: .fullscreen,
+            sourceName: sourceName
+        )
+        return CaptureWorkflowResult(
+            capture: capture,
+            uiMapSourceCapture: capture,
+            request: .fullscreen,
+            runOptions: CaptureRunOptions(),
+            isPrivateCapture: isPrivateCapture,
+            checkpointLabel: "Capture",
+            shouldAttemptUIMapCapture: false,
+            shouldProcessUIMap: false,
+            uiMapSkipReason: nil,
+            workflowPreset: nil,
+            intent: intent,
+            completionRole: role
+        )
+    }
+
     private func makeHistoryEntry(
         title: String = "Snapshot.sss",
         label: String = "Capture",
         changeSummary: String? = nil,
         searchableText: String,
-        hasUnsavedChanges: Bool = true
+        hasUnsavedChanges: Bool = true,
+        sessionID: UUID = UUID(),
+        savedAt: Date = Date(timeIntervalSince1970: 1_700_000_000)
     ) -> DocumentHistoryEntry {
         DocumentHistoryEntry(
             id: UUID(),
-            sessionID: UUID(),
+            sessionID: sessionID,
             title: title,
             label: label,
             changeSummary: changeSummary,
-            savedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            savedAt: savedAt,
             packageURL: URL(fileURLWithPath: "/tmp/checkpoint.sss"),
             previewAssetURL: nil,
             sourceDocumentURL: nil,
@@ -37,6 +65,692 @@ final class AppModelTests: XCTestCase {
             searchableText: searchableText,
             packageSizeBytes: nil,
             deletedAt: nil
+        )
+    }
+
+    func testPreparedCaptureIntentResetsOnlyForItsOwningModalSession() {
+        let suiteName = "AppModelTests.captureIntentModalOwnership"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        let generation = UUID()
+        let prepared = CaptureIntent.append(
+            documentGenerationID: generation,
+            afterItemID: UUID()
+        )
+        let unrelated = CaptureIntent.replace(
+            documentGenerationID: generation,
+            itemID: UUID()
+        )
+
+        model.capture.prepareCaptureIntent(prepared)
+        model.capture.resetPreparedCaptureIntent(ifMatching: unrelated)
+        XCTAssertEqual(model.capture.activeCaptureIntent, prepared)
+
+        model.capture.resetPreparedCaptureIntent(ifMatching: prepared)
+        XCTAssertEqual(model.capture.activeCaptureIntent, .newDocument)
+    }
+
+    func testDismissingPermissionSetupCancelsItsPendingCompositionDestination() {
+        let suiteName = "AppModelTests.captureIntentPermissionCancellation"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        let intent = CaptureIntent.append(
+            documentGenerationID: UUID(),
+            afterItemID: UUID()
+        )
+        model.capture.prepareCaptureIntent(intent)
+        model.capture.pendingPermissionCommand = PendingCapturePermissionRequest(
+            requirements: [.screenRecording],
+            command: .region,
+            captureIntent: intent
+        )
+
+        model.capture.cancelPendingPermissionCommand()
+
+        XCTAssertNil(model.capture.pendingPermissionCommand)
+        XCTAssertEqual(model.capture.activeCaptureIntent, .newDocument)
+    }
+
+    func testUnsatisfiedPermissionKeepsPendingCompositionDestination() {
+        let suiteName = "AppModelTests.captureIntentPermissionRetry"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        let intent = CaptureIntent.replace(
+            documentGenerationID: UUID(),
+            itemID: UUID()
+        )
+        model.capture.prepareCaptureIntent(intent)
+        model.capture.pendingPermissionCommand = PendingCapturePermissionRequest(
+            requirements: [.accessibility],
+            command: .scrollingCapture,
+            captureIntent: intent
+        )
+
+        model.capture.retryPendingPermissionCommandIfSatisfied(
+            CapturePermissionStatus(
+                hasScreenRecording: true,
+                hasAccessibility: false
+            )
+        )
+        XCTAssertNotNil(model.capture.pendingPermissionCommand)
+        XCTAssertEqual(model.capture.activeCaptureIntent, intent)
+    }
+
+    func testPermissionDeferralOwnsRoleAndOptionsWithoutLeakingActiveContext() {
+        let suiteName =
+            "AppModelTests.captureCompletionContextPermissionDeferral"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let model = AppModel(
+            defaults: defaults,
+            environment: makeEnvironment(
+                defaults: defaults,
+                permissionStatus: CapturePermissionStatus(
+                    hasScreenRecording: false,
+                    hasAccessibility: false
+                )
+            ),
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        let intent = CaptureIntent.append(
+            documentGenerationID: UUID(),
+            afterItemID: UUID()
+        )
+        let options = CaptureOneShotOptions(
+            captureDelay: .fiveSeconds,
+            includesCursor: true,
+            privateCapture: true,
+            windowUIMapEnabled: false
+        )
+        model.capture.prepareCaptureIntent(
+            intent,
+            completionRole: .step,
+            oneShotOptions: options
+        )
+        var didRun = false
+
+        model.capture.runActionWhenPermissionsReady(
+            [.screenRecording],
+            featureName: "Capture",
+            pendingCommand: .region
+        ) {
+            didRun = true
+        }
+
+        XCTAssertFalse(didRun)
+        XCTAssertEqual(
+            model.capture.pendingPermissionCommand?.captureIntent,
+            intent
+        )
+        XCTAssertEqual(
+            model.capture.pendingPermissionCommand?.completionRole,
+            .step
+        )
+        XCTAssertEqual(
+            model.capture.pendingPermissionCommand?.oneShotOptions,
+            options
+        )
+        XCTAssertEqual(model.capture.activeCaptureContext, .standalone)
+    }
+
+    func testPermissionDeferredWindowPickerKeepsOwnedContextAfterInterveningCapture()
+    {
+        let suiteName =
+            "AppModelTests.permissionDeferredWindowContextOwnership"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let model = AppModel(
+            defaults: defaults,
+            environment: makeEnvironment(
+                defaults: defaults,
+                permissionStatus: CapturePermissionStatus(
+                    hasScreenRecording: false,
+                    hasAccessibility: false
+                )
+            ),
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        let ownedContext = CaptureCompletionContext(
+            intent: .append(
+                documentGenerationID: UUID(),
+                afterItemID: UUID()
+            ),
+            role: .collectionItem,
+            oneShotOptions: CaptureOneShotOptions(
+                captureDelay: .threeSeconds,
+                includesCursor: true,
+                privateCapture: true,
+                windowUIMapEnabled: false
+            ),
+            persistentSurfaceSessionID: UUID()
+        )
+        model.capture.activeCaptureContext = ownedContext
+
+        model.capture.runActionWhenPermissionsReady(
+            [.screenRecording],
+            featureName: "Window Capture",
+            pendingCommand: .windowPicker
+        ) {}
+        XCTAssertEqual(model.capture.activeCaptureContext, .standalone)
+
+        model.capture.retryPendingPermissionCommandIfSatisfied(
+            CapturePermissionStatus(
+                hasScreenRecording: true,
+                hasAccessibility: true
+            )
+        )
+        XCTAssertEqual(
+            model.capture.windowPickerCaptureContext,
+            ownedContext
+        )
+
+        let intervening = CaptureCompletionContext(
+            intent: .newDocument,
+            role: .standalone
+        )
+        model.capture.activeCaptureContext = intervening
+
+        XCTAssertEqual(
+            model.capture.windowPickerCaptureContext,
+            ownedContext
+        )
+        model.capture.cancelScreenshotWindowPicker()
+        XCTAssertNil(model.capture.windowPickerCaptureContext)
+        XCTAssertEqual(model.capture.activeCaptureContext, intervening)
+    }
+
+    func testPermissionDeferralPreservesEveryCompletionRoleAcrossCommandKinds() {
+        let suiteName =
+            "AppModelTests.permissionDeferralCompletionRoleMatrix"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let model = AppModel(
+            defaults: defaults,
+            environment: makeEnvironment(
+                defaults: defaults,
+                permissionStatus: CapturePermissionStatus(
+                    hasScreenRecording: false,
+                    hasAccessibility: false
+                )
+            ),
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        let options = CaptureOneShotOptions(
+            captureDelay: .fiveSeconds,
+            includesCursor: true,
+            privateCapture: true,
+            windowUIMapEnabled: false
+        )
+        let cases: [
+            (
+                command: PendingCapturePermissionCommand,
+                role: CaptureCompletionRole
+            )
+        ] = [
+            (.currentDisplay, .standalone),
+            (.region, .comparisonBefore),
+            (.frontmostWindow, .comparisonAfter),
+            (.windowPicker, .step),
+            (.scrollingCapture, .collectionItem),
+            (.currentDisplay, .replacement),
+        ]
+
+        for testCase in cases {
+            let context = CaptureCompletionContext(
+                intent: .append(
+                    documentGenerationID: UUID(),
+                    afterItemID: UUID()
+                ),
+                role: testCase.role,
+                oneShotOptions: options,
+                persistentSurfaceSessionID: UUID()
+            )
+            model.capture.activeCaptureContext = context
+            var didRun = false
+
+            model.capture.runActionWhenPermissionsReady(
+                [.screenRecording],
+                featureName: "Capture",
+                pendingCommand: testCase.command
+            ) {
+                didRun = true
+            }
+
+            XCTAssertFalse(didRun, "Role \(testCase.role) ran before permission.")
+            XCTAssertEqual(
+                model.capture.pendingPermissionCommand?.captureContext,
+                context,
+                "Role \(testCase.role) lost its deferred completion context."
+            )
+            XCTAssertEqual(
+                model.capture.activeCaptureContext,
+                .standalone,
+                "Role \(testCase.role) leaked into the global capture slot."
+            )
+
+            model.capture.cancelPendingPermissionCommand()
+
+            XCTAssertNil(model.capture.pendingPermissionCommand)
+            XCTAssertEqual(model.capture.activeCaptureContext, .standalone)
+        }
+    }
+
+    func testPermissionRetryRunsFullscreenWithOwnedComparisonRole()
+        async throws
+    {
+        let suiteName =
+            "AppModelTests.permissionRetryCompletionRole"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let captureService = CompletionRoleCaptureService(
+            capture: makeCapturedScreenshot(
+                kind: .fullscreen,
+                sourceName: "Before"
+            )
+        )
+        let model = AppModel(
+            defaults: defaults,
+            environment: makeEnvironment(defaults: defaults),
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: captureService,
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        let options = CaptureOneShotOptions(
+            captureDelay: .immediate,
+            includesCursor: false,
+            privateCapture: true,
+            windowUIMapEnabled: false
+        )
+        let context = CaptureCompletionContext(
+            intent: .newDocument,
+            role: .comparisonBefore,
+            oneShotOptions: options
+        )
+        model.capture.activeCaptureContext = CaptureCompletionContext(
+            intent: .newDocument,
+            role: .collectionItem
+        )
+        model.capture.pendingPermissionCommand =
+            PendingCapturePermissionRequest(
+                requirements: [.screenRecording],
+                command: .currentDisplay,
+                captureContext: context
+            )
+
+        model.capture.retryPendingPermissionCommandIfSatisfied(
+            CapturePermissionStatus(
+                hasScreenRecording: true,
+                hasAccessibility: true
+            )
+        )
+        await waitUntil {
+            model.documents.editorController != nil
+                && !model.capture.isWorking
+        }
+
+        let controller = try XCTUnwrap(
+            model.documents.editorController
+        )
+        XCTAssertNil(model.capture.pendingPermissionCommand)
+        XCTAssertEqual(captureService.fullscreenCaptureCount, 1)
+        XCTAssertEqual(controller.documentPurpose, .comparison)
+        XCTAssertEqual(
+            controller.workflowStage,
+            .awaitingComparisonAfter
+        )
+        XCTAssertTrue(controller.isPrivateDocument)
+        XCTAssertEqual(
+            model.capture.lastCaptureRunOptions?.captureDelay,
+            .immediate
+        )
+        XCTAssertFalse(
+            model.capture.lastCaptureRunOptions?.includesCursor ?? true
+        )
+        XCTAssertEqual(model.capture.activeCaptureContext, .standalone)
+    }
+
+    func testRecoveryRetryRunsFullscreenWithOwnedStepRole() async throws {
+        let suiteName =
+            "AppModelTests.recoveryRetryCompletionRole"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let captureService = CompletionRoleCaptureService(
+            capture: makeCapturedScreenshot(
+                kind: .fullscreen,
+                sourceName: "Step 1"
+            )
+        )
+        let model = AppModel(
+            defaults: defaults,
+            environment: makeEnvironment(defaults: defaults),
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: captureService,
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        let context = CaptureCompletionContext(
+            intent: .newDocument,
+            role: .step,
+            oneShotOptions: CaptureOneShotOptions(
+                captureDelay: .immediate,
+                includesCursor: false,
+                privateCapture: false,
+                windowUIMapEnabled: false
+            )
+        )
+        model.capture.activeCaptureContext = CaptureCompletionContext(
+            intent: .newDocument,
+            role: .standalone
+        )
+        model.capture.pendingRecoveryRequest = .fullscreen
+        model.capture.pendingRecoveryCaptureContext = context
+
+        model.capture.performCaptureRecovery(.retryLastCapture)
+        await waitUntil {
+            model.documents.editorController != nil
+                && !model.capture.isWorking
+        }
+
+        let controller = try XCTUnwrap(
+            model.documents.editorController
+        )
+        XCTAssertNil(model.capture.pendingRecoveryRequest)
+        XCTAssertNil(model.capture.pendingRecoveryCaptureContext)
+        XCTAssertEqual(captureService.fullscreenCaptureCount, 1)
+        XCTAssertEqual(controller.documentPurpose, .steps)
+        XCTAssertEqual(controller.workflowStage, .collecting)
+        XCTAssertEqual(controller.composition?.layout.mode, .steps)
+        XCTAssertEqual(model.capture.activeCaptureContext, .standalone)
+    }
+
+    func testCancelledAsyncCompletionDoesNotLeakItsRoleIntoTheNextCapture()
+        async throws
+    {
+        let suiteName =
+            "AppModelTests.cancelledCompletionRole"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let model = AppModel(
+            defaults: defaults,
+            environment: makeEnvironment(defaults: defaults),
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        let initial = model.documents.installCapturedScreenshot(
+            makeCaptureWorkflowResult(
+                sourceName: "Before",
+                intent: .newDocument,
+                role: .comparisonBefore
+            )
+        )
+        let comparison = try XCTUnwrap(initial.controller)
+        let cancelledContext = CaptureCompletionContext(
+            intent: .append(
+                documentGenerationID:
+                    comparison.documentGenerationID,
+                afterItemID: comparison.composition?.items.last?.id
+            ),
+            role: .comparisonAfter
+        )
+        model.capture.activeCaptureContext = cancelledContext
+
+        let didComplete = await model.capture.performCapture(
+            request: .fullscreen,
+            completionContext: cancelledContext
+        ) { () async throws -> CapturedScreenshot in
+            throw CancellationError()
+        }
+
+        XCTAssertFalse(didComplete)
+        XCTAssertEqual(comparison.compositionItemCount, 1)
+        XCTAssertEqual(comparison.documentPurpose, .comparison)
+        XCTAssertEqual(
+            comparison.workflowStage,
+            .awaitingComparisonAfter
+        )
+        XCTAssertNil(model.capture.pendingRecoveryRequest)
+        XCTAssertNil(model.capture.pendingRecoveryCaptureContext)
+        XCTAssertEqual(model.capture.activeCaptureContext, .standalone)
+
+        let standaloneContext = CaptureCompletionContext(
+            intent: .newDocument,
+            role: .standalone
+        )
+        let standaloneDidComplete = await model.capture.performCapture(
+            request: .fullscreen,
+            completionContext: standaloneContext
+        ) {
+            makeCapturedScreenshot(
+                kind: .fullscreen,
+                sourceName: "Unrelated Screenshot"
+            )
+        }
+
+        XCTAssertTrue(standaloneDidComplete)
+        let standalone = try XCTUnwrap(
+            model.documents.editorController
+        )
+        XCTAssertFalse(standalone === comparison)
+        XCTAssertEqual(standalone.documentPurpose, .screenshot)
+        XCTAssertEqual(standalone.workflowStage, .editing)
+        XCTAssertEqual(standalone.compositionItemCount, 1)
+    }
+
+    func testStaleCompletionRoleNeverRetargetsTheActiveDocument()
+        throws
+    {
+        let suiteName =
+            "AppModelTests.staleCompletionRole"
+        let defaults = makeDefaults(named: suiteName)
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+            try? FileManager.default.removeItem(at: directory)
+        }
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: directory),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        let active = EditorController(
+            capture: makeCapturedScreenshot(sourceName: "Active"),
+            defaults: defaults,
+            capabilities: testCapabilities
+        )
+        model.documents.installEditorController(
+            active,
+            documentURL: nil,
+            savedSession: nil,
+            shouldCreateRecoverySession: false
+        )
+        let activeSnapshot = active.snapshot
+        let staleIntent = CaptureIntent.append(
+            documentGenerationID: UUID(),
+            afterItemID: nil
+        )
+
+        let publicInstallation =
+            model.documents.installCapturedScreenshot(
+                makeCaptureWorkflowResult(
+                    sourceName: "Late Step",
+                    intent: staleIntent,
+                    role: .step
+                )
+            )
+
+        XCTAssertEqual(
+            publicInstallation.disposition,
+            .unattachedRecent
+        )
+        XCTAssertNil(publicInstallation.controller)
+        XCTAssertTrue(model.documents.editorController === active)
+        XCTAssertEqual(active.snapshot, activeSnapshot)
+        XCTAssertEqual(active.documentPurpose, .screenshot)
+        XCTAssertEqual(active.compositionItemCount, 1)
+
+        let privateInstallation =
+            model.documents.installCapturedScreenshot(
+                makeCaptureWorkflowResult(
+                    sourceName: "Late Comparison",
+                    intent: staleIntent,
+                    role: .comparisonAfter,
+                    isPrivateCapture: true
+                )
+            )
+
+        XCTAssertEqual(privateInstallation.disposition, .newDocument)
+        let privateController = try XCTUnwrap(
+            privateInstallation.controller
+        )
+        XCTAssertTrue(
+            model.documents.editorController === privateController
+        )
+        XCTAssertTrue(privateController.isPrivateDocument)
+        XCTAssertEqual(
+            privateController.documentPurpose,
+            .screenshot
+        )
+        XCTAssertEqual(privateController.workflowStage, .editing)
+        XCTAssertEqual(privateController.compositionItemCount, 1)
+    }
+
+    func testCaptureCancellationAndDismissedRecoveryClearCompositionDestination() {
+        let suiteName = "AppModelTests.captureIntentRecoveryCancellation"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        let intent = CaptureIntent.append(
+            documentGenerationID: UUID(),
+            afterItemID: nil
+        )
+
+        model.capture.prepareCaptureIntent(intent)
+        model.capture.present(CancellationError(), recovering: .region(.zero))
+        XCTAssertEqual(model.capture.activeCaptureIntent, .newDocument)
+        XCTAssertNil(model.capture.pendingRecoveryRequest)
+
+        model.capture.prepareCaptureIntent(intent)
+        model.capture.pendingRecoveryRequest = .region(.zero)
+        model.capture.dismissCaptureRecovery()
+        XCTAssertEqual(model.capture.activeCaptureIntent, .newDocument)
+        XCTAssertNil(model.capture.pendingRecoveryRequest)
+    }
+
+    func testCaptureFailureMovesExactRoleAndOptionsIntoRecoveryOwnership() {
+        let suiteName =
+            "AppModelTests.captureCompletionContextRecoveryOwnership"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let model = AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: nil),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        )
+        let context = CaptureCompletionContext(
+            intent: .append(
+                documentGenerationID: UUID(),
+                afterItemID: nil
+            ),
+            role: .comparisonAfter,
+            oneShotOptions: CaptureOneShotOptions(
+                captureDelay: .threeSeconds,
+                includesCursor: false,
+                privateCapture: true,
+                windowUIMapEnabled: false
+            )
+        )
+        model.capture.activeCaptureContext = context
+
+        model.capture.present(
+            ScreenCaptureError.permissionDenied,
+            recovering: .fullscreen,
+            captureContext: context
+        )
+
+        XCTAssertEqual(model.capture.activeCaptureContext, .standalone)
+        XCTAssertEqual(model.capture.pendingRecoveryCaptureContext, context)
+        guard case .fullscreen? =
+            model.capture.pendingRecoveryRequest else {
+            return XCTFail("Expected fullscreen recovery request.")
+        }
+
+        model.capture.dismissCaptureRecovery()
+
+        XCTAssertNil(model.capture.pendingRecoveryCaptureContext)
+        XCTAssertNil(model.capture.pendingRecoveryRequest)
+    }
+
+    func testArchiveCompositionSourceShowsLatestDocumentPerSessionNotEveryCheckpoint() {
+        let firstSession = UUID()
+        let secondSession = UUID()
+        let oldest = makeHistoryEntry(
+            title: "First — old",
+            searchableText: "",
+            sessionID: firstSession,
+            savedAt: Date(timeIntervalSince1970: 10)
+        )
+        let newest = makeHistoryEntry(
+            title: "First — current",
+            searchableText: "",
+            sessionID: firstSession,
+            savedAt: Date(timeIntervalSince1970: 30)
+        )
+        let second = makeHistoryEntry(
+            title: "Second",
+            searchableText: "",
+            sessionID: secondSession,
+            savedAt: Date(timeIntervalSince1970: 20)
+        )
+
+        XCTAssertEqual(
+            DocumentHistoryEntrySelection.latestPerSession(
+                from: [oldest, newest, second]
+            ).map(\.title),
+            ["First — current", "Second"]
         )
     }
 
@@ -333,7 +1047,10 @@ final class AppModelTests: XCTestCase {
             shouldStartArchiveMaintenance: false
         )
         let redaction = Annotation.makeSolidRedaction(in: CGRect(x: 10, y: 10, width: 40, height: 30))
-        let snapshot = makeEditorSnapshot(annotations: [redaction])
+        let snapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 64, height: 48),
+            annotations: [redaction]
+        )
         let controller = EditorController(
             capture: makeCapturedScreenshot(),
             session: makeEditorDocumentSession(initialSnapshot: snapshot, currentSnapshot: snapshot)
@@ -390,7 +1107,10 @@ final class AppModelTests: XCTestCase {
             shouldStartArchiveMaintenance: false
         )
         let redaction = Annotation.makeSolidRedaction(in: CGRect(x: 10, y: 10, width: 40, height: 30))
-        let snapshot = makeEditorSnapshot(annotations: [redaction])
+        let snapshot = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 64, height: 48),
+            annotations: [redaction]
+        )
         let controller = EditorController(
             capture: makeCapturedScreenshot(),
             session: makeEditorDocumentSession(initialSnapshot: snapshot, currentSnapshot: snapshot)
@@ -403,8 +1123,316 @@ final class AppModelTests: XCTestCase {
 
         let didSave = await model.documents.saveDocument(controller, to: outputURL)
 
-        XCTAssertTrue(didSave)
+        XCTAssertTrue(
+            didSave,
+            model.lifecycle.errorMessage ?? "Save returned false without an error."
+        )
         XCTAssertEqual(promptCount, 0)
+    }
+
+    func testOversizedCompositionSavesReopensAndCheckpointsWithBoundedPreviews() async throws {
+        let suiteName = "AppModelTests.oversizedCompositionBoundedPreviews"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let recoveryURL = rootURL.appendingPathComponent(
+            "Recovery",
+            isDirectory: true
+        )
+        let outputURL = rootURL.appendingPathComponent(
+            "Oversized Composition.sss",
+            isDirectory: true
+        )
+        let store = retainForTestLifetime(
+            DocumentRecoveryStore(baseURL: recoveryURL)
+        )
+        let model = retainForTestLifetime(
+            AppModel(
+                defaults: defaults,
+                recoveryStore: store,
+                captureService: ScreenCaptureService(),
+                shouldCheckCompatibilityOnLaunch: false,
+                shouldStartArchiveMaintenance: false
+            )
+        )
+        defer {
+            model.documents.resetEditorSessionState()
+            try? FileManager.default.removeItem(at: rootURL)
+        }
+
+        let controller = EditorController(
+            capture: makeCapturedScreenshot(
+                image: makeCoordinateImage(width: 320, height: 180),
+                sourceName: "Before"
+            ),
+            defaults: defaults,
+            capabilities: testCapabilities
+        )
+        _ = try controller.appendCaptureToComposition(
+            makeCapturedScreenshot(
+                image: makeCoordinateImage(width: 320, height: 180),
+                sourceName: "After"
+            ),
+            isPrivate: false
+        )
+        controller.updateCompositionLayout {
+            $0.mode = .freeform
+            $0.freeformCanvasSize = CGSize(width: 20_000, height: 1_000)
+        }
+        controller.setDocumentPurpose(
+            .collection,
+            layoutMode: .freeform
+        )
+        controller.setWorkflowStage(.arranging)
+        let itemIDs = try XCTUnwrap(controller.composition?.items.map(\.id))
+        controller.updateCompositionItem(itemID: itemIDs[0]) {
+            $0.freeformFrame = CGRect(
+                x: 0,
+                y: 0,
+                width: 640,
+                height: 360
+            )
+        }
+        controller.updateCompositionItem(itemID: itemIDs[1]) {
+            $0.freeformFrame = CGRect(
+                x: 19_000,
+                y: 0,
+                width: 640,
+                height: 360
+            )
+        }
+        controller.applyPresentationPreset(.lifted)
+
+        let composition = try XCTUnwrap(controller.composition)
+        let layout = try CompositionLayoutEngine.layout(
+            composition: composition,
+            assetDescriptors: controller.compositionAssetRepository.descriptors
+        )
+        XCTAssertGreaterThan(max(layout.canvasSize.width, layout.canvasSize.height), 16_384)
+
+        controller.compositionAssetRepository.removeDecodedImages()
+        controller.compositionAssetRepository.resetDiagnostics()
+        model.documents.installEditorController(
+            controller,
+            documentURL: nil,
+            savedSession: nil
+        )
+
+        let didSave = await model.documents.saveDocument(controller, to: outputURL)
+        let didPrepareForExit = await model.documents.prepareForApplicationExit()
+        XCTAssertTrue(didSave)
+        XCTAssertTrue(didPrepareForExit)
+        XCTAssertEqual(
+            controller.compositionAssetRepository.diagnostics
+                .fullResolutionDecodeCount,
+            0
+        )
+
+        let savedPreview = try XCTUnwrap(
+            SSSDocumentPackage.loadPreviewImage(from: outputURL)
+        )
+        XCTAssertLessThanOrEqual(
+            max(savedPreview.width, savedPreview.height),
+            CompositionDocumentPreviewRenderer.maximumPixelDimension
+        )
+        let reopened = try SSSDocumentPackage.load(from: outputURL)
+        XCTAssertEqual(reopened.sourceFormatVersion, SSSDocumentPackage.formatVersion)
+        XCTAssertEqual(
+            reopened.session.currentSnapshot.composition?.layout.freeformCanvasSize,
+            CGSize(width: 20_000, height: 1_000)
+        )
+        model.documents.loadDocument(from: outputURL)
+        let loadedController = try XCTUnwrap(
+            model.documents.editorController
+        )
+        XCTAssertTrue(loadedController.hasComposition)
+        XCTAssertEqual(loadedController.workspaceMode, .presentation)
+        XCTAssertEqual(
+            loadedController.presentationInspectorTab,
+            .layout
+        )
+
+        let checkpoint = try XCTUnwrap(
+            store.allHistoryEntries(limit: 10).first
+        )
+        let checkpointPreview = try XCTUnwrap(
+            SSSDocumentPackage.loadPreviewImage(from: checkpoint.packageURL)
+        )
+        XCTAssertLessThanOrEqual(
+            max(checkpointPreview.width, checkpointPreview.height),
+            CompositionDocumentPreviewRenderer.maximumPixelDimension
+        )
+        let restored = try store.restoreDocument(from: checkpoint)
+        XCTAssertEqual(
+            restored.session.currentSnapshot.composition?.layout
+                .freeformCanvasSize,
+            CGSize(width: 20_000, height: 1_000)
+        )
+        model.documents.restoreHistoryEntryImmediately(
+            checkpoint,
+            clearPendingRecovery: false
+        )
+        let recoveredController = try XCTUnwrap(
+            model.documents.editorController
+        )
+        XCTAssertTrue(recoveredController.hasComposition)
+        XCTAssertEqual(recoveredController.workspaceMode, .presentation)
+        XCTAssertEqual(
+            recoveredController.presentationInspectorTab,
+            .layout
+        )
+    }
+
+    func testDormantSingleItemDocumentReopensInEditWorkspace() throws {
+        let suiteName =
+            "AppModelTests.dormantSingleItemDocumentWorkspace"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let packageURL = rootURL.appendingPathComponent(
+            "Single Capture.sss",
+            isDirectory: true
+        )
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        try FileManager.default.createDirectory(
+            at: rootURL,
+            withIntermediateDirectories: true
+        )
+
+        let sourceController = EditorController(
+            capture: makeCapturedScreenshot(),
+            defaults: defaults,
+            capabilities: testCapabilities
+        )
+        XCTAssertFalse(sourceController.hasComposition)
+        try SSSDocumentPackage.save(
+            document: sourceController.editableDocument,
+            previewImage: sourceController.capture.image,
+            to: packageURL
+        )
+
+        let model = retainForTestLifetime(
+            AppModel(
+                defaults: defaults,
+                recoveryStore: DocumentRecoveryStore(baseURL: nil),
+                shouldCheckCompatibilityOnLaunch: false,
+                shouldStartArchiveMaintenance: false
+            )
+        )
+        model.documents.loadDocument(from: packageURL)
+
+        let loadedController = try XCTUnwrap(
+            model.documents.editorController
+        )
+        XCTAssertFalse(loadedController.hasComposition)
+        XCTAssertEqual(loadedController.workspaceMode, .edit)
+        XCTAssertEqual(
+            loadedController.presentationInspectorTab,
+            .layout
+        )
+    }
+
+    func testSingleItemPolishStageRestoresOnFileOpenAndRecovery()
+        async throws
+    {
+        let suiteName =
+            "AppModelTests.singleItemPolishWorkspaceRestore"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let recoveryURL = rootURL.appendingPathComponent(
+            "Recovery",
+            isDirectory: true
+        )
+        let packageURL = rootURL.appendingPathComponent(
+            "Polished Screenshot.sss",
+            isDirectory: true
+        )
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        try FileManager.default.createDirectory(
+            at: rootURL,
+            withIntermediateDirectories: true
+        )
+
+        let sourceController = EditorController(
+            capture: makeCapturedScreenshot(),
+            defaults: defaults,
+            capabilities: testCapabilities
+        )
+        sourceController.applyPresentationPreset(.lifted)
+        sourceController.enterPolish()
+        XCTAssertFalse(sourceController.hasComposition)
+        try SSSDocumentPackage.save(
+            document: sourceController.editableDocument,
+            previewImage: sourceController.capture.image,
+            to: packageURL
+        )
+
+        let store = retainForTestLifetime(
+            DocumentRecoveryStore(baseURL: recoveryURL)
+        )
+        let model = retainForTestLifetime(
+            AppModel(
+                defaults: defaults,
+                recoveryStore: store,
+                shouldCheckCompatibilityOnLaunch: false,
+                shouldStartArchiveMaintenance: false
+            )
+        )
+        defer { model.documents.resetEditorSessionState() }
+
+        model.documents.loadDocument(from: packageURL)
+
+        let opened = try XCTUnwrap(model.documents.editorController)
+        XCTAssertFalse(opened.hasComposition)
+        XCTAssertEqual(opened.workflowStage, .polishing)
+        XCTAssertEqual(opened.workspaceMode, .presentation)
+        XCTAssertEqual(opened.presentationInspectorTab, .style)
+        XCTAssertEqual(
+            opened.snapshot.presentation,
+            ScreenshotPresentationPreset.lifted.settings
+        )
+        XCTAssertEqual(
+            opened.currentWorkspaceOutputAppearance,
+            .styled
+        )
+
+        model.hasUnsavedChanges = true
+        model.documents.recordRecoveryCheckpoint(
+            for: opened,
+            label: "Autosave",
+            pendingRecovery: true
+        )
+        await model.waitForPendingRecoveryWriteTasks()
+        let checkpoint = try XCTUnwrap(
+            store.latestPendingRecovery()?.latestEntry
+        )
+
+        opened.leavePolish()
+        opened.setWorkspaceMode(.edit)
+        model.documents.restoreHistoryEntryImmediately(
+            checkpoint,
+            clearPendingRecovery: false
+        )
+
+        let recovered = try XCTUnwrap(
+            model.documents.editorController
+        )
+        XCTAssertFalse(recovered.hasComposition)
+        XCTAssertEqual(recovered.workflowStage, .polishing)
+        XCTAssertEqual(recovered.workspaceMode, .presentation)
+        XCTAssertEqual(recovered.presentationInspectorTab, .style)
+        XCTAssertEqual(
+            recovered.snapshot.presentation,
+            ScreenshotPresentationPreset.lifted.settings
+        )
+        XCTAssertEqual(
+            recovered.currentWorkspaceOutputAppearance,
+            .styled
+        )
     }
 
     func testUIMapCaptureEligibilityRequiresWindowIdentityAndAccessibility() {
@@ -1539,6 +2567,81 @@ final class AppModelTests: XCTestCase {
 
         XCTAssertTrue(didTerminate)
         XCTAssertNil(model.editorController)
+    }
+}
+
+nonisolated private final class CompletionRoleCaptureService:
+    ScreenCaptureServiceType,
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private let capture: CapturedScreenshot
+    private var fullscreenCaptures = 0
+
+    init(capture: CapturedScreenshot) {
+        self.capture = capture
+    }
+
+    var fullscreenCaptureCount: Int {
+        lock.withLock { fullscreenCaptures }
+    }
+
+    func listWindows(
+        excluding processID: pid_t,
+        includeThumbnails: Bool
+    ) async throws -> [CaptureWindowSummary] {
+        []
+    }
+
+    func frontmostWindow(
+        excluding processID: pid_t
+    ) async throws -> CaptureWindowSummary {
+        throw ScreenCaptureError.noWindowsAvailable
+    }
+
+    func resolveWindowTarget(
+        _ window: CaptureWindowSummary,
+        excluding processID: pid_t
+    ) async throws -> CaptureWindowSummary {
+        window
+    }
+
+    func captureCurrentDisplay() async throws -> CapturedScreenshot {
+        lock.withLock {
+            fullscreenCaptures += 1
+        }
+        return capture
+    }
+
+    func captureDesktopOverlaySnapshot()
+        async throws -> DesktopCompositeSnapshot
+    {
+        throw ScreenCaptureError.noDisplays
+    }
+
+    func captureRegion(
+        from snapshot: DesktopCompositeSnapshot,
+        selection: CGRect
+    ) async throws -> CapturedScreenshot {
+        throw ScreenCaptureError.invalidRegion
+    }
+
+    func captureRegion(
+        in selection: CGRect
+    ) async throws -> CapturedScreenshot {
+        throw ScreenCaptureError.invalidRegion
+    }
+
+    func captureRegionDirect(
+        in selection: CGRect
+    ) async throws -> CapturedScreenshot {
+        throw ScreenCaptureError.invalidRegion
+    }
+
+    func captureWindow(
+        _ window: CaptureWindowSummary
+    ) async throws -> CapturedScreenshot {
+        throw ScreenCaptureError.windowImageUnavailable
     }
 }
 

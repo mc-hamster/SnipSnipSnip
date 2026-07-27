@@ -3,6 +3,32 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class UIMapCaptureGeometryTests: XCTestCase {
+    func testPrivateUIMapCaptureEmitsNoContentDiagnostics() async {
+        let sink = UIMapDiagnosticSinkSpy()
+        let service = AccessibilityUIMapCaptureService(
+            capabilities: testCapabilities,
+            diagnosticSink: sink
+        )
+        let capture = makeCapturedScreenshot(kind: .region)
+
+        _ = await service.captureUIMap(
+            for: capture,
+            isPrivateCapture: true
+        )
+        XCTAssertTrue(sink.messages.isEmpty)
+
+        _ = await service.captureUIMap(
+            for: capture,
+            isPrivateCapture: false
+        )
+        XCTAssertTrue(
+            sink.messages.contains {
+                $0.contains(capture.sourceName)
+            },
+            "The spy must observe the normal diagnostic path so the private assertion is meaningful."
+        )
+    }
+
     func testSecureRoleAndSubrolePropagateSensitivityWithoutReadingValue() {
         XCTAssertTrue(
             UIMapAccessibilityPrivacy.isSensitive(
@@ -145,5 +171,29 @@ final class UIMapCaptureGeometryTests: XCTestCase {
         )
 
         XCTAssertEqual(rect, CGRect(x: 450, y: 0, width: 50, height: 40))
+    }
+}
+
+private final class UIMapDiagnosticSinkSpy:
+    CaptureContentDiagnosticSink,
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private var storedMessages: [String] = []
+
+    var messages: [String] {
+        lock.withLock { storedMessages }
+    }
+
+    nonisolated func emit(
+        level: CaptureContentDiagnosticLevel,
+        category: String,
+        message: String
+    ) {
+        _ = level
+        _ = category
+        lock.withLock {
+            storedMessages.append(message)
+        }
     }
 }

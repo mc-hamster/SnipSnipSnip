@@ -45,6 +45,19 @@ final class DragOutSharingTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: outputURL, encoding: .utf8), "shared")
     }
 
+    func testPromisedFileDragControlIntrinsicSizeIncludesItsVisibleLabel() {
+        let dragControl = PromisedFileDragNSView(
+            accessibilityLabel: "Drag current screenshot output",
+            payloadProvider: { nil },
+            showsIcon: true
+        )
+
+        XCTAssertEqual(
+            dragControl.intrinsicContentSize,
+            NSSize(width: 68, height: 30)
+        )
+    }
+
     func testPromisedPayloadRemovesPartialDestinationAfterFailure() async {
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
@@ -303,8 +316,14 @@ final class DragOutSharingTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: outputURL) }
 
         XCTAssertEqual(resolvedPayload.contentType, .png)
-        XCTAssertEqual(resolvedPayload.suggestedFilename, "Shared-Display-styled.png")
-        XCTAssertEqual(controller.noticeMessage, "PNG used to preserve transparent presentation styling.")
+        XCTAssertEqual(
+            resolvedPayload.suggestedFilename,
+            "Shared-Display-presentation.png"
+        )
+        XCTAssertEqual(
+            controller.noticeMessage,
+            "PNG used to preserve transparent Polish."
+        )
 
         try await resolvedPayload.write(to: outputURL)
 

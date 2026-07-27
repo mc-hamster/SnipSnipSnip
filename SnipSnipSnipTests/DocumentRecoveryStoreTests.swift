@@ -1,5 +1,7 @@
 import CoreGraphics
+import Dispatch
 import Foundation
+import ImageIO
 import XCTest
 @testable import SnipSnipSnip
 
@@ -36,7 +38,15 @@ final class DocumentRecoveryStoreTests: XCTestCase {
         XCTAssertTrue(pendingRecovery.latestEntry.hasUnsavedChanges)
 
         let restored = try store.restoreDocument(from: entry)
-        XCTAssertEqual(restored.session, document.session)
+        XCTAssertEqual(
+            recoverySessionByRemovingComposition(from: restored.session),
+            document.session
+        )
+        let restoredComposition = try XCTUnwrap(
+            restored.session.currentSnapshot.composition
+        )
+        XCTAssertFalse(restoredComposition.isActivated)
+        XCTAssertEqual(restoredComposition.items.count, 1)
         XCTAssertEqual(restored.capture.sourceRect, document.capture.sourceRect)
 
         try store.clearPendingRecovery(for: sessionID)
@@ -113,7 +123,12 @@ final class DocumentRecoveryStoreTests: XCTestCase {
         try ImageExporter.pngData(for: mismatchedPreview)
             .write(to: entry.packageURL.appendingPathComponent("preview.png"), options: .atomic)
 
-        let displayPreview = try XCTUnwrap(SSSDocumentPackage.loadDisplayPreview(from: entry.packageURL))
+        let displayPreview = try XCTUnwrap(
+            SSSDocumentPackage.loadDisplayPreview(
+                from: entry.packageURL,
+                allowsExternalRecoveryBase: true
+            )
+        )
 
         XCTAssertEqual(displayPreview.source, "rerendered-package")
         XCTAssertEqual(displayPreview.image.width, document.capture.image.width)
@@ -673,6 +688,765 @@ final class DocumentRecoveryStoreTests: XCTestCase {
         try? FileManager.default.removeItem(at: rootURL)
     }
 
+    func testCompositionCheckpointsShareAppendOnlyCaptureAssetsAcrossSession() throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
+        let assetID = UUID()
+        let image = makeCoordinateImage(width: 28, height: 20)
+        let document = try makeCompositionDocument(
+            assetImages: [assetID: image],
+            initialAssetIDs: [assetID],
+            currentAssetIDs: [assetID]
+        )
+        let sessionID = try store.createSession(
+            title: "Composition.sss",
+            sourceDocumentURL: nil
+        )
+
+        for label in ["Capture", "Autosave"] {
+            try store.saveCheckpoint(
+                sessionID: sessionID,
+                title: "Composition.sss",
+                sourceDocumentURL: nil,
+                label: label,
+                document: document,
+                previewImage: document.capture.image,
+                pendingRecovery: true,
+                hasUnsavedChanges: true
+            )
+        }
+
+        let entries = store.historyEntries(for: sessionID)
+        XCTAssertEqual(entries.count, 2)
+        let sharedAssetsURL = sessionCompositionAssetsURL(from: try XCTUnwrap(entries.first))
+        let sharedAssets = try FileManager.default.contentsOfDirectory(
+            at: sharedAssetsURL,
+            includingPropertiesForKeys: nil
+        )
+        XCTAssertEqual(sharedAssets.map(\.lastPathComponent), ["\(assetID.uuidString).png"])
+
+        for entry in entries {
+            XCTAssertFalse(
+                FileManager.default.fileExists(
+                    atPath: entry.packageURL
+                        .appendingPathComponent("assets/captures", isDirectory: true)
+                        .path
+                )
+            )
+            let restored = try store.restoreDocument(from: entry)
+            XCTAssertEqual(restored.session, document.session)
+            XCTAssertEqual(
+                restored.compositionStoredAssets.map(\.descriptor.id),
+                [assetID]
+            )
+        }
+    }
+
+    func testRecoveryRetainsAssetsReferencedOnlyByInitialUndoAndRedoSnapshots() throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
+        let assetIDs = (0..<4).map { _ in UUID() }
+        let assetImages = Dictionary(uniqueKeysWithValues: assetIDs.enumerated().map {
+            (
+                $0.element,
+                makeCoordinateImage(
+                    width: 24 + $0.offset,
+                    height: 18 + $0.offset
+                )
+            )
+        })
+        let document = try makeCompositionDocument(
+            assetImages: assetImages,
+            initialAssetIDs: [assetIDs[0]],
+            currentAssetIDs: [assetIDs[1]],
+            undoAssetIDs: [[assetIDs[2]]],
+            redoAssetIDs: [[assetIDs[3]]]
+        )
+        let sessionID = try store.createSession(
+            title: "History Assets.sss",
+            sourceDocumentURL: nil
+        )
+
+        try store.saveCheckpoint(
+            sessionID: sessionID,
+            title: "History Assets.sss",
+            sourceDocumentURL: nil,
+            label: "Autosave",
+            document: document,
+            previewImage: document.capture.image,
+            pendingRecovery: true,
+            hasUnsavedChanges: true
+        )
+
+        let entry = try XCTUnwrap(store.historyEntries(for: sessionID).first)
+        let storedNames = Set(
+            try FileManager.default.contentsOfDirectory(
+                at: sessionCompositionAssetsURL(from: entry),
+                includingPropertiesForKeys: nil
+            ).map(\.lastPathComponent)
+        )
+        XCTAssertEqual(
+            storedNames,
+            Set(assetIDs.map { "\($0.uuidString).png" })
+        )
+
+        let restored = try store.restoreDocument(from: entry)
+        XCTAssertEqual(restored.session, document.session)
+        XCTAssertEqual(
+            Set(restored.compositionStoredAssets.map(\.descriptor.id)),
+            Set(assetIDs)
+        )
+    }
+
+    func testSoftDeleteRetainsSharedAssetsAndPermanentDeletePrunesOnlyUnreferenced() throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
+        let firstID = UUID()
+        let secondID = UUID()
+        let first = try makeCompositionDocument(
+            assetImages: [firstID: makeCoordinateImage(width: 20, height: 16)],
+            initialAssetIDs: [firstID],
+            currentAssetIDs: [firstID]
+        )
+        let second = try makeCompositionDocument(
+            assetImages: [secondID: makeCoordinateImage(width: 22, height: 18)],
+            initialAssetIDs: [secondID],
+            currentAssetIDs: [secondID]
+        )
+        let sessionID = try store.createSession(title: "Prune.sss", sourceDocumentURL: nil)
+
+        for (label, document) in [("First", first), ("Second", second)] {
+            try store.saveCheckpoint(
+                sessionID: sessionID,
+                title: "Prune.sss",
+                sourceDocumentURL: nil,
+                label: label,
+                document: document,
+                previewImage: document.capture.image,
+                pendingRecovery: true,
+                hasUnsavedChanges: true
+            )
+        }
+
+        let firstEntry = try XCTUnwrap(
+            store.historyEntries(for: sessionID).first { $0.label == "First" }
+        )
+        let assetsURL = sessionCompositionAssetsURL(from: firstEntry)
+        let firstAssetURL = assetsURL.appendingPathComponent("\(firstID.uuidString).png")
+        let secondAssetURL = assetsURL.appendingPathComponent("\(secondID.uuidString).png")
+
+        try store.deleteHistoryEntry(firstEntry)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: firstAssetURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: secondAssetURL.path))
+
+        let recycled = try XCTUnwrap(
+            store.recycledHistoryEntries().first { $0.id == firstEntry.id }
+        )
+        try store.permanentlyDeleteHistoryEntry(recycled)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: firstAssetURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: secondAssetURL.path))
+        XCTAssertEqual(
+            try store.restoreDocument(
+                from: XCTUnwrap(
+                    store.historyEntries(for: sessionID).first {
+                        $0.label == "Second"
+                    }
+                )
+            ).compositionStoredAssets.map(\.descriptor.id),
+            [secondID]
+        )
+    }
+
+    func testImmutableAssetConflictLeavesPriorCheckpointAndPixelsReadable() throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
+        let assetID = UUID()
+        let originalImage = makeCoordinateImage(width: 24, height: 18)
+        let conflictingImage = makeSolidImage(
+            width: 24,
+            height: 18,
+            color: PixelSample(red: 220, green: 20, blue: 40, alpha: 255)
+        )
+        let original = try makeCompositionDocument(
+            assetImages: [assetID: originalImage],
+            initialAssetIDs: [assetID],
+            currentAssetIDs: [assetID]
+        )
+        let conflicting = try makeCompositionDocument(
+            assetImages: [assetID: conflictingImage],
+            initialAssetIDs: [assetID],
+            currentAssetIDs: [assetID]
+        )
+        let sessionID = try store.createSession(title: "Atomic.sss", sourceDocumentURL: nil)
+
+        try store.saveCheckpoint(
+            sessionID: sessionID,
+            title: "Atomic.sss",
+            sourceDocumentURL: nil,
+            label: "Original",
+            document: original,
+            previewImage: original.capture.image,
+            pendingRecovery: true,
+            hasUnsavedChanges: true
+        )
+
+        XCTAssertThrowsError(
+            try store.saveCheckpoint(
+                sessionID: sessionID,
+                title: "Atomic.sss",
+                sourceDocumentURL: nil,
+                label: "Conflicting",
+                document: conflicting,
+                previewImage: conflicting.capture.image,
+                pendingRecovery: true,
+                hasUnsavedChanges: true
+            )
+        ) {
+            guard case SSSDocumentError.compositionAssetConflict(let conflictingID) = $0,
+                  conflictingID == assetID else {
+                return XCTFail("Expected immutable asset conflict, got \($0)")
+            }
+        }
+
+        let entries = store.historyEntries(for: sessionID)
+        XCTAssertEqual(entries.map(\.label), ["Original"])
+        let restored = try store.restoreDocument(from: XCTUnwrap(entries.first))
+        let stored = try XCTUnwrap(restored.compositionStoredAssets.first)
+        let decoded = try XCTUnwrap(
+            CGImageSourceCreateWithData(try XCTUnwrap(stored.encodedPNG) as CFData, nil)
+        )
+        let image = try XCTUnwrap(CGImageSourceCreateImageAtIndex(decoded, 0, nil))
+        XCTAssertEqual(
+            samplePixel(in: image, topLeftX: 5, topLeftY: 6),
+            samplePixel(in: originalImage, topLeftX: 5, topLeftY: 6)
+        )
+    }
+
+    func testPrivateCompositionCannotWriteRecoveryPixelsAndHidesOlderSession() throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
+        let publicID = UUID()
+        let privateID = UUID()
+        let publicDocument = try makeCompositionDocument(
+            assetImages: [publicID: makeCoordinateImage(width: 20, height: 14)],
+            initialAssetIDs: [publicID],
+            currentAssetIDs: [publicID]
+        )
+        let privateDocument = try makeCompositionDocument(
+            assetImages: [privateID: makeCoordinateImage(width: 22, height: 16)],
+            initialAssetIDs: [privateID],
+            currentAssetIDs: [privateID],
+            privateAssetIDs: [privateID]
+        )
+        let sessionID = try store.createSession(
+            title: "Private Taint.sss",
+            sourceDocumentURL: nil
+        )
+
+        try store.saveCheckpoint(
+            sessionID: sessionID,
+            title: "Private Taint.sss",
+            sourceDocumentURL: nil,
+            label: "Before Private Capture",
+            document: publicDocument,
+            previewImage: publicDocument.capture.image,
+            pendingRecovery: true,
+            hasUnsavedChanges: true
+        )
+        let publicEntry = try XCTUnwrap(
+            store.historyEntries(for: sessionID).first
+        )
+        let assetsURL = sessionCompositionAssetsURL(from: publicEntry)
+
+        try store.saveCheckpoint(
+            sessionID: sessionID,
+            title: "Private Taint.sss",
+            sourceDocumentURL: nil,
+            label: "Must Not Persist",
+            document: privateDocument,
+            previewImage: privateDocument.capture.image,
+            pendingRecovery: true,
+            hasUnsavedChanges: true
+        )
+
+        XCTAssertTrue(store.historyEntries(for: sessionID).isEmpty)
+        XCTAssertNil(store.latestPendingRecovery())
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: assetsURL
+                    .appendingPathComponent("\(publicID.uuidString).png")
+                    .path
+            )
+        )
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: assetsURL
+                    .appendingPathComponent("\(privateID.uuidString).png")
+                    .path
+            )
+        )
+        XCTAssertEqual(
+            try store.restoreDocument(from: publicEntry)
+                .compositionStoredAssets.map(\.descriptor.id),
+            [publicID],
+            "Pre-private checkpoints may remain readable by their already-held internal entry."
+        )
+        let state = store.presentationState(
+            currentSessionID: sessionID,
+            captureHistoryLimit: 20,
+            recentSnipLimit: 20,
+            recycleBinLimit: 20
+        )
+        XCTAssertTrue(state.historyEntries.isEmpty)
+        XCTAssertTrue(state.allCaptureHistoryEntries.isEmpty)
+        XCTAssertTrue(state.recentSnipEntries.isEmpty)
+        XCTAssertTrue(state.recycleBinEntries.isEmpty)
+        XCTAssertNil(state.pendingRecoverySession)
+    }
+
+    func testPrivacyExclusionWinsAgainstCheckpointAlreadyEncoding() async throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let seedStore = retainForTestLifetime(
+            DocumentRecoveryStore(baseURL: rootURL)
+        )
+        let document = makeDocument()
+        let sessionID = try seedStore.createSession(
+            title: "Racing Private Taint.sss",
+            sourceDocumentURL: nil
+        )
+        try seedStore.saveCheckpoint(
+            sessionID: sessionID,
+            title: "Racing Private Taint.sss",
+            sourceDocumentURL: nil,
+            label: "Before Private Capture",
+            document: document,
+            previewImage: document.capture.image,
+            pendingRecovery: true,
+            hasUnsavedChanges: true
+        )
+
+        let packageDidWrite = DispatchSemaphore(value: 0)
+        let allowCommitCheck = DispatchSemaphore(value: 0)
+        let racingStore = retainForTestLifetime(
+            DocumentRecoveryStore(
+                baseURL: rootURL,
+                checkpointPackageDidWrite: { _ in
+                    packageDidWrite.signal()
+                    _ = allowCommitCheck.wait(timeout: .now() + 10)
+                }
+            )
+        )
+        let writer = Task.detached(priority: .userInitiated) {
+            let image = makeCoordinateImage(width: 32, height: 24)
+            let capture = makeCapturedScreenshot(image: image)
+            let snapshot = makeEditorSnapshot(
+                cropRect: CGRect(x: 0, y: 0, width: 32, height: 24)
+            )
+            let delayedDocument = makeEditableDocument(
+                capture: capture,
+                session: makeEditorDocumentSession(
+                    initialSnapshot: snapshot,
+                    currentSnapshot: snapshot
+                )
+            )
+            try racingStore.saveCheckpoint(
+                sessionID: sessionID,
+                title: "Racing Private Taint.sss",
+                sourceDocumentURL: nil,
+                label: "Delayed Autosave",
+                document: delayedDocument,
+                previewImage: delayedDocument.capture.image,
+                pendingRecovery: true,
+                hasUnsavedChanges: true
+            )
+        }
+
+        XCTAssertEqual(
+            packageDidWrite.wait(timeout: .now() + 10),
+            .success,
+            "The test writer never reached the precommit boundary."
+        )
+        racingStore.registerPrivacyExclusion(for: sessionID)
+        allowCommitCheck.signal()
+        try await writer.value
+        try racingStore.excludeSessionFromPresentation(sessionID)
+
+        let checkpointsURL = rootURL
+            .appendingPathComponent("sessions", isDirectory: true)
+            .appendingPathComponent(sessionID.uuidString, isDirectory: true)
+            .appendingPathComponent("checkpoints", isDirectory: true)
+        XCTAssertEqual(
+            try FileManager.default.contentsOfDirectory(
+                at: checkpointsURL,
+                includingPropertiesForKeys: nil
+            ).count,
+            1,
+            "The checkpoint encoded before privacy taint must be discarded before manifest commit."
+        )
+        XCTAssertTrue(racingStore.historyEntries(for: sessionID).isEmpty)
+        XCTAssertTrue(racingStore.pendingRecoveryEntries().isEmpty)
+        XCTAssertNil(racingStore.latestPendingRecovery())
+
+        let reopenedStore = retainForTestLifetime(
+            DocumentRecoveryStore(baseURL: rootURL)
+        )
+        XCTAssertTrue(reopenedStore.historyEntries(for: sessionID).isEmpty)
+        try reopenedStore.saveCheckpoint(
+            sessionID: sessionID,
+            title: "Racing Private Taint.sss",
+            sourceDocumentURL: nil,
+            label: "Later Autosave",
+            document: document,
+            previewImage: document.capture.image,
+            pendingRecovery: true,
+            hasUnsavedChanges: true
+        )
+        XCTAssertEqual(
+            try FileManager.default.contentsOfDirectory(
+                at: checkpointsURL,
+                includingPropertiesForKeys: nil
+            ).count,
+            1,
+            "A durable exclusion must reject writers created after relaunch."
+        )
+    }
+
+    func testPrivacyExclusionCleansCheckpointThatRacesImmediatelyAfterManifestCommit() async throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let seedStore = retainForTestLifetime(
+            DocumentRecoveryStore(baseURL: rootURL)
+        )
+        let document = makeDocument()
+        let sessionID = try seedStore.createSession(
+            title: "Postcommit Private Taint.sss",
+            sourceDocumentURL: nil
+        )
+        try seedStore.saveCheckpoint(
+            sessionID: sessionID,
+            title: "Postcommit Private Taint.sss",
+            sourceDocumentURL: nil,
+            label: "Before Private Capture",
+            document: document,
+            previewImage: document.capture.image,
+            pendingRecovery: true,
+            hasUnsavedChanges: true
+        )
+
+        let sessionDidCommit = DispatchSemaphore(value: 0)
+        let allowPostcommitCheck = DispatchSemaphore(value: 0)
+        let racingStore = retainForTestLifetime(
+            DocumentRecoveryStore(
+                baseURL: rootURL,
+                checkpointSessionDidCommit: { _ in
+                    sessionDidCommit.signal()
+                    _ = allowPostcommitCheck.wait(timeout: .now() + 10)
+                }
+            )
+        )
+        let writer = Task.detached(priority: .userInitiated) {
+            let image = makeCoordinateImage(width: 32, height: 24)
+            let capture = makeCapturedScreenshot(image: image)
+            let snapshot = makeEditorSnapshot(
+                cropRect: CGRect(x: 0, y: 0, width: 32, height: 24)
+            )
+            let delayedDocument = makeEditableDocument(
+                capture: capture,
+                session: makeEditorDocumentSession(
+                    initialSnapshot: snapshot,
+                    currentSnapshot: snapshot
+                )
+            )
+            try racingStore.saveCheckpoint(
+                sessionID: sessionID,
+                title: "Postcommit Private Taint.sss",
+                sourceDocumentURL: nil,
+                label: "Racing Autosave",
+                document: delayedDocument,
+                previewImage: delayedDocument.capture.image,
+                pendingRecovery: true,
+                hasUnsavedChanges: true
+            )
+        }
+
+        XCTAssertEqual(
+            sessionDidCommit.wait(timeout: .now() + 10),
+            .success,
+            "The test writer never reached the postcommit boundary."
+        )
+        racingStore.registerPrivacyExclusion(for: sessionID)
+        allowPostcommitCheck.signal()
+        try await writer.value
+        try racingStore.excludeSessionFromPresentation(sessionID)
+
+        let checkpointsURL = rootURL
+            .appendingPathComponent("sessions", isDirectory: true)
+            .appendingPathComponent(sessionID.uuidString, isDirectory: true)
+            .appendingPathComponent("checkpoints", isDirectory: true)
+        XCTAssertEqual(
+            try FileManager.default.contentsOfDirectory(
+                at: checkpointsURL,
+                includingPropertiesForKeys: nil
+            ).count,
+            1,
+            "The postcommit race must remove the newly published checkpoint package."
+        )
+        XCTAssertTrue(racingStore.historyEntries(for: sessionID).isEmpty)
+        XCTAssertTrue(racingStore.pendingRecoveryEntries().isEmpty)
+        XCTAssertNil(racingStore.latestPendingRecovery())
+    }
+
+    func testPrivacyTombstoneFiltersEveryHistorySurfaceWithStaleSearchIndex() throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
+        let document = makeDocument()
+        let sessionID = try store.createSession(
+            title: "Never Index Private.sss",
+            sourceDocumentURL: nil
+        )
+        for label in ["Visible", "Recycle Me"] {
+            try store.saveCheckpoint(
+                sessionID: sessionID,
+                title: "Never Index Private.sss",
+                sourceDocumentURL: nil,
+                label: label,
+                document: document,
+                previewImage: document.capture.image,
+                pendingRecovery: true,
+                hasUnsavedChanges: true
+            )
+        }
+        let recycledEntry = try XCTUnwrap(
+            store.historyEntries(for: sessionID).first {
+                $0.label == "Recycle Me"
+            }
+        )
+        try store.deleteHistoryEntry(recycledEntry)
+        let searchIndexURL = rootURL.appendingPathComponent("search-index.json")
+        let staleSearchIndex = try Data(contentsOf: searchIndexURL)
+
+        try store.excludeSessionFromPresentation(sessionID)
+        try staleSearchIndex.write(to: searchIndexURL, options: .atomic)
+
+        let reopenedStore = retainForTestLifetime(
+            DocumentRecoveryStore(baseURL: rootURL)
+        )
+        XCTAssertTrue(reopenedStore.historyEntries(for: sessionID).isEmpty)
+        XCTAssertTrue(reopenedStore.pendingRecoveryEntries().isEmpty)
+        XCTAssertNil(reopenedStore.latestPendingRecovery())
+        XCTAssertTrue(reopenedStore.allHistoryEntries().isEmpty)
+        XCTAssertTrue(
+            reopenedStore.searchHistoryEntries(
+                matching: "Never Index Private"
+            ).isEmpty
+        )
+        XCTAssertTrue(reopenedStore.recycledHistoryEntries().isEmpty)
+        XCTAssertTrue(reopenedStore.incompatibleHistoryEntries().isEmpty)
+
+        let state = reopenedStore.presentationState(
+            currentSessionID: sessionID,
+            captureHistoryLimit: 20,
+            recentSnipLimit: 20,
+            recycleBinLimit: 20
+        )
+        XCTAssertTrue(state.historyEntries.isEmpty)
+        XCTAssertTrue(state.allCaptureHistoryEntries.isEmpty)
+        XCTAssertTrue(state.recentSnipEntries.isEmpty)
+        XCTAssertTrue(state.recycleBinEntries.isEmpty)
+        XCTAssertNil(state.pendingRecoverySession)
+    }
+
+    func testPrivacyExclusionFallsBackToSessionRecordWhenTombstoneWriteFails() throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
+        let document = makeDocument()
+        let sessionID = try store.createSession(
+            title: "Low Disk Private.sss",
+            sourceDocumentURL: nil
+        )
+        try store.saveCheckpoint(
+            sessionID: sessionID,
+            title: "Low Disk Private.sss",
+            sourceDocumentURL: nil,
+            label: "Before Private Capture",
+            document: document,
+            previewImage: document.capture.image,
+            pendingRecovery: true,
+            hasUnsavedChanges: true
+        )
+
+        let exclusionDirectoryURL = rootURL.appendingPathComponent(
+            DocumentRecoveryStore.privacyExclusionsDirectoryName
+        )
+        try Data("blocks-directory-creation".utf8).write(
+            to: exclusionDirectoryURL,
+            options: .atomic
+        )
+
+        try store.excludeSessionFromPresentation(sessionID)
+
+        let reopenedStore = retainForTestLifetime(
+            DocumentRecoveryStore(baseURL: rootURL)
+        )
+        XCTAssertTrue(reopenedStore.historyEntries(for: sessionID).isEmpty)
+        XCTAssertTrue(reopenedStore.allHistoryEntries().isEmpty)
+        XCTAssertNil(reopenedStore.latestPendingRecovery())
+
+        try reopenedStore.saveCheckpoint(
+            sessionID: sessionID,
+            title: "Low Disk Private.sss",
+            sourceDocumentURL: nil,
+            label: "Must Stay Excluded",
+            document: document,
+            previewImage: document.capture.image,
+            pendingRecovery: true,
+            hasUnsavedChanges: true
+        )
+        XCTAssertTrue(reopenedStore.historyEntries(for: sessionID).isEmpty)
+
+        try FileManager.default.removeItem(at: exclusionDirectoryURL)
+        XCTAssertTrue(reopenedStore.allHistoryEntries().isEmpty)
+        let tombstoneURL = rootURL
+            .appendingPathComponent(
+                DocumentRecoveryStore.privacyExclusionsDirectoryName,
+                isDirectory: true
+            )
+            .appendingPathComponent(sessionID.uuidString)
+            .appendingPathExtension("excluded")
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: tombstoneURL.path),
+            "A session-record fallback must keep retrying the standalone tombstone after storage recovers."
+        )
+    }
+
+    func testFailedPrivacyExclusionStaysFailClosedAndRetriesAfterStorageRecovers() throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
+        let document = makeDocument()
+        let sessionID = try store.createSession(
+            title: "Retry Private Exclusion.sss",
+            sourceDocumentURL: nil
+        )
+        try store.saveCheckpoint(
+            sessionID: sessionID,
+            title: "Retry Private Exclusion.sss",
+            sourceDocumentURL: nil,
+            label: "Before Private Capture",
+            document: document,
+            previewImage: document.capture.image,
+            pendingRecovery: true,
+            hasUnsavedChanges: true
+        )
+
+        let sessionMetadataURL = rootURL
+            .appendingPathComponent("sessions", isDirectory: true)
+            .appendingPathComponent(sessionID.uuidString, isDirectory: true)
+            .appendingPathComponent("session.json")
+        let originalSessionMetadata = try Data(contentsOf: sessionMetadataURL)
+        try FileManager.default.removeItem(at: sessionMetadataURL)
+        try FileManager.default.createDirectory(
+            at: sessionMetadataURL,
+            withIntermediateDirectories: false
+        )
+
+        let exclusionDirectoryURL = rootURL.appendingPathComponent(
+            DocumentRecoveryStore.privacyExclusionsDirectoryName
+        )
+        try Data("simulated-no-space".utf8).write(
+            to: exclusionDirectoryURL,
+            options: .atomic
+        )
+
+        XCTAssertThrowsError(
+            try store.excludeSessionFromPresentation(sessionID)
+        )
+        XCTAssertTrue(store.allHistoryEntries().isEmpty)
+        XCTAssertTrue(
+            store.searchHistoryEntries(matching: "Retry Private").isEmpty
+        )
+        XCTAssertNil(store.latestPendingRecovery())
+
+        let checkpointsURL = sessionMetadataURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("checkpoints", isDirectory: true)
+        let checkpointCount = try FileManager.default.contentsOfDirectory(
+            at: checkpointsURL,
+            includingPropertiesForKeys: nil
+        ).count
+        try store.saveCheckpoint(
+            sessionID: sessionID,
+            title: "Retry Private Exclusion.sss",
+            sourceDocumentURL: nil,
+            label: "Must Not Commit During Failure",
+            document: document,
+            previewImage: document.capture.image,
+            pendingRecovery: true,
+            hasUnsavedChanges: true
+        )
+        XCTAssertEqual(
+            try FileManager.default.contentsOfDirectory(
+                at: checkpointsURL,
+                includingPropertiesForKeys: nil
+            ).count,
+            checkpointCount
+        )
+
+        try FileManager.default.removeItem(at: exclusionDirectoryURL)
+        try FileManager.default.removeItem(at: sessionMetadataURL)
+        try originalSessionMetadata.write(
+            to: sessionMetadataURL,
+            options: .atomic
+        )
+
+        // Any later store interaction retries pending durable exclusions.
+        XCTAssertTrue(store.allHistoryEntries().isEmpty)
+        let tombstoneURL = rootURL
+            .appendingPathComponent(
+                DocumentRecoveryStore.privacyExclusionsDirectoryName,
+                isDirectory: true
+            )
+            .appendingPathComponent(sessionID.uuidString)
+            .appendingPathExtension("excluded")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: tombstoneURL.path))
+
+        let reopenedStore = retainForTestLifetime(
+            DocumentRecoveryStore(baseURL: rootURL)
+        )
+        XCTAssertTrue(reopenedStore.historyEntries(for: sessionID).isEmpty)
+        XCTAssertTrue(reopenedStore.pendingRecoveryEntries().isEmpty)
+        XCTAssertNil(reopenedStore.latestPendingRecovery())
+    }
+
     private func makeDocument() -> EditableScreenshotDocument {
         let image = makeCoordinateImage(width: 32, height: 24, pattern: .weighted(xMultiplier: 11, yMultiplier: 13, includeBlueSum: true))
         let capture = makeCapturedScreenshot(
@@ -687,6 +1461,75 @@ final class DocumentRecoveryStoreTests: XCTestCase {
         let session = makeEditorDocumentSession(initialSnapshot: snapshot)
 
         return makeEditableDocument(capture: capture, session: session)
+    }
+
+    private func recoverySessionByRemovingComposition(
+        from session: EditorDocumentSession
+    ) -> EditorDocumentSession {
+        func legacy(_ snapshot: EditorSnapshot) -> EditorSnapshot {
+            var snapshot = snapshot
+            snapshot.composition = nil
+            return snapshot
+        }
+        return EditorDocumentSession(
+            initialSnapshot: legacy(session.initialSnapshot),
+            currentSnapshot: legacy(session.currentSnapshot),
+            undoStack: session.undoStack.map(legacy),
+            redoStack: session.redoStack.map(legacy),
+            toolStyles: session.toolStyles,
+            savedPresentations: session.savedPresentations
+        )
+    }
+
+    private func makeCompositionDocument(
+        assetImages: [UUID: CGImage],
+        initialAssetIDs: [UUID],
+        currentAssetIDs: [UUID],
+        undoAssetIDs: [[UUID]] = [],
+        redoAssetIDs: [[UUID]] = [],
+        privateAssetIDs: Set<UUID> = []
+    ) throws -> EditableScreenshotDocument {
+        let rootImage = makeCoordinateImage(width: 32, height: 24)
+        func snapshot(assetIDs: [UUID]) -> EditorSnapshot {
+            var snapshot = makeEditorSnapshot(
+                cropRect: CGRect(x: 0, y: 0, width: 32, height: 24)
+            )
+            snapshot.composition = CompositionSnapshot(
+                items: assetIDs.map {
+                    CompositionItem(assetID: $0, title: $0.uuidString)
+                }
+            )
+            return snapshot
+        }
+
+        let session = makeEditorDocumentSession(
+            initialSnapshot: snapshot(assetIDs: initialAssetIDs),
+            currentSnapshot: snapshot(assetIDs: currentAssetIDs),
+            undoStack: undoAssetIDs.map(snapshot),
+            redoStack: redoAssetIDs.map(snapshot)
+        )
+        let assets = try assetImages.map { id, image in
+            CompositionStoredAsset(
+                descriptor: CompositionAssetDescriptor(
+                    id: id,
+                    pixelWidth: image.width,
+                    pixelHeight: image.height,
+                    sourceName: "Recovery \(id.uuidString)",
+                    captureKind: CaptureKind.region.rawValue,
+                    sourceRect: CGRect(
+                        origin: .zero,
+                        size: CGSize(width: image.width, height: image.height)
+                    ),
+                    isPrivate: privateAssetIDs.contains(id)
+                ),
+                encodedPNG: try ImageExporter.pngData(for: image)
+            )
+        }
+        return EditableScreenshotDocument(
+            capture: makeCapturedScreenshot(image: rootImage),
+            session: session,
+            compositionStoredAssets: assets
+        )
     }
 
     private func directorySize(at url: URL) throws -> Int64 {
@@ -712,5 +1555,17 @@ final class DocumentRecoveryStoreTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("base.png")
+    }
+
+    private func sessionCompositionAssetsURL(
+        from entry: DocumentHistoryEntry
+    ) -> URL {
+        entry.packageURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(
+                SSSDocumentPackage.recoveryCompositionAssetsDirectoryName,
+                isDirectory: true
+            )
     }
 }

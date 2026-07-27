@@ -119,6 +119,21 @@ final class ProjectVersionAlignmentTests: XCTestCase {
         )
     }
 
+    func testAppHostedUnitTestsUseIsolatedClipboardAndRecoveryStores() throws {
+        let launchSupport = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "SnipSnipSnip/Support/CompositionUITestLaunchSupport.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(launchSupport.contains("makeUnitTestHostAppModel()"))
+        XCTAssertTrue(launchSupport.contains("SnipSnipSnip-UnitTestHost-"))
+        XCTAssertTrue(launchSupport.contains("clipboardHistoryStore: ClipboardHistoryStore("))
+        XCTAssertTrue(launchSupport.contains("loadStoredHistory: false"))
+        XCTAssertTrue(launchSupport.contains("shouldStartArchiveMaintenance: false"))
+    }
+
     func testWorkspaceInstructionsDocumentSingleInstanceDevelopmentRules() throws {
         let agents = try String(
             contentsOf: repositoryRoot.appendingPathComponent("AGENTS.md"),
@@ -168,6 +183,20 @@ final class ProjectVersionAlignmentTests: XCTestCase {
             contentsOf: repositoryRoot.appendingPathComponent(".github/workflows/release-app-store.yml"),
             encoding: .utf8
         )
+        let selfReleaseWorkflow = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(".github/workflows/release-self-release.yml"),
+            encoding: .utf8
+        )
+        let releaseTestGate = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("Tools/run-release-test-gate.sh"),
+            encoding: .utf8
+        )
+        let sharedScheme = try String(
+            contentsOf: repositoryRoot
+                .appendingPathComponent("SnipSnipSnip.xcodeproj")
+                .appendingPathComponent("xcshareddata/xcschemes/SnipSnipSnip.xcscheme"),
+            encoding: .utf8
+        )
         let fastfile = try String(
             contentsOf: repositoryRoot.appendingPathComponent("fastlane/Fastfile"),
             encoding: .utf8
@@ -175,7 +204,39 @@ final class ProjectVersionAlignmentTests: XCTestCase {
 
         XCTAssertFalse(ciWorkflow.contains("-only-testing"))
         XCTAssertFalse(releaseWorkflow.contains("-only-testing"))
+        XCTAssertFalse(selfReleaseWorkflow.contains("-only-testing"))
         XCTAssertTrue(fastfile.contains("RELEASE_TEST_TARGETS_DEFAULT = [].freeze"))
+        for workflow in [ciWorkflow, releaseWorkflow, selfReleaseWorkflow] {
+            XCTAssertTrue(workflow.contains("Tools/run-release-test-gate.sh"))
+            XCTAssertTrue(workflow.contains("SSS_RUN_EXTERNAL_HTML_BROWSER_TESTS"))
+            XCTAssertTrue(workflow.contains("SSS_REQUIRE_EXTERNAL_HTML_BROWSERS"))
+            XCTAssertFalse(workflow.contains("CODE_SIGNING_ALLOWED=NO"))
+        }
+        XCTAssertTrue(selfReleaseWorkflow.contains("needs: preflight"))
+        XCTAssertTrue(releaseTestGate.contains("build-for-testing"))
+        XCTAssertTrue(releaseTestGate.contains("test-without-building"))
+        XCTAssertTrue(releaseTestGate.contains("codesign --force --sign -"))
+        XCTAssertTrue(releaseTestGate.contains("-parallel-testing-enabled NO"))
+        XCTAssertTrue(releaseTestGate.contains("pgrep -x"))
+        for browserEnvironmentName in [
+            "SSS_RUN_EXTERNAL_HTML_BROWSER_TESTS",
+            "SSS_REQUIRE_EXTERNAL_HTML_BROWSERS",
+            "SSS_GOOGLE_CHROME_BINARY",
+            "SSS_FIREFOX_BINARY",
+        ] {
+            XCTAssertTrue(releaseTestGate.contains(browserEnvironmentName))
+            XCTAssertTrue(
+                sharedScheme.contains(#"key = "\#(browserEnvironmentName)""#)
+            )
+            XCTAssertTrue(
+                sharedScheme.contains(#"value = "$(\#(browserEnvironmentName))""#)
+            )
+        }
+        XCTAssertEqual(
+            fastfile.components(separatedBy: "run_release_test_gate(options)").count - 1,
+            2,
+            "App Store and Self Release lanes must both run the complete release test gate."
+        )
         XCTAssertTrue(releaseWorkflow.contains("RELEASE_METADATA_READY: ${{ inputs.metadata_ready }}"))
         XCTAssertTrue(releaseWorkflow.contains("RELEASE_MANUAL_QA_CONFIRMED: ${{ inputs.manual_qa_confirmed }}"))
         XCTAssertFalse(releaseWorkflow.contains("RELEASE_METADATA_READY: true"))

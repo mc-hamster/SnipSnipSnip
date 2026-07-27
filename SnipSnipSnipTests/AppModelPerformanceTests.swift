@@ -361,6 +361,38 @@ final class AppModelPerformanceTests: XCTestCase {
         XCTAssertGreaterThan(PerformanceBudgetCatalog.archiveIndexedSearch.maximumSeconds, 0)
         XCTAssertGreaterThan(PerformanceBudgetCatalog.videoExportPlanning.maximumSeconds, 0)
         XCTAssertGreaterThan(PerformanceBudgetCatalog.videoStoragePressureCheck.maximumSeconds, 0)
+        XCTAssertEqual(
+            PerformanceBudgetCatalog.compositionLayout200ItemP95.maximumSeconds,
+            0.016
+        )
+        XCTAssertEqual(
+            PerformanceBudgetCatalog.compositionAppend4KPreviewWarm.maximumSeconds,
+            0.250
+        )
+        XCTAssertEqual(
+            PerformanceBudgetCatalog.compositionAppend4KPreviewCold.maximumSeconds,
+            0.500
+        )
+        XCTAssertEqual(
+            PerformanceBudgetCatalog.compositionComparison4KPreview.maximumSeconds,
+            0.250
+        )
+        XCTAssertEqual(
+            PerformanceBudgetCatalog.compositionTwelveItemPreview.maximumSeconds,
+            0.500
+        )
+        XCTAssertEqual(
+            PerformanceBudgetCatalog.compositionFourItemPNGExport.maximumSeconds,
+            3.0
+        )
+        XCTAssertEqual(
+            PerformanceBudgetCatalog.compositionPreviewPeakMemoryBytes,
+            256 * 1_024 * 1_024
+        )
+        XCTAssertEqual(
+            PerformanceBudgetCatalog.compositionTwelveItemExportPeakMemoryBytes,
+            512 * 1_024 * 1_024
+        )
     }
 
     func testScreenshotRenderAndStreamingExportBudget() async throws {

@@ -219,7 +219,22 @@ final class SSSDocumentTests: XCTestCase {
         XCTAssertEqual(loaded.capture.capturedAt, capture.capturedAt)
         XCTAssertEqual(loaded.capture.image.width, capture.image.width)
         XCTAssertEqual(loaded.capture.image.height, capture.image.height)
-        XCTAssertEqual(loaded.session, session)
+        XCTAssertEqual(
+            sessionByRemovingComposition(from: loaded.session),
+            session
+        )
+        for snapshot in allSnapshots(in: loaded.session) {
+            let composition = try XCTUnwrap(snapshot.composition)
+            XCTAssertEqual(composition.items.count, 1)
+            let item = try XCTUnwrap(composition.items.first)
+            XCTAssertFalse(composition.isActivated)
+            XCTAssertEqual(item.editState.cropRect, snapshot.cropRect)
+            XCTAssertEqual(item.editState.annotations, snapshot.annotations)
+            XCTAssertEqual(
+                item.editState.selectedAnnotationIDs,
+                snapshot.selectedAnnotationIDs
+            )
+        }
         XCTAssertTrue(FileManager.default.fileExists(atPath: packageURL.appendingPathComponent("document.json").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: packageURL.appendingPathComponent("base.png").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: packageURL.appendingPathComponent("preview.png").path))
@@ -234,6 +249,32 @@ final class SSSDocumentTests: XCTestCase {
         XCTAssertEqual(loadedCallout.textAlignmentMode, .left)
 
         try? FileManager.default.removeItem(at: packageURL)
+    }
+
+    private func sessionByRemovingComposition(
+        from session: EditorDocumentSession
+    ) -> EditorDocumentSession {
+        func legacy(_ snapshot: EditorSnapshot) -> EditorSnapshot {
+            var snapshot = snapshot
+            snapshot.composition = nil
+            return snapshot
+        }
+        return EditorDocumentSession(
+            initialSnapshot: legacy(session.initialSnapshot),
+            currentSnapshot: legacy(session.currentSnapshot),
+            undoStack: session.undoStack.map(legacy),
+            redoStack: session.redoStack.map(legacy),
+            toolStyles: session.toolStyles,
+            savedPresentations: session.savedPresentations
+        )
+    }
+
+    private func allSnapshots(
+        in session: EditorDocumentSession
+    ) -> [EditorSnapshot] {
+        [session.initialSnapshot, session.currentSnapshot]
+            + session.undoStack
+            + session.redoStack
     }
 
     func testPackageRoundTripsTextAlignmentAndAutoSizing() throws {
@@ -312,7 +353,7 @@ final class SSSDocumentTests: XCTestCase {
         let captureRecord = try XCTUnwrap(manifest["capture"] as? [String: Any])
         let loaded = try SSSDocumentPackage.load(from: packageURL)
 
-        XCTAssertEqual(manifest["formatVersion"] as? Int, 6)
+        XCTAssertEqual(manifest["formatVersion"] as? Int, SSSDocumentPackage.formatVersion)
         XCTAssertEqual(coordinateContract["captureSourceRectSpace"], CoordinateSpaceDescriptor.captureGlobalPointsTopLeftYDownV2.rawValue)
         XCTAssertEqual(coordinateContract["overlayScreenSpace"], CoordinateSpaceDescriptor.overlayScreenPointsYUpV1.rawValue)
         XCTAssertEqual(coordinateContract["overlayLocalSpace"], CoordinateSpaceDescriptor.overlayLocalPointsYDownV1.rawValue)

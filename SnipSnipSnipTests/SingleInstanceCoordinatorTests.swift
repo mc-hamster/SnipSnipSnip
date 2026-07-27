@@ -17,6 +17,7 @@ final class SingleInstanceCoordinatorTests: XCTestCase {
         case .alreadyRunning:
             return XCTFail("The first lease acquisition should succeed.")
         }
+        XCTAssertNotNil(firstLease)
 
         switch try SingleInstanceLease.acquire(at: lockURL) {
         case .acquired:

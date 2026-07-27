@@ -1,12 +1,14 @@
 import AppIntents
 import CoreGraphics
+import Foundation
 import XCTest
 @testable import SnipSnipSnip
 
 final class AutomationContractTests: XCTestCase {
     func testAutomationRequestRoundTripsThroughCodable() throws {
         let requestID = UUID()
-        let outputURL = URL(fileURLWithPath: "/tmp/SnipSnipSnip-AutomationContractTests.png")
+        let appendAfterItemID = UUID()
+        let outputURL = URL(fileURLWithPath: "/tmp/SnipSnipSnip-AutomationContractTests.html")
         let request = AutomationRequest(
             id: requestID,
             source: AutomationSource(kind: .appIntent, caller: "unit-test"),
@@ -16,7 +18,10 @@ final class AutomationContractTests: XCTestCase {
             )),
             interactionPolicy: .never,
             privacy: AutomationPrivacyOptions(privateCapture: true),
-            output: .saveFile(AutomationFileOutput(url: outputURL, format: .png, overwrite: true))
+            captureDestination: .append,
+            appendAfterCompositionItemID: appendAfterItemID,
+            appearance: .styled,
+            output: .saveFile(AutomationFileOutput(url: outputURL, format: .html, overwrite: true))
         )
 
         let data = try AutomationJSON.encoder.encode(request)
@@ -24,6 +29,31 @@ final class AutomationContractTests: XCTestCase {
 
         XCTAssertEqual(decoded, request)
         XCTAssertEqual(decoded.source.kind, .appIntent)
+        XCTAssertEqual(decoded.captureDestination, .append)
+        XCTAssertEqual(decoded.appendAfterCompositionItemID, appendAfterItemID)
+        XCTAssertNil(decoded.replaceCompositionItemID)
+        XCTAssertEqual(decoded.appearance, .styled)
+    }
+
+    func testAutomationRequestDecodesNewFieldsWithLegacyDefaults() throws {
+        let request = AutomationRequest(
+            source: AutomationSource(kind: .commandLine),
+            command: .capture(CaptureAutomationCommand(target: .fullscreen(FullscreenCaptureTarget())))
+        )
+        let encoded = try AutomationJSON.encoder.encode(request)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        object.removeValue(forKey: "captureDestination")
+        object.removeValue(forKey: "appendAfterCompositionItemID")
+        object.removeValue(forKey: "replaceCompositionItemID")
+        object.removeValue(forKey: "appearance")
+
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+        let decoded = try AutomationJSON.decoder.decode(AutomationRequest.self, from: legacyData)
+
+        XCTAssertEqual(decoded.captureDestination, .new)
+        XCTAssertNil(decoded.appendAfterCompositionItemID)
+        XCTAssertNil(decoded.replaceCompositionItemID)
+        XCTAssertEqual(decoded.appearance, .appDefault)
     }
 
     func testAutomationResultEnvelopeRoundTripsThroughCodable() throws {
@@ -39,7 +69,8 @@ final class AutomationContractTests: XCTestCase {
             supportsScrollingCapture: false,
             supportsConnectedDeviceCapture: false,
             supportsCurrentEditorExport: true,
-            supportsGuide: false
+            supportsGuide: false,
+            supportsComposition: true
         )
         let preflight = AutomationPermissionPreflight(
             capabilities: capabilities,
@@ -56,6 +87,19 @@ final class AutomationContractTests: XCTestCase {
 
         XCTAssertEqual(decodedSuccess, success)
         XCTAssertTrue(preflight.isCaptureReady)
+        XCTAssertTrue(capabilities.supportsComposition)
+
+        let encodedCapabilities = try AutomationJSON.encoder.encode(capabilities)
+        var legacyCapabilitiesObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encodedCapabilities) as? [String: Any]
+        )
+        legacyCapabilitiesObject.removeValue(forKey: "supportsComposition")
+        let legacyCapabilitiesData = try JSONSerialization.data(withJSONObject: legacyCapabilitiesObject)
+        let decodedLegacyCapabilities = try AutomationJSON.decoder.decode(
+            AutomationCapabilities.self,
+            from: legacyCapabilitiesData
+        )
+        XCTAssertFalse(decodedLegacyCapabilities.supportsComposition)
 
         let failure = AutomationResultEnvelope.failure(
             requestID: requestID,
@@ -97,6 +141,177 @@ final class AutomationContractTests: XCTestCase {
             ))
         )
         XCTAssertEqual(unsupportedDelay.validationError?.code, .invalidRequest)
+
+        let missingReplacementID = AutomationRequest(
+            source: source,
+            command: .capture(CaptureAutomationCommand(target: .frontmostWindow)),
+            captureDestination: .replace
+        )
+        XCTAssertEqual(missingReplacementID.validationError?.code, .invalidRequest)
+
+        let irrelevantReplacementID = AutomationRequest(
+            source: source,
+            command: .capture(CaptureAutomationCommand(target: .frontmostWindow)),
+            captureDestination: .append,
+            replaceCompositionItemID: UUID()
+        )
+        XCTAssertEqual(irrelevantReplacementID.validationError?.code, .invalidRequest)
+
+        let appendAfterItemID = UUID()
+        let targetedAppend = AutomationRequest(
+            source: source,
+            command: .capture(CaptureAutomationCommand(target: .frontmostWindow)),
+            captureDestination: .append,
+            appendAfterCompositionItemID: appendAfterItemID
+        )
+        XCTAssertNil(targetedAppend.validationError)
+
+        for destination in [AutomationCaptureDestination.new, .replace] {
+            let irrelevantAppendAfterID = AutomationRequest(
+                source: source,
+                command: .capture(CaptureAutomationCommand(target: .frontmostWindow)),
+                captureDestination: destination,
+                appendAfterCompositionItemID: appendAfterItemID,
+                replaceCompositionItemID: destination == .replace ? UUID() : nil
+            )
+            XCTAssertEqual(
+                irrelevantAppendAfterID.validationError?.code,
+                .invalidRequest
+            )
+        }
+
+        let invalidComparison = AutomationRequest(
+            source: source,
+            command: .composition(.setCompareMode(AutomationCompositionCompareCommand(
+                mode: .overlay,
+                overlayOpacity: 1.1
+            ))),
+            output: .none
+        )
+        XCTAssertEqual(invalidComparison.validationError?.code, .invalidRequest)
+
+        let incompleteFreeformSize = AutomationRequest(
+            source: source,
+            command: .composition(.setLayout(AutomationCompositionLayoutCommand(
+                layout: .freeform,
+                freeformCanvasWidth: 1200
+            ))),
+            output: .none
+        )
+        XCTAssertEqual(incompleteFreeformSize.validationError?.code, .invalidRequest)
+
+        for invalidValue in [Double.nan, Double.infinity, -Double.infinity] {
+            let nonFiniteLayout = AutomationRequest(
+                source: source,
+                command: .composition(.setLayout(
+                    AutomationCompositionLayoutCommand(
+                        layout: .freeform,
+                        freeformCanvasWidth: invalidValue,
+                        freeformCanvasHeight: 900
+                    )
+                )),
+                output: .none
+            )
+            XCTAssertEqual(
+                nonFiniteLayout.validationError?.code,
+                .invalidRequest
+            )
+        }
+
+        let oversizedLayout = AutomationRequest(
+            source: source,
+            command: .composition(.setLayout(
+                AutomationCompositionLayoutCommand(
+                    layout: .grid,
+                    gridColumns: 201
+                )
+            )),
+            output: .none
+        )
+        XCTAssertEqual(oversizedLayout.validationError?.code, .invalidRequest)
+
+        let missingTemplateSelector = AutomationRequest(
+            source: source,
+            command: .composition(.applyTemplate(
+                AutomationCompositionTemplateCommand()
+            )),
+            output: .none
+        )
+        XCTAssertEqual(
+            missingTemplateSelector.validationError?.code,
+            .invalidRequest
+        )
+    }
+
+    @MainActor
+    func testAppleScriptBridgeAwaitsAuthoritativeServiceResult() async {
+        let request = AutomationRequest(
+            source: AutomationSource(kind: .appleScript),
+            command: .composition(.setLayout(
+                AutomationCompositionLayoutCommand(layout: .grid)
+            )),
+            output: .none
+        )
+        let expected = AutomationResultEnvelope.success(
+            requestID: request.id,
+            payload: .composition(AutomationCompositionSummary(
+                itemCount: 3,
+                layout: .grid
+            )),
+            outputs: [.init(kind: .updatedComposition)]
+        )
+        let completionURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "AutomationAppleScriptBridge-\(UUID().uuidString).done"
+            )
+        defer { try? FileManager.default.removeItem(at: completionURL) }
+        let service = AwaitingAutomationService(
+            result: expected,
+            completionURL: completionURL
+        )
+
+        let result = await AutomationAppleScriptBridge.result(
+            for: request,
+            using: service
+        )
+
+        XCTAssertTrue(service.didComplete)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: completionURL.path))
+        XCTAssertEqual(result, expected)
+    }
+
+    func testCompositionContractCoversLayoutsComparisonsAndExportFormats() {
+        XCTAssertEqual(
+            Set(AutomationCompositionLayout.allCases.map(\.rawValue)),
+            Set(["auto", "compare", "steps", "row", "column", "grid", "freeform"])
+        )
+        XCTAssertEqual(
+            Set(AutomationCompositionCompareMode.allCases.map(\.rawValue)),
+            Set(["sideBySide", "overlay", "wipe", "blink", "difference", "changeHighlight"])
+        )
+        XCTAssertEqual(
+            Set(AutomationExportFormat.allCases.map(\.rawValue)),
+            Set(["png", "jpeg", "pdf", "sss", "gif", "apng", "mp4", "html"])
+        )
+        XCTAssertEqual(
+            Set(AutomationCompositionStepNumberingStyle.allCases.map(\.rawValue)),
+            Set([
+                "none",
+                "decimal",
+                "uppercaseLetters",
+                "lowercaseLetters",
+                "uppercaseRoman",
+                "lowercaseRoman",
+            ])
+        )
+        XCTAssertEqual(
+            Set(AutomationCompositionStepConnectorStyle.allCases.map(\.rawValue)),
+            Set(["none", "line", "arrow"])
+        )
+        XCTAssertEqual(
+            AutomationErrorCode.staleDestination.rawValue,
+            "staleDestination"
+        )
     }
 
     func testOutputValidationKeepsEditableRedactionGuardRepresentable() {
@@ -280,6 +495,141 @@ final class AutomationContractTests: XCTestCase {
 
         XCTAssertEqual(AutomationIntentRequestFactory.fileURL(from: outputURL.path), outputURL)
         XCTAssertEqual(AutomationIntentRequestFactory.fileURL(from: outputURL.absoluteString), outputURL)
+
+        let appendAfterItemID = UUID()
+        let appendCapture = AutomationIntentRequestFactory.request(
+            caller: "AppendTest",
+            command: .capture(CaptureAutomationCommand(target: .frontmostWindow)),
+            captureDestination: .append,
+            appendAfterCompositionItemID: appendAfterItemID.uuidString,
+            appearance: .plain,
+            output: .openEditor
+        )
+        XCTAssertEqual(appendCapture.captureDestination, .append)
+        XCTAssertEqual(
+            appendCapture.appendAfterCompositionItemID,
+            appendAfterItemID
+        )
+        XCTAssertEqual(appendCapture.appearance, .plain)
+
+        let replaceItemID = UUID()
+        let replaceCapture = AutomationIntentRequestFactory.request(
+            caller: "ReplaceTest",
+            command: .capture(CaptureAutomationCommand(target: .frontmostWindow)),
+            captureDestination: .replace,
+            replaceCompositionItemID: replaceItemID.uuidString,
+            appearance: .styled,
+            output: .openEditor
+        )
+        XCTAssertEqual(replaceCapture.replaceCompositionItemID, replaceItemID)
+        XCTAssertNil(replaceCapture.validationError)
+    }
+
+    @MainActor
+    func testCompositionAppIntentsMapAdvancedSettings() {
+        let firstItemID = UUID()
+        let secondItemID = UUID()
+        let layoutIntent = SetCompositionLayoutIntent()
+        layoutIntent.layout = .steps
+        layoutIntent.axis = .vertical
+        layoutIntent.stepNumbering = .lowercaseRoman
+        layoutIntent.stepStartIndex = 3
+        layoutIntent.stepShowsCaptions = false
+        layoutIntent.stepConnector = .arrow
+
+        XCTAssertEqual(
+            layoutIntent.automationRequest().command,
+            .composition(.setLayout(AutomationCompositionLayoutCommand(
+                layout: .steps,
+                axis: .vertical,
+                stepNumberingStyle: .lowercaseRoman,
+                stepStartIndex: 3,
+                stepShowsCaptions: false,
+                stepConnectorStyle: .arrow
+            )))
+        )
+
+        let compareIntent = SetCompositionCompareModeIntent()
+        compareIntent.mode = .changeHighlight
+        compareIntent.firstItemID = firstItemID.uuidString
+        compareIntent.secondItemID = secondItemID.uuidString
+        compareIntent.axis = .horizontal
+        compareIntent.highlightColor = "#FF2D55"
+        compareIntent.highlightThreshold = 0.2
+        compareIntent.differenceIntensity = 0.8
+        compareIntent.primaryLabel = "Before"
+        compareIntent.secondaryLabel = "After"
+
+        XCTAssertEqual(
+            compareIntent.automationRequest().command,
+            .composition(.setCompareMode(AutomationCompositionCompareCommand(
+                mode: .changeHighlight,
+                firstItemID: firstItemID,
+                secondItemID: secondItemID,
+                axis: .horizontal,
+                differenceIntensity: 0.8,
+                changeHighlightColorHex: "#FF2D55",
+                changeHighlightThreshold: 0.2,
+                primaryLabel: "Before",
+                secondaryLabel: "After"
+            )))
+        )
+
+        let templateIntent = ApplyCompositionTemplateIntent()
+        templateIntent.templateID = "builtin.numbered-steps"
+        XCTAssertEqual(
+            templateIntent.automationRequest().command,
+            .composition(.applyTemplate(
+                AutomationCompositionTemplateCommand(
+                    id: "builtin.numbered-steps"
+                )
+            ))
+        )
+
+        let appendIntent = AddCaptureToCompositionIntent()
+        appendIntent.source = .fullscreen
+        appendIntent.display = .current
+        appendIntent.appendAfterItemID = firstItemID.uuidString
+        let appendRequest = appendIntent.automationRequest()
+        XCTAssertEqual(appendRequest.captureDestination, .append)
+        XCTAssertEqual(
+            appendRequest.appendAfterCompositionItemID,
+            firstItemID
+        )
+        guard case .capture(let appendCapture) = appendRequest.command,
+              case .fullscreen(let appendTarget) = appendCapture.target else {
+            return XCTFail("Expected dedicated append fullscreen capture.")
+        }
+        XCTAssertEqual(appendTarget.displayMode, .current)
+
+        let replaceIntent = ReplaceCompositionItemIntent()
+        replaceIntent.itemID = secondItemID.uuidString
+        replaceIntent.source = .frontmostWindow
+        let replaceRequest = replaceIntent.automationRequest()
+        XCTAssertEqual(replaceRequest.captureDestination, .replace)
+        XCTAssertEqual(replaceRequest.replaceCompositionItemID, secondItemID)
+        XCTAssertEqual(
+            replaceRequest.command,
+            .capture(CaptureAutomationCommand(target: .frontmostWindow))
+        )
+
+        let exportIntent = ExportCompositionIntent()
+        exportIntent.outputFile = "/tmp/composition.html"
+        exportIntent.format = .html
+        exportIntent.overwrite = true
+        let exportRequest = exportIntent.automationRequest()
+        XCTAssertEqual(
+            exportRequest.command,
+            .exportCurrent(ExportCurrentAutomationCommand(format: .html))
+        )
+        XCTAssertEqual(
+            exportRequest.output,
+            .saveFile(AutomationFileOutput(
+                url: URL(fileURLWithPath: "/tmp/composition.html"),
+                format: .html,
+                overwrite: true
+            ))
+        )
     }
 
     @MainActor
@@ -294,12 +644,17 @@ final class AutomationContractTests: XCTestCase {
         intent.privateCapture = true
         intent.delay = .immediate
         intent.cursor = .exclude
+        intent.captureDestination = .append
+        let appendAfterItemID = UUID()
+        intent.appendAfterCompositionItemID = appendAfterItemID.uuidString
 
         let request = intent.automationRequest()
 
         XCTAssertEqual(request.source.kind, .appIntent)
         XCTAssertEqual(request.output, .saveFile(AutomationFileOutput(url: outputURL, format: .png, overwrite: true)))
         XCTAssertEqual(request.privacy.privateCapture, true)
+        XCTAssertEqual(request.captureDestination, .append)
+        XCTAssertEqual(request.appendAfterCompositionItemID, appendAfterItemID)
         XCTAssertFalse(request.requiresAppIntentForeground)
         guard case .capture(let command) = request.command,
               case .fullscreen(let target) = command.target else {
@@ -339,13 +694,13 @@ final class AutomationContractTests: XCTestCase {
         )
         XCTAssertEqual(partialRegionRequest.validationError?.code, .invalidRequest)
 
-        let unsupportedExport = AutomationIntentRequestFactory.request(
-            caller: "UnsupportedExportTest",
+        let editableExport = AutomationIntentRequestFactory.request(
+            caller: "EditableExportTest",
             command: .exportCurrent(ExportCurrentAutomationCommand(format: .sss)),
             interactionPolicy: .promptIfNeeded,
             output: .saveEditableDocument(AutomationFileOutput(url: URL(fileURLWithPath: "/tmp/current.sss"), format: .sss))
         )
-        XCTAssertEqual(unsupportedExport.validationError?.code, .invalidRequest)
+        XCTAssertNil(editableExport.validationError)
     }
 
     func testCapturePresetEntityQueryUsesAutomationIntentClient() async throws {
@@ -404,11 +759,30 @@ final class AutomationContractTests: XCTestCase {
             XCTAssertEqual(target.displayMode, .current)
             XCTAssertEqual($0.output, .copyRenderedImage)
         }
-        assertRoute("snipsnipsnip://v1/capture/frontmost-window?output=editor") {
+        let appendAfterItemID = UUID()
+        assertRoute("snipsnipsnip://v1/capture/fullscreen?output=editor&destination=append&after=\(appendAfterItemID.uuidString)&appearance=plain") {
+            XCTAssertEqual($0.captureDestination, .append)
+            XCTAssertEqual(
+                $0.appendAfterCompositionItemID,
+                appendAfterItemID
+            )
+            XCTAssertEqual($0.appearance, .plain)
+            XCTAssertNil($0.validationError)
+        }
+        let replacementID = UUID()
+        assertRoute("snipsnipsnip://v1/capture/frontmost-window?output=editor&destination=replace&replaceItemID=\(replacementID.uuidString)&appearance=styled") {
             guard case .capture(let command) = $0.command else {
                 return XCTFail("Expected capture command.")
             }
             XCTAssertEqual(command.target, .frontmostWindow)
+            XCTAssertEqual($0.captureDestination, .replace)
+            XCTAssertEqual($0.replaceCompositionItemID, replacementID)
+            XCTAssertEqual($0.appearance, .styled)
+        }
+        assertRoute("snipsnipsnip://v1/capture/frontmost-window?output=editor&destination=replace&item=\(replacementID.uuidString)") {
+            XCTAssertEqual($0.captureDestination, .replace)
+            XCTAssertEqual($0.replaceCompositionItemID, replacementID)
+            XCTAssertNil($0.validationError)
         }
         assertRoute("snipsnipsnip://v1/capture/region?rect=10,20,300,200&output=editor") {
             guard case .capture(let command) = $0.command,
@@ -428,6 +802,97 @@ final class AutomationContractTests: XCTestCase {
         assertRoute("snipsnipsnip://v1/repeat-last?output=editor") {
             XCTAssertEqual($0.command, .repeatLastCapture)
         }
+        assertRoute("snipsnipsnip://v1/composition/layout?layout=steps&axis=vertical&stepNumbering=uppercase-roman&stepStartIndex=3&stepCaptions=false&stepConnector=arrow") {
+            XCTAssertEqual(
+                $0.command,
+                .composition(.setLayout(AutomationCompositionLayoutCommand(
+                    layout: .steps,
+                    axis: .vertical,
+                    stepNumberingStyle: .uppercaseRoman,
+                    stepStartIndex: 3,
+                    stepShowsCaptions: false,
+                    stepConnectorStyle: .arrow
+                )))
+            )
+        }
+        assertRoute("snipsnipsnip://v1/composition/compare?mode=wipe&firstItemID=00000000-0000-0000-0000-000000000001&secondItemID=00000000-0000-0000-0000-000000000002&wipePosition=0.4") {
+            XCTAssertEqual(
+                $0.command,
+                .composition(.setCompareMode(AutomationCompositionCompareCommand(
+                    mode: .wipe,
+                    firstItemID: UUID(uuidString: "00000000-0000-0000-0000-000000000001"),
+                    secondItemID: UUID(uuidString: "00000000-0000-0000-0000-000000000002"),
+                    wipePosition: 0.4
+                )))
+            )
+        }
+        assertRoute("snipsnipsnip://v1/composition/template?id=builtin.numbered-steps") {
+            XCTAssertEqual(
+                $0.command,
+                .composition(.applyTemplate(
+                    AutomationCompositionTemplateCommand(
+                        id: "builtin.numbered-steps"
+                    )
+                ))
+            )
+        }
+        assertRoute("snipsnipsnip://v1/export/current?format=html&output=file&outputPath=/tmp/comparison.html&overwrite=true&appearance=styled") {
+            XCTAssertEqual($0.command, .exportCurrent(ExportCurrentAutomationCommand(format: .html)))
+            XCTAssertEqual(
+                $0.output,
+                .saveFile(AutomationFileOutput(
+                    url: URL(fileURLWithPath: "/tmp/comparison.html"),
+                    format: .html,
+                    overwrite: true
+                ))
+            )
+            XCTAssertEqual($0.appearance, .styled)
+        }
+        for unsupportedFileOutputURL in [
+            "snipsnipsnip://v1/presets/run?name=Daily&output=file&outputPath=/tmp/preset.png&format=png",
+            "snipsnipsnip://v1/capture/fullscreen?output=file&outputPath=/tmp/fullscreen.png&format=png",
+            "snipsnipsnip://v1/repeat-last?output=file&outputPath=/tmp/repeat.png&format=png",
+        ] {
+            XCTAssertNil(
+                AutomationURLRouter.request(
+                    from: try XCTUnwrap(
+                        URL(string: unsupportedFileOutputURL)
+                    )
+                ),
+                "Only /v1/export/current may use URL-scheme file output."
+            )
+        }
+        XCTAssertNil(
+            AutomationURLRouter.request(
+                from: try XCTUnwrap(URL(
+                    string: "snipsnipsnip://v1/capture/fullscreen?destination=append&after=not-a-uuid"
+                ))
+            )
+        )
+        for malformedURL in [
+            "snipsnipsnip://v1/capture/fullscreen?display=bogus",
+            "snipsnipsnip://v1/capture/region?rect=10,20,bad,200",
+            "snipsnipsnip://v1/capture/fullscreen?output=bogus",
+            "snipsnipsnip://v1/composition/template",
+        ] {
+            XCTAssertNil(
+                AutomationURLRouter.request(
+                    from: try XCTUnwrap(URL(string: malformedURL))
+                ),
+                malformedURL
+            )
+        }
+        let invalidAfterDestination = try XCTUnwrap(
+            AutomationURLRouter.request(
+                from: try XCTUnwrap(URL(
+                    string: "snipsnipsnip://v1/capture/fullscreen?destination=new&after=\(appendAfterItemID.uuidString)"
+                ))
+            )
+        )
+        XCTAssertEqual(
+            invalidAfterDestination.validationError?.code,
+            .invalidRequest
+        )
 
         let pasteboardURL = try XCTUnwrap(URL(string: "snipsnipsnip://import-pasteboard?name=com.apple.pasteboard.general&source=Share"))
         let pasteboardName = await MainActor.run {
@@ -470,7 +935,19 @@ final class AutomationContractTests: XCTestCase {
             ["repeat-last", "--json", "--open-editor"],
             ["export", "current", "--output", "/tmp/current.png", "--format", "png", "--overwrite"],
             ["capture", "fullscreen", "--private", "--output", "/tmp/private.png", "--format", "png", "--overwrite"],
-            ["open", "--file", "/tmp/document.sss", "--output", "/tmp/document.png", "--format", "png", "--overwrite"]
+            ["open", "--file", "/tmp/document.sss", "--output", "/tmp/document.png", "--format", "png", "--overwrite"],
+            ["capture", "fullscreen", "--destination", "append", "--after-item-id", "00000000-0000-0000-0000-000000000001", "--appearance", "plain", "--open-editor"],
+            ["capture", "frontmost-window", "--destination", "replace", "--replace-item-id", "00000000-0000-0000-0000-000000000001", "--open-editor"],
+            ["composition", "layout", "--layout", "steps", "--axis", "vertical"],
+            ["composition", "layout", "--layout", "grid", "--grid-columns", "3", "--target-aspect-ratio", "1.777"],
+            ["composition", "layout", "--layout", "freeform", "--freeform-width", "1600", "--freeform-height", "900"],
+            ["composition", "layout", "--layout", "steps", "--step-numbering", "lowercase-roman", "--step-start-index", "3", "--step-captions", "false", "--step-connector", "arrow"],
+            ["composition", "compare", "--mode", "wipe", "--first-item-id", "00000000-0000-0000-0000-000000000001", "--second-item-id", "00000000-0000-0000-0000-000000000002", "--wipe-position", "0.4"],
+            ["composition", "compare", "--mode", "change-highlight", "--highlight-color", "#FF2D55", "--highlight-threshold", "0.2"],
+            ["composition", "compare", "--mode", "difference", "--difference-intensity", "0.8", "--primary-label", "Before", "--secondary-label", "After"],
+            ["composition", "template", "--id", "builtin.numbered-steps"],
+            ["composition", "template", "--name", "Numbered Steps"],
+            ["export", "current", "--output", "/tmp/comparison.html", "--format", "html", "--appearance", "styled", "--overwrite"]
         ]
 
         for arguments in sampleCommands {
@@ -478,9 +955,23 @@ final class AutomationContractTests: XCTestCase {
             XCTAssertEqual(result.exitCode, 0, arguments.joined(separator: " "))
             XCTAssertNotNil(result.request, arguments.joined(separator: " "))
         }
+
+        for arguments in [
+            ["capture", "fullscreen", "--destination", "append", "--after-item-id", "not-a-uuid"],
+            ["capture", "fullscreen", "--destination", "append", "--after-item-id"],
+            ["capture", "fullscreen", "--destination", "new", "--after-item-id", "00000000-0000-0000-0000-000000000001"],
+            ["capture", "fullscreen", "--display", "bogus"],
+            ["capture", "fullscreen", "--format", "bogus", "--output", "/tmp/bad"],
+            ["composition", "layout", "--layout", "freeform", "--freeform-width", "nan", "--freeform-height", "900"],
+            ["composition", "template", "--id"],
+        ] {
+            let result = AutomationCLIParser.parse(arguments)
+            XCTAssertEqual(result.exitCode, 64)
+            XCTAssertNil(result.request)
+        }
     }
 
-    func testBundledCLIImplementsDocumentedGuideCommands() throws {
+    func testBundledCLIImplementsDocumentedGuideAndCompositionCommands() throws {
         let text = try String(
             contentsOf: repoRoot().appendingPathComponent("SnipSnipSnipCLI/main.swift"),
             encoding: .utf8
@@ -495,9 +986,70 @@ final class AutomationContractTests: XCTestCase {
             "\"stop\"",
             "\"export\"",
             "appleScriptCommand(\"guide\"",
+            "case \"composition\":",
+            "\"layout\"",
+            "\"compare\"",
+            "\"template\"",
+            "setCompositionLayout",
+            "setCompositionCompareMode",
+            "applyCompositionTemplate",
+            "--destination",
+            "--after-item-id",
+            "--replace-item-id",
+            "--appearance",
         ] {
-            XCTAssertTrue(text.contains(fragment), "Bundled CLI is missing Guide support for \(fragment).")
+            XCTAssertTrue(text.contains(fragment), "Bundled CLI is missing automation support for \(fragment).")
         }
+
+        let bridge = try String(
+            contentsOf: repoRoot().appendingPathComponent(
+                "SnipSnipSnip/Automation/AutomationAppleScriptCommands.swift"
+            ),
+            encoding: .utf8
+        )
+        XCTAssertTrue(bridge.contains("suspendExecution()"))
+        XCTAssertTrue(bridge.contains("resumeExecution("))
+        XCTAssertFalse(bridge.contains("performOrEnqueue"))
+    }
+
+    func testBundledCLIMapsOutputFailuresToTheDocumentedExitCode() {
+        func failureEnvelope(_ code: String) -> String {
+            """
+            {"status":"failed","error":{"code":"\(code)"}}
+            """
+        }
+
+        for code in [
+            "unsupportedOutput",
+            "outputFailed",
+            "unsupportedComparisonOutput",
+            "oversizedOutput",
+        ] {
+            XCTAssertEqual(
+                CLIExitCodeMapper.exitCode(
+                    for: failureEnvelope(code)
+                ),
+                74,
+                code
+            )
+        }
+
+        XCTAssertEqual(
+            CLIExitCodeMapper.exitCode(
+                for: failureEnvelope("invalidRequest")
+            ),
+            64
+        )
+        XCTAssertEqual(
+            CLIExitCodeMapper.exitCode(
+                for: failureEnvelope("unknownFutureFailure")
+            ),
+            70
+        )
+        XCTAssertEqual(
+            CLIExitCodeMapper.exitCode(for: #"{"status":"succeeded"}"#),
+            0
+        )
     }
 
     func testBundledCLIHasSandboxedAccessToTheAppsAutomationCommands() throws {
@@ -516,7 +1068,7 @@ final class AutomationContractTests: XCTestCase {
 
         XCTAssertEqual(
             scriptingDefinition.components(separatedBy: "com.oontz.SnipSnipSnip.automation").count - 1,
-            11,
+            14,
             "Every exposed command must belong to the CLI's narrow scripting access group."
         )
         XCTAssertTrue(entitlements.contains("com.apple.security.scripting-targets"))
@@ -540,12 +1092,36 @@ final class AutomationContractTests: XCTestCase {
             "repeat last capture",
             "open snip document",
             "export current screenshot",
+            "set composition layout",
+            "set composition compare mode",
+            "apply composition template",
             "guide"
         ]
 
         for command in commands {
             XCTAssertTrue(text.contains("command name=\"\(command)\""), command)
         }
+        XCTAssertEqual(
+            text.components(separatedBy: "parameter name=\"afterItemID\"").count - 1,
+            6,
+            "Every capture-producing AppleScript command must expose append insertion targeting."
+        )
+        XCTAssertEqual(
+            text.components(
+                separatedBy:
+                    "description=\"png, jpeg, pdf, sss, gif, apng, mp4, or html.\""
+            ).count - 1,
+            8,
+            "Every AppleScript command that accepts editable output must advertise the sss format."
+        )
+        XCTAssertEqual(
+            text.components(
+                separatedBy:
+                    "description=\"POSIX output path for rendered file or .sss package.\""
+            ).count - 1,
+            8,
+            "Editable AppleScript output paths must be described as .sss-capable."
+        )
     }
 
     func testAutomationDocsMentionSampleMaintenanceRequirement() throws {
@@ -560,6 +1136,7 @@ final class AutomationContractTests: XCTestCase {
         XCTAssertTrue(plan.localizedCaseInsensitiveContains("App Intents"))
         XCTAssertTrue(readme.localizedCaseInsensitiveContains("App Intents"))
         XCTAssertTrue(readme.contains("\"supportsAppIntents\": true"))
+        XCTAssertTrue(readme.contains("\"supportsComposition\": true"))
     }
 
     func testAutomationSampleFilenamesKeepProcedureParity() throws {
@@ -584,7 +1161,13 @@ final class AutomationContractTests: XCTestCase {
             "19-resume-guide",
             "20-add-guide-step",
             "21-stop-guide",
-            "22-export-guide-pdf"
+            "22-export-guide-pdf",
+            "23-append-fullscreen-to-composition",
+            "24-set-composition-layout-steps",
+            "25-set-composition-compare-wipe",
+            "26-export-current-html",
+            "27-replace-frontmost-window-in-composition",
+            "28-apply-composition-template"
         ])
         XCTAssertTrue(urlBasenames.isSubset(of: cliBasenames))
     }
@@ -619,5 +1202,46 @@ final class AutomationContractTests: XCTestCase {
                 .filter { $0.pathExtension == fileExtension }
                 .map { $0.deletingPathExtension().lastPathComponent }
         )
+    }
+}
+
+@MainActor
+private final class AwaitingAutomationService: AutomationService {
+    let result: AutomationResultEnvelope
+    let completionURL: URL?
+    private(set) var didComplete = false
+
+    init(
+        result: AutomationResultEnvelope,
+        completionURL: URL? = nil
+    ) {
+        self.result = result
+        self.completionURL = completionURL
+    }
+
+    func perform(
+        _ request: AutomationRequest
+    ) async -> AutomationResultEnvelope {
+        await Task.yield()
+        if let completionURL {
+            try? Data("complete".utf8).write(
+                to: completionURL,
+                options: .atomic
+            )
+        }
+        didComplete = true
+        return result
+    }
+
+    func capabilities(
+        requestID: UUID
+    ) async -> AutomationResultEnvelope {
+        result
+    }
+
+    func listCapturePresets(
+        requestID: UUID
+    ) async -> AutomationResultEnvelope {
+        result
     }
 }

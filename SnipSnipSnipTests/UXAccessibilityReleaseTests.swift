@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import SwiftUI
 import XCTest
 @testable import SnipSnipSnip
 
@@ -161,6 +162,22 @@ final class UXAccessibilityReleaseTests: XCTestCase {
         XCTAssertFalse(NativePanelShortcutPolicy.suspendsCaptureKeyEquivalents(for: NSWindow()))
     }
 
+    func testMainWindowHostingUsesTransparentSeparatorlessTitlebar() {
+        let window = NSWindow(
+            contentRect: CGRect(x: 0, y: 0, width: 900, height: 600),
+            styleMask: [.titled, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.titlebarAppearsTransparent = false
+        window.titlebarSeparatorStyle = .line
+        let hostingView = FirstMouseHostingView(rootView: EmptyView())
+
+        window.contentView = hostingView
+        XCTAssertTrue(window.titlebarAppearsTransparent)
+        XCTAssertEqual(window.titlebarSeparatorStyle, .none)
+    }
+
     func testHelpSearchRetainsMatchesSelectsFirstAndRestoresPreviousArticle() {
         let retained = HelpSearchSelectionPolicy.resolve(
             currentID: "permissions",
@@ -249,7 +266,7 @@ final class UXAccessibilityReleaseTests: XCTestCase {
                 format: .png,
                 appearance: .styled
             ),
-            "Capture-styled.png"
+            "Capture-presentation.png"
         )
     }
 

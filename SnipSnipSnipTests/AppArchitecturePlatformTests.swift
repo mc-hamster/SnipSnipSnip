@@ -772,8 +772,16 @@ final class AppArchitecturePlatformTests: XCTestCase {
             contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+Scrolling.swift"),
             encoding: .utf8
         )
+        let captureScrollingExecution = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+ScrollingExecution.swift"),
+            encoding: .utf8
+        )
         let captureWindowCapture = try String(
             contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+WindowCapture.swift"),
+            encoding: .utf8
+        )
+        let capturePresetCapture = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+PresetCapture.swift"),
             encoding: .utf8
         )
         let captureCompletion = try String(
@@ -820,7 +828,9 @@ final class AppArchitecturePlatformTests: XCTestCase {
         let captureModelLineCount = captureModel.split(separator: "\n", omittingEmptySubsequences: false).count
         let captureCommandLineCount = captureCommands.split(separator: "\n", omittingEmptySubsequences: false).count
         let captureScrollingLineCount = captureScrolling.split(separator: "\n", omittingEmptySubsequences: false).count
+        let captureScrollingExecutionLineCount = captureScrollingExecution.split(separator: "\n", omittingEmptySubsequences: false).count
         let captureWindowCaptureLineCount = captureWindowCapture.split(separator: "\n", omittingEmptySubsequences: false).count
+        let capturePresetCaptureLineCount = capturePresetCapture.split(separator: "\n", omittingEmptySubsequences: false).count
 
         XCTAssertFalse(
             FileManager.default.fileExists(atPath: appModelCaptureURL.path),
@@ -839,12 +849,22 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertLessThanOrEqual(
             captureScrollingLineCount,
             160,
-            "CaptureWorkflowModel+Scrolling.swift should stay focused on scrolling capture entrypoints and execution."
+            "CaptureWorkflowModel+Scrolling.swift should stay focused on scrolling capture entrypoints."
+        )
+        XCTAssertLessThanOrEqual(
+            captureScrollingExecutionLineCount,
+            100,
+            "CaptureWorkflowModel+ScrollingExecution.swift should stay focused on one scrolling capture execution."
         )
         XCTAssertLessThanOrEqual(
             captureWindowCaptureLineCount,
             250,
             "CaptureWorkflowModel+WindowCapture.swift should stay focused on window picker/capture entrypoints."
+        )
+        XCTAssertLessThanOrEqual(
+            capturePresetCaptureLineCount,
+            260,
+            "CaptureWorkflowModel+PresetCapture.swift should stay focused on preset execution and saved-window resolution."
         )
         XCTAssertFalse(
             captureModel.contains("func runAutomationPreset(") || captureModel.contains("func captureAutomation("),
@@ -914,7 +934,9 @@ final class AppArchitecturePlatformTests: XCTestCase {
             captureExecution,
             captureCommands,
             captureScrolling,
+            captureScrollingExecution,
             captureWindowCapture,
+            capturePresetCapture,
             captureCompletion,
             capturePresets,
             captureWindows,
@@ -1001,7 +1023,8 @@ final class AppArchitecturePlatformTests: XCTestCase {
                 "Scrolling capture behavior belongs in CaptureWorkflowModel+Scrolling.swift, not generic command routing: \(scrollingMember)"
             )
             XCTAssertTrue(
-                captureScrolling.contains(scrollingMember),
+                captureScrolling.contains(scrollingMember)
+                    || captureScrollingExecution.contains(scrollingMember),
                 "Expected scrolling capture member missing: \(scrollingMember)"
             )
         }
@@ -1020,7 +1043,8 @@ final class AppArchitecturePlatformTests: XCTestCase {
                 "Window capture behavior belongs in CaptureWorkflowModel+WindowCapture.swift, not generic command routing: \(windowCaptureMember)"
             )
             XCTAssertTrue(
-                captureWindowCapture.contains(windowCaptureMember),
+                captureWindowCapture.contains(windowCaptureMember)
+                    || capturePresetCapture.contains(windowCaptureMember),
                 "Expected window capture member missing: \(windowCaptureMember)"
             )
         }
@@ -1083,7 +1107,9 @@ final class AppArchitecturePlatformTests: XCTestCase {
                 captureCommands.contains(commandMember)
                     || captureExecution.contains(commandMember)
                     || captureScrolling.contains(commandMember)
+                    || captureScrollingExecution.contains(commandMember)
                     || captureWindowCapture.contains(commandMember)
+                    || capturePresetCapture.contains(commandMember)
                     || captureWindows.contains(commandMember)
                     || capturePresets.contains(commandMember)
                     || captureCompletion.contains(commandMember),
@@ -1335,8 +1361,14 @@ final class AppArchitecturePlatformTests: XCTestCase {
             documentWindowPresenter.contains("struct LiveDocumentWindowPresenter: DocumentWindowPresenting"),
             "AppKit main-window mutation should be isolated behind the live document window presenter."
         )
+        let presenterOwnsMainWindowLookup =
+            documentWindowPresenter.contains("NSApp.windows")
+            || (
+                documentWindowPresenter.contains("guard let application = NSApp")
+                    && documentWindowPresenter.contains("application.windows")
+            )
         XCTAssertTrue(
-            documentWindowPresenter.contains("NSApp.windows"),
+            presenterOwnsMainWindowLookup,
             "The live document window presenter should own AppKit main-window lookup."
         )
         XCTAssertTrue(
@@ -2205,8 +2237,26 @@ final class AppArchitecturePlatformTests: XCTestCase {
 
         XCTAssertTrue(content.contains("appToolbarContent: some ToolbarContent"))
         XCTAssertTrue(content.contains(".toolbar(removing: .title)"))
+        XCTAssertTrue(
+            content.contains(
+                "@SceneStorage(\"editor.inspector.isPresented\")"
+            )
+        )
+        XCTAssertGreaterThanOrEqual(
+            content.components(
+                separatedBy:
+                    "isInspectorPresented: $isEditorInspectorPresented"
+            ).count - 1,
+            2,
+            "The command bar and native inspector must share one scene-restored visibility state."
+        )
         XCTAssertTrue(content.contains("private var captureHeader: some View"))
         XCTAssertTrue(content.contains("private var captureHeaderActions: some View"))
+        XCTAssertTrue(
+            content.contains(
+                ".accessibilityIdentifier(\"capture.header\")"
+            )
+        )
         XCTAssertFalse(content.contains("ToolbarItem(id: \"capture-region\""))
         XCTAssertTrue(editor.contains("struct EditorCommandBar: View"))
         XCTAssertTrue(editor.contains("ScrollView(.horizontal, showsIndicators: false)"))
@@ -2216,9 +2266,45 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertTrue(editor.contains("EditorCommandGroup(\"Selection tools\")"))
         XCTAssertTrue(editor.contains("EditorCommandGroup(\"History\")"))
         XCTAssertTrue(editor.contains("EditorCommandGroup(\"Zoom\")"))
+        XCTAssertTrue(editor.contains("EditorCommandGroup(\"Inspector\")"))
         XCTAssertTrue(editor.contains("EditorCommandGroup(\"Output\")"))
         XCTAssertTrue(editor.contains("EditorDirectToolButtonStyle"))
+        XCTAssertTrue(
+            editor.contains(
+                ".accessibilityIdentifier(\"editor.inspector.toggle\")"
+            )
+        )
+        XCTAssertTrue(
+            editor.contains(
+                ".accessibilityValue(isInspectorPresented ? \"Shown\" : \"Hidden\")"
+            )
+        )
+        XCTAssertFalse(
+            editor.contains("ToolbarItem(id: \"editor-inspector\""),
+            "Screenshot editing must not install an NSToolbar solely for Inspector visibility."
+        )
+        XCTAssertFalse(
+            editor.contains(".toolbar {"),
+            "Screenshot EditorView must keep its controls in content so the titlebar cannot create a blank toolbar band."
+        )
         XCTAssertFalse(editor.contains("toolMenu(title:"))
+        let dragControlStart = try XCTUnwrap(
+            editor.range(of: "private var dragControl: some View")
+        )
+        let dragControlEnd = try XCTUnwrap(
+            editor.range(
+                of: "@ViewBuilder\n    private func toolButtons",
+                range: dragControlStart.upperBound..<editor.endIndex
+            )
+        )
+        let dragControl = editor[
+            dragControlStart.lowerBound..<dragControlEnd.lowerBound
+        ]
+        XCTAssertTrue(dragControl.contains(".frame(width: 68, height: 30)"))
+        XCTAssertFalse(
+            dragControl.contains("Text(\"Drag\")"),
+            "The AppKit drag control draws its own Drag label and must not be paired with a duplicate SwiftUI label."
+        )
         XCTAssertTrue(editor.contains(".inspector(isPresented:"))
         XCTAssertTrue(editor.contains(".inspectorColumnWidth(min: 280, ideal: 320, max: 380)"))
         XCTAssertTrue(guide.contains("struct GuideEditorToolbarContent: ToolbarContent"))
@@ -2243,6 +2329,12 @@ final class AppArchitecturePlatformTests: XCTestCase {
         )
         XCTAssertTrue(layers.contains("layerCommandBar"))
         XCTAssertFalse(layers.contains("ToolbarItem("))
+        XCTAssertTrue(layers.contains("\"Annotate Result\""))
+        XCTAssertTrue(layers.contains("\"Edit Selected Capture\""))
+        XCTAssertTrue(layers.contains("return \"Result\""))
+        XCTAssertTrue(layers.contains("return \"Capture\""))
+        XCTAssertFalse(layers.contains("\"Edit Composition\""))
+        XCTAssertFalse(layers.contains("\"Edit Item\""))
     }
 
     func testProductionSourceKeepsCapabilitiesAndPermissionsBehindPlatformBoundaries() throws {

@@ -622,13 +622,32 @@ final class EditorControllerTests: XCTestCase {
         let controller = makeController(snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)))
 
         XCTAssertEqual(controller.automationOutputAppearance, .plain)
+        XCTAssertEqual(controller.currentWorkspaceOutputAppearance, .plain)
         XCTAssertThrowsError(try controller.exportedImage(appearance: .styled))
 
         controller.updatePresentationPadding(24)
 
         XCTAssertEqual(controller.automationOutputAppearance, .styled)
+        XCTAssertEqual(
+            controller.currentWorkspaceOutputAppearance,
+            .plain,
+            "Edit should keep direct output WYSIWYG even when a Presentation is configured."
+        )
         XCTAssertFalse(controller.exportFormatRequiresPNG(appearance: .plain))
         XCTAssertTrue(controller.exportFormatRequiresPNG(appearance: .styled))
+
+        controller.setWorkspaceMode(.presentation)
+        XCTAssertEqual(
+            controller.currentWorkspaceOutputAppearance,
+            .plain,
+            "Opening a composition workspace must not silently opt into saved Polish."
+        )
+
+        controller.enterPolish()
+        XCTAssertEqual(controller.currentWorkspaceOutputAppearance, .styled)
+
+        controller.leavePolish()
+        XCTAssertEqual(controller.currentWorkspaceOutputAppearance, .plain)
     }
 
     @MainActor
@@ -829,7 +848,7 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
-    func testDefaultPresentationTemplateAppliesOnlyToFreshCaptures() throws {
+    func testLegacyDefaultPresentationDoesNotSilentlyApplyToNewCaptures() throws {
         let defaults = makeTestDefaults()
         let capture = makeCapturedScreenshot(image: makeCoordinateImage(width: 160, height: 120))
         let setup = retainForTestLifetime(EditorController(capture: capture, defaults: defaults))
@@ -837,8 +856,12 @@ final class EditorControllerTests: XCTestCase {
         setup.setDefaultPresentationTemplate(id: "builtin.drop-shadow")
 
         let fresh = retainForTestLifetime(EditorController(capture: capture, defaults: defaults))
-        let shadowTemplate = try XCTUnwrap(PresentationTemplate.builtInTemplates.first { $0.id == "builtin.drop-shadow" })
-        XCTAssertEqual(fresh.snapshot.presentation, shadowTemplate.presentation)
+        XCTAssertEqual(fresh.snapshot.presentation, .plain)
+        XCTAssertEqual(
+            fresh.defaultPresentationTemplateID,
+            "builtin.drop-shadow",
+            "The legacy preference remains manageable in Polish without silently changing fresh content."
+        )
 
         let savedSnapshot = makeEditorSnapshot(
             cropRect: CGRect(x: 0, y: 0, width: 160, height: 120),
@@ -3012,7 +3035,12 @@ private final class StubUIMapCaptureService: UIMapCaptureServiceType, @unchecked
         self.uiMap = uiMap
     }
 
-    nonisolated func captureUIMap(for capture: CapturedScreenshot) async -> UIMapSnapshot? {
+    nonisolated func captureUIMap(
+        for capture: CapturedScreenshot,
+        isPrivateCapture: Bool
+    ) async -> UIMapSnapshot? {
+        _ = capture
+        _ = isPrivateCapture
         lock.withLock {
             _captureCallCount += 1
         }
