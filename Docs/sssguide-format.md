@@ -103,4 +103,4 @@ Each step session records crop, marker geometry and visibility, optional still-s
 - Preview and logo are optional. Timeline and media are optional. A Guide without source media can still export PDF, GIF, APNG, images, ZIP, and slideshow MP4.
 - Version 1 readers ignore no required validation failures. Additive optional fields must decode safely when absent; required or meaning-changing fields require a future schema strategy or format version.
 
-Private Guide packages are normal user-owned documents when explicitly saved. Automatic Private Guide sessions are excluded from archive, search indexing, diagnostics content, and background OCR/AI refinement.
+Private Guide packages are normal user-owned documents when explicitly saved. Automatic Private Guide sessions are excluded from Snip History, search indexing, diagnostics content, and background OCR/AI refinement.

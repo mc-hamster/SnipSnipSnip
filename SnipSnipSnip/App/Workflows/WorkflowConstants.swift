@@ -1,5 +1,45 @@
 import Foundation
 
+/// Canonical user-facing terms shared across otherwise independent workflows.
+///
+/// Keep behavior, persistence, and automation identifiers in their owning
+/// models. These values exist only to prevent capture, Guide, video, clipboard,
+/// and library surfaces from inventing different labels for the same concept.
+nonisolated enum WorkflowVocabulary {
+    nonisolated enum Source {
+        static let region = String(localized: "Region")
+        static let window = String(localized: "Window")
+        static let screen = String(localized: "Screen")
+        static let app = String(localized: "App")
+        static let scrollingContent = String(localized: "Scrolling Content")
+        static let connectedDevice = String(localized: "Connected Device")
+        static let existingImage = String(localized: "Existing Image")
+    }
+
+    nonisolated enum Instructions {
+        static let recordGuide = String(localized: "Record a Guide")
+        static let buildStepsManually =
+            String(localized: "Build Steps manually")
+    }
+
+    nonisolated enum Status {
+        static let guideCapturing = String(localized: "Guide Capturing")
+        static let videoRecording = String(localized: "Recording")
+        static let clipboardMonitoring = String(localized: "Monitoring")
+        static let clipboardMonitoringPaused =
+            String(localized: "Monitoring Paused")
+    }
+
+    nonisolated enum Library {
+        static let snipLibrary = String(localized: "Snip Library")
+        static let recentSnips = String(localized: "Recent Snips")
+        static let snipHistory = String(localized: "Snip History")
+        static let changeHistory = String(localized: "Change History")
+        static let recycleBin = String(localized: "Recycle Bin")
+        static let historyStorage = String(localized: "Snip History Storage")
+    }
+}
+
 nonisolated enum ClipboardWorkflowConstants {
     static let autoCopyDebounceNanoseconds: UInt64 = 250_000_000
 }

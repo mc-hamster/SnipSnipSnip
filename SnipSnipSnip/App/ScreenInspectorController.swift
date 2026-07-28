@@ -701,7 +701,7 @@ private struct ScreenInspectorWindowView: View {
                     .keyboardShortcut(.space, modifiers: [])
                     .help("Freeze or unfreeze the inspector. Shortcut: Option-Command-F.")
 
-                    Button("Snip ⌥⌘S", action: model.snipCurrentSample)
+                    Button("Capture ⌥⌘S", action: model.snipCurrentSample)
                         .frame(minWidth: 78)
                         .disabled(model.sample == nil)
                         .keyboardShortcut("s", modifiers: [.command, .option])

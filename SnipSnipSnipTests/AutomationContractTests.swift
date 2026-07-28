@@ -728,11 +728,30 @@ final class AutomationContractTests: XCTestCase {
 
         let suggested = try await query.suggestedEntities()
         XCTAssertEqual(suggested, [
-            CapturePresetEntity(id: presetID, name: "Daily Clip", target: "fullscreen", targetLabel: "Fullscreen")
+            CapturePresetEntity(id: presetID, name: "Daily Clip", target: "fullscreen", targetLabel: "Screen")
         ])
 
         let resolved = try await query.entities(for: [presetID])
         XCTAssertEqual(resolved.map(\.id), [presetID])
+    }
+
+    func testAppIntentGuideResultUsesGuideCaptureLanguage() {
+        let result = AutomationResultEnvelope.success(
+            requestID: UUID(),
+            payload: .guide(
+                AutomationGuideSummary(
+                    state: GuideCaptureState.recording.rawValue,
+                    stepCount: 1,
+                    source: "window",
+                    sourceVideoEnabled: false
+                )
+            )
+        )
+
+        XCTAssertEqual(
+            AutomationIntentResultFormatter.message(for: result),
+            "Guide Capturing with 1 step."
+        )
     }
 
     func testURLRouterParsesEveryV1RouteAndPreservesPasteboardImportRoute() async throws {

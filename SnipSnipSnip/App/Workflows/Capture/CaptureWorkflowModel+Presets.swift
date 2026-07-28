@@ -344,16 +344,16 @@ extension CaptureWorkflowModel {
     private func fullscreenPresetName(for options: CaptureRunOptions) -> String {
         switch options.fullscreenDisplayMode {
         case .currentDisplay:
-            return "Fullscreen - Current Display"
+            return "Screen - Current Display"
         case .selectedDisplay:
             if let selectedID = options.selectedFullscreenDisplayID,
                let screen = dependencies.systemServices.screens.screen(withDisplayID: selectedID) {
-                return "Fullscreen - \(screen.name)"
+                return "Screen - \(screen.name)"
             }
 
-            return "Fullscreen - Selected Display"
+            return "Screen - Selected Display"
         case .allDisplays:
-            return "Fullscreen - All Displays"
+            return "Screen - All Displays"
         }
     }
 

@@ -66,11 +66,11 @@ Repeat the essential workflow pass with:
 ## Intent-driven creation and multi-capture
 
 - [ ] Create asks what to make before what to capture, uses native radio selection, reveals only relevant conditional questions, announces its live summary, and exposes exactly one default action plus Cancel.
-- [ ] Direct Region, Window, and Full Screen shortcuts bypass Create as Screenshot without losing one-action behavior.
-- [ ] While a screenshot document is open, the contextual session row announces purpose, progress, and one primary next action; global capture shortcuts retain their new-document meaning.
+- [ ] Direct Region, Window, and Screen shortcuts bypass Create as Screenshot without losing one-action behavior.
+- [ ] While a screenshot document is open, the contextual session row announces purpose, progress, and one primary next action; global screenshot shortcuts retain their new-document meaning.
 - [ ] The secondary Create entry remains keyboard- and VoiceOver-accessible with an open screenshot, and configured Polish is announced on its content-stage action without changing visible output.
 - [ ] Adding the first extra image asks Compare, Add as Step, or Combine once. Cancel and capture failure return focus without changing purpose, content, or selection; later additions do not ask again.
-- [ ] Screenshot exposes no layout controls; Comparison exposes no Grid or Steps controls; Steps exposes no comparison or general collection tiles; Collection exposes Auto, Row, Column, Grid, Freeform, and compatible templates.
+- [ ] Screenshot exposes no layout controls; Comparison exposes no Grid or Steps controls; Steps exposes no comparison or general Combined Image tiles; Combined Image exposes Auto, Row, Column, Grid, Freeform, and compatible templates.
 - [ ] Arrange draws no Polish subject frame or persistent unselected-item outlines. A selected boundary appears only after explicit canvas focus, hover remains neutral, and Differentiate Without Color preserves the distinction.
 - [ ] Every item's accessibility frame is contained by and aligned with its rendered panel after zoom, pan, resize, Look changes, and Mockup wrapping.
 - [ ] Arrange items announce caption or safe title, selected and shown state, order, Before/After role or step number, framing mode, and source-error state.
@@ -113,12 +113,12 @@ Repeat the essential workflow pass with:
 - [ ] Guide reordering, multi-selection, marker adjustment, and export are keyboard reachable.
 - [ ] Guide export reports progress, cancellation, completion, and errors without color-only cues.
 
-## Library, Settings, and auxiliary windows
+## Snip Library, Settings, and auxiliary windows
 
-- [ ] Settings tabs are General, Capture, Presets, Editor & Output, Shortcuts, Recording, Guide, Library, and Privacy.
-- [ ] Library Snips and Clipboard pages preserve their selected state and expose all controls in reading order.
+- [ ] Settings tabs are General, Capture, Presets, Editor & Output, Shortcuts, Video, Guide, Snip Library, and Privacy.
+- [ ] Snip Library Snips and Clipboard pages preserve their selected state and expose all controls in reading order.
 - [ ] Retention accepts 1 and 180 days, rejects or clamps out-of-range values, and Reset Defaults restores 30 days.
-- [ ] Capture shortcuts shown in menus and the reference match current preferences.
+- [ ] Global shortcuts shown in menus and the reference match current preferences.
 - [ ] Known macOS shortcut conflicts produce nonblocking text warnings.
 - [ ] Native Open and Save panel shortcuts win while a panel is active.
 - [ ] Command-W minimizes eligible windows, orders out auxiliary windows, closes Clipboard History, and never terminates or discards a document.

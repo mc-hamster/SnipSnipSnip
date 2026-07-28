@@ -207,7 +207,7 @@ private struct GuideCaptureHUD: View {
                 if capture.state == .finishing {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.small)
-                        Text(capture.finalizationProgress?.detail ?? "Finalizing Guide…")
+                        Text(capture.finalizationProgress?.detail ?? "Finishing Guide…")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Spacer()
@@ -289,11 +289,11 @@ private struct GuideCaptureHUD: View {
             case .starting:
                 announcement = "Guide capture starting."
             case .recording:
-                announcement = "Guide capture recording."
+                announcement = "Guide capturing."
             case .paused:
-                announcement = "Guide capture paused."
+                announcement = "Guide paused."
             case .finishing:
-                announcement = "Guide capture finished recording and is preparing the editor."
+                announcement = "Guide finishing and preparing the editor."
             }
             AppAccessibility.announce(announcement)
         }
@@ -356,7 +356,7 @@ private struct GuideCaptureHUD: View {
         switch capture.state {
         case .paused: "Guide Paused"
         case .finishing: "Finishing Guide…"
-        default: "Guide Capturing"
+        default: WorkflowVocabulary.Status.guideCapturing
         }
     }
 

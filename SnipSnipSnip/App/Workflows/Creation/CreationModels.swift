@@ -276,23 +276,51 @@ nonisolated struct CreationPlan: Equatable, Sendable {
     var primaryActionTitle: String {
         switch goal {
         case .screenshot:
-            return source.isExisting
-                ? String(localized: "Add Image")
-                : String(localized: "Capture Screenshot")
+            switch source {
+            case .existing(.files):
+                return String(localized: "Import Image")
+            case .existing(.clipboard):
+                return String(localized: "Paste Image")
+            case .existing:
+                return String(localized: "Choose Image")
+            default:
+                return String(localized: "Capture Screenshot")
+            }
         case .comparison:
-            return source.isExisting
-                ? String(localized: "Choose Before")
-                : String(localized: "Capture Before")
+            switch source {
+            case .existing(.files):
+                return String(localized: "Import Before")
+            case .existing(.clipboard):
+                return String(localized: "Paste Before")
+            case .existing:
+                return String(localized: "Choose Before")
+            default:
+                return String(localized: "Capture Before")
+            }
         case .instructions(.recordAsIWork):
             return String(localized: "Continue to Guide")
         case .instructions(.addCaptures):
-            return source.isExisting
-                ? String(localized: "Add First Step")
-                : String(localized: "Capture First Step")
+            switch source {
+            case .existing(.files):
+                return String(localized: "Import First Step")
+            case .existing(.clipboard):
+                return String(localized: "Paste First Step")
+            case .existing:
+                return String(localized: "Choose First Step")
+            default:
+                return String(localized: "Capture First Step")
+            }
         case .combineImages:
-            return source.isExisting
-                ? String(localized: "Add Images")
-                : String(localized: "Capture First Image")
+            switch source {
+            case .existing(.files):
+                return String(localized: "Import Images")
+            case .existing(.clipboard):
+                return String(localized: "Paste First Image")
+            case .existing:
+                return String(localized: "Choose First Image")
+            default:
+                return String(localized: "Capture First Image")
+            }
         }
     }
 
@@ -301,7 +329,7 @@ nonisolated struct CreationPlan: Equatable, Sendable {
         case .screenshot:
             return String(
                 localized:
-                    "Capture one image, then annotate or polish it."
+                    "Start with one image, then annotate or polish it."
             )
         case .comparison:
             return String(
@@ -311,12 +339,12 @@ nonisolated struct CreationPlan: Equatable, Sendable {
         case .instructions(.recordAsIWork):
             return String(
                 localized:
-                    "Guide will record your workflow and build editable steps."
+                    "Record a Guide; it will build editable steps from your workflow."
             )
         case .instructions(.addCaptures):
             return String(
                 localized:
-                    "Add captures in order, then caption and number the steps."
+                    "Build Steps manually, then caption and number them."
             )
         case .combineImages:
             return String(
@@ -324,14 +352,5 @@ nonisolated struct CreationPlan: Equatable, Sendable {
                     "Collect captures and images, then arrange them together."
             )
         }
-    }
-}
-
-private nonisolated extension CreationSource {
-    var isExisting: Bool {
-        if case .existing = self {
-            return true
-        }
-        return false
     }
 }

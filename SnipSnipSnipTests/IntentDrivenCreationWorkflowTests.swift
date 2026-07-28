@@ -5,6 +5,70 @@ import XCTest
 
 @MainActor
 final class IntentDrivenCreationWorkflowTests: XCTestCase {
+    func testCreateExposesOneSnipLibrarySourceWithoutRemovingLegacyCases() {
+        let capabilities = AppCapabilitySnapshot(
+            buildTarget: .dev,
+            enabledCapabilities: Set(AppCapability.allCases)
+        )
+        let workflow = CreationWorkflowModel(capabilities: capabilities)
+
+        XCTAssertEqual(
+            workflow.availableExistingSources,
+            [.files, .clipboard, .captureHistory]
+        )
+        XCTAssertEqual(
+            CreationExistingSource.allCases,
+            [.files, .clipboard, .recentSnips, .captureHistory, .archive]
+        )
+    }
+
+    func testCreateKeepsSnipLibraryAvailableForArchiveOnlyCapabilities() {
+        let capabilities = AppCapabilitySnapshot(
+            buildTarget: .dev,
+            enabledCapabilities: [.editor, .archive]
+        )
+        let workflow = CreationWorkflowModel(capabilities: capabilities)
+
+        XCTAssertEqual(
+            workflow.availableExistingSources,
+            [.files, .clipboard, .archive]
+        )
+    }
+
+    func testCreateUsesSourceSpecificActionVerbsForExistingImages() {
+        let options = CaptureOneShotOptions(
+            captureDelay: .immediate,
+            includesCursor: false,
+            privateCapture: false,
+            windowUIMapEnabled: false
+        )
+
+        XCTAssertEqual(
+            CreationPlan(
+                goal: .screenshot,
+                source: .existing(.files),
+                captureOptions: options
+            ).primaryActionTitle,
+            "Import Image"
+        )
+        XCTAssertEqual(
+            CreationPlan(
+                goal: .screenshot,
+                source: .existing(.clipboard),
+                captureOptions: options
+            ).primaryActionTitle,
+            "Paste Image"
+        )
+        XCTAssertEqual(
+            CreationPlan(
+                goal: .screenshot,
+                source: .existing(.captureHistory),
+                captureOptions: options
+            ).primaryActionTitle,
+            "Choose Image"
+        )
+    }
+
     func testEveryCreationDraftCombinationNormalizesToOneValidPlan() {
         let capabilities = AppCapabilitySnapshot(
             buildTarget: .dev,

@@ -54,7 +54,7 @@ struct GuideQuickStartView: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 5) {
-                Text("Create a Guide")
+                Text(WorkflowVocabulary.Instructions.recordGuide)
                     .font(.title2.weight(.semibold))
                 Text("Choose what to make and what Guide should follow.")
                     .font(.subheadline)
@@ -86,7 +86,7 @@ struct GuideQuickStartView: View {
 
     private var outputQuestion: some View {
         Section("1. What do you want to make?") {
-            Text("You’ll always get editable steps. Choose whether to keep the full recording too.")
+            Text("You’ll always get editable steps. Choose whether to keep the full-motion source video too.")
                 .foregroundStyle(.secondary)
 
             Picker("Output", selection: $outputIntent) {
@@ -98,7 +98,7 @@ struct GuideQuickStartView: View {
 
             Text(outputIntent == .stepsOnly
                 ? "Best for PDF, Word, images, GIF, or a slideshow. No source video or audio is retained."
-                : "Also keeps the source recording for full-motion and action-highlight video exports.")
+                : "Also keeps the source video for full-motion and action-highlight video exports.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -124,7 +124,7 @@ struct GuideQuickStartView: View {
 
     private var audioQuestion: some View {
         Section("2. How should the video sound?") {
-            Text("Choose what viewers should hear. You can change either source from the Guide controls while recording.")
+            Text("Choose what viewers should hear. You can change either source from the Guide controls while capturing.")
                 .foregroundStyle(.secondary)
 
             Picker("Audio", selection: $audioIntent) {
@@ -148,10 +148,10 @@ struct GuideQuickStartView: View {
                 .foregroundStyle(.secondary)
 
             Picker("Source", selection: $guide.selectedSourceKind) {
-                Label("Region", systemImage: "selection.pin.in.out").tag("region")
-                Label("Window", systemImage: "rectangle.on.rectangle").tag("window")
-                Label("App", systemImage: "app.dashed").tag("app")
-                Label("Display", systemImage: "macwindow").tag("display")
+                Label(WorkflowVocabulary.Source.region, systemImage: "selection.pin.in.out").tag("region")
+                Label(WorkflowVocabulary.Source.window, systemImage: "rectangle.on.rectangle").tag("window")
+                Label(WorkflowVocabulary.Source.app, systemImage: "app.dashed").tag("app")
+                Label(WorkflowVocabulary.Source.screen, systemImage: "macwindow").tag("display")
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -191,7 +191,7 @@ struct GuideQuickStartView: View {
 
                     if guide.selectedSourceKind == "display" {
                         Toggle("Include the menu bar", isOn: $guide.capturePreferences.menuBarIncludedForDisplays)
-                            .help("Include the macOS menu bar in full-display still steps and source video. This setting has no effect on window, app, or area captures.")
+                            .help("Include the macOS menu bar in still steps and source video when capturing a screen. This setting has no effect on window, app, or region captures.")
                     }
                 }
                 .toggleStyle(.switch)
@@ -325,7 +325,7 @@ struct GuideQuickStartView: View {
         case "app":
             return "Follow one app as you move between its windows, sheets, and panels."
         case "region":
-            return "Keep a fixed custom area in the Guide. Only activity inside that area appears."
+            return "Keep a fixed custom region in the Guide. Only activity inside that region appears."
         default:
             return "Capture everything visible on one display, including movement between apps."
         }

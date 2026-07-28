@@ -3,7 +3,7 @@ import Foundation
 
 nonisolated enum GuideDocumentProNotice {
     static let title = "Creating Guides is a Pro feature"
-    static let message = "This App Store edition can open, edit, save, and export this Guide. Creating or recording new Guides is available in the free SnipSnipSnip Pro edition."
+    static let message = "This App Store edition can open, edit, save, and export this Guide. Capturing new Guides is available in the free SnipSnipSnip Pro edition."
     static let learnMoreURL = AppLinks.snipSnipSnipProduct
 
     static func shouldPresent(

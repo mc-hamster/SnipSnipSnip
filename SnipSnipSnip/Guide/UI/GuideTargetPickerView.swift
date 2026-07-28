@@ -74,7 +74,7 @@ struct GuideTargetPickerView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Back", action: onCancel)
                         .keyboardShortcut(.cancelAction)
-                        .help("Return to Create a Guide.")
+                        .help("Return to Record a Guide.")
                 }
             }
         }

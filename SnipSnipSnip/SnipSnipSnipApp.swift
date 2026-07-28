@@ -35,29 +35,46 @@ private struct CaptureCommands: Commands {
         )
 
         CommandMenu("Capture") {
-            Button("Region Capture", action: capture.captureRegion)
+            Button(
+                "Capture \(WorkflowVocabulary.Source.region)",
+                action: capture.captureRegion
+            )
                 .keyboardShortcut(hotKey(for: .region), modifiers: AppShortcut.modifiers)
                 .disabled(isCaptureOrRecordingActive || isNativeFilePanelActive)
 
-            Button("Window Capture", action: capture.presentWindowPicker)
+            Button(
+                "Capture \(WorkflowVocabulary.Source.window)",
+                action: capture.presentWindowPicker
+            )
                 .keyboardShortcut(hotKey(for: .window), modifiers: AppShortcut.modifiers)
                 .disabled(isCaptureOrRecordingActive || isNativeFilePanelActive)
 
-            Button("Full Screen Capture", action: capture.captureCurrentDisplay)
+            Button(
+                "Capture \(WorkflowVocabulary.Source.screen)",
+                action: capture.captureCurrentDisplay
+            )
                 .keyboardShortcut(hotKey(for: .fullscreen), modifiers: AppShortcut.modifiers)
                 .disabled(isCaptureOrRecordingActive || isNativeFilePanelActive)
 
-            Button("Frontmost Window Capture", action: capture.captureFrontmostWindow)
+            Button(
+                "Capture Frontmost \(WorkflowVocabulary.Source.window)",
+                action: capture.captureFrontmostWindow
+            )
                 .keyboardShortcut(hotKey(for: .frontmostWindow), modifiers: AppShortcut.modifiers)
                 .disabled(isCaptureOrRecordingActive || isNativeFilePanelActive)
 
             if capabilities.isEnabled(.scrollingCapture) {
-                Button("Scrolling Capture", action: capture.captureScrollingArea)
+                Button(
+                    "Capture \(WorkflowVocabulary.Source.scrollingContent)",
+                    action: capture.captureScrollingArea
+                )
                     .disabled(isCaptureOrRecordingActive)
             }
 
             if capabilities.isEnabled(.connectedDeviceCapture) {
-                Menu("Connected Device") {
+                Menu(
+                    "Capture \(WorkflowVocabulary.Source.connectedDevice)"
+                ) {
                     ConnectedDeviceCaptureMenuContent(capture: capture, mode: .screenshot)
                 }
                 .disabled(isCaptureOrRecordingActive || capture.isConnectedDeviceSessionActive)
@@ -66,7 +83,12 @@ private struct CaptureCommands: Commands {
             Divider()
 
             if capabilities.isEnabled(.guideCapture) {
-                Button(guide.isActive ? "Stop Guide" : "Guide", action: guide.presentQuickStart)
+                Button(
+                    guide.isActive
+                        ? "Stop Guide"
+                        : WorkflowVocabulary.Instructions.recordGuide,
+                    action: guide.presentQuickStart
+                )
                     .keyboardShortcut(hotKey(for: .guide), modifiers: AppShortcut.modifiers)
                     .disabled((isCaptureOrRecordingActive && !guide.isActive) || capture.isConnectedDeviceSessionActive || isNativeFilePanelActive)
 
@@ -80,14 +102,14 @@ private struct CaptureCommands: Commands {
                 Divider()
             }
 
-            Menu("Video Recording") {
+            Menu("Video") {
                 Button("Record Region", action: video.recordRegion)
                     .disabled(isCaptureOrRecordingActive)
 
                 Button("Record Window", action: video.presentVideoWindowPicker)
                     .disabled(isCaptureOrRecordingActive)
 
-                Button("Record Full Screen", action: video.recordCurrentDisplay)
+                Button("Record Screen", action: video.recordCurrentDisplay)
                     .disabled(isCaptureOrRecordingActive)
 
                 if capabilities.isEnabled(.connectedDeviceCapture) {

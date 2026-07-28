@@ -204,6 +204,10 @@ extension DocumentWorkflowModel {
             self.pendingRecoveryRefreshTask = nil
             self.historyEntries = state.historyEntries
             self.allCaptureHistoryEntries = state.allCaptureHistoryEntries
+            self.snipLibraryEntries =
+                DocumentHistoryEntrySelection.latestPerSession(
+                    from: state.allCaptureHistoryEntries
+                )
             self.recentSnipEntries = state.recentSnipEntries
             self.recycleBinEntries = state.recycleBinEntries
             self.pendingRecoverySession = state.pendingRecoverySession
@@ -513,6 +517,7 @@ extension DocumentWorkflowModel {
         pendingRecoverySession = nil
         historyEntries.removeAll { $0.sessionID == sessionID }
         allCaptureHistoryEntries.removeAll { $0.sessionID == sessionID }
+        snipLibraryEntries.removeAll { $0.sessionID == sessionID }
         recentSnipEntries.removeAll { $0.sessionID == sessionID }
         recycleBinEntries.removeAll { $0.sessionID == sessionID }
         let store = recoveryStore

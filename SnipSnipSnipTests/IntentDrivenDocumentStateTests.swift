@@ -746,9 +746,25 @@ final class IntentDrivenEditorStateTests: XCTestCase {
         XCTAssertEqual(ScreenshotDocumentPurpose.comparison.label, "Comparison")
         XCTAssertEqual(ScreenshotDocumentPurpose.steps.label, "Steps")
         XCTAssertEqual(ScreenshotDocumentPurpose.collection.label, "Combined Image")
-        XCTAssertEqual(ScreenshotWorkflowStage.awaitingComparisonAfter.label, "Before Captured")
-        XCTAssertEqual(ScreenshotWorkflowStage.reviewingComparison.label, "Ready")
+        XCTAssertEqual(ScreenshotWorkflowStage.awaitingComparisonAfter.label, "Capture After")
+        XCTAssertEqual(ScreenshotWorkflowStage.reviewingComparison.label, "Review")
         XCTAssertEqual(ScreenshotWorkflowStage.polishing.label, "Polish")
+        XCTAssertEqual(
+            ScreenshotDocumentPurpose.steps.stageLabel(for: .collecting),
+            "Add Step"
+        )
+        XCTAssertEqual(
+            ScreenshotDocumentPurpose.steps.stageLabel(for: .arranging),
+            "Order & Caption"
+        )
+        XCTAssertEqual(
+            ScreenshotDocumentPurpose.collection.stageLabel(for: .collecting),
+            "Add Image"
+        )
+        XCTAssertEqual(
+            ScreenshotDocumentPurpose.collection.stageLabel(for: .arranging),
+            "Arrange"
+        )
         XCTAssertEqual(
             ScreenshotDocumentPurpose.steps.sessionTitle(
                 stage: .collecting,

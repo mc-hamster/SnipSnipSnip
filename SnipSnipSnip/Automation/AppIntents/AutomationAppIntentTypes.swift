@@ -10,7 +10,7 @@ nonisolated enum AutomationIntentGuideAction: String, AppEnum {
 
     static let typeDisplayRepresentation: TypeDisplayRepresentation = "Guide Action"
     static let caseDisplayRepresentations: [AutomationIntentGuideAction: DisplayRepresentation] = [
-        .startWindow: "Start · Window", .startApp: "Start · App", .startRegion: "Start · Region", .startDisplay: "Start · Display",
+        .startWindow: "Start · Window", .startApp: "Start · App", .startRegion: "Start · Region", .startDisplay: "Start · Screen",
         .pause: "Pause", .resume: "Resume", .addStep: "Add Manual Step", .stop: "Stop",
         .exportPDF: "Export PDF", .exportGIF: "Export GIF", .exportAPNG: "Export APNG", .exportFullMotion: "Export Full Motion MP4",
         .exportHighlights: "Export Action Highlights MP4", .exportSlideshow: "Export Slideshow MP4", .exportImages: "Export Images", .exportZIP: "Export ZIP"
@@ -130,7 +130,7 @@ nonisolated enum AutomationIntentCompositionCaptureSource: String, AppEnum {
         .region: "Region",
         .window: "Window",
         .frontmostWindow: "Frontmost Window",
-        .fullscreen: "Full Screen",
+        .fullscreen: "Screen",
         .repeatLast: "Repeat Last Capture",
     ]
 
@@ -298,7 +298,8 @@ nonisolated enum AutomationIntentFullscreenDisplayMode: String, AppEnum {
     case selected
     case all
 
-    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Fullscreen Display"
+    static let typeDisplayRepresentation: TypeDisplayRepresentation =
+        "Display for Screen Capture"
 
     static let caseDisplayRepresentations: [AutomationIntentFullscreenDisplayMode: DisplayRepresentation] = [
         .appDefault: "App Default",
@@ -425,7 +426,9 @@ nonisolated struct CapturePresetEntity: AppEntity, Identifiable, Equatable {
             id: summary.id,
             name: summary.name,
             target: summary.target,
-            targetLabel: summary.targetLabel
+            targetLabel: summary.target == "fullscreen"
+                ? WorkflowVocabulary.Source.screen
+                : summary.targetLabel
         )
     }
 

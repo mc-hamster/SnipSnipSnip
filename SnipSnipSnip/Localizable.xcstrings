@@ -20,6 +20,30 @@
         }
       }
     },
+    "%@ Help" : {
+
+    },
+    "%@ alignment" : {
+
+    },
+    "%@ appears here after you have autosaves, recent snips, or saved checkpoints to search." : {
+
+    },
+    "%@ commands" : {
+
+    },
+    "%@ composition template" : {
+
+    },
+    "%@ layout" : {
+
+    },
+    "%@ shadow" : {
+
+    },
+    "%@ using Region. Open the menu for another capture or image source." : {
+
+    },
     "%@ • %@" : {
       "localizations" : {
         "en" : {
@@ -56,27 +80,6 @@
     "%@ ⌥⌘M" : {
 
     },
-    "%@ alignment" : {
-
-    },
-    "%@ commands" : {
-
-    },
-    "%@ composition template" : {
-
-    },
-    "%@ Help" : {
-
-    },
-    "%@ layout" : {
-
-    },
-    "%@ shadow" : {
-
-    },
-    "%@ using Region. Open the menu for another capture or image source." : {
-
-    },
     "%@, %@" : {
       "localizations" : {
         "en" : {
@@ -107,22 +110,22 @@
         }
       }
     },
-    "%@: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@: %2$@"
-          }
-        }
-      }
-    },
     "%@. %@. Folder: %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@. %2$@. Folder: %3$@"
+          }
+        }
+      }
+    },
+    "%@: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: %2$@"
           }
         }
       }
@@ -139,16 +142,6 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$lld %2$@"
-          }
-        }
-      }
-    },
-    "%lld × %lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld × %2$lld"
           }
         }
       }
@@ -218,6 +211,19 @@
     "%lld steps" : {
 
     },
+    "%lld × %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld × %2$lld"
+          }
+        }
+      }
+    },
+    "%lld%%" : {
+
+    },
     "%lld." : {
 
     },
@@ -234,19 +240,7 @@
     "%lld. What will you capture?" : {
 
     },
-    "%lld%%" : {
-
-    },
-    "•" : {
-
-    },
     "+%lld earlier" : {
-
-    },
-    "⌘⇧%@" : {
-
-    },
-    "⌥%lld" : {
 
     },
     "1 Hour" : {
@@ -258,25 +252,25 @@
     "1. What do you want to make?" : {
 
     },
-    "2. How should the video sound?" : {
-
-    },
-    "3 Seconds" : {
-
-    },
-    "5 Minutes" : {
-
-    },
-    "5 Seconds" : {
-
-    },
     "10 Seconds" : {
 
     },
     "15 fps" : {
 
     },
+    "2. How should the video sound?" : {
+
+    },
+    "3 Seconds" : {
+
+    },
     "30 fps · Balanced" : {
+
+    },
+    "5 Minutes" : {
+
+    },
+    "5 Seconds" : {
 
     },
     "60 fps" : {
@@ -297,13 +291,16 @@
     "A composition must retain at least one item." : {
 
     },
-    "a, b, c" : {
-
-    },
     "A, B, C" : {
 
     },
     "A4" : {
+
+    },
+    "APNG" : {
+
+    },
+    "APNG • %@" : {
 
     },
     "About %@" : {
@@ -333,6 +330,30 @@
     "Add" : {
 
     },
+    "Add Capture to SnipSnipSnip Composition" : {
+
+    },
+    "Add Editable Items" : {
+
+    },
+    "Add Here" : {
+
+    },
+    "Add Image" : {
+
+    },
+    "Add Manual Step" : {
+
+    },
+    "Add Region capture to composition" : {
+
+    },
+    "Add Screenshots That Were Not Copied" : {
+
+    },
+    "Add Step" : {
+
+    },
     "Add a soft shadow around screenshots throughout this Guide." : {
 
     },
@@ -354,52 +375,16 @@
     "Add as Step is for putting captures in order, then adding captions and numbers." : {
 
     },
-    "Add Capture to SnipSnipSnip Composition" : {
-
-    },
-    "Add captures in order, then caption and number the steps." : {
-
-    },
-    "Add captures myself" : {
-
-    },
-    "Add Editable Items" : {
-
-    },
-    "Add Existing" : {
-
-    },
     "Add files after this item" : {
 
     },
     "Add files before the first item" : {
 
     },
-    "Add First Step" : {
-
-    },
     "Add from" : {
 
     },
-    "Add Here" : {
-
-    },
-    "Add Image" : {
-
-    },
-    "Add Images" : {
-
-    },
-    "Add Manual Step" : {
-
-    },
-    "Add Region capture to composition" : {
-
-    },
     "Add screenshot shadows" : {
-
-    },
-    "Add Screenshots That Were Not Copied" : {
 
     },
     "Add space around the complete composition." : {
@@ -415,9 +400,6 @@
 
     },
     "Add to favorites." : {
-
-    },
-    "Add…" : {
 
     },
     "Added %@. %lld captures in this result." : {
@@ -443,7 +425,10 @@
     "Added: 0. Failed: %lld." : {
 
     },
-    "Adding an item captured in a Private Capture session permanently marks the entire composition Private, even if that item is later removed. A Private composition remains editable and can be explicitly saved or exported, but it stays out of archive checkpoints, Recent Snips, the Recycle Bin, Clipboard History ingestion, OCR indexing, content diagnostics, and telemetry." : {
+    "Adding an item captured in a Private Capture session permanently marks the entire composition Private, even if that item is later removed. A Private composition remains editable and can be explicitly saved or exported, but it stays out of Snip History, Recent Snips, the Recycle Bin, Clipboard History ingestion, OCR indexing, content diagnostics, and telemetry." : {
+
+    },
+    "Add…" : {
 
     },
     "Adjust" : {
@@ -479,10 +464,10 @@
     "After 1 Day" : {
 
     },
-    "After 7 Days" : {
+    "After 30 Days" : {
 
     },
-    "After 30 Days" : {
+    "After 7 Days" : {
 
     },
     "After 90 Days" : {
@@ -533,7 +518,7 @@
     "Also add screenshots that were not copied" : {
 
     },
-    "Also keeps the source recording for full-motion and action-highlight video exports." : {
+    "Also keeps the source video for full-motion and action-highlight video exports." : {
 
     },
     "Always Capture on Mouse Up" : {
@@ -566,19 +551,13 @@
     "Annotations and redactions apply above every item and below optional Polish. Resize or trim the canvas in Layout." : {
 
     },
-    "APNG" : {
-
-    },
-    "APNG • %@" : {
-
-    },
     "App" : {
 
     },
-    "App audio" : {
+    "App Default" : {
 
     },
-    "App Default" : {
+    "App audio" : {
 
     },
     "Appearance" : {
@@ -596,12 +575,6 @@
     "Applies to every step" : {
 
     },
-    "Apply a compatible built-in or saved template to the current composition." : {
-
-    },
-    "Apply a complete reusable canvas, panel, caption, title, numbering, connector, and comparison appearance." : {
-
-    },
     "Apply A’s Fit or Fill, alignment, zoom, and focal offset to B." : {
 
     },
@@ -609,6 +582,15 @@
 
     },
     "Apply SnipSnipSnip Composition Template" : {
+
+    },
+    "Apply Theme" : {
+
+    },
+    "Apply a compatible built-in or saved template to the current composition." : {
+
+    },
+    "Apply a complete reusable canvas, panel, caption, title, numbering, connector, and comparison appearance." : {
 
     },
     "Apply the %@ Look." : {
@@ -626,19 +608,10 @@
     "Apply the saved %@ template." : {
 
     },
-    "Apply Theme" : {
-
-    },
     "Apply these edits and return to the focused content stage." : {
 
     },
     "Apply to Step" : {
-
-    },
-    "Archive" : {
-
-    },
-    "Archive History" : {
 
     },
     "Arrange" : {
@@ -657,9 +630,6 @@
 
     },
     "Arrangement layouts" : {
-
-    },
-    "Arranging" : {
 
     },
     "Arrow" : {
@@ -710,9 +680,6 @@
     "Automatically copy the current rendered snip after captures and editor changes." : {
 
     },
-    "Autosave history appears here after edits or saves." : {
-
-    },
     "Axis" : {
 
     },
@@ -732,9 +699,6 @@
 
     },
     "Balanced · 30 fps" : {
-
-    },
-    "Before Captured" : {
 
     },
     "Bend the selected arrow into a curved connector." : {
@@ -776,6 +740,15 @@
     "Bring to Front" : {
 
     },
+    "Build Steps manually" : {
+
+    },
+    "Build Steps manually by capturing or importing each step, then add captions and numbering." : {
+
+    },
+    "Build Steps manually, then caption and number them." : {
+
+    },
     "Build a manual step sequence" : {
 
     },
@@ -799,6 +772,9 @@
 
     },
     "Cancel Export" : {
+
+    },
+    "Cancel Next Add Capture for UI Test" : {
 
     },
     "Cancelling an Add, Replace, or Change Goal operation leaves the document unchanged." : {
@@ -828,25 +804,13 @@
     "Capture" : {
 
     },
-    "Capture a fixed region or start interactive region capture with SnipSnipSnip." : {
+    "Capture %@" : {
 
     },
-    "Capture a new image and replace one item in the current editable composition." : {
-
-    },
-    "Capture a replacement while retaining this item’s identity, caption, and anchored annotations." : {
-
-    },
-    "Capture a screenshot" : {
-
-    },
-    "Capture another image and append it to the current editable composition." : {
+    "Capture After" : {
 
     },
     "Capture Before" : {
-
-    },
-    "Capture clicks, scrolling, and shortcuts as an editable step-by-step guide." : {
 
     },
     "Capture Delay" : {
@@ -867,22 +831,10 @@
     "Capture Frontmost" : {
 
     },
-    "Capture Fullscreen" : {
-
-    },
-    "Capture History" : {
-
-    },
-    "Capture history search appears here after you have autosaves, recent snips, or saved checkpoints to search." : {
+    "Capture Frontmost %@" : {
 
     },
     "Capture HUD" : {
-
-    },
-    "Capture one image, then annotate or polish it." : {
-
-    },
-    "Capture or import each step yourself, then add captions and numbering." : {
 
     },
     "Capture Preset" : {
@@ -894,16 +846,19 @@
     "Capture Region" : {
 
     },
+    "Capture Screen" : {
+
+    },
     "Capture Screenshot" : {
 
     },
     "Capture SnipSnipSnip Frontmost Window" : {
 
     },
-    "Capture SnipSnipSnip Fullscreen" : {
+    "Capture SnipSnipSnip Region" : {
 
     },
-    "Capture SnipSnipSnip Region" : {
+    "Capture SnipSnipSnip Screen" : {
 
     },
     "Capture SnipSnipSnip Window" : {
@@ -912,7 +867,31 @@
     "Capture Source" : {
 
     },
-    "Capture Sources" : {
+    "Capture UI Map" : {
+
+    },
+    "Capture Window" : {
+
+    },
+    "Capture a fixed region or start interactive region capture with SnipSnipSnip." : {
+
+    },
+    "Capture a new image and replace one item in the current editable composition." : {
+
+    },
+    "Capture a replacement while retaining this item’s identity, caption, and anchored annotations." : {
+
+    },
+    "Capture a screen with SnipSnipSnip." : {
+
+    },
+    "Capture a screenshot" : {
+
+    },
+    "Capture another image and append it to the current editable composition." : {
+
+    },
+    "Capture clicks, scrolling, and shortcuts as an editable step-by-step guide." : {
 
     },
     "Capture the frontmost eligible window with SnipSnipSnip." : {
@@ -921,19 +900,13 @@
     "Capture the frontmost shareable window immediately." : {
 
     },
-    "Capture the fullscreen target with SnipSnipSnip." : {
-
-    },
     "Capture the selected region immediately when you release the mouse instead of showing Capture and Cancel buttons." : {
 
     },
     "Capture this window." : {
 
     },
-    "Capture UI Map" : {
-
-    },
-    "Capture Window" : {
+    "Capture ⌥⌘S" : {
 
     },
     "Capture, mark up, and share one image." : {
@@ -954,43 +927,25 @@
     "Change History" : {
 
     },
+    "Change History appears here after edits or saves." : {
+
+    },
     "Change how these captures are organized without removing them." : {
 
     },
     "Check Again" : {
       "comment" : "Rechecks a missing macOS permission."
     },
-    "Check for Pro Updates..." : {
+    "Check SnipSnipSnip automation capabilities and permissions." : {
 
     },
-    "Check SnipSnipSnip automation capabilities and permissions." : {
+    "Check for Pro Updates..." : {
 
     },
     "Checking for Pro Updates..." : {
 
     },
     "Choose %@ Folder…" : {
-
-    },
-    "Choose a built-in template for an adaptable Grid, comparison, Steps sequence, or Freeform board. Open Manage Templates to save the current structure and appearance, then rename, duplicate, delete, import, or export it. Saved templates require the same item count; built-in templates adapt to the compatible count. Templates never include captures, item identities, the composition title, or item captions." : {
-
-    },
-    "Choose a Connected Device" : {
-
-    },
-    "Choose a fixed column count, or let Auto determine it." : {
-
-    },
-    "Choose a horizontal or vertical comparison." : {
-
-    },
-    "Choose a ready-made shadow style." : {
-
-    },
-    "Choose a specific comparison method." : {
-
-    },
-    "Choose a step to preview and edit it." : {
 
     },
     "Choose Add in a one-image Screenshot. The chooser explains each result: Compare shows Before and After together or highlights changes; Add as Step puts captures in order for captions and numbering; Combine arranges captures and images as one result. Region is ready by default, and the menu can preselect another source. The purpose changes only after the source is added successfully, and Undo returns to the original Screenshot. Later additions inherit the purpose without asking again. Option-Command-A invokes the same contextual action." : {
@@ -1008,16 +963,16 @@
     "Choose Before" : {
 
     },
-    "Choose Create when you want help starting a Screenshot, Comparison, Process, or Combined Image. Region, Window, and Full Screen remain one-action Screenshot shortcuts." : {
+    "Choose Create when you want to capture a Screenshot, compare two versions, explain a process, or make a Combined Image. Region, Window, and Screen remain one-action Screenshot shortcuts." : {
 
     },
     "Choose Edit Selected Capture, double-click an item, or press Return to crop and annotate only that source. Done returns to the same goal stage with the item selected. Press Option-Return to adjust framing, then Escape to finish." : {
 
     },
-    "Choose exactly how many included steps appear on each PDF page." : {
+    "Choose First Image" : {
 
     },
-    "Choose export folder" : {
+    "Choose First Step" : {
 
     },
     "Choose Folder" : {
@@ -1029,10 +984,7 @@
     "Choose Freeform for an unconstrained crop, or a fixed aspect ratio for new crop drags and crop handle resizing." : {
 
     },
-    "Choose how Guide should follow your work. You’ll select the exact target after Start Guide." : {
-
-    },
-    "Choose how the redaction selection is rendered." : {
+    "Choose Image" : {
 
     },
     "Choose Location…" : {
@@ -1044,10 +996,43 @@
     "Choose Mockup Folder..." : {
 
     },
-    "Choose one or more formats, then choose where to save them." : {
+    "Choose Window" : {
 
     },
-    "Choose Region, Window, Screen, or Add Existing. Add Existing includes files, the clipboard, Recent Snips, Capture History, and Archive. More and Fine-tune keep specialized sources and optional capture settings out of the main decision." : {
+    "Choose a Connected Device" : {
+
+    },
+    "Choose a built-in template for an adaptable Grid, comparison, Steps sequence, or Freeform board. Open Manage Templates to save the current structure and appearance, then rename, duplicate, delete, import, or export it. Saved templates require the same item count; built-in templates adapt to the compatible count. Templates never include captures, item identities, the composition title, or item captions." : {
+
+    },
+    "Choose a fixed column count, or let Auto determine it." : {
+
+    },
+    "Choose a horizontal or vertical comparison." : {
+
+    },
+    "Choose a ready-made shadow style." : {
+
+    },
+    "Choose a specific comparison method." : {
+
+    },
+    "Choose a step to preview and edit it." : {
+
+    },
+    "Choose exactly how many included steps appear on each PDF page." : {
+
+    },
+    "Choose export folder" : {
+
+    },
+    "Choose how Guide should follow your work. You’ll select the exact target after Start Guide." : {
+
+    },
+    "Choose how the redaction selection is rendered." : {
+
+    },
+    "Choose one or more formats, then choose where to save them." : {
 
     },
     "Choose the After or B item." : {
@@ -1086,7 +1071,7 @@
     "Choose what to make and what Guide should follow." : {
 
     },
-    "Choose what viewers should hear. You can change either source from the Guide controls while recording." : {
+    "Choose what viewers should hear. You can change either source from the Guide controls while capturing." : {
 
     },
     "Choose what you are making. Images you add later will use the same choice." : {
@@ -1098,6 +1083,9 @@
     "Choose what you want to make, then see only the controls that help finish it." : {
 
     },
+    "Choose where the first image will come from: Region, Window, Screen, or Existing Image. Existing Image includes files, the clipboard, and the Snip Library. More ways to capture and Fine-tune keep specialized acquisition methods and optional settings out of the main decision." : {
+
+    },
     "Choose whether newly captured steps mark where the action happened. You can change this later for any individual step." : {
 
     },
@@ -1107,37 +1095,16 @@
     "Choose whether region capture shows a full-screen crosshair, the magnifying glass, or both during region capture." : {
 
     },
-    "Choose Window" : {
-
-    },
     "Circle" : {
 
     },
     "Clear" : {
 
     },
-    "Clear all clipboard history?" : {
-
-    },
-    "Clear Archive" : {
-
-    },
-    "Clear Clipboard History" : {
-
-    },
     "Clear Selection" : {
 
     },
     "Clear the distance measurement." : {
-
-    },
-    "Clear unpinned clipboard history" : {
-
-    },
-    "Clear unpinned clipboard history?" : {
-
-    },
-    "Clear Unpinned History" : {
 
     },
     "Click a thumbnail to inspect a snapshot before restoring it." : {
@@ -1176,10 +1143,10 @@
     "Close Screen Inspector" : {
 
     },
-    "Close the current connected-device preview before starting another connected-device session." : {
+    "Close the Recycle Bin." : {
 
     },
-    "Close the recycle bin." : {
+    "Close the current connected-device preview before starting another connected-device session." : {
 
     },
     "Close these details and retry every failed file at its original composition destination." : {
@@ -1204,9 +1171,6 @@
 
     },
     "Collect captures and images, then arrange them together." : {
-
-    },
-    "Collecting" : {
 
     },
     "Collection" : {
@@ -1266,10 +1230,10 @@
     "Comparison" : {
 
     },
-    "Comparison consistently uses Before and After. Show Both starts with side-by-side output, Highlight Changes uses automatic registration and local change detection, and Alternate switches between the images. More Options retains Overlay, Wipe, Difference, Blink, sensitivity, unchanged-content dimming, outline or pattern cues, timing, and poster-frame controls. Manual offsets remain available if automatic alignment is not reliable. Reduced Motion stops automatic Blink preview without changing exported timing." : {
+    "Comparison Mode" : {
 
     },
-    "Comparison Mode" : {
+    "Comparison consistently uses Before and After. Show Both starts with side-by-side output, Highlight Changes uses automatic registration and local change detection, and Alternate switches between the images. More Options retains Overlay, Wipe, Difference, Blink, sensitivity, unchanged-content dimming, outline or pattern cues, timing, and poster-frame controls. Manual offsets remain available if automatic alignment is not reliable. Reduced Motion stops automatic Blink preview without changing exported timing." : {
 
     },
     "Compatible composition templates" : {
@@ -1281,9 +1245,6 @@
     "Composition Axis" : {
 
     },
-    "Composition canvas" : {
-
-    },
     "Composition Editing" : {
 
     },
@@ -1291,6 +1252,9 @@
       "comment" : "Accessibility label for the ordered capture panel list in Layers."
     },
     "Composition Layout" : {
+
+    },
+    "Composition canvas" : {
 
     },
     "Configure comparison behavior for the current SnipSnipSnip composition." : {
@@ -1317,10 +1281,10 @@
     "Continue to Guide" : {
 
     },
-    "Control how strongly freehand strokes are curved during rendering." : {
+    "Control SnipSnipSnip Guide" : {
 
     },
-    "Control SnipSnipSnip Guide" : {
+    "Control how strongly freehand strokes are curved during rendering." : {
 
     },
     "Copied" : {
@@ -1333,9 +1297,6 @@
 
     },
     "Copy" : {
-
-    },
-    "Copy current workspace output" : {
 
     },
     "Copy Edited" : {
@@ -1360,6 +1321,9 @@
 
     },
     "Copy Text" : {
+
+    },
+    "Copy current workspace output" : {
 
     },
     "Copy the current callouts as a numbered step guide." : {
@@ -1398,9 +1362,6 @@
     "Couldn’t Update Launch at Login" : {
 
     },
-    "Create a Guide" : {
-
-    },
     "Create Captions Automatically" : {
 
     },
@@ -1419,6 +1380,12 @@
     "Crosshair" : {
 
     },
+    "Current Display" : {
+
+    },
+    "Current Size" : {
+
+    },
     "Current app" : {
 
     },
@@ -1431,9 +1398,6 @@
     "Current crop width and height in pixels." : {
 
     },
-    "Current Display" : {
-
-    },
     "Current fill color." : {
 
     },
@@ -1444,9 +1408,6 @@
 
     },
     "Current picker color." : {
-
-    },
-    "Current Size" : {
 
     },
     "Current workflow" : {
@@ -1479,19 +1440,25 @@
     "Delete" : {
 
     },
+    "Delete All" : {
+
+    },
+    "Delete Selected Layers" : {
+
+    },
+    "Delete Theme" : {
+
+    },
+    "Delete Unpinned Items" : {
+
+    },
     "Delete every history snapshot for this snip." : {
 
     },
     "Delete every recent snip except the one currently open." : {
 
     },
-    "Delete Forever" : {
-
-    },
     "Delete preset." : {
-
-    },
-    "Delete Selected Layers" : {
 
     },
     "Delete the selected steps. Deleted steps remain available to restore from their context menu." : {
@@ -1500,13 +1467,7 @@
     "Delete the selected user template." : {
 
     },
-    "Delete Theme" : {
-
-    },
-    "Delete this capture and all of its checkpoints." : {
-
-    },
-    "Delete Unpinned Items" : {
+    "Delete this Snip History item and all of its checkpoints." : {
 
     },
     "Deleted" : {
@@ -1515,13 +1476,13 @@
     "Deleted Items" : {
 
     },
-    "Deleted snips stay here temporarily and can be restored before the recycle bin is emptied." : {
-
-    },
-    "Deleted snips will appear here until retention expires or you empty the recycle bin." : {
-
-    },
     "Deleted Step" : {
+
+    },
+    "Deleted snips stay here temporarily and can be restored before the Recycle Bin is emptied." : {
+
+    },
+    "Deleted snips will appear here until retention expires or you empty the Recycle Bin." : {
 
     },
     "Details…" : {
@@ -1567,6 +1528,9 @@
       "comment" : "Accessibility label for dismissing an editor notice."
     },
     "Display" : {
+
+    },
+    "Display for Screen Capture" : {
 
     },
     "Distribute" : {
@@ -1638,6 +1602,9 @@
     "Each captured step starts with a number. You can hide it for an individual step in the editor." : {
 
     },
+    "Edit" : {
+
+    },
     "Edit Next Item" : {
 
     },
@@ -1666,9 +1633,6 @@
 
     },
     "Editable SnipSnipSnip Document" : {
-
-    },
-    "Editing" : {
 
     },
     "Editor" : {
@@ -1705,22 +1669,25 @@
         }
       }
     },
-    "Empty Now" : {
+    "Empty Recycle Bin" : {
 
     },
     "Enable Clipboard History" : {
 
     },
-    "Enable clipboard history in Settings > Library > Clipboard." : {
+    "Enable Global Shortcuts" : {
 
     },
-    "Enable Global Capture Hotkeys" : {
+    "Enable Private Capture for UI Test" : {
 
     },
     "Enable Single-Key Tool Shortcuts" : {
 
     },
     "Enable UI Map for Window captures" : {
+
+    },
+    "Enable clipboard history in Settings > Snip Library > Clipboard." : {
 
     },
     "Enabled" : {
@@ -1754,6 +1721,9 @@
     "Excluded" : {
 
     },
+    "Existing Image" : {
+
+    },
     "Expand permission setup and diagnostics." : {
 
     },
@@ -1766,16 +1736,22 @@
     "Export" : {
 
     },
+    "Export %@…" : {
+
+    },
     "Export & Sharing" : {
 
     },
-    "Export %@…" : {
+    "Export APNG" : {
 
     },
     "Export Action Highlights MP4" : {
 
     },
-    "Export APNG" : {
+    "Export Blink Comparison for UI Test" : {
+
+    },
+    "Export Comparison Poster for UI Test" : {
 
     },
     "Export Composition" : {
@@ -1805,9 +1781,6 @@
     "Export Images" : {
 
     },
-    "Export interactive HTML" : {
-
-    },
     "Export JSON..." : {
 
     },
@@ -1820,7 +1793,16 @@
     "Export SnipSnipSnip Composition" : {
 
     },
+    "Export Steps Outputs for UI Test" : {
+
+    },
     "Export Steps as multiple PDF pages." : {
+
+    },
+    "Export ZIP" : {
+
+    },
+    "Export interactive HTML" : {
 
     },
     "Export stills, pages, and animation" : {
@@ -1829,10 +1811,10 @@
     "Export structured UI Map metadata for debugging or review." : {
 
     },
-    "Export the current multi-capture composition after all pending rendering and comparison work finishes." : {
+    "Export the current SnipSnipSnip screenshot to a file." : {
 
     },
-    "Export the current SnipSnipSnip screenshot to a file." : {
+    "Export the current multi-capture composition after all pending rendering and comparison work finishes." : {
 
     },
     "Export the output currently shown in this workspace." : {
@@ -1847,12 +1829,6 @@
     "Export the trimmed video using MP4, GIF, APNG, or another available format." : {
 
     },
-    "Export ZIP" : {
-
-    },
-    "Export…" : {
-
-    },
     "Exported %@ to %@." : {
       "localizations" : {
         "en" : {
@@ -1864,6 +1840,9 @@
       }
     },
     "Exporting Guide" : {
+
+    },
+    "Export…" : {
 
     },
     "Extra smooth · 60 fps" : {
@@ -1947,9 +1926,6 @@
     "Font" : {
 
     },
-    "For a Process, choose Record as I work to continue to Guide, or Add captures myself to build manual Steps." : {
-
-    },
     "Format" : {
 
     },
@@ -1977,10 +1953,10 @@
     "Freeze or unfreeze the inspector. Shortcut: Option-Command-F." : {
 
     },
-    "Frontmost Window" : {
+    "Frontmost %@" : {
 
     },
-    "Frontmost Window Capture" : {
+    "Frontmost Window" : {
 
     },
     "Full Motion MP4" : {
@@ -1992,19 +1968,10 @@
     "Full Motion MP4 and Action Highlights require source video." : {
 
     },
-    "Full Screen" : {
+    "GIF" : {
 
     },
-    "Full Screen Capture" : {
-
-    },
-    "Fullscreen Display" : {
-
-    },
-    "Fullscreen Recording" : {
-
-    },
-    "Fullscreen Screenshot" : {
+    "GIF • %@" : {
 
     },
     "General" : {
@@ -2013,19 +1980,13 @@
     "Get SnipSnipSnip Automation Status" : {
 
     },
-    "GIF" : {
-
-    },
-    "GIF • %@" : {
-
-    },
     "Give selected sections more or less space relative to the other items." : {
 
     },
     "Give the item a reusable semantic role for comparison, steps, and accessible output." : {
 
     },
-    "Global Capture Hotkeys" : {
+    "Global Shortcuts" : {
 
     },
     "Grid" : {
@@ -2052,19 +2013,13 @@
     "Guide Action" : {
 
     },
+    "Guide Capturing" : {
+
+    },
     "Guide Export" : {
 
     },
-    "Guide records your workflow and creates editable steps automatically." : {
-
-    },
     "Guide remains separate from the manual Steps workflow. Guide can also capture source video, audio, actions, and markers." : {
-
-    },
-    "Guide will ask which app, window, or screen to record next." : {
-
-    },
-    "Guide will record your workflow and build editable steps." : {
 
     },
     "H" : {
@@ -2097,9 +2052,6 @@
     "Hide All" : {
 
     },
-    "Hide desktop icons" : {
-
-    },
     "Hide Desktop Icons" : {
 
     },
@@ -2112,13 +2064,16 @@
     "Hide Setup" : {
 
     },
+    "Hide UI Map outlines for unselected elements." : {
+
+    },
+    "Hide desktop icons" : {
+
+    },
     "Hide this exploration card." : {
 
     },
     "Hide this window and choose a window directly from an on-screen overlay." : {
-
-    },
-    "Hide UI Map outlines for unselected elements." : {
 
     },
     "Highlight Color" : {
@@ -2160,9 +2115,6 @@
     "How long this step appears in step-based animated and video exports." : {
 
     },
-    "i, ii, iii" : {
-
-    },
     "I, II, III" : {
 
     },
@@ -2184,13 +2136,31 @@
     "Ignored Apps" : {
 
     },
-    "image" : {
-
-    },
-    "images" : {
-
-    },
     "Immediate" : {
+
+    },
+    "Import Before" : {
+
+    },
+    "Import Details" : {
+
+    },
+    "Import First Step" : {
+
+    },
+    "Import Image" : {
+
+    },
+    "Import Images" : {
+
+    },
+    "Import Images…" : {
+
+    },
+    "Import Image…" : {
+
+    },
+    "Import Results" : {
 
     },
     "Import a composition template and bind it to the current item count." : {
@@ -2206,18 +2176,6 @@
         }
       }
     },
-    "Import Details" : {
-
-    },
-    "Import Image…" : {
-
-    },
-    "Import Images…" : {
-
-    },
-    "Import Results" : {
-
-    },
     "Import results. %@" : {
       "localizations" : {
         "en" : {
@@ -2228,16 +2186,13 @@
         }
       }
     },
-    "Import…" : {
-
-    },
     "Important" : {
 
     },
-    "Include" : {
+    "Import…" : {
 
     },
-    "Include at least two items before applying this comparison template." : {
+    "Include" : {
 
     },
     "Include Cursor" : {
@@ -2246,10 +2201,19 @@
     "Include Cursor as Editable Overlay" : {
 
     },
-    "Include in exports" : {
+    "Include Menu Bar in Screen Guides" : {
 
     },
-    "Include Menu Bar in Display Guides" : {
+    "Include Pointer" : {
+
+    },
+    "Include UI Map for Window Captures" : {
+
+    },
+    "Include at least two items before applying this comparison template." : {
+
+    },
+    "Include in exports" : {
 
     },
     "Include or mute microphone narration for this recording only." : {
@@ -2258,25 +2222,19 @@
     "Include or mute system audio for this recording only." : {
 
     },
-    "Include Pointer" : {
-
-    },
-    "Include the macOS menu bar in full-display still steps and source video. This setting has no effect on window, app, or area captures." : {
+    "Include the macOS menu bar in still steps and source video when capturing a screen. This setting has no effect on window, app, or region captures." : {
 
     },
     "Include the menu bar" : {
 
     },
-    "Include UI Map for Window Captures" : {
-
-    },
     "Included" : {
 
     },
-    "Insert an image overlay." : {
+    "Insert Image" : {
 
     },
-    "Insert Image" : {
+    "Insert an image overlay." : {
 
     },
     "Inspector" : {
@@ -2309,13 +2267,13 @@
     "Item Actions" : {
 
     },
-    "Item alignment" : {
-
-    },
     "Item Annotation Scope" : {
       "comment" : "Accessibility label for choosing which composition item's annotations appear in Layers."
     },
     "Item ID" : {
+
+    },
+    "Item alignment" : {
 
     },
     "Item layer commands" : {
@@ -2336,6 +2294,15 @@
     "Keep A and B framing changes synchronized." : {
 
     },
+    "Keep Full-Motion Source Video" : {
+
+    },
+    "Keep Off" : {
+
+    },
+    "Keep Views Linked" : {
+
+    },
     "Keep a small, cancellable export status window open while files are generated." : {
 
     },
@@ -2345,12 +2312,6 @@
     "Keep framing synchronized among the selected linked items." : {
 
     },
-    "Keep Full-Motion Source Video" : {
-
-    },
-    "Keep Off" : {
-
-    },
     "Keep selected items in the document while including or excluding them from this layout." : {
 
     },
@@ -2358,9 +2319,6 @@
 
     },
     "Keep this UI Map overlay visible in copied, shared, and exported screenshots." : {
-
-    },
-    "Keep Views Linked" : {
 
     },
     "Keeps the menu bar capture actions and global shortcuts ready after login." : {
@@ -2411,12 +2369,6 @@
     "Length" : {
 
     },
-    "Library" : {
-
-    },
-    "Library Page" : {
-
-    },
     "Line" : {
 
     },
@@ -2450,10 +2402,10 @@
     "Look Name" : {
 
     },
-    "Looking for connected devices…" : {
+    "Looking for Devices..." : {
 
     },
-    "Looking for Devices..." : {
+    "Looking for connected devices…" : {
 
     },
     "Looks" : {
@@ -2465,16 +2417,22 @@
     "Loop" : {
 
     },
-    "lowercase" : {
+    "MP4 Quality" : {
 
     },
-    "macOS groups screenshot access under Screen Recording. SnipSnipSnip captures only when you choose a capture or recording action." : {
+    "MP4 Size Limit" : {
+
+    },
+    "MP4 Video" : {
 
     },
     "Major Tick Every: %lld" : {
 
     },
     "Make Default for New Guides…" : {
+
+    },
+    "Make Next Add Capture Stale for UI Test" : {
 
     },
     "Manage" : {
@@ -2507,10 +2465,10 @@
     "Marker handles" : {
 
     },
-    "Mask secure fields" : {
+    "Mask Secure Fields" : {
 
     },
-    "Mask Secure Fields" : {
+    "Mask secure fields" : {
 
     },
     "Match Framing" : {
@@ -2519,10 +2477,10 @@
     "Match Size" : {
 
     },
-    "Max Archive Size: %lld MB" : {
+    "Maximum Item Size: %lld MB" : {
 
     },
-    "Maximum Item Size: %lld MB" : {
+    "Maximum Snip History Size: %lld MB" : {
 
     },
     "Maximum Unpinned Items: %lld" : {
@@ -2558,16 +2516,19 @@
     "Monitoring" : {
 
     },
-    "More actions" : {
-
-    },
-    "More capture sources" : {
+    "Monitoring Paused" : {
 
     },
     "More Options" : {
 
     },
+    "More actions" : {
+
+    },
     "More tools to explore" : {
+
+    },
+    "More ways to capture" : {
 
     },
     "Move %@" : {
@@ -2588,14 +2549,14 @@
     "Move Earlier" : {
       "comment" : "Moves the selected composition item toward the beginning of its ordered sequence."
     },
+    "Move Later" : {
+      "comment" : "Moves the selected composition item toward the end of its ordered sequence."
+    },
     "Move item down" : {
 
     },
     "Move item up" : {
 
-    },
-    "Move Later" : {
-      "comment" : "Moves the selected composition item toward the end of its ordered sequence."
     },
     "Move over a UI element in the screenshot to preview it, then click to pin it." : {
 
@@ -2619,15 +2580,6 @@
 
     },
     "Move to End" : {
-
-    },
-    "MP4 Quality" : {
-
-    },
-    "MP4 Size Limit" : {
-
-    },
-    "MP4 Video" : {
 
     },
     "My narration" : {
@@ -2657,28 +2609,13 @@
     "Next Item" : {
       "comment" : "Moves the Item layer scope to the next capture panel."
     },
-    "No audio" : {
-
-    },
-    "No available running apps" : {
-
-    },
     "No Capturable %@" : {
-
-    },
-    "No captures matched the current search." : {
 
     },
     "No Clipboard Items" : {
 
     },
     "No Connected Devices" : {
-
-    },
-    "No deleted snips." : {
-
-    },
-    "No help topics found" : {
 
     },
     "No Polish" : {
@@ -2693,13 +2630,28 @@
     "No Selection" : {
 
     },
-    "No shareable windows are currently available. Open an app window, then refresh." : {
-
-    },
     "No Shortcut" : {
 
     },
+    "No Snip History items matched the current search." : {
+
+    },
     "No Step Selected" : {
+
+    },
+    "No audio" : {
+
+    },
+    "No available running apps" : {
+
+    },
+    "No deleted snips." : {
+
+    },
+    "No help topics found" : {
+
+    },
+    "No shareable windows are currently available. Open an app window, then refresh." : {
 
     },
     "No valid mockups found. Add SVG mockups to the User folder or reload after restoring bundled examples." : {
@@ -2747,10 +2699,10 @@
     "Nudge up" : {
 
     },
-    "Number each step" : {
+    "Number Only" : {
 
     },
-    "Number Only" : {
+    "Number each step" : {
 
     },
     "Number style" : {
@@ -2774,31 +2726,16 @@
     "Open %@" : {
 
     },
-    "Open a larger preview of this deleted snip." : {
-
-    },
-    "Open a live connected-device preview. macOS may ask for Camera access because trusted iPhone and iPad screens are exposed as video sources." : {
-
-    },
-    "Open an editable SnipSnipSnip .sss document." : {
-
-    },
     "Open Capture Access Help" : {
 
     },
     "Open Capture Window" : {
 
     },
-    "Open deleted snips. Deleted items can be restored until the recycle bin is emptied or retention expires." : {
-
-    },
     "Open Editor" : {
 
     },
     "Open Help Guide" : {
-
-    },
-    "Open in Finder" : {
 
     },
     "Open Link" : {
@@ -2808,9 +2745,6 @@
 
     },
     "Open Login Items in System Settings" : {
-
-    },
-    "Open optional settings for video smoothness, pointer visibility, desktop cleanup, instructions, and privacy." : {
 
     },
     "Open Screen Inspector" : {
@@ -2834,6 +2768,21 @@
     "Open Support Page" : {
 
     },
+    "Open a larger preview of this deleted snip." : {
+
+    },
+    "Open a live connected-device preview. macOS may ask for Camera access because trusted iPhone and iPad screens are exposed as video sources." : {
+
+    },
+    "Open an editable SnipSnipSnip .sss document." : {
+
+    },
+    "Open deleted snips. Deleted items can be restored until the Recycle Bin is emptied or retention expires." : {
+
+    },
+    "Open optional settings for video smoothness, pointer visibility, desktop cleanup, instructions, and privacy." : {
+
+    },
     "Open the %@ you want to follow, then return to Guide setup and try again." : {
 
     },
@@ -2843,22 +2792,22 @@
     "Open the full screenshot editor for this step." : {
 
     },
-    "Open the most recent autosaved session in the editor." : {
-
-    },
     "Open the most recent Guide that was autosaved before an interruption." : {
 
     },
-    "Open this capture in the editor." : {
+    "Open the most recent autosaved session in the editor." : {
+
+    },
+    "Open this Snip History item in the editor." : {
 
     },
     "Open this snapshot in an always-on-top floating reference window." : {
 
     },
-    "Open…" : {
+    "Opening an editable multi-item .sss restores its Comparison, Steps, or Combined Image purpose and focused content stage." : {
 
     },
-    "Opening an editable multi-item .sss restores its Comparison, Steps, or Combined Image purpose and focused content stage." : {
+    "Open…" : {
 
     },
     "Optional UUID of the composition item after which to insert." : {
@@ -2906,57 +2855,6 @@
     "Overwrite" : {
 
     },
-    "Padded" : {
-
-    },
-    "Paginate PDF" : {
-
-    },
-    "Paste" : {
-
-    },
-    "Paste adds an item while Arrange owns focus, an item overlay while Edit Selected Capture is active, and a whole-result overlay while Annotate Result is active." : {
-
-    },
-    "Paste Image" : {
-
-    },
-    "Paste into the active editing scope" : {
-
-    },
-    "Pattern Spacing" : {
-
-    },
-    "Pause" : {
-
-    },
-    "Pause comparison preview" : {
-
-    },
-    "Pause for 1 Hour" : {
-
-    },
-    "Pause for 5 Minutes" : {
-
-    },
-    "Pause Guide" : {
-
-    },
-    "Pause playback." : {
-
-    },
-    "Pause the Before and After preview." : {
-
-    },
-    "Pause the recording." : {
-
-    },
-    "Pause Until Restart" : {
-
-    },
-    "Paused" : {
-
-    },
     "PDF" : {
 
     },
@@ -2972,10 +2870,97 @@
     "PDF…" : {
 
     },
-    "Permanently delete every item currently in the recycle bin." : {
+    "PNG" : {
 
     },
-    "Permanently delete this snip from the recycle bin." : {
+    "PNG…" : {
+
+    },
+    "Padded" : {
+
+    },
+    "Paginate PDF" : {
+
+    },
+    "Paste" : {
+
+    },
+    "Paste Before" : {
+
+    },
+    "Paste First Image" : {
+
+    },
+    "Paste First Step" : {
+
+    },
+    "Paste Image" : {
+
+    },
+    "Paste adds an item while Arrange owns focus, an item overlay while Edit Selected Capture is active, and a whole-result overlay while Annotate Result is active." : {
+
+    },
+    "Paste into the active editing scope" : {
+
+    },
+    "Pattern Spacing" : {
+
+    },
+    "Pause" : {
+
+    },
+    "Pause Guide" : {
+
+    },
+    "Pause Monitoring" : {
+
+    },
+    "Pause Monitoring Until Restart" : {
+
+    },
+    "Pause Monitoring for 1 Hour" : {
+
+    },
+    "Pause Monitoring for 5 Minutes" : {
+
+    },
+    "Pause comparison preview" : {
+
+    },
+    "Pause playback." : {
+
+    },
+    "Pause the Before and After preview." : {
+
+    },
+    "Pause the recording." : {
+
+    },
+    "Permanently Delete" : {
+
+    },
+    "Permanently Delete Clipboard History" : {
+
+    },
+    "Permanently Delete Snip History and Empty Recycle Bin" : {
+
+    },
+    "Permanently Delete Unpinned Items" : {
+
+    },
+    "Permanently delete Clipboard History?" : {
+
+    },
+    "Permanently delete every item currently in the Recycle Bin." : {
+
+    },
+    "Permanently delete this snip from the Recycle Bin." : {
+
+    },
+    "Permanently delete unpinned Clipboard History items" : {
+
+    },
+    "Permanently delete unpinned Clipboard History items?" : {
 
     },
     "Permission Diagnostics" : {
@@ -3002,19 +2987,19 @@
     "Pinned" : {
 
     },
-    "Pinned items will be kept. This action cannot be undone." : {
+    "Pinned Only" : {
 
     },
-    "Pinned Only" : {
+    "Pinned UI Map Overlay Defaults" : {
+
+    },
+    "Pinned items will be kept. This action cannot be undone." : {
 
     },
     "Pinned overlays are included when copying, sharing, or exporting." : {
 
     },
     "Pinned overlays are included when you copy, share, or export the screenshot." : {
-
-    },
-    "Pinned UI Map Overlay Defaults" : {
 
     },
     "Place captions above, below, over, or outside the item content." : {
@@ -3047,19 +3032,7 @@
     "Playhead" : {
 
     },
-    "PNG" : {
-
-    },
-    "PNG…" : {
-
-    },
     "Polish" : {
-
-    },
-    "Polish — Look" : {
-
-    },
-    "Polish — Mockup" : {
 
     },
     "Polish configured · %@" : {
@@ -3069,6 +3042,12 @@
 
     },
     "Polish step instructions on this Mac" : {
+
+    },
+    "Polish — Look" : {
+
+    },
+    "Polish — Mockup" : {
 
     },
     "Portrait" : {
@@ -3125,12 +3104,6 @@
     "Private" : {
 
     },
-    "Private and optional" : {
-
-    },
-    "Private by design" : {
-
-    },
     "Private Capture" : {
 
     },
@@ -3140,10 +3113,16 @@
     "Private Composition remains private even if its private source is removed." : {
 
     },
-    "Private compositions" : {
+    "Private Guide" : {
 
     },
-    "Private Guide" : {
+    "Private and optional" : {
+
+    },
+    "Private by design" : {
+
+    },
+    "Private compositions" : {
 
     },
     "Private source" : {
@@ -3170,28 +3149,16 @@
     "Recent Snips" : {
 
     },
-    "Recent snips appear here when a newer capture replaces the current editor session." : {
+    "Recent Sources" : {
 
     },
-    "Recent Sources" : {
+    "Recent snips appear here when a newer capture replaces the current editor session." : {
 
     },
     "Recognized Text" : {
 
     },
-    "Record a workflow or assemble numbered steps." : {
-
-    },
-    "Record as I work" : {
-
-    },
     "Record Connected Device" : {
-
-    },
-    "Record Full Screen" : {
-
-    },
-    "Record Fullscreen" : {
 
     },
     "Record Microphone" : {
@@ -3200,13 +3167,31 @@
     "Record Region" : {
 
     },
+    "Record Screen" : {
+
+    },
     "Record System Audio" : {
 
     },
     "Record Window" : {
 
     },
+    "Record a Guide" : {
+
+    },
+    "Record a Guide or build numbered Steps manually." : {
+
+    },
+    "Record a Guide while you work; editable steps are created automatically." : {
+
+    },
+    "Record a Guide; it will build editable steps from your workflow." : {
+
+    },
     "Recording" : {
+
+    },
+    "Recording Sources" : {
 
     },
     "Recover Interrupted Guide" : {
@@ -3254,9 +3239,6 @@
     "Region" : {
 
     },
-    "Region Capture" : {
-
-    },
     "Region Capture Overlay" : {
 
     },
@@ -3281,13 +3263,13 @@
     "Remove Finder files and folders from the desktop in captured steps and source video. App windows are still captured normally." : {
 
     },
-    "Remove from favorites." : {
-
-    },
     "Remove Logo" : {
 
     },
     "Remove Mockup" : {
+
+    },
+    "Remove from favorites." : {
 
     },
     "Remove selected items" : {
@@ -3347,7 +3329,7 @@
     "Required capture access" : {
 
     },
-    "Required for screenshot pixels, live window thumbnails, fullscreen capture, and video recording." : {
+    "Required for screenshot pixels, live window thumbnails, screen capture, and video recording." : {
 
     },
     "Reserve caption space below each step." : {
@@ -3359,9 +3341,6 @@
     "Reset All Settings to Defaults" : {
 
     },
-    "Reset all settings to defaults?" : {
-
-    },
     "Reset Comparison" : {
 
     },
@@ -3371,10 +3350,13 @@
     "Reset Framing" : {
 
     },
-    "Reset opacity to 100%." : {
+    "Reset Settings" : {
 
     },
-    "Reset Settings" : {
+    "Reset all settings to defaults?" : {
+
+    },
+    "Reset opacity to 100%." : {
 
     },
     "Reset to Default Folder" : {
@@ -3395,9 +3377,6 @@
     "Restore" : {
 
     },
-    "Restore comparison controls while preserving the current A and B choices." : {
-
-    },
     "Restore Default Ignored Apps" : {
 
     },
@@ -3405,6 +3384,9 @@
 
     },
     "Restore Snapshot" : {
+
+    },
+    "Restore comparison controls while preserving the current A and B choices." : {
 
     },
     "Restore the document to this history snapshot." : {
@@ -3425,7 +3407,7 @@
     "Resume Guide" : {
 
     },
-    "Resume Now" : {
+    "Resume Monitoring" : {
 
     },
     "Resume the recording." : {
@@ -3434,7 +3416,7 @@
     "Retry Failed" : {
 
     },
-    "Return to Create a Guide." : {
+    "Return to Record a Guide." : {
 
     },
     "Reuse a composition template" : {
@@ -3446,13 +3428,16 @@
     "Reveal App" : {
 
     },
-    "Reveal in Finder" : {
-
-    },
     "Reveal Mockup Folder" : {
 
     },
     "Reveal User Folder" : {
+
+    },
+    "Reveal in Finder" : {
+
+    },
+    "Review" : {
 
     },
     "Review Comparison" : {
@@ -3488,16 +3473,16 @@
     "Row" : {
 
     },
-    "Run a saved SnipSnipSnip capture preset." : {
-
-    },
     "Run Preset" : {
 
     },
-    "Run saved screenshot capture presets or save the last capture as a preset." : {
+    "Run SnipSnipSnip Capture Preset" : {
 
     },
-    "Run SnipSnipSnip Capture Preset" : {
+    "Run a saved SnipSnipSnip capture preset." : {
+
+    },
+    "Run saved screenshot capture presets or save the last capture as a preset." : {
 
     },
     "Run this workflow." : {
@@ -3515,19 +3500,10 @@
     "Save" : {
 
     },
-    "Save a repeatable capture workflow. You can open it for review, copy it, or export it directly to a folder." : {
-
-    },
     "Save As…" : {
 
     },
-    "Save available names, roles, identifiers, and locations of visible interface elements when capturing a window." : {
-
-    },
     "Save Capture Preset" : {
-
-    },
-    "Save changes before continuing?" : {
 
     },
     "Save Current" : {
@@ -3539,10 +3515,25 @@
     "Save Last Capture as Preset..." : {
 
     },
-    "Save layout structure and appearance without images, item identities, titles, or captions." : {
+    "Save Look" : {
 
     },
-    "Save Look" : {
+    "Save Theme" : {
+
+    },
+    "Save a repeatable capture workflow. You can open it for review, copy it, or export it directly to a folder." : {
+
+    },
+    "Save and Reopen Composition for UI Test" : {
+
+    },
+    "Save available names, roles, identifiers, and locations of visible interface elements when capturing a window." : {
+
+    },
+    "Save changes before continuing?" : {
+
+    },
+    "Save layout structure and appearance without images, item identities, titles, or captions." : {
 
     },
     "Save supported copied items in an encrypted history protected by Keychain." : {
@@ -3552,9 +3543,6 @@
 
     },
     "Save the current Polish settings as a variant in this .sss document." : {
-
-    },
-    "Save Theme" : {
 
     },
     "Save these annotations on this Guide step and return to the Guide editor." : {
@@ -3570,6 +3558,9 @@
 
     },
     "Screen" : {
+
+    },
+    "Screen Capture" : {
 
     },
     "Screen Inspector" : {
@@ -3590,6 +3581,9 @@
     "Screen Ruler" : {
 
     },
+    "Screen Source" : {
+
+    },
     "Screenshot" : {
 
     },
@@ -3599,31 +3593,28 @@
     "Screenshot Capture Settings" : {
 
     },
+    "Screenshot Format" : {
+
+    },
     "Screenshot capture unavailable" : {
       "comment" : "Compact permission status shown while a document is open."
     },
     "Screenshot copied to the clipboard." : {
 
     },
-    "Screenshot Format" : {
-
-    },
     "Scroll" : {
-
-    },
-    "Scrolling Capture" : {
 
     },
     "Scrolling Content" : {
 
     },
-    "Search captures" : {
+    "Search Help" : {
+
+    },
+    "Search Snip History" : {
 
     },
     "Search clipboard history" : {
-
-    },
-    "Search Help" : {
 
     },
     "Search name, role, label, or identifier" : {
@@ -3653,19 +3644,19 @@
     "Select %@. Shift-click or Command-click to extend the selection." : {
 
     },
-    "Select a mockup to edit its framing and text." : {
+    "Select All" : {
 
     },
     "Select a Step" : {
 
     },
-    "Select a step, or choose Guide to edit shared styling." : {
-
-    },
     "Select a UI Map element in the panel, or switch to Pin UI Map to pin elements directly from the screenshot." : {
 
     },
-    "Select All" : {
+    "Select a mockup to edit its framing and text." : {
+
+    },
+    "Select a step, or choose Guide to edit shared styling." : {
 
     },
     "Selected" : {
@@ -3698,13 +3689,22 @@
     "Set Layout" : {
 
     },
-    "Set reference opacity. Click anywhere on the track or drag the knob." : {
-
-    },
     "Set SnipSnipSnip Comparison Mode" : {
 
     },
     "Set SnipSnipSnip Composition Layout" : {
+
+    },
+    "Set Up" : {
+      "comment" : "Action that starts setup for a missing macOS permission."
+    },
+    "Set Up Next" : {
+
+    },
+    "Set Up Screen Recording" : {
+
+    },
+    "Set reference opacity. Click anywhere on the track or drag the knob." : {
 
     },
     "Set the arrow label background color. Transparent keeps the label unboxed." : {
@@ -3740,9 +3740,6 @@
     "Set the text size for text and callout annotations." : {
 
     },
-    "Set Up" : {
-      "comment" : "Action that starts setup for a missing macOS permission."
-    },
     "Set up macOS %@ permission for %@." : {
       "localizations" : {
         "en" : {
@@ -3757,12 +3754,6 @@
 
     },
     "Set up macOS Screen Recording permission for %@." : {
-
-    },
-    "Set Up Next" : {
-
-    },
-    "Set Up Screen Recording" : {
 
     },
     "Set up the next missing macOS privacy permission for %@." : {
@@ -3795,6 +3786,72 @@
     "Show %@" : {
 
     },
+    "Show All" : {
+
+    },
+    "Show Before and After together or highlight what changed." : {
+
+    },
+    "Show Before/After Labels" : {
+
+    },
+    "Show Captions" : {
+
+    },
+    "Show Crosshair" : {
+
+    },
+    "Show Cursor" : {
+
+    },
+    "Show Cursor in Still Steps" : {
+
+    },
+    "Show Guide Inspector" : {
+
+    },
+    "Show Half Markers" : {
+
+    },
+    "Show Inspector" : {
+
+    },
+    "Show Layers" : {
+
+    },
+    "Show Mouse Clicks" : {
+
+    },
+    "Show Mouse Distance" : {
+
+    },
+    "Show Onboarding" : {
+
+    },
+    "Show Onboarding Again" : {
+
+    },
+    "Show Out-of-Capture Crosshatch" : {
+
+    },
+    "Show Pixel Grid" : {
+
+    },
+    "Show Recent Step Previews" : {
+
+    },
+    "Show Screen Inspector" : {
+
+    },
+    "Show Step Captions" : {
+
+    },
+    "Show UI Map" : {
+
+    },
+    "Show UI Map outlines for captured controls and leaf elements without changing the screenshot." : {
+
+    },
     "Show a brief pulse at clicks in video exports. Crosshairs on still steps are controlled per step." : {
 
     },
@@ -3807,37 +3864,16 @@
     "Show action crosshairs" : {
 
     },
-    "Show All" : {
-
-    },
     "Show all captured elements" : {
 
     },
-    "Show Before and After together or highlight what changed." : {
-
-    },
-    "Show Before/After Labels" : {
-
-    },
     "Show bundle identifier" : {
-
-    },
-    "Show Captions" : {
 
     },
     "Show click pulses in video" : {
 
     },
     "Show coordinates" : {
-
-    },
-    "Show Crosshair" : {
-
-    },
-    "Show Cursor" : {
-
-    },
-    "Show Cursor in Still Steps" : {
 
     },
     "Show dimensions" : {
@@ -3849,19 +3885,7 @@
     "Show export progress window" : {
 
     },
-    "Show Guide Inspector" : {
-
-    },
-    "Show Half Markers" : {
-
-    },
     "Show identifier" : {
-
-    },
-    "Show Inspector" : {
-
-    },
-    "Show Layers" : {
 
     },
     "Show manual setup steps below if macOS does not list %@." : {
@@ -3870,19 +3894,7 @@
     "Show marker" : {
 
     },
-    "Show Mouse Clicks" : {
-
-    },
-    "Show Mouse Distance" : {
-
-    },
     "Show name" : {
-
-    },
-    "Show Onboarding" : {
-
-    },
-    "Show Onboarding Again" : {
 
     },
     "Show only pinned UI Map elements in the tree, keeping parent rows for context." : {
@@ -3892,9 +3904,6 @@
 
     },
     "Show or hide the number on this step's card and marker." : {
-
-    },
-    "Show Out-of-Capture Crosshatch" : {
 
     },
     "Show outline" : {
@@ -3909,22 +3918,10 @@
     "Show parent hierarchy" : {
 
     },
-    "Show Pixel Grid" : {
-
-    },
-    "Show Recent Step Previews" : {
-
-    },
     "Show role" : {
 
     },
-    "Show Screen Inspector" : {
-
-    },
     "Show source" : {
-
-    },
-    "Show Step Captions" : {
 
     },
     "Show step number" : {
@@ -3934,12 +3931,6 @@
 
     },
     "Show the selected element outline in pinned UI Map overlays." : {
-
-    },
-    "Show UI Map" : {
-
-    },
-    "Show UI Map outlines for captured controls and leaf elements without changing the screenshot." : {
 
     },
     "Show value" : {
@@ -3957,6 +3948,12 @@
     "Simplify" : {
 
     },
+    "Simulate Add-Here Drop for UI Test" : {
+
+    },
+    "Simulate Replace-Item Drop for UI Test" : {
+
+    },
     "Size" : {
 
     },
@@ -3966,7 +3963,19 @@
     "Smoothing" : {
 
     },
-    "Snip ⌥⌘S" : {
+    "Snip History" : {
+
+    },
+    "Snip History Storage" : {
+
+    },
+    "Snip History appears here after you have autosaves, recent snips, or saved checkpoints to search." : {
+
+    },
+    "Snip Library" : {
+
+    },
+    "Snip Library Page" : {
 
     },
     "Soft" : {
@@ -3990,19 +3999,13 @@
     "Standard · 216 dpi" : {
 
     },
-    "Start · App" : {
-
-    },
-    "Start · Display" : {
-
-    },
-    "Start · Region" : {
-
-    },
-    "Start · Window" : {
-
-    },
     "Start %@ automatically when I log in" : {
+
+    },
+    "Start Guide" : {
+
+    },
+    "Start a Screenshot, compare two versions, explain a process, or combine images." : {
 
     },
     "Start a new Screenshot, Comparison, Steps, or Combined Image." : {
@@ -4011,19 +4014,28 @@
     "Start a screen video recording." : {
 
     },
-    "Start a Screenshot, compare two versions, explain a process, or combine images." : {
-
-    },
     "Start at %lld" : {
-
-    },
-    "Start Guide" : {
 
     },
     "Start interactive window capture with SnipSnipSnip." : {
 
     },
     "Start with Before, then add After and review what changed." : {
+
+    },
+    "Start with one image, then annotate or polish it." : {
+
+    },
+    "Start · App" : {
+
+    },
+    "Start · Region" : {
+
+    },
+    "Start · Screen" : {
+
+    },
+    "Start · Window" : {
 
     },
     "Start, control, stop, or export a SnipSnipSnip Guide." : {
@@ -4036,9 +4048,6 @@
 
     },
     "Status" : {
-
-    },
-    "step" : {
 
     },
     "Step" : {
@@ -4081,9 +4090,6 @@
     "Step-by-step guide" : {
 
     },
-    "steps" : {
-
-    },
     "Steps" : {
 
     },
@@ -4115,13 +4121,10 @@
     "Stop" : {
 
     },
-    "Stop and save the recording." : {
-
-    },
-    "Stop Guide" : {
-
-    },
     "Stop Recording" : {
+
+    },
+    "Stop and save the recording." : {
 
     },
     "Style" : {
@@ -4175,7 +4178,7 @@
     "Theme Name" : {
 
     },
-    "There are no captures in this source yet." : {
+    "There are no Snip Library items yet." : {
 
     },
     "These choices apply only to this creation and do not change your capture defaults." : {
@@ -4184,7 +4187,7 @@
     "This cursor was captured as an editable overlay. Move, resize, or delete it like any other image overlay." : {
 
     },
-    "This keeps your current documents and archive contents, but it restores settings values to their shipped defaults." : {
+    "This keeps your current documents, Snip History, and Recycle Bin contents, but it restores settings values to their shipped defaults." : {
 
     },
     "This permanently removes pinned and unpinned clipboard items from this Mac." : {
@@ -4226,6 +4229,9 @@
     "Title Weight" : {
 
     },
+    "To explain a process, choose Record a Guide for action-aware capture or Build Steps manually to add and caption each step yourself." : {
+
+    },
     "Toggle Selection" : {
 
     },
@@ -4247,6 +4253,12 @@
     "Triangle" : {
 
     },
+    "Trim Video" : {
+
+    },
+    "Trim Whitespace" : {
+
+    },
     "Trim end" : {
 
     },
@@ -4254,12 +4266,6 @@
 
     },
     "Trim to Items" : {
-
-    },
-    "Trim Video" : {
-
-    },
-    "Trim Whitespace" : {
 
     },
     "Try the failed files again at their original composition destination." : {
@@ -4272,6 +4278,24 @@
 
     },
     "UI Map" : {
+
+    },
+    "UI Testing" : {
+
+    },
+    "UPPERCASE" : {
+
+    },
+    "US Letter" : {
+
+    },
+    "UUID of the composition item to replace." : {
+
+    },
+    "UUID of the item after which to insert when Capture Destination is Append." : {
+
+    },
+    "UUID of the item to replace when Capture Destination is Replace." : {
 
     },
     "Undo" : {
@@ -4304,16 +4328,7 @@
     "Update" : {
 
     },
-    "UPPERCASE" : {
-
-    },
-    "US Letter" : {
-
-    },
     "Use Add… in the current workflow bar." : {
-
-    },
-    "Use as Image" : {
 
     },
     "Use Default Location" : {
@@ -4325,6 +4340,18 @@
     "Use Editable Capture" : {
 
     },
+    "Use Screen Inspector" : {
+
+    },
+    "Use Start Frame as Poster" : {
+
+    },
+    "Use Steps to arrange captures you already have. Use Guide to record a workflow automatically." : {
+
+    },
+    "Use as Image" : {
+
+    },
     "Use equal sections or let each item have its own proportional weight." : {
 
     },
@@ -4334,12 +4361,6 @@
     "Use source colors" : {
 
     },
-    "Use Start Frame as Poster" : {
-
-    },
-    "Use Steps to arrange captures you already have. Use Guide to record a workflow automatically." : {
-
-    },
     "Use the trim start frame as the package poster frame." : {
 
     },
@@ -4347,18 +4368,6 @@
 
     },
     "Uses Region. Open the menu for another capture or image source." : {
-
-    },
-    "UUID of the composition item to replace." : {
-
-    },
-    "UUID of the item after which to insert when Capture Destination is Append." : {
-
-    },
-    "UUID of the item to replace when Capture Destination is Replace." : {
-
-    },
-    "v%lld" : {
 
     },
     "Value from 0 through 1." : {
@@ -4385,13 +4394,13 @@
     "Vertically" : {
 
     },
+    "Video" : {
+
+    },
     "Video Error" : {
 
     },
     "Video Export" : {
-
-    },
-    "Video Recording" : {
 
     },
     "Video smoothness" : {
@@ -4421,7 +4430,10 @@
     "When capture finishes" : {
 
     },
-    "While a screenshot document is open, the header names its purpose and the next useful action: Capture After, Capture Next Step, Add Image, Review Changes, Order & Caption, Arrange, or Back to Content. Global Capture-menu commands and shortcuts continue creating new Screenshot documents." : {
+    "Where will the first image come from?" : {
+
+    },
+    "While a screenshot document is open, the header names its purpose and the next useful action: Capture After, Add Step, Add Image, Review Changes, Order & Caption, Arrange, or Back to Content. Global Capture-menu commands and shortcuts continue creating new Screenshot documents." : {
 
     },
     "Width" : {
@@ -4431,9 +4443,6 @@
 
     },
     "Window" : {
-
-    },
-    "Window Capture" : {
 
     },
     "Window UI Map needs Accessibility access before metadata can be captured." : {
@@ -4463,10 +4472,13 @@
     "You can replay this setup from Settings > General." : {
 
     },
-    "You’ll always get editable steps. Choose whether to keep the full recording too." : {
+    "Your Guide will ask which app, window, or screen to capture." : {
 
     },
     "Your capture settings are still in place. Choose the quickest way to continue." : {
+
+    },
+    "You’ll always get editable steps. Choose whether to keep the full-motion source video too." : {
 
     },
     "ZIP" : {
@@ -4475,19 +4487,55 @@
     "Zoom" : {
 
     },
-    "Zoom content inside the selected item frame." : {
-
-    },
     "Zoom In" : {
-
-    },
-    "Zoom in, zoom out, show actual size, fit the image, or resize the window as zoom changes." : {
 
     },
     "Zoom Level" : {
 
     },
     "Zoom Out" : {
+
+    },
+    "Zoom content inside the selected item frame." : {
+
+    },
+    "Zoom in, zoom out, show actual size, fit the image, or resize the window as zoom changes." : {
+
+    },
+    "a, b, c" : {
+
+    },
+    "i, ii, iii" : {
+
+    },
+    "image" : {
+
+    },
+    "images" : {
+
+    },
+    "lowercase" : {
+
+    },
+    "macOS groups screenshot access under Screen Recording. SnipSnipSnip captures only when you choose a capture or recording action." : {
+
+    },
+    "step" : {
+
+    },
+    "steps" : {
+
+    },
+    "v%lld" : {
+
+    },
+    "•" : {
+
+    },
+    "⌘⇧%@" : {
+
+    },
+    "⌥%lld" : {
 
     }
   },

@@ -152,7 +152,7 @@ struct ScreenRecordingService {
 
         return try await startRecording(
             kind: .region,
-            sourceName: "Region",
+            sourceName: WorkflowVocabulary.Source.region,
             bounds: normalizedRegion,
             target: target,
             configuration: configuration,

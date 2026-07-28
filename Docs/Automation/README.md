@@ -145,7 +145,7 @@ result schemas. Layout and compatible-template commands may activate Steps or
 Combined Image directly from a one-image Screenshot as one undoable change;
 Comparison still requires two included images.
 Appending a Private Capture taints the entire composition as private; private
-compositions stay out of archive, recovery, search, OCR/AI indexing, clipboard
+compositions stay out of Snip History, recovery, search, OCR/AI indexing, clipboard
 history, and recent-item surfaces.
 
 Layout automation uses:
@@ -221,7 +221,7 @@ exported through the normal document workflow. An explicit UI Map capture
 option likewise returns `proFeatureRequired`; ordinary Window capture is
 unchanged.
 
-Private Guide skips archive/search/indexing and background OCR or AI refinement. Automation never receives screenshot, OCR, caption, window-title, or path content in diagnostics.
+Private Guide skips Snip History, search, indexing, and background OCR or AI refinement. Automation never receives screenshot, OCR, caption, window-title, or path content in diagnostics.
 
 Supported flags:
 
@@ -326,7 +326,7 @@ Available actions:
 - Get SnipSnipSnip Automation Status
 - List SnipSnipSnip Capture Presets
 - Run SnipSnipSnip Capture Preset
-- Capture SnipSnipSnip Fullscreen
+- Capture SnipSnipSnip Screen
 - Capture SnipSnipSnip Frontmost Window
 - Capture SnipSnipSnip Region
 - Capture SnipSnipSnip Window

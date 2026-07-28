@@ -221,8 +221,10 @@ struct RunCapturePresetIntent: @preconcurrency AutomationPerformingIntent {
 }
 
 struct CaptureFullscreenIntent: @preconcurrency AutomationPerformingIntent {
-    static let title: LocalizedStringResource = "Capture SnipSnipSnip Fullscreen"
-    static let description = IntentDescription("Capture the fullscreen target with SnipSnipSnip.")
+    static let title: LocalizedStringResource = "Capture SnipSnipSnip Screen"
+    static let description = IntentDescription(
+        "Capture a screen with SnipSnipSnip."
+    )
 
     @Dependency(default: AutomationIntentClient.unavailable)
     private var client: AutomationIntentClient
@@ -738,7 +740,7 @@ struct AddCaptureToCompositionIntent: @preconcurrency AutomationPerformingIntent
     @Parameter(title: "Capture Source")
     var source: AutomationIntentCompositionCaptureSource?
 
-    @Parameter(title: "Fullscreen Display")
+    @Parameter(title: "Display")
     var display: AutomationIntentFullscreenDisplayMode?
 
     @Parameter(title: "Append After Item ID", description: "Optional UUID of the composition item after which to insert.")
@@ -793,7 +795,7 @@ struct ReplaceCompositionItemIntent: @preconcurrency AutomationPerformingIntent 
     @Parameter(title: "Capture Source")
     var source: AutomationIntentCompositionCaptureSource?
 
-    @Parameter(title: "Fullscreen Display")
+    @Parameter(title: "Display")
     var display: AutomationIntentFullscreenDisplayMode?
 
     @Parameter(title: "Private Capture")
@@ -1096,10 +1098,10 @@ struct SnipSnipSnipAutomationShortcuts: AppShortcutsProvider {
         AppIntents.AppShortcut(
             intent: CaptureFullscreenIntent(),
             phrases: [
-                "Capture fullscreen with \(.applicationName)",
-                "Take a fullscreen snip with \(.applicationName)"
+                "Capture a screen with \(.applicationName)",
+                "Take a screen snip with \(.applicationName)"
             ],
-            shortTitle: "Capture Fullscreen",
+            shortTitle: "Capture Screen",
             systemImageName: "macwindow"
         )
 

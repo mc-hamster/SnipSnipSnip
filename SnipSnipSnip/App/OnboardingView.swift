@@ -327,7 +327,7 @@ struct OnboardingView: View {
                     Spacer(minLength: 12)
                 }
 
-                Text("Required for screenshot pixels, live window thumbnails, fullscreen capture, and video recording.")
+                Text("Required for screenshot pixels, live window thumbnails, screen capture, and video recording.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -505,8 +505,8 @@ struct OnboardingView: View {
         }
         if capabilities.isEnabled(.screenRecording) {
             features.append(OnboardingFeature(
-                title: "Screen Recording",
-                detail: "Record a display or window with audio.",
+                title: "Video",
+                detail: "Record a screen or window with audio.",
                 systemImage: "record.circle"
             ))
         }
@@ -519,8 +519,8 @@ struct OnboardingView: View {
         }
         if capabilities.isEnabled(.recovery) {
             features.append(OnboardingFeature(
-                title: "Recovery",
-                detail: "Restore recent work and deleted snips.",
+                title: WorkflowVocabulary.Library.snipLibrary,
+                detail: "Find recent work, restore interrupted sessions, and recover deleted snips.",
                 systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90"
             ))
         }
@@ -697,7 +697,7 @@ struct OnboardingView: View {
 
     private var defaultCaptureShortcutEntries: [ShortcutCatalogEntry] {
         AppShortcut.catalogSections
-            .first { $0.title == "Default Global Capture" }
+            .first { $0.title == "Default Global Shortcuts" }
             .map { Array($0.entries.prefix(3)) } ?? []
     }
 

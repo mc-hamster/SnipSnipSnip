@@ -159,7 +159,8 @@ struct ContentView: View {
             if let plan = creation.pendingExistingSourcePlan {
                 CreationExistingSourcePickerView(
                     sourceTitle: pendingExistingSourceTitle(plan),
-                    entries: pendingExistingSourceEntries(plan),
+                    recentEntries: pendingExistingSourceRecentEntries(plan),
+                    historyEntries: pendingExistingSourceHistoryEntries(plan),
                     onChoose: { entry, flattened in
                         let didCreate = documents.createDocument(
                             from: entry,
@@ -472,9 +473,9 @@ struct ContentView: View {
         case .recentSnips:
             return "Choose a Recent Snip"
         case .captureHistory:
-            return "Choose from Capture History"
+            return "Choose from \(WorkflowVocabulary.Library.snipLibrary)"
         case .archive:
-            return "Choose from Archive"
+            return "Choose from \(WorkflowVocabulary.Library.snipLibrary)"
         case .files:
             return "Choose a File"
         case .clipboard:
@@ -482,7 +483,21 @@ struct ContentView: View {
         }
     }
 
-    private func pendingExistingSourceEntries(
+    private func pendingExistingSourceRecentEntries(
+        _ plan: CreationPlan
+    ) -> [DocumentHistoryEntry] {
+        guard case .existing(let source) = plan.source else {
+            return []
+        }
+        switch source {
+        case .recentSnips, .captureHistory, .archive:
+            return documents.recentSnipEntries
+        case .files, .clipboard:
+            return []
+        }
+    }
+
+    private func pendingExistingSourceHistoryEntries(
         _ plan: CreationPlan
     ) -> [DocumentHistoryEntry] {
         guard case .existing(let source) = plan.source else {
@@ -490,13 +505,9 @@ struct ContentView: View {
         }
         switch source {
         case .recentSnips:
-            return documents.recentSnipEntries
-        case .captureHistory:
-            return latestEntriesBySession(
-                from: documents.allCaptureHistoryEntries
-            )
-        case .archive:
-            return documents.compositionArchiveEntries
+            return []
+        case .captureHistory, .archive:
+            return documents.snipLibraryEntries
         case .files, .clipboard:
             return []
         }
@@ -740,9 +751,21 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 8) {
                             createButton
-                            captureButton(title: "Region", systemImage: "selection.pin.in.out", action: capture.captureRegion)
-                            captureButton(title: "Full", systemImage: "macwindow", action: capture.captureCurrentDisplay)
-                            captureButton(title: "Window", systemImage: "rectangle.on.rectangle", action: captureWindowFromHeader)
+                            captureButton(
+                                title: WorkflowVocabulary.Source.region,
+                                systemImage: "selection.pin.in.out",
+                                action: capture.captureRegion
+                            )
+                            captureButton(
+                                title: WorkflowVocabulary.Source.window,
+                                systemImage: "rectangle.on.rectangle",
+                                action: captureWindowFromHeader
+                            )
+                            captureButton(
+                                title: WorkflowVocabulary.Source.screen,
+                                systemImage: "macwindow",
+                                action: capture.captureCurrentDisplay
+                            )
                         }
 
                         HStack(spacing: 8) {
@@ -766,9 +789,9 @@ struct ContentView: View {
     @ViewBuilder
     private var captureHeaderActionButtons: some View {
         createButton
-        captureButton(title: "Region", systemImage: "selection.pin.in.out", action: capture.captureRegion)
-        captureButton(title: "Full", systemImage: "macwindow", action: capture.captureCurrentDisplay)
-        captureButton(title: "Window", systemImage: "rectangle.on.rectangle", action: captureWindowFromHeader)
+        captureButton(title: WorkflowVocabulary.Source.region, systemImage: "selection.pin.in.out", action: capture.captureRegion)
+        captureButton(title: WorkflowVocabulary.Source.window, systemImage: "rectangle.on.rectangle", action: captureWindowFromHeader)
+        captureButton(title: WorkflowVocabulary.Source.screen, systemImage: "macwindow", action: capture.captureCurrentDisplay)
         if capabilities.isEnabled(.scrollingCapture) {
             captureButton(title: "Scroll", systemImage: "arrow.down.to.line", action: capture.captureScrollingArea)
         }
@@ -899,7 +922,7 @@ struct ContentView: View {
 
             case .steps:
                 sessionAdditionMenu(
-                    "Capture Next Step",
+                    "Add Step",
                     systemImage: "plus.rectangle.on.rectangle",
                     controller: controller
                 )
@@ -1018,19 +1041,22 @@ struct ContentView: View {
     private func sessionAdditionMenuContent(
         _ actions: CompositionAddActions
     ) -> some View {
-        Button("Region", systemImage: "viewfinder") {
+        Button(WorkflowVocabulary.Source.region, systemImage: "viewfinder") {
             requestContextualAddition(.region)
         }
-        Button("Window", systemImage: "macwindow") {
+        Button(WorkflowVocabulary.Source.window, systemImage: "macwindow") {
             requestContextualAddition(.window)
         }
         Button(
-            "Frontmost Window",
+            "Frontmost \(WorkflowVocabulary.Source.window)",
             systemImage: "macwindow.on.rectangle"
         ) {
             requestContextualAddition(.frontmostWindow)
         }
-        Button("Full Screen", systemImage: "rectangle.inset.filled") {
+        Button(
+            WorkflowVocabulary.Source.screen,
+            systemImage: "rectangle.inset.filled"
+        ) {
             requestContextualAddition(.fullScreen)
         }
         Button("Repeat", systemImage: "arrow.clockwise") {
@@ -1062,7 +1088,10 @@ struct ContentView: View {
         }
 
         if !actions.connectedDevices.isEmpty {
-            Menu("Connected Device", systemImage: "iphone.gen3") {
+            Menu(
+                WorkflowVocabulary.Source.connectedDevice,
+                systemImage: "iphone.gen3"
+            ) {
                 ForEach(actions.connectedDevices) { source in
                     Button(source.title) {
                         requestContextualAddition(
@@ -1090,24 +1119,25 @@ struct ContentView: View {
         Button("Paste Image", systemImage: "doc.on.clipboard") {
             requestContextualAddition(.pasteImage)
         }
-        sessionHistorySourceMenu(
-            "Recent Snips",
-            systemImage: "clock",
-            sources: actions.recentSnips,
-            source: { .recentSnip($0, flattened: $1) }
-        )
-        sessionHistorySourceMenu(
-            "Capture History",
-            systemImage: "clock.arrow.circlepath",
-            sources: actions.captureHistory,
-            source: { .captureHistory($0, flattened: $1) }
-        )
-        sessionHistorySourceMenu(
-            "Archive",
-            systemImage: "archivebox",
-            sources: actions.archive,
-            source: { .archive($0, flattened: $1) }
-        )
+        if !actions.recentSnips.isEmpty || !actions.captureHistory.isEmpty {
+            Menu(
+                WorkflowVocabulary.Library.snipLibrary,
+                systemImage: "books.vertical"
+            ) {
+                sessionHistorySourceMenu(
+                    WorkflowVocabulary.Library.recentSnips,
+                    systemImage: "clock",
+                    sources: actions.recentSnips,
+                    source: { .recentSnip($0, flattened: $1) }
+                )
+                sessionHistorySourceMenu(
+                    WorkflowVocabulary.Library.snipHistory,
+                    systemImage: "clock.arrow.circlepath",
+                    sources: actions.captureHistory,
+                    source: { .captureHistory($0, flattened: $1) }
+                )
+            }
+        }
     }
 
     @ViewBuilder
@@ -1370,9 +1400,11 @@ struct ContentView: View {
     private var explorationFeatureNames: [String] {
         var names: [String] = []
         if capabilities.isEnabled(.guideCapture) { names.append("Guide") }
-        if capabilities.isEnabled(.screenRecording) { names.append("Screen Recording") }
+        if capabilities.isEnabled(.screenRecording) { names.append("Video") }
         if capabilities.isEnabled(.presentation) { names.append("Polish") }
-        if capabilities.isEnabled(.recovery) { names.append("Recovery") }
+        if capabilities.isEnabled(.recovery) {
+            names.append(WorkflowVocabulary.Library.snipLibrary)
+        }
         if capabilities.isEnabled(.uiMap) { names.append("UI Map") }
         if capabilities.isEnabled(.automation) { names.append("Automation") }
         return names
@@ -1380,7 +1412,7 @@ struct ContentView: View {
 
     private var windowCaptureCard: some View {
         CaptureModeCard(
-            title: "Window Capture",
+            title: "Capture \(WorkflowVocabulary.Source.window)",
             systemImage: "rectangle.on.rectangle",
             detail: "Click a live window thumbnail to capture it directly, or use on-screen picking for crowded desktops."
         ) {
@@ -1491,12 +1523,12 @@ struct ContentView: View {
 
     private var captureHistoryCard: some View {
         CaptureModeCard(
-            title: "Search Capture History",
+            title: WorkflowVocabulary.Library.snipLibrary,
             systemImage: "text.magnifyingglass",
-            detail: "Search labels, document names, annotations, and recognized text across captures, including recent unsaved snips."
+            detail: "Find Recent Snips and search labels, document names, annotations, and recognized text across Snip History."
         ) {
             VStack(alignment: .leading, spacing: 14) {
-                TextField("Search captures", text: captureHistorySearchBinding)
+                TextField("Search Snip History", text: captureHistorySearchBinding)
                     .textFieldStyle(.roundedBorder)
 
                 Text(captureHistoryResultsLabel)
@@ -1504,11 +1536,13 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
 
                 if documents.allCaptureHistoryEntries.isEmpty {
-                    Text("Capture history search appears here after you have autosaves, recent snips, or saved checkpoints to search.")
+                    Text(
+                        "\(WorkflowVocabulary.Library.snipHistory) appears here after you have autosaves, recent snips, or saved checkpoints to search."
+                    )
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 } else if visibleCaptureHistoryEntries.isEmpty {
-                    Text("No captures matched the current search.")
+                    Text("No Snip History items matched the current search.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 } else {
@@ -1548,7 +1582,7 @@ struct ContentView: View {
                                     documents.restoreHistoryEntry(entry)
                                 }
                                 .buttonStyle(.glass)
-                                .help("Open this capture in the editor.")
+                                .help("Open this Snip History item in the editor.")
 
                                 Button(role: .destructive) {
                                     documents.deleteCaptureHistorySession(entry)
@@ -1556,7 +1590,7 @@ struct ContentView: View {
                                     Label("Delete", systemImage: "trash")
                                 }
                                 .buttonStyle(.glass)
-                                .help("Delete this capture and all of its checkpoints.")
+                                .help("Delete this Snip History item and all of its checkpoints.")
                             }
                         }
                     }
@@ -1574,10 +1608,12 @@ struct ContentView: View {
         let count = visibleCaptureHistoryEntries.count
 
         guard !query.isEmpty else {
-            return "Recent captures, autosaves, and shelved snips from every session."
+            return "Recent Snips, autosaves, and shelved snips from every session."
         }
 
-        return count == 1 ? "1 capture for \"\(query)\"" : "\(count) captures for \"\(query)\""
+        return count == 1
+            ? "1 Snip History item for \"\(query)\""
+            : "\(count) Snip History items for \"\(query)\""
     }
 
     private var captureHistorySearchBinding: Binding<String> {
@@ -1607,7 +1643,7 @@ struct ContentView: View {
         CaptureModeCard(
             title: "Recycle Bin",
             systemImage: "trash",
-            detail: "Deleted snips stay recoverable here until the recycle bin is emptied or retention expires."
+            detail: "Deleted snips stay recoverable here until the Recycle Bin is emptied or retention expires."
         ) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
@@ -1617,10 +1653,10 @@ struct ContentView: View {
 
                     Spacer(minLength: 12)
 
-                    Button("Empty Now", role: .destructive, action: documents.emptyRecycleBin)
+                    Button("Empty Recycle Bin", role: .destructive, action: documents.emptyRecycleBin)
                         .buttonStyle(.glass)
                         .disabled(documents.recycleBinEntries.isEmpty)
-                        .help("Permanently delete every item currently in the recycle bin.")
+                        .help("Permanently delete every item currently in the Recycle Bin.")
                 }
 
                 ForEach(Array(documents.recycleBinEntries.prefix(6))) { entry in
@@ -1692,7 +1728,7 @@ struct ContentView: View {
                 .disabled(capture.isConnectedDeviceSessionActive)
             Button("Record Window", action: video.presentVideoWindowPicker)
                 .disabled(capture.isConnectedDeviceSessionActive)
-            Button("Record Fullscreen", action: video.recordCurrentDisplay)
+            Button("Record Screen", action: video.recordCurrentDisplay)
                 .disabled(capture.isConnectedDeviceSessionActive)
             if capabilities.isEnabled(.connectedDeviceCapture) {
                 Menu("Record Connected Device") {
@@ -1728,7 +1764,9 @@ struct ContentView: View {
     private var guideButtonTitle: String {
         if guide.isDiscarding { return "Discarding Guide…" }
         if guide.isFinishing { return "Finishing Guide…" }
-        return guide.isActive ? "Stop Guide" : "Guide"
+        return guide.isActive
+            ? "Stop Guide"
+            : WorkflowVocabulary.Instructions.recordGuide
     }
 
     private func headerActionLabel(title: String, systemImage: String, accent: Color = .accentColor, showsChevron: Bool = false) -> some View {
@@ -1753,11 +1791,11 @@ struct ContentView: View {
 
     private func captureButtonHelpText(for title: String) -> String {
         switch title {
-        case "Region":
+        case WorkflowVocabulary.Source.region:
             return "Drag to capture a selected region of the screen."
-        case "Full", "Fullscreen", "Full Screen":
+        case WorkflowVocabulary.Source.screen:
             return capture.screenshotFullscreenDisplayMode.detail
-        case "Window":
+        case WorkflowVocabulary.Source.window:
             if capabilities.isEnabled(.uiMap), capture.uiMapEnabled {
                 return "Open quick window capture choices. UI Map enabled for Window captures."
             }

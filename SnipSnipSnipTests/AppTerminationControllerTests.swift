@@ -229,7 +229,7 @@ final class AppTerminationControllerTests: XCTestCase {
             purpose: .quit
         )
 
-        XCTAssertEqual(alert.buttons.map(\.title), ["Stop & Quit", "Keep Recording in Background", "Cancel"])
+        XCTAssertEqual(alert.buttons.map(\.title), ["Stop & Quit", "Keep Capturing in Background", "Cancel"])
         XCTAssertTrue(alert.informativeText.contains("saved for recovery"))
     }
 

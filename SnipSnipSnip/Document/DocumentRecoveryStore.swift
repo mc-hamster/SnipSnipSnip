@@ -247,7 +247,7 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
     }
 
     /// Keeps pre-private checkpoints on disk while removing the session from
-    /// Recovery, Recent Snips, Capture History, Archive, Recycle Bin, and
+    /// Recovery, Recent Snips, Snip History, Recycle Bin, and
     /// search presentation. The standalone tombstone is committed before the
     /// mutable session record so an older writer can never clear the exclusion.
     func excludeSessionFromPresentation(_ sessionID: UUID) throws {

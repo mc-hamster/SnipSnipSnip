@@ -328,9 +328,12 @@ struct PresentationInspectorView: View {
         if controller.workflowStage != .polishing {
             if let composition = controller.composition {
                 let included = composition.items.filter(\.isIncluded).count
-                return "\(composition.items.count) captures • \(included) included • \(controller.workflowStage.label)"
+                let stage = controller.documentPurpose.stageLabel(
+                    for: controller.workflowStage
+                )
+                return "\(composition.items.count) captures • \(included) included • \(stage)"
             }
-            return "\(controller.documentPurpose.label) • \(controller.workflowStage.label)"
+            return "\(controller.documentPurpose.label) • \(controller.documentPurpose.stageLabel(for: controller.workflowStage))"
         }
 
         if !controller.hasStyledOutputConfigured {

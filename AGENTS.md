@@ -20,7 +20,9 @@ description: "Workspace instructions for implementing SnipSnipSnip as a local-fi
 
 ## Design Language
 - Before changing user-visible SwiftUI or AppKit UI, read and follow `Docs/DesignLanguage.md`.
+- Before changing any user-visible workflow term, label, status, Help copy, accessibility text, Settings text, or automation display name, read and follow `Docs/WorkflowLexicon.md`.
 - Treat the design-language rules as required unless the user explicitly requests a different design direction.
+- Treat `Docs/WorkflowLexicon.md` as the canonical product vocabulary. When adding or changing a product concept, update the lexicon and every affected user-visible surface in the same change.
 - Prefer native macOS structure, controls, materials, colors, focus, and accessibility behavior over custom visual chrome.
 - If a change introduces or alters a reusable visual pattern or a custom Glass/fixed-dark exception, update `Docs/DesignLanguage.md` in the same change.
 - When navigation, labels, action placement, or workflows change, update the in-app Help guide in the same change.

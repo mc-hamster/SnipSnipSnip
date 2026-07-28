@@ -50,10 +50,26 @@ final class CreationWorkflowModel: ObservableObject {
     }
 
     var availableExistingSources: [CreationExistingSource] {
-        CreationExistingSource.allCases.filter {
+        let available = CreationExistingSource.allCases.filter {
             CreationDraft(
                 source: .existing($0)
             ).normalized(for: capabilities).source == .existing($0)
+        }
+        let hasHistorySource = available.contains(.captureHistory)
+
+        return available.filter {
+            // Recent Snips and retained checkpoints are presented through one
+            // Snip Library source. Keep legacy cases decodable, and retain the
+            // Archive-backed source as a fallback for capability snapshots
+            // that do not expose recovery history.
+            switch $0 {
+            case .recentSnips:
+                return false
+            case .archive:
+                return !hasHistorySource
+            case .files, .clipboard, .captureHistory:
+                return true
+            }
         }
     }
 

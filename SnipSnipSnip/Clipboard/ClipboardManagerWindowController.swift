@@ -148,11 +148,11 @@ struct ClipboardManagerView: View {
             editedText = selectedItem?.plainTextValue ?? ""
         }
         .confirmationDialog(
-            "Clear unpinned clipboard history?",
+            "Permanently delete unpinned Clipboard History items?",
             isPresented: $showsClearConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Clear Unpinned History", role: .destructive) {
+            Button("Permanently Delete Unpinned Items", role: .destructive) {
                 clipboard.clearUnpinnedClipboardItems()
             }
         } message: {
@@ -173,7 +173,7 @@ struct ClipboardManagerView: View {
                     Image(systemName: "trash")
                 }
                 .buttonStyle(.borderless)
-                .help("Clear unpinned clipboard history")
+                .help("Permanently delete unpinned Clipboard History items")
                 .disabled(clipboard.clipboardHistoryItems.allSatisfy(\.isPinned))
             }
 
@@ -214,16 +214,18 @@ struct ClipboardManagerView: View {
 
                 Menu {
                     if clipboard.isClipboardMonitoringPaused {
-                        Button("Resume Now", action: clipboard.resumeClipboardMonitoring)
+                        Button("Resume Monitoring", action: clipboard.resumeClipboardMonitoring)
                     } else {
-                        Button("Pause for 5 Minutes") { clipboard.pauseClipboardMonitoring(for: 5 * 60) }
-                        Button("Pause for 1 Hour") { clipboard.pauseClipboardMonitoring(for: 60 * 60) }
-                        Button("Pause Until Restart") { clipboard.pauseClipboardMonitoring(for: nil) }
+                        Button("Pause Monitoring for 5 Minutes") { clipboard.pauseClipboardMonitoring(for: 5 * 60) }
+                        Button("Pause Monitoring for 1 Hour") { clipboard.pauseClipboardMonitoring(for: 60 * 60) }
+                        Button("Pause Monitoring Until Restart") { clipboard.pauseClipboardMonitoring(for: nil) }
                     }
                 } label: {
                     Label(
-                        clipboard.isClipboardMonitoringPaused ? "Paused" : "Recording",
-                        systemImage: clipboard.isClipboardMonitoringPaused ? "pause.circle.fill" : "record.circle"
+                        clipboard.isClipboardMonitoringPaused
+                            ? WorkflowVocabulary.Status.clipboardMonitoringPaused
+                            : WorkflowVocabulary.Status.clipboardMonitoring,
+                        systemImage: clipboard.isClipboardMonitoringPaused ? "pause.circle.fill" : "dot.radiowaves.left.and.right"
                     )
                 }
                 .menuStyle(.borderlessButton)
@@ -238,7 +240,7 @@ struct ClipboardManagerView: View {
             ContentUnavailableView(
                 "Clipboard History Disabled",
                 systemImage: "clipboard",
-                description: Text("Enable clipboard history in Settings > Library > Clipboard.")
+                description: Text("Enable clipboard history in Settings > Snip Library > Clipboard.")
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if filteredItems.isEmpty {

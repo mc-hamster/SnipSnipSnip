@@ -7,9 +7,11 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
 
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let menu = NSMenu()
-    private let windowCaptureMenu = NSMenu(title: "Window Capture")
+    private let windowCaptureMenu = NSMenu(
+        title: "Capture \(WorkflowVocabulary.Source.window)"
+    )
     private let capturePresetsMenu = NSMenu(title: "Presets")
-    private let videoRecordingMenu = NSMenu(title: "Video Recording")
+    private let videoRecordingMenu = NSMenu(title: "Video")
     private let guideMenu = NSMenu(title: "Guide")
     private let screenRulerMenu = NSMenu(title: "Screen Ruler")
     private let timerMenu = NSMenu(title: "Timer")
@@ -371,14 +373,18 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         menu.addItem(captureItem(
-            title: "Region Capture",
+            title: "Capture \(WorkflowVocabulary.Source.region)",
             systemImage: "selection.pin.in.out",
             action: #selector(captureRegion),
             keyEquivalent: "1",
             enabled: !isCaptureActionDisabled
         ))
 
-        let windowCaptureItem = NSMenuItem(title: "Window Capture", action: nil, keyEquivalent: "2")
+        let windowCaptureItem = NSMenuItem(
+            title: "Capture \(WorkflowVocabulary.Source.window)",
+            action: nil,
+            keyEquivalent: "2"
+        )
         windowCaptureItem.keyEquivalentModifierMask = captureShortcutModifiers
         windowCaptureItem.image = NSImage(systemSymbolName: "rectangle.on.rectangle", accessibilityDescription: nil)
         windowCaptureItem.submenu = windowCaptureMenu
@@ -386,7 +392,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         menu.addItem(windowCaptureItem)
 
         menu.addItem(captureItem(
-            title: "Full Screen Capture",
+            title: "Capture \(WorkflowVocabulary.Source.screen)",
             systemImage: "macwindow",
             action: #selector(captureCurrentDisplay),
             keyEquivalent: "3",
@@ -394,7 +400,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         ))
 
         menu.addItem(captureItem(
-            title: "Frontmost Window Capture",
+            title: "Capture Frontmost \(WorkflowVocabulary.Source.window)",
             systemImage: "macwindow.on.rectangle",
             action: #selector(captureFrontmostWindow),
             keyEquivalent: "4",
@@ -403,7 +409,8 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
 
         if capabilities.isEnabled(.scrollingCapture) {
             menu.addItem(actionItem(
-                title: "Scrolling Capture",
+                title:
+                    "Capture \(WorkflowVocabulary.Source.scrollingContent)",
                 systemImage: "arrow.down.to.line",
                 action: #selector(captureScrollingArea),
                 enabled: !isCaptureActionDisabled
@@ -429,13 +436,21 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        let videoRecordingItem = NSMenuItem(title: "Video Recording", action: nil, keyEquivalent: "")
+        let videoRecordingItem = NSMenuItem(
+            title: "Video",
+            action: nil,
+            keyEquivalent: ""
+        )
         videoRecordingItem.image = NSImage(systemSymbolName: "record.circle", accessibilityDescription: nil)
         videoRecordingItem.submenu = videoRecordingMenu
         menu.addItem(videoRecordingItem)
 
         if capabilities.isEnabled(.guideCapture) {
-            let guideItem = NSMenuItem(title: guide?.isActive == true ? "Guide · \(guide?.stepCount ?? 0) steps" : "Guide", action: nil, keyEquivalent: "g")
+            let guideItem = NSMenuItem(
+                title: guideStatusTitle,
+                action: nil,
+                keyEquivalent: "g"
+            )
             guideItem.keyEquivalentModifierMask = captureShortcutModifiers
             guideItem.image = NSImage(systemSymbolName: "list.number", accessibilityDescription: nil)
             guideItem.submenu = guideMenu
@@ -460,7 +475,9 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         menu.addItem(screenRulerItem)
 
         menu.addItem(actionItem(
-            title: "Screen Inspector",
+            title: tools?.screenInspectorCoordinator.isVisible == true
+                ? "Close Screen Inspector"
+                : "Open Screen Inspector",
             systemImage: "scope",
             action: #selector(toggleScreenInspector),
             keyEquivalent: "i",
@@ -521,11 +538,11 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         menu.addItem(toggleItem(
-            title: "Global Hotkeys",
+            title: "Global Shortcuts",
             action: #selector(toggleGlobalHotkeys),
             isOn: capture.automationPreferences.globalHotkeysEnabled,
             enabled: true,
-            toolTip: "Register capture hotkeys while \(AppBranding.displayName) is not frontmost."
+            toolTip: "Register global shortcuts while \(AppBranding.displayName) is not frontmost."
         ))
 
         menu.addItem(.separator())
@@ -586,7 +603,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         ))
 
         videoRecordingMenu.addItem(actionItem(
-            title: "Record Full Screen",
+            title: "Record Screen",
             systemImage: "display",
             action: #selector(recordCurrentDisplay),
             enabled: !isDisabled
@@ -613,7 +630,14 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             guideMenu.addItem(.separator())
             guideMenu.addItem(actionItem(title: "Stop Guide", systemImage: "stop.fill", action: #selector(stopGuide), enabled: guide.stepCount > 0))
         } else {
-            guideMenu.addItem(actionItem(title: "Start Guide…", systemImage: "list.number", action: #selector(presentGuide), enabled: !isCaptureActionDisabled))
+            guideMenu.addItem(
+                actionItem(
+                    title: "\(WorkflowVocabulary.Instructions.recordGuide)…",
+                    systemImage: "list.number",
+                    action: #selector(presentGuide),
+                    enabled: !isCaptureActionDisabled
+                )
+            )
         }
     }
 
@@ -621,15 +645,47 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         guard let button = statusItem.button else { return }
         if guide?.isActive == true {
             statusItem.length = NSStatusItem.variableLength
-            button.image = NSImage(systemSymbolName: "list.number", accessibilityDescription: "Guide active")
+            button.image = NSImage(
+                systemSymbolName: "list.number",
+                accessibilityDescription: guideStatusName
+            )
             button.title = " \(guide?.stepCount ?? 0)"
-            button.toolTip = "Guide active · \(guide?.stepCount ?? 0) steps"
+            button.toolTip = guideStatusTitle
         } else {
             statusItem.length = NSStatusItem.squareLength
             button.image = NSImage(systemSymbolName: "scissors", accessibilityDescription: AppBranding.displayName)
             button.title = ""
             button.toolTip = AppBranding.displayName
         }
+    }
+
+    private var guideStatusName: String {
+        guard let guide else {
+            return "Guide"
+        }
+        if guide.isDiscarding {
+            return "Discarding Guide"
+        }
+        switch guide.captureCoordinator.state {
+        case .idle:
+            return "Guide"
+        case .starting:
+            return "Starting Guide"
+        case .recording:
+            return WorkflowVocabulary.Status.guideCapturing
+        case .paused:
+            return "Guide Paused"
+        case .finishing:
+            return "Finishing Guide"
+        }
+    }
+
+    private var guideStatusTitle: String {
+        guard guide?.isActive == true else {
+            return "Guide"
+        }
+        let count = guide?.stepCount ?? 0
+        return "\(guideStatusName) · \(count) \(count == 1 ? "step" : "steps")"
     }
 
     private func rebuildScreenRulerMenu() {

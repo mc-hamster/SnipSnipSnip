@@ -117,6 +117,73 @@ final class UXAccessibilityReleaseTests: XCTestCase {
         XCTAssertEqual(LibrarySettingsSection.allCases, [.snips, .clipboard])
     }
 
+    func testWorkflowVocabularyUsesOneNameForSharedConcepts() {
+        XCTAssertEqual(WorkflowVocabulary.Source.region, "Region")
+        XCTAssertEqual(WorkflowVocabulary.Source.window, "Window")
+        XCTAssertEqual(WorkflowVocabulary.Source.screen, "Screen")
+        XCTAssertEqual(WorkflowVocabulary.Source.app, "App")
+        XCTAssertEqual(
+            WorkflowVocabulary.Source.scrollingContent,
+            "Scrolling Content"
+        )
+        XCTAssertEqual(
+            WorkflowVocabulary.Source.connectedDevice,
+            "Connected Device"
+        )
+        XCTAssertEqual(
+            WorkflowVocabulary.Source.existingImage,
+            "Existing Image"
+        )
+        XCTAssertEqual(
+            WorkflowVocabulary.Instructions.recordGuide,
+            "Record a Guide"
+        )
+        XCTAssertEqual(
+            WorkflowVocabulary.Instructions.buildStepsManually,
+            "Build Steps manually"
+        )
+        XCTAssertEqual(
+            WorkflowVocabulary.Status.guideCapturing,
+            "Guide Capturing"
+        )
+        XCTAssertEqual(
+            WorkflowVocabulary.Status.videoRecording,
+            "Recording"
+        )
+        XCTAssertEqual(
+            WorkflowVocabulary.Status.clipboardMonitoring,
+            "Monitoring"
+        )
+        XCTAssertEqual(
+            WorkflowVocabulary.Status.clipboardMonitoringPaused,
+            "Monitoring Paused"
+        )
+        XCTAssertEqual(
+            WorkflowVocabulary.Library.snipLibrary,
+            "Snip Library"
+        )
+        XCTAssertEqual(
+            WorkflowVocabulary.Library.recentSnips,
+            "Recent Snips"
+        )
+        XCTAssertEqual(
+            WorkflowVocabulary.Library.snipHistory,
+            "Snip History"
+        )
+        XCTAssertEqual(
+            WorkflowVocabulary.Library.changeHistory,
+            "Change History"
+        )
+        XCTAssertEqual(
+            WorkflowVocabulary.Library.recycleBin,
+            "Recycle Bin"
+        )
+        XCTAssertEqual(
+            WorkflowVocabulary.Library.historyStorage,
+            "Snip History Storage"
+        )
+    }
+
     func testShortcutDefaultsAndLiveCatalogUseCurrentPreferences() {
         XCTAssertEqual(GlobalHotKeyAction.defaultKeys[.repeatLastCapture], .seven)
         XCTAssertEqual(GlobalHotKeyAction.defaultKeys[.screenInspector], .eight)
@@ -131,7 +198,7 @@ final class UXAccessibilityReleaseTests: XCTestCase {
             preferences: preferences,
             includesGuideCapture: true
         )
-        .first(where: { $0.title == "Default Global Capture" })?
+        .first(where: { $0.title == "Default Global Shortcuts" })?
         .entries ?? []
 
         XCTAssertTrue(entries.contains(.init(keys: "Command-Shift-R", action: "Repeat Last Capture")))

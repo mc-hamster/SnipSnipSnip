@@ -124,7 +124,7 @@ extension DocumentWorkflowModel {
         )
     }
 
-    /// Installs an exact Recent Snip, Capture History, or Archive choice as the
+    /// Installs an exact Recent Snip or Snip History choice as the
     /// first source for a pending intent-driven creation plan. The caller owns
     /// exact-item selection; this method never substitutes another entry.
     @discardableResult

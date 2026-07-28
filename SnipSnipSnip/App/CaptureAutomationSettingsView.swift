@@ -75,7 +75,7 @@ struct CaptureAutomationSettingsView: View {
                     }
                     .disabled(!canResetPreferencesToDefaults)
 
-                    SettingsHelpText("This restores capture, shortcuts, recording, output, Library, naming, and privacy settings to their default values. It does not delete archived captures or Recycle Bin items.")
+                    SettingsHelpText("This restores capture, shortcuts, recording, output, Snip Library, naming, and privacy settings to their default values. It does not delete Snip History or Recycle Bin items.")
                 }
             }
             .tabItem {
@@ -89,7 +89,7 @@ struct CaptureAutomationSettingsView: View {
             ) {
                 Section("Screenshot Capture") {
                     Toggle("Include Cursor as Editable Overlay", isOn: $capture.screenshotIncludesCursor)
-                    SettingsHelpText("When enabled, region, window, frontmost-window, fullscreen, and repeat screenshots add the current cursor as a movable, resizable, removable overlay. Scrolling Capture always excludes the cursor while stitching.")
+                    SettingsHelpText("When enabled, region, window, frontmost-window, screen, and repeat screenshots add the current cursor as a movable, resizable, removable overlay. Scrolling Capture always excludes the cursor while stitching.")
 
                     Picker("After Selecting a Region", selection: regionCaptureCommitModeBinding) {
                         ForEach(RegionCaptureCommitMode.allCases) { mode in
@@ -98,7 +98,7 @@ struct CaptureAutomationSettingsView: View {
                     }
                     SettingsHelpText(capture.regionCapturePreferences.commitMode.detail)
 
-                    Picker("Fullscreen Screenshot", selection: $capture.screenshotFullscreenDisplayMode) {
+                    Picker("Screen Capture", selection: $capture.screenshotFullscreenDisplayMode) {
                         ForEach(ScreenshotFullscreenDisplayMode.allCases) { mode in
                             Text(mode.label).tag(mode)
                         }
@@ -118,7 +118,7 @@ struct CaptureAutomationSettingsView: View {
                         DisclosureGroup("Advanced") {
                             VStack(alignment: .leading, spacing: 10) {
                                 Toggle("Enable UI Map for Window captures", isOn: uiMapBinding)
-                                SettingsHelpText("Save available names, roles, identifiers, and locations of visible interface elements when capturing a window. Region, fullscreen, scrolling, recording, and connected-device captures do not include UI Map metadata.")
+                                SettingsHelpText("Save available names, roles, identifiers, and locations of visible interface elements when capturing a window. Region, screen, scrolling, recording, and connected-device captures do not include UI Map metadata.")
 
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("Pinned UI Map Overlay Defaults")
@@ -405,13 +405,13 @@ struct CaptureAutomationSettingsView: View {
 
             SettingsTabContainer(
                 title: "Shortcuts",
-                summary: "Global capture hotkeys and built-in keyboard shortcuts are centralized here."
+                summary: "Global actions and built-in keyboard shortcuts are centralized here."
             ) {
-                Section("Global Capture Hotkeys") {
-                    Toggle("Enable Global Capture Hotkeys", isOn: automationBinding(\.globalHotkeysEnabled))
+                Section("Global Shortcuts") {
+                    Toggle("Enable Global Shortcuts", isOn: automationBinding(\.globalHotkeysEnabled))
 
                     ForEach(availableGlobalHotKeyActions, id: \.rawValue) { action in
-                        Picker(action.label + " Hotkey", selection: automationHotKeyBinding(for: action)) {
+                        Picker(action.label + " Shortcut", selection: automationHotKeyBinding(for: action)) {
                             ForEach(GlobalHotKeyKey.allCases) { key in
                                 Text("Command-Shift-" + key.label).tag(key)
                             }
@@ -424,7 +424,7 @@ struct CaptureAutomationSettingsView: View {
                         }
                     }
 
-                    SettingsHelpText("Global hotkeys run while \(AppBranding.displayName) is not frontmost, so the active app keeps those shortcuts when \(AppBranding.displayName) is already focused.")
+                    SettingsHelpText("Global shortcuts run while \(AppBranding.displayName) is not frontmost, so the active app keeps those shortcuts when \(AppBranding.displayName) is already focused.")
                 }
 
                 Section("Editor Shortcuts") {
@@ -439,7 +439,7 @@ struct CaptureAutomationSettingsView: View {
                             includesGuideCapture: capabilities.isEnabled(.guideCapture)
                         )
                     )
-                    SettingsHelpText("Default global capture hotkeys can be changed above. Built-in app and editor shortcuts are fixed in this version.")
+                    SettingsHelpText("Default global shortcuts can be changed above. Built-in app and editor shortcuts are fixed in this version.")
                 }
             }
             .tabItem {
@@ -448,8 +448,8 @@ struct CaptureAutomationSettingsView: View {
             .tag(AppSettingsTab.shortcuts)
 
             SettingsTabContainer(
-                title: "Recording",
-                summary: "Video quality, frame rate, and optional capture sources are grouped here."
+                title: "Video",
+                summary: "Video quality, frame rate, and optional recording sources are grouped here."
             ) {
                 Section("Quality") {
                     Picker("Quality", selection: videoPreferenceBinding(\.quality)) {
@@ -467,8 +467,8 @@ struct CaptureAutomationSettingsView: View {
                     }
                 }
 
-                Section("Capture Sources") {
-                    Picker("Fullscreen Recording", selection: videoPreferenceBinding(\.fullscreenDisplayMode)) {
+                Section("Recording Sources") {
+                    Picker("Screen Source", selection: videoPreferenceBinding(\.fullscreenDisplayMode)) {
                         ForEach(VideoRecordingFullscreenDisplayMode.allCases) { mode in
                             Text(mode.label).tag(mode)
                         }
@@ -492,7 +492,7 @@ struct CaptureAutomationSettingsView: View {
                 }
             }
             .tabItem {
-                Label("Recording", systemImage: "record.circle")
+                Label("Video", systemImage: "record.circle")
             }
             .tag(AppSettingsTab.recording)
 
@@ -519,8 +519,8 @@ struct CaptureAutomationSettingsView: View {
                     Toggle("Mask Secure Fields", isOn: guideCapturePreferenceBinding(\.masksSecureFields))
                     Toggle("Show Cursor in Still Steps", isOn: guideCapturePreferenceBinding(\.showsCursorInSteps))
                     Toggle("Hide Desktop Icons", isOn: guideCapturePreferenceBinding(\.hidesDesktopIcons))
-                    Toggle("Include Menu Bar in Display Guides", isOn: guideCapturePreferenceBinding(\.menuBarIncludedForDisplays))
-                    SettingsHelpText("Private Guide follows Private Capture: it skips archive, OCR indexing, diagnostics content, and AI refinement. Screen images and metadata never leave this Mac.")
+                    Toggle("Include Menu Bar in Screen Guides", isOn: guideCapturePreferenceBinding(\.menuBarIncludedForDisplays))
+                    SettingsHelpText("Private Guide follows Private Capture: it skips Snip History, OCR indexing, diagnostics content, and AI refinement. Screen images and metadata never leave this Mac.")
                 }
 
                 Section("Capture HUD") {
@@ -612,10 +612,10 @@ struct CaptureAutomationSettingsView: View {
             }
 
             SettingsTabContainer(
-                title: "Library",
-                summary: "Snip recovery and Clipboard History share one task-oriented destination."
+                title: WorkflowVocabulary.Library.snipLibrary,
+                summary: "Manage Snip History storage, deleted snips, and Clipboard History in one place."
             ) {
-                Picker("Library Page", selection: $lifecycle.selectedLibrarySettingsSection) {
+                Picker("Snip Library Page", selection: $lifecycle.selectedLibrarySettingsSection) {
                     ForEach(LibrarySettingsSection.allCases) { section in
                         Text(section.title).tag(section)
                     }
@@ -624,8 +624,8 @@ struct CaptureAutomationSettingsView: View {
                 .accessibilityIdentifier("settings.library.section")
 
                 if lifecycle.selectedLibrarySettingsSection == .snips {
-                    Section("Archive History") {
-                    SettingsHelpText("Archive history is local to this Mac. It stores editable .sss checkpoints, previews, searchable annotation text, and background OCR text unless Private Capture is enabled.")
+                    Section(WorkflowVocabulary.Library.historyStorage) {
+                    SettingsHelpText("Snip History stays local to this Mac. It stores editable .sss checkpoints, previews, searchable annotation text, and background OCR text unless Private Capture is enabled.")
 
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Location")
@@ -642,7 +642,7 @@ struct CaptureAutomationSettingsView: View {
                         Button("Use Default Location", action: archive.resetArchiveLocationToDefault)
                             .disabled(archive.usesDefaultArchiveLocation)
 
-                        Button("Open in Finder", action: archive.openArchiveLocationInFinder)
+                        Button("Reveal in Finder", action: archive.openArchiveLocationInFinder)
                     }
 
                     Stepper(value: Binding(get: {
@@ -650,7 +650,7 @@ struct CaptureAutomationSettingsView: View {
                     }, set: { value in
                         archive.updateArchiveMaximumSizeMB(value)
                     }), in: ArchiveWorkflowConstants.minimumMaximumSizeMB...10_240, step: 100) {
-                        Text("Max Archive Size: \(archive.maximumSizeMB) MB")
+                        Text("Maximum Snip History Size: \(archive.maximumSizeMB) MB")
                     }
 
                     HStack {
@@ -660,17 +660,20 @@ struct CaptureAutomationSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Button("Clear Archive", role: .destructive) {
+                    Button("Permanently Delete Snip History and Empty Recycle Bin", role: .destructive) {
                         Task { @MainActor in
-                            guard await guide.prepareForConflictingAction(named: "clearing the archive") else { return }
+                            guard await guide.prepareForConflictingAction(
+                                named:
+                                    "permanently deleting Snip History and emptying the Recycle Bin"
+                            ) else { return }
                             archive.clearArchive()
                         }
                     }
 
-                    SettingsHelpText("\(AppBranding.displayName) periodically trims the oldest archived checkpoints until the archive is back under the configured limit.")
+                    SettingsHelpText("\(AppBranding.displayName) periodically trims the oldest Snip History checkpoints until storage is back under the configured limit.")
                 }
 
-                    Section("Recycle Bin") {
+                    Section(WorkflowVocabulary.Library.recycleBin) {
                     Stepper(value: Binding(get: {
                         archive.recycleBinRetentionDays
                     }, set: { value in
@@ -686,10 +689,10 @@ struct CaptureAutomationSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Button("Empty Now", role: .destructive, action: documents.emptyRecycleBin)
+                    Button("Empty Recycle Bin", role: .destructive, action: documents.emptyRecycleBin)
                         .disabled(documents.recycleBinEntries.isEmpty)
 
-                    SettingsHelpText("Deleted snips move to the recycle bin first. The scheduled cleanup permanently removes items after the configured retention period; the default is 30 days. Choose from 1 to 180 days.")
+                    SettingsHelpText("Deleted snips move to the Recycle Bin first. The scheduled cleanup permanently removes items after the configured retention period; the default is 30 days. Choose from 1 to 180 days.")
                     }
                 } else {
                     Section("Clipboard History") {
@@ -745,12 +748,16 @@ struct CaptureAutomationSettingsView: View {
                     .disabled(!clipboard.preferences.isEnabled)
 
                     HStack {
-                        Text("Monitoring")
+                        Text(
+                            clipboard.isClipboardMonitoringPaused
+                                ? WorkflowVocabulary.Status.clipboardMonitoringPaused
+                                : WorkflowVocabulary.Status.clipboardMonitoring
+                        )
                         Spacer(minLength: 12)
                         if clipboard.isClipboardMonitoringPaused {
-                            Button("Resume", action: clipboard.resumeClipboardMonitoring)
+                            Button("Resume Monitoring", action: clipboard.resumeClipboardMonitoring)
                         } else {
-                            Menu("Pause") {
+                            Menu("Pause Monitoring") {
                                 Button("5 Minutes") { clipboard.pauseClipboardMonitoring(for: 5 * 60) }
                                 Button("1 Hour") { clipboard.pauseClipboardMonitoring(for: 60 * 60) }
                                 Button("Until Restart") { clipboard.pauseClipboardMonitoring(for: nil) }
@@ -766,7 +773,7 @@ struct CaptureAutomationSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Button("Clear Clipboard History", role: .destructive) {
+                    Button("Permanently Delete Clipboard History", role: .destructive) {
                         isShowingClearClipboardConfirmation = true
                     }
                         .disabled(clipboard.clipboardHistoryItems.isEmpty)
@@ -776,7 +783,7 @@ struct CaptureAutomationSettingsView: View {
                             .foregroundStyle(.orange)
                     }
 
-                    SettingsHelpText("When enabled, clipboard history stays encrypted on this Mac with a key protected by Keychain. Turning it off stops monitoring and unloads decrypted history and cached previews while preserving the encrypted history unless you clear it. The history and its key are not loaded on the next launch. Private Capture always stays out of clipboard history.")
+                    SettingsHelpText("When enabled, clipboard history stays encrypted on this Mac with a key protected by Keychain. Turning it off stops monitoring and unloads decrypted history and cached previews while preserving the encrypted history unless you permanently delete it. The history and its key are not loaded on the next launch. Private Capture always stays out of clipboard history.")
                 }
 
                     Section("Ignored Apps") {
@@ -853,7 +860,7 @@ struct CaptureAutomationSettingsView: View {
                 }
             }
             .tabItem {
-                Label("Library", systemImage: "books.vertical")
+                Label(WorkflowVocabulary.Library.snipLibrary, systemImage: "books.vertical")
             }
             .tag(AppSettingsTab.library)
 
@@ -865,7 +872,7 @@ struct CaptureAutomationSettingsView: View {
                     Toggle("Private Capture", isOn: privateCaptureBinding)
                         .disabled(!capture.canChangePrivateCapture)
 
-                    SettingsHelpText("Private Capture keeps the current capture out of archive history, Recent Snips, the Recycle Bin, Clipboard History, and background OCR indexing. You can still explicitly save or export the result. The setting is locked while a capture or recording is active so the in-progress capture uses the privacy choice it started with.")
+                    SettingsHelpText("Private Capture keeps the current capture out of Snip History, Recent Snips, the Recycle Bin, Clipboard History, and background OCR indexing. You can still explicitly save or export the result. The setting is locked while a capture or recording is active so the in-progress capture uses the privacy choice it started with.")
                 }
 
                 Section("Permission Diagnostics") {
@@ -933,10 +940,10 @@ struct CaptureAutomationSettingsView: View {
 
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This keeps your current documents and archive contents, but it restores settings values to their shipped defaults.")
+            Text("This keeps your current documents, Snip History, and Recycle Bin contents, but it restores settings values to their shipped defaults.")
         }
-        .confirmationDialog("Clear all clipboard history?", isPresented: $isShowingClearClipboardConfirmation, titleVisibility: .visible) {
-            Button("Clear Clipboard History", role: .destructive, action: clipboard.clearClipboardHistory)
+        .confirmationDialog("Permanently delete Clipboard History?", isPresented: $isShowingClearClipboardConfirmation, titleVisibility: .visible) {
+            Button("Permanently Delete Clipboard History", role: .destructive, action: clipboard.clearClipboardHistory)
         } message: {
             Text("This permanently removes pinned and unpinned clipboard items from this Mac.")
         }
@@ -989,7 +996,7 @@ struct CaptureAutomationSettingsView: View {
             requirementSummary = "Accessibility is only required for Scrolling Capture."
         }
 
-        return "\(requirementSummary) Region, Fullscreen, editor OCR, export, and annotation tools do not depend on Accessibility. Diagnostics export sanitized app, permission, display, storage, and status details without screenshots, clipboard contents, OCR text, annotations, or document data."
+        return "\(requirementSummary) Region and Screen capture, editor OCR, export, and annotation tools do not depend on Accessibility. Diagnostics export sanitized app, permission, display, storage, and status details without screenshots, clipboard contents, OCR text, annotations, or document data."
     }
 
     private var canResetPreferencesToDefaults: Bool {

@@ -21,11 +21,24 @@ enum AppShortcut {
                 action: String(localized: "Paste into the active editing scope")
             )
         ]),
-        ShortcutCatalogSection(title: "Default Global Capture", entries: [
-            ShortcutCatalogEntry(keys: "Command-Shift-1", action: "Capture Region"),
-            ShortcutCatalogEntry(keys: "Command-Shift-2", action: "Capture Window"),
-            ShortcutCatalogEntry(keys: "Command-Shift-3", action: "Capture Fullscreen"),
-            ShortcutCatalogEntry(keys: "Command-Shift-4", action: "Capture Frontmost Window"),
+        ShortcutCatalogSection(title: "Default Global Shortcuts", entries: [
+            ShortcutCatalogEntry(
+                keys: "Command-Shift-1",
+                action: "Capture \(WorkflowVocabulary.Source.region)"
+            ),
+            ShortcutCatalogEntry(
+                keys: "Command-Shift-2",
+                action: "Capture \(WorkflowVocabulary.Source.window)"
+            ),
+            ShortcutCatalogEntry(
+                keys: "Command-Shift-3",
+                action: "Capture \(WorkflowVocabulary.Source.screen)"
+            ),
+            ShortcutCatalogEntry(
+                keys: "Command-Shift-4",
+                action:
+                    "Capture Frontmost \(WorkflowVocabulary.Source.window)"
+            ),
             ShortcutCatalogEntry(keys: "Command-Shift-7", action: "Repeat Last Capture"),
             ShortcutCatalogEntry(keys: "Command-Shift-8", action: "Open Screen Inspector"),
             ShortcutCatalogEntry(keys: "Command-Shift-9", action: "Start or stop Guide")
@@ -72,7 +85,7 @@ enum AppShortcut {
         ]),
         ShortcutCatalogSection(title: "Screen Inspector", entries: [
             ShortcutCatalogEntry(keys: "Space", action: "Freeze or resume sampling"),
-            ShortcutCatalogEntry(keys: "Option-Command-S", action: "Snip to editor"),
+            ShortcutCatalogEntry(keys: "Option-Command-S", action: "Capture to Editor"),
             ShortcutCatalogEntry(keys: "Option-Command-H", action: "Copy HEX color"),
             ShortcutCatalogEntry(keys: "Option-Command-R", action: "Copy RGB color"),
             ShortcutCatalogEntry(keys: "Option-Command-M", action: "Measure point-to-point distance"),
@@ -94,7 +107,7 @@ enum AppShortcut {
         }
 
         return catalogSections.map { section in
-            guard section.title == "Default Global Capture" else {
+            guard section.title == "Default Global Shortcuts" else {
                 return section
             }
 
@@ -110,7 +123,7 @@ enum AppShortcut {
         includesGuideCapture: Bool
     ) -> [ShortcutCatalogSection] {
         catalogSections(includesGuideCapture: includesGuideCapture).map { section in
-            guard section.title == "Default Global Capture" else {
+            guard section.title == "Default Global Shortcuts" else {
                 return section
             }
 
@@ -129,10 +142,14 @@ enum AppShortcut {
 
     private static func shortcutActionLabel(for action: GlobalHotKeyAction) -> String {
         switch action {
-        case .region: "Capture Region"
-        case .window: "Capture Window"
-        case .fullscreen: "Capture Fullscreen"
-        case .frontmostWindow: "Capture Frontmost Window"
+        case .region:
+            "Capture \(WorkflowVocabulary.Source.region)"
+        case .window:
+            "Capture \(WorkflowVocabulary.Source.window)"
+        case .fullscreen:
+            "Capture \(WorkflowVocabulary.Source.screen)"
+        case .frontmostWindow:
+            "Capture Frontmost \(WorkflowVocabulary.Source.window)"
         case .repeatLastCapture: "Repeat Last Capture"
         case .screenInspector: "Open Screen Inspector"
         case .guide: "Start or stop Guide"

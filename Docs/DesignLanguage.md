@@ -19,6 +19,44 @@ This document is the required design reference for user-visible SwiftUI and AppK
 7. **Adapt to the person.** Custom presentation must respect Light and Dark appearance, Increase Contrast, Reduce Transparency, Differentiate Without Color, Reduced Motion, keyboard access, and VoiceOver.
 8. **Keep authored dark surfaces content-driven.** Fixed dark presentation is reserved for media, screenshot canvases, and desktop overlays where darkness materially supports the content.
 
+## Workflow Language
+
+Use one product vocabulary across the main window, setup flows, menus, editors, floating controls, Settings, Help, tooltips, accessibility labels, and completion notices.
+
+`Docs/WorkflowLexicon.md` is the canonical detailed reference for these terms, their definitions, the from/to migration ledger, intentional exceptions, and maintenance rules.
+
+### Things people make
+
+- **Screenshot** is one captured or imported image.
+- **Comparison** is a Before and After pair reviewed together.
+- **Steps** is a manually assembled set of ordered, captioned screenshots.
+- **Combined Image** is multiple captures or images arranged as one result. `Collection` may remain the internal model term for this composition purpose, but it is not its user-facing name. Clipboard History may still use collection for its unrelated item-organizing feature.
+- **Guide** is a workflow captured into action-aware editable steps, with optional source video.
+- **Video** is a time-based screen recording.
+- Create may ask goal-oriented questions such as Capture a screenshot, Compare two versions, Explain a process, and Combine images. When Explain a process branches, name the durable destinations explicitly as **Record a Guide** and **Build Steps manually**.
+
+### Sources and acquisition
+
+- Use **Region**, **Window**, and **Screen** consistently for the primary still, Guide, and video sources. Use **App** only where Guide follows one app across its windows.
+- Use **Display** only when identifying or configuring a physical monitor inside a Screen choice. Do not use Full, Full Screen, Fullscreen, Screen, and Display as interchangeable visible labels.
+- Use **Scrolling Content**, **Connected Device**, and **Existing Image** for the other source concepts. Group Screen Inspector and specialized paths under **More ways to capture** because they are acquisition methods rather than peers of Region, Window, and Screen.
+- **Scrolling Capture** may name the permission-dependent scrolling-and-stitching workflow in explanatory, status, and troubleshooting copy. Its source and action labels remain **Scrolling Content** and **Capture Scrolling Content**; the compact capture header may abbreviate the action to **Scroll**.
+- **Capture** acquires a still image. **Add** brings content into an existing document. **Import** reads a file. **Paste** adds clipboard content. **Record** acquires time-based media. **Inspect** reads information without primarily creating a document.
+- The **Capture** command menu may group the app's acquisition workflows, just as other macOS command-menu titles group related actions. Commands inside it still use the specific action verbs above.
+
+### Stages, lifecycle, and output
+
+- Use workflow-specific stage verbs: Edit for a Screenshot, Capture After and Review for a Comparison, Add Step and Order & Caption for Steps, Add Image and Arrange for a Combined Image, Capture and Edit Guide for a Guide, and Record and Trim for Video. Polish is the optional presentation stage shared by screenshot documents.
+- **Back** navigates while preserving state. **Cancel** leaves an uncommitted setup or operation. **Done** commits or leaves a nested editing scope. **Stop** ends active acquisition and keeps the result. **Discard** abandons acquired unsaved work. **Close** closes a utility or completed window. **Restore** recovers stored work. **Delete** moves recoverable work to the Recycle Bin; **Empty** or **Permanently Delete** names irreversible removal.
+- **Save** preserves editable work. **Copy** puts the visible result on the clipboard. **Export** creates a distributable file or file set. **Share** invokes macOS sharing. **Float** creates a temporary reference. **Drag** delivers the current output by dragging. **Reveal in Finder** locates an existing file.
+- Status language distinguishes subsystems: Guide is Capturing, Video is Recording, and Clipboard History is Monitoring. Each may be Paused; never label clipboard monitoring as Recording. Keep **Screen Recording** unchanged when naming the macOS permission.
+
+### Snip Library and recovery
+
+- **Snip Library** is the user-facing umbrella for reusable and recoverable screenshot work.
+- **Recent Snips** contains recently available work. **Snip History** contains searchable sessions and checkpoints. **Change History** is scoped to the currently open document. **Recycle Bin** contains deleted but recoverable snips. **Recover Last Session** is the transient interrupted-work path.
+- Archive remains an internal storage concept. Settings may expose **Snip History Storage** for location, size, and cleanup, but Archive is not a peer user goal or source beside Recent Snips and Snip History.
+
 ## Layer and Material Decisions
 
 | Context | Required treatment | Glass policy |
@@ -51,8 +89,8 @@ This document is the required design reference for user-visible SwiftUI and AppK
 
 ### Main window and editors
 
-- Capture is the main window's persistent workflow, so its primary actions belong in a compact in-content header rather than the title-bar toolbar. With no screenshot document open, the adaptive header keeps the product name and textual readiness status above Create, Region, Full, Window, conditional Scroll, Repeat, Presets, conditional Guide capture, and Record, with Auto Copy aligned separately. Region, Full, Window, and their global shortcuts remain one-action new Screenshot paths. Guide creation appears only when the build exposes `guideCapture`; opening and editing an existing `.sssguide` document remains a shared document workflow and does not add a capture-header action in the App Store edition.
-- The capture header uses semantic system backgrounds, native bordered controls, and an explicit status badge. It is not Glass. While a screenshot document is open, replace the generic source row with one contextual session row that names the durable goal, summarizes progress, and exposes the single most useful next action such as Capture After, Capture Next Step, or Add Image. Keep a secondary Create entry in the header identity row for starting a different goal; new-document capture also remains available through the Capture menu and shortcuts.
+- Capture is the main window's persistent workflow, so its primary actions belong in a compact in-content header rather than the title-bar toolbar. With no screenshot document open, the adaptive header keeps the product name and textual readiness status above Create, Region, Window, Screen, conditional Scroll, Repeat, Presets, conditional Guide capture, and Record, with Auto Copy aligned separately. Region, Window, Screen, and their global shortcuts remain one-action new Screenshot paths. Guide creation appears only when the build exposes `guideCapture`; opening and editing an existing `.sssguide` document remains a shared document workflow and does not add a capture-header action in the App Store edition.
+- The capture header uses semantic system backgrounds, native bordered controls, and an explicit status badge. It is not Glass. While a screenshot document is open, replace the generic source row with one contextual session row that names the durable goal, summarizes progress, and exposes the single most useful next action such as Capture After, Add Step, or Add Image. Keep a secondary Create entry in the header identity row for starting a different goal; new-document capture also remains available through the Capture menu and shortcuts.
 - Create uses a native grouped setup form. Ask what the person wants to make before asking where pixels come from, reveal only conditional questions relevant to that goal, keep optional capture settings under Fine-tune, show a live summary, and provide one prominent completion action. Direct capture shortcuts bypass setup as Screenshot. Setup state is transactional: Cancel, permission failure, and capture cancellation must not mutate preferences or the open document.
 - Reserve the native window toolbar for intentional Guide and video actions. Screenshot and composition editing do not install a native toolbar; their Inspector control belongs in the stable in-content command rows. Do not promote an entire workflow into title-bar chrome or depend on toolbar overflow for primary commands.
 - Keep the main window title bar transparent and suppress its automatic separator. The in-content capture header and editor command boundaries already provide the hierarchy; with a trailing inspector, AppKit's otherwise-visible toolbar baseline stops at the inspector edge and reads as an accidental partial line.
@@ -69,12 +107,12 @@ This document is the required design reference for user-visible SwiftUI and AppK
 
 ### Multi-capture composition
 
-- Composition follows a durable document purpose: Screenshot, Comparison, Steps, or Collection. Purpose determines acquisition language, the focused inspector, the next action, and the content stage. Do not expose Compare and Steps as peer geometry tiles beside Row or Grid.
+- Composition follows a durable document purpose: Screenshot, Comparison, Steps, or Combined Image. Purpose determines acquisition language, the focused inspector, the next action, and the content stage. Do not expose Compare and Steps as peer geometry tiles beside Row or Grid.
 - Adding the first extra image to Screenshot asks once whether to Compare, add a Step, or Combine. The choice and successful addition commit atomically; cancellation leaves Screenshot unchanged. Later additions inherit that purpose and use contextual labels rather than repeating setup.
-- Comparison owns Before/After, registration, change highlighting, overlay, wipe, difference, and blink. Steps owns ordered items, captions, numbering, connectors, and pagination. Collection owns Auto, Row, Column, Grid, Freeform, and compatible composition templates. Screenshot exposes no layout controls.
+- Comparison owns Before/After, registration, change highlighting, overlay, wipe, difference, and blink. Steps owns ordered items, captions, numbering, connectors, and pagination. Combined Image owns Auto, Row, Column, Grid, Freeform, and compatible composition templates. Screenshot exposes no layout controls.
 - Polish is an optional finishing stage shared by every screenshot-document purpose. Look owns native backgrounds, spacing, borders, corners, shadows, effects, and presets. Mockup owns the existing single-slot Scene engine. Entering Polish does not apply treatment automatically, and leaving Polish returns to the prior content stage and plain visible output. When a treatment is saved, the content-stage Polish action shows a non-color-only configured indicator and announces the treatment without applying it.
 - Keep the three editing scopes explicit. Arrange changes item order, size, framing, and placement; Edit Selected Capture changes one source's crop and annotations; Annotate Result changes annotations above the assembled content. Use visible Done and scope labels when leaving either annotation scope; do not overload selection state to infer which model the annotation tools mutate.
-- Use native grouped inspector sections and a compact ordered item list. Small visual previews remain appropriate for choosing geometry within Collection or plain-language comparison outcomes within Comparison; they must include text labels, selected state beyond color, and keyboard focus.
+- Use native grouped inspector sections and a compact ordered item list. Small visual previews remain appropriate for choosing geometry within Combined Image or plain-language comparison outcomes within Comparison; they must include text labels, selected state beyond color, and keyboard focus.
 - Canvas appearance uses a compact native Apply Theme menu for fast complete styling, with the full panel, shadow, typography, badge, connector, and divider model in an Advanced Appearance disclosure. Theme application is an undoable appearance change; user templates remain the reusable layout-plus-appearance mechanism.
 - Direct manipulation must have a complete non-pointer equivalent. Reorder indicators, resize handles, comparison dividers, and framing modes expose the same actions through Items, Layers, menus, keyboard commands, and VoiceOver custom actions.
 - Arrange does not show the Polish subject-placement frame or persistent outlines around unselected items. Hover uses a neutral hairline. A correctly aligned accent boundary and handles appear only after explicit canvas selection while direct manipulation has focus; logical selection alone must not fill the canvas with persistent blue bounds. The visual and accessibility frames must share the same viewport transform and remain inside the canvas after pan, zoom, resize, and Mockup wrapping. Composition-level annotations always remain above items; per-item annotations stay inside their source item.
@@ -160,7 +198,7 @@ Every explicit custom Glass or fixed-dark app surface must appear here. New entr
 - Using a flexible spacer to detach document/output actions from the editor controls that precede them.
 - Removing the visible group boundaries that distinguish related direct editor controls.
 - Showing the generic new-capture source strip while a screenshot document is open instead of the goal-specific session row. Global shortcuts and the Capture menu must retain their new-document meaning.
-- Adding another source without first establishing purpose for a Screenshot document, or asking for purpose again after the document already has Comparison, Steps, or Collection purpose.
+- Adding another source without first establishing purpose for a Screenshot document, or asking for purpose again after the document already has Comparison, Steps, or Combined Image purpose.
 - Using one ambiguous Edit command for both item annotations and whole-composition annotations.
 - Showing document output, Add Image, or Polish navigation while Edit Selected Capture or Annotate Result is displaying a temporary scoped editing canvas.
 - Drawing hit regions, unselected item bounds, or the Polish subject-placement frame as persistent Arrange canvas chrome.

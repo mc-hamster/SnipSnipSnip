@@ -12,13 +12,13 @@ nonisolated enum VideoRecordingKind: String, Codable, Equatable {
     var label: String {
         switch self {
         case .region:
-            return "Region"
+            return WorkflowVocabulary.Source.region
         case .window:
-            return "Window"
+            return WorkflowVocabulary.Source.window
         case .fullscreen:
-            return "Fullscreen"
+            return WorkflowVocabulary.Source.screen
         case .connectedDevice:
-            return "Connected Device"
+            return WorkflowVocabulary.Source.connectedDevice
         }
     }
 }

@@ -43,6 +43,7 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     @Published var lastGuideExportURLs: [URL] = []
     @Published var captureSearchQuery = ""
     @Published var allCaptureHistoryEntries: [DocumentHistoryEntry]
+    @Published var snipLibraryEntries: [DocumentHistoryEntry]
     @Published var historyEntries: [DocumentHistoryEntry] = []
     @Published var recentSnipEntries: [DocumentHistoryEntry]
     @Published var recycleBinEntries: [DocumentHistoryEntry]
@@ -147,6 +148,10 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
         self.preferenceStore = preferenceStore
         self.pendingRecoverySession = pendingRecoverySession
         self.allCaptureHistoryEntries = allCaptureHistoryEntries
+        self.snipLibraryEntries =
+            DocumentHistoryEntrySelection.latestPerSession(
+                from: allCaptureHistoryEntries
+            )
         self.recentSnipEntries = recentSnipEntries
         self.recycleBinEntries = recycleBinEntries
         self.editorSingleKeyToolShortcutsEnabled = preferenceStore.loadSingleKeyToolShortcutsEnabled()

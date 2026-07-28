@@ -122,6 +122,8 @@ final class CaptureModelsTests: XCTestCase {
         XCTAssertNil(decoded.symbolName)
         XCTAssertEqual(decoded.tint, .blue)
         XCTAssertNil(decoded.hotKey)
+        XCTAssertEqual(decoded.targetLabel, "Screen")
+        XCTAssertEqual(decoded.automationTargetLabel, "Fullscreen")
     }
 
     func testStrictSavedWindowMatchDoesNotFallBackToUnrelatedWindows() {

@@ -414,8 +414,17 @@ nonisolated struct CapturePreset: Codable, Equatable, Identifiable {
         case .frontmostWindow:
             return "Frontmost Window"
         case .fullscreen:
+            return WorkflowVocabulary.Source.screen
+        }
+    }
+
+    /// The v1 automation result value predates the user-facing Screen label.
+    /// Keep it stable for CLI, AppleScript, and URL clients.
+    var automationTargetLabel: String {
+        if case .fullscreen = target {
             return "Fullscreen"
         }
+        return targetLabel
     }
 }
 

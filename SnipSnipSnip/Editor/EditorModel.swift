@@ -1610,18 +1610,42 @@ nonisolated enum ScreenshotDocumentPurpose: String, CaseIterable, Codable, Ident
         }
     }
 
+    func stageLabel(for stage: ScreenshotWorkflowStage) -> String {
+        if stage == .polishing {
+            return ScreenshotWorkflowStage.polishing.label
+        }
+        switch (self, stage) {
+        case (.screenshot, .editing):
+            return String(localized: "Edit")
+        case (.comparison, .awaitingComparisonAfter):
+            return String(localized: "Capture After")
+        case (.comparison, .reviewingComparison):
+            return String(localized: "Review")
+        case (.steps, .collecting):
+            return String(localized: "Add Step")
+        case (.steps, .arranging):
+            return String(localized: "Order & Caption")
+        case (.collection, .collecting):
+            return String(localized: "Add Image")
+        case (.collection, .arranging):
+            return String(localized: "Arrange")
+        default:
+            return stage.label
+        }
+    }
+
     func sessionTitle(
         stage: ScreenshotWorkflowStage,
         includedItemCount: Int
     ) -> String {
         if stage == .polishing {
-            return "\(label) · \(ScreenshotWorkflowStage.polishing.label)"
+            return "\(label) · \(stageLabel(for: stage))"
         }
         switch self {
         case .screenshot:
-            return "\(label) · \(ScreenshotWorkflowStage.editing.label)"
+            return "\(label) · \(stageLabel(for: .editing))"
         case .comparison:
-            return "\(label) · \(stage.label)"
+            return "\(label) · \(stageLabel(for: stage))"
         case .steps:
             let noun = includedItemCount == 1
                 ? String(localized: "step")
@@ -1666,15 +1690,15 @@ nonisolated enum ScreenshotWorkflowStage: String, CaseIterable, Codable, Identif
     var label: String {
         switch self {
         case .editing:
-            return String(localized: "Editing")
+            return String(localized: "Edit")
         case .awaitingComparisonAfter:
-            return String(localized: "Before Captured")
+            return String(localized: "Capture After")
         case .collecting:
-            return String(localized: "Collecting")
+            return String(localized: "Add")
         case .arranging:
-            return String(localized: "Arranging")
+            return String(localized: "Arrange")
         case .reviewingComparison:
-            return String(localized: "Ready")
+            return String(localized: "Review")
         case .polishing:
             return String(localized: "Polish")
         }

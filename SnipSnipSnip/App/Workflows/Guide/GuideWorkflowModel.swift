@@ -568,7 +568,9 @@ final class GuideWorkflowModel: ObservableObject {
             guideShortcutKeyCode: dependencies.capture.guideHotKeyCode
         )
         preferenceStore.saveLastSource(source)
-        dependencies.lifecycle.updateWorkingMessage("Guide • 0 steps")
+        dependencies.lifecycle.updateWorkingMessage(
+            "\(WorkflowVocabulary.Status.guideCapturing) • 0 steps"
+        )
     }
 
     private static func decodeLogo(_ data: Data?) -> CGImage? {
@@ -650,7 +652,7 @@ extension GuideWorkflowModel: GuideAutomationPort {
                 }
                 try await startImmediately(source: source, privateCapture: request.privacy.privateCapture || dependencies.capture.privateCaptureEnabled)
             case .pause:
-                guard captureCoordinator.state == .recording else { return .failure(requestID: request.id, code: .noActiveGuide, message: "There is no recording Guide to pause.") }
+                guard captureCoordinator.state == .recording else { return .failure(requestID: request.id, code: .noActiveGuide, message: "There is no active Guide to pause.") }
                 try await captureCoordinator.pause()
             case .resume:
                 guard captureCoordinator.state == .paused else { return .failure(requestID: request.id, code: .noActiveGuide, message: "There is no paused Guide to resume.") }

@@ -132,7 +132,7 @@ struct HelpGuideView: View {
                             title: "Basic workflow",
                             steps: [
                                 "Open SnipSnipSnip from the menu bar icon or the Help menu.",
-                                "Choose Region, Window, or Fullscreen to take a screenshot.",
+                                "Choose Region, Window, or Screen to take a screenshot.",
                                 "Use the editor to crop, annotate, redact, or copy text.",
                                 "Use Float when you want the output currently shown in the active workspace to stay above other apps as a temporary reference.",
                                 "Choose Copy, Share, Export, or Drag when you are ready to send the output shown in the active content or Polish stage.",
@@ -167,7 +167,7 @@ struct HelpGuideView: View {
                         "Screen Recording permission is required before macOS lets SnipSnipSnip capture pixels or show live window thumbnails.",
                         "Support requests and feature requests start from Help > Support."
                     ] + (guideEnabled || scrollingCaptureEnabled || uiMapEnabled
-                        ? ["Accessibility permission is required for the enabled workflows that observe other apps, including Guide\(scrollingCaptureEnabled ? ", Scrolling Capture" : "")\(uiMapEnabled ? ", and Window UI Map" : ""). Ordinary Region and Fullscreen screenshots do not require Accessibility."]
+                        ? ["Accessibility permission is required for the enabled workflows that observe other apps, including Guide\(scrollingCaptureEnabled ? ", Scrolling Capture" : "")\(uiMapEnabled ? ", and Window UI Map" : ""). Ordinary Region and Screen screenshots do not require Accessibility."]
                         : []),
                     relatedIDs: ["capture-screenshot", "edit-screenshot", "copy-save-export"]
                 ),
@@ -210,8 +210,8 @@ struct HelpGuideView: View {
                     important: guideEnabled || scrollingCaptureEnabled || uiMapEnabled
                         ? [
                             guideEnabled
-                                ? "Ordinary Region and Fullscreen screenshot capture do not require Accessibility. Guide does require it while recording a workflow."
-                                : "Region and Fullscreen screenshot capture do not require Accessibility.",
+                                ? "Ordinary Region and Screen screenshot capture do not require Accessibility. Guide does require it while capturing a workflow."
+                                : "Region and Screen screenshot capture do not require Accessibility.",
                             "In Settings, Set Up starts a missing permission and Manage opens System Settings for a permission that is already allowed.",
                             "Development builds launched from Xcode may need Accessibility permission for the exact app in DerivedData, not a copy in Applications."
                         ]
@@ -257,7 +257,7 @@ struct HelpGuideView: View {
                             title: "Capture behavior",
                             bullets: [
                                 "UI Map capture runs only during user-initiated Window capture workflows.",
-                                "Region, Fullscreen, Scrolling, Recording, Connected Device, and Screen Inspector captures are visual-only and do not request Accessibility because of UI Map.",
+                                "Region, Screen, Scrolling Content, Video, Connected Device, and Screen Inspector captures are visual-only and do not request Accessibility because of UI Map.",
                                 "After a Window screenshot opens, the editor command rows and UI Map controls report processing and availability while metadata is captured in the background.",
                                 "The screenshot image stays visually unchanged by default.",
                                 "If macOS provides interface metadata, SnipSnipSnip saves available names, labels, identifiers, roles, positions, sizes, parent hierarchy, and owning app.",
@@ -303,11 +303,11 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Open clipboard history",
-                            body: "Clipboard History is optional and off by default. Make an explicit choice during onboarding or enable it in Settings > Library > Clipboard, then choose Clipboard History from the menu bar icon or use Command-Shift-V. Search is focused when the floating window opens. Press Command-W to close the window."
+                            body: "Clipboard History is optional and off by default. Make an explicit choice during onboarding or enable it in Settings > Snip Library > Clipboard, then choose Clipboard History from the menu bar icon or use Command-Shift-V. Search is focused when the floating window opens. Press Command-W to close the window."
                         ),
                         HelpArticleSection(
                             title: "What appears",
-                            body: "Clipboard History saves copied plain and rich text, links, images, PDFs, files, and non-private SnipSnipSnip screenshots. It preserves compatible original clipboard representations so normal paste can retain formatting and multi-item selections. Adding screenshots that were not copied is on by default for new and reset installations, and Settings > Library > Clipboard controls it. Private Capture screenshots are never added."
+                            body: "Clipboard History saves copied plain and rich text, links, images, PDFs, files, and non-private SnipSnipSnip screenshots. It preserves compatible original clipboard representations so normal paste can retain formatting and multi-item selections. Adding screenshots that were not copied is on by default for new and reset installations, and Settings > Snip Library > Clipboard controls it. Private Capture screenshots are never added."
                         ),
                         HelpArticleSection(
                             title: "Copy and paste actions",
@@ -319,11 +319,11 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Pause and retention",
-                            body: "Use the Recording menu in Clipboard History or Settings > Library > Clipboard to pause monitoring for five minutes, one hour, or until restart. Settings also controls unpinned item retention, the item and storage targets, and the maximum size accepted for a single item. Clear actions require confirmation."
+                            body: "Use the Monitoring menu in Clipboard History or Settings > Snip Library > Clipboard to pause monitoring for five minutes, one hour, or until restart. Settings also controls unpinned item retention, the item and storage targets, and the maximum size accepted for a single item. Permanently deleting history requires confirmation."
                         ),
                         HelpArticleSection(
                             title: "Ignore apps",
-                            body: "Open Settings > Library > Clipboard to manage ignored apps. Use Ignore Running App for apps that are currently open, Choose App to pick an app from Applications, or Ignore beside a recent clipboard source."
+                            body: "Open Settings > Snip Library > Clipboard to manage ignored apps. Use Ignore Running App for apps that are currently open, Choose App to pick an app from Applications, or Ignore beside a recent clipboard source."
                         ),
                         HelpArticleSection(
                             title: "Privacy defaults",
@@ -357,7 +357,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Capture rulers",
-                            body: "Screen rulers are real floating overlay windows. If a visible ruler sits inside the area you capture, it is included in region and fullscreen screenshots."
+                            body: "Screen rulers are real floating overlay windows. If a visible ruler sits inside the area you capture, it is included in region and screen screenshots."
                         ),
                         HelpArticleSection(
                             title: "Configure rulers",
@@ -392,13 +392,13 @@ struct HelpGuideView: View {
                             ]
                         ),
                         HelpArticleSection(
-                            title: "Copy, freeze, and snip",
+                            title: "Copy, freeze, and capture",
                             bullets: [
                                 "Use Copy HEX or Option-Command-H to copy the current center-pixel color as HEX.",
                                 "Use Copy RGB or Option-Command-R to copy the current center-pixel color as RGB.",
                                 "Use Freeze, Space, or Option-Command-F to hold a static sample while you inspect details.",
                                 "Use Measure or Option-Command-M to set the first point at the current cursor, move to the second point, then use Lock or Option-Command-M again to keep the one-line distance measurement.",
-                                "Use Snip or Option-Command-S to open the current inspector sample in the editor.",
+                                "Use Capture or Option-Command-S to open the current inspector sample in the editor.",
                                 "Close the inspector from the close button, Escape, the menu command, the menu bar, or the global shortcut."
                             ]
                         )
@@ -421,18 +421,18 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Capture a workflow",
                             steps: [
-                                "Choose Guide from the main window, Capture menu, menu bar, or press Command-Shift-9.",
+                                "Choose Record a Guide from the main window or Capture menu, choose Guide > Record a Guide from the menu bar, or press Command-Shift-9.",
                                 "Choose what you want to make: an editable step-by-step Guide, or a Guide that also keeps full-motion video for a complete walkthrough or action highlights.",
                                 "If you keep video, choose whether it should be silent, use your microphone narration, include app audio, or record narration and app audio together. Guide derives the recording settings from that choice. Audio is captured live; a silent source video cannot be given audio later in the Guide editor.",
                                 "Choose Number each step to make every captured step start with a visible number. Leave it off for unnumbered steps. In either case, you can show or hide the number later for any individual step in the Step inspector.",
                                 "Choose Show action crosshairs to mark where each captured action happened. Leave it off for clean steps without crosshairs. You can show or hide the crosshairs later for any individual step in the Marker section of the Step inspector.",
-                                "Choose Region, Window, App, or Display in Create a Guide. These match the capture terms used in the main window; App additionally follows you between one app’s windows. This choice controls how Guide follows your work, but it does not select the exact target yet. Window and App Guides automatically follow the active source when it moves, resizes, or crosses onto a mixed-scale or rotated display.",
+                                "Choose Region, Window, App, or Screen in Record a Guide. These match the capture terms used in the main window; App additionally follows you between one app’s windows. This choice controls how Guide follows your work, but it does not select the exact target yet. Window and App Guides automatically follow the active source when it moves, resizes, or crosses onto a mixed-scale or rotated display.",
                                 "Review the plain-language capture summary, or expand Fine-tune capture for optional video smoothness, pointer, desktop cleanup, on-device instruction, secure-field, and display menu-bar choices. Hover over any choice for a plain-language explanation; the defaults work well for most Guides.",
-                                "Choose Start Guide, then select the live target on screen. Draw a Region; hover and click a Window; click any window belonging to an App; or click a Display when more than one is connected. Window and App also offer Choose from List when the target is hidden or easier to recognize by name. Escape returns to Create a Guide without losing the choices you already made. A Guide region stays on the display where the drag begins; the selector visibly clamps it at that display edge. Ordinary screenshot regions may still span displays. Display capture includes every visible app—even SnipSnipSnip itself when you are demonstrating it—while keeping the floating Guide controls out of the result.",
-                                "Work normally. One click, double-click, text selection, scroll burst, three-finger swipe, non-secure text-entry burst, supported keyboard shortcut, or Manual Step creates one step. Guide waits briefly after a swipe so a fullscreen transition can finish before it saves the step. Printable typing is captured even in custom and web editors that do not expose a standard macOS text value. When a non-secure focused field does expose its value, paste, dictation, and input-method edits are detected too. Text changes are grouped into one step after about 0.65 seconds without a change rather than creating a step per key.",
-                                "Use the floating HUD to pause, add a manual step, delete a recent step, stop, or discard. Discard closes the HUD immediately while Guide removes the live capture and its recovery checkpoint. Its System Audio and Mic controls use the same live meters and switches as the recording controls; turn either source on or off for the active Guide while it is recording. The newest 20 step previews stay available in the HUD without making a long session progressively heavier; all earlier steps remain in the Guide. Hover a preview to see a larger version with its step number and captured instruction. When source video needs a moment to close safely, the HUD replaces the recording timer with the real finalization stage: stopping media, preparing the document, rendering the preview, or saving recovery. It does not invent a time estimate.",
+                                "Choose Start Guide, then select the live target on screen. Draw a Region; hover and click a Window; click any window belonging to an App; or click a Screen when more than one display is connected. Window and App also offer Choose from List when the target is hidden or easier to recognize by name. Escape returns to Record a Guide without losing the choices you already made. A Guide region stays on the display where the drag begins; the selector visibly clamps it at that display edge. Ordinary screenshot regions may still span displays. Screen capture includes every visible app—even SnipSnipSnip itself when you are demonstrating it—while keeping the floating Guide controls out of the result.",
+                                "Work normally. One click, double-click, text selection, scroll burst, three-finger swipe, non-secure text-entry burst, supported keyboard shortcut, or Manual Step creates one step. Guide waits briefly after a swipe so a transition between Spaces can finish before it saves the step. Printable typing is captured even in custom and web editors that do not expose a standard macOS text value. When a non-secure focused field does expose its value, paste, dictation, and input-method edits are detected too. Text changes are grouped into one step after about 0.65 seconds without a change rather than creating a step per key.",
+                                "Use the floating HUD to pause, add a manual step, delete a recent step, stop, or discard. Discard closes the HUD immediately while Guide removes the live capture and its recovery checkpoint. Its System Audio and Mic controls use the same live meters and switches as the recording controls; turn either source on or off for the active Guide while it is capturing. The newest 20 step previews stay available in the HUD without making a long session progressively heavier; all earlier steps remain in the Guide. Hover a preview to see a larger version with its step number and captured instruction. When source video needs a moment to close safely, the HUD replaces the capture timer with the real finalization stage: stopping media, preparing the document, rendering the preview, or saving recovery. It does not invent a time estimate.",
                                 "Guide checks capture permissions and temporary storage during long sessions. If permission changes, the capture stream stops, or disk headroom becomes low, Guide pauses and explains the issue in the HUD. Restore the permission or free space, then choose Resume; completed steps and finalized video segments stay intact.",
-                                "Stop always ends capture. If no steps were recorded, it discards the empty Guide instead of opening the editor.",
+                                "Stop always ends capture. If no steps were captured, it discards the empty Guide instead of opening the editor.",
                                 "Press Command-Shift-9 again to stop and open the Guide editor."
                             ]
                         ),
@@ -472,9 +472,9 @@ struct HelpGuideView: View {
                             bullets: [
                                 "Guide does not upload screen images, source media, metadata, OCR, or captions.",
                                 "Secure text values are never retained and detected secure fields receive an editable solid mask by default.",
-                                "Private Guide skips archive, Clipboard History, OCR indexing, AI caption refinement, and content diagnostics.",
+                                "Private Guide skips Snip History, Clipboard History, OCR indexing, AI caption refinement, and content diagnostics.",
                                 "Completed steps and finalized media segments are autosaved incrementally so an interrupted capture can be recovered without rewriting every earlier image after each action.",
-                                "When you quit during a recoverable active Guide, choose Stop & Quit, Keep Recording in Background, or Cancel. Restart offers Stop & Restart or Cancel. The app does not show a second ordinary quit confirmation after this Guide decision. If the final checkpoint fails, the Guide opens and the app stays running instead of risking the session.",
+                                "When you quit during a recoverable active Guide, choose Stop & Quit, Keep Capturing in Background, or Cancel. Restart offers Stop & Restart or Cancel. The app does not show a second ordinary quit confirmation after this Guide decision. If the final checkpoint fails, the Guide opens and the app stays running instead of risking the session.",
                                 "Private Guide intentionally has no automatic recovery checkpoint. Quit and restart offer Open Guide & Stay, Discard and continue, or Cancel; the app never claims private work was saved for recovery.",
                                 "The exact captured crop is stored with each video segment, so cursor placement and video orientation remain correct on mixed-scale or rotated displays even if the display arrangement changes before export."
                             ]
@@ -498,7 +498,7 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Open a Guide",
-                            body: "This App Store edition does not create or record new Guides, and it does not request Accessibility access. It keeps the Guide document model and editor so existing .sssguide files remain useful.",
+                            body: "This App Store edition does not capture new Guides, and it does not request Accessibility access. It keeps the Guide document model and editor so existing .sssguide files remain useful.",
                             steps: [
                                 "Choose File > Open, or open a .sssguide file from Finder.",
                                 "The first successfully opened Guide shows a one-time explanation that Guide creation is available in the free direct-download Pro edition.",
@@ -536,12 +536,12 @@ struct HelpGuideView: View {
                 HelpArticle(
                     id: "capture-screenshot",
                     title: "Take a screenshot",
-                    summary: "Capture a region, window, fullscreen image, or repeat a previous capture.",
+                    summary: "Capture a region, window, screen image, or repeat a previous capture.",
                     sections: [
                         HelpArticleSection(
                             title: "Capture a region",
                             steps: [
-                                "Choose Region from the main window, menu bar icon, Capture menu, or global hotkey.",
+                                "Choose Region from the main window, menu bar icon, Capture menu, or global shortcut.",
                                 "Drag the area you want to capture over the live desktop. The loupe refreshes while you aim without including capture overlay graphics.",
                                 "Single-click a visible window instead of dragging to capture that window.",
                                 "A screenshot region may span connected displays.",
@@ -563,21 +563,21 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Capture the screen",
-                            body: "Choose Fullscreen to use your setting in Settings > Capture. \(fullscreenDisplayMode.detail) Choose Repeat Last Capture or press Command-Shift-7 to rerun the previous capture when the target can still be found. When captured content opens or resizes the editor, the main window keeps the placement you chose and only moves as much as needed to remain on-screen."
+                            body: "Choose Screen to use your screen-capture setting in Settings > Capture. \(fullscreenDisplayMode.detail) Choose Repeat Last Capture or press Command-Shift-7 to rerun the previous capture when the target can still be found. When captured content opens or resizes the editor, the main window keeps the placement you chose and only moves as much as needed to remain on-screen."
                         ),
                     ] + (connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(
                             title: "Connected devices",
-                            body: "Capture > Connected Device scans for trusted USB iPhone and iPad sources when the menu opens. Choose a device to open a live preview, then capture the latest visible frame, copy it, save it, or open it in the screenshot editor. The first preview can ask for Camera access because macOS exposes trusted iPhone and iPad screens as video sources. Keep the device awake and unlocked. If the phone or tablet was just connected, unlocked, trusted, or reconnected, choose Refresh Devices."
+                            body: "Capture > Capture Connected Device scans for trusted USB iPhone and iPad sources when the menu opens. Choose a device to open a live preview, then capture the latest visible frame, copy it, save it, or open it in the screenshot editor. The first preview can ask for Camera access because macOS exposes trusted iPhone and iPad screens as video sources. Keep the device awake and unlocked. If the phone or tablet was just connected, unlocked, trusted, or reconnected, choose Refresh Devices."
                         )
                     ] : []) + [
                         HelpArticleSection(
                             title: "Use a timer",
-                            body: "Choose a 3, 5, or 10 second timer from the Capture menu or menu bar extra when you need time to stage the screen before capture. For Region, Pick On Screen window capture, and Scrolling Capture, select the target first; SnipSnipSnip then shows the countdown and takes the snapshot when it reaches zero. Fullscreen, repeat, frontmost-window, and direct window captures count down immediately before reading pixels."
+                            body: "Choose a 3, 5, or 10 second timer from the Capture menu or menu bar extra when you need time to stage the screen before capture. For Region, Pick On Screen window capture, and Scrolling Content, select the target first; SnipSnipSnip then shows the countdown and takes the snapshot when it reaches zero. Screen, repeat, frontmost-window, and direct window captures count down immediately before reading pixels."
                         ),
                         HelpArticleSection(
                             title: "Use capture presets",
-                            body: "After a region, window, frontmost-window, fullscreen, or Screen Inspector snip, choose Presets > Save Last Capture as Preset to create a workflow. Give it a recognizable name, icon, and color; that colored badge identifies the preset consistently in capture menus and Settings. Then choose whether it opens in the editor, copies directly to the clipboard, or exports a rendered PNG, JPEG, or PDF to a folder you choose. You can assign a Command-Shift global shortcut; SnipSnipSnip checks built-in actions and other presets before saving it. Presets remember the screenshot target, timer, cursor option, fullscreen display choice, region controls, and Window UI Map option used for that capture. Private Capture stays controlled by the current Privacy setting and is not saved inside presets. Run saved workflows from the main window, Capture menu, menu bar extra, or assigned shortcut; favorites appear first. If a saved region no longer fits the current display layout, SnipSnipSnip opens the region selector with the saved size so you can reposition it. If a saved window is not available, choose a replacement window to update and run the preset."
+                            body: "After a region, window, frontmost-window, screen, or Screen Inspector snip, choose Presets > Save Last Capture as Preset to create a workflow. Give it a recognizable name, icon, and color; that colored badge identifies the preset consistently in capture menus and Settings. Then choose whether it opens in the editor, copies directly to the clipboard, or exports a rendered PNG, JPEG, or PDF to a folder you choose. You can assign a Command-Shift global shortcut; SnipSnipSnip checks built-in actions and other presets before saving it. Presets remember the screenshot source, timer, cursor option, screen display choice, region controls, and Window UI Map option used for that capture. Private Capture stays controlled by the current Privacy setting and is not saved inside presets. Run saved workflows from the main window, Capture menu, menu bar extra, or assigned shortcut; favorites appear first. If a saved region no longer fits the current display layout, SnipSnipSnip opens the region selector with the saved size so you can reposition it. If a saved window is not available, choose a replacement window to update and run the preset."
                         ),
                         HelpArticleSection(
                             title: "Recover from a capture problem",
@@ -585,7 +585,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Include an editable cursor",
-                            body: "Turn on Include Cursor from the Capture menu, menu bar extra, or Settings > Capture. Region, window, frontmost-window, fullscreen, and repeat screenshots add the cursor as an editable overlay that you can move, resize, fade, or delete. Region capture follows the selected region commit mode in Settings. Scrolling Capture always excludes the cursor while stitching."
+                            body: "Turn on Include Cursor from the Capture menu, menu bar extra, or Settings > Capture. Region, window, frontmost-window, screen, and repeat screenshots add the cursor as an editable overlay that you can move, resize, fade, or delete. Region capture follows the selected region commit mode in Settings. Scrolling Capture always excludes the cursor while stitching."
                         )
                     ],
                     important: [],
@@ -605,7 +605,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Capture a scrollable area",
                             steps: [
-                                "Choose Scrolling Capture.",
+                                "Choose Capture Scrolling Content.",
                                 "Drag over a scrollable area within one display. The selector uses the same crosshair, live loupe, and precision-control preferences as Region Capture.",
                                 "Confirm the detected app and selected viewport, or choose another area before capture starts. Turn off Show this again if you want future scrolling captures to start immediately after selection.",
                                 "Wait while SnipSnipSnip scrolls and captures segments. The progress panel shows the captured length, capacity remaining, a stitched preview, and any quality warning.",
@@ -636,12 +636,12 @@ struct HelpGuideView: View {
                 HelpArticle(
                     id: "record-video",
                     title: "Record the screen",
-                    summary: "Record region, window, or fullscreen video and trim it before export.",
+                    summary: "Record a region, window, or screen and trim the video before export.",
                     sections: [
                         HelpArticleSection(
                             title: "Start and control a recording",
                             steps: [
-                                "Choose Record Region, Record Window, or Record Fullscreen.",
+                                "Choose Record Region, Record Window, or Record Screen.",
                                 "Record Region and Pick On Screen recording start from the live desktop selection overlay, with the live loupe available while you aim. Drag to choose a custom region, or click a window to record the whole window.",
                                 "Use the floating recording control to Pause, Resume, or Stop. The System and Mic meters show live signal when those sources are enabled.",
                                 "When the recording finishes, use the video editor to review and trim the result."
@@ -649,12 +649,12 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Choose recording options",
-                            body: "Open Settings > Recording to set the default quality, frame rate, fullscreen display mode, cursor visibility, click rings, system audio, and microphone narration. During an active recording, use the floating recording control's color-coded System Audio and Mic switches to turn those sources on or off for that recording only. The meters below those switches confirm whether each enabled source is receiving signal."
+                            body: "Open Settings > Video to set the default quality, frame rate, display used for Screen recording, cursor visibility, click rings, system audio, and microphone narration. During an active recording, use the floating recording control's color-coded System Audio and Mic switches to turn those sources on or off for that recording only. The meters below those switches confirm whether each enabled source is receiving signal."
                         ),
                     ] + (connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(
                             title: "Connected-device recording",
-                            body: "Choose Record Connected Device; the menu scans for trusted USB iPhone and iPad sources as it opens. Pick a device, then use the preview window to start and stop recording. The first preview can ask for Camera access because macOS exposes trusted iPhone and iPad screens as video sources. Keep the device awake, unlocked, and connected until recording is stopped. Finished MP4 recordings open in the normal video editor for poster frames, trimming, export, and archive behavior."
+                            body: "Choose Record Connected Device; the menu scans for trusted USB iPhone and iPad sources as it opens. Pick a device, then use the preview window to start and stop recording. The first preview can ask for Camera access because macOS exposes trusted iPhone and iPad screens as video sources. Keep the device awake, unlocked, and connected until recording is stopped. Finished MP4 recordings open in the normal video editor for poster frames, trimming, and export."
                         )
                     ] : []) + [
                         HelpArticleSection(
@@ -710,9 +710,9 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: String(localized: "Choose what to make"),
                             steps: [
-                                String(localized: "Choose Create when you want help starting a Screenshot, Comparison, Process, or Combined Image. Region, Window, and Full Screen remain one-action Screenshot shortcuts."),
-                                String(localized: "For a Process, choose Record as I work to continue to Guide, or Add captures myself to build manual Steps."),
-                                String(localized: "Choose Region, Window, Screen, or Add Existing. Add Existing includes files, the clipboard, Recent Snips, Capture History, and Archive. More and Fine-tune keep specialized sources and optional capture settings out of the main decision."),
+                                String(localized: "Choose Create when you want to capture a Screenshot, compare two versions, explain a process, or make a Combined Image. Region, Window, and Screen remain one-action Screenshot shortcuts."),
+                                String(localized: "To explain a process, choose Record a Guide for action-aware capture or Build Steps manually to add and caption each step yourself."),
+                                String(localized: "Choose where the first image will come from: Region, Window, Screen, or Existing Image. Existing Image includes files, the clipboard, and the Snip Library. More ways to capture and Fine-tune keep specialized acquisition methods and optional settings out of the main decision."),
                                 String(localized: "Review the summary and use the single primary action. Cancelling setup, target selection, permission setup, or capture leaves the current document and preferences unchanged.")
                             ]
                         ),
@@ -722,7 +722,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: String(localized: "Follow the session"),
-                            body: String(localized: "While a screenshot document is open, the header names its purpose and the next useful action: Capture After, Capture Next Step, Add Image, Review Changes, Order & Caption, Arrange, or Back to Content. Global Capture-menu commands and shortcuts continue creating new Screenshot documents.")
+                            body: String(localized: "While a screenshot document is open, the header names its purpose and the next useful action: Capture After, Add Step, Add Image, Review Changes, Order & Caption, Arrange, or Back to Content. Global Capture-menu commands and shortcuts continue creating new Screenshot documents.")
                         ),
                         HelpArticleSection(
                             title: String(localized: "Arrange a combined image"),
@@ -763,7 +763,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: String(localized: "Private compositions"),
-                            body: String(localized: "Adding an item captured in a Private Capture session permanently marks the entire composition Private, even if that item is later removed. A Private composition remains editable and can be explicitly saved or exported, but it stays out of archive checkpoints, Recent Snips, the Recycle Bin, Clipboard History ingestion, OCR indexing, content diagnostics, and telemetry.")
+                            body: String(localized: "Adding an item captured in a Private Capture session permanently marks the entire composition Private, even if that item is later removed. A Private composition remains editable and can be explicitly saved or exported, but it stays out of Snip History, Recent Snips, the Recycle Bin, Clipboard History ingestion, OCR indexing, content diagnostics, and telemetry.")
                         )
                     ],
                     important: [
@@ -784,7 +784,7 @@ struct HelpGuideView: View {
                                 "Click Float in a content stage to pin the annotated screenshot or assembled result without Polish.",
                                 "Click Float in Polish to pin the visible Look or Mockup preview.",
                                 "Choose Reference > Float Current Screenshot when you prefer the menu command; it follows the active editor workspace.",
-                                "Open a Change History, Recent Snip, Capture History, or Recycle Bin preview and click Float Reference to pin that snapshot."
+                                "Open a Change History, Recent Snip, Snip History, or Recycle Bin preview and click Float Reference to pin that snapshot."
                             ]
                         ),
                         HelpArticleSection(
@@ -896,7 +896,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Use Private Capture",
-                            body: "Turn on Private Capture for screenshots that should skip archive checkpoints, Recent Snips recovery, Recycle Bin retention, and background OCR indexing for that capture session."
+                            body: "Turn on Private Capture for screenshots that should skip Snip History, Recent Snips, Recycle Bin retention, and background OCR indexing for that capture session."
                         )
                     ],
                     important: [
@@ -920,7 +920,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Where OCR runs",
-                            body: "Text recognition runs locally on this Mac. Capture History search can also index recognized screenshot text unless Private Capture is enabled."
+                            body: "Text recognition runs locally on this Mac. Snip History search can also index recognized screenshot text unless Private Capture is enabled."
                         )
                     ],
                     important: [],
@@ -1027,16 +1027,16 @@ struct HelpGuideView: View {
                             body: "Autosave checkpoints appear in the editor inspector. You can preview, restore, delete individual snapshots, or clear the current snip's history."
                         ),
                         HelpArticleSection(
-                            title: "Use Capture History search",
-                            body: "Capture History search is available from the main capture screen and the inspector, and searches labels, document names, annotation text, and recognized screenshot text. The main capture screen searches all capture history and shows one row per snip session with its checkpoint count, so autosave checkpoints do not repeat the same capture. Deleting a main-screen capture history row deletes that snip session and all of its checkpoints."
+                            title: "Use the Snip Library",
+                            body: "The Snip Library brings Recent Snips and searchable Snip History together. Snip History is available from the main capture screen and the inspector, and searches labels, document names, annotation text, and recognized screenshot text. The main capture screen shows one row per snip session with its checkpoint count, so autosave checkpoints do not repeat the same capture. Deleting a Snip History row deletes that snip session and all of its checkpoints."
                         ),
                         HelpArticleSection(
                             title: "Restore deleted snips",
-                            body: "Deleted snips move to the Recycle Bin first. Preview and restore them from the main capture screen or the bottom of the editor inspector before retention cleanup removes them. New installations and Reset Defaults use 30 days. Configure any value from 1 through 180 days in Settings > Library > Snips; Empty Now and scheduled cleanup behavior are unchanged."
+                            body: "Deleted snips move to the Recycle Bin first. Preview and restore them from the main capture screen or the bottom of the editor inspector before retention cleanup removes them. New installations and Reset Defaults use 30 days. Configure any value from 1 through 180 days in Settings > Snip Library > Snips; Empty Recycle Bin and scheduled cleanup behavior are unchanged."
                         )
                     ],
                     important: [
-                        "Private Capture skips archive checkpoints, Recent Snips recovery, Recycle Bin retention, and background OCR indexing for that capture session."
+                        "Private Capture skips Snip History, Recent Snips, Recycle Bin retention, and background OCR indexing for that capture session."
                     ],
                     relatedIDs: ["privacy", "copy-save-export"]
                 )
@@ -1056,7 +1056,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Private Capture",
-                            body: "Private Capture keeps the current capture out of archive history, Recent Snips, the Recycle Bin, Clipboard History, and background OCR indexing. The setting is locked while a capture or recording is active."
+                            body: "Private Capture keeps the current capture out of Snip History, Recent Snips, the Recycle Bin, Clipboard History, and background OCR indexing. The setting is locked while a capture or recording is active."
                         ),
                         HelpArticleSection(
                             title: "Rendered output",
@@ -1088,7 +1088,7 @@ struct HelpGuideView: View {
                         )
                     ],
                     important: [
-                        "Global capture and Screen Inspector shortcuts can be customized in Settings > Shortcuts.",
+                        "Global shortcuts can be customized in Settings > Shortcuts.",
                         "Single-key editor tool shortcuts can be turned off in Settings > Shortcuts.",
                         "Apple Shortcuts actions are separate from these keyboard shortcuts and appear in the Shortcuts app."
                     ],
@@ -1104,7 +1104,7 @@ struct HelpGuideView: View {
                             bullets: [
                                 "Get automation status and list capture presets.",
                                 "Run a capture preset by choosing a saved preset.",
-                                "Capture fullscreen, frontmost window, region, or interactive window.",
+                                "Capture a screen, frontmost window, region, or interactive window.",
                                 "Add a capture to a composition, replace an exact item, set its layout or comparison, apply a saved template, and export the completed composition.",
                                 "Start, pause, resume, add a step to, stop, or export a Guide.",
                                 "Repeat the last capture, open an editable .sss document, or export the current screenshot."
@@ -1116,11 +1116,11 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Output and privacy",
-                            body: "Shortcuts actions use the same automation validation as command-line, AppleScript, and URL automation. File output accepts an absolute path or file URL and still checks format and overwrite choices. In the sandboxed App Store build, unattended file output must be inside Downloads; interactive exports can use a location you choose in the save panel. The direct-download Pro build can use other writable absolute paths. Private Capture skips archive checkpoints, Recent Snips recovery, Recycle Bin retention, and background OCR indexing for that capture session."
+                            body: "Shortcuts actions use the same automation validation as command-line, AppleScript, and URL automation. File output accepts an absolute path or file URL and still checks format and overwrite choices. In the sandboxed App Store build, unattended file output must be inside Downloads; interactive exports can use a location you choose in the save panel. The direct-download Pro build can use other writable absolute paths. Private Capture skips Snip History, Recent Snips, Recycle Bin retention, and background OCR indexing for that capture session."
                         ),
                         HelpArticleSection(
                             title: "Script interfaces",
-                            body: "Use Apple Shortcuts actions for native macOS automation. Use the command-line helper, AppleScript suite, or URL routes from scripts and launchers when you need those interfaces directly."
+                            body: "Use Apple Shortcuts actions for native macOS automation. Use the command-line helper, AppleScript suite, or URL routes from scripts and launchers when you need those interfaces directly. Those compatibility interfaces retain their existing fullscreen command and option identifiers even though the app’s visible source name is Screen."
                         )
                     ],
                     important: [
@@ -1146,7 +1146,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Work was replaced or deleted",
-                            body: "Check Change History, Capture History search, or the Recycle Bin before recapturing."
+                            body: "Check Change History, the Snip Library, or the Recycle Bin before recapturing."
                         ),
                         HelpArticleSection(
                             title: "Temporary storage is low",

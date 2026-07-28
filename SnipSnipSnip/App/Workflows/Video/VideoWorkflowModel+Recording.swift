@@ -63,7 +63,7 @@ extension VideoWorkflowModel {
                 try? await dependencies.systemServices.scheduler.sleep(nanoseconds: 200_000_000)
             }
 
-            guard dependencies.permissions.preflight([.screenRecording], featureName: "Capture").isGranted else {
+            guard dependencies.permissions.preflight([.screenRecording], featureName: "Video").isGranted else {
                 return
             }
 
@@ -101,7 +101,7 @@ extension VideoWorkflowModel {
 
         Task {
             do {
-                try await dependencies.capture.performVideoWork(message: "Finishing Recording") {
+                try await dependencies.capture.performVideoWork(message: "Finishing") {
                     let recording = try await activeVideoRecording.session.stop()
                     restoreAppWindowIfNeeded(activeVideoRecording.hiddenWindow)
                     documents?.installVideoController(
@@ -142,7 +142,7 @@ extension VideoWorkflowModel {
             do {
                 try await activeVideoRecording.session.pause()
                 activeVideoRecording.overlay.updatePausedState(true)
-                dependencies.lifecycle.updateWorkingMessage("Recording Paused")
+                dependencies.lifecycle.updateWorkingMessage("Paused")
             } catch {
                 present(error)
             }
@@ -158,7 +158,7 @@ extension VideoWorkflowModel {
             do {
                 try await activeVideoRecording.session.resume()
                 activeVideoRecording.overlay.updatePausedState(false)
-                dependencies.lifecycle.updateWorkingMessage("Recording")
+                dependencies.lifecycle.updateWorkingMessage(WorkflowVocabulary.Status.videoRecording)
             } catch {
                 present(error)
             }
@@ -183,7 +183,7 @@ extension VideoWorkflowModel {
 
     private func beginFullscreenVideoRecording() {
         Task {
-            guard dependencies.permissions.preflight([.screenRecording], featureName: "Capture").isGranted,
+            guard dependencies.permissions.preflight([.screenRecording], featureName: "Video").isGranted,
                   activeVideoRecording == nil else {
                 return
             }
@@ -205,11 +205,11 @@ extension VideoWorkflowModel {
                 let session = try await recordingService.startFullscreenRecording(preferences: recordingPreferences)
                 activeVideoRecording = buildActiveRecording(
                     session: session,
-                    title: "Recording Fullscreen",
+                    sourceLabel: WorkflowVocabulary.Source.screen,
                     hiddenWindow: hiddenWindow
                 )
                 startVideoStorageMonitor(for: session)
-                dependencies.lifecycle.updateWorkingMessage("Recording")
+                dependencies.lifecycle.updateWorkingMessage(WorkflowVocabulary.Status.videoRecording)
             } catch {
                 restoreAppWindowIfNeeded(hiddenWindow)
                 present(error)
@@ -219,7 +219,7 @@ extension VideoWorkflowModel {
 
     private func beginRegionVideoRecording() {
         Task {
-            guard dependencies.permissions.preflight([.screenRecording], featureName: "Capture").isGranted,
+            guard dependencies.permissions.preflight([.screenRecording], featureName: "Video").isGranted,
                   activeVideoRecording == nil else {
                 return
             }
@@ -260,11 +260,11 @@ extension VideoWorkflowModel {
                         )
                         activeVideoRecording = buildActiveRecording(
                             session: recordingSession,
-                            title: "Recording Region",
+                            sourceLabel: WorkflowVocabulary.Source.region,
                             hiddenWindow: hiddenWindow
                         )
                         startVideoStorageMonitor(for: recordingSession)
-                        dependencies.lifecycle.updateWorkingMessage("Recording")
+                        dependencies.lifecycle.updateWorkingMessage(WorkflowVocabulary.Status.videoRecording)
                     case .window(let window):
                         let resolvedWindow = try await recordingService.resolveWindowTarget(window)
                         let recordingSession = try await recordingService.startWindowRecording(
@@ -273,11 +273,11 @@ extension VideoWorkflowModel {
                         )
                         activeVideoRecording = buildActiveRecording(
                             session: recordingSession,
-                            title: "Recording Window",
+                            sourceLabel: WorkflowVocabulary.Source.window,
                             hiddenWindow: hiddenWindow
                         )
                         startVideoStorageMonitor(for: recordingSession)
-                        dependencies.lifecycle.updateWorkingMessage("Recording")
+                        dependencies.lifecycle.updateWorkingMessage(WorkflowVocabulary.Status.videoRecording)
                     }
                 }
             } catch {
@@ -289,7 +289,7 @@ extension VideoWorkflowModel {
 
     private func beginWindowVideoRecording(_ window: CaptureWindowSummary) {
         Task {
-            guard dependencies.permissions.preflight([.screenRecording], featureName: "Capture").isGranted,
+            guard dependencies.permissions.preflight([.screenRecording], featureName: "Video").isGranted,
                   activeVideoRecording == nil else {
                 return
             }
@@ -313,11 +313,11 @@ extension VideoWorkflowModel {
                     )
                     activeVideoRecording = buildActiveRecording(
                         session: session,
-                        title: "Recording Window",
+                        sourceLabel: WorkflowVocabulary.Source.window,
                         hiddenWindow: nil
                     )
                     startVideoStorageMonitor(for: session)
-                    dependencies.lifecycle.updateWorkingMessage("Recording")
+                    dependencies.lifecycle.updateWorkingMessage(WorkflowVocabulary.Status.videoRecording)
                 }
             } catch {
                 present(error)
@@ -327,12 +327,12 @@ extension VideoWorkflowModel {
 
     private func buildActiveRecording(
         session: ScreenRecordingSession,
-        title: String,
+        sourceLabel: String,
         hiddenWindow: AppWindowVisibilityToken?
     ) -> ActiveVideoRecording {
         let overlay = RecordingControlOverlay(
-            title: title,
-            sourceLabel: title.replacingOccurrences(of: "Recording ", with: ""),
+            title: sourceLabel,
+            sourceLabel: sourceLabel,
             preferences: recordingPreferences,
             isPaused: session.isPaused,
             pauseResumeAction: { [weak self] in

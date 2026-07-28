@@ -280,7 +280,7 @@ final class AppTerminationController {
             alert.informativeText = "Completed steps and finalized source media will be saved for recovery first."
             alert.addButton(withTitle: purpose == .restart ? "Stop & Restart" : "Stop & Quit")
             if purpose == .quit {
-                alert.addButton(withTitle: "Keep Recording in Background")
+                alert.addButton(withTitle: "Keep Capturing in Background")
             }
             alert.addButton(withTitle: "Cancel")
         }

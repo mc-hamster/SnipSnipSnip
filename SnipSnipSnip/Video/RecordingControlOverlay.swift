@@ -69,7 +69,7 @@ final class RecordingControlOverlayModel: ObservableObject {
     }
 
     var stateLabel: String {
-        isPaused ? "Paused" : "Recording"
+        isPaused ? "Paused" : WorkflowVocabulary.Status.videoRecording
     }
 
     var sourceSummaryLabel: String {

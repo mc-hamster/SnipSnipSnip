@@ -35,10 +35,13 @@ struct CreationQuickStartView: View {
                     Section("How do you want to build it?") {
                         Picker("Method", selection: instructionMethod) {
                             if creation.isGuideCreationAvailable {
-                                Text("Record as I work")
+                                Text(WorkflowVocabulary.Instructions.recordGuide)
                                     .tag(InstructionCreationMethod.recordAsIWork)
                             }
-                            Text("Add captures myself")
+                            Text(
+                                WorkflowVocabulary.Instructions
+                                    .buildStepsManually
+                            )
                                 .tag(InstructionCreationMethod.addCaptures)
                         }
                         .pickerStyle(.radioGroup)
@@ -52,19 +55,22 @@ struct CreationQuickStartView: View {
                 }
 
                 if creation.draft.goal != .instructions(.recordAsIWork) {
-                    Section("What will you capture?") {
+                    Section("Where will the first image come from?") {
                         Picker("Source", selection: sourceChoice) {
                             if creation.capabilities.isEnabled(.regionCapture) {
-                                Text("Region").tag(CreationSourceChoice.region)
+                                Text(WorkflowVocabulary.Source.region)
+                                    .tag(CreationSourceChoice.region)
                             }
                             if creation.capabilities.isEnabled(.windowCapture) {
-                                Text("Window").tag(CreationSourceChoice.window)
+                                Text(WorkflowVocabulary.Source.window)
+                                    .tag(CreationSourceChoice.window)
                             }
                             if creation.capabilities.isEnabled(.fullscreenCapture) {
-                                Text("Screen").tag(CreationSourceChoice.screen)
+                                Text(WorkflowVocabulary.Source.screen)
+                                    .tag(CreationSourceChoice.screen)
                             }
                             if !creation.availableExistingSources.isEmpty {
-                                Text("Add Existing")
+                                Text(WorkflowVocabulary.Source.existingImage)
                                     .tag(CreationSourceChoice.addExisting)
                             }
                         }
@@ -90,7 +96,7 @@ struct CreationQuickStartView: View {
 
                         if hasFineTuningSources {
                             DisclosureGroup(
-                                "More capture sources",
+                                "More ways to capture",
                                 isExpanded: $isShowingMoreSources
                             ) {
                                 VStack(alignment: .leading, spacing: 8) {
@@ -98,9 +104,7 @@ struct CreationQuickStartView: View {
                                         .scrollingCapture
                                     ) {
                                         fineTuningSourceButton(
-                                            String(
-                                                localized: "Scrolling Content"
-                                            ),
+                                            "Capture \(WorkflowVocabulary.Source.scrollingContent)",
                                             systemImage:
                                                 "arrow.up.and.down.text.horizontal",
                                             source: .scrolling
@@ -110,9 +114,7 @@ struct CreationQuickStartView: View {
                                         .connectedDeviceCapture
                                     ) {
                                         fineTuningSourceButton(
-                                            String(
-                                                localized: "Connected Device"
-                                            ),
+                                            "Capture a \(WorkflowVocabulary.Source.connectedDevice)",
                                             systemImage: "iphone.gen3",
                                             source: .connectedDevice
                                         )
@@ -122,7 +124,8 @@ struct CreationQuickStartView: View {
                                     ) {
                                         fineTuningSourceButton(
                                             String(
-                                                localized: "Screen Inspector"
+                                                localized:
+                                                    "Use Screen Inspector"
                                             ),
                                             systemImage: "scope",
                                             source: .screenInspector
@@ -212,7 +215,7 @@ struct CreationQuickStartView: View {
                 } else {
                     Section("What will you capture?") {
                         Label(
-                            "Guide will ask which app, window, or screen to record next.",
+                            "Your Guide will ask which app, window, or screen to capture.",
                             systemImage: "list.number"
                         )
                         .font(.footnote)
@@ -319,12 +322,12 @@ struct CreationQuickStartView: View {
         case .recordAsIWork:
             return String(
                 localized:
-                    "Guide records your workflow and creates editable steps automatically."
+                    "Record a Guide while you work; editable steps are created automatically."
             )
         case .addCaptures:
             return String(
                 localized:
-                    "Capture or import each step yourself, then add captions and numbering."
+                    "Build Steps manually by capturing or importing each step, then add captions and numbering."
             )
         }
     }
@@ -354,8 +357,21 @@ struct CreationQuickStartView: View {
     private var existingSource: Binding<CreationExistingSource> {
         Binding(
             get: {
-                if case .existing(let source) = creation.draft.source {
+                if case .existing(let source) = creation.draft.source,
+                   creation.availableExistingSources.contains(source) {
                     return source
+                }
+                if case .existing(.recentSnips) = creation.draft.source,
+                   creation.availableExistingSources.contains(.captureHistory) {
+                    return .captureHistory
+                }
+                if case .existing(.archive) = creation.draft.source {
+                    if creation.availableExistingSources.contains(.captureHistory) {
+                        return .captureHistory
+                    }
+                    if creation.availableExistingSources.contains(.archive) {
+                        return .archive
+                    }
                 }
                 return creation.availableExistingSources.first ?? .files
             },
@@ -453,7 +469,8 @@ private enum CreationGoalChoice: String, CaseIterable, Identifiable {
             )
         case .instructions:
             return String(
-                localized: "Record a workflow or assemble numbered steps."
+                localized:
+                    "Record a Guide or build numbered Steps manually."
             )
         case .combineImages:
             return String(
@@ -510,11 +527,11 @@ private extension CreationExistingSource {
         case .clipboard:
             return String(localized: "Clipboard")
         case .recentSnips:
-            return String(localized: "Recent Snips")
+            return WorkflowVocabulary.Library.recentSnips
         case .captureHistory:
-            return String(localized: "Capture History")
+            return WorkflowVocabulary.Library.snipLibrary
         case .archive:
-            return String(localized: "Archive")
+            return WorkflowVocabulary.Library.snipLibrary
         }
     }
 
@@ -536,10 +553,12 @@ private extension CreationExistingSource {
 
 struct CreationExistingSourcePickerView: View {
     let sourceTitle: String
-    let entries: [DocumentHistoryEntry]
+    let recentEntries: [DocumentHistoryEntry]
+    let historyEntries: [DocumentHistoryEntry]
     let onChoose: (DocumentHistoryEntry, Bool) -> Void
     let onCancel: () -> Void
     @State private var selectedEntryID: UUID?
+    @State private var libraryScope = CreationExistingSourceScope.recent
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -556,19 +575,37 @@ struct CreationExistingSourcePickerView: View {
             }
             .padding(16)
 
+            if !recentEntries.isEmpty && !historyEntries.isEmpty {
+                Picker(
+                    WorkflowVocabulary.Library.snipLibrary,
+                    selection: $libraryScope
+                ) {
+                    Text(WorkflowVocabulary.Library.recentSnips)
+                        .tag(CreationExistingSourceScope.recent)
+                    Text(WorkflowVocabulary.Library.snipHistory)
+                        .tag(CreationExistingSourceScope.history)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+                .onChange(of: libraryScope) {
+                    selectedEntryID = nil
+                }
+            }
+
             Divider()
 
-            if entries.isEmpty {
+            if visibleEntries.isEmpty {
                 ContentUnavailableView(
                     "Nothing Available",
                     systemImage: "photo.on.rectangle.angled",
                     description: Text(
-                        "There are no captures in this source yet."
+                        "There are no Snip Library items yet."
                     )
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List(entries, selection: $selectedEntryID) { entry in
+                List(visibleEntries, selection: $selectedEntryID) { entry in
                     HStack(spacing: 12) {
                         DocumentPreviewThumbnailView(
                             packageURL: entry.packageURL,
@@ -643,7 +680,17 @@ struct CreationExistingSourcePickerView: View {
         guard let selectedEntryID else {
             return nil
         }
-        return entries.first { $0.id == selectedEntryID }
+        return visibleEntries.first { $0.id == selectedEntryID }
+    }
+
+    private var visibleEntries: [DocumentHistoryEntry] {
+        if recentEntries.isEmpty {
+            return historyEntries
+        }
+        if historyEntries.isEmpty {
+            return recentEntries
+        }
+        return libraryScope == .recent ? recentEntries : historyEntries
     }
 
     private func choose(flattened: Bool) {
@@ -652,6 +699,11 @@ struct CreationExistingSourcePickerView: View {
         }
         onChoose(selectedEntry, flattened)
     }
+}
+
+private enum CreationExistingSourceScope: String, Hashable {
+    case recent
+    case history
 }
 
 struct CreationConnectedDevicePickerView: View {

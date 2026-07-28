@@ -45,7 +45,7 @@ final class MultiCaptureCompositionUITests: XCTestCase {
             case .comparison:
                 return "Review Changes"
             case .steps:
-                return "Capture Next Step"
+                return "Add Step"
             case .collection:
                 return "Add Image"
             }

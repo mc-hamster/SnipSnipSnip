@@ -1,7 +1,7 @@
 # Presentation Mode Plan
 
 > Historical implementation record. The user-facing Presentation workspace is
-> superseded by the intent-driven Screenshot, Comparison, Steps, Collection,
+> superseded by the intent-driven Screenshot, Comparison, Steps, Combined Image,
 > and optional Polish workflow. `ScreenshotPresentation`, Styles, and Scenes
 > remain compatible internal rendering and persistence types; the primary UI
 > calls them Look and Mockup under Polish.
@@ -18,7 +18,7 @@
 - Presentation styling wraps the rendered screenshot and annotation output. It does not flatten into the base screenshot or annotation state.
 - Applied presentation settings remain part of the editable document snapshot and continue to flow through undoable document commands.
 - Presentation Styles are native Swift settings for simple polish. Presentation Scenes are sanitized SVG templates stored on disk and embedded into `.sss` as applied snapshots.
-- Screenshot, Comparison, Steps, and Collection determine acquisition, arrangement, and editing controls. Polish contains Look and Mockup, and routine output follows the visible stage.
+- Screenshot, Comparison, Steps, and Combined Image determine acquisition, arrangement, and editing controls. Polish contains Look and Mockup, and routine output follows the visible stage.
 - User-facing workflow or label changes must be reflected in the in-app Help guide in the same change.
 - Video presentation styling is out of scope for this plan.
 

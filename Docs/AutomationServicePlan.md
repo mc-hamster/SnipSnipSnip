@@ -580,7 +580,7 @@ Initial App Intents:
 - Get SnipSnipSnip Automation Status
 - List SnipSnipSnip Capture Presets
 - Run SnipSnipSnip Capture Preset
-- Capture SnipSnipSnip Fullscreen
+- Capture SnipSnipSnip Screen
 - Capture SnipSnipSnip Frontmost Window
 - Capture SnipSnipSnip Region
 - Capture SnipSnipSnip Window

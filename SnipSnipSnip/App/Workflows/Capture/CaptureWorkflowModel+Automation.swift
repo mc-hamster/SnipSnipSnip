@@ -37,7 +37,7 @@ extension CaptureWorkflowModel {
                 id: preset.id,
                 name: preset.name,
                 target: preset.target.automationKind,
-                targetLabel: preset.targetLabel,
+                targetLabel: preset.automationTargetLabel,
                 createdAt: preset.createdAt,
                 updatedAt: preset.updatedAt
             )

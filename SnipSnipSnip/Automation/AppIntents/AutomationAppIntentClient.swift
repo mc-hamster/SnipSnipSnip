@@ -151,9 +151,27 @@ nonisolated enum AutomationIntentResultFormatter {
                 ? "Screen Recording permission is allowed."
                 : "Screen Recording permission is needed."
         case .guide(let summary):
-            return "Guide is \(summary.state) with \(summary.stepCount) steps."
+            let count = summary.stepCount
+            return "\(guideStatusName(for: summary.state)) with \(count) \(count == 1 ? "step" : "steps")."
         case .capabilities, .none?, nil:
             return "SnipSnipSnip automation finished."
+        }
+    }
+
+    private static func guideStatusName(for state: String) -> String {
+        switch state {
+        case "selectionRequired":
+            return "Guide Awaiting Selection"
+        case GuideCaptureState.starting.rawValue:
+            return "Starting Guide"
+        case GuideCaptureState.recording.rawValue:
+            return WorkflowVocabulary.Status.guideCapturing
+        case GuideCaptureState.paused.rawValue:
+            return "Guide Paused"
+        case GuideCaptureState.finishing.rawValue:
+            return "Finishing Guide"
+        default:
+            return "Guide"
         }
     }
 }

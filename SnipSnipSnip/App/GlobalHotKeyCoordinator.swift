@@ -127,13 +127,13 @@ nonisolated enum GlobalHotKeyAction: UInt32, CaseIterable {
     var label: String {
         switch self {
         case .region:
-            return "Region"
+            return WorkflowVocabulary.Source.region
         case .window:
-            return "Window"
+            return WorkflowVocabulary.Source.window
         case .fullscreen:
-            return "Fullscreen"
+            return WorkflowVocabulary.Source.screen
         case .frontmostWindow:
-            return "Frontmost Window"
+            return "Frontmost \(WorkflowVocabulary.Source.window)"
         case .repeatLastCapture:
             return "Repeat"
         case .screenInspector:

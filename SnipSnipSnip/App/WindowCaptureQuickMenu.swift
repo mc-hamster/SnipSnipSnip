@@ -19,7 +19,9 @@ enum WindowCaptureMenuBuilder {
         presentWindowPickerAction: Selector,
         thumbnailSize: NSSize
     ) -> NSMenu {
-        let menu = NSMenu(title: "Window Capture")
+        let menu = NSMenu(
+            title: "Capture \(WorkflowVocabulary.Source.window)"
+        )
         menu.autoenablesItems = false
         populate(
             menu,

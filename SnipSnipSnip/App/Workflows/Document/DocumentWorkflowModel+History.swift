@@ -19,7 +19,7 @@ extension DocumentWorkflowModel {
 
         let didContinue = incompatibleDocumentCoordinator.handleIncompatibleFiles(
             incompatibleEntries.map(\.packageURL),
-            sourceDescription: "archive history",
+            sourceDescription: WorkflowVocabulary.Library.snipHistory,
             presentError: present
         ) {
             try self.recoveryStore.purgeHistoryEntriesAfterExternalRemoval(incompatibleEntries)
@@ -34,7 +34,13 @@ extension DocumentWorkflowModel {
 
     func reloadRecoveryPresentationStateFromStore() {
         pendingRecoverySession = recoveryStore.latestPendingRecovery()
-        allCaptureHistoryEntries = recoveryStore.allHistoryEntries(limit: DocumentWorkflowConstants.captureHistoryLimit)
+        let allEntries = recoveryStore.allHistoryEntries(
+            limit: DocumentWorkflowConstants.captureHistoryLimit
+        )
+        allCaptureHistoryEntries = allEntries
+        snipLibraryEntries = DocumentHistoryEntrySelection.latestPerSession(
+            from: allEntries
+        )
         recentSnipEntries = recoveryStore.pendingRecoveryEntries(limit: DocumentWorkflowConstants.recentSnipLimit)
         recycleBinEntries = recoveryStore.recycledHistoryEntries(limit: DocumentWorkflowConstants.recycleBinLimit)
 
@@ -65,7 +71,7 @@ extension DocumentWorkflowModel {
     var captureHistorySearchResultsLabel: String {
         let query = captureSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else {
-            return "Recent checkpoints, autosaves, and shelved snips from every session."
+            return "Snip History includes checkpoints, autosaves, and shelved snips from every session."
         }
 
         let resultCount = filteredCaptureHistoryEntries.count
@@ -81,7 +87,14 @@ extension DocumentWorkflowModel {
 
         guard !query.isEmpty else {
             pendingCaptureHistorySearchTask = nil
-            allCaptureHistoryEntries = recoveryStore.allHistoryEntries(limit: DocumentWorkflowConstants.captureHistoryLimit)
+            let allEntries = recoveryStore.allHistoryEntries(
+                limit: DocumentWorkflowConstants.captureHistoryLimit
+            )
+            allCaptureHistoryEntries = allEntries
+            snipLibraryEntries =
+                DocumentHistoryEntrySelection.latestPerSession(
+                    from: allEntries
+                )
             return
         }
 
