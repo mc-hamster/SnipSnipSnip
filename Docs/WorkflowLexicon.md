@@ -226,6 +226,8 @@ Use **Compare Using** for the exported Comparison view selector. Its choices are
 
 Keep these labels action-oriented and concrete. Do not expose implementation terms such as comparison mode, blend amount, poster frame, or rendered result in the exported viewer.
 
+Use **Created with SnipSnipSnip** for the exported HTML attribution, with only **SnipSnipSnip** linked to the canonical product website. A small decorative app logo may sit beside the attribution. Keep both visually secondary, open the product page separately, and send no referrer. Do not replace them with a promotional call to action, badge, or large logo.
+
 ## Library and History Terms
 
 Library terms identify distinct scopes. Do not shorten them to generic **Library** or **History** when the scope would become ambiguous.

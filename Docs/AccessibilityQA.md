@@ -90,6 +90,8 @@ Repeat the essential workflow pass with:
 - [ ] Cancelled add or replacement restores focus and makes no selection or document announcement implying success.
 - [ ] Partial batch-import failure announces the exact Added and Failed counts, then exposes Retry Failed and Details without discarding successful items.
 - [ ] Interactive HTML is tested in Safari with VoiceOver and keyboard only: heading structure, static numbered links, Previous/Next, Left/Right Arrow step navigation, Compare Using, comparison sliders, Wipe direction and direct-drag divider, Blink Play/Pause and manual sides, shared Zoom Out/Fit/Zoom In, focus visibility, Dark appearance, and browser zoom all remain usable.
+- [ ] The Created with SnipSnipSnip footer link has an understandable accessible name, visible keyboard focus, and opens the canonical product website without replacing the exported composition.
+- [ ] The embedded footer logo is decorative and omitted from the accessibility tree. Increased Contrast, forced colors, and print remove the outer line-and-dot background without changing content or navigation.
 - [ ] Reloading or sharing an interactive comparison file with its URL fragment restores the chosen comparison view, zoom, and view-specific settings without browser storage.
 - [ ] Interactive HTML honors `prefers-reduced-motion`, contains useful static navigation without JavaScript, and does not depend on color alone for Difference output.
 

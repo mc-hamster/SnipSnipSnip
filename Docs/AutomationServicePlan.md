@@ -325,14 +325,17 @@ enum AutomationExportFormat: String, Codable, Sendable {
 GIF/APNG/MP4 are composition-aware Blink outputs with deterministic timing,
 crossfade, loop behavior, and a disclosed 4,096 px longest-side cap. HTML is a
 self-contained interactive Compare or Steps artifact built only from rendered,
-redacted pixels, with embedded assets and no runtime server or network
-dependency. Side-by-side Comparison HTML provides Show Both, Before, and After
-controls. Every Comparison HTML opens in the configured view and provides a
-Compare Using selector for Side by Side, Wipe, Overlay, Blink, Difference, and
-Highlight Changes, plus synchronized Fit and Zoom controls. Wipe supports
-direct divider dragging, and the URL fragment preserves viewer state without
-using browser storage. Without JavaScript, the configured static view remains
-visible.
+redacted pixels, with embedded assets and no runtime server or remotely loaded
+resource dependency. Its outer page uses the app's subtle line-and-dot motif,
+and a small embedded app logo sits beside the quiet Created with SnipSnipSnip
+footer. The product name links to the canonical website; the file makes no
+network request unless the viewer chooses that link. Side-by-side Comparison
+HTML provides Show Both, Before, and After controls. Every Comparison HTML
+opens in the configured view and provides a Compare Using selector for Side by
+Side, Wipe, Overlay, Blink, Difference, and Highlight Changes, plus
+synchronized Fit and Zoom controls. Wipe supports direct divider dragging, and
+the URL fragment preserves viewer state without using browser storage. Without
+JavaScript, the configured static view remains visible.
 
 `saveEditableDocument(.sss)` must preserve the existing redaction warning
 semantics. When the request has `interactionPolicy == .never` and the document

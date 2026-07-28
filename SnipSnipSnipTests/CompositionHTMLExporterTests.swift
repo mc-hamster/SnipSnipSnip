@@ -5,7 +5,7 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class CompositionHTMLExporterTests: XCTestCase {
-    func testSingleFileExportIsOfflineAndUsesHashPinnedCSP() throws {
+    func testSingleFileExportIsSelfContainedAndUsesHashPinnedCSP() throws {
         let html = try CompositionHTMLExporter.html(for: CompositionHTMLDocument(
             title: "Release Review",
             layout: .grid(columns: 2),
@@ -28,7 +28,35 @@ final class CompositionHTMLExporterTests: XCTestCase {
         XCTAssertFalse(html.contains(".style."))
         XCTAssertFalse(html.contains("<link"))
         XCTAssertFalse(html.contains("http://"))
-        XCTAssertFalse(html.contains("https://"))
+        XCTAssertEqual(
+            html.components(separatedBy: "https://").count - 1,
+            1
+        )
+        XCTAssertTrue(
+            html.contains(
+                #"href="https://www.oontz.com/apps/snipsnipsnip/""#
+            )
+        )
+        XCTAssertTrue(html.contains("Created with <a "))
+        XCTAssertTrue(html.contains(#"rel="noopener noreferrer external""#))
+        XCTAssertTrue(html.contains(#"referrerpolicy="no-referrer""#))
+        XCTAssertTrue(
+            html.contains(
+                #"aria-label="Visit the SnipSnipSnip website""#
+            )
+        )
+        XCTAssertTrue(html.contains(#"class="brand-logo" aria-hidden="true""#))
+        XCTAssertTrue(
+            html.contains(
+                #".brand-logo { background-image: url("data:image/png;base64,"#
+            )
+        )
+        XCTAssertTrue(html.contains("data:image/svg+xml;base64,"))
+        XCTAssertTrue(html.contains("background-size: 68px 68px"))
+        XCTAssertFalse(html.contains("repeating-linear-gradient"))
+        XCTAssertFalse(html.contains("radial-gradient"))
+        XCTAssertTrue(html.contains("@media (prefers-contrast: more)"))
+        XCTAssertTrue(html.contains("html { background: #fff; }"))
         XCTAssertFalse(html.contains("file://"))
         XCTAssertEqual(html.components(separatedBy: "src=\"data:image/png;base64,").count - 1, 2)
 
@@ -36,6 +64,50 @@ final class CompositionHTMLExporterTests: XCTestCase {
         let script = try content(between: "<script>", and: "</script>", in: html)
         XCTAssertTrue(html.contains("style-src '\(hashSource(for: style))'"))
         XCTAssertTrue(html.contains("script-src '\(hashSource(for: script))'"))
+    }
+
+    func testBrandPatternUsesTheEditorLatticeAndAlignedDots() {
+        XCTAssertEqual(CompositionHTMLBrandPattern.spacing, 34)
+        XCTAssertEqual(CompositionHTMLBrandPattern.tileSize, 68)
+        XCTAssertEqual(CompositionHTMLBrandPattern.lineWidth, 1)
+        XCTAssertEqual(CompositionHTMLBrandPattern.dotDiameter, 5)
+        XCTAssertEqual(CompositionHTMLBrandPattern.dotRadius, 2.5)
+
+        XCTAssertEqual(
+            Set(CompositionHTMLBrandPattern.lineSegments),
+            Set([
+                .init(start: .init(x: 0, y: 34), end: .init(x: 34, y: 68)),
+                .init(start: .init(x: 0, y: 0), end: .init(x: 68, y: 68)),
+                .init(start: .init(x: 34, y: 0), end: .init(x: 68, y: 34)),
+                .init(start: .init(x: 0, y: 34), end: .init(x: 34, y: 0)),
+                .init(start: .init(x: 0, y: 68), end: .init(x: 68, y: 0)),
+                .init(start: .init(x: 34, y: 68), end: .init(x: 68, y: 34)),
+            ])
+        )
+        XCTAssertEqual(
+            Set(CompositionHTMLBrandPattern.dotCenters),
+            Set([
+                .init(x: 0, y: 0),
+                .init(x: 68, y: 0),
+                .init(x: 34, y: 34),
+                .init(x: 0, y: 68),
+                .init(x: 68, y: 68),
+            ])
+        )
+
+        for point in CompositionHTMLBrandPattern.dotCenters {
+            XCTAssertEqual(
+                (point.x - point.y) % CompositionHTMLBrandPattern.spacing,
+                0
+            )
+            XCTAssertEqual(
+                (point.x + point.y) % CompositionHTMLBrandPattern.spacing,
+                0
+            )
+            let row = point.y / CompositionHTMLBrandPattern.spacing
+            let column = point.x / CompositionHTMLBrandPattern.spacing
+            XCTAssertTrue((row + column).isMultiple(of: 2))
+        }
     }
 
     func testLanguageTagIsLocalizedSanitizedAndDirectionIsAutomatic() throws {

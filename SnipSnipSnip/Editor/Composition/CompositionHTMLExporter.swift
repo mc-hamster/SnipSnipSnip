@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import CryptoKit
 import Foundation
@@ -42,6 +43,96 @@ nonisolated enum CompositionHTMLComparisonAxis: String, Sendable {
 nonisolated enum CompositionHTMLComparisonSide: String, Sendable {
     case before
     case after
+}
+
+/// Generates the same line-and-dot lattice used by
+/// `OutOfCapturePatternRenderer`, expressed as one repeatable SVG tile for
+/// exported HTML. Keeping both diagonal families and the dots in one image
+/// guarantees that browser layout cannot shift their coordinate systems apart.
+nonisolated enum CompositionHTMLBrandPattern {
+    struct Point: Hashable, Sendable {
+        let x: Int
+        let y: Int
+    }
+
+    struct Segment: Hashable, Sendable {
+        let start: Point
+        let end: Point
+    }
+
+    static let spacing = 34
+    static let tileSize = spacing * 2
+    static let lineWidth = 1
+    static let dotDiameter = 5
+    static let dotRadius = 2.5
+
+    static var lineSegments: [Segment] {
+        var segments: [Segment] = []
+
+        // Rising diagonals use x - y = index × spacing.
+        for index in -2...2 {
+            let difference = index * spacing
+            let startY = max(0, -difference)
+            let endY = min(tileSize, tileSize - difference)
+            guard startY < endY else { continue }
+            segments.append(Segment(
+                start: Point(x: startY + difference, y: startY),
+                end: Point(x: endY + difference, y: endY)
+            ))
+        }
+
+        // Falling diagonals use x + y = index × spacing.
+        for index in 0...4 {
+            let sum = index * spacing
+            let startX = max(0, sum - tileSize)
+            let endX = min(tileSize, sum)
+            guard startX < endX else { continue }
+            segments.append(Segment(
+                start: Point(x: startX, y: sum - startX),
+                end: Point(x: endX, y: sum - endX)
+            ))
+        }
+
+        return segments
+    }
+
+    static var dotCenters: [Point] {
+        (0...2).flatMap { row in
+            (0...2).compactMap { column in
+                guard (row + column).isMultiple(of: 2) else {
+                    return nil
+                }
+                return Point(
+                    x: column * spacing,
+                    y: row * spacing
+                )
+            }
+        }
+    }
+
+    static func svg(lineColor: String, dotColor: String) -> String {
+        let path = lineSegments.map { segment in
+            "M\(segment.start.x) \(segment.start.y)L\(segment.end.x) \(segment.end.y)"
+        }.joined(separator: " ")
+        let dots = dotCenters.map { point in
+            "<circle cx=\"\(point.x)\" cy=\"\(point.y)\" r=\"\(dotRadius)\"/>"
+        }.joined()
+
+        return """
+        <svg xmlns="http://www.w3.org/2000/svg" width="\(tileSize)" height="\(tileSize)" viewBox="0 0 \(tileSize) \(tileSize)">
+        <path d="\(path)" fill="none" stroke="\(lineColor)" stroke-opacity="0.10" stroke-width="\(lineWidth)" stroke-linecap="round"/>
+        <g fill="\(dotColor)" fill-opacity="0.10">\(dots)</g>
+        </svg>
+        """
+    }
+
+    static func dataURL(lineColor: String, dotColor: String) -> String {
+        let data = Data(svg(
+            lineColor: lineColor,
+            dotColor: dotColor
+        ).utf8)
+        return "data:image/svg+xml;base64,\(data.base64EncodedString())"
+    }
 }
 
 nonisolated enum CompositionHTMLComparisonMode: Sendable {
@@ -371,6 +462,12 @@ nonisolated enum CompositionHTMLExporter {
         renderedChangeHighlight: EncodedItem?
     ) -> String {
         let resolvedTitle = title.isEmpty ? "Composition" : title
+        let productWebsite = escape(
+            AppLinks.snipSnipSnipProduct.absoluteString
+        )
+        let brandLogo = brandLogoDataURL == nil
+            ? ""
+            : "<span class=\"brand-logo\" aria-hidden=\"true\"></span>"
         let content: String
         let layoutName: String
 
@@ -400,7 +497,7 @@ nonisolated enum CompositionHTMLExporter {
         \(content)
         </main>
         <footer class="document-footer">
-          <p>Created with SnipSnipSnip</p>
+          <p class="brand-attribution">\(brandLogo)<span>Created with <a href="\(productWebsite)" target="_blank" rel="noopener noreferrer external" referrerpolicy="no-referrer" aria-label="Visit the SnipSnipSnip website">SnipSnipSnip</a></span></p>
         </footer>
         """
     }
@@ -757,6 +854,16 @@ nonisolated enum CompositionHTMLExporter {
         return "sha256-\(Data(digest).base64EncodedString())"
     }
 
+    private static let brandLogoDataURL: String? = {
+        guard let asset = NSDataAsset(
+            name: "HTMLExportLogo",
+            bundle: .main
+        ) else {
+            return nil
+        }
+        return "data:image/png;base64,\(asset.data.base64EncodedString())"
+    }()
+
     private static let baseStyleSource = #"""
 :root {
   color-scheme: light dark;
@@ -784,7 +891,13 @@ nonisolated enum CompositionHTMLExporter {
   }
 }
 * { box-sizing: border-box; }
-html { background: var(--background); color: var(--text); }
+html {
+  color: var(--text);
+  background-color: var(--background);
+  background-repeat: repeat;
+  background-position: 0 0;
+  background-attachment: fixed;
+}
 body { margin: 0; min-width: 280px; }
 img { display: block; max-width: 100%; height: auto; }
 button, input { font: inherit; }
@@ -815,6 +928,27 @@ button:disabled { color: var(--secondary); cursor: default; }
   font-size: 0.875rem;
   padding: 2rem 0;
   text-align: center;
+}
+.brand-attribution {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0;
+}
+.brand-logo {
+  display: block;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  border-radius: 0.45rem;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+.document-footer a {
+  color: inherit;
+  font-weight: 600;
+  text-underline-offset: 0.14em;
 }
 .composition-grid {
   display: grid;
@@ -1133,6 +1267,9 @@ select {
     animation-duration: 0.001ms !important;
   }
 }
+@media (prefers-contrast: more) {
+  html { background-image: none; }
+}
 @media print {
   :root {
     color-scheme: light;
@@ -1143,6 +1280,7 @@ select {
     --border: #777;
     --shadow: none;
   }
+  html { background: #fff; }
   body { min-width: 0; }
   .document-header, .composition {
     width: 100%;
@@ -1193,6 +1331,7 @@ select {
   .comparison[data-active-mode="blink"].poster-after .comparison-after { visibility: visible !important; }
 }
 @media (forced-colors: active) {
+  html { background-image: none; }
   .composition-card, .step-card, .comparison, .step-navigation {
     box-shadow: none;
     border-width: 2px;
@@ -1204,6 +1343,26 @@ select {
     /// inline style attributes. This keeps the exported document functional
     /// under its strict `style-src` policy without granting `unsafe-inline`.
     private static let styleSource: String = {
+        let brandLogoRule = brandLogoDataURL.map {
+            #".brand-logo { background-image: url("\#($0)"); }"#
+        } ?? ".brand-logo { display: none; }"
+        let lightPattern = CompositionHTMLBrandPattern.dataURL(
+            lineColor: "#33549c",
+            dotColor: "#294794"
+        )
+        let darkPattern = CompositionHTMLBrandPattern.dataURL(
+            lineColor: "#9eb8fa",
+            dotColor: "#b3ccff"
+        )
+        let brandPatternRules = """
+        html {
+          background-image: url("\(lightPattern)");
+          background-size: \(CompositionHTMLBrandPattern.tileSize)px \(CompositionHTMLBrandPattern.tileSize)px;
+        }
+        @media (prefers-color-scheme: dark) {
+          html { background-image: url("\(darkPattern)"); }
+        }
+        """
         let comparisonValueRules = (0...100).map { value in
             let fraction = Double(value) / 100
             let inverse = 100 - value
@@ -1230,7 +1389,13 @@ select {
         let comparisonZoomRules = stride(from: 50, through: 200, by: 25).map {
             ".comparison.comparison-zoom-\($0) { --comparison-zoom: \($0)%; }"
         }.joined(separator: "\n")
-        return "\(baseStyleSource)\n\(comparisonValueRules)\n\(comparisonZoomRules)"
+        return """
+        \(baseStyleSource)
+        \(brandLogoRule)
+        \(brandPatternRules)
+        \(comparisonValueRules)
+        \(comparisonZoomRules)
+        """
     }()
 
     private static let scriptSource = #"""
