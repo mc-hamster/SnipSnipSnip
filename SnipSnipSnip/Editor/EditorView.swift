@@ -20,6 +20,8 @@ struct EditorView: View {
     let captureHistorySearchResultsLabel: String
     let historyActions: EditorHistoryActions
     var compositionActions: CompositionInspectorActions = .unavailable
+    var compositionExportProgress: CompositionExportProgressState?
+    var onCancelCompositionExport: () -> Void = {}
     @State private var previewedHistoryEntry: DocumentHistoryEntry?
 
     var body: some View {
@@ -41,6 +43,14 @@ struct EditorView: View {
                     }
                 )
                     .zIndex(1)
+            }
+
+            if let progress = compositionExportProgress {
+                CompositionExportProgressOverlay(
+                    progress: progress,
+                    onCancel: onCancelCompositionExport
+                )
+                .zIndex(2)
             }
 
             if let notice = controller.notice {
@@ -73,7 +83,7 @@ struct EditorView: View {
                 .accessibilityLabel(notice.accessibilityAnnouncement)
                 .accessibilityIdentifier("editor.notice")
                 .transition(.opacity)
-                .zIndex(2)
+                .zIndex(3)
             }
         }
         .background(Color(nsColor: .underPageBackgroundColor))
@@ -141,6 +151,71 @@ struct EditorView: View {
             NSWorkspace.shared.activateFileViewerSelecting([url])
         }
         controller.dismissNotice()
+    }
+}
+
+private struct CompositionExportProgressOverlay: View {
+    let progress: CompositionExportProgressState
+    let onCancel: () -> Void
+
+    private var clampedFraction: Double {
+        min(max(progress.fractionCompleted, 0), 1)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Label(
+                    "Exporting Interactive HTML",
+                    systemImage: "square.and.arrow.up"
+                )
+                .font(.caption.weight(.semibold))
+
+                Spacer(minLength: 24)
+
+                Text(
+                    clampedFraction,
+                    format: .percent.precision(.fractionLength(0))
+                )
+                    .font(.caption.monospacedDigit().weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+
+            ProgressView(value: clampedFraction, total: 1)
+                .accessibilityLabel("Interactive HTML export progress")
+
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(progress.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+
+                Spacer(minLength: 12)
+
+                Button(action: onCancel) {
+                    if progress.isCancellationRequested {
+                        Text("Cancelling…")
+                    } else {
+                        Text("Cancel Export")
+                    }
+                }
+                .controlSize(.small)
+                .disabled(progress.isCancellationRequested)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: 440)
+        .sssFloatingOverlaySurface(cornerRadius: 18, shadowOpacity: 0.10)
+        .padding(16)
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: .infinity,
+            alignment: .top
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("editor.compositionExportProgress")
+        .transition(.opacity)
     }
 }
 

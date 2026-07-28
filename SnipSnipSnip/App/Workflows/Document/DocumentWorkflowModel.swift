@@ -41,6 +41,8 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     @Published var guideExportCurrentFormat: GuideExportFormat?
     @Published var guideExportCancellationRequested = false
     @Published var lastGuideExportURLs: [URL] = []
+    @Published var compositionExportProgressState:
+        CompositionExportProgressState?
     @Published var captureSearchQuery = ""
     @Published var allCaptureHistoryEntries: [DocumentHistoryEntry]
     @Published var snipLibraryEntries: [DocumentHistoryEntry]
@@ -109,6 +111,8 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     var pendingGuideExportTask: Task<Void, Never>?
     var pendingGuideExportWorkerTask: Task<GuideExportResult, Never>?
     var activeGuideExportID: UUID?
+    var pendingCompositionExportTask: Task<Void, Never>?
+    var activeCompositionExportID: UUID?
     var recoveryRefreshGeneration = 0
     var captureHistorySearchGeneration = 0
     var currentRecoverySessionID: UUID?

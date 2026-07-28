@@ -130,6 +130,29 @@ nonisolated struct CompositionOutputResult: Equatable, Sendable {
     }
 }
 
+nonisolated enum CompositionOutputProgressPhase: Equatable, Sendable {
+    case rendering
+    case encoding
+    case assembling
+    case saving
+    case finalizing
+}
+
+nonisolated struct CompositionOutputProgressUpdate: Equatable, Sendable {
+    let phase: CompositionOutputProgressPhase
+    let detail: String
+    let fractionCompleted: Double
+}
+
+typealias CompositionOutputProgressHandler =
+    @Sendable (CompositionOutputProgressUpdate) async -> Void
+
+nonisolated struct CompositionExportProgressState: Equatable, Sendable {
+    let fractionCompleted: Double
+    let detail: String
+    let isCancellationRequested: Bool
+}
+
 nonisolated struct CompositionOutputPreflight: Equatable, Sendable {
     let estimatedPixelSize: CGSize
     let estimatedWorkingSetBytes: Int
@@ -320,7 +343,8 @@ nonisolated enum CompositionOutputExporter {
         to destination: URL,
         imageOptions: ImageExportOptions = .default,
         maximumOutputDimension: Int? = nil,
-        forcedPDFItemsPerPage: Int? = nil
+        forcedPDFItemsPerPage: Int? = nil,
+        progress: CompositionOutputProgressHandler? = nil
     ) async throws -> CompositionOutputResult {
         try await PresentationPerformanceMetrics.withLoggingSuppressed(
             input.suppressesContentDiagnostics
@@ -331,7 +355,8 @@ nonisolated enum CompositionOutputExporter {
                 to: destination,
                 imageOptions: imageOptions,
                 maximumOutputDimension: maximumOutputDimension,
-                forcedPDFItemsPerPage: forcedPDFItemsPerPage
+                forcedPDFItemsPerPage: forcedPDFItemsPerPage,
+                progress: progress
             )
         }
     }
@@ -342,7 +367,8 @@ nonisolated enum CompositionOutputExporter {
         to destination: URL,
         imageOptions: ImageExportOptions,
         maximumOutputDimension: Int?,
-        forcedPDFItemsPerPage: Int?
+        forcedPDFItemsPerPage: Int?,
+        progress: CompositionOutputProgressHandler?
     ) async throws -> CompositionOutputResult {
         try Task.checkCancellation()
         if input.appearance == .styled,
@@ -443,11 +469,28 @@ nonisolated enum CompositionOutputExporter {
             )
 
         case .html:
+            await progress?(
+                CompositionOutputProgressUpdate(
+                    phase: .rendering,
+                    detail: String(localized: "Rendering images…"),
+                    fractionCompleted: 0.05
+                )
+            )
             let document = try renderedHTMLDocument(resolvedInput)
-            let data = try CompositionHTMLExporter.data(for: document)
-            try atomicFile(destination) { temporaryURL in
-                try data.write(to: temporaryURL, options: .atomic)
+            try await atomicFileAsync(destination) { temporaryURL in
+                try await CompositionHTMLExporter.write(
+                    document,
+                    to: temporaryURL,
+                    progress: progress
+                )
             }
+            await progress?(
+                CompositionOutputProgressUpdate(
+                    phase: .finalizing,
+                    detail: String(localized: "Finishing Interactive HTML export…"),
+                    fractionCompleted: 1
+                )
+            )
             return result(
                 input: resolvedInput,
                 format: format,
@@ -1498,6 +1541,7 @@ nonisolated enum CompositionOutputExporter {
         let temporary = temporaryURL(for: destination)
         defer { try? FileManager.default.removeItem(at: temporary) }
         try await operation(temporary)
+        try Task.checkCancellation()
         try install(temporary, at: destination)
     }
 

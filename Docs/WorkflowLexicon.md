@@ -228,6 +228,22 @@ Keep these labels action-oriented and concrete. Do not expose implementation ter
 
 Use **Created with SnipSnipSnip** for the exported HTML attribution, with only **SnipSnipSnip** linked to the canonical product website. A small decorative app logo may sit beside the attribution. Keep both visually secondary, open the product page separately, and send no referrer. Do not replace them with a promotional call to action, badge, or large logo.
 
+### Interactive HTML export progress
+
+Use **Exporting Interactive HTML** for the active export title and **Cancel Export** for its cancellation action.
+
+Use short, literal stage labels beneath the progress bar:
+
+- **Preparing Interactive HTML…**
+- **Rendering images…**
+- **Encoding images…** and **Encoding image _x_ of _y_…**
+- **Building Interactive HTML…**
+- **Saving Interactive HTML…**
+- **Finishing Interactive HTML export…**
+- **Cancelling Interactive HTML export…**
+
+Use **Interactive HTML export cancelled.** for the non-error completion notice after cancellation.
+
 ## Library and History Terms
 
 Library terms identify distinct scopes. Do not shorten them to generic **Library** or **History** when the scope would become ambiguous.

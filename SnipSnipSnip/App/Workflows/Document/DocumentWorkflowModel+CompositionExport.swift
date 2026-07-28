@@ -106,16 +106,57 @@ extension DocumentWorkflowModel {
             "\(base.isEmpty ? "Composition" : base)-"
             + "\(appearance.filenameSuffix).\(format.fileExtension)"
 
-        Task { @MainActor [weak self, weak controller] in
+        pendingCompositionExportTask?.cancel()
+        compositionExportProgressState = nil
+        let exportID = UUID()
+        activeCompositionExportID = exportID
+        pendingCompositionExportTask = Task {
+            @MainActor [weak self, weak controller] in
             guard let self,
                   let controller,
-                  let destination = await dependencies.panels
+                  let destination = await self.dependencies.panels
                     .selectSaveDestination(
                         suggestedFilename: filename,
                         contentType: format.contentType
                     ) else {
+                if self?.activeCompositionExportID == exportID {
+                    self?.activeCompositionExportID = nil
+                    self?.pendingCompositionExportTask = nil
+                }
                 return
             }
+
+            let progressHandler: CompositionOutputProgressHandler?
+            if format == .html {
+                self.compositionExportProgressState =
+                    CompositionExportProgressState(
+                        fractionCompleted: 0,
+                        detail: String(
+                            localized: "Preparing Interactive HTML…"
+                        ),
+                        isCancellationRequested: false
+                    )
+                progressHandler = { [weak self] update in
+                    await MainActor.run {
+                        guard let self,
+                              self.activeCompositionExportID == exportID else {
+                            return
+                        }
+                        self.compositionExportProgressState =
+                            CompositionExportProgressState(
+                                fractionCompleted:
+                                    update.fractionCompleted,
+                                detail: update.detail,
+                                isCancellationRequested:
+                                    self.compositionExportProgressState?
+                                        .isCancellationRequested == true
+                            )
+                    }
+                }
+            } else {
+                progressHandler = nil
+            }
+
             do {
                 let result = try await CompositionOutputExporter.export(
                     outputInput,
@@ -123,8 +164,13 @@ extension DocumentWorkflowModel {
                     to: destination,
                     imageOptions: screenshotImageExportOptions,
                     maximumOutputDimension: maximumOutputDimension,
-                    forcedPDFItemsPerPage: forcedPDFItemsPerPage
+                    forcedPDFItemsPerPage: forcedPDFItemsPerPage,
+                    progress: progressHandler
                 )
+                guard self.activeCompositionExportID == exportID else {
+                    return
+                }
+                self.finishCompositionExport(id: exportID)
                 var message = String(
                     localized: "Exported \(format.label) to \(destination.lastPathComponent)."
                 )
@@ -141,10 +187,46 @@ extension DocumentWorkflowModel {
                         dismissalDelaySeconds: 7
                     )
                 )
+            } catch is CancellationError {
+                guard self.activeCompositionExportID == exportID else {
+                    return
+                }
+                self.finishCompositionExport(id: exportID)
+                controller.showNotice(
+                    String(localized: "Interactive HTML export cancelled.")
+                )
             } catch {
+                guard self.activeCompositionExportID == exportID else {
+                    return
+                }
+                self.finishCompositionExport(id: exportID)
                 self.present(error)
             }
         }
+    }
+
+    func cancelCompositionExport() {
+        guard var progress = compositionExportProgressState else {
+            return
+        }
+        progress = CompositionExportProgressState(
+            fractionCompleted: progress.fractionCompleted,
+            detail: String(
+                localized: "Cancelling Interactive HTML export…"
+            ),
+            isCancellationRequested: true
+        )
+        compositionExportProgressState = progress
+        pendingCompositionExportTask?.cancel()
+    }
+
+    private func finishCompositionExport(id: UUID) {
+        guard activeCompositionExportID == id else {
+            return
+        }
+        compositionExportProgressState = nil
+        pendingCompositionExportTask = nil
+        activeCompositionExportID = nil
     }
 
     private func compositionOversizedOutputChoice(

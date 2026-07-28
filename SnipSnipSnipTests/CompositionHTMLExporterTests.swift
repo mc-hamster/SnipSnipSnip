@@ -14,6 +14,8 @@ final class CompositionHTMLExporterTests: XCTestCase {
                 item("After", color: PixelSample(red: 40, green: 100, blue: 220, alpha: 255)),
             ]
         ))
+        let style = try content(between: "<style>", and: "</style>", in: html)
+        let script = try content(between: "<script>", and: "</script>", in: html)
 
         XCTAssertTrue(html.hasPrefix("<!doctype html>"))
         XCTAssertTrue(html.contains("<html lang=\"en\" dir=\"auto\">"))
@@ -55,15 +57,132 @@ final class CompositionHTMLExporterTests: XCTestCase {
         XCTAssertTrue(html.contains("background-size: 68px 68px"))
         XCTAssertFalse(html.contains("repeating-linear-gradient"))
         XCTAssertFalse(html.contains("radial-gradient"))
+        XCTAssertEqual(
+            style.components(
+                separatedBy: ".comparison.comparison-value-50 {"
+            ).count - 1,
+            1
+        )
+        XCTAssertFalse(
+            style.contains(
+                ".comparison.comparison-value-50[data-active-mode"
+            )
+        )
+        XCTAssertLessThan(style.utf8.count, 40_000)
         XCTAssertTrue(html.contains("@media (prefers-contrast: more)"))
         XCTAssertTrue(html.contains("html { background: #fff; }"))
         XCTAssertFalse(html.contains("file://"))
         XCTAssertEqual(html.components(separatedBy: "src=\"data:image/png;base64,").count - 1, 2)
 
-        let style = try content(between: "<style>", and: "</style>", in: html)
-        let script = try content(between: "<script>", and: "</script>", in: html)
         XCTAssertTrue(html.contains("style-src '\(hashSource(for: style))'"))
         XCTAssertTrue(html.contains("script-src '\(hashSource(for: script))'"))
+    }
+
+    func testHTMLPNGEncodingPreservesDimensionsPixelsAndTransparency() throws {
+        let cases: [(CGImage, UInt8)] = [
+            (
+                makeCoordinateImage(
+                    width: 37,
+                    height: 23,
+                    pattern: .weighted(
+                        xMultiplier: 7,
+                        yMultiplier: 11,
+                        includeBlueSum: true
+                    )
+                ),
+                2
+            ),
+            (
+                makeSolidImage(
+                    width: 19,
+                    height: 13,
+                    color: PixelSample(
+                        red: 96,
+                        green: 48,
+                        blue: 24,
+                        alpha: 128
+                    )
+                ),
+                6
+            ),
+        ]
+
+        for (original, expectedColorType) in cases {
+            let data = try CompositionHTMLPNGEncoder.data(for: original)
+            XCTAssertEqual(
+                Array(data.prefix(8)),
+                [137, 80, 78, 71, 13, 10, 26, 10]
+            )
+            XCTAssertEqual(data[25], expectedColorType)
+
+            let source = try XCTUnwrap(
+                CGImageSourceCreateWithData(data as CFData, nil)
+            )
+            let decoded = try XCTUnwrap(
+                CGImageSourceCreateImageAtIndex(source, 0, nil)
+            )
+            XCTAssertEqual(decoded.width, original.width)
+            XCTAssertEqual(decoded.height, original.height)
+            XCTAssertEqual(
+                normalizedRGBAPixels(decoded),
+                normalizedRGBAPixels(original)
+            )
+
+            let properties = try XCTUnwrap(
+                CGImageSourceCopyPropertiesAtIndex(
+                    source,
+                    0,
+                    nil
+                ) as? [CFString: Any]
+            )
+            for metadataKey in [
+                kCGImagePropertyExifDictionary,
+                kCGImagePropertyGPSDictionary,
+                kCGImagePropertyTIFFDictionary,
+                kCGImagePropertyIPTCDictionary,
+            ] {
+                XCTAssertNil(
+                    userAuthoredMetadata(in: properties[metadataKey]),
+                    "Unexpected source metadata for \(metadataKey)"
+                )
+            }
+        }
+    }
+
+    func testAsynchronousWriterProducesTheSamePortableDocument() async throws {
+        let document = CompositionHTMLDocument(
+            title: "Background export",
+            layout: .comparison(CompositionHTMLComparison(mode: .sideBySide)),
+            items: [
+                item("Before"),
+                item(
+                    "After",
+                    color: PixelSample(
+                        red: 20,
+                        green: 160,
+                        blue: 80,
+                        alpha: 255
+                    )
+                ),
+            ]
+        )
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "CompositionHTMLExporterTests-\(UUID().uuidString).html"
+            )
+        defer {
+            try? FileManager.default.removeItem(at: destination)
+        }
+
+        try await CompositionHTMLExporter.write(
+            document,
+            to: destination
+        )
+
+        XCTAssertEqual(
+            try Data(contentsOf: destination),
+            try CompositionHTMLExporter.data(for: document)
+        )
     }
 
     func testBrandPatternUsesTheEditorLatticeAndAlignedDots() {
@@ -458,5 +577,41 @@ final class CompositionHTMLExporterTests: XCTestCase {
         )
         let encoded = String(html[prefixRange.upperBound..<end])
         return try XCTUnwrap(Data(base64Encoded: encoded))
+    }
+
+    private func normalizedRGBAPixels(_ image: CGImage) -> [UInt8]? {
+        let bytesPerRow = image.width * 4
+        var pixels = [UInt8](
+            repeating: 0,
+            count: bytesPerRow * image.height
+        )
+        let rendered = pixels.withUnsafeMutableBytes { storage -> Bool in
+            guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+                  let context = CGContext(
+                    data: storage.baseAddress,
+                    width: image.width,
+                    height: image.height,
+                    bitsPerComponent: 8,
+                    bytesPerRow: bytesPerRow,
+                    space: colorSpace,
+                    bitmapInfo:
+                        CGBitmapInfo.byteOrder32Big.rawValue
+                        | CGImageAlphaInfo.premultipliedLast.rawValue
+                  ) else {
+                return false
+            }
+            context.interpolationQuality = .none
+            context.draw(
+                image,
+                in: CGRect(
+                    x: 0,
+                    y: 0,
+                    width: image.width,
+                    height: image.height
+                )
+            )
+            return true
+        }
+        return rendered ? pixels : nil
     }
 }

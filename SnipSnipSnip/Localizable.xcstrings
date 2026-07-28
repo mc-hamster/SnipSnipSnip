@@ -755,6 +755,9 @@
     "Build a manual step sequence" : {
 
     },
+    "Building Interactive HTML…" : {
+
+    },
     "Build Steps manually" : {
 
     },
@@ -784,6 +787,9 @@
 
     },
     "Cancel Export" : {
+
+    },
+    "Cancelling Interactive HTML export…" : {
 
     },
     "Cancelling an Add, Replace, or Change Goal operation leaves the document unchanged." : {
@@ -1842,6 +1848,22 @@
     "Exporting Guide" : {
 
     },
+    "Exporting Interactive HTML" : {
+
+    },
+    "Encoding image %lld of %lld…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Encoding image %1$lld of %2$lld…"
+          }
+        }
+      }
+    },
+    "Encoding images…" : {
+
+    },
     "Extra smooth · 60 fps" : {
 
     },
@@ -1879,6 +1901,9 @@
 
     },
     "Finish Framing" : {
+
+    },
+    "Finishing Interactive HTML export…" : {
 
     },
     "First Item ID" : {
@@ -2258,7 +2283,13 @@
     "Interactive HTML" : {
 
     },
-    "Interactive HTML is one offline file. Steps preserves decimal, letter, Roman, starting-value, or hidden numbering and includes step links, Previous and Next controls, and direction-aware Left and Right Arrow navigation. A Comparison opens in the view chosen in SnipSnipSnip, then Compare Using lets viewers switch among Side by Side, Wipe, Overlay, Blink, Difference, and Highlight Changes. Wipe supports direct divider dragging and direction choices. Shared Fit and Zoom controls keep Before and After synchronized, and the file URL remembers the chosen view and adjustments. Difference and Highlight Changes use exact fully rendered, redaction-safe results. Blink keeps manual, timing, and playback controls. Printing shows every step, and without JavaScript the selected static view remains visible. The file embeds newly encoded images, escapes titles and captions, includes no source paths or capture metadata, loads no remote scripts, fonts, images, storage, or analytics, and uses a deny-by-default Content Security Policy. The outer page uses a subtle version of SnipSnipSnip's line-and-dot motif, and a small embedded app logo sits beside the linked attribution. The pattern is removed for print and Increased Contrast, and the file makes no network request unless the website link is chosen." : {
+    "Interactive HTML export cancelled." : {
+
+    },
+    "Interactive HTML export progress" : {
+
+    },
+    "Interactive HTML is one offline file. During export, an in-editor progress panel reports preparation, image encoding, assembly, and saving with a real percentage and Cancel Export; cancellation leaves any existing destination unchanged. Steps preserves decimal, letter, Roman, starting-value, or hidden numbering and includes step links, Previous and Next controls, and direction-aware Left and Right Arrow navigation. A Comparison opens in the view chosen in SnipSnipSnip, then Compare Using lets viewers switch among Side by Side, Wipe, Overlay, Blink, Difference, and Highlight Changes. Wipe supports direct divider dragging and direction choices. Shared Fit and Zoom controls keep Before and After synchronized, and the file URL remembers the chosen view and adjustments. Difference and Highlight Changes use exact fully rendered, redaction-safe results. Blink keeps manual, timing, and playback controls. Printing shows every step, and without JavaScript the selected static view remains visible. The file embeds full-dimension, losslessly optimized PNG images, escapes titles and captions, includes no source paths or capture metadata, loads no remote scripts, fonts, images, storage, or analytics, and uses a deny-by-default Content Security Policy. The outer page uses a subtle version of SnipSnipSnip's line-and-dot motif, and a small embedded app logo sits beside the linked attribution. The pattern is removed for print and Increased Contrast, and the file makes no network request unless the website link is chosen." : {
 
     },
     "Interactive HTML…" : {
@@ -3065,6 +3096,9 @@
     "Preparing files…" : {
 
     },
+    "Preparing Interactive HTML…" : {
+
+    },
     "Preset" : {
 
     },
@@ -3264,6 +3298,9 @@
 
     },
     "Reload the list of available windows." : {
+
+    },
+    "Rendering images…" : {
 
     },
     "Remove" : {
@@ -3546,6 +3583,9 @@
 
     },
     "Save Look" : {
+
+    },
+    "Saving Interactive HTML…" : {
 
     },
     "Save supported copied items in an encrypted history protected by Keychain." : {

@@ -191,7 +191,11 @@ style is configured.
 Composition export supports static PNG, JPEG, and PDF; animated GIF and APNG;
 MP4; editable `.sss`; and self-contained interactive HTML. HTML embeds the
 fully rendered, redacted pixels and comparison controls it needs and does not
-depend on a server or remotely loaded resources. Its outer page uses the app's
+depend on a server or remotely loaded resources. Embedded images retain their
+full pixel dimensions in universally compatible PNG while screenshot-oriented
+lossless filtering and strong compression reduce the single-file payload.
+Independent frames encode concurrently within a bounded working-memory budget,
+and the completed HTML is installed atomically. Its outer page uses the app's
 subtle line-and-dot motif, and a small embedded app logo sits beside the quiet
 Created with SnipSnipSnip footer. The product name links to the canonical
 website, but viewing the file makes no network request; navigation occurs only

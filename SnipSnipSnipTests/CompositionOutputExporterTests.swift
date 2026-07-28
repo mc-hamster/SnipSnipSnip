@@ -635,6 +635,40 @@ final class CompositionOutputExporterTests: XCTestCase {
         }
     }
 
+    func testHTMLExportReportsMonotonicProgressThroughInstallation() async throws {
+        let fixture = makeComparisonFixture(mode: .changeHighlight)
+        let url = temporaryURL(extension: "html")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let recorder = CompositionOutputProgressRecorder()
+
+        _ = try await CompositionOutputExporter.export(
+            fixture.input,
+            format: .html,
+            to: url,
+            progress: { update in
+                await recorder.record(update)
+            }
+        )
+
+        let updates = await recorder.snapshot()
+        XCTAssertEqual(updates.first?.phase, .rendering)
+        XCTAssertEqual(updates.first?.fractionCompleted, 0.05)
+        XCTAssertEqual(updates.last?.phase, .finalizing)
+        XCTAssertEqual(updates.last?.fractionCompleted, 1)
+        XCTAssertTrue(updates.contains { $0.phase == .assembling })
+        XCTAssertTrue(updates.contains { $0.phase == .saving })
+        XCTAssertGreaterThanOrEqual(
+            updates.filter { $0.phase == .encoding }.count,
+            5
+        )
+        XCTAssertTrue(
+            zip(updates, updates.dropFirst()).allSatisfy {
+                $0.fractionCompleted <= $1.fractionCompleted
+            }
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+    }
+
     private func makeComparisonFixture(
         mode: CompositionComparisonMode
     ) -> (input: CompositionOutputInput, items: [CompositionItem]) {
@@ -720,5 +754,17 @@ final class CompositionOutputExporterTests: XCTestCase {
             )
             return try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
         }
+    }
+}
+
+private actor CompositionOutputProgressRecorder {
+    private var updates: [CompositionOutputProgressUpdate] = []
+
+    func record(_ update: CompositionOutputProgressUpdate) {
+        updates.append(update)
+    }
+
+    func snapshot() -> [CompositionOutputProgressUpdate] {
+        updates
     }
 }

@@ -326,13 +326,18 @@ GIF/APNG/MP4 are composition-aware Blink outputs with deterministic timing,
 crossfade, loop behavior, and a disclosed 4,096 px longest-side cap. HTML is a
 self-contained interactive Compare or Steps artifact built only from rendered,
 redacted pixels, with embedded assets and no runtime server or remotely loaded
-resource dependency. Its outer page uses the app's subtle line-and-dot motif,
-and a small embedded app logo sits beside the quiet Created with SnipSnipSnip
-footer. The product name links to the canonical website; the file makes no
-network request unless the viewer chooses that link. Side-by-side Comparison
-HTML provides Show Both, Before, and After controls. Every Comparison HTML
-opens in the configured view and provides a Compare Using selector for Side by
-Side, Wipe, Overlay, Blink, Difference, and Highlight Changes, plus
+resource dependency. Embedded images retain their full pixel dimensions as
+universally compatible PNGs and use screenshot-oriented lossless filtering plus
+strong compression to reduce the single-file payload. Independent frames
+encode concurrently within a bounded working-memory budget, and the completed
+HTML is installed atomically. Its outer page uses the app's subtle line-and-dot
+motif, and a small embedded app logo sits beside the quiet Created with
+SnipSnipSnip footer. The product name links to the canonical website; the file
+makes no network request unless the viewer chooses that link.
+Side-by-side Comparison HTML provides Show Both, Before, and After controls.
+Every Comparison HTML opens in the configured view and provides a Compare
+Using selector for Side by Side, Wipe, Overlay, Blink, Difference, and
+Highlight Changes, plus
 synchronized Fit and Zoom controls. Wipe supports direct divider dragging, and
 the URL fragment preserves viewer state without using browser storage. Without
 JavaScript, the configured static view remains visible.

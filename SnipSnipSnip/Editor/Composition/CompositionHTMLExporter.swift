@@ -313,59 +313,76 @@ nonisolated enum CompositionHTMLExportError: LocalizedError, Equatable {
 /// Produces a portable, single-file, offline HTML composition.
 ///
 /// The result has a deny-by-default Content Security Policy. Its only embedded
-/// resources are metadata-stripped PNG data URLs plus exporter-owned CSS and
-/// JavaScript whose exact SHA-256 hashes are listed in the policy. User text is
-/// emitted only as escaped HTML text or attributes; it is never interpolated
-/// into CSS or JavaScript.
+/// resources are losslessly optimized, metadata-free PNG data URLs plus
+/// exporter-owned CSS and JavaScript whose exact SHA-256 hashes are listed in
+/// the policy. User text is emitted only as escaped HTML text or attributes; it
+/// is never interpolated into CSS or JavaScript.
 nonisolated enum CompositionHTMLExporter {
     static let maximumImagePixelCount = 100_000_000
     static let maximumAggregateImagePixelCount = 134_217_728
     static let maximumDocumentBytes = 256 * 1_048_576
 
     static func data(for document: CompositionHTMLDocument) throws -> Data {
-        let html = try html(for: document)
-        let data = Data(html.utf8)
-        guard data.count <= maximumDocumentBytes else {
-            throw CompositionHTMLExportError.documentTooLarge(maximumBytes: maximumDocumentBytes)
+        try checkedData(for: html(for: document))
+    }
+
+    /// Performs the lossless image compression and file write away from the
+    /// caller's executor. Composition export is commonly initiated by the main
+    /// actor, and PNG filtering is intentionally CPU-intensive.
+    static func write(
+        _ document: CompositionHTMLDocument,
+        to destination: URL,
+        progress: CompositionOutputProgressHandler? = nil
+    ) async throws {
+        let task = Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
+            let data = try await dataForWriting(
+                document,
+                progress: progress
+            )
+            try Task.checkCancellation()
+            await progress?(
+                CompositionOutputProgressUpdate(
+                    phase: .saving,
+                    detail: String(localized: "Saving Interactive HTML…"),
+                    fractionCompleted: 0.95
+                )
+            )
+            try data.write(to: destination, options: .atomic)
+            try Task.checkCancellation()
+            await progress?(
+                CompositionOutputProgressUpdate(
+                    phase: .finalizing,
+                    detail: String(localized: "Finishing Interactive HTML export…"),
+                    fractionCompleted: 0.98
+                )
+            )
         }
-        return data
+
+        try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
     }
 
     static func html(for document: CompositionHTMLDocument) throws -> String {
+        try Task.checkCancellation()
         try validate(document)
+        let encoded = try encodeSynchronously(document)
+        return renderHTML(document, encoded: encoded)
+    }
 
-        let encodedItems = try document.items.enumerated().map { index, item in
-            try encode(item, at: index)
-        }
-        let encodedDifference: EncodedItem?
-        if let renderedDifference = document.renderedDifference {
-            do {
-                encodedDifference = try encode(renderedDifference, at: document.items.count)
-            } catch {
-                throw CompositionHTMLExportError.differenceImageEncodingFailed
-            }
-        } else {
-            encodedDifference = nil
-        }
-        let encodedChangeHighlight: EncodedItem?
-        if let renderedChangeHighlight = document.renderedChangeHighlight {
-            do {
-                encodedChangeHighlight = try encode(
-                    renderedChangeHighlight,
-                    at: document.items.count + 1
-                )
-            } catch {
-                throw CompositionHTMLExportError.changeHighlightImageEncodingFailed
-            }
-        } else {
-            encodedChangeHighlight = nil
-        }
+    private static func renderHTML(
+        _ document: CompositionHTMLDocument,
+        encoded: EncodedDocument
+    ) -> String {
         let body = renderBody(
             title: document.title,
             layout: document.layout,
-            items: encodedItems,
-            renderedDifference: encodedDifference,
-            renderedChangeHighlight: encodedChangeHighlight
+            items: encoded.items,
+            renderedDifference: encoded.renderedDifference,
+            renderedChangeHighlight: encoded.renderedChangeHighlight
         )
         let csp = contentSecurityPolicy
 
@@ -390,13 +407,228 @@ nonisolated enum CompositionHTMLExporter {
         """
     }
 
-    private struct EncodedItem {
+    private struct EncodedItem: Sendable {
         let title: String
         let caption: String?
         let accessibilityLabel: String
         let stepLabel: String?
         let showsStepNumber: Bool
         let pngDataURL: String
+    }
+
+    private struct EncodedDocument: Sendable {
+        let items: [EncodedItem]
+        let renderedDifference: EncodedItem?
+        let renderedChangeHighlight: EncodedItem?
+    }
+
+    private enum EncodingFailure: Sendable {
+        case item(Int)
+        case difference
+        case changeHighlight
+
+        var exportError: CompositionHTMLExportError {
+            switch self {
+            case .item(let index):
+                .imageEncodingFailed(index: index)
+            case .difference:
+                .differenceImageEncodingFailed
+            case .changeHighlight:
+                .changeHighlightImageEncodingFailed
+            }
+        }
+    }
+
+    private struct EncodingRequest: Sendable {
+        let position: Int
+        let item: CompositionHTMLItem
+        let failure: EncodingFailure
+    }
+
+    private static func checkedData(for html: String) throws -> Data {
+        try Task.checkCancellation()
+        let data = Data(html.utf8)
+        try Task.checkCancellation()
+        guard data.count <= maximumDocumentBytes else {
+            throw CompositionHTMLExportError.documentTooLarge(
+                maximumBytes: maximumDocumentBytes
+            )
+        }
+        return data
+    }
+
+    private static func dataForWriting(
+        _ document: CompositionHTMLDocument,
+        progress: CompositionOutputProgressHandler?
+    ) async throws -> Data {
+        try Task.checkCancellation()
+        try validate(document)
+        let encoded = try await encodeConcurrently(
+            document,
+            progress: progress
+        )
+        try Task.checkCancellation()
+        await progress?(
+            CompositionOutputProgressUpdate(
+                phase: .assembling,
+                detail: String(localized: "Building Interactive HTML…"),
+                fractionCompleted: 0.90
+            )
+        )
+        return try checkedData(for: renderHTML(document, encoded: encoded))
+    }
+
+    private static func encodeSynchronously(
+        _ document: CompositionHTMLDocument
+    ) throws -> EncodedDocument {
+        let requests = encodingRequests(for: document)
+        let results = try requests.map { request in
+            try Task.checkCancellation()
+            return try encode(request.item, failure: request.failure)
+        }
+        return assembleEncodedDocument(
+            results,
+            source: document
+        )
+    }
+
+    private static func encodeConcurrently(
+        _ document: CompositionHTMLDocument,
+        progress: CompositionOutputProgressHandler?
+    ) async throws -> EncodedDocument {
+        let requests = encodingRequests(for: document)
+        await progress?(
+            CompositionOutputProgressUpdate(
+                phase: .encoding,
+                detail: String(localized: "Encoding images…"),
+                fractionCompleted: 0.15
+            )
+        )
+        let largestImagePixels = requests.map {
+            $0.item.image.width * $0.item.image.height
+        }.max() ?? 1
+        // Keep normalized RGBA working buffers near 64 MB while still letting
+        // ordinary comparison frames use up to four available cores.
+        let memoryLimitedWorkers = max(
+            1,
+            16_000_000 / max(largestImagePixels, 1)
+        )
+        let workerCount = min(
+            requests.count,
+            min(4, memoryLimitedWorkers)
+        )
+        var results = [EncodedItem?](
+            repeating: nil,
+            count: requests.count
+        )
+        var completedRequestCount = 0
+
+        try await withThrowingTaskGroup(
+            of: (Int, EncodedItem).self
+        ) { group in
+            var nextRequestIndex = 0
+
+            func addNextRequest() {
+                guard nextRequestIndex < requests.count else {
+                    return
+                }
+                let request = requests[nextRequestIndex]
+                nextRequestIndex += 1
+                group.addTask {
+                    try Task.checkCancellation()
+                    return (
+                        request.position,
+                        try encode(
+                            request.item,
+                            failure: request.failure
+                        )
+                    )
+                }
+            }
+
+            for _ in 0..<workerCount {
+                addNextRequest()
+            }
+            while let (position, item) = try await group.next() {
+                results[position] = item
+                completedRequestCount += 1
+                let detail = String.localizedStringWithFormat(
+                    String(localized: "Encoding image %lld of %lld…"),
+                    Int64(completedRequestCount),
+                    Int64(requests.count)
+                )
+                await progress?(
+                    CompositionOutputProgressUpdate(
+                        phase: .encoding,
+                        detail: detail,
+                        fractionCompleted: 0.15
+                            + 0.70 * (
+                                Double(completedRequestCount)
+                                    / Double(requests.count)
+                            )
+                    )
+                )
+                addNextRequest()
+            }
+        }
+
+        return assembleEncodedDocument(
+            results.compactMap { $0 },
+            source: document
+        )
+    }
+
+    private static func encodingRequests(
+        for document: CompositionHTMLDocument
+    ) -> [EncodingRequest] {
+        var requests = document.items.enumerated().map { index, item in
+            EncodingRequest(
+                position: index,
+                item: item,
+                failure: .item(index)
+            )
+        }
+        if let renderedDifference = document.renderedDifference {
+            requests.append(EncodingRequest(
+                position: requests.count,
+                item: renderedDifference,
+                failure: .difference
+            ))
+        }
+        if let renderedChangeHighlight = document.renderedChangeHighlight {
+            requests.append(EncodingRequest(
+                position: requests.count,
+                item: renderedChangeHighlight,
+                failure: .changeHighlight
+            ))
+        }
+        return requests
+    }
+
+    private static func assembleEncodedDocument(
+        _ results: [EncodedItem],
+        source document: CompositionHTMLDocument
+    ) -> EncodedDocument {
+        let items = Array(results.prefix(document.items.count))
+        var position = document.items.count
+        let difference: EncodedItem?
+        if document.renderedDifference != nil {
+            difference = results[position]
+            position += 1
+        } else {
+            difference = nil
+        }
+        let changeHighlight: EncodedItem?
+        if document.renderedChangeHighlight != nil {
+            changeHighlight = results[position]
+        } else {
+            changeHighlight = nil
+        }
+        return EncodedDocument(
+            items: items,
+            renderedDifference: difference,
+            renderedChangeHighlight: changeHighlight
+        )
     }
 
     private static func validate(_ document: CompositionHTMLDocument) throws {
@@ -438,9 +670,14 @@ nonisolated enum CompositionHTMLExporter {
         }
     }
 
-    private static func encode(_ item: CompositionHTMLItem, at index: Int) throws -> EncodedItem {
+    private static func encode(
+        _ item: CompositionHTMLItem,
+        failure: EncodingFailure
+    ) throws -> EncodedItem {
         do {
-            let pngData = try ImageExporter.pngData(for: item.image)
+            try Task.checkCancellation()
+            let pngData = try CompositionHTMLPNGEncoder.data(for: item.image)
+            try Task.checkCancellation()
             return EncodedItem(
                 title: item.title,
                 caption: item.caption,
@@ -449,8 +686,10 @@ nonisolated enum CompositionHTMLExporter {
                 showsStepNumber: item.showsStepNumber,
                 pngDataURL: "data:image/png;base64,\(pngData.base64EncodedString())"
             )
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
-            throw CompositionHTMLExportError.imageEncodingFailed(index: index)
+            throw failure.exportError
         }
     }
 
@@ -1365,26 +1604,7 @@ select {
         """
         let comparisonValueRules = (0...100).map { value in
             let fraction = Double(value) / 100
-            let inverse = 100 - value
-            return """
-            .comparison.comparison-value-\(value) {
-              --comparison-position: \(value)%;
-              --comparison-opacity: \(fraction);
-            }
-            .comparison.comparison-value-\(value)[data-active-mode="wipe"][data-axis="horizontal"] .comparison-after {
-              clip-path: inset(0 \(inverse)% 0 0);
-            }
-            .comparison.comparison-value-\(value)[data-active-mode="wipe"][data-axis="vertical"] .comparison-after {
-              clip-path: inset(0 0 \(inverse)% 0);
-            }
-            .comparison.comparison-value-\(value)[data-active-mode="overlay"] .comparison-after {
-              opacity: \(fraction);
-            }
-            .comparison.comparison-value-\(value)[data-active-mode="difference"] .comparison-difference-rendered,
-            .comparison.comparison-value-\(value)[data-active-mode="change-highlight"] .comparison-change-highlight-rendered {
-              opacity: \(fraction);
-            }
-            """
+            return ".comparison.comparison-value-\(value) { --comparison-position: \(value)%; --comparison-opacity: \(fraction); }"
         }.joined(separator: "\n")
         let comparisonZoomRules = stride(from: 50, through: 200, by: 25).map {
             ".comparison.comparison-zoom-\($0) { --comparison-zoom: \($0)%; }"

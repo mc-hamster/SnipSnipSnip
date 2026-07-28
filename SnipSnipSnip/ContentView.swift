@@ -96,7 +96,11 @@ struct ContentView: View {
                             onPermanentlyDeleteRecycledHistoryEntry: documents.permanentlyDeleteRecycledHistoryEntry,
                             onEmptyRecycleBin: documents.emptyRecycleBin
                         ),
-                        compositionActions: compositionInspectorActions(for: editorController)
+                        compositionActions: compositionInspectorActions(for: editorController),
+                        compositionExportProgress:
+                            documents.compositionExportProgressState,
+                        onCancelCompositionExport:
+                            documents.cancelCompositionExport
                     )
                     .id(ObjectIdentifier(editorController))
                 } else if let videoController = documents.videoEditorController {
