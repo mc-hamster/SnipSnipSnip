@@ -1262,35 +1262,46 @@ nonisolated enum CompositionOutputExporter {
                 phase: .secondary,
                 maximumOutputDimension: maximumAnimatedDimension
             ).image
-            let renderedDifference: CompositionHTMLItem?
-            switch composition.comparison.mode {
-            case .difference, .changeHighlight:
-                let isChangeHighlight =
-                    composition.comparison.mode == .changeHighlight
-                var differenceComposition = composition
-                differenceComposition.comparison.showsLabels = false
-                differenceComposition.canvas = filteredCanvas(
-                    differenceComposition.canvas,
-                    visibleItemIDs: visibleComparisonItemIDs
-                )
-                var differenceSnapshot = input.snapshot
-                differenceSnapshot.composition = differenceComposition
-                let image = try renderPresented(
-                    input,
-                    snapshot: differenceSnapshot,
-                    phase: .primary,
-                    maximumOutputDimension: maximumAnimatedDimension
-                ).image
-                renderedDifference = CompositionHTMLItem(
-                    image: image,
-                    title: isChangeHighlight ? "Change Highlight" : "Difference",
-                    accessibilityLabel: isChangeHighlight
-                        ? "Rendered change highlight between \(composition.comparison.primaryLabel) and \(composition.comparison.secondaryLabel)"
-                        : "Rendered difference between \(composition.comparison.primaryLabel) and \(composition.comparison.secondaryLabel)"
-                )
-            case .sideBySide, .overlay, .wipe, .blink:
-                renderedDifference = nil
-            }
+            var differenceComposition = composition
+            differenceComposition.comparison.mode = .difference
+            differenceComposition.comparison.showsLabels = false
+            differenceComposition.canvas = filteredCanvas(
+                differenceComposition.canvas,
+                visibleItemIDs: visibleComparisonItemIDs
+            )
+            var differenceSnapshot = input.snapshot
+            differenceSnapshot.composition = differenceComposition
+            let differenceImage = try renderPresented(
+                input,
+                snapshot: differenceSnapshot,
+                phase: .primary,
+                maximumOutputDimension: maximumAnimatedDimension
+            ).image
+            let renderedDifference = CompositionHTMLItem(
+                image: differenceImage,
+                title: "Difference",
+                accessibilityLabel: "Rendered difference between \(composition.comparison.primaryLabel) and \(composition.comparison.secondaryLabel)"
+            )
+            var changeHighlightComposition = composition
+            changeHighlightComposition.comparison.mode = .changeHighlight
+            changeHighlightComposition.comparison.showsLabels = false
+            changeHighlightComposition.canvas = filteredCanvas(
+                changeHighlightComposition.canvas,
+                visibleItemIDs: visibleComparisonItemIDs
+            )
+            var changeHighlightSnapshot = input.snapshot
+            changeHighlightSnapshot.composition = changeHighlightComposition
+            let changeHighlightImage = try renderPresented(
+                input,
+                snapshot: changeHighlightSnapshot,
+                phase: .primary,
+                maximumOutputDimension: maximumAnimatedDimension
+            ).image
+            let renderedChangeHighlight = CompositionHTMLItem(
+                image: changeHighlightImage,
+                title: "Highlight Changes",
+                accessibilityLabel: "Rendered change highlight between \(composition.comparison.primaryLabel) and \(composition.comparison.secondaryLabel)"
+            )
             return CompositionHTMLDocument(
                 title: title.isEmpty ? "Comparison" : title,
                 layout: .comparison(htmlComparison(for: composition.comparison)),
@@ -1307,6 +1318,7 @@ nonisolated enum CompositionOutputExporter {
                     ),
                 ],
                 renderedDifference: renderedDifference,
+                renderedChangeHighlight: renderedChangeHighlight,
                 languageTag: currentHTMLLanguageTag
             )
 
@@ -1350,7 +1362,21 @@ nonisolated enum CompositionOutputExporter {
         return CompositionHTMLComparison(
             mode: mode,
             beforeLabel: settings.primaryLabel,
-            afterLabel: settings.secondaryLabel
+            afterLabel: settings.secondaryLabel,
+            wipeAxis: settings.axis == .horizontal ? .horizontal : .vertical,
+            wipePositionPercent: Int(
+                (min(max(settings.wipePosition, 0), 1) * 100).rounded()
+            ),
+            overlayOpacityPercent: Int(
+                (min(max(settings.overlayOpacity, 0), 1) * 100).rounded()
+            ),
+            blinkIntervalMilliseconds: Int(
+                (min(max(settings.blinkInterval, 0.25), 10) * 1_000).rounded()
+            ),
+            blinkPoster: settings.posterFrame == .secondary ? .after : .before,
+            differenceVisibilityPercent: Int(
+                (min(max(settings.differenceIntensity, 0), 1) * 100).rounded()
+            )
         )
     }
 

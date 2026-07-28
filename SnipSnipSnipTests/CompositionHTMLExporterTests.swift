@@ -138,7 +138,7 @@ final class CompositionHTMLExporterTests: XCTestCase {
             (
                 .blink(intervalMilliseconds: 850, poster: .after),
                 "blink",
-                ["data-blink-before", "data-blink-toggle", "data-blink-after", "data-blink-status"]
+                ["data-blink-before", "data-blink-toggle", "data-blink-after", "data-blink-interval"]
             ),
             (
                 .difference(intensityPercent: 74),
@@ -162,6 +162,12 @@ final class CompositionHTMLExporterTests: XCTestCase {
         let html = try comparisonHTML(mode: .sideBySide)
 
         XCTAssertTrue(html.contains("data-comparison-mode=\"side-by-side\""))
+        XCTAssertTrue(html.contains(">Compare Using"))
+        XCTAssertTrue(html.contains("<option value=\"side-by-side\" selected>Side by Side</option>"))
+        XCTAssertTrue(html.contains("<option value=\"wipe\">Wipe</option>"))
+        XCTAssertTrue(html.contains("<option value=\"overlay\">Overlay</option>"))
+        XCTAssertTrue(html.contains("<option value=\"blink\">Blink</option>"))
+        XCTAssertTrue(html.contains("<option value=\"difference\">Difference</option>"))
         XCTAssertTrue(
             html.contains(
                 "data-side-by-side-view=\"both\" aria-pressed=\"true\""
@@ -169,16 +175,44 @@ final class CompositionHTMLExporterTests: XCTestCase {
         )
         XCTAssertTrue(html.contains("data-side-by-side-view=\"before\""))
         XCTAssertTrue(html.contains("data-side-by-side-view=\"after\""))
-        XCTAssertTrue(html.contains("data-side-by-side-status"))
+        XCTAssertTrue(html.contains("data-comparison-status"))
         XCTAssertTrue(
             html.contains(
-                ".comparison-side-by-side.show-before .comparison-side-after"
+                ".comparison[data-active-mode=\"side-by-side\"].show-before .comparison-after"
             )
         )
         XCTAssertTrue(
             html.contains(
-                "button.addEventListener(\"click\", () => show(button.dataset.sideBySideView))"
+                "modeSelect.addEventListener(\"change\""
             )
+        )
+    }
+
+    func testComparisonViewerExposesAllModesDirectWipeZoomAndRestorableState() throws {
+        let html = try CompositionHTMLExporter.html(for: CompositionHTMLDocument(
+            title: "Comparison",
+            layout: .comparison(CompositionHTMLComparison(
+                mode: .sideBySide,
+                beforeLabel: "Original",
+                afterLabel: "Revised"
+            )),
+            items: [item("Original"), item("Revised")],
+            renderedDifference: item("Rendered Difference"),
+            renderedChangeHighlight: item("Rendered Highlight")
+        ))
+
+        XCTAssertTrue(html.contains("<option value=\"change-highlight\">Highlight Changes</option>"))
+        XCTAssertTrue(html.contains("data-comparison-stage"))
+        XCTAssertTrue(html.contains("data-wipe-axis"))
+        XCTAssertTrue(html.contains("data-zoom-out"))
+        XCTAssertTrue(html.contains("data-zoom-fit"))
+        XCTAssertTrue(html.contains("data-zoom-in"))
+        XCTAssertTrue(html.contains("stage.addEventListener(\"pointerdown\""))
+        XCTAssertTrue(html.contains("new URLSearchParams(location.hash"))
+        XCTAssertTrue(html.contains("history.replaceState"))
+        XCTAssertEqual(
+            html.components(separatedBy: "src=\"data:image/png;base64,").count - 1,
+            4
         )
     }
 
@@ -235,8 +269,8 @@ final class CompositionHTMLExporterTests: XCTestCase {
             in: html
         )
         XCTAssertFalse(comparisonClasses.contains("difference-fallback"))
-        XCTAssertTrue(html.contains("Result visibility"))
-        XCTAssertTrue(html.contains("value=\"100\" data-result-range"))
+        XCTAssertTrue(html.contains("Result Visibility"))
+        XCTAssertTrue(html.contains("value=\"100\" data-difference-range"))
     }
 
     func testRenderedChangeHighlightRetainsItsModeAndAccessibleName() throws {
@@ -246,11 +280,11 @@ final class CompositionHTMLExporterTests: XCTestCase {
                 mode: .renderedChangeHighlight
             )),
             items: [item("Before"), item("After")],
-            renderedDifference: item("Rendered Highlight")
+            renderedChangeHighlight: item("Rendered Highlight")
         ))
 
         XCTAssertTrue(html.contains("data-comparison-mode=\"change-highlight\""))
-        XCTAssertTrue(html.contains("<figcaption>Change Highlight</figcaption>"))
+        XCTAssertTrue(html.contains("<figcaption>Highlight Changes</figcaption>"))
         XCTAssertFalse(html.contains("Difference intensity"))
     }
 

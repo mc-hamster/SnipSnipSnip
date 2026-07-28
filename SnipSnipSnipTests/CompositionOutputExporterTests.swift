@@ -604,9 +604,15 @@ final class CompositionOutputExporterTests: XCTestCase {
         let renderedPoster = try XCTUnwrap(embeddedImages.last)
 
         XCTAssertTrue(html.contains("data-comparison-mode=\"change-highlight\""))
-        XCTAssertTrue(html.contains("<figcaption>Change Highlight</figcaption>"))
+        XCTAssertTrue(html.contains("<figcaption>Highlight Changes</figcaption>"))
         XCTAssertTrue(html.contains("Rendered change highlight between Before and After"))
-        XCTAssertEqual(embeddedImages.count, 3)
+        XCTAssertTrue(html.contains("<option value=\"side-by-side\">Side by Side</option>"))
+        XCTAssertTrue(html.contains("<option value=\"wipe\">Wipe</option>"))
+        XCTAssertTrue(html.contains("<option value=\"overlay\">Overlay</option>"))
+        XCTAssertTrue(html.contains("<option value=\"blink\">Blink</option>"))
+        XCTAssertTrue(html.contains("<option value=\"difference\">Difference</option>"))
+        XCTAssertTrue(html.contains("<option value=\"change-highlight\" selected>Highlight Changes</option>"))
+        XCTAssertEqual(embeddedImages.count, 4)
         XCTAssertEqual(renderedPoster.width, expected.width)
         XCTAssertEqual(renderedPoster.height, expected.height)
         for (x, y) in [

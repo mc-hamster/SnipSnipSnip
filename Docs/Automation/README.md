@@ -191,9 +191,12 @@ style is configured.
 Composition export supports static PNG, JPEG, and PDF; animated GIF and APNG;
 MP4; editable `.sss`; and self-contained interactive HTML. HTML embeds the
 fully rendered, redacted pixels and comparison controls it needs and does not
-depend on a server or external network resources. Side-by-side Comparison HTML
-includes Show Both, Before, and After controls; without JavaScript, both images
-remain visible. GIF/APNG/MP4 require
+depend on a server or external network resources. Comparison HTML opens in the
+configured view and its Compare Using menu exposes Side by Side, Wipe, Overlay,
+Blink, Difference, and Highlight Changes. It also provides synchronized Fit
+and Zoom controls, direct Wipe dragging, and URL-fragment viewer state without
+browser storage. Without JavaScript, the configured static view remains
+visible. GIF/APNG/MP4 require
 Compare → Blink and preserve its interval, crossfade, and loop configuration;
 animated output uses a disclosed 4,096 px longest-side cap. HTML requires
 Compare or Steps. Incompatible animation/HTML requests return

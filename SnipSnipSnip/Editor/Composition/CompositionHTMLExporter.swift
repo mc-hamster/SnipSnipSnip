@@ -56,37 +56,97 @@ nonisolated enum CompositionHTMLComparisonMode: Sendable {
     case renderedChangeHighlight
 }
 
-nonisolated private extension CompositionHTMLComparisonMode {
-    var usesRenderedResult: Bool {
-        switch self {
-        case .renderedDifference, .renderedChangeHighlight:
-            true
-        case .sideBySide, .wipe, .overlay, .blink, .difference:
-            false
-        }
-    }
-
-    var isRenderedChangeHighlight: Bool {
-        if case .renderedChangeHighlight = self {
-            return true
-        }
-        return false
-    }
-}
-
 nonisolated struct CompositionHTMLComparison: Sendable {
     var mode: CompositionHTMLComparisonMode
     var beforeLabel: String
     var afterLabel: String
+    var wipeAxis: CompositionHTMLComparisonAxis
+    var wipePositionPercent: Int
+    var overlayOpacityPercent: Int
+    var blinkIntervalMilliseconds: Int
+    var blinkPoster: CompositionHTMLComparisonSide
+    var differenceVisibilityPercent: Int
 
     init(
         mode: CompositionHTMLComparisonMode,
         beforeLabel: String = "Before",
-        afterLabel: String = "After"
+        afterLabel: String = "After",
+        wipeAxis: CompositionHTMLComparisonAxis? = nil,
+        wipePositionPercent: Int? = nil,
+        overlayOpacityPercent: Int? = nil,
+        blinkIntervalMilliseconds: Int? = nil,
+        blinkPoster: CompositionHTMLComparisonSide? = nil,
+        differenceVisibilityPercent: Int? = nil
     ) {
+        let modeWipeAxis: CompositionHTMLComparisonAxis?
+        let modeWipePosition: Int?
+        let modeOverlayOpacity: Int?
+        let modeBlinkInterval: Int?
+        let modeBlinkPoster: CompositionHTMLComparisonSide?
+        let modeDifferenceVisibility: Int?
+        switch mode {
+        case .wipe(let axis, let position):
+            modeWipeAxis = axis
+            modeWipePosition = position
+            modeOverlayOpacity = nil
+            modeBlinkInterval = nil
+            modeBlinkPoster = nil
+            modeDifferenceVisibility = nil
+        case .overlay(let opacity):
+            modeWipeAxis = nil
+            modeWipePosition = nil
+            modeOverlayOpacity = opacity
+            modeBlinkInterval = nil
+            modeBlinkPoster = nil
+            modeDifferenceVisibility = nil
+        case .blink(let interval, let poster):
+            modeWipeAxis = nil
+            modeWipePosition = nil
+            modeOverlayOpacity = nil
+            modeBlinkInterval = interval
+            modeBlinkPoster = poster
+            modeDifferenceVisibility = nil
+        case .difference(let intensity):
+            modeWipeAxis = nil
+            modeWipePosition = nil
+            modeOverlayOpacity = nil
+            modeBlinkInterval = nil
+            modeBlinkPoster = nil
+            modeDifferenceVisibility = intensity
+        case .sideBySide, .renderedDifference, .renderedChangeHighlight:
+            modeWipeAxis = nil
+            modeWipePosition = nil
+            modeOverlayOpacity = nil
+            modeBlinkInterval = nil
+            modeBlinkPoster = nil
+            modeDifferenceVisibility = nil
+        }
         self.mode = mode
         self.beforeLabel = beforeLabel
         self.afterLabel = afterLabel
+        self.wipeAxis = wipeAxis ?? modeWipeAxis ?? .horizontal
+        self.wipePositionPercent = min(
+            max(wipePositionPercent ?? modeWipePosition ?? 50, 0),
+            100
+        )
+        self.overlayOpacityPercent = min(
+            max(overlayOpacityPercent ?? modeOverlayOpacity ?? 50, 0),
+            100
+        )
+        self.blinkIntervalMilliseconds = min(
+            max(blinkIntervalMilliseconds ?? modeBlinkInterval ?? 1_000, 250),
+            10_000
+        )
+        self.blinkPoster = blinkPoster ?? modeBlinkPoster ?? .before
+        self.differenceVisibilityPercent = min(
+            max(
+                differenceVisibilityPercent
+                    ?? modeDifferenceVisibility
+                    ?? 100,
+                0
+            ),
+            100
+        )
     }
 }
 
@@ -105,18 +165,21 @@ nonisolated struct CompositionHTMLDocument: @unchecked Sendable {
     /// redaction-safe result. The two ordinary items remain available for the
     /// Before/After fallbacks and do not need source pixels or metadata.
     var renderedDifference: CompositionHTMLItem?
+    var renderedChangeHighlight: CompositionHTMLItem?
 
     init(
         title: String,
         layout: CompositionHTMLLayout,
         items: [CompositionHTMLItem],
         renderedDifference: CompositionHTMLItem? = nil,
+        renderedChangeHighlight: CompositionHTMLItem? = nil,
         languageTag: String = "en"
     ) {
         self.title = title
         self.layout = layout
         self.items = items
         self.renderedDifference = renderedDifference
+        self.renderedChangeHighlight = renderedChangeHighlight
         self.languageTag = languageTag
     }
 }
@@ -128,6 +191,7 @@ nonisolated enum CompositionHTMLExportError: LocalizedError, Equatable {
     case aggregateImagesTooLarge(maximumPixels: Int)
     case imageEncodingFailed(index: Int)
     case differenceImageEncodingFailed
+    case changeHighlightImageEncodingFailed
     case renderedComparisonResultRequired
     case documentTooLarge(maximumBytes: Int)
 
@@ -145,6 +209,8 @@ nonisolated enum CompositionHTMLExportError: LocalizedError, Equatable {
             return "Image \(index + 1) could not be encoded for interactive HTML export."
         case .differenceImageEncodingFailed:
             return "The rendered difference could not be encoded for interactive HTML export."
+        case .changeHighlightImageEncodingFailed:
+            return "The rendered change highlight could not be encoded for interactive HTML export."
         case .renderedComparisonResultRequired:
             return "The rendered comparison result is missing."
         case .documentTooLarge(let maximumBytes):
@@ -190,11 +256,25 @@ nonisolated enum CompositionHTMLExporter {
         } else {
             encodedDifference = nil
         }
+        let encodedChangeHighlight: EncodedItem?
+        if let renderedChangeHighlight = document.renderedChangeHighlight {
+            do {
+                encodedChangeHighlight = try encode(
+                    renderedChangeHighlight,
+                    at: document.items.count + 1
+                )
+            } catch {
+                throw CompositionHTMLExportError.changeHighlightImageEncodingFailed
+            }
+        } else {
+            encodedChangeHighlight = nil
+        }
         let body = renderBody(
             title: document.title,
             layout: document.layout,
             items: encodedItems,
-            renderedDifference: encodedDifference
+            renderedDifference: encodedDifference,
+            renderedChangeHighlight: encodedChangeHighlight
         )
         let csp = contentSecurityPolicy
 
@@ -236,13 +316,21 @@ nonisolated enum CompositionHTMLExporter {
             guard document.items.count == 2 else {
                 throw CompositionHTMLExportError.comparisonRequiresExactlyTwoItems
             }
-            if comparison.mode.usesRenderedResult,
+            if case .renderedDifference = comparison.mode,
                document.renderedDifference == nil {
+                throw CompositionHTMLExportError.renderedComparisonResultRequired
+            }
+            if case .renderedChangeHighlight = comparison.mode,
+               document.renderedChangeHighlight == nil {
                 throw CompositionHTMLExportError.renderedComparisonResultRequired
             }
         }
         var aggregatePixels = 0
-        for (index, item) in (document.items + [document.renderedDifference].compactMap { $0 })
+        let renderedResults = [
+            document.renderedDifference,
+            document.renderedChangeHighlight,
+        ].compactMap { $0 }
+        for (index, item) in (document.items + renderedResults)
             .enumerated() {
             let pixels = item.image.width.multipliedReportingOverflow(by: item.image.height)
             guard !pixels.overflow, pixels.partialValue <= maximumImagePixelCount else {
@@ -279,7 +367,8 @@ nonisolated enum CompositionHTMLExporter {
         title: String,
         layout: CompositionHTMLLayout,
         items: [EncodedItem],
-        renderedDifference: EncodedItem?
+        renderedDifference: EncodedItem?,
+        renderedChangeHighlight: EncodedItem?
     ) -> String {
         let resolvedTitle = title.isEmpty ? "Composition" : title
         let content: String
@@ -298,7 +387,8 @@ nonisolated enum CompositionHTMLExporter {
             content = renderComparison(
                 items: items,
                 comparison: comparison,
-                renderedDifference: renderedDifference
+                renderedDifference: renderedDifference,
+                renderedChangeHighlight: renderedChangeHighlight
             )
         }
 
@@ -377,125 +467,143 @@ nonisolated enum CompositionHTMLExporter {
     private static func renderComparison(
         items: [EncodedItem],
         comparison: CompositionHTMLComparison,
-        renderedDifference: EncodedItem?
+        renderedDifference: EncodedItem?,
+        renderedChangeHighlight: EncodedItem?
     ) -> String {
         let before = items[0]
         let after = items[1]
         let beforeLabel = escape(comparison.beforeLabel)
         let afterLabel = escape(comparison.afterLabel)
-        let modeName: String
-        let attributes: String
-        let controls: String
-        let valueClass: String
-
+        let initialMode: String
+        let initialValue: Int
         switch comparison.mode {
         case .sideBySide:
-            modeName = "side-by-side"
-            attributes = ""
-            controls = """
-            <div class="comparison-buttons comparison-view-buttons" aria-label="Comparison view">
-              <button type="button" data-side-by-side-view="both" aria-pressed="true">Show Both</button>
-              <button type="button" data-side-by-side-view="before" aria-pressed="false">\(beforeLabel)</button>
-              <button type="button" data-side-by-side-view="after" aria-pressed="false">\(afterLabel)</button>
-            </div>
-            <p class="comparison-status" aria-live="polite" data-side-by-side-status>Showing \(beforeLabel) and \(afterLabel)</p>
-            """
-            valueClass = ""
-        case .wipe(let axis, let requestedPosition):
-            let position = min(max(requestedPosition, 0), 100)
-            modeName = "wipe"
-            attributes = " data-axis=\"\(axis.rawValue)\" data-initial-value=\"\(position)\""
-            valueClass = "comparison-value-\(position)"
-            controls = """
-            <label class="comparison-control">Reveal
-              <input type="range" min="0" max="100" value="\(position)" data-wipe-range aria-label="Reveal \(afterLabel)">
-            </label>
-            """
-        case .overlay(let requestedOpacity):
-            let opacity = min(max(requestedOpacity, 0), 100)
-            modeName = "overlay"
-            attributes = " data-initial-value=\"\(opacity)\""
-            valueClass = "comparison-value-\(opacity)"
-            controls = """
-            <label class="comparison-control">After opacity
-              <input type="range" min="0" max="100" value="\(opacity)" data-overlay-range>
-            </label>
-            """
-        case .blink(let requestedInterval, let poster):
-            let interval = min(max(requestedInterval, 250), 10_000)
-            modeName = "blink"
-            attributes = " data-interval=\"\(interval)\" data-poster=\"\(poster.rawValue)\""
-            valueClass = ""
-            controls = """
-            <div class="comparison-buttons" aria-label="Blink controls">
-              <button type="button" data-blink-before>\(beforeLabel)</button>
-              <button type="button" data-blink-toggle aria-pressed="false">Play</button>
-              <button type="button" data-blink-after>\(afterLabel)</button>
-            </div>
-            <p class="comparison-status" aria-live="polite" data-blink-status>\(poster == .before ? beforeLabel : afterLabel)</p>
-            """
-        case .difference(let requestedIntensity):
-            let intensity = min(max(requestedIntensity, 0), 100)
-            modeName = "difference"
-            attributes = " data-initial-value=\"\(intensity)\""
-            valueClass = "comparison-value-\(intensity)"
-            controls = """
-            <label class="comparison-control">Difference intensity
-              <input type="range" min="0" max="100" value="\(intensity)" data-difference-range>
-            </label>
-            """
-        case .renderedDifference, .renderedChangeHighlight:
-            modeName = comparison.mode.isRenderedChangeHighlight
-                ? "change-highlight"
-                : "difference"
-            attributes = " data-initial-value=\"100\""
-            valueClass = "comparison-value-100"
-            controls = """
-            <label class="comparison-control">Result visibility
-              <input type="range" min="0" max="100" value="100" data-result-range>
-            </label>
-            """
+            initialMode = "side-by-side"
+            initialValue = 50
+        case .wipe:
+            initialMode = "wipe"
+            initialValue = comparison.wipePositionPercent
+        case .overlay:
+            initialMode = "overlay"
+            initialValue = comparison.overlayOpacityPercent
+        case .blink:
+            initialMode = "blink"
+            initialValue = 50
+        case .difference:
+            initialMode = "difference"
+            initialValue = comparison.differenceVisibilityPercent
+        case .renderedDifference:
+            initialMode = "difference"
+            initialValue = 100
+        case .renderedChangeHighlight:
+            initialMode = "change-highlight"
+            initialValue = 100
         }
-
-        let pairMarkup: String
-        var stateClasses = valueClass.isEmpty ? [] : [valueClass]
-        if case .difference = comparison.mode, renderedDifference == nil {
-            stateClasses.append("difference-fallback")
-        }
-        if case .sideBySide = comparison.mode {
-            pairMarkup = """
-            <figure class="comparison-side comparison-side-before">
-              <figcaption>\(beforeLabel)</figcaption>
-              <img src="\(before.pngDataURL)" alt="\(escape(before.accessibilityLabel))">
-            </figure>
-            <figure class="comparison-side comparison-side-after">
-              <figcaption>\(afterLabel)</figcaption>
-              <img src="\(after.pngDataURL)" alt="\(escape(after.accessibilityLabel))">
+        let modeOptions = [
+            ("side-by-side", "Side by Side"),
+            ("wipe", "Wipe"),
+            ("overlay", "Overlay"),
+            ("blink", "Blink"),
+            ("difference", "Difference"),
+        ] + (renderedChangeHighlight == nil
+            ? []
+            : [("change-highlight", "Highlight Changes")])
+        let options = modeOptions.map { value, label in
+            let selected = value == initialMode ? " selected" : ""
+            return "<option value=\"\(value)\"\(selected)>\(label)</option>"
+        }.joined(separator: "\n")
+        let differenceMarkup: String
+        if let renderedDifference {
+            differenceMarkup = """
+            <figure class="comparison-layer comparison-result comparison-difference-rendered">
+              <figcaption>Difference</figcaption>
+              <img src="\(renderedDifference.pngDataURL)" alt="\(escape(renderedDifference.accessibilityLabel))">
             </figure>
             """
         } else {
-            if case .blink(_, let poster) = comparison.mode, poster == .after {
-                stateClasses.append("show-after")
-            }
-            if case .blink(_, let poster) = comparison.mode {
-                stateClasses.append(poster == .after ? "poster-after" : "poster-before")
-            }
-            let differenceMarkup: String
-            if comparison.mode.usesRenderedResult, let renderedDifference {
-                let resultLabel = comparison.mode.isRenderedChangeHighlight
-                    ? "Change Highlight"
-                    : "Difference"
-                differenceMarkup = """
-                <figure class="comparison-layer comparison-difference-rendered">
-                  <figcaption>\(resultLabel)</figcaption>
-                  <img src="\(renderedDifference.pngDataURL)" alt="\(escape(renderedDifference.accessibilityLabel))">
-                </figure>
-                """
-            } else {
-                differenceMarkup = ""
-            }
-            pairMarkup = """
-            <div class="comparison-stage">
+            differenceMarkup = ""
+        }
+        let changeHighlightMarkup: String
+        if let renderedChangeHighlight {
+            changeHighlightMarkup = """
+            <figure class="comparison-layer comparison-result comparison-change-highlight-rendered">
+              <figcaption>Highlight Changes</figcaption>
+              <img src="\(renderedChangeHighlight.pngDataURL)" alt="\(escape(renderedChangeHighlight.accessibilityLabel))">
+            </figure>
+            """
+        } else {
+            changeHighlightMarkup = ""
+        }
+        let initialSideClass: String
+        if comparison.blinkPoster == .after {
+            initialSideClass = initialMode == "blink"
+                ? " show-after poster-after"
+                : " poster-after"
+        } else {
+            initialSideClass = " poster-before"
+        }
+        let differenceFallbackClass = renderedDifference == nil
+            ? " difference-fallback"
+            : ""
+        func hiddenUnless(_ mode: String) -> String {
+            mode == initialMode ? "" : " hidden"
+        }
+        let initialHelp: String
+        switch initialMode {
+        case "wipe":
+            initialHelp = "Drag the divider on the image, or use the Reveal After control."
+        case "overlay":
+            initialHelp = "Adjust how strongly After appears over Before."
+        case "blink":
+            initialHelp = "Choose a side or play the comparison automatically."
+        case "difference":
+            initialHelp = "Brighter pixels show where Before and After differ."
+        case "change-highlight":
+            initialHelp = "Highlighted areas show the changes detected by SnipSnipSnip."
+        default:
+            initialHelp = "View both images together, or focus on either one."
+        }
+        let initialStatus = initialMode == "side-by-side"
+            ? "Showing \(beforeLabel) and \(afterLabel)"
+            : "Using \(modeOptions.first { $0.0 == initialMode }?.1 ?? "comparison")"
+        let axis = comparison.wipeAxis.rawValue
+        let leftToRightSelected = comparison.wipeAxis == .horizontal
+            ? " selected"
+            : ""
+        let topToBottomSelected = comparison.wipeAxis == .vertical
+            ? " selected"
+            : ""
+        let changeHighlightControls: String
+        if renderedChangeHighlight == nil {
+            changeHighlightControls = ""
+        } else {
+            changeHighlightControls = """
+            <div class="comparison-mode-controls" data-controls-for="change-highlight"\(hiddenUnless("change-highlight"))>
+              <label class="comparison-control">Result Visibility
+                <input type="range" min="0" max="100" value="100" data-change-highlight-range>
+                <output data-change-highlight-output>100%</output>
+              </label>
+            </div>
+            """
+        }
+        return """
+        <section class="comparison comparison-value-\(initialValue) comparison-zoom-100\(initialSideClass)\(differenceFallbackClass)" data-comparison data-comparison-mode="\(initialMode)" data-active-mode="\(initialMode)" data-axis="\(axis)" data-initial-value="\(initialValue)" data-wipe-position="\(comparison.wipePositionPercent)" data-overlay-opacity="\(comparison.overlayOpacityPercent)" data-difference-visibility="\(comparison.differenceVisibilityPercent)" data-interval="\(comparison.blinkIntervalMilliseconds)" data-poster="\(comparison.blinkPoster.rawValue)" data-before-label="\(beforeLabel)" data-after-label="\(afterLabel)" aria-label="\(beforeLabel) and \(afterLabel) comparison">
+          <div class="comparison-toolbar" aria-label="Comparison viewer controls">
+            <label class="comparison-mode-control" for="comparison-mode">Compare Using
+              <select id="comparison-mode" data-mode-select>
+              \(options)
+              </select>
+            </label>
+            <div class="comparison-zoom-controls" role="group" aria-label="Zoom">
+              <button type="button" data-zoom-out>Zoom Out</button>
+              <button type="button" data-zoom-fit aria-pressed="true">Fit</button>
+              <button type="button" data-zoom-in>Zoom In</button>
+              <output data-zoom-status>Fit</output>
+            </div>
+          </div>
+          <p class="comparison-help" data-mode-help>\(initialHelp)</p>
+          <div class="comparison-viewport" data-comparison-viewport>
+            <div class="comparison-stage" data-comparison-stage>
               <figure class="comparison-layer comparison-before">
                 <figcaption>\(beforeLabel)</figcaption>
                 <img src="\(before.pngDataURL)" alt="\(escape(before.accessibilityLabel))">
@@ -505,18 +613,55 @@ nonisolated enum CompositionHTMLExporter {
                 <img src="\(after.pngDataURL)" alt="\(escape(after.accessibilityLabel))">
               </figure>
               \(differenceMarkup)
+              \(changeHighlightMarkup)
+              <span class="comparison-divider" aria-hidden="true"></span>
             </div>
-            """
-        }
-
-        let classNames = (["comparison", "comparison-\(modeName)"] + stateClasses)
-            .joined(separator: " ")
-        return """
-        <section class="\(classNames)" data-comparison data-comparison-mode="\(modeName)"\(attributes) aria-label="\(beforeLabel) and \(afterLabel) comparison">
-          <div class="comparison-pair">
-          \(pairMarkup)
           </div>
-          \(controls)
+          <div class="comparison-mode-controls" data-controls-for="side-by-side"\(hiddenUnless("side-by-side"))>
+            <div class="comparison-buttons" aria-label="Side by Side view">
+              <button type="button" data-side-by-side-view="both" aria-pressed="true">Show Both</button>
+              <button type="button" data-side-by-side-view="before" aria-pressed="false">\(beforeLabel)</button>
+              <button type="button" data-side-by-side-view="after" aria-pressed="false">\(afterLabel)</button>
+            </div>
+          </div>
+          <div class="comparison-mode-controls comparison-control-stack" data-controls-for="wipe"\(hiddenUnless("wipe"))>
+            <label class="comparison-control">Reveal After
+              <input type="range" min="0" max="100" value="\(comparison.wipePositionPercent)" data-wipe-range aria-label="Reveal \(afterLabel)">
+              <output data-wipe-output>\(comparison.wipePositionPercent)%</output>
+            </label>
+            <label class="comparison-control">Direction
+              <select data-wipe-axis>
+                <option value="horizontal"\(leftToRightSelected)>Left to Right</option>
+                <option value="vertical"\(topToBottomSelected)>Top to Bottom</option>
+              </select>
+            </label>
+          </div>
+          <div class="comparison-mode-controls" data-controls-for="overlay"\(hiddenUnless("overlay"))>
+            <label class="comparison-control">After Opacity
+              <input type="range" min="0" max="100" value="\(comparison.overlayOpacityPercent)" data-overlay-range>
+              <output data-overlay-output>\(comparison.overlayOpacityPercent)%</output>
+            </label>
+          </div>
+          <div class="comparison-mode-controls comparison-control-stack" data-controls-for="blink"\(hiddenUnless("blink"))>
+            <div class="comparison-buttons" aria-label="Blink controls">
+              <button type="button" data-blink-before>\(beforeLabel)</button>
+              <button type="button" data-blink-toggle aria-pressed="false">Play</button>
+              <button type="button" data-blink-after>\(afterLabel)</button>
+            </div>
+            <label class="comparison-control">Time Per Image
+              <input type="range" min="250" max="10000" step="250" value="\(comparison.blinkIntervalMilliseconds)" data-blink-interval>
+              <output data-blink-interval-output></output>
+            </label>
+          </div>
+          <div class="comparison-mode-controls" data-controls-for="difference"\(hiddenUnless("difference"))>
+            <label class="comparison-control">Result Visibility
+              <input type="range" min="0" max="100" value="\(comparison.differenceVisibilityPercent)" data-difference-range>
+              <output data-difference-output>\(comparison.differenceVisibilityPercent)%</output>
+            </label>
+          </div>
+          \(changeHighlightControls)
+          <p class="comparison-status" aria-live="polite" data-comparison-status>\(initialStatus)</p>
+          <noscript><p>The selected comparison view is shown. Enable JavaScript to switch views, zoom, and use the interactive controls.</p></noscript>
         </section>
         """
     }
@@ -738,83 +883,229 @@ button:disabled { color: var(--secondary); cursor: default; }
 .step-controls p { min-width: 7rem; text-align: center; }
 .is-enhanced .step-card[hidden] { display: none; }
 .comparison { padding: 1rem; }
-.comparison-pair { min-width: 0; }
-.comparison-side-by-side .comparison-pair {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-}
-.comparison-side-by-side.show-before .comparison-pair,
-.comparison-side-by-side.show-after .comparison-pair {
-  grid-template-columns: minmax(0, 1fr);
-}
-.comparison-side-by-side.show-before .comparison-side-after,
-.comparison-side-by-side.show-after .comparison-side-before {
+.comparison-toolbar {
   display: none;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
 }
-.comparison-side { margin: 0; min-width: 0; }
-.comparison-side figcaption, .comparison-layer figcaption {
-  font-weight: 700;
-  margin-bottom: 0.45rem;
+.is-enhanced .comparison-toolbar { display: flex; }
+.comparison-mode-control {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--secondary);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+select {
+  min-height: 2.25rem;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  color: var(--text);
+  background: var(--surface);
+  padding: 0.4rem 2rem 0.4rem 0.65rem;
+  font: inherit;
+}
+.comparison-zoom-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+.comparison-zoom-controls output {
+  min-width: 3.5rem;
+  color: var(--secondary);
+  text-align: end;
+}
+.comparison-help {
+  min-height: 1.4rem;
+  margin: 0 0 0.75rem;
+  color: var(--secondary);
+}
+.comparison-viewport {
+  max-height: 75vh;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: 0.55rem;
+  background: #000;
 }
 .comparison-stage {
   display: grid;
   position: relative;
-  overflow: hidden;
+  width: var(--comparison-zoom, 100%);
+  min-width: 0;
+  margin-inline: auto;
   border-radius: 0.55rem;
   background: #000;
 }
-.comparison-wipe { --comparison-value: 50%; }
-.comparison-overlay, .comparison-difference, .comparison-change-highlight { --comparison-value: 0.5; }
 .comparison-layer {
   grid-area: 1 / 1;
   margin: 0;
   min-width: 0;
+  overflow: hidden;
 }
-.comparison-layer img { width: 100%; }
+.comparison-layer img {
+  width: 100%;
+  user-select: none;
+  -webkit-user-drag: none;
+}
 .comparison-layer figcaption {
   position: absolute;
-  z-index: 3;
+  z-index: 5;
   top: 0.7rem;
+  margin: 0;
   padding: 0.3rem 0.55rem;
   border-radius: 0.35rem;
   color: #fff;
   background: rgba(0, 0, 0, 0.76);
+  font-weight: 700;
 }
 .comparison-before figcaption { inset-inline-start: 0.7rem; }
 .comparison-after figcaption { inset-inline-end: 0.7rem; }
-.comparison-wipe[data-axis="horizontal"] .comparison-after {
-  clip-path: inset(0 calc(100% - var(--comparison-value)) 0 0);
+.comparison-result { display: none; }
+.comparison[data-active-mode="side-by-side"] .comparison-stage {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  padding: 0.75rem;
 }
-.comparison-wipe[data-axis="vertical"] .comparison-after {
-  clip-path: inset(0 0 calc(100% - var(--comparison-value)) 0);
+.comparison[data-active-mode="side-by-side"] .comparison-before {
+  grid-area: 1 / 1;
 }
-.comparison-overlay .comparison-after { opacity: var(--comparison-value); }
-.comparison-blink .comparison-after { visibility: hidden; }
-.comparison-blink.show-after .comparison-before { visibility: hidden; }
-.comparison-blink.show-after .comparison-after { visibility: visible; }
-.comparison-difference .comparison-after,
-.comparison-change-highlight .comparison-after { visibility: hidden; }
-.comparison-difference .comparison-difference-rendered,
-.comparison-change-highlight .comparison-difference-rendered {
-  opacity: var(--comparison-value);
+.comparison[data-active-mode="side-by-side"] .comparison-after {
+  grid-area: 1 / 2;
 }
-.comparison-difference.difference-fallback .comparison-after {
+.comparison[data-active-mode="side-by-side"] .comparison-layer figcaption {
+  position: static;
+  margin-bottom: 0.45rem;
+  color: #fff;
+  background: transparent;
+}
+.comparison[data-active-mode="side-by-side"].show-before .comparison-stage,
+.comparison[data-active-mode="side-by-side"].show-after .comparison-stage {
+  grid-template-columns: minmax(0, 1fr);
+}
+.comparison[data-active-mode="side-by-side"].show-before .comparison-after,
+.comparison[data-active-mode="side-by-side"].show-after .comparison-before {
+  display: none;
+}
+.comparison[data-active-mode="side-by-side"].show-before .comparison-before,
+.comparison[data-active-mode="side-by-side"].show-after .comparison-after {
+  grid-area: 1 / 1;
+}
+.comparison[data-active-mode="wipe"] .comparison-stage {
+  cursor: ew-resize;
+}
+.comparison[data-active-mode="wipe"][data-axis="vertical"] .comparison-stage {
+  cursor: ns-resize;
+}
+.comparison[data-active-mode="wipe"][data-axis="horizontal"] .comparison-after {
+  clip-path: inset(0 calc(100% - var(--comparison-position)) 0 0);
+}
+.comparison[data-active-mode="wipe"][data-axis="vertical"] .comparison-after {
+  clip-path: inset(0 0 calc(100% - var(--comparison-position)) 0);
+}
+.comparison-divider {
+  display: none;
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
+}
+.is-enhanced .comparison[data-active-mode="wipe"] .comparison-divider {
+  display: block;
+}
+.comparison[data-active-mode="wipe"][data-axis="horizontal"] .comparison-divider {
+  top: 0;
+  bottom: 0;
+  left: var(--comparison-position);
+  width: 3px;
+  transform: translateX(-1.5px);
+}
+.comparison[data-active-mode="wipe"][data-axis="vertical"] .comparison-divider {
+  right: 0;
+  left: 0;
+  top: var(--comparison-position);
+  height: 3px;
+  transform: translateY(-1.5px);
+}
+.comparison-divider::after {
+  content: "↔";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: 2.4rem;
+  height: 2.4rem;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.76);
+  transform: translate(-50%, -50%);
+  font-weight: 700;
+}
+.comparison[data-active-mode="wipe"][data-axis="vertical"] .comparison-divider::after {
+  content: "↕";
+}
+.comparison[data-active-mode="overlay"] .comparison-after {
+  opacity: var(--comparison-opacity);
+}
+.comparison[data-active-mode="blink"] .comparison-after { visibility: hidden; }
+.comparison[data-active-mode="blink"].show-after .comparison-before { visibility: hidden; }
+.comparison[data-active-mode="blink"].show-after .comparison-after { visibility: visible; }
+.comparison[data-active-mode="difference"] .comparison-after,
+.comparison[data-active-mode="change-highlight"] .comparison-after {
+  visibility: hidden;
+}
+.comparison[data-active-mode="difference"] .comparison-difference-rendered,
+.comparison[data-active-mode="change-highlight"] .comparison-change-highlight-rendered {
+  display: block;
+  opacity: var(--comparison-opacity);
+}
+.comparison[data-active-mode="difference"].difference-fallback .comparison-after {
   visibility: visible;
   mix-blend-mode: difference;
-  opacity: var(--comparison-value);
+  opacity: var(--comparison-opacity);
 }
-.comparison-control, .comparison-buttons {
+.comparison-mode-controls {
+  display: none;
+  margin-top: 1rem;
+}
+.is-enhanced .comparison-mode-controls { display: block; }
+.comparison-mode-controls[hidden] { display: none !important; }
+.comparison-control,
+.comparison-buttons {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  margin-top: 1rem;
+  flex-wrap: wrap;
 }
-.comparison-view-buttons { display: none; }
-.is-enhanced .comparison-view-buttons { display: flex; }
+.is-enhanced .comparison-control-stack {
+  display: grid;
+  gap: 0.75rem;
+}
 .comparison-control input { width: min(32rem, 70vw); }
-.comparison-status { text-align: center; color: var(--secondary); }
+.comparison-control output {
+  min-width: 3.5rem;
+  color: var(--secondary);
+}
+.comparison-buttons button[aria-pressed="true"],
+.comparison-zoom-controls button[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--text);
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.comparison-status {
+  min-height: 1.4rem;
+  margin-bottom: 0;
+  text-align: center;
+  color: var(--secondary);
+}
 @media (max-width: 720px) {
   .composition-grid,
   .composition-grid[class*="columns-"] {
@@ -823,7 +1114,17 @@ button:disabled { color: var(--secondary); cursor: default; }
   .steps-layout { grid-template-columns: 1fr; }
   .step-navigation { position: static; max-height: none; }
   .step-controls { grid-column: 1; }
-  .comparison-side-by-side .comparison-pair { grid-template-columns: 1fr; }
+  .comparison-toolbar { align-items: stretch; flex-direction: column; }
+  .comparison-zoom-controls { justify-content: flex-start; }
+  .comparison[data-active-mode="side-by-side"] .comparison-stage {
+    grid-template-columns: 1fr;
+  }
+  .comparison[data-active-mode="side-by-side"] .comparison-before {
+    grid-area: 1 / 1;
+  }
+  .comparison[data-active-mode="side-by-side"] .comparison-after {
+    grid-area: 2 / 1;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -850,11 +1151,20 @@ button:disabled { color: var(--secondary); cursor: default; }
   .document-footer,
   .step-navigation,
   .step-controls,
+  .comparison-toolbar,
+  .comparison-help,
+  .comparison-mode-controls,
   .comparison-control,
   .comparison-buttons,
-  .comparison-status {
+  .comparison-status,
+  .comparison-divider {
     display: none !important;
   }
+  .comparison-viewport {
+    max-height: none;
+    overflow: visible;
+  }
+  .comparison-stage { width: 100% !important; }
   .steps-layout { display: block; }
   .is-enhanced .step-card[hidden] { display: block !important; }
   .step-card {
@@ -864,17 +1174,23 @@ button:disabled { color: var(--secondary); cursor: default; }
     margin-bottom: 1rem;
   }
   .composition-card, .comparison { box-shadow: none; }
-  .comparison-side-by-side.show-before .comparison-pair,
-  .comparison-side-by-side.show-after .comparison-pair {
+  .comparison[data-active-mode="side-by-side"].show-before .comparison-stage,
+  .comparison[data-active-mode="side-by-side"].show-after .comparison-stage {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .comparison-side-by-side .comparison-side {
+  .comparison[data-active-mode="side-by-side"] .comparison-before {
+    grid-area: 1 / 1;
+  }
+  .comparison[data-active-mode="side-by-side"] .comparison-after {
+    grid-area: 1 / 2;
+  }
+  .comparison[data-active-mode="side-by-side"] .comparison-layer {
     display: block !important;
   }
-  .comparison-blink.poster-before .comparison-before { visibility: visible !important; }
-  .comparison-blink.poster-before .comparison-after { visibility: hidden !important; }
-  .comparison-blink.poster-after .comparison-before { visibility: hidden !important; }
-  .comparison-blink.poster-after .comparison-after { visibility: visible !important; }
+  .comparison[data-active-mode="blink"].poster-before .comparison-before { visibility: visible !important; }
+  .comparison[data-active-mode="blink"].poster-before .comparison-after { visibility: hidden !important; }
+  .comparison[data-active-mode="blink"].poster-after .comparison-before { visibility: hidden !important; }
+  .comparison[data-active-mode="blink"].poster-after .comparison-after { visibility: visible !important; }
 }
 @media (forced-colors: active) {
   .composition-card, .step-card, .comparison, .step-navigation {
@@ -892,26 +1208,29 @@ button:disabled { color: var(--secondary); cursor: default; }
             let fraction = Double(value) / 100
             let inverse = 100 - value
             return """
-            .comparison-wipe.comparison-value-\(value) { --comparison-value: \(value)%; }
-            .comparison-overlay.comparison-value-\(value),
-            .comparison-difference.comparison-value-\(value),
-            .comparison-change-highlight.comparison-value-\(value) { --comparison-value: \(fraction); }
-            .comparison-wipe.comparison-value-\(value)[data-axis="horizontal"] .comparison-after {
+            .comparison.comparison-value-\(value) {
+              --comparison-position: \(value)%;
+              --comparison-opacity: \(fraction);
+            }
+            .comparison.comparison-value-\(value)[data-active-mode="wipe"][data-axis="horizontal"] .comparison-after {
               clip-path: inset(0 \(inverse)% 0 0);
             }
-            .comparison-wipe.comparison-value-\(value)[data-axis="vertical"] .comparison-after {
+            .comparison.comparison-value-\(value)[data-active-mode="wipe"][data-axis="vertical"] .comparison-after {
               clip-path: inset(0 0 \(inverse)% 0);
             }
-            .comparison-overlay.comparison-value-\(value) .comparison-after {
+            .comparison.comparison-value-\(value)[data-active-mode="overlay"] .comparison-after {
               opacity: \(fraction);
             }
-            .comparison-difference.comparison-value-\(value) .comparison-difference-rendered,
-            .comparison-change-highlight.comparison-value-\(value) .comparison-difference-rendered {
+            .comparison.comparison-value-\(value)[data-active-mode="difference"] .comparison-difference-rendered,
+            .comparison.comparison-value-\(value)[data-active-mode="change-highlight"] .comparison-change-highlight-rendered {
               opacity: \(fraction);
             }
             """
         }.joined(separator: "\n")
-        return "\(baseStyleSource)\n\(comparisonValueRules)"
+        let comparisonZoomRules = stride(from: 50, through: 200, by: 25).map {
+            ".comparison.comparison-zoom-\($0) { --comparison-zoom: \($0)%; }"
+        }.joined(separator: "\n")
+        return "\(baseStyleSource)\n\(comparisonValueRules)\n\(comparisonZoomRules)"
     }()
 
     private static let scriptSource = #"""
@@ -974,94 +1293,365 @@ button:disabled { color: var(--secondary); cursor: default; }
   });
 
   document.querySelectorAll("[data-comparison]").forEach((comparison) => {
-    if (comparison.dataset.comparisonMode === "side-by-side") {
-      const buttons = Array.from(comparison.querySelectorAll("[data-side-by-side-view]"));
-      const status = comparison.querySelector("[data-side-by-side-status]");
-      const before = comparison.querySelector('[data-side-by-side-view="before"]');
-      const after = comparison.querySelector('[data-side-by-side-view="after"]');
-      const show = (view) => {
-        const resolved = ["both", "before", "after"].includes(view) ? view : "both";
-        comparison.classList.toggle("show-before", resolved === "before");
-        comparison.classList.toggle("show-after", resolved === "after");
-        buttons.forEach((button) => {
-          button.setAttribute(
-            "aria-pressed",
-            button.dataset.sideBySideView === resolved ? "true" : "false"
-          );
-        });
-        if (status) {
-          const beforeLabel = before?.textContent?.trim() || "Before";
-          const afterLabel = after?.textContent?.trim() || "After";
-          status.textContent = resolved === "both"
-            ? `Showing ${beforeLabel} and ${afterLabel}`
-            : `Showing ${resolved === "before" ? beforeLabel : afterLabel}`;
-        }
-      };
-      buttons.forEach((button) => {
-        button.addEventListener("click", () => show(button.dataset.sideBySideView));
-      });
-      show("both");
-    }
+    const modeSelect = comparison.querySelector("[data-mode-select]");
+    const modeControls = Array.from(comparison.querySelectorAll("[data-controls-for]"));
+    const status = comparison.querySelector("[data-comparison-status]");
+    const help = comparison.querySelector("[data-mode-help]");
+    const stage = comparison.querySelector("[data-comparison-stage]");
+    const viewport = comparison.querySelector("[data-comparison-viewport]");
+    if (!modeSelect || !status || !help || !stage || !viewport) return;
 
-    const initial = clamp(Number(comparison.dataset.initialValue || 50), 0, 100);
-    const setValue = (requested) => {
-      const value = Math.round(clamp(Number(requested), 0, 100));
-      Array.from(comparison.classList).forEach((name) => {
-        if (/^comparison-value-\d+$/.test(name)) comparison.classList.remove(name);
-      });
-      comparison.classList.add(`comparison-value-${value}`);
+    const beforeLabel = comparison.dataset.beforeLabel || "Before";
+    const afterLabel = comparison.dataset.afterLabel || "After";
+    const modes = Array.from(modeSelect.options).map((option) => option.value);
+    const zoomLevels = [50, 75, 100, 125, 150, 175, 200];
+    const hash = new URLSearchParams(location.hash.replace(/^#/, ""));
+    const numberFrom = (name, fallback, minimum, maximum) => {
+      const rawValue = hash.get(name);
+      if (rawValue === null || rawValue === "") return fallback;
+      const value = Number(rawValue);
+      return Number.isFinite(value) ? clamp(value, minimum, maximum) : fallback;
     };
-    setValue(initial);
-
-    const bindRange = (selector) => {
-      const range = comparison.querySelector(selector);
-      if (!range) return;
-      range.addEventListener("input", () => setValue(range.value));
+    const requestedMode = hash.get("view");
+    const requestedSide = hash.get("side");
+    const requestedAxis = hash.get("axis");
+    const requestedZoom = numberFrom("zoom", 100, 50, 200);
+    const nearestZoom = zoomLevels.reduce((nearest, value) =>
+      Math.abs(value - requestedZoom) < Math.abs(nearest - requestedZoom)
+        ? value
+        : nearest
+    );
+    const state = {
+      mode: modes.includes(requestedMode)
+        ? requestedMode
+        : comparison.dataset.activeMode,
+      side: ["both", "before", "after"].includes(requestedSide)
+        ? requestedSide
+        : "both",
+      axis: ["horizontal", "vertical"].includes(requestedAxis)
+        ? requestedAxis
+        : comparison.dataset.axis,
+      wipe: Math.round(numberFrom(
+        "reveal",
+        Number(comparison.dataset.wipePosition || 50),
+        0,
+        100
+      )),
+      overlay: Math.round(numberFrom(
+        "opacity",
+        Number(comparison.dataset.overlayOpacity || 50),
+        0,
+        100
+      )),
+      difference: Math.round(numberFrom(
+        "difference",
+        Number(comparison.dataset.differenceVisibility || 100),
+        0,
+        100
+      )),
+      highlight: Math.round(numberFrom("highlight", 100, 0, 100)),
+      interval: Math.round(numberFrom(
+        "interval",
+        Number(comparison.dataset.interval || 1000),
+        250,
+        10000
+      ) / 250) * 250,
+      zoom: nearestZoom,
+      showingAfter: comparison.dataset.poster === "after",
     };
-    bindRange("[data-wipe-range]");
-    bindRange("[data-overlay-range]");
-    bindRange("[data-difference-range]");
-    bindRange("[data-result-range]");
-
-    if (comparison.dataset.comparisonMode !== "blink") return;
-    const toggle = comparison.querySelector("[data-blink-toggle]");
-    const before = comparison.querySelector("[data-blink-before]");
-    const after = comparison.querySelector("[data-blink-after]");
-    const status = comparison.querySelector("[data-blink-status]");
-    if (!toggle || !before || !after || !status) return;
-
-    const interval = clamp(Number(comparison.dataset.interval || 1000), 250, 10000);
+    const sideButtons = Array.from(
+      comparison.querySelectorAll("[data-side-by-side-view]")
+    );
+    const wipeRange = comparison.querySelector("[data-wipe-range]");
+    const wipeOutput = comparison.querySelector("[data-wipe-output]");
+    const axisSelect = comparison.querySelector("[data-wipe-axis]");
+    const overlayRange = comparison.querySelector("[data-overlay-range]");
+    const overlayOutput = comparison.querySelector("[data-overlay-output]");
+    const differenceRange = comparison.querySelector("[data-difference-range]");
+    const differenceOutput = comparison.querySelector("[data-difference-output]");
+    const highlightRange = comparison.querySelector("[data-change-highlight-range]");
+    const highlightOutput = comparison.querySelector("[data-change-highlight-output]");
+    const blinkInterval = comparison.querySelector("[data-blink-interval]");
+    const blinkIntervalOutput = comparison.querySelector("[data-blink-interval-output]");
+    const blinkToggle = comparison.querySelector("[data-blink-toggle]");
+    const blinkBefore = comparison.querySelector("[data-blink-before]");
+    const blinkAfter = comparison.querySelector("[data-blink-after]");
+    const zoomOut = comparison.querySelector("[data-zoom-out]");
+    const zoomFit = comparison.querySelector("[data-zoom-fit]");
+    const zoomIn = comparison.querySelector("[data-zoom-in]");
+    const zoomStatus = comparison.querySelector("[data-zoom-status]");
     let timer = null;
-    let showingAfter = comparison.dataset.poster === "after";
-    const label = (side) => side?.querySelector("figcaption")?.textContent || "";
-    const renderSide = () => {
-      comparison.classList.toggle("show-after", showingAfter);
-      status.textContent = showingAfter ? label(comparison.querySelector(".comparison-after")) : label(comparison.querySelector(".comparison-before"));
+
+    const replaceNumberClass = (prefix, requested) => {
+      const value = Math.round(Number(requested));
+      Array.from(comparison.classList).forEach((name) => {
+        if (name.startsWith(prefix)) comparison.classList.remove(name);
+      });
+      comparison.classList.add(`${prefix}${value}`);
+      return value;
     };
-    const stop = () => {
+    const setValue = (requested) =>
+      replaceNumberClass("comparison-value-", clamp(Number(requested), 0, 100));
+    const setZoom = (requested) => {
+      const index = clamp(
+        zoomLevels.indexOf(requested),
+        0,
+        zoomLevels.length - 1
+      );
+      state.zoom = zoomLevels[index];
+      replaceNumberClass("comparison-zoom-", state.zoom);
+      zoomOut.disabled = index === 0;
+      zoomIn.disabled = index === zoomLevels.length - 1;
+      zoomFit.setAttribute("aria-pressed", state.zoom === 100 ? "true" : "false");
+      zoomStatus.textContent = state.zoom === 100 ? "Fit" : `${state.zoom}%`;
+    };
+
+    const formatInterval = (milliseconds) => {
+      const seconds = milliseconds / 1000;
+      return `${Number.isInteger(seconds) ? seconds : seconds.toFixed(2)} sec`;
+    };
+    const stopBlink = () => {
       if (timer !== null) window.clearInterval(timer);
       timer = null;
-      toggle.textContent = "Play";
-      toggle.setAttribute("aria-pressed", "false");
+      if (blinkToggle) {
+        blinkToggle.textContent = "Play";
+        blinkToggle.setAttribute("aria-pressed", "false");
+      }
     };
-    const play = () => {
+
+    const updateHash = () => {
+      const values = new URLSearchParams();
+      values.set("view", state.mode);
+      values.set("zoom", state.zoom);
+      values.set("side", state.side);
+      values.set("axis", state.axis);
+      values.set("reveal", state.wipe);
+      values.set("opacity", state.overlay);
+      values.set("difference", state.difference);
+      values.set("highlight", state.highlight);
+      values.set("interval", state.interval);
+      const nextHash = `#${values.toString()}`;
+      try {
+        history.replaceState(null, "", nextHash);
+      } catch (_) {
+        location.hash = nextHash;
+      }
+    };
+
+    const updateStatus = () => {
+      switch (state.mode) {
+      case "side-by-side":
+        status.textContent = state.side === "both"
+          ? `Showing ${beforeLabel} and ${afterLabel}`
+          : `Showing ${state.side === "before" ? beforeLabel : afterLabel}`;
+        break;
+      case "wipe":
+        status.textContent = `${state.wipe}% of ${afterLabel} revealed`;
+        break;
+      case "overlay":
+        status.textContent = `${afterLabel} opacity: ${state.overlay}%`;
+        break;
+      case "blink":
+        status.textContent = timer === null
+          ? `Showing ${state.showingAfter ? afterLabel : beforeLabel}`
+          : `Alternating ${beforeLabel} and ${afterLabel}`;
+        break;
+      case "difference":
+        status.textContent = `Difference visibility: ${state.difference}%`;
+        break;
+      case "change-highlight":
+        status.textContent = `Highlighted changes visibility: ${state.highlight}%`;
+        break;
+      }
+    };
+
+    const render = (persist) => {
+      if (state.mode !== "blink") stopBlink();
+      comparison.dataset.activeMode = state.mode;
+      comparison.dataset.comparisonMode = state.mode;
+      comparison.dataset.axis = state.axis;
+      modeSelect.value = state.mode;
+      modeControls.forEach((controls) => {
+        controls.hidden = controls.dataset.controlsFor !== state.mode;
+      });
+      comparison.classList.toggle(
+        "show-before",
+        state.mode === "side-by-side" && state.side === "before"
+      );
+      comparison.classList.toggle(
+        "show-after",
+        (state.mode === "side-by-side" && state.side === "after")
+          || (state.mode === "blink" && state.showingAfter)
+      );
+      sideButtons.forEach((button) => {
+        button.setAttribute(
+          "aria-pressed",
+          button.dataset.sideBySideView === state.side ? "true" : "false"
+        );
+      });
+      if (wipeRange) wipeRange.value = state.wipe;
+      if (wipeOutput) wipeOutput.textContent = `${state.wipe}%`;
+      if (axisSelect) axisSelect.value = state.axis;
+      if (overlayRange) overlayRange.value = state.overlay;
+      if (overlayOutput) overlayOutput.textContent = `${state.overlay}%`;
+      if (differenceRange) differenceRange.value = state.difference;
+      if (differenceOutput) differenceOutput.textContent = `${state.difference}%`;
+      if (highlightRange) highlightRange.value = state.highlight;
+      if (highlightOutput) highlightOutput.textContent = `${state.highlight}%`;
+      if (blinkInterval) blinkInterval.value = state.interval;
+      if (blinkIntervalOutput) {
+        blinkIntervalOutput.textContent = formatInterval(state.interval);
+      }
+      const value = state.mode === "wipe"
+        ? state.wipe
+        : state.mode === "overlay"
+          ? state.overlay
+          : state.mode === "difference"
+            ? state.difference
+            : state.mode === "change-highlight"
+              ? state.highlight
+              : 50;
+      setValue(value);
+      setZoom(state.zoom);
+      const helpByMode = {
+        "side-by-side": "View both images together, or focus on either one.",
+        wipe: "Drag the divider on the image, or use the Reveal After control.",
+        overlay: `Adjust how strongly ${afterLabel} appears over ${beforeLabel}.`,
+        blink: "Choose a side or play the comparison automatically.",
+        difference: `Brighter pixels show where ${beforeLabel} and ${afterLabel} differ.`,
+        "change-highlight": "Highlighted areas show the changes detected by SnipSnipSnip.",
+      };
+      help.textContent = helpByMode[state.mode] || "";
+      updateStatus();
+      if (persist) updateHash();
+    };
+
+    const playBlink = () => {
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        status.textContent = `${status.textContent}. Animation is paused because Reduce Motion is enabled.`;
+        status.textContent = "Blink is paused because Reduce Motion is enabled. Use Before and After instead.";
         return;
       }
-      timer = window.setInterval(() => { showingAfter = !showingAfter; renderSide(); }, interval);
-      toggle.textContent = "Pause";
-      toggle.setAttribute("aria-pressed", "true");
+      timer = window.setInterval(() => {
+        state.showingAfter = !state.showingAfter;
+        comparison.classList.toggle("show-after", state.showingAfter);
+        updateStatus();
+      }, state.interval);
+      blinkToggle.textContent = "Pause";
+      blinkToggle.setAttribute("aria-pressed", "true");
+      updateStatus();
     };
-    toggle.addEventListener("click", () => { if (timer === null) play(); else stop(); });
-    before.addEventListener("click", () => { stop(); showingAfter = false; renderSide(); });
-    after.addEventListener("click", () => { stop(); showingAfter = true; renderSide(); });
-    window.addEventListener("beforeprint", () => {
-      stop();
-      showingAfter = comparison.dataset.poster === "after";
-      renderSide();
+
+    modeSelect.addEventListener("change", () => {
+      state.mode = modes.includes(modeSelect.value)
+        ? modeSelect.value
+        : "side-by-side";
+      render(true);
     });
-    renderSide();
+    sideButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        state.side = button.dataset.sideBySideView;
+        render(true);
+      });
+    });
+    wipeRange?.addEventListener("input", () => {
+      state.wipe = Math.round(Number(wipeRange.value));
+      render(true);
+    });
+    axisSelect?.addEventListener("change", () => {
+      state.axis = axisSelect.value === "vertical" ? "vertical" : "horizontal";
+      render(true);
+    });
+    overlayRange?.addEventListener("input", () => {
+      state.overlay = Math.round(Number(overlayRange.value));
+      render(true);
+    });
+    differenceRange?.addEventListener("input", () => {
+      state.difference = Math.round(Number(differenceRange.value));
+      render(true);
+    });
+    highlightRange?.addEventListener("input", () => {
+      state.highlight = Math.round(Number(highlightRange.value));
+      render(true);
+    });
+    blinkInterval?.addEventListener("input", () => {
+      const wasPlaying = timer !== null;
+      stopBlink();
+      state.interval = Math.round(Number(blinkInterval.value) / 250) * 250;
+      render(true);
+      if (wasPlaying) playBlink();
+    });
+    blinkToggle?.addEventListener("click", () => {
+      if (timer === null) playBlink();
+      else {
+        stopBlink();
+        updateStatus();
+      }
+    });
+    blinkBefore?.addEventListener("click", () => {
+      stopBlink();
+      state.showingAfter = false;
+      render(true);
+    });
+    blinkAfter?.addEventListener("click", () => {
+      stopBlink();
+      state.showingAfter = true;
+      render(true);
+    });
+
+    zoomOut.addEventListener("click", () => {
+      const index = zoomLevels.indexOf(state.zoom);
+      setZoom(zoomLevels[Math.max(index - 1, 0)]);
+      updateHash();
+    });
+    zoomFit.addEventListener("click", () => {
+      setZoom(100);
+      viewport.scrollTo({ top: 0, left: 0 });
+      updateHash();
+    });
+    zoomIn.addEventListener("click", () => {
+      const index = zoomLevels.indexOf(state.zoom);
+      setZoom(zoomLevels[Math.min(index + 1, zoomLevels.length - 1)]);
+      updateHash();
+    });
+
+    let draggingWipe = false;
+    const updateWipeFromPointer = (event) => {
+      const bounds = stage.getBoundingClientRect();
+      const fraction = state.axis === "horizontal"
+        ? (event.clientX - bounds.left) / bounds.width
+        : (event.clientY - bounds.top) / bounds.height;
+      state.wipe = Math.round(clamp(fraction * 100, 0, 100));
+      if (wipeRange) wipeRange.value = state.wipe;
+      if (wipeOutput) wipeOutput.textContent = `${state.wipe}%`;
+      setValue(state.wipe);
+      updateStatus();
+    };
+    stage.addEventListener("pointerdown", (event) => {
+      if (state.mode !== "wipe") return;
+      draggingWipe = true;
+      stage.setPointerCapture?.(event.pointerId);
+      updateWipeFromPointer(event);
+      event.preventDefault();
+    });
+    stage.addEventListener("pointermove", (event) => {
+      if (!draggingWipe) return;
+      updateWipeFromPointer(event);
+      event.preventDefault();
+    });
+    const finishWipeDrag = () => {
+      if (!draggingWipe) return;
+      draggingWipe = false;
+      updateHash();
+    };
+    stage.addEventListener("pointerup", finishWipeDrag);
+    stage.addEventListener("pointercancel", finishWipeDrag);
+
+    window.addEventListener("beforeprint", () => {
+      stopBlink();
+      state.showingAfter = comparison.dataset.poster === "after";
+      render(false);
+    });
+    render(false);
   });
 })();
 """#

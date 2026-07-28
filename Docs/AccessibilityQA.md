@@ -89,7 +89,8 @@ Repeat the essential workflow pass with:
 - [ ] Private Composition is announced when first tainted and remains visibly and semantically Private after the source that caused it is removed.
 - [ ] Cancelled add or replacement restores focus and makes no selection or document announcement implying success.
 - [ ] Partial batch-import failure announces the exact Added and Failed counts, then exposes Retry Failed and Details without discarding successful items.
-- [ ] Interactive HTML is tested in Safari with VoiceOver and keyboard only: heading structure, static numbered links, Previous/Next, Left/Right Arrow step navigation, comparison sliders, Blink Play/Pause and manual sides, focus visibility, Dark appearance, and browser zoom all remain usable.
+- [ ] Interactive HTML is tested in Safari with VoiceOver and keyboard only: heading structure, static numbered links, Previous/Next, Left/Right Arrow step navigation, Compare Using, comparison sliders, Wipe direction and direct-drag divider, Blink Play/Pause and manual sides, shared Zoom Out/Fit/Zoom In, focus visibility, Dark appearance, and browser zoom all remain usable.
+- [ ] Reloading or sharing an interactive comparison file with its URL fragment restores the chosen comparison view, zoom, and view-specific settings without browser storage.
 - [ ] Interactive HTML honors `prefers-reduced-motion`, contains useful static navigation without JavaScript, and does not depend on color alone for Difference output.
 
 ## Current stage output

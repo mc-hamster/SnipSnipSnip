@@ -220,6 +220,12 @@ Do not use **Clear** as a synonym for irreversible deletion. Do not use **Done**
 
 Use **Reveal in Finder**, not **Open in Finder**, when Finder selects and displays an existing file rather than opening the file itself.
 
+### Interactive HTML comparison controls
+
+Use **Compare Using** for the exported Comparison view selector. Its choices are **Side by Side**, **Wipe**, **Overlay**, **Blink**, **Difference**, and **Highlight Changes**. Use **Show Both**, **Before**, and **After** for the Side by Side focus controls. Use **Reveal After**, **After Opacity**, **Time Per Image**, and **Result Visibility** for mode-specific adjustments. Shared image inspection uses **Zoom Out**, **Fit**, and **Zoom In**.
+
+Keep these labels action-oriented and concrete. Do not expose implementation terms such as comparison mode, blend amount, poster frame, or rendered result in the exported viewer.
+
 ## Library and History Terms
 
 Library terms identify distinct scopes. Do not shorten them to generic **Library** or **History** when the scope would become ambiguous.
