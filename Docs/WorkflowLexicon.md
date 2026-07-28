@@ -222,7 +222,11 @@ Use **Reveal in Finder**, not **Open in Finder**, when Finder selects and displa
 
 ### Interactive HTML comparison controls
 
-Use **Compare Using** for the exported Comparison view selector. Its choices are **Side by Side**, **Wipe**, **Overlay**, **Blink**, **Difference**, and **Highlight Changes**. Use **Show Both**, **Before**, and **After** for the Side by Side focus controls. Use **Reveal After**, **After Opacity**, **Time Per Image**, and **Result Visibility** for mode-specific adjustments. Shared image inspection uses **Zoom Out**, **Fit**, and **Zoom In**.
+Use **Compare Using** for the exported Comparison view selector. Its choices are **Side by Side**, **Wipe**, **Overlay**, **Blink**, **Difference**, and **Highlight Changes**. Use **Show Both**, **Before**, and **After** for the Side by Side focus controls. Use **Reveal After**, **After Opacity**, **Time Per Image**, and **Result Visibility** for mode-specific adjustments. Shared inspection uses **Zoom Out**, **Fit**, and **Zoom In**. **Fit** means the complete active comparison area is kept in view; the branding footer is not part of the fit calculation.
+
+When Reduce Motion is enabled, Blink starts paused. Use **Play Anyway** for the explicit action that begins Blink despite that preference. Explain the paused start as a respectful default, not an error, and keep **Before** and **After** available for manual inspection.
+
+Keep **Before**, **After**, **Difference**, and **Highlight Changes** labels above screenshot pixels in every exported comparison mode. Do not overlay these labels on captured content.
 
 Keep these labels action-oriented and concrete. Do not expose implementation terms such as comparison mode, blend amount, poster frame, or rendered result in the exported viewer.
 

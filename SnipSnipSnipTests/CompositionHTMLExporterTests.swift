@@ -394,10 +394,37 @@ final class CompositionHTMLExporterTests: XCTestCase {
 
         XCTAssertTrue(html.contains("<option value=\"change-highlight\">Highlight Changes</option>"))
         XCTAssertTrue(html.contains("data-comparison-stage"))
+        XCTAssertTrue(
+            html.contains(
+                #"class="comparison-labels" aria-hidden="true""#
+            )
+        )
+        XCTAssertTrue(
+            html.contains(
+                #"class="comparison-label comparison-label-before">Original</span>"#
+            )
+        )
+        XCTAssertTrue(
+            html.contains(
+                #"class="comparison-label comparison-label-after">Revised</span>"#
+            )
+        )
+        XCTAssertTrue(
+            html.contains(
+                #"<figcaption class="comparison-caption">Original</figcaption>"#
+            )
+        )
+        XCTAssertFalse(html.contains(".comparison-before figcaption"))
+        XCTAssertFalse(html.contains(".comparison-after figcaption"))
         XCTAssertTrue(html.contains("data-wipe-axis"))
         XCTAssertTrue(html.contains("data-zoom-out"))
         XCTAssertTrue(html.contains("data-zoom-fit"))
         XCTAssertTrue(html.contains("data-zoom-in"))
+        XCTAssertTrue(html.contains("comparison-is-fit"))
+        XCTAssertTrue(html.contains("availableComparisonHeight"))
+        XCTAssertTrue(html.contains(#"requestedZoomValue === "fit""#))
+        XCTAssertTrue(html.contains(#"values.set("zoom", state.zoom)"#))
+        XCTAssertTrue(html.contains("window.addEventListener(\"resize\""))
         XCTAssertTrue(html.contains("stage.addEventListener(\"pointerdown\""))
         XCTAssertTrue(html.contains("new URLSearchParams(location.hash"))
         XCTAssertTrue(html.contains("history.replaceState"))
@@ -405,6 +432,32 @@ final class CompositionHTMLExporterTests: XCTestCase {
             html.components(separatedBy: "src=\"data:image/png;base64,").count - 1,
             4
         )
+    }
+
+    func testReducedMotionBlinkStartsPausedAndAllowsAnExplicitOverride() throws {
+        let html = try comparisonHTML(
+            mode: .blink(intervalMilliseconds: 850, poster: .after)
+        )
+
+        XCTAssertTrue(html.contains("Play Anyway"))
+        XCTAssertTrue(
+            html.contains(
+                "Blink is ready. To respect Reduce Motion, it starts paused."
+            )
+        )
+        XCTAssertTrue(html.contains("playBlink(true)"))
+        XCTAssertTrue(html.contains("state.motionOverride = true"))
+        XCTAssertTrue(
+            html.contains(
+                #"reduceMotionQuery.addEventListener?.("change""#
+            )
+        )
+        XCTAssertFalse(
+            html.contains(
+                "Blink is paused because Reduce Motion is enabled."
+            )
+        )
+        XCTAssertFalse(html.contains("Use Before and After instead."))
     }
 
     func testStepsHaveStaticAnchorNavigationAndEnhancedPreviousNextControls() throws {
@@ -475,7 +528,11 @@ final class CompositionHTMLExporterTests: XCTestCase {
         ))
 
         XCTAssertTrue(html.contains("data-comparison-mode=\"change-highlight\""))
-        XCTAssertTrue(html.contains("<figcaption>Highlight Changes</figcaption>"))
+        XCTAssertTrue(
+            html.contains(
+                #"<figcaption class="comparison-caption">Highlight Changes</figcaption>"#
+            )
+        )
         XCTAssertFalse(html.contains("Difference intensity"))
     }
 
