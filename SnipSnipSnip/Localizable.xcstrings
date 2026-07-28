@@ -3311,10 +3311,16 @@
     "Repeat the Before and After animation." : {
 
     },
+    "Repeat the Before capture to create After and continue the Comparison. Open the menu for another capture or image source." : {
+
+    },
     "Repeat the last repeatable SnipSnipSnip capture." : {
 
     },
     "Repeat the latest compatible capture into this item while retaining its identity." : {
+
+    },
+    "Repeats the Before capture to create After and continue the Comparison. Open the menu for another source." : {
 
     },
     "Replace" : {
