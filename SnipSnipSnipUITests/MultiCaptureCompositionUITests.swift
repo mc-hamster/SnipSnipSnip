@@ -980,6 +980,16 @@ final class MultiCaptureCompositionUITests: XCTestCase {
                 "The first-add chooser should offer \(title)."
             )
         }
+        XCTAssertGreaterThanOrEqual(
+            chooser.frame.width,
+            520,
+            "The first-add chooser should be wide enough to explain every choice."
+        )
+        XCTAssertGreaterThanOrEqual(
+            chooser.frame.height,
+            400,
+            "The first-add chooser should be tall enough to keep every explanation readable."
+        )
         clickChooserButton(goal.chooserTitle, in: chooser)
 
         XCTAssertTrue(

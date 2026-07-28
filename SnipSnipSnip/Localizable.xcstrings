@@ -351,6 +351,9 @@
     "Add as Step" : {
 
     },
+    "Add as Step is for putting captures in order, then adding captions and numbers." : {
+
+    },
     "Add Capture to SnipSnipSnip Composition" : {
 
     },
@@ -990,7 +993,7 @@
     "Choose a step to preview and edit it." : {
 
     },
-    "Choose Add in a one-image Screenshot and select Compare, Add as Step, or Combine. Region is ready by default, and the menu can preselect another source. The purpose changes only after the source is added successfully, and Undo returns to the original Screenshot. Later additions inherit the purpose without asking again. Option-Command-A invokes the same contextual action." : {
+    "Choose Add in a one-image Screenshot. The chooser explains each result: Compare shows Before and After together or highlights changes; Add as Step puts captures in order for captions and numbering; Combine arranges captures and images as one result. Region is ready by default, and the menu can preselect another source. The purpose changes only after the source is added successfully, and Undo returns to the original Screenshot. Later additions inherit the purpose without asking again. Option-Command-A invokes the same contextual action." : {
 
     },
     "Choose Annotate Result to place annotations above the arranged items and below optional Polish. Anchored endpoints follow their items through layout changes; Pin Selection to Canvas keeps them in the overall result. Canvas bounds remain in Arrange." : {
@@ -1071,9 +1074,6 @@
     "Choose the number of columns in the step grid." : {
 
     },
-    "Choose the result you want. You will not be asked again for this document." : {
-
-    },
     "Choose the target on screen, then start capturing this Guide." : {
 
     },
@@ -1087,6 +1087,9 @@
 
     },
     "Choose what viewers should hear. You can change either source from the Guide controls while recording." : {
+
+    },
+    "Choose what you are making. Images you add later will use the same choice." : {
 
     },
     "Choose what you want to make, then capture or add its first image." : {
@@ -1230,6 +1233,9 @@
     "Combine images" : {
 
     },
+    "Combine is for arranging several captures and images as one result." : {
+
+    },
     "Combined Image" : {
 
     },
@@ -1243,6 +1249,9 @@
 
     },
     "Compare Captures" : {
+
+    },
+    "Compare is for showing Before and After together or highlighting what changed." : {
 
     },
     "Compare two items" : {

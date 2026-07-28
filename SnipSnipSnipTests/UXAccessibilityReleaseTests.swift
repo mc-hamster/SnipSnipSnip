@@ -178,6 +178,34 @@ final class UXAccessibilityReleaseTests: XCTestCase {
         XCTAssertEqual(window.titlebarSeparatorStyle, .none)
     }
 
+    func testMainWindowHostingRestoresSeparatorlessTitlebarAfterWindowUpdates() {
+        let window = NSWindow(
+            contentRect: CGRect(x: 0, y: 0, width: 900, height: 600),
+            styleMask: [.titled, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        let hostingView = FirstMouseHostingView(rootView: EmptyView())
+        window.contentView = hostingView
+
+        for notification in [
+            NSWindow.didUpdateNotification,
+            NSWindow.didEndSheetNotification,
+            NSWindow.didBecomeKeyNotification,
+        ] {
+            window.titlebarSeparatorStyle = .line
+            NotificationCenter.default.post(
+                name: notification,
+                object: window
+            )
+            XCTAssertEqual(
+                window.titlebarSeparatorStyle,
+                .none,
+                "\(notification.rawValue) must not restore the titlebar line."
+            )
+        }
+    }
+
     func testHelpSearchRetainsMatchesSelectsFirstAndRestoresPreviousArticle() {
         let retained = HelpSearchSelectionPolicy.resolve(
             currentID: "permissions",

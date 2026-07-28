@@ -942,9 +942,14 @@ private struct FirstMouseHostingContainer<Content: View>: NSViewRepresentable {
 }
 
 final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+    private var windowChromeObservers: [NSObjectProtocol] = []
+    private var isWindowChromeRefreshScheduled = false
+
     override func viewDidMoveToWindow() {
+        removeWindowChromeObservers()
         super.viewDidMoveToWindow()
         refreshWindowChrome()
+        observeWindowChromeChanges()
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
@@ -952,18 +957,84 @@ final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
     }
 
     func refreshWindowChrome() {
+        applyWindowChrome()
+
+        guard !isWindowChromeRefreshScheduled else {
+            return
+        }
+        isWindowChromeRefreshScheduled = true
+
+        // SwiftUI and AppKit may finish installing or updating the toolbar
+        // after this callback. Coalesce a next-turn correction so those
+        // changes cannot restore the partial titlebar separator.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else {
+                return
+            }
+            self.isWindowChromeRefreshScheduled = false
+            self.applyWindowChrome()
+        }
+    }
+
+    private func applyWindowChrome() {
         guard let window else {
             return
         }
-        window.titlebarAppearsTransparent = true
-        window.titlebarSeparatorStyle = .none
+        if !window.titlebarAppearsTransparent {
+            window.titlebarAppearsTransparent = true
+        }
+        if window.titlebarSeparatorStyle != .none {
+            window.titlebarSeparatorStyle = .none
+        }
+    }
 
-        // SwiftUI may install or reconfigure its toolbar after the hosting
-        // view enters the window. Reassert the native no-separator contract
-        // on the next run-loop turn so an empty screenshot toolbar cannot
-        // leave a stray horizontal line across the titlebar.
-        DispatchQueue.main.async { [weak window] in
-            window?.titlebarSeparatorStyle = .none
+    private func observeWindowChromeChanges() {
+        guard let window else {
+            return
+        }
+
+        let center = NotificationCenter.default
+        windowChromeObservers = [
+            center.addObserver(
+                forName: NSWindow.didUpdateNotification,
+                object: window,
+                queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.refreshWindowChrome()
+                }
+            },
+            center.addObserver(
+                forName: NSWindow.didEndSheetNotification,
+                object: window,
+                queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.refreshWindowChrome()
+                }
+            },
+            center.addObserver(
+                forName: NSWindow.didBecomeKeyNotification,
+                object: window,
+                queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.refreshWindowChrome()
+                }
+            },
+        ]
+    }
+
+    private func removeWindowChromeObservers() {
+        windowChromeObservers.forEach(
+            NotificationCenter.default.removeObserver
+        )
+        windowChromeObservers = []
+    }
+
+    deinit {
+        MainActor.assumeIsolated {
+            removeWindowChromeObservers()
         }
     }
 }

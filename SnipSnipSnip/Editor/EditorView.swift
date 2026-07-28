@@ -414,6 +414,114 @@ enum ContextualCompositionAdditionSource {
     }
 }
 
+private struct FirstAdditionPurposeSheet: View {
+    let onChoose: (CaptureCompletionRole) -> Void
+    let onCancel: () -> Void
+    @FocusState private var isCompareFocused: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Form {
+                InsetGroupBox(spacing: 14) {
+                    Text(
+                        "Choose what you are making. Images you add later will use the same choice."
+                    )
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                    FirstAdditionPurposeChoiceButton(
+                        title: "Compare",
+                        detail:
+                            "Compare is for showing Before and After together or highlighting what changed.",
+                        systemImage: "rectangle.split.2x1"
+                    ) {
+                        onChoose(.comparisonAfter)
+                    }
+                    .focused($isCompareFocused)
+
+                    FirstAdditionPurposeChoiceButton(
+                        title: "Add as Step",
+                        detail:
+                            "Add as Step is for putting captures in order, then adding captions and numbers.",
+                        systemImage: "list.number"
+                    ) {
+                        onChoose(.step)
+                    }
+
+                    FirstAdditionPurposeChoiceButton(
+                        title: "Combine",
+                        detail:
+                            "Combine is for arranging several captures and images as one result.",
+                        systemImage: "rectangle.3.group"
+                    ) {
+                        onChoose(.collectionItem)
+                    }
+                } label: {
+                    Text("How do you want to use the second image?")
+                        .font(.title2.weight(.semibold))
+                }
+            }
+            .formStyle(.grouped)
+
+            Divider()
+
+            HStack {
+                Spacer()
+
+                Button("Cancel", role: .cancel, action: onCancel)
+                    .keyboardShortcut(.cancelAction)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
+        }
+        .frame(width: 560, height: 430)
+        .accessibilityIdentifier("composition.firstAdditionPurpose")
+        .onAppear {
+            isCompareFocused = true
+        }
+    }
+}
+
+private struct FirstAdditionPurposeChoiceButton: View {
+    let title: LocalizedStringKey
+    let detail: LocalizedStringKey
+    let systemImage: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: systemImage)
+                    .font(.title2)
+                    .foregroundStyle(.tint)
+                    .frame(width: 28)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline)
+
+                    Text(detail)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+        .accessibilityLabel(Text(title))
+        .accessibilityHint(Text(detail))
+        .help(Text(detail))
+    }
+}
+
 struct EditorCommandBar: View {
     private static let primaryTools: [EditorTool] = [.select, .crop]
     private static let shapeTools: [EditorTool] = [.rectangle, .ellipse, .line, .arrow, .statusMark, .measure]
@@ -451,26 +559,21 @@ struct EditorCommandBar: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Color(nsColor: .controlBackgroundColor))
-        .confirmationDialog(
-            "How do you want to use the second image?",
+        .sheet(
             isPresented: $isShowingFirstAdditionPurpose,
-            titleVisibility: .visible
-        ) {
-            Button("Compare") {
-                completeFirstAddition(with: .comparisonAfter)
-            }
-            Button("Add as Step") {
-                completeFirstAddition(with: .step)
-            }
-            Button("Combine") {
-                completeFirstAddition(with: .collectionItem)
-            }
-            Button("Cancel", role: .cancel) {
+            onDismiss: {
                 pendingFirstAddition = nil
             }
-        } message: {
-            Text(
-                "Choose the result you want. You will not be asked again for this document."
+        ) {
+            FirstAdditionPurposeSheet(
+                onChoose: { role in
+                    isShowingFirstAdditionPurpose = false
+                    completeFirstAddition(with: role)
+                },
+                onCancel: {
+                    pendingFirstAddition = nil
+                    isShowingFirstAdditionPurpose = false
+                }
             )
         }
         .onReceive(

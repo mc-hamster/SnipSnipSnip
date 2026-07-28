@@ -718,7 +718,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: String(localized: "Add the first extra capture"),
-                            body: String(localized: "Choose Add in a one-image Screenshot and select Compare, Add as Step, or Combine. Region is ready by default, and the menu can preselect another source. The purpose changes only after the source is added successfully, and Undo returns to the original Screenshot. Later additions inherit the purpose without asking again. Option-Command-A invokes the same contextual action.")
+                            body: String(localized: "Choose Add in a one-image Screenshot. The chooser explains each result: Compare shows Before and After together or highlights changes; Add as Step puts captures in order for captions and numbering; Combine arranges captures and images as one result. Region is ready by default, and the menu can preselect another source. The purpose changes only after the source is added successfully, and Undo returns to the original Screenshot. Later additions inherit the purpose without asking again. Option-Command-A invokes the same contextual action.")
                         ),
                         HelpArticleSection(
                             title: String(localized: "Follow the session"),
