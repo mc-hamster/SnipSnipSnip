@@ -140,21 +140,6 @@ extension AppModel {
         set { clipboard.autoCopyEnabled = newValue }
     }
 
-    var clipboardPreferences: ClipboardPreferences {
-        get { clipboard.preferences }
-        set { clipboard.preferences = newValue }
-    }
-
-    var clipboardSearchQuery: String {
-        get { clipboard.searchQuery }
-        set { clipboard.searchQuery = newValue }
-    }
-
-    var clipboardFilter: ClipboardItemFilter {
-        get { clipboard.filter }
-        set { clipboard.filter = newValue }
-    }
-
     var autoRefreshWindowsEnabled: Bool {
         get { capture.autoRefreshWindowsEnabled }
         set { capture.autoRefreshWindowsEnabled = newValue }
@@ -365,21 +350,6 @@ extension AppModel {
         set { documents.uiMapPinnedOverlayDefaults = newValue }
     }
 
-    var videoRecordingPreferences: VideoRecordingPreferences {
-        get { video.recordingPreferences }
-        set { video.recordingPreferences = newValue }
-    }
-
-    var videoExportPreferences: VideoExportPreferences {
-        get { video.exportPreferences }
-        set { video.exportPreferences = newValue }
-    }
-
-    var archiveMaximumSizeMB: Int {
-        get { archive.maximumSizeMB }
-        set { archive.maximumSizeMB = newValue }
-    }
-
     var recycleBinRetentionDays: Int {
         get { archive.recycleBinRetentionDays }
         set { archive.recycleBinRetentionDays = newValue }
@@ -388,11 +358,6 @@ extension AppModel {
     var archiveSizeBytes: Int64 {
         get { archive.sizeBytes }
         set { archive.sizeBytes = newValue }
-    }
-
-    var archiveDirectoryURL: URL {
-        get { archive.directoryURL }
-        set { archive.directoryURL = newValue }
     }
 
     var screenRulerPreferences: ScreenRulerPreferences {

@@ -401,7 +401,7 @@ final class GuideWorkflowTests: XCTestCase {
     @MainActor
     func testGuideBrandLogoDataPersistsAcrossPreferenceStores() {
         let suiteName = "GuideWorkflowTests.brandLogo.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let expected = Data([0x89, 0x50, 0x4E, 0x47])
 

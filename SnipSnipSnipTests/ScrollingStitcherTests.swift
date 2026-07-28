@@ -41,8 +41,8 @@ final class ScrollingStitcherTests: XCTestCase {
     }
 
     func testLowConfidenceMismatchIsRejected() throws {
-        let first = makeSolidImage(width: 48, height: 80, red: 20, green: 40, blue: 60)
-        let second = makeSolidImage(width: 48, height: 80, red: 220, green: 180, blue: 120)
+        let first = makeRGBSolidImage(width: 48, height: 80, red: 20, green: 40, blue: 60)
+        let second = makeRGBSolidImage(width: 48, height: 80, red: 220, green: 180, blue: 120)
         let stitcher = ScrollingStitcher()
         var state = try stitcher.initialState(with: first, maxOutputHeight: 300)
 
@@ -108,34 +108,9 @@ final class ScrollingStitcherTests: XCTestCase {
     }
 
     private func makeScrollingFrame(width: Int, height: Int, rowMapper: (Int) -> Int) -> CGImage {
-        let bytesPerPixel = 4
-        let bytesPerRow = width * bytesPerPixel
-        var pixels = [UInt8](repeating: 0, count: height * bytesPerRow)
-
-        for y in 0..<height {
-            for x in 0..<width {
-                let sample = scrollingPixel(x: x, y: rowMapper(y))
-                let offset = y * bytesPerRow + x * bytesPerPixel
-                pixels[offset] = sample.red
-                pixels[offset + 1] = sample.green
-                pixels[offset + 2] = sample.blue
-                pixels[offset + 3] = sample.alpha
-            }
+        makeRGBAImage(width: width, height: height) { x, y in
+            scrollingPixel(x: x, y: rowMapper(y))
         }
-
-        return CGImage(
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bitsPerPixel: 32,
-            bytesPerRow: bytesPerRow,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
-            provider: CGDataProvider(data: Data(pixels) as CFData)!,
-            decode: nil,
-            shouldInterpolate: false,
-            intent: .defaultIntent
-        )!
     }
 
     private func scrollingPixel(x: Int, y: Int) -> PixelSample {
@@ -147,34 +122,11 @@ final class ScrollingStitcherTests: XCTestCase {
         )
     }
 
-    private func makeSolidImage(width: Int, height: Int, red: UInt8, green: UInt8, blue: UInt8) -> CGImage {
-        let bytesPerPixel = 4
-        let bytesPerRow = width * bytesPerPixel
-        var pixels = [UInt8](repeating: 0, count: height * bytesPerRow)
-
-        for y in 0..<height {
-            for x in 0..<width {
-                let offset = y * bytesPerRow + x * bytesPerPixel
-                pixels[offset] = red
-                pixels[offset + 1] = green
-                pixels[offset + 2] = blue
-                pixels[offset + 3] = 255
-            }
-        }
-
-        return CGImage(
+    private func makeRGBSolidImage(width: Int, height: Int, red: UInt8, green: UInt8, blue: UInt8) -> CGImage {
+        makeSolidImage(
             width: width,
             height: height,
-            bitsPerComponent: 8,
-            bitsPerPixel: 32,
-            bytesPerRow: bytesPerRow,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
-            provider: CGDataProvider(data: Data(pixels) as CFData)!,
-            decode: nil,
-            shouldInterpolate: false,
-            intent: .defaultIntent
-        )!
+            color: PixelSample(red: red, green: green, blue: blue, alpha: 255)
+        )
     }
-
 }

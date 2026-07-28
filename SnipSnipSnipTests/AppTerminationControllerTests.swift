@@ -246,8 +246,7 @@ final class AppTerminationControllerTests: XCTestCase {
 
     private func makeLifecycle(confirmsBeforeQuitting: Bool = true) -> AppLifecycleModel {
         let suiteName = "AppTerminationControllerTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeDefaults(named: suiteName)
         addTeardownBlock {
             defaults.removePersistentDomain(forName: suiteName)
         }

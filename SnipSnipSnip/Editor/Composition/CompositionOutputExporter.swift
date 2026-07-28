@@ -835,15 +835,9 @@ nonisolated enum CompositionOutputExporter {
     ) -> CGImage? {
         guard first.width == second.width,
               first.height == second.height,
-              let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
-              let context = CGContext(
-                data: nil,
-                width: first.width,
-                height: first.height,
-                bitsPerComponent: 8,
-                bytesPerRow: 0,
-                space: colorSpace,
-                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+              let context = SRGBBitmapContext.make(
+                  width: first.width,
+                  height: first.height
               ) else {
             return nil
         }

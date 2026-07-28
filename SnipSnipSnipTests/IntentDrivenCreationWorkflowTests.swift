@@ -524,8 +524,7 @@ final class IntentDrivenCreationWorkflowTests: XCTestCase {
     func testCapturedIntentSourcesInstallWithFocusedPurposeStageAndWorkspace() {
         let suiteName =
             "IntentDrivenCreationWorkflowTests.focusedInstallation"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeDefaults(named: suiteName)
         defer {
             defaults.removePersistentDomain(forName: suiteName)
         }
@@ -608,8 +607,7 @@ final class IntentDrivenCreationWorkflowTests: XCTestCase {
     func testComparisonAfterAppendPromotesAtomicallyAndUndoReturnsToBefore() {
         let suiteName =
             "IntentDrivenCreationWorkflowTests.comparisonAppend"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeDefaults(named: suiteName)
         defer {
             defaults.removePersistentDomain(forName: suiteName)
         }
@@ -822,8 +820,7 @@ final class IntentDrivenCreationWorkflowTests: XCTestCase {
     func testScreenInspectorStepsSessionAdvancesIntoSeamlessAppendLoop() {
         let suiteName =
             "IntentDrivenCreationWorkflowTests.screenInspectorLoop"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeDefaults(named: suiteName)
         defer {
             defaults.removePersistentDomain(forName: suiteName)
         }
@@ -984,8 +981,7 @@ final class IntentDrivenCreationWorkflowTests: XCTestCase {
             let suiteName =
                 "IntentDrivenCreationWorkflowTests.addFromPolish."
                 + UUID().uuidString
-            let defaults = UserDefaults(suiteName: suiteName)!
-            defaults.removePersistentDomain(forName: suiteName)
+            let defaults = makeDefaults(named: suiteName)
             defer {
                 defaults.removePersistentDomain(forName: suiteName)
             }

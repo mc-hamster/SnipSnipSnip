@@ -336,8 +336,7 @@ final class DragOutSharingTests: XCTestCase {
 
     func testScreenshotDragOutPreferenceDefaultsPersistsAndResets() {
         let suiteName = "DragOutSharingTests.preference"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let model = AppModel(
@@ -363,8 +362,7 @@ final class DragOutSharingTests: XCTestCase {
 
     func testScreenshotJPEGQualityPreferenceDefaultsPersistsAndResets() {
         let suiteName = "DragOutSharingTests.jpegQualityPreference"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let model = AppModel(

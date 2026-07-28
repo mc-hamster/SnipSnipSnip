@@ -215,8 +215,7 @@ final class CompositionTemplateStoreTests: XCTestCase {
 
     private func isolatedDefaults() -> UserDefaults {
         let suiteName = "CompositionTemplateStoreTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeDefaults(named: suiteName)
         return defaults
     }
 }

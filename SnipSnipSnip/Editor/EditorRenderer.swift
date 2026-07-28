@@ -94,15 +94,9 @@ enum EditorRenderer {
         guard width > 0,
               height > 0,
               let croppedBase = croppedBaseImage(for: baseImage, crop: crop),
-              let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
-              let context = CGContext(
-                data: nil,
-                width: width,
-                height: height,
-                bitsPerComponent: 8,
-                bytesPerRow: 0,
-                space: colorSpace,
-                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+              let context = SRGBBitmapContext.make(
+                  width: width,
+                  height: height
               ) else {
             return nil
         }

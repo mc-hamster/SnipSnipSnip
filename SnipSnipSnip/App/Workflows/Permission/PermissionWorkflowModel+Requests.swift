@@ -96,32 +96,14 @@ extension PermissionWorkflowModel {
 
     func requestPermission(_ requirement: CapturePermissionRequirement) {
         guard activePermissionRequest == nil else {
-            PermissionWorkflowDiagnostics.state(
-                "requestPermissionIgnoredActiveRequest",
-                rawStatus: dependencies.permissions.currentStatus(),
-                effectiveStatus: permissionStatus,
-                activeRequest: activePermissionRequest,
-                setupGuide: permissionSetupGuide?.requirement,
-                screenRecordingSetupStartedThisRun: screenRecordingSetupStartedThisRun,
-                screenRecordingSetupNeedsAttention: screenRecordingSetupNeedsAttention,
-                hasVerifiedScreenRecordingAccess: hasVerifiedScreenRecordingAccess
-            )
+            logPermissionState("requestPermissionIgnoredActiveRequest")
             return
         }
 
         guard dependencies.permissions.canRequest(requirement) else {
             permissionSetupGuide = nil
             activePermissionRequest = nil
-            PermissionWorkflowDiagnostics.state(
-                "requestPermissionUnavailable",
-                rawStatus: dependencies.permissions.currentStatus(),
-                effectiveStatus: permissionStatus,
-                activeRequest: activePermissionRequest,
-                setupGuide: permissionSetupGuide?.requirement,
-                screenRecordingSetupStartedThisRun: screenRecordingSetupStartedThisRun,
-                screenRecordingSetupNeedsAttention: screenRecordingSetupNeedsAttention,
-                hasVerifiedScreenRecordingAccess: hasVerifiedScreenRecordingAccess
-            )
+            logPermissionState("requestPermissionUnavailable")
             return
         }
 
@@ -130,32 +112,14 @@ extension PermissionWorkflowModel {
         }
 
         activePermissionRequest = requirement
-        PermissionWorkflowDiagnostics.state(
-            "requestPermissionStarted.\(String(describing: requirement))",
-            rawStatus: dependencies.permissions.currentStatus(),
-            effectiveStatus: permissionStatus,
-            activeRequest: activePermissionRequest,
-            setupGuide: permissionSetupGuide?.requirement,
-            screenRecordingSetupStartedThisRun: screenRecordingSetupStartedThisRun,
-            screenRecordingSetupNeedsAttention: screenRecordingSetupNeedsAttention,
-            hasVerifiedScreenRecordingAccess: hasVerifiedScreenRecordingAccess
-        )
+        logPermissionState("requestPermissionStarted.\(String(describing: requirement))")
         _ = dependencies.permissions.requestAccess(for: requirement)
         refreshPermissions()
 
         if permissionStatus.hasAccess(to: requirement) {
             permissionSetupGuide = nil
             activePermissionRequest = nil
-            PermissionWorkflowDiagnostics.state(
-                "requestPermissionCompletedImmediately.\(String(describing: requirement))",
-                rawStatus: dependencies.permissions.currentStatus(),
-                effectiveStatus: permissionStatus,
-                activeRequest: activePermissionRequest,
-                setupGuide: permissionSetupGuide?.requirement,
-                screenRecordingSetupStartedThisRun: screenRecordingSetupStartedThisRun,
-                screenRecordingSetupNeedsAttention: screenRecordingSetupNeedsAttention,
-                hasVerifiedScreenRecordingAccess: hasVerifiedScreenRecordingAccess
-            )
+            logPermissionState("requestPermissionCompletedImmediately.\(String(describing: requirement))")
             return
         }
 
@@ -188,16 +152,7 @@ extension PermissionWorkflowModel {
     func requestNextMissingSetupRequirement(in requirements: [CapturePermissionRequirement]) {
         guard activePermissionRequest == nil,
               !screenRecordingSetupNeedsAttention else {
-            PermissionWorkflowDiagnostics.state(
-                "requestNextMissingSetupRequirementIgnored",
-                rawStatus: dependencies.permissions.currentStatus(),
-                effectiveStatus: permissionStatus,
-                activeRequest: activePermissionRequest,
-                setupGuide: permissionSetupGuide?.requirement,
-                screenRecordingSetupStartedThisRun: screenRecordingSetupStartedThisRun,
-                screenRecordingSetupNeedsAttention: screenRecordingSetupNeedsAttention,
-                hasVerifiedScreenRecordingAccess: hasVerifiedScreenRecordingAccess
-            )
+            logPermissionState("requestNextMissingSetupRequirementIgnored")
             return
         }
 
@@ -209,29 +164,11 @@ extension PermissionWorkflowModel {
         }
 
         guard let nextRequirement = missingRequirements.first else {
-            PermissionWorkflowDiagnostics.state(
-                "requestNextMissingSetupRequirementNothingMissing",
-                rawStatus: dependencies.permissions.currentStatus(),
-                effectiveStatus: permissionStatus,
-                activeRequest: activePermissionRequest,
-                setupGuide: permissionSetupGuide?.requirement,
-                screenRecordingSetupStartedThisRun: screenRecordingSetupStartedThisRun,
-                screenRecordingSetupNeedsAttention: screenRecordingSetupNeedsAttention,
-                hasVerifiedScreenRecordingAccess: hasVerifiedScreenRecordingAccess
-            )
+            logPermissionState("requestNextMissingSetupRequirementNothingMissing")
             return
         }
 
-        PermissionWorkflowDiagnostics.state(
-            "requestNextMissingSetupRequirementSelected.\(String(describing: nextRequirement))",
-            rawStatus: dependencies.permissions.currentStatus(),
-            effectiveStatus: permissionStatus,
-            activeRequest: activePermissionRequest,
-            setupGuide: permissionSetupGuide?.requirement,
-            screenRecordingSetupStartedThisRun: screenRecordingSetupStartedThisRun,
-            screenRecordingSetupNeedsAttention: screenRecordingSetupNeedsAttention,
-            hasVerifiedScreenRecordingAccess: hasVerifiedScreenRecordingAccess
-        )
+        logPermissionState("requestNextMissingSetupRequirementSelected.\(String(describing: nextRequirement))")
         requestPermission(nextRequirement)
     }
 
@@ -248,16 +185,7 @@ extension PermissionWorkflowModel {
         }
 
         dependencies.permissions.openSystemSettings(for: requirement)
-        PermissionWorkflowDiagnostics.state(
-            "openPermissionSettings.\(String(describing: requirement))",
-            rawStatus: dependencies.permissions.currentStatus(),
-            effectiveStatus: permissionStatus,
-            activeRequest: activePermissionRequest,
-            setupGuide: permissionSetupGuide?.requirement,
-            screenRecordingSetupStartedThisRun: screenRecordingSetupStartedThisRun,
-            screenRecordingSetupNeedsAttention: screenRecordingSetupNeedsAttention,
-            hasVerifiedScreenRecordingAccess: hasVerifiedScreenRecordingAccess
-        )
+        logPermissionState("openPermissionSettings.\(String(describing: requirement))")
         refreshPermissions()
     }
 
@@ -316,15 +244,9 @@ extension PermissionWorkflowModel {
         let currentStatus = dependencies.permissions.currentStatus()
         if screenRecordingSetupRequiresRestart(for: currentStatus, verifiedAccess: hasVerifiedAccess) {
             markScreenRecordingRestartRequired()
-            PermissionWorkflowDiagnostics.state(
+            logPermissionState(
                 "activePermissionPollRestartRequired.\(String(describing: requirement))",
                 rawStatus: currentStatus,
-                effectiveStatus: permissionStatus,
-                activeRequest: activePermissionRequest,
-                setupGuide: permissionSetupGuide?.requirement,
-                screenRecordingSetupStartedThisRun: screenRecordingSetupStartedThisRun,
-                screenRecordingSetupNeedsAttention: screenRecordingSetupNeedsAttention,
-                hasVerifiedScreenRecordingAccess: hasVerifiedScreenRecordingAccess,
                 verifiedScreenRecordingAccess: hasVerifiedAccess
             )
             return
@@ -338,15 +260,9 @@ extension PermissionWorkflowModel {
         clearScreenRecordingRestartRequired()
         permissionSetupGuide = nil
         activePermissionRequest = nil
-        PermissionWorkflowDiagnostics.state(
+        logPermissionState(
             "activePermissionPollVerified.\(String(describing: requirement))",
             rawStatus: currentStatus,
-            effectiveStatus: permissionStatus,
-            activeRequest: activePermissionRequest,
-            setupGuide: permissionSetupGuide?.requirement,
-            screenRecordingSetupStartedThisRun: screenRecordingSetupStartedThisRun,
-            screenRecordingSetupNeedsAttention: screenRecordingSetupNeedsAttention,
-            hasVerifiedScreenRecordingAccess: hasVerifiedScreenRecordingAccess,
             verifiedScreenRecordingAccess: hasVerifiedAccess
         )
     }

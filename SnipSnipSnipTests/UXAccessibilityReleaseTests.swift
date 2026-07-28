@@ -370,8 +370,7 @@ final class UXAccessibilityReleaseTests: XCTestCase {
         operation: (UserDefaults) -> Void
     ) {
         let suiteName = "UXAccessibilityReleaseTests.\(name)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
         operation(defaults)
     }

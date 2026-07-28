@@ -21,6 +21,27 @@ nonisolated struct ScreenContentSnapshot: Equatable, Sendable {
     let displays: [DisplaySnapshot]
     let windows: [ScreenWindowSnapshot]
     let applications: [ScreenRunningApplicationSnapshot]
+
+    func resolvingDisplayMetadata(
+        using screens: any ScreenTopologyProviding
+    ) -> ScreenContentSnapshot {
+        let resolvedDisplays = displays.map { display in
+            let screen = screens.screen(withDisplayID: display.displayID)
+            return DisplaySnapshot(
+                displayID: display.displayID,
+                name: screen?.name ?? display.name,
+                frame: display.frame,
+                overlayFrame: screen?.frame ?? display.overlayFrame,
+                scale: screen?.backingScaleFactor ?? display.scale
+            )
+        }
+
+        return ScreenContentSnapshot(
+            displays: resolvedDisplays,
+            windows: windows,
+            applications: applications
+        )
+    }
 }
 
 nonisolated enum ScreenCaptureTarget: Equatable, Sendable {

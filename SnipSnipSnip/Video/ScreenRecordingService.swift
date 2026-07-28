@@ -273,17 +273,7 @@ struct ScreenRecordingService {
 
     private func fetchShareableContent() async throws -> ScreenContentSnapshot {
         let content = try await platform.shareableContent()
-        let displays = content.displays.map { display in
-            let screen = screens.screen(withDisplayID: display.displayID)
-            return DisplaySnapshot(
-                displayID: display.displayID,
-                name: screen?.name ?? display.name,
-                frame: display.frame,
-                overlayFrame: screen?.frame ?? display.overlayFrame,
-                scale: screen?.backingScaleFactor ?? display.scale
-            )
-        }
-        return ScreenContentSnapshot(displays: displays, windows: content.windows, applications: content.applications)
+        return content.resolvingDisplayMetadata(using: screens)
     }
 
     private func requestMicrophoneAccessIfNeeded(_ preferences: VideoRecordingPreferences) async throws {

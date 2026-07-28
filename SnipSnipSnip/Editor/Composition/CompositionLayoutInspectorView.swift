@@ -4012,16 +4012,6 @@ extension CompositionRegistrationMode {
         }
     }
 
-    fileprivate var inspectorStatusLabel: String {
-        switch self {
-        case .automatic:
-            return "automatic registration"
-        case .manual:
-            return "manual alignment"
-        case .disabled:
-            return "registration off"
-        }
-    }
 }
 
 private enum ComparisonResultChoice: String, CaseIterable, Identifiable {

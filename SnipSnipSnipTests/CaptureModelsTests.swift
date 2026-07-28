@@ -4,6 +4,43 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class CaptureModelsTests: XCTestCase {
+    func testScreenContentSnapshotResolvesDisplayMetadataFromScreenTopology() {
+        let captureFrame = CGRect(x: 0, y: 0, width: 1_440, height: 900)
+        let appKitFrame = CGRect(x: -100, y: 20, width: 1_440, height: 900)
+        let content = ScreenContentSnapshot(
+            displays: [
+                DisplaySnapshot(
+                    displayID: 7,
+                    name: "Platform Display",
+                    frame: captureFrame,
+                    overlayFrame: captureFrame,
+                    scale: 1
+                )
+            ],
+            windows: [],
+            applications: []
+        )
+        let screens = TestScreenTopologyService(
+            screens: [
+                ScreenDisplaySnapshot(
+                    displayID: 7,
+                    name: "Studio Display",
+                    frame: appKitFrame,
+                    visibleFrame: appKitFrame,
+                    backingScaleFactor: 2
+                )
+            ],
+            mainScreen: nil
+        )
+
+        let resolved = content.resolvingDisplayMetadata(using: screens)
+
+        XCTAssertEqual(resolved.displays.first?.name, "Studio Display")
+        XCTAssertEqual(resolved.displays.first?.frame, captureFrame)
+        XCTAssertEqual(resolved.displays.first?.overlayFrame, appKitFrame)
+        XCTAssertEqual(resolved.displays.first?.scale, 2)
+    }
+
     func testRegionCapturePreferencesDefaultToCombinedOverlayAndAutoCapture() {
         let preferences = RegionCapturePreferences()
 

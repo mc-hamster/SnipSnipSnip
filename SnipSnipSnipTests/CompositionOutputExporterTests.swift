@@ -83,7 +83,7 @@ final class CompositionOutputExporterTests: XCTestCase {
             comparison: comparison
         )
         let suiteName = "CompositionOutputExporterTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let controller = EditorController(
             capture: primaryCapture,

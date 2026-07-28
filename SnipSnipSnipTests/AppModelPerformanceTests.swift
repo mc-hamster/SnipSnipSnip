@@ -168,8 +168,7 @@ final class AppModelPerformanceTests: XCTestCase {
 
     private func makeModel() -> AppModel {
         let suiteName = "AppModelPerformanceTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeDefaults(named: suiteName)
 
         let recoveryStore = DocumentRecoveryStore(baseURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true))
         let model = AppModel(defaults: defaults, recoveryStore: recoveryStore, captureService: MockScreenCaptureService(), shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false)

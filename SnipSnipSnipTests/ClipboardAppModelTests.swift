@@ -4,12 +4,6 @@ import XCTest
 
 @MainActor
 final class ClipboardAppModelTests: XCTestCase {
-    private func makeDefaults(named suiteName: String) -> UserDefaults {
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        return defaults
-    }
-
     private func makeClipboardStore(named name: String) -> ClipboardHistoryStore {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(name, isDirectory: true)
         try? FileManager.default.removeItem(at: url)
@@ -25,17 +19,6 @@ final class ClipboardAppModelTests: XCTestCase {
     private func removeClipboardStore(named name: String) {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(name, isDirectory: true)
         try? FileManager.default.removeItem(at: url)
-    }
-
-    private func waitUntil(
-        timeoutNanoseconds: UInt64 = 2_000_000_000,
-        condition: @escaping @MainActor () -> Bool
-    ) async {
-        let deadline = DispatchTime.now().uptimeNanoseconds + timeoutNanoseconds
-
-        while !condition() && DispatchTime.now().uptimeNanoseconds < deadline {
-            try? await Task.sleep(nanoseconds: 50_000_000)
-        }
     }
 
     func testClipboardHistoryIsOptInByDefault() {

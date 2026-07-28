@@ -1497,47 +1497,6 @@ struct ContentView: View {
         }
     }
 
-    private func recoveryCard(_ recoverySession: PendingRecoverySession) -> some View {
-        CaptureModeCard(
-            title: "Recover Last Session",
-            systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90",
-            detail: "\(AppBranding.displayName) found an autosaved session from your last run."
-        ) {
-            HStack(alignment: .top, spacing: 16) {
-                DocumentPreviewThumbnailView(
-                    packageURL: recoverySession.latestEntry.packageURL,
-                    thumbnailSize: CGSize(width: 180, height: 120),
-                    cornerRadius: 16
-                )
-
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(recoverySession.title)
-                        .font(.headline)
-
-                    Text("Last autosave: \(recoverySession.latestEntry.savedAt.formatted(date: .abbreviated, time: .shortened))")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-
-                    if recoverySession.latestEntry.hasUnsavedChanges {
-                        Text("This recovery includes unsaved changes.")
-                            .font(.footnote.weight(.medium))
-                            .foregroundStyle(.orange)
-                    }
-
-                    HStack(spacing: 10) {
-                        Button("Restore", action: documents.restorePendingRecovery)
-                            .buttonStyle(.glass)
-                            .help("Open the most recent autosaved session in the editor.")
-
-                        Button("Dismiss", action: documents.dismissPendingRecovery)
-                            .buttonStyle(.glass)
-                            .help("Ignore this recovery session and remove the pending recovery prompt.")
-                    }
-                }
-            }
-        }
-    }
-
     private var captureHistoryCard: some View {
         CaptureModeCard(
             title: WorkflowVocabulary.Library.snipLibrary,

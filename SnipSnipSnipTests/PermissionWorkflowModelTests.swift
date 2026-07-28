@@ -320,8 +320,7 @@ final class PermissionWorkflowModelTests: XCTestCase {
 
     func testPendingCaptureWaitsForRestartAfterSameRunScreenRecordingGrant() async {
         let suiteName = "PermissionWorkflowModelTests.pendingCaptureWaitsForRestart"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let permissions = MutablePermissionService(status: CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: false))

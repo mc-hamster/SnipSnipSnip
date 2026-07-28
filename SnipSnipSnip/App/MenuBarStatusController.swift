@@ -241,11 +241,6 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         rebuildMainMenu()
     }
 
-    @objc private func openScreenInspector() {
-        tools?.presentScreenInspector()
-        rebuildMainMenu()
-    }
-
     @objc private func toggleAutoCopy() {
         guard let clipboard else {
             return

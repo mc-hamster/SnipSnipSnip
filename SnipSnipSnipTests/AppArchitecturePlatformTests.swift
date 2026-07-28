@@ -152,7 +152,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
     }
 
     func testGuideDocumentProNoticePreferencePersistsOncePerInstallation() {
-        let defaults = makeDefaults()
+        let defaults = makeIsolatedDefaults()
         let store = EditorPreferenceStore(storage: defaults)
 
         XCTAssertFalse(store.hasPresentedGuideDocumentProNotice())
@@ -254,7 +254,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
         let snapshot = capabilities([.screenRecording, .export], target: .release)
         let provider = CapabilityProviderSpy(snapshot: snapshot)
         let environment = AppEnvironment(
-            defaults: makeDefaults(),
+            defaults: makeIsolatedDefaults(),
             buildTarget: .release,
             capabilityProvider: provider
         )
@@ -297,7 +297,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
     }
 
     func testPreferenceStoresPreserveLegacyKeysAndFallbacks() throws {
-        let defaults = makeDefaults()
+        let defaults = makeIsolatedDefaults()
         let stores = AppPreferenceStores(storage: defaults)
 
         defaults.set(Data([0xFF, 0x00]), forKey: AppModelPreferenceKey.capturePresets)
@@ -2931,11 +2931,8 @@ final class AppArchitecturePlatformTests: XCTestCase {
         )
     }
 
-    private func makeDefaults() -> UserDefaults {
-        let suiteName = "AppArchitecturePlatformTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        return defaults
+    private func makeIsolatedDefaults() -> UserDefaults {
+        makeDefaults(named: "AppArchitecturePlatformTests-\(UUID().uuidString)")
     }
 
     private var repositoryRoot: URL {

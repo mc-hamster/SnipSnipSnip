@@ -541,35 +541,6 @@ final class GuideMediaCaptureSession: ScreenRecordingPlatformEventSink, ScreenRe
         else { continuation.resume() }
     }
 
-    private static func captureScreen(
-        for source: GuideCaptureSource,
-        screens: any ScreenTopologyProviding,
-        mouse: any MouseLocationProviding
-    ) throws -> ScreenDisplaySnapshot {
-        let point: CGPoint
-        switch source {
-        case .window(_, _, _, let frame): point = CGPoint(x: frame.midX, y: frame.midY)
-        case .app(_, _, _, let frame): point = CGPoint(x: frame.midX, y: frame.midY)
-        case .region(let rect): point = CGPoint(x: rect.midX, y: rect.midY)
-        case .displays(.selected(let ids)):
-            if let id = ids.first, let screen = screens.screen(withDisplayID: id) { return screen }
-            guard let screen = screens.screen(containing: mouse.appKitGlobalLocation) ?? screens.mainScreen ?? screens.screens.first else {
-                throw ScreenCapturePlatformError.noDisplays
-            }
-            return screen
-        case .displays(.current), .displays(.all):
-            guard let screen = screens.screen(containing: mouse.appKitGlobalLocation) ?? screens.mainScreen ?? screens.screens.first else {
-                throw ScreenCapturePlatformError.noDisplays
-            }
-            return screen
-        }
-        let captureSpaceScreen = screens.screens.first { CGDisplayBounds($0.displayID).contains(point) }
-        guard let screen = captureSpaceScreen ?? screens.mainScreen ?? screens.screens.first else {
-            throw ScreenCapturePlatformError.noDisplays
-        }
-        return screen
-    }
-
     nonisolated static func captureDisplay(
         for source: GuideCaptureSource,
         in displays: [DisplaySnapshot],

@@ -3,12 +3,6 @@ import XCTest
 
 @MainActor
 final class AppModelTests: XCTestCase {
-    private func makeDefaults(named suiteName: String) -> UserDefaults {
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        return defaults
-    }
-
     private func makeEnvironment(
         defaults: UserDefaults,
         permissionStatus: CapturePermissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
@@ -1471,28 +1465,6 @@ final class AppModelTests: XCTestCase {
         XCTAssertTrue(missingAccessibilityEligibility.needsAccessibilityAccess)
     }
 
-    private func waitUntil(
-        timeoutNanoseconds: UInt64 = 2_000_000_000,
-        condition: @escaping @MainActor () -> Bool
-    ) async {
-        let deadline = DispatchTime.now().uptimeNanoseconds + timeoutNanoseconds
-
-        while !condition() && DispatchTime.now().uptimeNanoseconds < deadline {
-            try? await Task.sleep(nanoseconds: 50_000_000)
-        }
-    }
-
-    private func waitUntil(
-        timeoutNanoseconds: UInt64 = 2_000_000_000,
-        condition: () async -> Bool
-    ) async {
-        let deadline = DispatchTime.now().uptimeNanoseconds + timeoutNanoseconds
-
-        while !(await condition()) && DispatchTime.now().uptimeNanoseconds < deadline {
-            try? await Task.sleep(nanoseconds: 50_000_000)
-        }
-    }
-
     func testWindowRefreshStagesThumbnailUpdateWhenExistingWindowsAreVisible() async {
         let suiteName = "AppModelTests.windowRefreshStagesThumbnailUpdate"
         let defaults = makeDefaults(named: suiteName)
@@ -2013,8 +1985,7 @@ final class AppModelTests: XCTestCase {
 
     func testEditorCropOutsideOverlayDimmingDescriptionUsesCurrentAlpha() {
         let suiteName = "AppModelTests.editorCropOutsideOverlayDimmingDescription"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let model = AppModel(
@@ -2083,8 +2054,7 @@ final class AppModelTests: XCTestCase {
 
     func testResetPreferencesToDefaultsRestoresDefaultCropOutsideDimming() {
         let suiteName = "AppModelTests.resetPreferencesToDefaults"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let model = AppModel(
@@ -2311,8 +2281,7 @@ final class AppModelTests: XCTestCase {
 
     func testEditorOutOfCapturePatternSettingsPersistAndClamp() {
         let suiteName = "AppModelTests.editorOutOfCapturePatternSettings"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let model = AppModel(
@@ -2352,8 +2321,7 @@ final class AppModelTests: XCTestCase {
 
     func testAutomationPreferencesPersistCustomHotkeys() {
         let suiteName = "AppModelTests.automationPreferencesHotkeys"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let model = AppModel(
@@ -2433,8 +2401,7 @@ final class AppModelTests: XCTestCase {
 
     func testClearingCaptureHistorySearchRestoresRecentEntries() async throws {
         let suiteName = "AppModelTests.clearingCaptureHistorySearchRestoresRecentEntries"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

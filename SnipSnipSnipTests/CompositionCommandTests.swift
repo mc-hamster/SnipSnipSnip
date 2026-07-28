@@ -7,7 +7,7 @@ final class CompositionCommandTests: XCTestCase {
     @MainActor
     func testNewControllerUsesDormantOneItemCompositionUntilFirstAddition() throws {
         let suiteName = "CompositionCommandTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let controller = EditorController(
@@ -26,7 +26,7 @@ final class CompositionCommandTests: XCTestCase {
     @MainActor
     func testFirstAdditionSynchronizesLegacyEditsIntoRootItemAndActivatesComposition() throws {
         let suiteName = "CompositionCommandTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let controller = EditorController(
@@ -275,7 +275,7 @@ final class CompositionCommandTests: XCTestCase {
     @MainActor
     func testControllerUndoRedoRestoresCompleteCompositionSnapshotsChronologically() {
         let suiteName = "CompositionCommandTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let first = makeItem(title: "First")
@@ -314,7 +314,7 @@ final class CompositionCommandTests: XCTestCase {
     @MainActor
     func testAppendingThenRemovingPrivateCapturePermanentlyTaintsDocumentAndRetainsUndoAsset() throws {
         let suiteName = "CompositionCommandTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let controller = EditorController(
@@ -350,7 +350,7 @@ final class CompositionCommandTests: XCTestCase {
     @MainActor
     func testEditableCompositionImportIsAtomicWhenALaterPrivateAssetIsCorrupt() throws {
         let suiteName = "CompositionCommandTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let destinationCapture = makeCapturedScreenshot(
@@ -453,7 +453,7 @@ final class CompositionCommandTests: XCTestCase {
     @MainActor
     func testRemovingItemDetachesAnchorAtItsLivePostLayoutPositionAndUndoRestoresLink() throws {
         let suiteName = "CompositionCommandTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let firstCapture = makeCapturedScreenshot(

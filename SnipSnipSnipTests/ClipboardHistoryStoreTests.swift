@@ -555,16 +555,6 @@ final class ClipboardHistoryStoreTests: XCTestCase {
         return representation.representation(using: .jpeg, properties: [:])
     }
 
-    private func waitUntil(
-        timeoutNanoseconds: UInt64 = 2_000_000_000,
-        condition: @escaping @MainActor () -> Bool
-    ) async {
-        let deadline = DispatchTime.now().uptimeNanoseconds + timeoutNanoseconds
-
-        while !condition() && DispatchTime.now().uptimeNanoseconds < deadline {
-            try? await Task.sleep(nanoseconds: 50_000_000)
-        }
-    }
 }
 
 @MainActor

@@ -141,16 +141,10 @@ enum ScreenshotPresentationRenderer {
         let height = max(Int(ceil(layout.canvasSize.height)), 1)
         let canvasSize = CGSize(width: width, height: height)
 
-        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
-              let context = CGContext(
-                data: nil,
-                width: width,
-                height: height,
-                bitsPerComponent: 8,
-                bytesPerRow: 0,
-                space: colorSpace,
-                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-              ) else {
+        guard let context = SRGBBitmapContext.make(
+            width: width,
+            height: height
+        ) else {
             return nil
         }
 
@@ -318,16 +312,10 @@ enum ScreenshotPresentationRenderer {
         let width = max(Int((CGFloat(image.width) * scale).rounded()), 1)
         let height = max(Int((CGFloat(image.height) * scale).rounded()), 1)
 
-        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
-              let context = CGContext(
-                data: nil,
-                width: width,
-                height: height,
-                bitsPerComponent: 8,
-                bytesPerRow: 0,
-                space: colorSpace,
-                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-              ) else {
+        guard let context = SRGBBitmapContext.make(
+            width: width,
+            height: height
+        ) else {
             return nil
         }
 
@@ -909,19 +897,6 @@ enum ScreenshotPresentationRenderer {
         context.restoreGState()
     }
 
-    nonisolated private static func drawBrowserToolbarGlyph(
-        _ glyph: String,
-        x: CGFloat,
-        y: CGFloat,
-        attributes: [NSAttributedString.Key: Any],
-        context: CGContext
-    ) {
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
-        (glyph as NSString).draw(at: CGPoint(x: x, y: y), withAttributes: attributes)
-        NSGraphicsContext.restoreGraphicsState()
-    }
-
     nonisolated private static func drawDeviceFrame(
         _ style: PresentationDeviceFrameStyle,
         isTablet: Bool,
@@ -1419,16 +1394,10 @@ enum ScreenshotPresentationRenderer {
         let width = max(Int(ceil(size.width)), 1)
         let height = max(Int(ceil(size.height)), 1)
 
-        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
-              let context = CGContext(
-                data: nil,
-                width: width,
-                height: height,
-                bitsPerComponent: 8,
-                bytesPerRow: 0,
-                space: colorSpace,
-                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-              ) else {
+        guard let context = SRGBBitmapContext.make(
+            width: width,
+            height: height
+        ) else {
             return nil
         }
 

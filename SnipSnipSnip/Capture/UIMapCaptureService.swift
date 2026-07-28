@@ -1156,13 +1156,6 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
         attribute(name, from: element) as? String
     }
 
-    private func elementAttribute(
-        _ name: String,
-        from element: AccessibilityElementHandle
-    ) -> AccessibilityElementHandle? {
-        self.element(from: attribute(name, from: element))
-    }
-
     private func element(from value: Any?) -> AccessibilityElementHandle? {
         value as? AccessibilityElementHandle
     }
@@ -1217,10 +1210,6 @@ nonisolated struct AccessibilityUIMapCaptureService: UIMapCaptureServiceType {
 
     private static func describe(_ rect: CGRect) -> String {
         "x:\(rounded(rect.origin.x)) y:\(rounded(rect.origin.y)) w:\(rounded(rect.size.width)) h:\(rounded(rect.size.height))"
-    }
-
-    private static func describePoint(_ point: CGPoint) -> String {
-        "x:\(rounded(point.x)) y:\(rounded(point.y))"
     }
 
     private static func rounded(_ value: CGFloat) -> String {

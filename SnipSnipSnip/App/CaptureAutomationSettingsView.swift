@@ -1219,17 +1219,6 @@ struct CaptureAutomationSettingsView: View {
         )
     }
 
-    private func regionCaptureBinding<Value>(_ keyPath: WritableKeyPath<RegionCapturePreferences, Value>) -> Binding<Value> {
-        Binding(
-            get: { capture.regionCapturePreferences[keyPath: keyPath] },
-            set: { newValue in
-                var preferences = capture.regionCapturePreferences
-                preferences[keyPath: keyPath] = newValue
-                capture.regionCapturePreferences = preferences
-            }
-        )
-    }
-
     private var regionCaptureCommitModeBinding: Binding<RegionCaptureCommitMode> {
         Binding(
             get: { capture.regionCapturePreferences.commitMode },

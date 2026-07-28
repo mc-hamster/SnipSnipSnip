@@ -1565,19 +1565,10 @@ nonisolated enum CompositionRenderer {
 
     private static func makeContext(width: Int, height: Int) -> CGContext? {
         guard width > 0,
-              height > 0,
-              let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else {
+              height > 0 else {
             return nil
         }
-        return CGContext(
-            data: nil,
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        )
+        return SRGBBitmapContext.make(width: width, height: height)
     }
 
     private static func quartzRect(_ topLeftRect: CGRect, canvasHeight: CGFloat) -> CGRect {

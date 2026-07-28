@@ -5,11 +5,35 @@ import XCTest
 
 let testCapabilities = BuildTargetCapabilityProvider().snapshot(for: .dev)
 
-nonisolated struct StaticAppCapabilityProvider: AppCapabilityProvider {
-    let capabilitySnapshot: AppCapabilitySnapshot
+nonisolated func makeDefaults(named suiteName: String) -> UserDefaults {
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defaults.removePersistentDomain(forName: suiteName)
+    return defaults
+}
 
-    func snapshot(for target: BuildTarget) -> AppCapabilitySnapshot {
-        capabilitySnapshot
+@MainActor
+func waitUntil(
+    timeoutNanoseconds: UInt64 = 2_000_000_000,
+    pollingIntervalNanoseconds: UInt64 = 50_000_000,
+    condition: @escaping @MainActor () -> Bool
+) async {
+    let deadline = DispatchTime.now().uptimeNanoseconds + timeoutNanoseconds
+
+    while !condition() && DispatchTime.now().uptimeNanoseconds < deadline {
+        try? await Task.sleep(nanoseconds: pollingIntervalNanoseconds)
+    }
+}
+
+@MainActor
+func waitUntil(
+    timeoutNanoseconds: UInt64 = 2_000_000_000,
+    pollingIntervalNanoseconds: UInt64 = 50_000_000,
+    condition: () async -> Bool
+) async {
+    let deadline = DispatchTime.now().uptimeNanoseconds + timeoutNanoseconds
+
+    while !(await condition()) && DispatchTime.now().uptimeNanoseconds < deadline {
+        try? await Task.sleep(nanoseconds: pollingIntervalNanoseconds)
     }
 }
 
@@ -394,7 +418,12 @@ enum CoordinateImagePattern {
     case weighted(xMultiplier: Int, yMultiplier: Int, includeBlueSum: Bool)
 }
 
-func makeCoordinateImage(width: Int, height: Int, pattern: CoordinateImagePattern = .cartesian) -> CGImage {
+func makeRGBAImage(
+    width: Int,
+    height: Int,
+    bitmapInfo: CGBitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
+    pixelAt: (Int, Int) -> PixelSample
+) -> CGImage {
     let bytesPerPixel = 4
     let bytesPerRow = width * bytesPerPixel
     var pixels = [UInt8](repeating: 0, count: height * bytesPerRow)
@@ -402,19 +431,11 @@ func makeCoordinateImage(width: Int, height: Int, pattern: CoordinateImagePatter
     for y in 0..<height {
         for x in 0..<width {
             let offset = (y * bytesPerRow) + (x * bytesPerPixel)
-
-            switch pattern {
-            case .cartesian:
-                pixels[offset] = UInt8(truncatingIfNeeded: x)
-                pixels[offset + 1] = UInt8(truncatingIfNeeded: y)
-                pixels[offset + 2] = 0
-            case let .weighted(xMultiplier, yMultiplier, includeBlueSum):
-                pixels[offset] = UInt8((x * xMultiplier) % 255)
-                pixels[offset + 1] = UInt8((y * yMultiplier) % 255)
-                pixels[offset + 2] = includeBlueSum ? UInt8((x + y) % 255) : 0
-            }
-
-            pixels[offset + 3] = 255
+            let sample = pixelAt(x, y)
+            pixels[offset] = sample.red
+            pixels[offset + 1] = sample.green
+            pixels[offset + 2] = sample.blue
+            pixels[offset + 3] = sample.alpha
         }
     }
 
@@ -427,7 +448,7 @@ func makeCoordinateImage(width: Int, height: Int, pattern: CoordinateImagePatter
         bitsPerPixel: 32,
         bytesPerRow: bytesPerRow,
         space: CGColorSpaceCreateDeviceRGB(),
-        bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
+        bitmapInfo: bitmapInfo,
         provider: provider!,
         decode: nil,
         shouldInterpolate: false,
@@ -435,36 +456,29 @@ func makeCoordinateImage(width: Int, height: Int, pattern: CoordinateImagePatter
     )!
 }
 
-func makeSolidImage(width: Int, height: Int, color: PixelSample) -> CGImage {
-    let bytesPerPixel = 4
-    let bytesPerRow = width * bytesPerPixel
-    var pixels = [UInt8](repeating: 0, count: height * bytesPerRow)
-
-    for y in 0..<height {
-        for x in 0..<width {
-            let offset = (y * bytesPerRow) + (x * bytesPerPixel)
-            pixels[offset] = color.red
-            pixels[offset + 1] = color.green
-            pixels[offset + 2] = color.blue
-            pixels[offset + 3] = color.alpha
+func makeCoordinateImage(width: Int, height: Int, pattern: CoordinateImagePattern = .cartesian) -> CGImage {
+    makeRGBAImage(width: width, height: height) { x, y in
+        switch pattern {
+        case .cartesian:
+            PixelSample(
+                red: UInt8(truncatingIfNeeded: x),
+                green: UInt8(truncatingIfNeeded: y),
+                blue: 0,
+                alpha: 255
+            )
+        case let .weighted(xMultiplier, yMultiplier, includeBlueSum):
+            PixelSample(
+                red: UInt8((x * xMultiplier) % 255),
+                green: UInt8((y * yMultiplier) % 255),
+                blue: includeBlueSum ? UInt8((x + y) % 255) : 0,
+                alpha: 255
+            )
         }
     }
+}
 
-    let provider = CGDataProvider(data: Data(pixels) as CFData)
-
-    return CGImage(
-        width: width,
-        height: height,
-        bitsPerComponent: 8,
-        bitsPerPixel: 32,
-        bytesPerRow: bytesPerRow,
-        space: CGColorSpaceCreateDeviceRGB(),
-        bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
-        provider: provider!,
-        decode: nil,
-        shouldInterpolate: false,
-        intent: .defaultIntent
-    )!
+func makeSolidImage(width: Int, height: Int, color: PixelSample) -> CGImage {
+    makeRGBAImage(width: width, height: height) { _, _ in color }
 }
 
 func samplePixel(

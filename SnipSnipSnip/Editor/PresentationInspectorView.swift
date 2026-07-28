@@ -890,17 +890,6 @@ struct PresentationInspectorView: View {
         }
     }
 
-    private func presentationIntegerField(_ value: Int, onCommit: @escaping @MainActor (Int) -> Void) -> some View {
-        TextField("", value: Binding(get: {
-            Double(value)
-        }, set: { newValue in
-            deferPublish { onCommit(max(Int(newValue.rounded()), 1)) }
-        }), format: .number.precision(.fractionLength(0)))
-            .multilineTextAlignment(.trailing)
-            .frame(width: 74)
-            .textFieldStyle(.roundedBorder)
-    }
-
     private func syncSelectedPresentationTemplate() {
         if let selectedPresentationTemplateID,
            let template = polishLookTemplates.first(

@@ -1086,35 +1086,10 @@ private func makeAutoCropFixtureImage(
     contentRects: [CGRect],
     content: PixelSample = PixelSample(red: 0, green: 0, blue: 0, alpha: 255)
 ) -> CGImage {
-    let bytesPerPixel = 4
-    let bytesPerRow = width * bytesPerPixel
-    var pixels = [UInt8](repeating: 0, count: height * bytesPerRow)
-
-    for y in 0..<height {
-        for x in 0..<width {
-            let point = CGPoint(x: x, y: y)
-            let sample = contentRects.contains { $0.contains(point) } ? content : background
-            let offset = y * bytesPerRow + x * bytesPerPixel
-            pixels[offset] = sample.red
-            pixels[offset + 1] = sample.green
-            pixels[offset + 2] = sample.blue
-            pixels[offset + 3] = sample.alpha
-        }
+    makeRGBAImage(width: width, height: height) { x, y in
+        let point = CGPoint(x: x, y: y)
+        return contentRects.contains { $0.contains(point) } ? content : background
     }
-
-    return CGImage(
-        width: width,
-        height: height,
-        bitsPerComponent: 8,
-        bitsPerPixel: 32,
-        bytesPerRow: bytesPerRow,
-        space: CGColorSpaceCreateDeviceRGB(),
-        bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
-        provider: CGDataProvider(data: Data(pixels) as CFData)!,
-        decode: nil,
-        shouldInterpolate: false,
-        intent: .defaultIntent
-    )!
 }
 
 private final class LivePreviewCaptureRecorder: @unchecked Sendable {

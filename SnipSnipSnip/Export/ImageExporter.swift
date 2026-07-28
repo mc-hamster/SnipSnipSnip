@@ -408,15 +408,9 @@ enum ImageExporter {
     nonisolated private static func normalizedImageForEncoding(_ image: CGImage) throws -> CGImage {
         guard image.width > 0,
               image.height > 0,
-              let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
-              let context = CGContext(
-                data: nil,
-                width: image.width,
-                height: image.height,
-                bitsPerComponent: 8,
-                bytesPerRow: 0,
-                space: colorSpace,
-                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+              let context = SRGBBitmapContext.make(
+                  width: image.width,
+                  height: image.height
               ) else {
             throw ImageExportError.encodingFailed
         }

@@ -187,33 +187,18 @@ final class ScreenCaptureServiceTests: XCTestCase {
 }
 
 private func makeImageWithTransparentRows(width: Int, height: Int, transparentRows: Set<Int>) -> CGImage {
-    let bytesPerPixel = 4
-    let bytesPerRow = width * bytesPerPixel
-    var pixels = [UInt8](repeating: 0, count: height * bytesPerRow)
-
-    for y in 0..<height {
-        for x in 0..<width {
-            let offset = y * bytesPerRow + x * bytesPerPixel
-            let alpha: UInt8 = transparentRows.contains(y) ? 0 : 255
-
-            pixels[offset] = alpha == 0 ? 0 : UInt8((x * 17) % 255)
-            pixels[offset + 1] = alpha == 0 ? 0 : UInt8((y * 29) % 255)
-            pixels[offset + 2] = alpha == 0 ? 0 : UInt8((x + y * 3) % 255)
-            pixels[offset + 3] = alpha
-        }
-    }
-
-    return CGImage(
+    makeRGBAImage(
         width: width,
         height: height,
-        bitsPerComponent: 8,
-        bitsPerPixel: 32,
-        bytesPerRow: bytesPerRow,
-        space: CGColorSpaceCreateDeviceRGB(),
         bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
-        provider: CGDataProvider(data: Data(pixels) as CFData)!,
-        decode: nil,
-        shouldInterpolate: false,
-        intent: .defaultIntent
-    )!
+        pixelAt: { x, y in
+            let alpha: UInt8 = transparentRows.contains(y) ? 0 : 255
+            return PixelSample(
+                red: alpha == 0 ? 0 : UInt8((x * 17) % 255),
+                green: alpha == 0 ? 0 : UInt8((y * 29) % 255),
+                blue: alpha == 0 ? 0 : UInt8((x + y * 3) % 255),
+                alpha: alpha
+            )
+        }
+    )
 }

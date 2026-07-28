@@ -6,7 +6,7 @@ final class AutomationCompositionRuntimeTests: XCTestCase {
     @MainActor
     func testCompositionExecutorAppliesCompleteStepsConfigurationAsOneUndoableChange() throws {
         let suiteName = "AutomationCompositionRuntimeTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let controller = EditorController(
@@ -60,7 +60,7 @@ final class AutomationCompositionRuntimeTests: XCTestCase {
     @MainActor
     func testCompositionExecutorMapsCompleteComparisonConfigurationAndPairSelection() throws {
         let suiteName = "AutomationCompositionRuntimeTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let controller = EditorController(
@@ -116,7 +116,7 @@ final class AutomationCompositionRuntimeTests: XCTestCase {
     @MainActor
     func testCompositionExecutorAppliesCompatibleTemplateByStableID() throws {
         let suiteName = "AutomationCompositionRuntimeTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let controller = EditorController(
@@ -152,7 +152,7 @@ final class AutomationCompositionRuntimeTests: XCTestCase {
     @MainActor
     func testCompositionExecutorMapsActionableRuntimeErrors() throws {
         let suiteName = "AutomationCompositionRuntimeTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let controller = EditorController(
@@ -217,7 +217,7 @@ final class AutomationCompositionRuntimeTests: XCTestCase {
     @MainActor
     func testCaptureDestinationContextMapsAndVerifiesAppendAndReplace() throws {
         let suiteName = "AutomationCompositionRuntimeTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let controller = EditorController(
@@ -322,7 +322,7 @@ final class AutomationCompositionRuntimeTests: XCTestCase {
         }
 
         let suiteName = "AutomationCompositionRuntimeTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let controller = EditorController(
             capture: makeCapturedScreenshot(),
@@ -373,7 +373,7 @@ final class AutomationCompositionRuntimeTests: XCTestCase {
     @MainActor
     func testCaptureDestinationContextMapsChangedGenerationAndRemovedAnchorToStaleDestination() throws {
         let suiteName = "AutomationCompositionRuntimeTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let controller = EditorController(
@@ -424,7 +424,7 @@ final class AutomationCompositionRuntimeTests: XCTestCase {
     @MainActor
     func testCompletedCaptureWithRemovedAppendAnchorNeverMutatesTheActiveComposition() throws {
         let suiteName = "AutomationCompositionRuntimeTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
+        let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let model = AppModel(
             defaults: defaults,

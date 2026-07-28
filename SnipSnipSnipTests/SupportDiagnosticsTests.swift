@@ -78,8 +78,7 @@ final class SupportDiagnosticsTests: XCTestCase {
 
     private func makeModel() -> AppModel {
         let suiteName = "SupportDiagnosticsTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeDefaults(named: suiteName)
 
         let recoveryStore = DocumentRecoveryStore(
             baseURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

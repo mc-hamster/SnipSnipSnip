@@ -392,16 +392,10 @@ nonisolated enum PresentationSceneRenderer {
         let width = max(Int((analysis.slotRect.width * renderScale).rounded()), 1)
         let height = max(Int((analysis.slotRect.height * renderScale).rounded()), 1)
 
-        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
-              let context = CGContext(
-                data: nil,
-                width: width,
-                height: height,
-                bitsPerComponent: 8,
-                bytesPerRow: 0,
-                space: colorSpace,
-                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-              ) else {
+        guard let context = SRGBBitmapContext.make(
+            width: width,
+            height: height
+        ) else {
             return nil
         }
 
