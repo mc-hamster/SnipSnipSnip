@@ -679,11 +679,14 @@ final class DocumentRecoveryStoreTests: XCTestCase {
         let secondPackageSize = try directorySize(at: secondEntry.packageURL)
         let sharedMetadataSize = max(totalArchiveSize - firstPackageSize - secondPackageSize, 0)
 
-        let didPrune = try store.pruneArchiveIfNeeded(maximumSizeBytes: sharedMetadataSize + secondPackageSize)
+        let pruneResult = try store.pruneArchiveAndMeasure(
+            maximumSizeBytes: sharedMetadataSize + secondPackageSize
+        )
 
-        XCTAssertTrue(didPrune)
+        XCTAssertTrue(pruneResult.didPrune)
         XCTAssertFalse(store.historyEntries(for: sessionID).contains(where: { $0.label == "First" }))
-        XCTAssertLessThanOrEqual(try store.archiveSizeInBytes(), sharedMetadataSize + secondPackageSize)
+        XCTAssertLessThanOrEqual(pruneResult.archiveSizeBytes, sharedMetadataSize + secondPackageSize)
+        XCTAssertEqual(pruneResult.archiveSizeBytes, try store.archiveSizeInBytes())
 
         try? FileManager.default.removeItem(at: rootURL)
     }

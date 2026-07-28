@@ -17,11 +17,15 @@ enum ArchiveMaintenanceManager {
         await Task.detached(priority: .utility) {
             let cutoffDate = Calendar.current.date(byAdding: .day, value: -request.recycleBinRetentionDays, to: request.now) ?? .distantPast
             let didPruneRecycleBin = (try? request.store.pruneRecycleBin(deletedBefore: cutoffDate)) ?? false
-            let didPruneArchive = (try? request.store.pruneArchiveIfNeeded(maximumSizeBytes: request.maximumSizeBytes)) ?? false
-            let archiveSizeBytes = (try? request.store.archiveSizeInBytes()) ?? 0
+            let archivePruneResult = try? request.store.pruneArchiveAndMeasure(
+                maximumSizeBytes: request.maximumSizeBytes
+            )
+            let archiveSizeBytes = archivePruneResult?.archiveSizeBytes
+                ?? (try? request.store.archiveSizeInBytes())
+                ?? 0
             return ArchiveMaintenanceResult(
                 archiveSizeBytes: archiveSizeBytes,
-                didPrune: didPruneRecycleBin || didPruneArchive
+                didPrune: didPruneRecycleBin || archivePruneResult?.didPrune == true
             )
         }.value
     }
@@ -106,29 +110,47 @@ extension ArchiveWorkflowModel {
     }
 
     func triggerArchiveMaintenance() {
-        Task { @MainActor [weak self] in
-            await self?.runArchiveMaintenanceCycle()
+        archiveMaintenanceRequested = true
+        guard archiveMaintenanceRunTask == nil else {
+            return
+        }
+
+        archiveMaintenanceRunTask = Task { @MainActor [weak self] in
+            await self?.drainArchiveMaintenanceRequests()
         }
     }
 
     func startArchiveMaintenance() {
         archiveMaintenanceTask?.cancel()
+        triggerArchiveMaintenance()
+        let scheduler = dependencies.systemServices.scheduler
         archiveMaintenanceTask = Task { @MainActor [weak self] in
-            guard let self else {
-                return
-            }
-
-            await self.runArchiveMaintenanceCycle()
-
             while !Task.isCancelled {
-                try? await self.dependencies.systemServices.scheduler.sleep(nanoseconds: ArchiveWorkflowConstants.maintenanceDebounceNanoseconds)
-
-                guard !Task.isCancelled else {
+                do {
+                    try await scheduler.sleep(
+                        nanoseconds: ArchiveWorkflowConstants.maintenanceDebounceNanoseconds
+                    )
+                } catch {
                     return
                 }
 
-                await self.runArchiveMaintenanceCycle()
+                guard !Task.isCancelled, let self else {
+                    return
+                }
+
+                self.triggerArchiveMaintenance()
             }
+        }
+    }
+
+    private func drainArchiveMaintenanceRequests() async {
+        defer {
+            archiveMaintenanceRunTask = nil
+        }
+
+        while archiveMaintenanceRequested, !Task.isCancelled {
+            archiveMaintenanceRequested = false
+            await runArchiveMaintenanceCycle()
         }
     }
 
@@ -137,6 +159,7 @@ extension ArchiveWorkflowModel {
     }
 
     func runArchiveMaintenanceCycle() async {
+        archiveMaintenanceRunCount += 1
         let request = ArchiveMaintenanceRequest(
             store: recoveryStore,
             maximumSizeBytes: archiveMaximumSizeBytes,

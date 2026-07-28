@@ -2690,6 +2690,90 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testUndoHistoryIsBoundedAndStopsAtRetainedBoundary() {
+        let initial = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 500, height: 300)
+        )
+        let controller = makeController(
+            snapshot: initial,
+            captureSize: initial.cropRect.size
+        )
+        let operationCount = EditorController.maximumHistorySnapshotCount + 20
+
+        for index in 1...operationCount {
+            controller.execute(SetCropCommand(rect: CGRect(
+                x: index,
+                y: 0,
+                width: 200,
+                height: 200
+            )))
+        }
+
+        let retainedBoundary = controller.documentSession.undoStack.first?.cropRect
+        XCTAssertEqual(
+            controller.documentSession.undoStack.count,
+            EditorController.maximumHistorySnapshotCount
+        )
+
+        for _ in 0..<(EditorController.maximumHistorySnapshotCount + 10) {
+            controller.undo()
+        }
+
+        XCTAssertEqual(controller.snapshot.cropRect, retainedBoundary)
+        XCTAssertFalse(controller.canUndo)
+        XCTAssertEqual(
+            controller.documentSession.redoStack.count,
+            EditorController.maximumHistorySnapshotCount
+        )
+    }
+
+    @MainActor
+    func testLoadingOversizedUndoHistoryKeepsMostRecentSnapshots() {
+        let historyCount = EditorController.maximumHistorySnapshotCount + 25
+        let initial = makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 500, height: 300)
+        )
+        let undoSnapshots = (0..<historyCount).map { index in
+            makeEditorSnapshot(
+                cropRect: CGRect(x: index, y: 0, width: 200, height: 200)
+            )
+        }
+        let current = makeEditorSnapshot(
+            cropRect: CGRect(x: historyCount, y: 0, width: 200, height: 200)
+        )
+        let capture = makeCapturedScreenshot(
+            image: makeCoordinateImage(width: 500, height: 300)
+        )
+        let controller = retainForTestLifetime(EditorController(
+            capture: capture,
+            session: makeEditorDocumentSession(
+                initialSnapshot: initial,
+                currentSnapshot: current,
+                undoStack: undoSnapshots
+            )
+        ))
+
+        XCTAssertEqual(
+            controller.documentSession.undoStack.count,
+            EditorController.maximumHistorySnapshotCount
+        )
+        XCTAssertEqual(
+            controller.documentSession.undoStack.first?.cropRect.minX,
+            CGFloat(historyCount - EditorController.maximumHistorySnapshotCount)
+        )
+
+        for _ in 0..<(EditorController.maximumHistorySnapshotCount + 1) {
+            controller.undo()
+        }
+
+        XCTAssertFalse(controller.canUndo)
+        XCTAssertEqual(
+            controller.snapshot.cropRect.minX,
+            CGFloat(historyCount - EditorController.maximumHistorySnapshotCount)
+        )
+    }
+
+    @MainActor
     func testCanResetCropTracksWhetherCropDiffersFromFullImage() {
         let controller = makeController(
             snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120)),

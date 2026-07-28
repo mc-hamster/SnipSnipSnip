@@ -21,6 +21,9 @@ final class ArchiveWorkflowModel: ObservableObject {
     weak var documents: (any ArchiveDocumentWorkflowPort)?
     var shouldStartMaintenance = true
     var archiveMaintenanceTask: Task<Void, Never>?
+    var archiveMaintenanceRunTask: Task<Void, Never>?
+    var archiveMaintenanceRequested = false
+    var archiveMaintenanceRunCount = 0
     var configuredArchiveLocationURL: URL?
     var archiveSecurityScopedURL: URL?
     @Published var maximumSizeMB: Int {

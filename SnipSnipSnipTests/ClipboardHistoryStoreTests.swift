@@ -174,6 +174,52 @@ final class ClipboardHistoryStoreTests: XCTestCase {
         XCTAssertEqual(store.items.first?.previewText, "copy before start")
     }
 
+    func testClipboardMonitorKeepsOnlyLatestPendingChangeWhileProcessing() async {
+        let storeName = "ClipboardHistoryStoreTests.monitorLatestPending"
+        removeStore(named: storeName)
+        defer { removeStore(named: storeName) }
+
+        let pasteboard = TestPasteboardService()
+        let store = makeStore(named: storeName)
+        let resolver = ControlledClipboardSnapshotResolver()
+        let monitor = ClipboardMonitor(
+            store: store,
+            pasteboard: pasteboard,
+            workspace: TestWorkspaceService(),
+            snapshotResolver: { content in
+                await resolver.resolve(content)
+            }
+        )
+
+        monitor.start(preferences: enabledPreferences)
+        pasteboard.setString("first", forType: .string)
+        await waitUntil {
+            await resolver.captureCount == 1
+        }
+
+        pasteboard.setString("superseded", forType: .string)
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        pasteboard.setString("latest", forType: .string)
+        try? await Task.sleep(nanoseconds: 300_000_000)
+
+        await resolver.releaseNext()
+        await waitUntil {
+            await resolver.captureCount == 2
+        }
+
+        let capturedTexts = await resolver.capturedTexts
+        XCTAssertEqual(capturedTexts, ["first", "latest"])
+
+        await resolver.releaseNext()
+        await waitUntil {
+            store.items.count == 2
+        }
+        monitor.stop()
+
+        XCTAssertEqual(Set(store.items.map(\.previewText)), ["first", "latest"])
+        XCTAssertFalse(store.items.contains { $0.previewText == "superseded" })
+    }
+
     func testClipboardMonitorDiscardsCopiesWhilePausedAndResumesCleanly() async {
         let storeName = "ClipboardHistoryStoreTests.monitorPause"
         removeStore(named: storeName)
@@ -555,6 +601,37 @@ final class ClipboardHistoryStoreTests: XCTestCase {
         return representation.representation(using: .jpeg, properties: [:])
     }
 
+}
+
+private actor ControlledClipboardSnapshotResolver {
+    private var texts: [String] = []
+    private var continuations: [CheckedContinuation<Void, Never>] = []
+
+    var captureCount: Int {
+        texts.count
+    }
+
+    var capturedTexts: [String] {
+        texts
+    }
+
+    func resolve(
+        _ content: ClipboardCapturedPasteboardContent
+    ) async -> ClipboardPasteboardSnapshot? {
+        let text = content.text ?? ""
+        texts.append(text)
+        await withCheckedContinuation { continuation in
+            continuations.append(continuation)
+        }
+        return .text(text)
+    }
+
+    func releaseNext() {
+        guard !continuations.isEmpty else {
+            return
+        }
+        continuations.removeFirst().resume()
+    }
 }
 
 @MainActor

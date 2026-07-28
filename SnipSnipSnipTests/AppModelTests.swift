@@ -62,6 +62,39 @@ final class AppModelTests: XCTestCase {
         )
     }
 
+    func testArchiveMaintenanceCoalescesBurstRequestsIntoOneRun() async {
+        let suiteName = "AppModelTests.archiveMaintenanceCoalescing"
+        let defaults = makeDefaults(named: suiteName)
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+            try? FileManager.default.removeItem(at: rootURL)
+        }
+        let model = retainForTestLifetime(AppModel(
+            defaults: defaults,
+            recoveryStore: DocumentRecoveryStore(baseURL: rootURL),
+            captureService: ScreenCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        ))
+        let initialRunCount = model.archive.archiveMaintenanceRunCount
+
+        for _ in 0..<20 {
+            model.archive.triggerArchiveMaintenance()
+        }
+
+        await waitUntil {
+            model.archive.archiveMaintenanceRunCount > initialRunCount
+                && model.archive.archiveMaintenanceRunTask == nil
+        }
+
+        XCTAssertEqual(
+            model.archive.archiveMaintenanceRunCount,
+            initialRunCount + 1
+        )
+    }
+
     func testPreparedCaptureIntentResetsOnlyForItsOwningModalSession() {
         let suiteName = "AppModelTests.captureIntentModalOwnership"
         let defaults = makeDefaults(named: suiteName)

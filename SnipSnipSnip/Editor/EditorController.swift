@@ -96,6 +96,7 @@ enum EditorCanvasInvalidationReason: Equatable {
 final class EditorController: ObservableObject {
     /// A stable lifetime token used to route asynchronous capture results.
     let documentGenerationID = UUID()
+    nonisolated static let maximumHistorySnapshotCount = 100
 
     enum ImageColorSamplingTarget: String {
         case picker
@@ -229,6 +230,7 @@ final class EditorController: ObservableObject {
 
     private var undoStack: [EditorSnapshot] = []
     private var redoStack: [EditorSnapshot] = []
+    private var hasTruncatedUndoHistory = false
     private var textEditingSession: TextEditingSession?
     private var pendingTextEditingCommitTask: Task<Void, Never>?
     private var noticeTask: Task<Void, Never>?
@@ -443,6 +445,9 @@ final class EditorController: ObservableObject {
         self.uiMapOverlayOptions = uiMapOverlayOptions
         self.presentationScenesRootURL = PresentationSceneStore.configuredRootURL(in: defaults)
         self.compositionComparisonPreviewPhase = nil
+        let loadedUndoHistoryWasTruncated =
+            session.hasTruncatedUndoHistory
+            || session.undoStack.count > Self.maximumHistorySnapshotCount
         let canonicalSession: EditorDocumentSession
         if session.currentSnapshot.composition == nil,
            let assetID = try? compositionAssetRepository.add(
@@ -463,24 +468,29 @@ final class EditorController: ObservableObject {
                     assetID: assetID,
                     itemID: itemID
                 ),
-                undoStack: session.undoStack.map {
-                    Self.embeddingDormantComposition(
-                        in: $0,
-                        capture: capture,
-                        assetID: assetID,
-                        itemID: itemID
-                    )
-                },
-                redoStack: session.redoStack.map {
-                    Self.embeddingDormantComposition(
-                        in: $0,
-                        capture: capture,
-                        assetID: assetID,
-                        itemID: itemID
-                    )
+                undoStack: session.undoStack
+                    .suffix(Self.maximumHistorySnapshotCount)
+                    .map {
+                        Self.embeddingDormantComposition(
+                            in: $0,
+                            capture: capture,
+                            assetID: assetID,
+                            itemID: itemID
+                        )
+                    },
+                redoStack: session.redoStack
+                    .suffix(Self.maximumHistorySnapshotCount)
+                    .map {
+                        Self.embeddingDormantComposition(
+                            in: $0,
+                            capture: capture,
+                            assetID: assetID,
+                            itemID: itemID
+                        )
                 },
                 toolStyles: session.toolStyles,
-                savedPresentations: session.savedPresentations
+                savedPresentations: session.savedPresentations,
+                hasTruncatedUndoHistory: loadedUndoHistoryWasTruncated
             )
         } else {
             canonicalSession = session
@@ -496,12 +506,18 @@ final class EditorController: ObservableObject {
             for: canonicalSession.currentSnapshot.documentPurpose,
             composition: canonicalSession.currentSnapshot.composition
         )
-        self.undoStack = canonicalSession.undoStack
-        self.redoStack = canonicalSession.redoStack
+        self.hasTruncatedUndoHistory = loadedUndoHistoryWasTruncated
+        self.undoStack = Array(
+            canonicalSession.undoStack.suffix(Self.maximumHistorySnapshotCount)
+        )
+        self.redoStack = Array(
+            canonicalSession.redoStack.suffix(Self.maximumHistorySnapshotCount)
+        )
         self.toolStyles = session.toolStyles
         self.savedPresentations = session.savedPresentations
         let documentCanvasSize = CGSize(width: capture.image.width, height: capture.image.height)
         self.viewport = EditorViewport(contentSize: documentCanvasSize)
+        pruneUnreferencedCompositionAssets()
         reloadCompositionTemplateLibrary()
         reloadPresentationTemplateLibrary()
         reloadPresentationScenes()
@@ -514,7 +530,9 @@ final class EditorController: ObservableObject {
     }
 
     var canUndo: Bool {
-        !undoStack.isEmpty || canonicalCompositionEditingSnapshot(snapshot) != initialSnapshot
+        !undoStack.isEmpty
+            || (!hasTruncatedUndoHistory
+                && canonicalCompositionEditingSnapshot(snapshot) != initialSnapshot)
     }
 
     var canRedo: Bool {
@@ -958,7 +976,8 @@ final class EditorController: ObservableObject {
             undoStack: undoStack,
             redoStack: redoStack,
             toolStyles: toolStyles,
-            savedPresentations: savedPresentations
+            savedPresentations: savedPresentations,
+            hasTruncatedUndoHistory: hasTruncatedUndoHistory
         )
     }
 
@@ -985,8 +1004,10 @@ final class EditorController: ObservableObject {
             return
         }
 
+        var shouldPruneCompositionAssets = false
         if undoable, coalescedGestureInitialSnapshots.isEmpty {
-            undoStack.append(previousSnapshot)
+            shouldPruneCompositionAssets = appendUndoSnapshot(previousSnapshot)
+                || !redoStack.isEmpty
             redoStack.removeAll()
         }
 
@@ -1001,8 +1022,48 @@ final class EditorController: ObservableObject {
             canonicalizesCompositionEditingChanges: false
         )
         if coalescedGestureInitialSnapshots.isEmpty {
+            if shouldPruneCompositionAssets {
+                pruneUnreferencedCompositionAssets()
+            }
             persistenceRevision += 1
         }
+    }
+
+    @discardableResult
+    private func appendUndoSnapshot(_ snapshot: EditorSnapshot) -> Bool {
+        undoStack.append(snapshot)
+        let overflow = undoStack.count - Self.maximumHistorySnapshotCount
+        guard overflow > 0 else {
+            return false
+        }
+
+        undoStack.removeFirst(overflow)
+        hasTruncatedUndoHistory = true
+        return true
+    }
+
+    @discardableResult
+    private func appendRedoSnapshot(_ snapshot: EditorSnapshot) -> Bool {
+        redoStack.append(snapshot)
+        let overflow = redoStack.count - Self.maximumHistorySnapshotCount
+        if overflow > 0 {
+            redoStack.removeFirst(overflow)
+            return true
+        }
+        return false
+    }
+
+    private func pruneUnreferencedCompositionAssets() {
+        let referencedAssetIDs = EditorDocumentSession(
+            initialSnapshot: initialSnapshot,
+            currentSnapshot: canonicalCompositionEditingSnapshot(snapshot),
+            undoStack: undoStack,
+            redoStack: redoStack,
+            toolStyles: [:]
+        ).referencedCompositionAssetIDs
+        let unreferencedAssetIDs = Set(compositionAssetRepository.assetIDs)
+            .subtracting(referencedAssetIDs)
+        compositionAssetRepository.removeAssets(unreferencedAssetIDs)
     }
 
     func beginCoalescedEditorGesture() {
@@ -1023,8 +1084,12 @@ final class EditorController: ObservableObject {
         guard current != initial else {
             return
         }
-        undoStack.append(initial)
+        let shouldPruneCompositionAssets = appendUndoSnapshot(initial)
+            || !redoStack.isEmpty
         redoStack.removeAll()
+        if shouldPruneCompositionAssets {
+            pruneUnreferencedCompositionAssets()
+        }
         persistenceRevision += 1
     }
 
@@ -1349,8 +1414,13 @@ final class EditorController: ObservableObject {
         let originalSnapshot = SetCropCommand(rect: initialRect).apply(to: snapshot)
         let committedSnapshot = SetCropCommand(rect: finalRect).apply(to: snapshot)
         applySnapshot(committedSnapshot, fitViewportToCrop: true)
-        undoStack.append(canonicalCompositionEditingSnapshot(originalSnapshot))
+        let shouldPruneCompositionAssets =
+            appendUndoSnapshot(canonicalCompositionEditingSnapshot(originalSnapshot))
+            || !redoStack.isEmpty
         redoStack.removeAll()
+        if shouldPruneCompositionAssets {
+            pruneUnreferencedCompositionAssets()
+        }
         persistenceRevision += 1
     }
 
@@ -1717,7 +1787,8 @@ final class EditorController: ObservableObject {
         let priorStage = workflowStage
 
         if let previous = undoStack.popLast() {
-            redoStack.append(canonicalCompositionEditingSnapshot(snapshot))
+            let shouldPruneCompositionAssets =
+                appendRedoSnapshot(canonicalCompositionEditingSnapshot(snapshot))
             applySnapshot(
                 previous,
                 fitViewportToCrop: projectedCompositionEditingSnapshot(previous).cropRect
@@ -1728,15 +1799,19 @@ final class EditorController: ObservableObject {
                 priorPurpose: priorPurpose,
                 priorStage: priorStage
             )
+            if shouldPruneCompositionAssets {
+                pruneUnreferencedCompositionAssets()
+            }
             persistenceRevision += 1
             return
         }
 
-        guard snapshot != initialSnapshot else {
+        guard !hasTruncatedUndoHistory, snapshot != initialSnapshot else {
             return
         }
 
-        redoStack.append(canonicalCompositionEditingSnapshot(snapshot))
+        let shouldPruneCompositionAssets =
+            appendRedoSnapshot(canonicalCompositionEditingSnapshot(snapshot))
         applySnapshot(
             initialSnapshot,
             fitViewportToCrop: projectedCompositionEditingSnapshot(initialSnapshot).cropRect
@@ -1747,6 +1822,9 @@ final class EditorController: ObservableObject {
             priorPurpose: priorPurpose,
             priorStage: priorStage
         )
+        if shouldPruneCompositionAssets {
+            pruneUnreferencedCompositionAssets()
+        }
         persistenceRevision += 1
     }
 
@@ -1759,7 +1837,8 @@ final class EditorController: ObservableObject {
             return
         }
 
-        undoStack.append(canonicalCompositionEditingSnapshot(snapshot))
+        let shouldPruneCompositionAssets =
+            appendUndoSnapshot(canonicalCompositionEditingSnapshot(snapshot))
         applySnapshot(
             next,
             fitViewportToCrop: projectedCompositionEditingSnapshot(next).cropRect
@@ -1770,6 +1849,9 @@ final class EditorController: ObservableObject {
             priorPurpose: priorPurpose,
             priorStage: priorStage
         )
+        if shouldPruneCompositionAssets {
+            pruneUnreferencedCompositionAssets()
+        }
         persistenceRevision += 1
     }
 
@@ -2587,8 +2669,13 @@ final class EditorController: ObservableObject {
             return
         }
 
-        undoStack.append(canonicalCompositionEditingSnapshot(session.originalSnapshot))
+        let shouldPruneCompositionAssets =
+            appendUndoSnapshot(canonicalCompositionEditingSnapshot(session.originalSnapshot))
+            || !redoStack.isEmpty
         redoStack.removeAll()
+        if shouldPruneCompositionAssets {
+            pruneUnreferencedCompositionAssets()
+        }
         persistenceRevision += 1
     }
 

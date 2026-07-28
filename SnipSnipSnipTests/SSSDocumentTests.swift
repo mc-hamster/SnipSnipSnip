@@ -201,7 +201,8 @@ final class SSSDocumentTests: XCTestCase {
             currentSnapshot: currentSnapshot,
             undoStack: [initialSnapshot, intermediateSnapshot],
             redoStack: [intermediateSnapshot],
-            toolStyles: toolStyles
+            toolStyles: toolStyles,
+            hasTruncatedUndoHistory: true
         )
         let document = makeEditableDocument(capture: capture, session: session)
         let previewImage = try XCTUnwrap(EditorRenderer.render(baseImage: baseImage, snapshot: currentSnapshot))

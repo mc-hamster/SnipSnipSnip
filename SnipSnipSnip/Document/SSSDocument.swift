@@ -9,6 +9,7 @@ nonisolated struct EditorDocumentSession: Equatable {
     var redoStack: [EditorSnapshot]
     var toolStyles: [EditorTool: AnnotationStyle]
     var savedPresentations: [SavedPresentation] = []
+    var hasTruncatedUndoHistory = false
 }
 
 nonisolated struct EditableScreenshotDocument {
@@ -2825,6 +2826,7 @@ nonisolated private struct SessionRecord: Codable {
     var redoStack: [SnapshotRecord]
     var toolStyles: [ToolStyleRecord]
     var savedPresentations: [SavedPresentation]?
+    var hasTruncatedUndoHistory: Bool?
 
     nonisolated init(_ session: EditorDocumentSession) {
         initialSnapshot = SnapshotRecord(session.initialSnapshot)
@@ -2835,6 +2837,7 @@ nonisolated private struct SessionRecord: Codable {
             ToolStyleRecord(tool: tool.rawValue, style: StyleRecord(session.toolStyles[tool] ?? .default(for: tool)))
         }
         savedPresentations = session.savedPresentations.isEmpty ? nil : session.savedPresentations
+        hasTruncatedUndoHistory = session.hasTruncatedUndoHistory ? true : nil
     }
 
     nonisolated func editorDocumentSession(imageOverlays: [UUID: CGImage] = [:]) throws -> EditorDocumentSession {
@@ -2856,7 +2859,8 @@ nonisolated private struct SessionRecord: Codable {
             undoStack: try undoStack.map { try $0.editorSnapshot(imageOverlays: imageOverlays) },
             redoStack: try redoStack.map { try $0.editorSnapshot(imageOverlays: imageOverlays) },
             toolStyles: decodedToolStyles,
-            savedPresentations: savedPresentations ?? []
+            savedPresentations: savedPresentations ?? [],
+            hasTruncatedUndoHistory: hasTruncatedUndoHistory ?? false
         )
     }
 }

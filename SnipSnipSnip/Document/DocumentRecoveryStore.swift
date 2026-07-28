@@ -104,6 +104,11 @@ nonisolated struct RecoveryPresentationState: Sendable {
     let pendingRecoverySession: PendingRecoverySession?
 }
 
+nonisolated struct DocumentArchivePruneResult: Equatable, Sendable {
+    let archiveSizeBytes: Int64
+    let didPrune: Bool
+}
+
 nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
     private static let maxCheckpointCount = 12
     private static let sharedBaseImageName = SSSDocumentPackage.baseImageFilename
@@ -171,15 +176,21 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
 
     @discardableResult
     func pruneArchiveIfNeeded(maximumSizeBytes: Int64) throws -> Bool {
+        try pruneArchiveAndMeasure(maximumSizeBytes: maximumSizeBytes).didPrune
+    }
+
+    func pruneArchiveAndMeasure(
+        maximumSizeBytes: Int64
+    ) throws -> DocumentArchivePruneResult {
         try withLockedAccess {
-            guard maximumSizeBytes > 0 else {
-                return false
-            }
+            let archiveExists = fileManager.fileExists(atPath: rootURL.path)
+            var currentSize = archiveExists ? try directorySize(at: rootURL) : 0
 
-            var currentSize = try archiveSizeInBytes()
-
-            guard currentSize > maximumSizeBytes else {
-                return false
+            guard maximumSizeBytes > 0, currentSize > maximumSizeBytes else {
+                return DocumentArchivePruneResult(
+                    archiveSizeBytes: currentSize,
+                    didPrune: false
+                )
             }
 
             var didPrune = false
@@ -191,15 +202,31 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
                 .sorted { $0.savedAt < $1.savedAt }
 
             for entry in oldestFirstEntries where currentSize > maximumSizeBytes {
+                let sessionURL = sessionDirectory(for: entry.sessionID)
+                let previousTrackedSize =
+                    (try archiveItemSize(at: sessionURL))
+                    + (try archiveItemSize(at: searchIndexURL))
+
                 try permanentlyDeleteHistoryEntry(entry)
-                // A checkpoint deletion may also release shared composition
-                // captures. Recompute instead of subtracting only the package
-                // size so the archive cap accounts for reclaimed shared data.
-                currentSize = try archiveSizeInBytes()
+
+                // Only the session tree and search index can change here. Track
+                // their exact delta instead of walking the entire archive after
+                // every checkpoint deletion. This still accounts for shared
+                // composition captures released by the deletion.
+                let updatedTrackedSize =
+                    (try archiveItemSize(at: sessionURL))
+                    + (try archiveItemSize(at: searchIndexURL))
+                currentSize = max(
+                    0,
+                    currentSize - previousTrackedSize + updatedTrackedSize
+                )
                 didPrune = true
             }
 
-            return didPrune
+            return DocumentArchivePruneResult(
+                archiveSizeBytes: currentSize,
+                didPrune: didPrune
+            )
         }
     }
 
@@ -1412,6 +1439,35 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
         }
 
         return totalSize
+    }
+
+    private func archiveItemSize(at url: URL) throws -> Int64 {
+        var isDirectory = ObjCBool(false)
+        guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
+            return 0
+        }
+
+        if isDirectory.boolValue {
+            return try directorySize(at: url)
+        }
+
+        let resourceKeys: Set<URLResourceKey> = [
+            .isRegularFileKey,
+            .fileSizeKey,
+            .totalFileAllocatedSizeKey,
+            .fileAllocatedSizeKey
+        ]
+        let values = try url.resourceValues(forKeys: resourceKeys)
+        guard values.isRegularFile == true else {
+            return 0
+        }
+
+        return Int64(
+            values.totalFileAllocatedSize
+                ?? values.fileAllocatedSize
+                ?? values.fileSize
+                ?? 0
+        )
     }
 }
 

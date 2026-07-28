@@ -127,13 +127,29 @@ enum ClipboardPasteboardReader {
         sourceApp: ClipboardSourceApp?,
         preferences: ClipboardPreferences
     ) async -> ClipboardPasteboardSnapshot? {
+        guard let captured = capturePasteboardContent(
+            pasteboard,
+            sourceApp: sourceApp,
+            preferences: preferences
+        ) else {
+            return nil
+        }
+        return await resolveSnapshot(from: captured)
+    }
+
+    @MainActor
+    static func capturePasteboardContent(
+        _ pasteboard: any PasteboardServicing,
+        sourceApp: ClipboardSourceApp?,
+        preferences: ClipboardPreferences
+    ) -> ClipboardCapturedPasteboardContent? {
         let typeNames = pasteboard.typeNames
         guard !containsSensitiveOrTransientType(typeNames),
               !preferences.ignores(sourceApp) else {
             return nil
         }
 
-        let captured = ClipboardRawPasteboardContent(
+        return ClipboardCapturedPasteboardContent(
             urls: pasteboard.fileAndWebURLs(),
             pngData: pasteboard.data(forType: .png),
             tiffData: pasteboard.data(forType: .tiff),
@@ -142,18 +158,33 @@ enum ClipboardPasteboardReader {
             previewableBinaryRepresentations: previewableBinaryTypeIdentifiers.compactMap { typeIdentifier in
                 guard let data = pasteboard.data(forType: NSPasteboard.PasteboardType(typeIdentifier)),
                       !data.isEmpty else { return nil }
-                return ClipboardRawBinaryRepresentation(typeIdentifier: typeIdentifier, data: data)
+                return ClipboardCapturedBinaryRepresentation(typeIdentifier: typeIdentifier, data: data)
             }
         )
+    }
+
+    static func resolveSnapshot(
+        from captured: ClipboardCapturedPasteboardContent
+    ) async -> ClipboardPasteboardSnapshot? {
         // Clipboard images are processed as part of the copy event. Run OCR
         // at user-initiated QoS so Vision does not make the calling task wait
         // on utility-priority work.
-        return await Task.detached(priority: .userInitiated) {
+        let task = Task.detached(priority: .userInitiated) {
             snapshot(from: captured)
-        }.value
+        }
+        return await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
     }
 
-    nonisolated private static func snapshot(from captured: ClipboardRawPasteboardContent) -> ClipboardPasteboardSnapshot? {
+    nonisolated private static func snapshot(
+        from captured: ClipboardCapturedPasteboardContent
+    ) -> ClipboardPasteboardSnapshot? {
+        guard !Task.isCancelled else {
+            return nil
+        }
         if !captured.urls.isEmpty {
             let fileURLs = captured.urls.filter(\.isFileURL)
             let webURLs = captured.urls.filter(isWebURL)
@@ -169,6 +200,7 @@ enum ClipboardPasteboardReader {
             }
         }
         if let pngData = captured.pngData, !pngData.isEmpty {
+            guard !Task.isCancelled else { return nil }
             return .imageData(
                 pngData,
                 title: "Image",
@@ -176,6 +208,7 @@ enum ClipboardPasteboardReader {
             )
         }
         if let tiffData = captured.tiffData,
+           !Task.isCancelled,
            let image = NSImage(data: tiffData),
            let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
            let pngData = try? ImageExporter.pngData(for: cgImage) {
@@ -186,6 +219,7 @@ enum ClipboardPasteboardReader {
             )
         }
         for representation in captured.previewableBinaryRepresentations {
+            guard !Task.isCancelled else { return nil }
             guard let image = NSImage(data: representation.data),
                   let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
                   let pngData = try? ImageExporter.pngData(for: cgImage) else {
@@ -293,16 +327,16 @@ enum ClipboardPasteboardReader {
     }
 }
 
-nonisolated private struct ClipboardRawPasteboardContent: Sendable {
+nonisolated struct ClipboardCapturedPasteboardContent: Sendable {
     let urls: [URL]
     let pngData: Data?
     let tiffData: Data?
     let text: String?
     let urlTitle: String?
-    let previewableBinaryRepresentations: [ClipboardRawBinaryRepresentation]
+    let previewableBinaryRepresentations: [ClipboardCapturedBinaryRepresentation]
 }
 
-nonisolated private struct ClipboardRawBinaryRepresentation: Sendable {
+nonisolated struct ClipboardCapturedBinaryRepresentation: Sendable {
     let typeIdentifier: String
     let data: Data
 }
@@ -314,24 +348,44 @@ enum ClipboardPasteboardSnapshot: Equatable {
     case fileURLs([URL])
 }
 
+typealias ClipboardSnapshotResolver = @Sendable (
+    ClipboardCapturedPasteboardContent
+) async -> ClipboardPasteboardSnapshot?
+
 @MainActor
 final class ClipboardMonitor {
+    private struct PendingChange {
+        let content: ClipboardCapturedPasteboardContent
+        let sourceApp: ClipboardSourceApp?
+        let preferences: ClipboardPreferences
+        let pasteboardItems: [PasteboardItemSnapshot]
+        let copiedAt: Date
+    }
+
     private let store: ClipboardHistoryStore
     private let pasteboard: any PasteboardServicing
     private let workspace: any WorkspaceServicing
+    private let snapshotResolver: ClipboardSnapshotResolver
     private var timer: Timer?
     private var observedChangeCount: Int
     private var currentPreferences: ClipboardPreferences?
     private var pausedUntil: Date?
+    private var pendingChange: PendingChange?
+    private var ingestionTask: Task<Void, Never>?
+    private var activeIngestionID: UUID?
 
     init(
         store: ClipboardHistoryStore,
         pasteboard: any PasteboardServicing = SystemPasteboardService(),
-        workspace: any WorkspaceServicing = SystemWorkspaceService()
+        workspace: any WorkspaceServicing = SystemWorkspaceService(),
+        snapshotResolver: @escaping ClipboardSnapshotResolver = {
+            await ClipboardPasteboardReader.resolveSnapshot(from: $0)
+        }
     ) {
         self.store = store
         self.pasteboard = pasteboard
         self.workspace = workspace
+        self.snapshotResolver = snapshotResolver
         observedChangeCount = pasteboard.changeCount
     }
 
@@ -371,6 +425,7 @@ final class ClipboardMonitor {
     func stop() {
         timer?.invalidate()
         timer = nil
+        cancelPendingIngestion()
     }
 
     func markCurrentPasteboardChangeAsHandled() {
@@ -379,6 +434,7 @@ final class ClipboardMonitor {
 
     func pause(until date: Date?) {
         pausedUntil = date
+        cancelPendingIngestion()
         markCurrentPasteboardChangeAsHandled()
     }
 
@@ -419,25 +475,79 @@ final class ClipboardMonitor {
         let pasteboardItems = pasteboard.itemSnapshots(
             acceptedTypeIdentifiers: ClipboardPasteboardReader.preservedTypeIdentifiers
         )
+        guard let content = ClipboardPasteboardReader.capturePasteboardContent(
+            pasteboard,
+            sourceApp: sourceApp,
+            preferences: sanitizedPreferences
+        ) else {
+            return
+        }
 
-        let copiedAt = Date()
-        Task { @MainActor [weak self] in
-            guard let self,
-                  let snapshot = await ClipboardPasteboardReader.readPasteboardAsync(
-                    self.pasteboard,
-                    sourceApp: sourceApp,
-                    preferences: sanitizedPreferences
-                  ) else {
+        enqueue(PendingChange(
+            content: content,
+            sourceApp: sourceApp,
+            preferences: sanitizedPreferences,
+            pasteboardItems: pasteboardItems,
+            copiedAt: Date()
+        ))
+    }
+
+    private func enqueue(_ change: PendingChange) {
+        pendingChange = change
+        startNextIngestionIfNeeded()
+    }
+
+    private func startNextIngestionIfNeeded() {
+        guard ingestionTask == nil, let change = pendingChange else {
+            return
+        }
+
+        pendingChange = nil
+        let ingestionID = UUID()
+        let resolver = snapshotResolver
+        activeIngestionID = ingestionID
+        ingestionTask = Task { @MainActor [weak self] in
+            let snapshot = await resolver(change.content)
+            guard let self else {
                 return
             }
-            self.record(
-                snapshot,
-                sourceApp: sourceApp,
-                preferences: sanitizedPreferences,
-                pasteboardItems: pasteboardItems,
-                copiedAt: copiedAt
+
+            self.completeIngestion(
+                id: ingestionID,
+                change: change,
+                snapshot: Task.isCancelled ? nil : snapshot
             )
         }
+    }
+
+    private func completeIngestion(
+        id: UUID,
+        change: PendingChange,
+        snapshot: ClipboardPasteboardSnapshot?
+    ) {
+        guard activeIngestionID == id else {
+            return
+        }
+
+        ingestionTask = nil
+        activeIngestionID = nil
+        if let snapshot {
+            record(
+                snapshot,
+                sourceApp: change.sourceApp,
+                preferences: change.preferences,
+                pasteboardItems: change.pasteboardItems,
+                copiedAt: change.copiedAt
+            )
+        }
+        startNextIngestionIfNeeded()
+    }
+
+    private func cancelPendingIngestion() {
+        ingestionTask?.cancel()
+        ingestionTask = nil
+        activeIngestionID = nil
+        pendingChange = nil
     }
 
     private func record(

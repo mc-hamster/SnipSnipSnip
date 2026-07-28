@@ -592,7 +592,8 @@ func makeEditorDocumentSession(
     undoStack: [EditorSnapshot] = [],
     redoStack: [EditorSnapshot] = [],
     toolStyles: [EditorTool: AnnotationStyle] = makeDefaultToolStyles(),
-    savedPresentations: [SavedPresentation] = []
+    savedPresentations: [SavedPresentation] = [],
+    hasTruncatedUndoHistory: Bool = false
 ) -> EditorDocumentSession {
     let initial = initialSnapshot ?? makeEditorSnapshot()
     let current = currentSnapshot ?? initial
@@ -603,7 +604,8 @@ func makeEditorDocumentSession(
         undoStack: undoStack,
         redoStack: redoStack,
         toolStyles: toolStyles,
-        savedPresentations: savedPresentations
+        savedPresentations: savedPresentations,
+        hasTruncatedUndoHistory: hasTruncatedUndoHistory
     )
 }
 
@@ -622,7 +624,8 @@ func editorSessionRemovingComposition(
         undoStack: session.undoStack.map { removingComposition(from: $0) },
         redoStack: session.redoStack.map { removingComposition(from: $0) },
         toolStyles: session.toolStyles,
-        savedPresentations: session.savedPresentations
+        savedPresentations: session.savedPresentations,
+        hasTruncatedUndoHistory: session.hasTruncatedUndoHistory
     )
 }
 
