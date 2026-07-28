@@ -139,7 +139,11 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
 
         let displays = content.displays
         let candidates = content.windows.compactMap { window -> WindowCaptureCandidate? in
-            let scale = displayScale(forCaptureFrame: window.frame, displays: displays)
+            let scale = gscDisplayScale(
+                forCaptureFrame: window.frame,
+                displays: displays,
+                fallbackScale: 2
+            )
 
             guard window.ownerPID != processID else {
                 return nil
@@ -488,7 +492,11 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
             throw ScreenCaptureError.windowImageUnavailable
         }
 
-        let scale = displayScale(forCaptureFrame: sourceWindow.frame, displays: content.displays)
+        let scale = gscDisplayScale(
+            forCaptureFrame: sourceWindow.frame,
+            displays: content.displays,
+            fallbackScale: 2
+        )
         let image = try await platform.captureScreenshot(
             ScreenCaptureRequest(
                 target: .window(sourceWindow.id),
@@ -592,7 +600,14 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
             return .filteredDisplay(request)
         }
 
-        return .screenRect(rect: normalizedRegion, scale: captureScale(for: normalizedRegion, displays: displays))
+        return .screenRect(
+            rect: normalizedRegion,
+            scale: gscDisplayScale(
+                forCaptureFrame: normalizedRegion,
+                displays: displays,
+                fallbackScale: 1
+            )
+        )
     }
 
     private func debugCapturePlan(
@@ -966,22 +981,6 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
 
     nonisolated private func fullscreenSourceName(for displays: [DisplaySnapshot]) -> String {
         displays.count == 1 ? (displays.first?.name ?? "Display") : "All Displays"
-    }
-
-    nonisolated private func captureScale(for frame: CGRect, displays: [DisplaySnapshot]) -> CGFloat {
-        let intersectingScales = displays.compactMap { display -> CGFloat? in
-            display.frame.intersects(frame) ? display.scale : nil
-        }
-
-        return max(intersectingScales.max() ?? 1, 1)
-    }
-
-    private func displayScale(forCaptureFrame frame: CGRect, displays: [DisplaySnapshot]) -> CGFloat {
-        let scales = displays.compactMap { display -> CGFloat? in
-            display.frame.intersects(frame) ? display.scale : nil
-        }
-
-        return max(scales.max() ?? 2, 1)
     }
 }
 

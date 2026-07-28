@@ -314,11 +314,7 @@ private extension AutomationURLRouter {
 
         func rect() -> CGRect? {
             if let value = string("rect") {
-                let parts = value.split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
-                guard parts.count == 4 else {
-                    return nil
-                }
-                return CGRect(x: parts[0], y: parts[1], width: parts[2], height: parts[3]).gscIntegralStandardized
+                return AutomationValueParser.rect(value)
             }
 
             guard let x = string("x").flatMap(Double.init),

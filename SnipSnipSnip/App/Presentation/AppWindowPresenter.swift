@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import SwiftUI
 
 struct AppWindowVisibilityToken: Hashable {
     fileprivate let id = UUID()
@@ -12,6 +13,15 @@ protocol AppWindowPresenting: AnyObject {
     func promoteToRegularApp()
     func demoteToAccessoryIfPossible()
     func activateApp()
+}
+
+@MainActor
+func presentAppScene(id: String, using openWindow: OpenWindowAction) {
+    openWindow(id: id)
+    NSApp.activate(ignoringOtherApps: true)
+    NSApp.windows.first {
+        $0.identifier?.rawValue == id
+    }?.makeKeyAndOrderFront(nil)
 }
 
 @MainActor

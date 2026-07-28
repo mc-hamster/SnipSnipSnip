@@ -216,8 +216,7 @@ final class CompositionImportWorkflowTests: XCTestCase {
 
     private func makeFixture(named name: String) throws -> Fixture {
         let suiteName = "CompositionImportWorkflowTests.\(name)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeDefaults(named: suiteName)
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(

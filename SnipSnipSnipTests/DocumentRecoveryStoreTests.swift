@@ -39,7 +39,7 @@ final class DocumentRecoveryStoreTests: XCTestCase {
 
         let restored = try store.restoreDocument(from: entry)
         XCTAssertEqual(
-            recoverySessionByRemovingComposition(from: restored.session),
+            editorSessionRemovingComposition(from: restored.session),
             document.session
         )
         let restoredComposition = try XCTUnwrap(
@@ -1461,24 +1461,6 @@ final class DocumentRecoveryStoreTests: XCTestCase {
         let session = makeEditorDocumentSession(initialSnapshot: snapshot)
 
         return makeEditableDocument(capture: capture, session: session)
-    }
-
-    private func recoverySessionByRemovingComposition(
-        from session: EditorDocumentSession
-    ) -> EditorDocumentSession {
-        func legacy(_ snapshot: EditorSnapshot) -> EditorSnapshot {
-            var snapshot = snapshot
-            snapshot.composition = nil
-            return snapshot
-        }
-        return EditorDocumentSession(
-            initialSnapshot: legacy(session.initialSnapshot),
-            currentSnapshot: legacy(session.currentSnapshot),
-            undoStack: session.undoStack.map(legacy),
-            redoStack: session.redoStack.map(legacy),
-            toolStyles: session.toolStyles,
-            savedPresentations: session.savedPresentations
-        )
     }
 
     private func makeCompositionDocument(

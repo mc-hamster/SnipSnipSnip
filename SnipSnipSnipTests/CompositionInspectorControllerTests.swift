@@ -753,10 +753,13 @@ final class CompositionInspectorControllerTests: XCTestCase {
         )
         composition.repairComparisonSelection()
         snapshot.composition = composition
+        let suiteName = "CompositionInspectorControllerTests.\(UUID().uuidString)"
+        let defaults = makeDefaults(named: suiteName)
+
         return EditorController(
             capture: makeCapturedScreenshot(),
             session: makeEditorDocumentSession(initialSnapshot: snapshot),
-            defaults: UserDefaults(suiteName: "CompositionInspectorControllerTests.\(UUID().uuidString)")!,
+            defaults: defaults,
             capabilities: testCapabilities
         )
     }

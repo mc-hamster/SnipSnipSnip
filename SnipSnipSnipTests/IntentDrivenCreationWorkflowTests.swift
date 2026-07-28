@@ -880,8 +880,7 @@ final class IntentDrivenCreationWorkflowTests: XCTestCase {
     {
         let suiteName =
             "IntentDrivenCreationWorkflowTests.contextOwnership"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeDefaults(named: suiteName)
         defer {
             defaults.removePersistentDomain(forName: suiteName)
         }
@@ -1099,8 +1098,7 @@ final class IntentDrivenCreationWorkflowTests: XCTestCase {
         -> IntentCreationFixture
     {
         let suiteName = "IntentDrivenCreationWorkflowTests.\(name)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeDefaults(named: suiteName)
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(

@@ -2816,12 +2816,7 @@ final class EditorControllerTests: XCTestCase {
 
     private func makeTestDefaults() -> UserDefaults {
         let suiteName = "EditorControllerTests.\(UUID().uuidString)"
-        guard let defaults = UserDefaults(suiteName: suiteName) else {
-            fatalError("Expected test defaults suite")
-        }
-
-        defaults.removePersistentDomain(forName: suiteName)
-        return defaults
+        return makeDefaults(named: suiteName)
     }
 
     @MainActor

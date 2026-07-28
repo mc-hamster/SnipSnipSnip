@@ -2359,8 +2359,12 @@ final class AppModelTests: XCTestCase {
     }
 
     func testInitialCaptureHistoryIndexImageUsesFullCaptureImage() {
+        let suiteName = #function
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
         let model = AppModel(
-            defaults: UserDefaults(suiteName: #function)!,
+            defaults: defaults,
             recoveryStore: DocumentRecoveryStore(baseURL: nil),
             captureService: ScreenCaptureService(),
             shouldCheckCompatibilityOnLaunch: false,

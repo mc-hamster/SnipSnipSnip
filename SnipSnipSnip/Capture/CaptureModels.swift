@@ -980,6 +980,18 @@ nonisolated struct DisplaySnapshot: Equatable, Sendable {
     }
 }
 
+nonisolated func gscDisplayScale(
+    forCaptureFrame frame: CGRect,
+    displays: [DisplaySnapshot],
+    fallbackScale: CGFloat
+) -> CGFloat {
+    let intersectingScales = displays.compactMap { display -> CGFloat? in
+        display.frame.intersects(frame) ? display.scale : nil
+    }
+
+    return max(intersectingScales.max() ?? fallbackScale, 1)
+}
+
 nonisolated struct DisplayPreview {
     let snapshot: DisplaySnapshot
     let image: CGImage

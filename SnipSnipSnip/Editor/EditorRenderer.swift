@@ -638,59 +638,10 @@ enum EditorRenderer {
     }
 
     nonisolated private static func uiMapOverlayLabel(for element: UIMapElement, options: UIMapOverlayOptions) -> String {
-        var segments: [String] = []
-
-        if options.showsSource {
-            segments.append(element.isRecognizedTextSupplement ? "OCR supplement text" : "Accessibility element")
-        }
-
-        if options.showsLabel {
-            if let name = element.name {
-                segments.append(name)
-            } else {
-                segments.append(element.displayName)
-            }
-        }
-
-        if options.showsAccessibilityLabel,
-           let accessibilityLabel = element.accessibilityLabel,
-           accessibilityLabel != element.name {
-            segments.append(accessibilityLabel)
-        }
-
-        if options.showsIdentifier, let identifier = element.accessibilityIdentifier {
-            segments.append("#\(identifier)")
-        }
-
-        if options.showsRole {
-            segments.append(element.typeLabel)
-        }
-
-        if options.showsValue, let value = element.valueDescription {
-            segments.append(value)
-        }
-
-        if options.showsCoordinates {
-            segments.append("x \(Int(element.documentRect.minX)), y \(Int(element.documentRect.minY))")
-        }
-
-        if options.showsDimensions {
-            segments.append("\(Int(element.documentRect.width)) x \(Int(element.documentRect.height))")
-        }
-
-        if options.showsOwningApplication, let owningApplication = element.owningApplication {
-            segments.append(owningApplication)
-        }
-
-        if options.showsBundleIdentifier, let bundleIdentifier = element.bundleIdentifier {
-            segments.append(bundleIdentifier)
-        }
-
-        if options.showsParentHierarchy, let parentHierarchy = element.overlayParentHierarchy {
-            segments.append(parentHierarchy)
-        }
-
-        return segments.joined(separator: "  ")
+        element.overlayLabelSegments(
+            options: options,
+            parentHierarchy: element.overlayParentHierarchy
+        ).joined(separator: "  ")
     }
 
     nonisolated private static func uiMapOverlayLabelRect(

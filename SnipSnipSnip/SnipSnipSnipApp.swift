@@ -198,15 +198,11 @@ private struct CaptureCommands: Commands {
 
     private func showMainWindow() {
         workflowCoordinator.prepareForMainWindowPresentation()
-        openWindow(id: AppSceneID.mainWindow)
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.mainWindow })?.makeKeyAndOrderFront(nil)
+        presentAppScene(id: AppSceneID.mainWindow, using: openWindow)
     }
 
     private func showOnboardingWindow() {
-        openWindow(id: AppSceneID.onboardingWindow)
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.onboardingWindow })?.makeKeyAndOrderFront(nil)
+        presentAppScene(id: AppSceneID.onboardingWindow, using: openWindow)
     }
 
     private func showCapturePresetsSettings() {
@@ -304,9 +300,7 @@ private struct HelpCommands: Commands {
     }
 
     private func showHelpWindow() {
-        openWindow(id: AppSceneID.helpWindow)
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.helpWindow })?.makeKeyAndOrderFront(nil)
+        presentAppScene(id: AppSceneID.helpWindow, using: openWindow)
     }
 
     private func openWebsite() {
@@ -689,15 +683,11 @@ private struct EditorCommands: Commands {
     }
 
     private func showLayersWindow() {
-        openWindow(id: AppSceneID.layersWindow)
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.layersWindow })?.makeKeyAndOrderFront(nil)
+        presentAppScene(id: AppSceneID.layersWindow, using: openWindow)
     }
 
     private func showUIMapWindow() {
-        openWindow(id: AppSceneID.uiMapWindow)
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.uiMapWindow })?.makeKeyAndOrderFront(nil)
+        presentAppScene(id: AppSceneID.uiMapWindow, using: openWindow)
     }
 
     private var documentOutputIsAvailable: Bool {

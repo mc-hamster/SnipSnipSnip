@@ -5,6 +5,15 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class AutomationContractTests: XCTestCase {
+    func testAutomationValueParserParsesSharedRectangleFormat() {
+        XCTAssertEqual(
+            AutomationValueParser.rect(" 10, 20, 300, 200 "),
+            CGRect(x: 10, y: 20, width: 300, height: 200)
+        )
+        XCTAssertNil(AutomationValueParser.rect("10,20,300"))
+        XCTAssertNil(AutomationValueParser.rect("not-a-rectangle"))
+    }
+
     func testAutomationRequestRoundTripsThroughCodable() throws {
         let requestID = UUID()
         let appendAfterItemID = UUID()

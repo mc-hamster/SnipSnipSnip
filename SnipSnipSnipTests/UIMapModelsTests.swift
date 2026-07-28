@@ -47,6 +47,55 @@ final class UIMapModelsTests: XCTestCase {
         XCTAssertFalse(options.showsParentHierarchy)
     }
 
+    func testOverlayLabelSegmentsUseSelectedMetadataInDisplayOrder() {
+        let element = UIMapElement(
+            name: "Save",
+            accessibilityLabel: "Save Document",
+            accessibilityIdentifier: "save-button",
+            role: "AXButton",
+            roleDescription: "Button",
+            valueDescription: "Enabled",
+            source: .accessibility,
+            documentRect: CGRect(x: 10, y: 12, width: 80, height: 28),
+            owningApplication: "Fixture",
+            bundleIdentifier: "com.example.fixture",
+            overlayParentHierarchy: "Stored Hierarchy"
+        )
+        let options = UIMapOverlayOptions(
+            showsSource: true,
+            showsLabel: true,
+            showsAccessibilityLabel: true,
+            showsIdentifier: true,
+            showsRole: true,
+            showsValue: true,
+            showsCoordinates: true,
+            showsDimensions: true,
+            showsOwningApplication: true,
+            showsBundleIdentifier: true,
+            showsParentHierarchy: true
+        )
+
+        XCTAssertEqual(
+            element.overlayLabelSegments(
+                options: options,
+                parentHierarchy: "Window > Toolbar"
+            ),
+            [
+                "Accessibility element",
+                "Save",
+                "Save Document",
+                "#save-button",
+                "Button",
+                "Enabled",
+                "x 10, y 12",
+                "80 x 28",
+                "Fixture",
+                "com.example.fixture",
+                "Window > Toolbar",
+            ]
+        )
+    }
+
     func testSearchAndRoleFilteringUseMetadataFields() {
         let button = UIMapElement(
             name: "Save",

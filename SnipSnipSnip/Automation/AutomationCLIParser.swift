@@ -314,7 +314,9 @@ nonisolated enum AutomationCLIParser {
         case "region":
             if cursor.contains("--interactive") {
                 target = .interactiveRegion
-            } else if let rect = cursor.value(after: "--rect").flatMap(parseRect) {
+            } else if let rect = cursor.value(after: "--rect").flatMap({
+                AutomationValueParser.rect($0)
+            }) {
                 target = .region(RegionCaptureSelector(rect: rect))
             } else {
                 return failure("Region capture requires --rect or --interactive.", wantsJSON: json, exitCode: 64)
@@ -526,14 +528,6 @@ nonisolated enum AutomationCLIParser {
         )
 
         return format == .sss ? .saveEditableDocument(file) : .saveFile(file)
-    }
-
-    private static func parseRect(_ value: String) -> CGRect? {
-        let parts = value.split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
-        guard parts.count == 4 else {
-            return nil
-        }
-        return CGRect(x: parts[0], y: parts[1], width: parts[2], height: parts[3]).gscIntegralStandardized
     }
 
     private static func parseBool(_ value: String) -> Bool? {

@@ -528,6 +528,21 @@ nonisolated enum ScreenshotPresentationBackground: Equatable, Codable, Sendable 
         }
     }
 
+    var renderCacheIdentity: String {
+        switch self {
+        case .transparent:
+            return "transparent"
+        case let .solid(color):
+            return "solid:\(color.red):\(color.green):\(color.blue):\(color.alpha)"
+        case let .twoColorGradient(start, end):
+            return "gradient:\(start.red):\(start.green):\(start.blue):\(start.alpha):\(end.red):\(end.green):\(end.blue):\(end.alpha)"
+        case let .radialSpotlight(base, spotlight):
+            return "spotlight:\(base.red):\(base.green):\(base.blue):\(base.alpha):\(spotlight.red):\(spotlight.green):\(spotlight.blue):\(spotlight.alpha)"
+        case let .blurredScreenshot(tint):
+            return "blurred:\(tint.red):\(tint.green):\(tint.blue):\(tint.alpha)"
+        }
+    }
+
     var fillColor: RGBAColor {
         switch self {
         case .transparent:

@@ -475,7 +475,7 @@ final class SSSVideoDocumentTests: XCTestCase {
         let sourceURL = try writeTemporaryMediaFile(named: TemporaryVideoMediaManager.recordingOutputURL().lastPathComponent)
         let recoveryRoot = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let defaultsSuiteName = "SSSVideoDocumentTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: defaultsSuiteName)!
+        let defaults = makeDefaults(named: defaultsSuiteName)
         let model = AppModel(defaults: defaults, recoveryStore: DocumentRecoveryStore(baseURL: recoveryRoot), shouldCheckCompatibilityOnLaunch: false)
         let controller = VideoEditorController(recording: makeRecording(sourceURL: sourceURL), posterImage: makeCoordinateImage(width: 16, height: 12))
 
@@ -499,7 +499,7 @@ final class SSSVideoDocumentTests: XCTestCase {
             .appendingPathExtension("sssvideo")
         let recoveryRoot = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let defaultsSuiteName = "SSSVideoDocumentTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: defaultsSuiteName)!
+        let defaults = makeDefaults(named: defaultsSuiteName)
         let model = AppModel(defaults: defaults, recoveryStore: DocumentRecoveryStore(baseURL: recoveryRoot), shouldCheckCompatibilityOnLaunch: false)
         let session = VideoEditorSession(trimStartSeconds: 1, trimEndSeconds: 9, posterTimeSeconds: 4)
         let posterImage = makeCoordinateImage(width: 16, height: 12, pattern: .weighted(xMultiplier: 11, yMultiplier: 13, includeBlueSum: true))

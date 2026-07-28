@@ -1635,64 +1635,19 @@ private final class AnnotationCanvasOverlayView: NSView {
     }
 
     private func uiMapOverlayLabelSegments(for element: UIMapElement, options: UIMapOverlayOptions) -> [String] {
-        var segments: [String] = []
-
-        if options.showsSource {
-            segments.append(element.isRecognizedTextSupplement ? "OCR supplement text" : "Accessibility element")
-        }
-
-        if options.showsLabel {
-            if let name = element.name {
-                segments.append(name)
-            } else {
-                segments.append(element.displayName)
-            }
-        }
-
-        if options.showsAccessibilityLabel,
-           let accessibilityLabel = element.accessibilityLabel,
-           accessibilityLabel != element.name {
-            segments.append(accessibilityLabel)
-        }
-
-        if options.showsIdentifier, let identifier = element.accessibilityIdentifier {
-            segments.append("#\(identifier)")
-        }
-
-        if options.showsRole {
-            segments.append(element.typeLabel)
-        }
-
-        if options.showsValue, let value = element.valueDescription {
-            segments.append(value)
-        }
-
-        if options.showsCoordinates {
-            segments.append("x \(Int(element.documentRect.minX)), y \(Int(element.documentRect.minY))")
-        }
-
-        if options.showsDimensions {
-            segments.append("\(Int(element.documentRect.width)) x \(Int(element.documentRect.height))")
-        }
-
-        if options.showsOwningApplication, let owningApplication = element.owningApplication {
-            segments.append(owningApplication)
-        }
-
-        if options.showsBundleIdentifier, let bundleIdentifier = element.bundleIdentifier {
-            segments.append(bundleIdentifier)
-        }
-
+        let parentHierarchy: String?
         if options.showsParentHierarchy {
-            let hierarchy = controller.uiMapSnapshot?.parentHierarchy(for: element.id)
+            parentHierarchy = controller.uiMapSnapshot?.parentHierarchy(for: element.id)
                 .map(\.displayName)
                 .joined(separator: " > ")
-            if let hierarchy, !hierarchy.isEmpty {
-                segments.append(hierarchy)
-            }
+        } else {
+            parentHierarchy = nil
         }
 
-        return segments
+        return element.overlayLabelSegments(
+            options: options,
+            parentHierarchy: parentHierarchy
+        )
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {

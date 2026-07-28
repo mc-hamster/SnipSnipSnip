@@ -1792,45 +1792,6 @@ final class SSSDocumentCompositionTests: XCTestCase {
         )
     }
 
-    private func normalizedRGBAPixels(_ image: CGImage) -> [UInt8]? {
-        let bytesPerRow = image.width * 4
-        var pixels = [UInt8](
-            repeating: 0,
-            count: bytesPerRow * image.height
-        )
-        let rendered = pixels.withUnsafeMutableBytes { storage -> Bool in
-            guard let baseAddress = storage.baseAddress,
-                  let colorSpace = CGColorSpace(
-                    name: CGColorSpace.sRGB
-                  ),
-                  let context = CGContext(
-                    data: baseAddress,
-                    width: image.width,
-                    height: image.height,
-                    bitsPerComponent: 8,
-                    bytesPerRow: bytesPerRow,
-                    space: colorSpace,
-                    bitmapInfo:
-                        CGBitmapInfo.byteOrder32Big.rawValue
-                        | CGImageAlphaInfo.premultipliedLast.rawValue
-                  ) else {
-                return false
-            }
-            context.interpolationQuality = .none
-            context.draw(
-                image,
-                in: CGRect(
-                    x: 0,
-                    y: 0,
-                    width: image.width,
-                    height: image.height
-                )
-            )
-            return true
-        }
-        return rendered ? pixels : nil
-    }
-
     private func temporaryPackageURL() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)

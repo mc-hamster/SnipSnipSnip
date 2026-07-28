@@ -180,7 +180,11 @@ struct ScreenRecordingService {
         let target = ScreenRecordingTarget(
             source: .window(sourceWindow.id),
             contentBounds: sourceWindow.frame.gscIntegralStandardized,
-            pointPixelScale: displayScale(forCaptureFrame: sourceWindow.frame, displays: content.displays),
+            pointPixelScale: gscDisplayScale(
+                forCaptureFrame: sourceWindow.frame,
+                displays: content.displays,
+                fallbackScale: 2
+            ),
             sourceRect: nil
         )
         let configuration = streamConfiguration(
@@ -357,14 +361,6 @@ struct ScreenRecordingService {
             pointPixelScale: display.scale,
             sourceRect: sourceRect?.gscIntegralStandardized
         )
-    }
-
-    private func displayScale(forCaptureFrame frame: CGRect, displays: [DisplaySnapshot]) -> CGFloat {
-        let scales = displays.compactMap { display -> CGFloat? in
-            display.frame.intersects(frame) ? display.scale : nil
-        }
-
-        return max(scales.max() ?? 2, 1)
     }
 }
 

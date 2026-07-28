@@ -220,7 +220,7 @@ final class SSSDocumentTests: XCTestCase {
         XCTAssertEqual(loaded.capture.image.width, capture.image.width)
         XCTAssertEqual(loaded.capture.image.height, capture.image.height)
         XCTAssertEqual(
-            sessionByRemovingComposition(from: loaded.session),
+            editorSessionRemovingComposition(from: loaded.session),
             session
         )
         for snapshot in allSnapshots(in: loaded.session) {
@@ -249,24 +249,6 @@ final class SSSDocumentTests: XCTestCase {
         XCTAssertEqual(loadedCallout.textAlignmentMode, .left)
 
         try? FileManager.default.removeItem(at: packageURL)
-    }
-
-    private func sessionByRemovingComposition(
-        from session: EditorDocumentSession
-    ) -> EditorDocumentSession {
-        func legacy(_ snapshot: EditorSnapshot) -> EditorSnapshot {
-            var snapshot = snapshot
-            snapshot.composition = nil
-            return snapshot
-        }
-        return EditorDocumentSession(
-            initialSnapshot: legacy(session.initialSnapshot),
-            currentSnapshot: legacy(session.currentSnapshot),
-            undoStack: session.undoStack.map(legacy),
-            redoStack: session.redoStack.map(legacy),
-            toolStyles: session.toolStyles,
-            savedPresentations: session.savedPresentations
-        )
     }
 
     private func allSnapshots(

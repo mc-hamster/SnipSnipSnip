@@ -1260,15 +1260,11 @@ struct ContentView: View {
     }
 
     private func showLayersWindow() {
-        openWindow(id: AppSceneID.layersWindow)
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.layersWindow })?.makeKeyAndOrderFront(nil)
+        presentAppScene(id: AppSceneID.layersWindow, using: openWindow)
     }
 
     private func showUIMapWindow() {
-        openWindow(id: AppSceneID.uiMapWindow)
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.windows.first(where: { $0.identifier?.rawValue == AppSceneID.uiMapWindow })?.makeKeyAndOrderFront(nil)
+        presentAppScene(id: AppSceneID.uiMapWindow, using: openWindow)
     }
 
     private var headerWorkingIndicator: some View {

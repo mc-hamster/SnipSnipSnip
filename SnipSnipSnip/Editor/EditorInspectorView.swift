@@ -1146,7 +1146,7 @@ struct ShadowDirectionPicker: View {
                 .fill(Color.secondary.opacity(0.16))
         )
         .overlay {
-            ShadowDirectionGridLines()
+            ThreeByThreeGridLines()
                 .stroke(Color.primary.opacity(0.58), lineWidth: 1.5)
                 .padding(3)
         }
@@ -1160,7 +1160,7 @@ struct ShadowDirectionPicker: View {
 }
 
 
-struct ShadowDirectionGridLines: Shape {
+struct ThreeByThreeGridLines: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
         let thirdWidth = rect.width / 3

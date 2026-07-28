@@ -984,21 +984,6 @@ private struct LivePresentationThumbnailView: View {
         presentation ?? controller.presentation
     }
 
-    private var presentationBackgroundID: String {
-        switch effectivePresentation.background {
-        case .transparent:
-            return "transparent"
-        case let .solid(color):
-            return "solid:\(color.red):\(color.green):\(color.blue):\(color.alpha)"
-        case let .twoColorGradient(start, end):
-            return "gradient:\(start.red):\(start.green):\(start.blue):\(start.alpha):\(end.red):\(end.green):\(end.blue):\(end.alpha)"
-        case let .radialSpotlight(base, spotlight):
-            return "spotlight:\(base.red):\(base.green):\(base.blue):\(base.alpha):\(spotlight.red):\(spotlight.green):\(spotlight.blue):\(spotlight.alpha)"
-        case let .blurredScreenshot(tint):
-            return "blurred:\(tint.red):\(tint.green):\(tint.blue):\(tint.alpha)"
-        }
-    }
-
     private var renderID: String {
         [
             "\(controller.presentationContentRevision)",
@@ -1031,7 +1016,7 @@ private struct LivePresentationThumbnailView: View {
             "\(effectivePresentation.shadowOffsetX)",
             "\(effectivePresentation.shadowOffsetY)",
             "\(effectivePresentation.shadowOpacity)",
-            presentationBackgroundID,
+            effectivePresentation.background.renderCacheIdentity,
             "\(Int(thumbnailSize.width))x\(Int(thumbnailSize.height))",
         ].joined(separator: "|")
     }
@@ -1439,26 +1424,6 @@ private func presentationPaletteRow(selection: RGBAColor, action: @escaping @Mai
     .frame(maxWidth: .infinity, alignment: .leading)
 }
 
-private struct PresentationDirectionGridLines: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let thirdWidth = rect.width / 3
-        let thirdHeight = rect.height / 3
-
-        for index in 1...2 {
-            let x = rect.minX + CGFloat(index) * thirdWidth
-            path.move(to: CGPoint(x: x, y: rect.minY))
-            path.addLine(to: CGPoint(x: x, y: rect.maxY))
-
-            let y = rect.minY + CGFloat(index) * thirdHeight
-            path.move(to: CGPoint(x: rect.minX, y: y))
-            path.addLine(to: CGPoint(x: rect.maxX, y: y))
-        }
-
-        return path
-    }
-}
-
 private struct SubjectAlignmentPicker: View {
     let selection: PresentationSubjectAlignment
     let action: (PresentationSubjectAlignment) -> Void
@@ -1499,7 +1464,7 @@ private struct SubjectAlignmentPicker: View {
                 .fill(Color.secondary.opacity(0.16))
         )
         .overlay {
-            PresentationDirectionGridLines()
+            ThreeByThreeGridLines()
                 .stroke(Color.primary.opacity(0.58), lineWidth: 1.5)
                 .padding(3)
         }

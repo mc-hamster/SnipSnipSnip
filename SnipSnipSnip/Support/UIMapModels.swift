@@ -227,6 +227,63 @@ nonisolated struct UIMapElement: Codable, Equatable, Identifiable, Sendable {
         source == .ocrSupplement
     }
 
+    func overlayLabelSegments(
+        options: UIMapOverlayOptions,
+        parentHierarchy: String?
+    ) -> [String] {
+        var segments: [String] = []
+
+        if options.showsSource {
+            segments.append(isRecognizedTextSupplement ? "OCR supplement text" : "Accessibility element")
+        }
+
+        if options.showsLabel {
+            segments.append(name ?? displayName)
+        }
+
+        if options.showsAccessibilityLabel,
+           let accessibilityLabel,
+           accessibilityLabel != name {
+            segments.append(accessibilityLabel)
+        }
+
+        if options.showsIdentifier, let accessibilityIdentifier {
+            segments.append("#\(accessibilityIdentifier)")
+        }
+
+        if options.showsRole {
+            segments.append(typeLabel)
+        }
+
+        if options.showsValue, let valueDescription {
+            segments.append(valueDescription)
+        }
+
+        if options.showsCoordinates {
+            segments.append("x \(Int(documentRect.minX)), y \(Int(documentRect.minY))")
+        }
+
+        if options.showsDimensions {
+            segments.append("\(Int(documentRect.width)) x \(Int(documentRect.height))")
+        }
+
+        if options.showsOwningApplication, let owningApplication {
+            segments.append(owningApplication)
+        }
+
+        if options.showsBundleIdentifier, let bundleIdentifier {
+            segments.append(bundleIdentifier)
+        }
+
+        if options.showsParentHierarchy,
+           let parentHierarchy,
+           !parentHierarchy.isEmpty {
+            segments.append(parentHierarchy)
+        }
+
+        return segments
+    }
+
     func matches(searchQuery: String, roleFilter: String?) -> Bool {
         let roleMatches: Bool
         if let roleFilter, !roleFilter.isEmpty {

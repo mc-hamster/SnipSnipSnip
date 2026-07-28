@@ -41,6 +41,48 @@ final class CaptureModelsTests: XCTestCase {
         XCTAssertEqual(resolved.displays.first?.scale, 2)
     }
 
+    func testDisplayScaleUsesMaximumIntersectingScaleAndRequestedFallback() {
+        let displays = [
+            DisplaySnapshot(
+                displayID: 1,
+                name: "One",
+                frame: CGRect(x: 0, y: 0, width: 100, height: 100),
+                scale: 1
+            ),
+            DisplaySnapshot(
+                displayID: 2,
+                name: "Two",
+                frame: CGRect(x: 100, y: 0, width: 100, height: 100),
+                scale: 2
+            ),
+        ]
+
+        XCTAssertEqual(
+            gscDisplayScale(
+                forCaptureFrame: CGRect(x: 50, y: 0, width: 100, height: 100),
+                displays: displays,
+                fallbackScale: 1
+            ),
+            2
+        )
+        XCTAssertEqual(
+            gscDisplayScale(
+                forCaptureFrame: CGRect(x: 300, y: 0, width: 50, height: 50),
+                displays: displays,
+                fallbackScale: 1.5
+            ),
+            1.5
+        )
+        XCTAssertEqual(
+            gscDisplayScale(
+                forCaptureFrame: CGRect(x: 300, y: 0, width: 50, height: 50),
+                displays: displays,
+                fallbackScale: 0.5
+            ),
+            1
+        )
+    }
+
     func testRegionCapturePreferencesDefaultToCombinedOverlayAndAutoCapture() {
         let preferences = RegionCapturePreferences()
 
