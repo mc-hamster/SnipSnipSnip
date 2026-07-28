@@ -136,7 +136,9 @@ struct CreationQuickStartView: View {
                             }
                         }
 
-                        if usesCaptureOptions {
+                        if creation.draft.source.hasFineTuneOptions(
+                            for: creation.capabilities
+                        ) {
                             DisclosureGroup(
                                 "Fine-tune",
                                 isExpanded: $isShowingFineTuning
@@ -383,16 +385,6 @@ struct CreationQuickStartView: View {
         creation.capabilities.isEnabled(.scrollingCapture)
             || creation.capabilities.isEnabled(.connectedDeviceCapture)
             || creation.capabilities.isEnabled(.screenInspector)
-    }
-
-    private var usesCaptureOptions: Bool {
-        switch creation.draft.source {
-        case .existing:
-            return false
-        case .region, .window, .screen, .scrolling,
-             .connectedDevice, .screenInspector:
-            return true
-        }
     }
 
     private func fineTuningSourceButton(

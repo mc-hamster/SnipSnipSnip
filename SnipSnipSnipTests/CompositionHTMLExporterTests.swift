@@ -158,6 +158,30 @@ final class CompositionHTMLExporterTests: XCTestCase {
         }
     }
 
+    func testSideBySideComparisonIncludesInteractiveViewControls() throws {
+        let html = try comparisonHTML(mode: .sideBySide)
+
+        XCTAssertTrue(html.contains("data-comparison-mode=\"side-by-side\""))
+        XCTAssertTrue(
+            html.contains(
+                "data-side-by-side-view=\"both\" aria-pressed=\"true\""
+            )
+        )
+        XCTAssertTrue(html.contains("data-side-by-side-view=\"before\""))
+        XCTAssertTrue(html.contains("data-side-by-side-view=\"after\""))
+        XCTAssertTrue(html.contains("data-side-by-side-status"))
+        XCTAssertTrue(
+            html.contains(
+                ".comparison-side-by-side.show-before .comparison-side-after"
+            )
+        )
+        XCTAssertTrue(
+            html.contains(
+                "button.addEventListener(\"click\", () => show(button.dataset.sideBySideView))"
+            )
+        )
+    }
+
     func testStepsHaveStaticAnchorNavigationAndEnhancedPreviousNextControls() throws {
         let html = try CompositionHTMLExporter.html(for: CompositionHTMLDocument(
             title: "Publish a Release",

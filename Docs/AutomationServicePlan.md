@@ -326,7 +326,9 @@ GIF/APNG/MP4 are composition-aware Blink outputs with deterministic timing,
 crossfade, loop behavior, and a disclosed 4,096 px longest-side cap. HTML is a
 self-contained interactive Compare or Steps artifact built only from rendered,
 redacted pixels, with embedded assets and no runtime server or network
-dependency.
+dependency. Side-by-side Comparison HTML provides Show Both, Before, and After
+controls and falls back to displaying both images when JavaScript is
+unavailable.
 
 `saveEditableDocument(.sss)` must preserve the existing redaction warning
 semantics. When the request has `interactionPolicy == .never` and the document
@@ -778,6 +780,9 @@ output behavior is added.
 - Complete: use URL `item` as the canonical replacement target spelling while
   continuing to accept legacy `replaceItemID`.
 - Complete: add GIF, APNG, MP4, and self-contained HTML format identifiers.
+- Complete: make side-by-side Comparison HTML interactive with Show Both,
+  Before, and After controls while retaining a two-image no-JavaScript
+  fallback.
 - Complete: route direct, preset, repeat, and interactive capture completion
   through generation-scoped new/append/replace intents, with exact-item
   replacement and verified direct-capture mutation results.

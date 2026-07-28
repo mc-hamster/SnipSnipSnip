@@ -343,7 +343,7 @@ struct CompositionAddActions {
         ((CaptureCompletionRole) -> CompositionAddActions)? = nil
 }
 
-enum ContextualCompositionAdditionSource {
+enum ContextualCompositionAdditionSource: Equatable {
     case region
     case window
     case frontmostWindow

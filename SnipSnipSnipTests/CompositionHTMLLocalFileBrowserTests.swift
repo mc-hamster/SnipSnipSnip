@@ -262,6 +262,101 @@ final class CompositionHTMLLocalFileBrowserTests: XCTestCase {
     }
 
     @MainActor
+    func testLocalSideBySideComparisonCanFocusBeforeAfterAndShowBoth() async throws {
+        let html = try CompositionHTMLExporter.html(
+            for: CompositionHTMLDocument(
+                title: "Interactive Comparison",
+                layout: .comparison(
+                    CompositionHTMLComparison(mode: .sideBySide)
+                ),
+                items: [
+                    item(title: "Before", stepLabel: "1"),
+                    item(title: "After", stepLabel: "2"),
+                ]
+            )
+        )
+        let fixture = try LocalHTMLFixture(html: html)
+        defer { fixture.remove() }
+
+        let webView = WKWebView(
+            frame: CGRect(x: 0, y: 0, width: 1_024, height: 768),
+            configuration: browserConfiguration(allowsContentJavaScript: true)
+        )
+        let browserHost = LocalBrowserHost(webView: webView)
+        defer { browserHost.close() }
+        let navigation = LocalFileNavigationWaiter()
+        try await navigation.load(fixture.url, in: webView)
+
+        let before = try await evaluateJSON(
+            """
+            document.querySelector('[data-side-by-side-view="before"]').click();
+            (() => {
+              const comparison = document.querySelector("[data-comparison]");
+              return JSON.stringify({
+                enhanced: document.documentElement.classList.contains("is-enhanced"),
+                className: comparison.className,
+                beforeVisible: getComputedStyle(
+                  comparison.querySelector(".comparison-side-before")
+                ).display !== "none",
+                afterVisible: getComputedStyle(
+                  comparison.querySelector(".comparison-side-after")
+                ).display !== "none",
+                pressed: comparison.querySelector(
+                  '[data-side-by-side-view="before"]'
+                ).getAttribute("aria-pressed"),
+                status: comparison.querySelector(
+                  "[data-side-by-side-status]"
+                ).textContent.trim()
+              });
+            })()
+            """,
+            in: webView
+        )
+
+        XCTAssertEqual(before["enhanced"] as? Bool, true)
+        XCTAssertTrue(
+            try XCTUnwrap(before["className"] as? String)
+                .contains("show-before")
+        )
+        XCTAssertEqual(before["beforeVisible"] as? Bool, true)
+        XCTAssertEqual(before["afterVisible"] as? Bool, false)
+        XCTAssertEqual(before["pressed"] as? String, "true")
+        XCTAssertEqual(before["status"] as? String, "Showing Before")
+
+        let both = try await evaluateJSON(
+            """
+            document.querySelector('[data-side-by-side-view="both"]').click();
+            (() => {
+              const comparison = document.querySelector("[data-comparison]");
+              return JSON.stringify({
+                className: comparison.className,
+                beforeVisible: getComputedStyle(
+                  comparison.querySelector(".comparison-side-before")
+                ).display !== "none",
+                afterVisible: getComputedStyle(
+                  comparison.querySelector(".comparison-side-after")
+                ).display !== "none",
+                status: comparison.querySelector(
+                  "[data-side-by-side-status]"
+                ).textContent.trim()
+              });
+            })()
+            """,
+            in: webView
+        )
+
+        XCTAssertFalse(
+            try XCTUnwrap(both["className"] as? String).contains("show-")
+        )
+        XCTAssertEqual(both["beforeVisible"] as? Bool, true)
+        XCTAssertEqual(both["afterVisible"] as? Bool, true)
+        XCTAssertEqual(
+            both["status"] as? String,
+            "Showing Before and After"
+        )
+    }
+
+    @MainActor
     func testLocalFileWithoutJavaScriptShowsEveryStepAndNoScriptFallback() async throws {
         let html = try CompositionHTMLExporter.html(for: CompositionHTMLDocument(
             title: "Offline steps",

@@ -900,9 +900,17 @@ struct ContentView: View {
             case .comparison:
                 if controller.workflowStage == .awaitingComparisonAfter {
                     sessionAdditionMenu(
-                        "Capture After",
+                        compositionAddActions(for: controller).canRepeat
+                            ? String(
+                                localized: "Repeat Last Capture for After"
+                            )
+                            : String(localized: "Capture After"),
                         systemImage: "camera.viewfinder",
-                        controller: controller
+                        controller: controller,
+                        primarySource:
+                            compositionAddActions(for: controller).canRepeat
+                                ? .repeatLast
+                                : .region
                     )
                 } else {
                     sessionPrimaryButton(
@@ -1012,7 +1020,8 @@ struct ContentView: View {
     private func sessionAdditionMenu(
         _ title: String,
         systemImage: String,
-        controller: EditorController
+        controller: EditorController,
+        primarySource: ContextualCompositionAdditionSource = .region
     ) -> some View {
         let actions = compositionAddActions(for: controller)
         return Menu {
@@ -1020,7 +1029,7 @@ struct ContentView: View {
         } label: {
             Label(title, systemImage: systemImage)
         } primaryAction: {
-            requestContextualAddition(.region)
+            requestContextualAddition(primarySource)
         }
         .menuStyle(.button)
         .buttonStyle(.borderedProminent)
@@ -1028,11 +1037,15 @@ struct ContentView: View {
         .controlSize(.small)
         .disabled(capture.isWorking)
         .help(
-            "\(title) using Region. Open the menu for another capture or image source."
+            primarySource == .repeatLast
+                ? "Repeat the Before capture to create After and continue the Comparison. Open the menu for another capture or image source."
+                : "\(title) using Region. Open the menu for another capture or image source."
         )
         .accessibilityLabel(title)
         .accessibilityHint(
-            "Uses Region. Open the menu for another capture or image source."
+            primarySource == .repeatLast
+                ? "Repeats the Before capture to create After and continue the Comparison. Open the menu for another source."
+                : "Uses Region. Open the menu for another capture or image source."
         )
         .accessibilityIdentifier("capture.session.primary")
     }

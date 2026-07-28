@@ -152,6 +152,8 @@ Stage names should describe the current task or the next meaningful task. They s
 
 Use singular stage labels such as **Add Step** and **Add Image** when the immediate action adds one item. Use the plural product noun, such as **Steps**, when naming the workflow or result.
 
+After a repeatable Before capture, the Comparison stage uses **Repeat Last Capture for After** as its primary action. This preserves the canonical **Repeat Last Capture** action while naming the After destination that completes the pair. If Before cannot be repeated, use **Capture After** and let the source menu default to Region.
+
 ## Activity Statuses
 
 Statuses describe what the app is doing now. They must identify the activity when a generic status would be ambiguous.
@@ -381,4 +383,3 @@ For any workflow-language change, verify:
 - User-visible App Intent and automation labels agree with the UI while raw compatibility identifiers remain stable.
 - Localization entries and text-based tests reflect the canonical wording.
 - No internal legacy term has leaked into new user-facing copy.
-

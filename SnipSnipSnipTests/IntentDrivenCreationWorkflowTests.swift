@@ -312,6 +312,45 @@ final class IntentDrivenCreationWorkflowTests: XCTestCase {
         XCTAssertFalse(
             CreationSource.existing(.clipboard).supportsPointerCapture
         )
+
+        let noOptionalFineTuneCapabilities = AppCapabilitySnapshot(
+            buildTarget: .dev,
+            enabledCapabilities: Set(AppCapability.allCases).subtracting([
+                .privateCapture,
+                .uiMap,
+            ])
+        )
+        XCTAssertTrue(
+            CreationSource.region.hasFineTuneOptions(
+                for: noOptionalFineTuneCapabilities
+            )
+        )
+        XCTAssertTrue(
+            CreationSource.scrolling.hasFineTuneOptions(
+                for: noOptionalFineTuneCapabilities
+            )
+        )
+        XCTAssertFalse(
+            CreationSource.connectedDevice.hasFineTuneOptions(
+                for: noOptionalFineTuneCapabilities
+            )
+        )
+        XCTAssertFalse(
+            CreationSource.screenInspector.hasFineTuneOptions(
+                for: noOptionalFineTuneCapabilities
+            )
+        )
+        XCTAssertFalse(
+            CreationSource.existing(.files).hasFineTuneOptions(
+                for: testCapabilities
+            )
+        )
+        XCTAssertTrue(
+            CreationSource.connectedDevice.hasFineTuneOptions(
+                for: testCapabilities
+            ),
+            "Private Capture is a Fine-tune option for live sources."
+        )
     }
 
     func testUnavailableGuideCreationFallsBackToManualSteps() {

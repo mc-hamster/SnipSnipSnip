@@ -392,7 +392,14 @@ nonisolated enum CompositionHTMLExporter {
         case .sideBySide:
             modeName = "side-by-side"
             attributes = ""
-            controls = ""
+            controls = """
+            <div class="comparison-buttons comparison-view-buttons" aria-label="Comparison view">
+              <button type="button" data-side-by-side-view="both" aria-pressed="true">Show Both</button>
+              <button type="button" data-side-by-side-view="before" aria-pressed="false">\(beforeLabel)</button>
+              <button type="button" data-side-by-side-view="after" aria-pressed="false">\(afterLabel)</button>
+            </div>
+            <p class="comparison-status" aria-live="polite" data-side-by-side-status>Showing \(beforeLabel) and \(afterLabel)</p>
+            """
             valueClass = ""
         case .wipe(let axis, let requestedPosition):
             let position = min(max(requestedPosition, 0), 100)
@@ -457,11 +464,11 @@ nonisolated enum CompositionHTMLExporter {
         }
         if case .sideBySide = comparison.mode {
             pairMarkup = """
-            <figure class="comparison-side">
+            <figure class="comparison-side comparison-side-before">
               <figcaption>\(beforeLabel)</figcaption>
               <img src="\(before.pngDataURL)" alt="\(escape(before.accessibilityLabel))">
             </figure>
-            <figure class="comparison-side">
+            <figure class="comparison-side comparison-side-after">
               <figcaption>\(afterLabel)</figcaption>
               <img src="\(after.pngDataURL)" alt="\(escape(after.accessibilityLabel))">
             </figure>
@@ -737,6 +744,14 @@ button:disabled { color: var(--secondary); cursor: default; }
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
 }
+.comparison-side-by-side.show-before .comparison-pair,
+.comparison-side-by-side.show-after .comparison-pair {
+  grid-template-columns: minmax(0, 1fr);
+}
+.comparison-side-by-side.show-before .comparison-side-after,
+.comparison-side-by-side.show-after .comparison-side-before {
+  display: none;
+}
 .comparison-side { margin: 0; min-width: 0; }
 .comparison-side figcaption, .comparison-layer figcaption {
   font-weight: 700;
@@ -796,6 +811,8 @@ button:disabled { color: var(--secondary); cursor: default; }
   gap: 0.75rem;
   margin-top: 1rem;
 }
+.comparison-view-buttons { display: none; }
+.is-enhanced .comparison-view-buttons { display: flex; }
 .comparison-control input { width: min(32rem, 70vw); }
 .comparison-status { text-align: center; color: var(--secondary); }
 @media (max-width: 720px) {
@@ -847,6 +864,13 @@ button:disabled { color: var(--secondary); cursor: default; }
     margin-bottom: 1rem;
   }
   .composition-card, .comparison { box-shadow: none; }
+  .comparison-side-by-side.show-before .comparison-pair,
+  .comparison-side-by-side.show-after .comparison-pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .comparison-side-by-side .comparison-side {
+    display: block !important;
+  }
   .comparison-blink.poster-before .comparison-before { visibility: visible !important; }
   .comparison-blink.poster-before .comparison-after { visibility: hidden !important; }
   .comparison-blink.poster-after .comparison-before { visibility: hidden !important; }
@@ -950,6 +974,35 @@ button:disabled { color: var(--secondary); cursor: default; }
   });
 
   document.querySelectorAll("[data-comparison]").forEach((comparison) => {
+    if (comparison.dataset.comparisonMode === "side-by-side") {
+      const buttons = Array.from(comparison.querySelectorAll("[data-side-by-side-view]"));
+      const status = comparison.querySelector("[data-side-by-side-status]");
+      const before = comparison.querySelector('[data-side-by-side-view="before"]');
+      const after = comparison.querySelector('[data-side-by-side-view="after"]');
+      const show = (view) => {
+        const resolved = ["both", "before", "after"].includes(view) ? view : "both";
+        comparison.classList.toggle("show-before", resolved === "before");
+        comparison.classList.toggle("show-after", resolved === "after");
+        buttons.forEach((button) => {
+          button.setAttribute(
+            "aria-pressed",
+            button.dataset.sideBySideView === resolved ? "true" : "false"
+          );
+        });
+        if (status) {
+          const beforeLabel = before?.textContent?.trim() || "Before";
+          const afterLabel = after?.textContent?.trim() || "After";
+          status.textContent = resolved === "both"
+            ? `Showing ${beforeLabel} and ${afterLabel}`
+            : `Showing ${resolved === "before" ? beforeLabel : afterLabel}`;
+        }
+      };
+      buttons.forEach((button) => {
+        button.addEventListener("click", () => show(button.dataset.sideBySideView));
+      });
+      show("both");
+    }
+
     const initial = clamp(Number(comparison.dataset.initialValue || 50), 0, 100);
     const setValue = (requested) => {
       const value = Math.round(clamp(Number(requested), 0, 100));

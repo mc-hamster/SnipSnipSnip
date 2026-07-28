@@ -712,7 +712,7 @@ struct HelpGuideView: View {
                             steps: [
                                 String(localized: "Choose Create when you want to capture a Screenshot, compare two versions, explain a process, or make a Combined Image. Region, Window, and Screen remain one-action Screenshot shortcuts."),
                                 String(localized: "To explain a process, choose Record a Guide for action-aware capture or Build Steps manually to add and caption each step yourself."),
-                                String(localized: "Choose where the first image will come from: Region, Window, Screen, or Existing Image. Existing Image includes files, the clipboard, and the Snip Library. More ways to capture and Fine-tune keep specialized acquisition methods and optional settings out of the main decision."),
+                                String(localized: "Choose where the first image will come from: Region, Window, Screen, or Existing Image. Existing Image includes files, the clipboard, and the Snip Library. More ways to capture keeps specialized acquisition methods out of the main decision. Fine-tune appears only when the selected source has optional settings."),
                                 String(localized: "Review the summary and use the single primary action. Cancelling setup, target selection, permission setup, or capture leaves the current document and preferences unchanged.")
                             ]
                         ),
@@ -722,7 +722,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: String(localized: "Follow the session"),
-                            body: String(localized: "While a screenshot document is open, the header names its purpose and the next useful action: Capture After, Add Step, Add Image, Review Changes, Order & Caption, Arrange, or Back to Content. Global Capture-menu commands and shortcuts continue creating new Screenshot documents.")
+                            body: String(localized: "While a screenshot document is open, the header names its purpose and the next useful action. After you capture Before for a Comparison, Repeat Last Capture for After repeats the same source by default; open its menu to choose another source. Other stages use Capture After, Add Step, Add Image, Review Changes, Order & Caption, Arrange, or Back to Content. Global Capture-menu commands and shortcuts continue creating new Screenshot documents.")
                         ),
                         HelpArticleSection(
                             title: String(localized: "Arrange a combined image"),
@@ -759,7 +759,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: String(localized: "Export interactive HTML"),
-                            body: String(localized: "Interactive HTML is one offline file. Steps preserves decimal, letter, Roman, starting-value, or hidden numbering and includes step links, Previous and Next controls, and direction-aware Left and Right Arrow navigation. Wipe and Overlay remain interactive; Difference and Change Highlight use the exact fully rendered result; Blink keeps manual and playback controls and prints its chosen poster. Printing shows every step, and navigation remains useful when JavaScript is unavailable. The file embeds newly encoded images, escapes titles and captions, includes no source paths or capture metadata, loads no remote scripts, fonts, images, or analytics, and uses a deny-by-default Content Security Policy.")
+                            body: String(localized: "Interactive HTML is one offline file. Steps preserves decimal, letter, Roman, starting-value, or hidden numbering and includes step links, Previous and Next controls, and direction-aware Left and Right Arrow navigation. Show Both comparisons include Show Both, Before, and After controls. Wipe and Overlay remain interactive; Difference and Change Highlight use the exact fully rendered result; Blink keeps manual and playback controls and prints its chosen poster. Printing shows every step, and navigation remains useful when JavaScript is unavailable. The file embeds newly encoded images, escapes titles and captions, includes no source paths or capture metadata, loads no remote scripts, fonts, images, or analytics, and uses a deny-by-default Content Security Policy.")
                         ),
                         HelpArticleSection(
                             title: String(localized: "Private compositions"),
@@ -946,7 +946,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Export interactive compositions",
-                            body: "Choose Interactive HTML for a portable single-file composition that works offline. Step navigation and comparison controls remain interactive without contacting a server. SnipSnipSnip re-encodes embedded image pixels without source metadata, escapes user-authored text, and restricts the file with a deny-by-default Content Security Policy whose only executable resources are the exact exporter-owned style and interaction code."
+                            body: "Choose Interactive HTML for a portable single-file composition that works offline. Step navigation and comparison controls remain interactive without contacting a server. Show Both comparisons can focus Before or After and return to both images. SnipSnipSnip re-encodes embedded image pixels without source metadata, escapes user-authored text, and restricts the file with a deny-by-default Content Security Policy whose only executable resources are the exact exporter-owned style and interaction code."
                         ),
                         HelpArticleSection(
                             title: "Export composition animation and pages",

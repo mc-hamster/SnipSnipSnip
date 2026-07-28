@@ -79,6 +79,18 @@ nonisolated enum CreationSource: Equatable, Sendable {
             return false
         }
     }
+
+    func hasFineTuneOptions(
+        for capabilities: AppCapabilitySnapshot
+    ) -> Bool {
+        guard case .existing = self else {
+            return supportsCaptureDelay
+                || supportsPointerCapture
+                || capabilities.isEnabled(.privateCapture)
+                || (self == .window && capabilities.isEnabled(.uiMap))
+        }
+        return false
+    }
 }
 
 nonisolated enum CreationExistingSource: String, CaseIterable, Equatable,
