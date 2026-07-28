@@ -704,12 +704,7 @@ struct EditorCommandBar: View {
                             .accessibilityLabel("Edit Next Item")
                         }
                     } else {
-                        Button(action: onBack) {
-                            Label(mode.backTitle, systemImage: "xmark")
-                        }
-                        .buttonStyle(.bordered)
-                        .buttonBorderShape(.capsule)
-                        .help(mode.backHelp)
+                        backButton
                     }
 
                     if mode.isGuideStep {
@@ -780,6 +775,8 @@ struct EditorCommandBar: View {
     private var presentationCommands: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
+                backButton
+
                 if controller.workflowStage != .polishing {
                     Button(action: leaveCurrentWorkspace) {
                         Label(
@@ -814,6 +811,18 @@ struct EditorCommandBar: View {
             .fixedSize(horizontal: true, vertical: false)
         }
         .accessibilityIdentifier("editor.commandBar.presentation.scroll")
+    }
+
+    private var backButton: some View {
+        Button(action: onBack) {
+            Label(mode.backTitle, systemImage: "xmark")
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .help(mode.backHelp)
+        .accessibilityIdentifier(
+            mode.isGuideStep ? "editor.cancel" : "editor.discard"
+        )
     }
 
     @ViewBuilder

@@ -893,6 +893,7 @@ final class MultiCaptureCompositionUITests: XCTestCase {
             "Add…",
             "Screenshot editing should lead with the single low-friction Add action."
         )
+        assertDiscardAvailableInCurrentDocumentStage()
         assertScreenshotInspectorIsolation()
         assertRoutineOutputUsesPlainLanguage()
     }
@@ -918,6 +919,7 @@ final class MultiCaptureCompositionUITests: XCTestCase {
             )
             assertPurposeInspectorIsolation(for: goal)
             assertRoutineOutputUsesPlainLanguage()
+            assertDiscardAvailableInCurrentDocumentStage()
             XCTAssertEqual(
                 app.staticTexts.matching(
                     NSPredicate(format: "label CONTAINS[c] %@", "Presentation")
@@ -951,6 +953,20 @@ final class MultiCaptureCompositionUITests: XCTestCase {
                 "The selected-item accessibility frame must stay inside the composition canvas."
             )
         }
+    }
+
+    private func assertDiscardAvailableInCurrentDocumentStage(
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let discard = identified("editor.discard")
+        XCTAssertTrue(
+            discard.waitForExistence(timeout: 5),
+            "Every screenshot-document stage should expose Discard.",
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(discard.label, "Discard", file: file, line: line)
     }
 
     private func promoteScreenshot(to goal: IntentGoal) {
