@@ -42,6 +42,7 @@ final class AppModelTests: XCTestCase {
         changeSummary: String? = nil,
         searchableText: String,
         hasUnsavedChanges: Bool = true,
+        sourceDocumentURL: URL? = nil,
         sessionID: UUID = UUID(),
         savedAt: Date = Date(timeIntervalSince1970: 1_700_000_000)
     ) -> DocumentHistoryEntry {
@@ -54,7 +55,7 @@ final class AppModelTests: XCTestCase {
             savedAt: savedAt,
             packageURL: URL(fileURLWithPath: "/tmp/checkpoint.sss"),
             previewAssetURL: nil,
-            sourceDocumentURL: nil,
+            sourceDocumentURL: sourceDocumentURL,
             hasUnsavedChanges: hasUnsavedChanges,
             searchableText: searchableText,
             packageSizeBytes: nil,
@@ -2035,16 +2036,39 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(model.documents.editorCropOutsideOverlayDimmingDescription, "32% dimming")
     }
 
-    func testDocumentHistoryEntryHistorySummarySkipsGenericCaptureLabels() {
+    func testDocumentHistoryEntryHistorySummaryDoesNotExposeSearchableText() {
         let entry = makeHistoryEntry(searchableText: "Display 1\nProfile settings")
 
-        XCTAssertEqual(entry.historySummary, "Profile settings")
+        XCTAssertEqual(entry.historySummary, "Capture")
     }
 
     func testDocumentHistoryEntryHistorySummaryFallsBackToLabel() {
         let entry = makeHistoryEntry(searchableText: "Display 1\nCapture")
 
         XCTAssertEqual(entry.historySummary, "Capture")
+    }
+
+    func testDocumentHistoryEntryKeepsSearchableTextSearchableButHiddenFromLibraryTitles() {
+        let entry = makeHistoryEntry(
+            title: "Private Window Title",
+            searchableText: "recognized account details"
+        )
+
+        XCTAssertEqual(entry.libraryDisplayTitle, "Screenshot")
+        XCTAssertTrue(entry.matchesSearchQuery("account details"))
+        XCTAssertFalse(entry.libraryMenuTitle.contains("Private Window Title"))
+        XCTAssertFalse(entry.libraryMenuTitle.contains("recognized account details"))
+    }
+
+    func testDocumentHistoryEntryHidesSavedDocumentNameFromLibraryTitle() {
+        let entry = makeHistoryEntry(
+            title: "Internal Recovery Title",
+            searchableText: "recognized text",
+            sourceDocumentURL: URL(fileURLWithPath: "/tmp/Release Notes.sss")
+        )
+
+        XCTAssertEqual(entry.libraryDisplayTitle, "Screenshot")
+        XCTAssertFalse(entry.libraryMenuTitle.contains("Release Notes"))
     }
 
     func testSaveCheckpointPersistsArrowLabelChangeSummary() throws {

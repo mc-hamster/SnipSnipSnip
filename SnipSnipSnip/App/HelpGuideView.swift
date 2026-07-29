@@ -119,48 +119,30 @@ struct HelpGuideView: View {
                     summary: "Take a screenshot, make a few edits, and share the finished result.",
                     sections: [
                         HelpArticleSection(
-                            title: "First launch onboarding",
+                            title: "Finish setup",
+                            body: "Setup asks only for choices needed to keep capture available. Open Settings > General > Show Onboarding Again later to review them. Changes in Setup Summary save immediately; choose Close when you are finished.",
                             steps: [
-                                "New installations use a three-step setup: Capture Access, Clipboard History, and Ready. The compact progress indicator shows where you are without adding a separate navigation sidebar.",
-                                "Screen Recording must be set up before first-run onboarding can finish because macOS requires it for screenshot pixels and live window thumbnails. After a permission-driven restart, setup resumes at Clipboard History.",
-                                "Choose Enable or Keep Off in the Clipboard History radio group before first-run setup continues. The selected option stays visibly marked. When Clipboard History is enabled, adding screenshots that were not copied is on by default for new and reset installations.",
-                                "The Ready step contains Launch at Login, the essential capture shortcuts, and an optional More Tools disclosure. Finish setup without taking a tutorial capture.",
-                                "After first-run setup, a dismissible Explore More card introduces advanced capabilities in the main capture window. Open Settings > General > Show Onboarding Again to review every setup choice on one summary page."
+                                "Allow Screen Recording so macOS can provide screenshot pixels and live window thumbnails. Restart SnipSnipSnip if setup asks you to.",
+                                "Choose whether to enable encrypted, local Clipboard History.",
+                                "Review Launch at Login, then choose Finish."
                             ]
                         ),
                         HelpArticleSection(
-                            title: "Basic workflow",
+                            title: "Take and finish a screenshot",
                             steps: [
-                                "Open SnipSnipSnip from the menu bar icon or the Help menu.",
-                                "Choose Region, Window, or Screen to take a screenshot.",
+                                "Choose Region, Window, or Screen in the capture window or menu bar menu.",
                                 "Use the editor to crop, annotate, redact, or copy text.",
-                                "Use Float when you want the output currently shown in the active workspace to stay above other apps as a temporary reference.",
-                                "Choose Copy, Share, Export, or Drag when you are ready to send the output shown in the active content or Polish stage.",
-                                "Use Save or Save As when you want to keep an editable .sss document."
+                                "Choose Copy, Export, Share, Float, or Drag for the result currently shown.",
+                                "Choose Save or Save As when you want to keep an editable .sss document."
                             ]
                         ),
                         HelpArticleSection(
-                            title: "What happens after capture",
-                            body: "Screenshots open in the editor. Screen recordings open in the video editor. Auto Copy is on by default, so the current rendered screenshot is copied after capture and after editor annotation changes."
+                            title: "Create a multi-image result",
+                            body: "Choose Create when you want a Comparison, Steps, a Combined Image, or a Guide. The direct Region, Window, and Screen actions always start a Screenshot."
                         ),
                         HelpArticleSection(
-                            title: "Start on login",
-                            body: "Settings > General includes Launch SnipSnipSnip at Login. If macOS needs extra confirmation, SnipSnipSnip can open Login Items in System Settings directly for you."
-                        ),
-                        HelpArticleSection(
-                            title: "Keep running in the background",
-                            body: "Command-Q and Quit SnipSnipSnip show the same confirmation before exiting. Choose Run in Background or press Esc to keep the menu bar icon, shortcuts, and clipboard history available, or choose Quit to close the app."
-                        ),
-                        HelpArticleSection(
-                            title: "Open an existing image",
-                            body: "Choose File > Import Image to open PNG, JPEG, TIFF, HEIC, GIF, and other common image formats in the screenshot editor. You can also open supported images from Finder with Open With > SnipSnipSnip, or share a photo from Apple Photos to SnipSnipSnip."
-                        ),
-                        HelpArticleSection(
-                            title: "Project links",
-                            body: "Open the GitHub repository for source code, releases, and project activity.",
-                            links: [
-                                HelpArticleLink(title: "mc-hamster/SnipSnipSnip on GitHub", url: AppLinks.gitHubRepository)
-                            ]
+                            title: "Know what stays editable",
+                            body: "Screenshots open in the screenshot editor and Videos open in the video editor. Auto Copy copies the current screenshot after capture and editor changes when enabled. Import an existing image with File > Import Image. Find saved and recoverable screenshot work in the Snip Library."
                         )
                     ],
                     important: [
@@ -1028,7 +1010,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Use the Snip Library",
-                            body: "The Snip Library brings Recent Snips and searchable Snip History together. Snip History is available from the main capture screen and the inspector, and searches labels, document names, annotation text, and recognized screenshot text. The main capture screen shows one row per snip session with its checkpoint count, so autosave checkpoints do not repeat the same capture. Deleting a Snip History row deletes that snip session and all of its checkpoints."
+                            body: "The Snip Library brings Recent Snips and searchable Snip History together. Search matches labels, saved document names, annotation text, and recognized screenshot text. Matched names and captured text stay hidden in result rows and accessibility labels; open a result or its Preview only when you want to reveal that context. The main capture screen shows one row per snip session with its checkpoint count, so autosave checkpoints do not repeat the same Screenshot. Deleting a Snip History row deletes that Screenshot session and all of its checkpoints."
                         ),
                         HelpArticleSection(
                             title: "Restore deleted snips",

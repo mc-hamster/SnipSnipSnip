@@ -17,44 +17,22 @@ nonisolated struct DocumentHistoryEntry: Identifiable, Sendable {
     let deletedAt: Date?
 
     var historySummary: String {
-        if let changeSummary {
-            return changeSummary
-        }
-
-        let genericCandidates = [
-            label,
-            title,
-            (title as NSString).deletingPathExtension,
-            "capture",
-            "autosave",
-            "recent snip",
-            "saved",
-            "display",
-            "window",
-            "fullscreen"
-        ]
-        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase }
-
-        let lines = searchableText
-            .components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        for line in lines {
-            let normalized = line.localizedLowercase
-
-            if genericCandidates.contains(normalized) || normalized.hasPrefix("display ") {
-                continue
-            }
-
-            return line
-        }
-
-        return label
+        changeSummary ?? label
     }
 
     var historySummaryHelp: String? {
         changeSummary
+    }
+
+    /// Searchable filenames, OCR, and annotation text must remain search-only.
+    /// Library rows use a neutral title so screen sharing and accessibility
+    /// inspection do not repeat captured or filesystem context.
+    var libraryDisplayTitle: String {
+        "Screenshot"
+    }
+
+    var libraryMenuTitle: String {
+        "\(libraryDisplayTitle) — \(savedAt.formatted(date: .abbreviated, time: .shortened))"
     }
 
     func updating(searchableText: String) -> DocumentHistoryEntry {

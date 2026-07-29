@@ -807,7 +807,7 @@ struct SnipSnipSnipApp: App {
                 )
             )
         }
-        .defaultSize(width: 900, height: 600)
+        .defaultSize(width: 1000, height: 618)
         .windowResizability(.contentSize)
 #if DEBUG
         .defaultLaunchBehavior(
@@ -862,7 +862,7 @@ struct SnipSnipSnipApp: App {
             )
         }
 
-        Window("Welcome to \(AppBranding.displayName)", id: AppSceneID.onboardingWindow) {
+        Window("\(AppBranding.displayName) Setup", id: AppSceneID.onboardingWindow) {
             OnboardingView(
                 lifecycle: model.lifecycle,
                 permissions: model.permissions,

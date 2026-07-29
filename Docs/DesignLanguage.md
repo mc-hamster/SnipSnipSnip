@@ -1,7 +1,7 @@
 ---
 description: "Canonical native macOS design language for SnipSnipSnip SwiftUI and AppKit interfaces."
 status: active
-last_reviewed: 2026-07-26
+last_reviewed: 2026-07-28
 ---
 
 # SnipSnipSnip Design Language
@@ -55,6 +55,7 @@ Use one product vocabulary across the main window, setup flows, menus, editors, 
 
 - **Snip Library** is the user-facing umbrella for reusable and recoverable screenshot work.
 - **Recent Snips** contains recently available work. **Snip History** contains searchable sessions and checkpoints. **Change History** is scoped to the currently open document. **Recycle Bin** contains deleted but recoverable snips. **Recover Last Session** is the transient interrupted-work path.
+- Keep filenames, recognized screenshot text, and annotation text searchable without repeating captured or filesystem context in result rows or accessibility labels. All screenshot-history rows use the neutral **Screenshot** title. Reveal names and screenshot pixels only after an explicit open or preview action.
 - Archive remains an internal storage concept. Settings may expose **Snip History Storage** for location, size, and cleanup, but Archive is not a peer user goal or source beside Recent Snips and Snip History.
 
 ## Layer and Material Decisions
@@ -75,6 +76,7 @@ Use one product vocabulary across the main window, setup flows, menus, editors, 
 
 - Keep first-run setup to the smallest sequence of required decisions. Use a compact native progress indicator for short linear setup flows instead of dedicating window width to a persistent sidebar.
 - Present replay as a single grouped-form setup summary so existing users can review or update choices without repeating the first-run sequence.
+- Replay controls save settings immediately. State that behavior in the persistent summary header and use Close to dismiss the utility rather than implying a staged commit.
 - Use one accent color for selection and primary actions.
 - Show On/Off, Allowed/Needs Setup, or other status text when a step has meaningful state.
 - Keep Back and Continue in a functional footer. Continue is the sole prominent action, and permission setup or restart replaces Continue when it is required.

@@ -98,7 +98,9 @@ struct GuideEditorView: View {
                     if !recentSnips.isEmpty {
                         Menu("Recent Snips") {
                             ForEach(recentSnips.prefix(10)) { entry in
-                                Button(entry.title) { onAddRecentSnip(entry) }
+                                Button(entry.libraryMenuTitle) {
+                                    onAddRecentSnip(entry)
+                                }
                             }
                         }
                     }

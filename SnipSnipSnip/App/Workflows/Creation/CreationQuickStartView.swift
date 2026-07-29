@@ -609,7 +609,7 @@ struct CreationExistingSourcePickerView: View {
                         )
 
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(entry.title)
+                            Text(entry.libraryDisplayTitle)
                                 .font(.subheadline.weight(.semibold))
                                 .lineLimit(2)
                             Text(
@@ -629,7 +629,7 @@ struct CreationExistingSourcePickerView: View {
                     }
                     .padding(.vertical, 4)
                     .tag(entry.id)
-                    .accessibilityLabel(entry.title)
+                    .accessibilityLabel(entry.libraryDisplayTitle)
                     .accessibilityValue(
                         entry.id == selectedEntryID
                             ? "Selected"

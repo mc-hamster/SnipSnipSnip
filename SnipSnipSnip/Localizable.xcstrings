@@ -755,9 +755,6 @@
     "Build a manual step sequence" : {
 
     },
-    "Building Interactive HTML…" : {
-
-    },
     "Build Steps manually" : {
 
     },
@@ -765,6 +762,9 @@
 
     },
     "Build Steps manually, then caption and number them." : {
+
+    },
+    "Building Interactive HTML…" : {
 
     },
     "Built-in templates adapt to compatible item counts. Your saved templates require exactly %lld %@." : {
@@ -789,10 +789,10 @@
     "Cancel Export" : {
 
     },
-    "Cancelling Interactive HTML export…" : {
+    "Cancelling an Add, Replace, or Change Goal operation leaves the document unchanged." : {
 
     },
-    "Cancelling an Add, Replace, or Change Goal operation leaves the document unchanged." : {
+    "Cancelling Interactive HTML export…" : {
 
     },
     "Cancelling…" : {
@@ -1705,6 +1705,19 @@
     "Enabled" : {
 
     },
+    "Encoding image %lld of %lld…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Encoding image %1$lld of %2$lld…"
+          }
+        }
+      }
+    },
+    "Encoding images…" : {
+
+    },
     "Essential shortcuts" : {
 
     },
@@ -1849,19 +1862,6 @@
 
     },
     "Exporting Interactive HTML" : {
-
-    },
-    "Encoding image %lld of %lld…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Encoding image %1$lld of %2$lld…"
-          }
-        }
-      }
-    },
-    "Encoding images…" : {
 
     },
     "Extra smooth · 60 fps" : {
@@ -2152,9 +2152,6 @@
     "Ignore Running App" : {
 
     },
-    "Ignore this recovery session and remove the pending recovery prompt." : {
-
-    },
     "Ignored" : {
 
     },
@@ -2377,9 +2374,6 @@
 
     },
     "Landscape" : {
-
-    },
-    "Last autosave: %@" : {
 
     },
     "Launch %@ at Login" : {
@@ -2830,9 +2824,6 @@
 
     },
     "Open the full screenshot editor for this step." : {
-
-    },
-    "Open the most recent autosaved session in the editor." : {
 
     },
     "Open the most recent Guide that was autosaved before an interruption." : {
@@ -3300,9 +3291,6 @@
     "Reload the list of available windows." : {
 
     },
-    "Rendering images…" : {
-
-    },
     "Remove" : {
 
     },
@@ -3331,6 +3319,9 @@
 
     },
     "Rename the selected user template." : {
+
+    },
+    "Rendering images…" : {
 
     },
     "Repeat" : {
@@ -3585,9 +3576,6 @@
     "Save Look" : {
 
     },
-    "Saving Interactive HTML…" : {
-
-    },
     "Save supported copied items in an encrypted history protected by Keychain." : {
 
     },
@@ -3610,6 +3598,9 @@
 
     },
     "Saved Themes" : {
+
+    },
+    "Saving Interactive HTML…" : {
 
     },
     "Screen" : {
@@ -4246,9 +4237,6 @@
 
     },
     "This permanently removes pinned and unpinned clipboard items from this Mac." : {
-
-    },
-    "This recovery includes unsaved changes." : {
 
     },
     "This snapshot includes edits that were not saved to disk." : {

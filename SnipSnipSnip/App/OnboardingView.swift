@@ -207,7 +207,7 @@ struct OnboardingView: View {
 
     private var headerSummary: String {
         lifecycle.onboardingPresentationMode == .replay
-            ? "Review or update the choices that keep SnipSnipSnip ready."
+            ? "Review or update the choices that keep SnipSnipSnip ready. Changes save immediately."
             : selectedStep.summary
     }
 
@@ -586,7 +586,7 @@ struct OnboardingView: View {
 
     private var primaryFooterTitle: String {
         if lifecycle.onboardingPresentationMode == .replay {
-            return "Done"
+            return "Close"
         }
 
         if selectedStep == .captureAccess,

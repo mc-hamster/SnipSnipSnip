@@ -2169,6 +2169,10 @@ final class AppArchitecturePlatformTests: XCTestCase {
             contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/Guide/UI/GuideQuickStartView.swift"),
             encoding: .utf8
         )
+        let help = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/App/HelpGuideView.swift"),
+            encoding: .utf8
+        )
 
         XCTAssertFalse(onboarding.contains("HSplitView"))
         XCTAssertFalse(onboarding.contains("NavigationSplitView"))
@@ -2195,9 +2199,11 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertTrue(onboarding.contains("onboarding.clipboard.uncopiedScreenshots"))
         XCTAssertTrue(onboarding.contains("Label(\"More tools to explore\", systemImage: \"sparkles\")"))
         XCTAssertTrue(onboarding.contains("Array($0.entries.prefix(3))"))
+        XCTAssertTrue(onboarding.contains("Changes save immediately."))
+        XCTAssertTrue(onboarding.contains("return \"Close\""))
 
         let onboardingSceneStart = try XCTUnwrap(
-            app.range(of: "Window(\"Welcome to \\(AppBranding.displayName)\"")
+            app.range(of: "Window(\"\\(AppBranding.displayName) Setup\"")
         )
         let helpSceneStart = try XCTUnwrap(
             app.range(of: "Window(\"\\(AppBranding.displayName) Help\"", range: onboardingSceneStart.upperBound..<app.endIndex)
@@ -2210,6 +2216,9 @@ final class AppArchitecturePlatformTests: XCTestCase {
 
         XCTAssertTrue(quickStart.contains("Form"))
         XCTAssertTrue(quickStart.contains("Picker("))
+        XCTAssertTrue(help.contains("title: \"Take and finish a screenshot\""))
+        XCTAssertTrue(help.contains("Matched names and captured text stay hidden"))
+        XCTAssertFalse(help.contains("without adding a separate navigation sidebar"))
 
         for forbiddenFragment in ["LinearGradient", "RadialGradient", ".blur(", "Color(red:", ".foregroundStyle(.white"] {
             XCTAssertFalse(onboarding.contains(forbiddenFragment), "Onboarding contains legacy decoration: \(forbiddenFragment)")

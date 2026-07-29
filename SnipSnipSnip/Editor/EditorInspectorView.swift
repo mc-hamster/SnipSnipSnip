@@ -1409,7 +1409,7 @@ private struct RecentSnipsSectionView: View, Equatable {
                     ForEach(displayedRecentSnips) { entry in
                         HistoryEntryRowView(
                             entry: entry,
-                            title: entry.title,
+                            title: entry.libraryDisplayTitle,
                             titleHelp: nil,
                             subtitle: entry.savedAt.formatted(date: .abbreviated, time: .shortened),
                             detail: entry.label,
@@ -1467,7 +1467,7 @@ private struct RecentSnipsSectionView: View, Equatable {
                         ForEach(filteredCaptureHistoryEntries) { entry in
                             HistoryEntryRowView(
                                 entry: entry,
-                                title: entry.title,
+                                title: entry.libraryDisplayTitle,
                                 titleHelp: nil,
                                 subtitle: entry.savedAt.formatted(date: .abbreviated, time: .shortened),
                                 detail: entry.label,
@@ -1612,7 +1612,7 @@ private struct RecycleBinEntryRowView: View {
             .help("Open a larger preview of this deleted snip.")
 
             VStack(alignment: .leading, spacing: 5) {
-                Text(entry.title)
+                Text(entry.libraryDisplayTitle)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
 

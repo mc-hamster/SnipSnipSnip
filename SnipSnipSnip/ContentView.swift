@@ -309,7 +309,7 @@ struct ContentView: View {
         let historyActions: (DocumentHistoryEntry) -> CompositionAddSourceAction = { entry in
             CompositionAddSourceAction(
                 id: entry.id.uuidString,
-                title: entry.title,
+                title: entry.libraryMenuTitle,
                 action: {
                     documents.addHistoryEntryToCurrentComposition(
                         entry,
@@ -1497,7 +1497,7 @@ struct ContentView: View {
         CaptureModeCard(
             title: WorkflowVocabulary.Library.snipLibrary,
             systemImage: "text.magnifyingglass",
-            detail: "Find Recent Snips and search labels, document names, annotations, and recognized text across Snip History."
+            detail: "Find Recent Snips and search Snip History. Annotation and recognized screenshot text can match a search without being shown in the results list."
         ) {
             VStack(alignment: .leading, spacing: 14) {
                 TextField("Search Snip History", text: captureHistorySearchBinding)
@@ -1527,7 +1527,7 @@ struct ContentView: View {
                             )
 
                             VStack(alignment: .leading, spacing: 6) {
-                                Text(entry.title)
+                                Text(entry.libraryDisplayTitle)
                                     .font(.subheadline.weight(.semibold))
                                     .lineLimit(1)
 
@@ -1539,12 +1539,6 @@ struct ContentView: View {
                                     .font(.caption2.weight(.medium))
                                     .foregroundStyle(.secondary)
 
-                                if let previewText = historyPreviewText(for: entry) {
-                                    Text(previewText)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(2)
-                                }
                             }
 
                             Spacer(minLength: 8)
@@ -1640,7 +1634,7 @@ struct ContentView: View {
                         )
 
                         VStack(alignment: .leading, spacing: 5) {
-                            Text(entry.title)
+                            Text(entry.libraryDisplayTitle)
                                 .font(.subheadline.weight(.semibold))
                                 .lineLimit(1)
 
@@ -1668,15 +1662,6 @@ struct ContentView: View {
         }
 
         return "Deleted \(deletedAt.formatted(date: .abbreviated, time: .shortened))"
-    }
-
-    private func historyPreviewText(for entry: DocumentHistoryEntry) -> String? {
-        let previewText = entry.searchableText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !previewText.isEmpty else {
-            return nil
-        }
-
-        return String(previewText.prefix(120))
     }
 
     private func captureButton(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
