@@ -130,15 +130,15 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Take and finish a screenshot",
                             steps: [
-                                "Choose Region, Window, or Screen in the capture window or menu bar menu.",
+                                "Use Quick Capture to choose Region, Window, or Screen. Region is the primary one-click action; More contains Scrolling Content, Repeat Last Capture, and Presets.",
                                 "Use the editor to crop, annotate, redact, or copy text.",
                                 "Choose Copy, Export, Share, Float, or Drag for the result currently shown.",
                                 "Choose Save or Save As when you want to keep an editable .sss document."
                             ]
                         ),
                         HelpArticleSection(
-                            title: "Create a multi-image result",
-                            body: "Choose Create when you want a Comparison, Steps, a Combined Image, or a Guide. The direct Region, Window, and Screen actions always start a Screenshot."
+                            title: "Create or record without an extra menu",
+                            body: "Under Create Something, choose Screenshot, Comparison, Steps, or Combined Image to open setup with that result already selected. Under Record, choose Region, Window, Screen, Guide, or an available connected device directly. Quick Capture always starts a Screenshot immediately."
                         ),
                         HelpArticleSection(
                             title: "Know what stays editable",
@@ -539,7 +539,7 @@ struct HelpGuideView: View {
                             steps: [
                                 "Choose Window.",
                                 "From Window in the capture header or from the menu bar, use the quick menu to choose Pick On Screen, a suggested window, or More Windows.",
-                                "From the startup screen, pick a live thumbnail directly or use Pick On Screen for crowded desktops.",
+                                "The startup screen keeps the live-window carousel visible for one-click capture. Pick a thumbnail directly or use Pick On Screen for crowded desktops.",
                                 "Use Refresh or Auto Refresh if the target window is visible but not listed. With Auto Refresh off, SnipSnipSnip still refreshes once whenever the app returns to the foreground."
                             ]
                         ),
@@ -662,7 +662,7 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Choose a tool",
-                            body: "The first Edit command row keeps Discard and every editing tool in a stable, one-click position. Review, Order & Caption, Arrange, and Polish also start their command bar with Discard, so every screenshot-document workflow has a consistent way to return to Capture. Rounded group boundaries organize Selection (Select and Crop), Shapes (Rectangle, Ellipse, Line, Arrow, Status Mark, and Ruler), Drawing and Highlight (Freehand, Highlighter, Highlight Box, and Spotlight), Text and Callout, Redaction, and Recognition and Image (Copy Text, Pick Color, and Insert Image). The selected tool has a filled background and stronger boundary as well as its accessibility state. Open the Redaction button's menu to change between Blur, Pixelate, and Redact. The second Edit row visibly groups History, Layers and Arrangement, Zoom, Inspector, Workspace, Output, and References and Drag Out in workflow order. At narrow widths, scroll a row horizontally; the groups and commands keep their positions instead of collapsing into category menus or title-bar overflow."
+                            body: "The first Edit command row keeps Select, Crop, Arrow, and Text visible as labeled one-click tools. Labeled split controls provide Shapes (Rectangle, Ellipse, Line, and Status Mark), Draw (Freehand and Highlighter), Emphasize (Highlight Box, Spotlight, and Ruler), Redact (Blur, Pixelate, and Redact), and More Tools (Callout, Copy Text, Pick Color, and Insert Image). Click a group’s labeled main button to reuse its last-selected tool, or click its adjacent disclosure arrow to choose a different one. The active direct tool or group has a filled background and stronger boundary as well as its accessibility state. Review, Order & Caption, Arrange, and Polish still begin with Discard. The second Edit row keeps History, Layers and Arrangement, Zoom, Inspector, Output, and References and Drag Out in workflow order. At narrow widths, scroll each row horizontally without losing any action."
                         ),
                         HelpArticleSection(
                             title: "Select and arrange annotations",
@@ -676,7 +676,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Use the inspector",
-                            body: "The native right inspector changes with the active tool, selection, goal, or stage. Use it to adjust style, colors, text size, effect strength, image overlay opacity, UI Map display and pin options when available, crop values, Comparison, Steps, Arrange, Look, and Mockup settings, callout step guides, Change History, Recent Snips, search, and the Recycle Bin. Irrelevant controls stay hidden. The inspector is visible by default and remembered for each window scene. Use the Inspector control immediately after Zoom, or View > Show/Hide Inspector (Command-Option-I), to toggle it."
+                            body: "The native right inspector keeps Crop Image, Properties, and History directly visible. Crop Image opens exact crop controls without changing the selected annotation tool. Properties shows only controls for the current tool or selection and names that context, such as Arrow, Text, or Selection. History uses the full inspector for Change History and the Snip Library instead of stacking them beneath editing controls; the History button includes the current document’s change count. Crop handles remain available on the image while any annotation tool is selected, and crop changes apply immediately through normal undo. Comparison, Steps, Arrange, Look, and Mockup continue to show their stage-specific inspector. The inspector is visible by default and remembered for each window scene. Use the Inspector control immediately after Zoom, or View > Show/Hide Inspector (Command-Option-I), to toggle it."
                         )
                     ],
                     important: [
@@ -692,7 +692,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: String(localized: "Choose what to make"),
                             steps: [
-                                String(localized: "Choose Create when you want to capture a Screenshot, compare two versions, explain a process, or make a Combined Image. Region, Window, and Screen remain one-action Screenshot shortcuts."),
+                                String(localized: "Use Quick Capture when you want a one-action Screenshot from Region, Window, or Screen. Under Create Something, choose Screenshot, Comparison, Steps, or Combined Image to open setup with the result already selected. Under Record, choose Region, Window, Screen, Guide, or an available connected device directly."),
                                 String(localized: "To explain a process, choose Record a Guide for action-aware capture or Build Steps manually to add and caption each step yourself."),
                                 String(localized: "Choose where the first image will come from: Region, Window, Screen, or Existing Image. Existing Image includes files, the clipboard, and the Snip Library. More ways to capture keeps specialized acquisition methods out of the main decision. Fine-tune appears only when the selected source has optional settings."),
                                 String(localized: "Review the summary and use the single primary action. Cancelling setup, target selection, permission setup, or capture leaves the current document and preferences unchanged.")
@@ -803,10 +803,11 @@ struct HelpGuideView: View {
                             steps: [
                                 "Drag a crop handle on the visible image perimeter.",
                                 "Use the loupe and live pixel size to refine the crop.",
-                                "Use the inspector fields for exact X, Y, Width, and Height values.",
-                                "Choose Freeform or a fixed aspect ratio in the inspector before drawing or resizing the crop.",
+                                "Choose Crop Image at the top of the inspector for exact X, Y, Width, and Height values. This does not change the selected annotation tool.",
+                                "Choose Freeform or a fixed aspect ratio in Crop Image before drawing or resizing the crop.",
                                 "Click Auto Crop to tighten the current crop around screenshot content and visible annotations, or click Padded to keep a small margin.",
-                                "Click Reset Crop to return to the full captured image."
+                                "Click Reset Crop to return to the full captured image.",
+                                "Crop changes apply immediately and remain available through Undo and Change History."
                             ]
                         ),
                         HelpArticleSection(

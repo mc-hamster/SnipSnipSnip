@@ -748,81 +748,207 @@ struct ContentView: View {
                 editorSessionBar(controller)
             } else {
                 ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 8) {
-                        captureHeaderActionButtons
+                    HStack(alignment: .top, spacing: 16) {
+                        quickCaptureActionGroup
+                        captureHeaderGroupDivider
+                        createSomethingActionGroup
+                        captureHeaderGroupDivider
+                        recordActionGroup
                     }
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 8) {
-                            createButton
-                            captureButton(
-                                title: WorkflowVocabulary.Source.region,
-                                systemImage: "selection.pin.in.out",
-                                action: capture.captureRegion
-                            )
-                            captureButton(
-                                title: WorkflowVocabulary.Source.window,
-                                systemImage: "rectangle.on.rectangle",
-                                action: captureWindowFromHeader
-                            )
-                            captureButton(
-                                title: WorkflowVocabulary.Source.screen,
-                                systemImage: "macwindow",
-                                action: capture.captureCurrentDisplay
-                            )
-                        }
-
-                        HStack(spacing: 8) {
-                            if capabilities.isEnabled(.scrollingCapture) {
-                                captureButton(title: "Scroll", systemImage: "arrow.down.to.line", action: capture.captureScrollingArea)
-                            }
-                            captureButton(title: "Repeat", systemImage: "arrow.clockwise", action: capture.repeatLastCapture)
-                                .disabled(!capture.canRepeatLastCapture)
-                            capturePresetsMenu
-                            if capabilities.isEnabled(.guideCapture) {
-                                guideButton
-                            }
-                            recordButton
-                        }
+                    VStack(alignment: .leading, spacing: 12) {
+                        quickCaptureActionGroup
+                        createSomethingActionGroup
+                        recordActionGroup
                     }
                 }
             }
         }
     }
 
-    @ViewBuilder
-    private var captureHeaderActionButtons: some View {
-        createButton
-        captureButton(title: WorkflowVocabulary.Source.region, systemImage: "selection.pin.in.out", action: capture.captureRegion)
-        captureButton(title: WorkflowVocabulary.Source.window, systemImage: "rectangle.on.rectangle", action: captureWindowFromHeader)
-        captureButton(title: WorkflowVocabulary.Source.screen, systemImage: "macwindow", action: capture.captureCurrentDisplay)
-        if capabilities.isEnabled(.scrollingCapture) {
-            captureButton(title: "Scroll", systemImage: "arrow.down.to.line", action: capture.captureScrollingArea)
+    private var quickCaptureActionGroup: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Quick Capture")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 8) {
+                primaryRegionCaptureButton
+                captureButton(
+                    title: WorkflowVocabulary.Source.window,
+                    systemImage: "rectangle.on.rectangle",
+                    action: captureWindowFromHeader
+                )
+                captureButton(
+                    title: WorkflowVocabulary.Source.screen,
+                    systemImage: "macwindow",
+                    action: capture.captureCurrentDisplay
+                )
+                moreCaptureMenu
+            }
         }
-        captureButton(title: "Repeat", systemImage: "arrow.clockwise", action: capture.repeatLastCapture)
-            .disabled(!capture.canRepeatLastCapture)
-        capturePresetsMenu
-        if capabilities.isEnabled(.guideCapture) {
-            guideButton
-        }
-        recordButton
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Quick Capture")
+        .accessibilityHint("Capture a Screenshot immediately from a live screen source.")
     }
 
-    private var createButton: some View {
-        Button {
-            creation.presentQuickStart()
-        } label: {
+    private var createSomethingActionGroup: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Create Something")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 8) {
+                creationActionButton(
+                    title: "Screenshot",
+                    systemImage: "camera",
+                    goal: .screenshot,
+                    help: "Set up a Screenshot and choose its first source."
+                )
+                creationActionButton(
+                    title: "Comparison",
+                    systemImage: "square.split.2x1",
+                    goal: .comparison,
+                    help: "Set up a Before and After Comparison."
+                )
+                creationActionButton(
+                    title: "Steps",
+                    systemImage: "list.number",
+                    goal: .instructions(.addCaptures),
+                    help: "Build numbered Steps from captures you add."
+                )
+                creationActionButton(
+                    title: "Combined Image",
+                    systemImage: "rectangle.3.group",
+                    goal: .combineImages,
+                    help: "Arrange several captures or images as one result."
+                )
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Create Something")
+    }
+
+    private var recordActionGroup: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Record")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 8) {
+                recordingActionButton(
+                    title: WorkflowVocabulary.Source.region,
+                    systemImage: "selection.pin.in.out",
+                    action: video.recordRegion,
+                    help: "Record a selected region of the screen."
+                )
+                recordingActionButton(
+                    title: WorkflowVocabulary.Source.window,
+                    systemImage: "rectangle.on.rectangle",
+                    action: video.presentVideoWindowPicker,
+                    help: "Choose a window to record."
+                )
+                recordingActionButton(
+                    title: WorkflowVocabulary.Source.screen,
+                    systemImage: "macwindow",
+                    action: video.recordCurrentDisplay,
+                    help: "Record the configured display."
+                )
+                if capabilities.isEnabled(.guideCapture) {
+                    guideButton
+                }
+                if capabilities.isEnabled(.connectedDeviceCapture) {
+                    connectedDeviceRecordingActions
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Record")
+        .onAppear {
+            if capabilities.isEnabled(.connectedDeviceCapture) {
+                capture.refreshConnectedDevices()
+            }
+        }
+    }
+
+    private var captureHeaderGroupDivider: some View {
+        Divider()
+            .frame(height: 48)
+            .accessibilityHidden(true)
+    }
+
+    private var primaryRegionCaptureButton: some View {
+        Button(action: capture.captureRegion) {
             headerActionLabel(
-                title: "Create…",
-                systemImage: "plus"
+                title: WorkflowVocabulary.Source.region,
+                systemImage: "selection.pin.in.out"
             )
         }
         .buttonStyle(.borderedProminent)
         .buttonBorderShape(.capsule)
         .controlSize(.small)
         .disabled(capture.isWorking || isRecordingVideo || guide.isActive)
-        .help("Choose what you want to make, then capture or add its first image.")
-        .accessibilityIdentifier("creation.present")
+        .help("Drag to capture a selected region of the screen.")
+    }
+
+    private var moreCaptureMenu: some View {
+        Menu {
+            if capabilities.isEnabled(.scrollingCapture) {
+                Button(
+                    "Capture \(WorkflowVocabulary.Source.scrollingContent)",
+                    action: capture.captureScrollingArea
+                )
+            }
+
+            Button("Repeat Last Capture", action: capture.repeatLastCapture)
+                .disabled(!capture.canRepeatLastCapture)
+
+            Divider()
+
+            Menu("Presets") {
+                CapturePresetMenuContent(
+                    capture: capture,
+                    video: video,
+                    lifecycle: lifecycle
+                )
+            }
+        } label: {
+            headerActionLabel(
+                title: "More",
+                systemImage: "ellipsis.circle",
+                showsChevron: true
+            )
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .controlSize(.small)
+        .disabled(capture.isWorking || isRecordingVideo || guide.isActive)
+        .help("Capture Scrolling Content, repeat the last capture, or use a preset.")
+        .accessibilityLabel("More Ways to Capture")
+    }
+
+    private func creationActionButton(
+        title: String,
+        systemImage: String,
+        goal: CreationGoal,
+        help: String
+    ) -> some View {
+        Button {
+            creation.presentQuickStart(
+                prefilledDraft: CreationDraft(goal: goal)
+            )
+        } label: {
+            headerActionLabel(
+                title: title,
+                systemImage: systemImage
+            )
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .controlSize(.small)
+        .disabled(capture.isWorking || isRecordingVideo || guide.isActive)
+        .help(help)
+        .accessibilityIdentifier("creation.\(creationActionIdentifier(for: goal))")
     }
 
     private var contextualCreateButton: some View {
@@ -1278,18 +1404,6 @@ struct ContentView: View {
         }
     }
 
-    private var capturePresetsMenu: some View {
-        Menu {
-            CapturePresetMenuContent(capture: capture, video: video, lifecycle: lifecycle)
-        } label: {
-            Label("Presets", systemImage: "star")
-        }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .controlSize(.small)
-        .help("Run saved screenshot capture presets or save the last capture as a preset.")
-    }
-
     private var capturePresetNamingSheetBinding: Binding<Bool> {
         Binding(
             get: { capture.isShowingCapturePresetNamingSheet },
@@ -1348,8 +1462,6 @@ struct ContentView: View {
         GeometryReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    createIntentCard
-
                     if lifecycle.showsWelcomeCard {
                         exploreCard
                     }
@@ -1363,26 +1475,6 @@ struct ContentView: View {
                 .padding(24)
                 .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .topLeading)
             }
-        }
-    }
-
-    private var createIntentCard: some View {
-        CaptureModeCard(
-            title: String(localized: "What do you want to make?"),
-            systemImage: "plus.rectangle.on.rectangle",
-            detail: String(
-                localized:
-                    "Start a Screenshot, compare two versions, explain a process, or combine images."
-            )
-        ) {
-            Button {
-                creation.presentQuickStart()
-            } label: {
-                Label("Create…", systemImage: "plus")
-            }
-            .buttonStyle(.borderedProminent)
-            .buttonBorderShape(.capsule)
-            .accessibilityIdentifier("creation.empty.present")
         }
     }
 
@@ -1679,28 +1771,68 @@ struct ContentView: View {
         presentWindowQuickCaptureMenu()
     }
 
-    private var recordButton: some View {
-        Menu {
-            Button("Record Region", action: video.recordRegion)
-                .disabled(capture.isConnectedDeviceSessionActive)
-            Button("Record Window", action: video.presentVideoWindowPicker)
-                .disabled(capture.isConnectedDeviceSessionActive)
-            Button("Record Screen", action: video.recordCurrentDisplay)
-                .disabled(capture.isConnectedDeviceSessionActive)
-            if capabilities.isEnabled(.connectedDeviceCapture) {
-                Menu("Record Connected Device") {
-                    ConnectedDeviceCaptureMenuContent(capture: capture, mode: .recording)
-                }
-            }
-        } label: {
-            headerActionLabel(title: "Record", systemImage: "record.circle", accent: .red, showsChevron: true)
+    private func recordingActionButton(
+        title: String,
+        systemImage: String,
+        action: @escaping () -> Void,
+        help: String,
+        allowsActiveDeviceSession: Bool = false
+    ) -> some View {
+        Button(action: action) {
+            headerActionLabel(
+                title: title,
+                systemImage: systemImage,
+                accent: .red
+            )
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
         .controlSize(.small)
         .tint(.red)
-        .disabled(capture.isWorking || isRecordingVideo || guide.isActive)
-        .help("Start a screen video recording.")
+        .disabled(
+            capture.isWorking
+                || isRecordingVideo
+                || guide.isActive
+                || (
+                    capture.isConnectedDeviceSessionActive
+                        && !allowsActiveDeviceSession
+                )
+        )
+        .help(help)
+    }
+
+    @ViewBuilder
+    private var connectedDeviceRecordingActions: some View {
+        if capture.isConnectedDeviceSessionActive {
+            recordingActionButton(
+                title: "Device Active",
+                systemImage: "iphone",
+                action: capture.presentConnectedDeviceSessionActiveMessage,
+                help: "Close the current connected-device preview before starting another.",
+                allowsActiveDeviceSession: true
+            )
+        } else if capture.isLoadingConnectedDevices {
+            ProgressView()
+                .controlSize(.small)
+                .help("Looking for connected devices.")
+                .accessibilityLabel("Looking for Connected Devices")
+        } else if capture.connectedDevices.isEmpty {
+            recordingActionButton(
+                title: "Connected Device",
+                systemImage: "iphone",
+                action: capture.presentConnectedDeviceEmptyState,
+                help: capture.connectedDeviceEmptyStateMessage
+            )
+        } else {
+            ForEach(capture.connectedDevices) { device in
+                recordingActionButton(
+                    title: device.displayName,
+                    systemImage: "iphone",
+                    action: { capture.recordConnectedDevice(device) },
+                    help: "Open a live preview of \(device.displayName) and record it."
+                )
+            }
+        }
     }
 
     private var guideButton: some View {
@@ -1724,6 +1856,23 @@ struct ContentView: View {
         return guide.isActive
             ? "Stop Guide"
             : WorkflowVocabulary.Instructions.recordGuide
+    }
+
+    private func creationActionIdentifier(
+        for goal: CreationGoal
+    ) -> String {
+        switch goal {
+        case .screenshot:
+            return "screenshot"
+        case .comparison:
+            return "comparison"
+        case .instructions(.addCaptures):
+            return "steps"
+        case .instructions(.recordAsIWork):
+            return "guide"
+        case .combineImages:
+            return "combinedImage"
+        }
     }
 
     private func headerActionLabel(title: String, systemImage: String, accent: Color = .accentColor, showsChevron: Bool = false) -> some View {

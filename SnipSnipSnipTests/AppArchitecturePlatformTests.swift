@@ -2218,6 +2218,10 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertTrue(quickStart.contains("Picker("))
         XCTAssertTrue(help.contains("title: \"Take and finish a screenshot\""))
         XCTAssertTrue(help.contains("Matched names and captured text stay hidden"))
+        XCTAssertTrue(help.contains("Use Quick Capture to choose Region, Window, or Screen"))
+        XCTAssertTrue(help.contains("Select, Crop, Arrow, and Text visible as labeled one-click tools"))
+        XCTAssertTrue(help.contains("Crop Image, Properties, and History directly visible"))
+        XCTAssertTrue(help.contains("Crop changes apply immediately and remain available through Undo and Change History"))
         XCTAssertFalse(help.contains("without adding a separate navigation sidebar"))
 
         for forbiddenFragment in ["LinearGradient", "RadialGradient", ".blur(", "Color(red:", ".foregroundStyle(.white"] {
@@ -2233,6 +2237,10 @@ final class AppArchitecturePlatformTests: XCTestCase {
         )
         let editor = try String(
             contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/Editor/EditorView.swift"),
+            encoding: .utf8
+        )
+        let editorInspector = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/Editor/EditorInspectorView.swift"),
             encoding: .utf8
         )
         let guide = try String(
@@ -2261,6 +2269,20 @@ final class AppArchitecturePlatformTests: XCTestCase {
         )
         XCTAssertTrue(content.contains("private var captureHeader: some View"))
         XCTAssertTrue(content.contains("private var captureHeaderActions: some View"))
+        XCTAssertTrue(content.contains("private var quickCaptureActionGroup: some View"))
+        XCTAssertTrue(content.contains("private var createSomethingActionGroup: some View"))
+        XCTAssertTrue(content.contains("private var recordActionGroup: some View"))
+        XCTAssertTrue(content.contains("private var moreCaptureMenu: some View"))
+        XCTAssertTrue(content.contains("Text(\"Quick Capture\")"))
+        XCTAssertTrue(content.contains("Text(\"Create Something\")"))
+        XCTAssertTrue(content.contains("Text(\"Record\")"))
+        XCTAssertTrue(content.contains("private func creationActionButton("))
+        XCTAssertTrue(content.contains("private func recordingActionButton("))
+        XCTAssertTrue(content.contains("private var connectedDeviceRecordingActions: some View"))
+        XCTAssertFalse(content.contains("private var recordButton: some View"))
+        XCTAssertFalse(content.contains("private var createButton: some View"))
+        XCTAssertFalse(content.contains("private var createIntentCard: some View"))
+        XCTAssertTrue(content.contains("windowCaptureCard"))
         XCTAssertTrue(
             content.contains(
                 ".accessibilityIdentifier(\"capture.header\")"
@@ -2269,10 +2291,18 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertFalse(content.contains("ToolbarItem(id: \"capture-region\""))
         XCTAssertTrue(editor.contains("struct EditorCommandBar: View"))
         XCTAssertTrue(editor.contains("ScrollView(.horizontal, showsIndicators: false)"))
-        XCTAssertTrue(editor.contains("toolButtons(Self.shapeTools)"))
-        XCTAssertTrue(editor.contains("toolButtons(Self.drawingTools)"))
+        XCTAssertTrue(editor.contains("toolButtons(Self.directTools)"))
+        XCTAssertTrue(editor.contains("private func toolGroupMenu("))
+        XCTAssertTrue(editor.contains("title: \"Shapes\""))
+        XCTAssertTrue(editor.contains("title: \"Draw\""))
+        XCTAssertTrue(editor.contains("title: \"Emphasize\""))
+        XCTAssertTrue(editor.contains("\"editor.toolGroup.redact\""))
+        XCTAssertTrue(editor.contains("Label(\"More Tools\""))
+        XCTAssertTrue(editor.contains("systemName: \"chevron.down\""))
+        XCTAssertTrue(editor.contains("\"editor.toolGroup.shapes.choices\""))
         XCTAssertTrue(editor.contains("struct EditorCommandGroup<Content: View>: View"))
-        XCTAssertTrue(editor.contains("EditorCommandGroup(\"Selection tools\")"))
+        XCTAssertTrue(editor.contains("EditorCommandGroup(\"Selection and common tools\")"))
+        XCTAssertTrue(editor.contains("EditorCommandGroup(\"Grouped annotation tools\")"))
         XCTAssertTrue(editor.contains("EditorCommandGroup(\"History\")"))
         XCTAssertTrue(editor.contains("EditorCommandGroup(\"Zoom\")"))
         XCTAssertTrue(editor.contains("EditorCommandGroup(\"Inspector\")"))
@@ -2296,7 +2326,8 @@ final class AppArchitecturePlatformTests: XCTestCase {
             editor.contains(".toolbar {"),
             "Screenshot EditorView must keep its controls in content so the titlebar cannot create a blank toolbar band."
         )
-        XCTAssertFalse(editor.contains("toolMenu(title:"))
+        XCTAssertTrue(editor.contains("rememberLastUsedTool(activeTool)"))
+        XCTAssertTrue(editor.contains("isSelected: tools.contains(controller.activeTool)"))
         let dragControlStart = try XCTUnwrap(
             editor.range(of: "private var dragControl: some View")
         )
@@ -2316,6 +2347,20 @@ final class AppArchitecturePlatformTests: XCTestCase {
         )
         XCTAssertTrue(editor.contains(".inspector(isPresented:"))
         XCTAssertTrue(editor.contains(".inspectorColumnWidth(min: 280, ideal: 320, max: 380)"))
+        XCTAssertTrue(editorInspector.contains("private enum EditorInspectorPage"))
+        XCTAssertTrue(editorInspector.contains("case properties"))
+        XCTAssertTrue(editorInspector.contains("case crop"))
+        XCTAssertTrue(editorInspector.contains("case history"))
+        XCTAssertTrue(editorInspector.contains("switch selectedPage"))
+        XCTAssertTrue(editorInspector.contains("title: \"Crop Image\""))
+        XCTAssertTrue(editorInspector.contains("\"editor.inspector.page.crop\""))
+        XCTAssertTrue(editorInspector.contains("\"editor.inspector.page.properties\""))
+        XCTAssertTrue(editorInspector.contains("\"editor.inspector.page.history\""))
+        XCTAssertTrue(editorInspector.contains("historyEntries.isEmpty ? \"History\" : \"History \\(historyEntries.count)\""))
+        XCTAssertTrue(editorInspector.contains("private var showsContextualStyleProperties"))
+        XCTAssertTrue(editorInspector.contains("InsetGroupBox(verbatim: contextualPropertiesTitle)"))
+        XCTAssertTrue(editorInspector.contains("Crop handles stay available on the image while you use any annotation tool."))
+        XCTAssertTrue(editorInspector.contains("Adjustments apply immediately and remain undoable."))
         XCTAssertTrue(guide.contains("struct GuideEditorToolbarContent: ToolbarContent"))
         XCTAssertTrue(video.contains("struct VideoEditorToolbarContent: ToolbarContent"))
         XCTAssertFalse(content.contains("AppModel"))

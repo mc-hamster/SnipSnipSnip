@@ -598,11 +598,11 @@ private struct FirstAdditionPurposeChoiceButton: View {
 }
 
 struct EditorCommandBar: View {
-    private static let primaryTools: [EditorTool] = [.select, .crop]
-    private static let shapeTools: [EditorTool] = [.rectangle, .ellipse, .line, .arrow, .statusMark, .measure]
-    private static let drawingTools: [EditorTool] = [.freehand, .highlighter, .highlight, .spotlight]
-    private static let textTools: [EditorTool] = [.text, .callout]
-    private static let utilityTools: [EditorTool] = [.ocrText, .colorPicker]
+    private static let directTools: [EditorTool] = [.select, .crop, .arrow, .text]
+    private static let shapeTools: [EditorTool] = [.rectangle, .ellipse, .line, .statusMark]
+    private static let drawingTools: [EditorTool] = [.freehand, .highlighter]
+    private static let emphasisTools: [EditorTool] = [.highlight, .spotlight, .measure]
+    private static let moreTools: [EditorTool] = [.callout, .ocrText, .colorPicker]
 
     @ObservedObject var controller: EditorController
     @Binding var isInspectorPresented: Bool
@@ -622,6 +622,10 @@ struct EditorCommandBar: View {
     @State private var isShowingFirstAdditionPurpose = false
     @State private var pendingFirstAddition:
         ((CompositionAddActions) -> Void)?
+    @State private var lastShapeTool: EditorTool = .rectangle
+    @State private var lastDrawingTool: EditorTool = .freehand
+    @State private var lastEmphasisTool: EditorTool = .highlight
+    @State private var lastMoreTool: EditorTool = .callout
 
     var body: some View {
         Group {
@@ -663,6 +667,9 @@ struct EditorCommandBar: View {
             requestCompositionAddition {
                 source.perform(using: $0)
             }
+        }
+        .onChange(of: controller.activeTool) { _, activeTool in
+            rememberLastUsedTool(activeTool)
         }
     }
 
@@ -713,24 +720,33 @@ struct EditorCommandBar: View {
                             .lineLimit(1)
                     }
 
-                    EditorCommandGroup("Selection tools") {
-                        toolButtons(Self.primaryTools)
+                    EditorCommandGroup("Selection and common tools") {
+                        toolButtons(Self.directTools)
                     }
-                    EditorCommandGroup("Shape tools") {
-                        toolButtons(Self.shapeTools)
-                    }
-                    EditorCommandGroup("Drawing and highlight tools") {
-                        toolButtons(Self.drawingTools)
-                    }
-                    EditorCommandGroup("Text and callout tools") {
-                        toolButtons(Self.textTools)
-                    }
-                    EditorCommandGroup("Redaction tools") {
+                    EditorCommandGroup("Grouped annotation tools") {
+                        toolGroupMenu(
+                            title: "Shapes",
+                            systemImage: "square.on.circle",
+                            tools: Self.shapeTools,
+                            lastUsedTool: $lastShapeTool,
+                            accessibilityIdentifier: "editor.toolGroup.shapes"
+                        )
+                        toolGroupMenu(
+                            title: "Draw",
+                            systemImage: "pencil.and.scribble",
+                            tools: Self.drawingTools,
+                            lastUsedTool: $lastDrawingTool,
+                            accessibilityIdentifier: "editor.toolGroup.draw"
+                        )
+                        toolGroupMenu(
+                            title: "Emphasize",
+                            systemImage: "scope",
+                            tools: Self.emphasisTools,
+                            lastUsedTool: $lastEmphasisTool,
+                            accessibilityIdentifier: "editor.toolGroup.emphasize"
+                        )
                         redactionControl
-                    }
-                    EditorCommandGroup("Recognition and image tools") {
-                        toolButtons(Self.utilityTools)
-                        insertImageButton
+                        moreToolsControl
                     }
                 }
                 .fixedSize(horizontal: true, vertical: false)
@@ -1169,8 +1185,10 @@ struct EditorCommandBar: View {
         Button {
             controller.activateToolbarTool(tool)
         } label: {
-            Image(systemName: tool.systemImage)
-                .frame(width: 30, height: 28)
+            Label(tool.label, systemImage: tool.systemImage)
+                .font(.subheadline.weight(.medium))
+                .padding(.horizontal, 8)
+                .frame(height: 28)
         }
         .buttonStyle(EditorDirectToolButtonStyle(isSelected: controller.activeTool == tool))
         .help(helpText(for: tool))
@@ -1179,39 +1197,180 @@ struct EditorCommandBar: View {
         .disabled(!isToolEnabled(tool))
     }
 
-    private var redactionControl: some View {
-        Menu {
-            ForEach(RedactionMode.allCases) { redactionMode in
-                Button {
-                    controller.updateRedactionMode(redactionMode)
-                } label: {
-                    Label(
-                        redactionMode.label,
-                        systemImage: redactionMode == controller.currentRedactionMode ? "checkmark" : redactionMode.toolbarSystemImage
-                    )
-                }
+    private func toolGroupMenu(
+        title: String,
+        systemImage: String,
+        tools: [EditorTool],
+        lastUsedTool: Binding<EditorTool>,
+        accessibilityIdentifier: String
+    ) -> some View {
+        let isSelected = tools.contains(controller.activeTool)
+
+        return HStack(spacing: 2) {
+            Button {
+                controller.activateToolbarTool(lastUsedTool.wrappedValue)
+            } label: {
+                Label(title, systemImage: systemImage)
+                    .font(.subheadline.weight(.medium))
+                    .padding(.horizontal, 8)
+                    .frame(height: 28)
             }
-        } label: {
-            Image(systemName: controller.currentRedactionMode.toolbarSystemImage)
-                .frame(width: 30, height: 28)
-        } primaryAction: {
-            controller.activateToolbarTool(.blur)
+            .buttonStyle(EditorDirectToolButtonStyle(isSelected: isSelected))
+            .help("\(title): click to reuse \(lastUsedTool.wrappedValue.label).")
+            .accessibilityLabel(title)
+            .accessibilityHint("Activate the last-used \(title.lowercased()) tool: \(lastUsedTool.wrappedValue.label).")
+            .accessibilityValue(
+                isSelected
+                    ? "Selected: \(controller.activeTool.label)"
+                    : "Not selected"
+            )
+            .accessibilityIdentifier(accessibilityIdentifier)
+
+            Menu {
+                ForEach(tools) { tool in
+                    Button {
+                        lastUsedTool.wrappedValue = tool
+                        controller.activateToolbarTool(tool)
+                    } label: {
+                        Label(
+                            tool.label,
+                            systemImage: controller.activeTool == tool
+                                ? "checkmark"
+                                : tool.systemImage
+                        )
+                    }
+                    .disabled(!isToolEnabled(tool))
+                }
+            } label: {
+                toolGroupDisclosureLabel
+            }
+            .buttonStyle(EditorDirectToolButtonStyle(isSelected: isSelected))
+            .help("Choose another \(title.lowercased()) tool.")
+            .accessibilityLabel("\(title) tool choices")
+            .accessibilityHint("Choose a different tool in the \(title) group.")
+            .accessibilityIdentifier("\(accessibilityIdentifier).choices")
         }
-        .buttonStyle(EditorDirectToolButtonStyle(isSelected: controller.activeTool.defaultRedactionMode != nil))
-        .help("Redaction: \(controller.currentRedactionMode.label). Click to use; open the menu to change mode.")
-        .accessibilityLabel("Redaction")
-        .accessibilityHint("Current mode: \(controller.currentRedactionMode.label). Press to activate or open the menu to change mode.")
-        .accessibilityValue(controller.activeTool.defaultRedactionMode != nil ? "Selected" : "Not selected")
+        .fixedSize(horizontal: true, vertical: false)
     }
 
-    private var insertImageButton: some View {
-        Button(action: controller.importImageOverlay) {
-            Image(systemName: "photo.badge.plus")
-                .frame(width: 30, height: 28)
+    private var redactionControl: some View {
+        let isSelected = controller.activeTool.defaultRedactionMode != nil
+
+        return HStack(spacing: 2) {
+            Button {
+                controller.activateToolbarTool(.blur)
+            } label: {
+                Label(
+                    "Redact",
+                    systemImage: controller.currentRedactionMode.toolbarSystemImage
+                )
+                .font(.subheadline.weight(.medium))
+                .padding(.horizontal, 8)
+                .frame(height: 28)
+            }
+            .buttonStyle(EditorDirectToolButtonStyle(isSelected: isSelected))
+            .help("Redaction: click to use \(controller.currentRedactionMode.label).")
+            .accessibilityLabel("Redact")
+            .accessibilityHint("Activate the current redaction mode: \(controller.currentRedactionMode.label).")
+            .accessibilityValue(isSelected ? "Selected" : "Not selected")
+            .accessibilityIdentifier("editor.toolGroup.redact")
+
+            Menu {
+                ForEach(RedactionMode.allCases) { redactionMode in
+                    Button {
+                        controller.updateRedactionMode(redactionMode)
+                    } label: {
+                        Label(
+                            redactionMode.label,
+                            systemImage: redactionMode == controller.currentRedactionMode ? "checkmark" : redactionMode.toolbarSystemImage
+                        )
+                    }
+                }
+            } label: {
+                toolGroupDisclosureLabel
+            }
+            .buttonStyle(EditorDirectToolButtonStyle(isSelected: isSelected))
+            .help("Choose Blur, Pixelate, or Redact.")
+            .accessibilityLabel("Redaction choices")
+            .accessibilityHint("Choose a different redaction mode.")
+            .accessibilityIdentifier("editor.toolGroup.redact.choices")
         }
-        .buttonStyle(EditorDirectToolButtonStyle(isSelected: false))
-        .help("Insert an image overlay.")
-        .accessibilityLabel("Insert Image")
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private var moreToolsControl: some View {
+        let isSelected = Self.moreTools.contains(controller.activeTool)
+
+        return HStack(spacing: 2) {
+            Button {
+                controller.activateToolbarTool(lastMoreTool)
+            } label: {
+                Label("More Tools", systemImage: "ellipsis.circle")
+                    .font(.subheadline.weight(.medium))
+                    .padding(.horizontal, 8)
+                    .frame(height: 28)
+            }
+            .buttonStyle(EditorDirectToolButtonStyle(isSelected: isSelected))
+            .help("More Tools: click to reuse \(lastMoreTool.label).")
+            .accessibilityLabel("More Tools")
+            .accessibilityHint("Activate the last-used utility: \(lastMoreTool.label).")
+            .accessibilityValue(
+                isSelected
+                    ? "Selected: \(controller.activeTool.label)"
+                    : "Not selected"
+            )
+            .accessibilityIdentifier("editor.toolGroup.more")
+
+            Menu {
+                ForEach(Self.moreTools) { tool in
+                    Button {
+                        lastMoreTool = tool
+                        controller.activateToolbarTool(tool)
+                    } label: {
+                        Label(
+                            tool.label,
+                            systemImage: controller.activeTool == tool
+                                ? "checkmark"
+                                : tool.systemImage
+                        )
+                    }
+                    .disabled(!isToolEnabled(tool))
+                }
+
+                Divider()
+
+                Button(action: controller.importImageOverlay) {
+                    Label("Insert Image", systemImage: "photo.badge.plus")
+                }
+            } label: {
+                toolGroupDisclosureLabel
+            }
+            .buttonStyle(EditorDirectToolButtonStyle(isSelected: isSelected))
+            .help("Choose Callout, Copy Text, Pick Color, or Insert Image.")
+            .accessibilityLabel("More tool choices")
+            .accessibilityHint("Choose a different utility or insert an image.")
+            .accessibilityIdentifier("editor.toolGroup.more.choices")
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private var toolGroupDisclosureLabel: some View {
+        Image(systemName: "chevron.down")
+            .font(.caption2.weight(.bold))
+            .padding(.horizontal, 7)
+            .frame(height: 28)
+    }
+
+    private func rememberLastUsedTool(_ tool: EditorTool) {
+        if Self.shapeTools.contains(tool) {
+            lastShapeTool = tool
+        } else if Self.drawingTools.contains(tool) {
+            lastDrawingTool = tool
+        } else if Self.emphasisTools.contains(tool) {
+            lastEmphasisTool = tool
+        } else if Self.moreTools.contains(tool) {
+            lastMoreTool = tool
+        }
     }
 
     private func isToolEnabled(_ tool: EditorTool) -> Bool {

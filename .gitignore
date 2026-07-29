@@ -10,6 +10,7 @@ xcuserdata/
 DerivedData/
 .DerivedData/
 .derivedData/
+.derivedData-*/
 *.xcresult
 *.xccheckout
 *.xcscmblueprint

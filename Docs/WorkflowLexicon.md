@@ -1,7 +1,7 @@
 ---
 description: "Canonical product terminology for SnipSnipSnip workflows, actions, stages, statuses, libraries, and outputs."
 status: active
-last_reviewed: 2026-07-27
+last_reviewed: 2026-07-28
 ---
 
 # SnipSnipSnip Workflow Lexicon
@@ -95,6 +95,8 @@ Source nouns describe where content comes from. They are not action labels by th
 
 Use **More Ways to Capture** as the umbrella for less common capture sources.
 
+**Quick Capture** names the main-window group of one-action Screenshot sources: Region, Window, and Screen. Its **More** menu contains Scrolling Content, Repeat Last Capture, and Presets. **Create Something** names the adjacent guided area with direct Screenshot, Comparison, Steps, and Combined Image entries; each opens setup with that result selected so the user only chooses its source and options. **Record** names the adjacent activity area with direct Region, Window, Screen, Guide when available, and connected-device entries. These are navigation group labels, not new workflow or output nouns.
+
 ## Action Verbs
 
 Actions should start with a verb. Choose the verb that accurately describes how content enters or changes the workflow.
@@ -109,6 +111,7 @@ Actions should start with a verb. Choose the verb that accurately describes how 
 | **Record** | Beginning an observed, time-based activity. | Record a Guide; Record Video. |
 | **Inspect** | Examining screen or interface information without making it the primary output. | Inspect Screen. |
 | **Edit** | Modifying content or annotations. | Edit Screenshot; Edit Guide. |
+| **Crop** | Adjusting the visible image bounds without changing source pixels. | Crop Image. |
 | **Arrange** | Positioning multiple visual items spatially. | Arrange Images. |
 | **Review** | Checking a prepared result before finishing. | Review Comparison. |
 | **Polish** | Applying optional finishing or presentation treatment. | Polish Screenshot. |

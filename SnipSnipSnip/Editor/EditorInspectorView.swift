@@ -153,6 +153,14 @@ struct EditorHistoryActions {
     let onEmptyRecycleBin: () -> Void
 }
 
+private enum EditorInspectorPage: String, CaseIterable, Identifiable {
+    case properties
+    case crop
+    case history
+
+    var id: Self { self }
+}
+
 struct EditorInspectorView: View {
     @ObservedObject var controller: EditorController
     let historyEntries: [DocumentHistoryEntry]
@@ -165,55 +173,59 @@ struct EditorInspectorView: View {
     var compositionActions: CompositionInspectorActions = .unavailable
     @Binding var previewedHistoryEntry: DocumentHistoryEntry?
     @State private var isShowingRecycleBin = false
+    @State private var selectedPage: EditorInspectorPage = .properties
 
     var body: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    if controller.workspaceMode == .presentation {
+            if controller.workspaceMode == .presentation {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
                         PresentationInspectorView(
                             controller: controller,
                             compositionActions: compositionActions
                         )
-                    } else {
-                        if controller.compositionEditingScope != .layout {
-                            compositionEditingSection
-                        }
+                    }
+                    .padding(16)
+                }
+                .scrollPosition(
+                    id: $controller.compositionInspectorScrollPosition,
+                    anchor: .top
+                )
+                .accessibilityIdentifier("editor.inspector.scroll")
+            } else {
+                inspectorPageControls
 
-                        if showsUIMapInspectionSection {
-                            uiMapInspectionSection
-                        } else {
-                            styleSection
+                Divider()
 
-                            if controller.showsTextAlignmentControls || controller.canAlignSelection {
-                                alignmentSection
-                            }
-                        }
-
-                        if controller.showsCropControls {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        switch selectedPage {
+                        case .properties:
+                            propertiesPage
+                        case .crop:
                             cropSection
-                        }
-
-                        changeHistorySection
-
-                        if !recentSnipEntries.isEmpty
-                            || !captureHistoryEntries.isEmpty
-                            || !captureSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            recentSnipsSection
+                        case .history:
+                            historyPage
                         }
                     }
+                    .padding(16)
                 }
-                .padding(16)
+                .scrollPosition(
+                    id: $controller.compositionInspectorScrollPosition,
+                    anchor: .top
+                )
+                .accessibilityIdentifier("editor.inspector.scroll")
+
+                if selectedPage == .history {
+                    Divider()
+                    recycleBinFooter
+                }
             }
-            .scrollPosition(
-                id: $controller.compositionInspectorScrollPosition,
-                anchor: .top
-            )
-            .accessibilityIdentifier("editor.inspector.scroll")
-
-            Divider()
-
-            recycleBinFooter
+        }
+        .onChange(of: controller.compositionEditingScope) { _, scope in
+            if scope == .composition, selectedPage == .crop {
+                selectedPage = .properties
+            }
         }
         .sheet(isPresented: $isShowingRecycleBin) {
             RecycleBinSheetView(
@@ -222,6 +234,136 @@ struct EditorInspectorView: View {
             )
             .frame(minWidth: 620, minHeight: 520)
         }
+    }
+
+    private var inspectorPageControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if controller.showsCropControls {
+                inspectorPageButton(
+                    page: .crop,
+                    title: "Crop Image",
+                    systemImage: "crop",
+                    help: "Show crop dimensions and controls without changing the selected annotation tool.",
+                    accessibilityIdentifier: "editor.inspector.page.crop",
+                    fillsWidth: true
+                )
+
+                Text("Crop handles stay available on the image while you use any annotation tool.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 8) {
+                inspectorPageButton(
+                    page: .properties,
+                    title: "Properties",
+                    systemImage: "slider.horizontal.3",
+                    help: "Show controls for the selected annotation or active tool.",
+                    accessibilityIdentifier: "editor.inspector.page.properties",
+                    fillsWidth: true
+                )
+
+                inspectorPageButton(
+                    page: .history,
+                    title: historyPageTitle,
+                    systemImage: "clock.arrow.circlepath",
+                    help: "Show Change History and the Snip Library.",
+                    accessibilityIdentifier: "editor.inspector.page.history",
+                    fillsWidth: true
+                )
+            }
+        }
+        .padding(12)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Inspector View")
+    }
+
+    @ViewBuilder
+    private func inspectorPageButton(
+        page: EditorInspectorPage,
+        title: String,
+        systemImage: String,
+        help: String,
+        accessibilityIdentifier: String,
+        fillsWidth: Bool
+    ) -> some View {
+        let label = Label(title, systemImage: systemImage)
+            .frame(maxWidth: fillsWidth ? .infinity : nil)
+
+        if selectedPage == page {
+            Button {
+                selectedPage = page
+            } label: {
+                label
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityValue("Selected")
+            .accessibilityIdentifier(accessibilityIdentifier)
+            .help(help)
+        } else {
+            Button {
+                selectedPage = page
+            } label: {
+                label
+            }
+            .buttonStyle(.bordered)
+            .accessibilityValue("Not selected")
+            .accessibilityIdentifier(accessibilityIdentifier)
+            .help(help)
+        }
+    }
+
+    private var historyPageTitle: String {
+        historyEntries.isEmpty ? "History" : "History \(historyEntries.count)"
+    }
+
+    @ViewBuilder
+    private var propertiesPage: some View {
+        if controller.compositionEditingScope != .layout {
+            compositionEditingSection
+        }
+
+        if showsUIMapInspectionSection {
+            uiMapInspectionSection
+        } else if showsContextualStyleProperties {
+            styleSection
+
+            if controller.showsTextAlignmentControls || controller.canAlignSelection {
+                alignmentSection
+            }
+        } else if controller.compositionEditingScope == .layout {
+            ContentUnavailableView(
+                "Select an Annotation",
+                systemImage: "cursorarrow.click.2",
+                description: Text("Choose an annotation or drawing tool to see its properties.")
+            )
+            .accessibilityIdentifier("editor.inspector.properties.empty")
+        }
+    }
+
+    @ViewBuilder
+    private var historyPage: some View {
+        changeHistorySection
+
+        if !recentSnipEntries.isEmpty
+            || !captureHistoryEntries.isEmpty
+            || !captureSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            recentSnipsSection
+        }
+    }
+
+    private var showsContextualStyleProperties: Bool {
+        controller.selectedCount > 0 || controller.activeTool.supportsStyleEditing
+    }
+
+    private var contextualPropertiesTitle: String {
+        if controller.selectedCount > 1 {
+            return "Selection"
+        }
+        if let selectedTool = controller.selectedAnnotation?.editorTool {
+            return selectedTool.label
+        }
+        return controller.activeTool.label
     }
 
     private var showsUIMapInspectionSection: Bool {
@@ -451,7 +593,7 @@ struct EditorInspectorView: View {
     }
 
     private var styleSection: some View {
-        InsetGroupBox("Style") {
+        InsetGroupBox(verbatim: contextualPropertiesTitle) {
             VStack(alignment: .leading, spacing: 12) {
                 Text(controller.stylePrimaryLabel)
                     .font(.caption.weight(.semibold))
@@ -870,10 +1012,14 @@ struct EditorInspectorView: View {
     }
 
     private var cropSection: some View {
-        InsetGroupBox("Crop") {
+        InsetGroupBox("Crop Image") {
             let cropRect = controller.snapshot.cropRect.gscIntegralStandardized
 
             VStack(alignment: .leading, spacing: 12) {
+                Text("Adjustments apply immediately and remain undoable. Crop handles stay available on the image while another annotation tool is selected.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Crop Size")
                         .font(.caption.weight(.semibold))
