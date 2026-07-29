@@ -95,7 +95,7 @@ Source nouns describe where content comes from. They are not action labels by th
 
 Use **More Ways to Capture** as the umbrella for less common capture sources.
 
-**Quick Capture** names the main-window group of one-action Screenshot sources: Region, Window, and Screen. Its **More** menu contains Scrolling Content, Repeat Last Capture, and Presets. **Create Something** names the adjacent guided area with direct Screenshot, Comparison, Steps, and Combined Image entries; each opens setup with that result selected so the user only chooses its source and options. **Record** names the adjacent activity area with direct Region, Window, Screen, Guide when available, and connected-device entries. These are navigation group labels, not new workflow or output nouns.
+**Quick Capture** names the main-window group of one-action Screenshot sources and actions: Region, Window, Screen, Scroll when available, Repeat Last, and Presets. **Scroll** is the compact header label for Capture Scrolling Content, **Repeat Last** is the compact header label for Repeat Last Capture, and **Presets** remains a menu because it contains a variable set of named targets. **Create Something** names the adjacent guided area with direct Comparison, Steps, and Combined Image entries; each opens setup with that result selected so the user only chooses its source and options. Direct Screenshot setup is omitted because Quick Capture already provides the primary one-click Screenshot paths. **Record** names the adjacent activity area with direct Region, Window, Screen, Guide when available, and connected-device entries. These are navigation group labels, not new workflow or output nouns.
 
 ## Action Verbs
 

@@ -53,15 +53,33 @@ def csv_option(value)
 end
 
 def current_release_version
-  get_version_number(
+  version = get_version_number(
     xcodeproj: PROJECT_PATH,
     target: TARGET,
     configuration: "Release"
   )
+  unless version.match?(/\A\d+\.\d+\.\d+\z/)
+    UI.user_error!(
+      "Xcode marketing version `#{version}` is invalid. " \
+      "Set the #{TARGET} Release version to x.y.z in Xcode."
+    )
+  end
+
+  version
 end
 
 def current_build_number
   get_build_number(xcodeproj: PROJECT_PATH).to_i
+end
+
+def ensure_xcode_owned_marketing_version!(options)
+  requested_version = options[:version].to_s.strip
+  return if requested_version.empty?
+
+  UI.user_error!(
+    "Fastlane never changes the marketing version. " \
+    "Set the x.y.z version in Xcode and remove `version:#{requested_version}` from this command."
+  )
 end
 
 def submission_information_from(options)
@@ -222,25 +240,6 @@ def persist_upload_record(lane_name:, prepared:, changelog:, distribution: nil)
   write_upload_state(state)
 end
 
-def increment_patch_version(version)
-  segments = version.to_s.split(".")
-  UI.user_error!("Cannot auto-increment patch version from `#{version}`.") if segments.length < 3
-
-  patch = Integer(segments[-1], 10) + 1
-  (segments[0..-2] + [patch.to_s]).join(".")
-rescue ArgumentError
-  UI.user_error!("Cannot auto-increment patch version from `#{version}`.")
-end
-
-def requested_version_for_release(options)
-  requested_version = options[:version].to_s.strip
-  return requested_version unless requested_version.empty?
-
-  next_version = increment_patch_version(current_release_version)
-  UI.message("Auto-incrementing release version to #{next_version}")
-  next_version
-end
-
 def release_safety_checks_enabled?(options = {})
   boolean_option(
     options[:release_safety_checks] || ENV["RELEASE_SAFETY_CHECKS"],
@@ -310,14 +309,7 @@ private_lane :app_store_connect_api_key_from_env do
 end
 
 private_lane :prepare_version_and_build_number do |options|
-  requested_version = options[:version].to_s.strip
-  unless requested_version.empty?
-    increment_version_number(
-      version_number: requested_version,
-      xcodeproj: PROJECT_PATH
-    )
-    UI.message("Set marketing version to #{requested_version}")
-  end
+  ensure_xcode_owned_marketing_version!(options)
 
   version = current_release_version
   local_build = current_build_number
@@ -351,14 +343,7 @@ private_lane :prepare_version_and_build_number do |options|
 end
 
 private_lane :prepare_local_version_and_build_number do |options|
-  requested_version = options[:version].to_s.strip
-  unless requested_version.empty?
-    increment_version_number(
-      version_number: requested_version,
-      xcodeproj: PROJECT_PATH
-    )
-    UI.message("Set marketing version to #{requested_version}")
-  end
+  ensure_xcode_owned_marketing_version!(options)
 
   version = current_release_version
   next_build = current_build_number + 1
@@ -583,12 +568,15 @@ private_lane :build_release_pkg do |options|
   build_target = options[:build_target] || "Release"
   export_method = build_target == "Self Release" ? "developer-id" : "app-store"
   export_options = nil
+  marketing_version = current_release_version
   compilation_conditions = build_target == "Self Release" ? "" : "$(inherited) APP_STORE_BUILD"
   xcargs = [
     "-allowProvisioningUpdates",
+    "MARKETING_VERSION=#{Shellwords.escape(marketing_version)}",
     "SNIP_BUILD_TARGET=#{Shellwords.escape(build_target)}",
     "SWIFT_ACTIVE_COMPILATION_CONDITIONS='#{compilation_conditions}'"
   ]
+  UI.message("Using Xcode marketing version #{marketing_version} for every shipped target.")
   if build_target == "Self Release"
     xcargs << "SNIP_APP_DISPLAY_NAME=#{Shellwords.escape('SnipSnipSnip Pro')}"
     xcargs << "ENABLE_APP_SANDBOX=NO"
@@ -883,7 +871,7 @@ private_lane :upload_app_store_build do |options|
   changelog_details = tracked_changelog_details(provided_changelog: options[:changelog], lane_name: "release")
   prepared = prepare_version_and_build_number(
     api_key: api_key,
-    version: requested_version_for_release(options)
+    version: options[:version]
   )
 
   build_release_pkg(build_target: "Release")

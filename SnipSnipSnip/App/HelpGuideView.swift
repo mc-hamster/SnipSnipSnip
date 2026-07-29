@@ -130,7 +130,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Take and finish a screenshot",
                             steps: [
-                                "Use Quick Capture to choose Region, Window, or Screen. Region is the primary one-click action; More contains Scrolling Content, Repeat Last Capture, and Presets.",
+                                "Use Quick Capture to choose Region, Window, or Screen. Region is the primary one-click action; Scroll and Repeat Last are direct actions, and Presets stays in its own menu.",
                                 "Use the editor to crop, annotate, redact, or copy text.",
                                 "Choose Copy, Export, Share, Float, or Drag for the result currently shown.",
                                 "Choose Save or Save As when you want to keep an editable .sss document."
@@ -138,7 +138,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Create or record without an extra menu",
-                            body: "Under Create Something, choose Screenshot, Comparison, Steps, or Combined Image to open setup with that result already selected. Under Record, choose Region, Window, Screen, Guide, or an available connected device directly. Quick Capture always starts a Screenshot immediately."
+                            body: "Under Create Something, choose Comparison, Steps, or Combined Image to open setup with that result already selected. Under Record, choose Region, Window, Screen, Guide, or an available connected device directly. Use Quick Capture for a one-action Screenshot."
                         ),
                         HelpArticleSection(
                             title: "Know what stays editable",
@@ -692,7 +692,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: String(localized: "Choose what to make"),
                             steps: [
-                                String(localized: "Use Quick Capture when you want a one-action Screenshot from Region, Window, or Screen. Under Create Something, choose Screenshot, Comparison, Steps, or Combined Image to open setup with the result already selected. Under Record, choose Region, Window, Screen, Guide, or an available connected device directly."),
+                                String(localized: "Use Quick Capture when you want a one-action Screenshot from Region, Window, Screen, Scrolling Content, a repeat, or a preset. Scroll and Repeat Last are direct actions; Presets stays in its own menu. Under Create Something, choose Comparison, Steps, or Combined Image to open setup with the result already selected. Under Record, choose Region, Window, Screen, Guide, or an available connected device directly."),
                                 String(localized: "To explain a process, choose Record a Guide for action-aware capture or Build Steps manually to add and caption each step yourself."),
                                 String(localized: "Choose where the first image will come from: Region, Window, Screen, or Existing Image. Existing Image includes files, the clipboard, and the Snip Library. More ways to capture keeps specialized acquisition methods out of the main decision. Fine-tune appears only when the selected source has optional settings."),
                                 String(localized: "Review the summary and use the single primary action. Cancelling setup, target selection, permission setup, or capture leaves the current document and preferences unchanged.")

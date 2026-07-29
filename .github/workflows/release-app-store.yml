@@ -3,10 +3,6 @@ name: Release App Store
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: "Optional marketing version (e.g. 1.0.17). Leave blank to auto-bump patch."
-        required: false
-        type: string
       submit_for_review:
         description: "Submit to App Review after upload"
         required: true
@@ -102,9 +98,4 @@ jobs:
           RELEASE_TESTS_CONFIRMED: true
           RELEASE_MANUAL_QA_CONFIRMED: ${{ inputs.manual_qa_confirmed }}
           RELEASE_SKIP_TESTS: true
-        run: |
-          if [ -n "${{ inputs.version }}" ]; then
-            ./bin/fastlane mac release version:${{ inputs.version }}
-          else
-            ./bin/fastlane mac release
-          fi
+        run: ./bin/fastlane mac release

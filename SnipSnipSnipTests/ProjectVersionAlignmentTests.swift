@@ -7,17 +7,12 @@ final class ProjectVersionAlignmentTests: XCTestCase {
             .deletingLastPathComponent()
     }
 
-    func testVersionBuildSettingsAreDefinedOnlyAtProjectLevel() throws {
+    func testBuildNumberIsDefinedOnlyAtProjectLevel() throws {
         let projectURL = repositoryRoot
             .appendingPathComponent("SnipSnipSnip.xcodeproj")
             .appendingPathComponent("project.pbxproj")
         let project = try String(contentsOf: projectURL, encoding: .utf8)
 
-        assertSharedProjectSetting(
-            "MARKETING_VERSION",
-            in: project,
-            message: "Keep MARKETING_VERSION only on the project Debug and Release configurations so app targets inherit one shared version."
-        )
         assertSharedProjectSetting(
             "CURRENT_PROJECT_VERSION",
             in: project,
@@ -59,6 +54,50 @@ final class ProjectVersionAlignmentTests: XCTestCase {
             incrementCallCount,
             "Every Fastlane build-number bump must preserve Info.plist references to CURRENT_PROJECT_VERSION."
         )
+    }
+
+    func testFastlaneTreatsXcodeMarketingVersionAsReadOnlyAndAppliesItToEveryTarget() throws {
+        let fastfile = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("fastlane/Fastfile"),
+            encoding: .utf8
+        )
+
+        XCTAssertFalse(
+            fastfile.contains("increment_version_number("),
+            "Fastlane must never change the Xcode-owned x.y.z marketing version."
+        )
+        XCTAssertFalse(
+            fastfile.contains("Auto-incrementing release version"),
+            "Release automation must not invent a marketing version."
+        )
+        XCTAssertTrue(
+            fastfile.contains("ensure_xcode_owned_marketing_version!(options)"),
+            "Build-number preparation must reject Fastlane marketing-version overrides."
+        )
+        XCTAssertTrue(
+            fastfile.contains("MARKETING_VERSION=#{Shellwords.escape(marketing_version)}"),
+            "Archives must apply the app's Xcode marketing version to every shipped target."
+        )
+
+        let appStoreWorkflow = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                ".github/workflows/release-app-store.yml"
+            ),
+            encoding: .utf8
+        )
+        let selfReleaseWorkflow = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                ".github/workflows/release-self-release.yml"
+            ),
+            encoding: .utf8
+        )
+
+        for workflow in [appStoreWorkflow, selfReleaseWorkflow] {
+            XCTAssertFalse(
+                workflow.contains("inputs.version"),
+                "Release workflows must use the marketing version checked into Xcode."
+            )
+        }
     }
 
     func testAppInfoPlistProhibitsMultipleInstances() throws {

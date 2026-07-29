@@ -784,12 +784,20 @@ struct ContentView: View {
                     systemImage: "macwindow",
                     action: capture.captureCurrentDisplay
                 )
-                moreCaptureMenu
+                if capabilities.isEnabled(.scrollingCapture) {
+                    captureButton(
+                        title: "Scroll",
+                        systemImage: "scroll",
+                        action: capture.captureScrollingArea
+                    )
+                }
+                repeatLastCaptureButton
+                capturePresetsMenu
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Quick Capture")
-        .accessibilityHint("Capture a Screenshot immediately from a live screen source.")
+        .accessibilityHint("Capture a Screenshot immediately from a live source, repeat, or preset.")
     }
 
     private var createSomethingActionGroup: some View {
@@ -799,12 +807,6 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 8) {
-                creationActionButton(
-                    title: "Screenshot",
-                    systemImage: "camera",
-                    goal: .screenshot,
-                    help: "Set up a Screenshot and choose its first source."
-                )
                 creationActionButton(
                     title: "Comparison",
                     systemImage: "square.split.2x1",
@@ -891,31 +893,39 @@ struct ContentView: View {
         .help("Drag to capture a selected region of the screen.")
     }
 
-    private var moreCaptureMenu: some View {
-        Menu {
-            if capabilities.isEnabled(.scrollingCapture) {
-                Button(
-                    "Capture \(WorkflowVocabulary.Source.scrollingContent)",
-                    action: capture.captureScrollingArea
-                )
-            }
-
-            Button("Repeat Last Capture", action: capture.repeatLastCapture)
-                .disabled(!capture.canRepeatLastCapture)
-
-            Divider()
-
-            Menu("Presets") {
-                CapturePresetMenuContent(
-                    capture: capture,
-                    video: video,
-                    lifecycle: lifecycle
-                )
-            }
+    private var repeatLastCaptureButton: some View {
+        Button {
+            capture.repeatLastCapture()
         } label: {
             headerActionLabel(
-                title: "More",
-                systemImage: "ellipsis.circle",
+                title: "Repeat Last",
+                systemImage: "arrow.clockwise"
+            )
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .controlSize(.small)
+        .disabled(
+            capture.isWorking
+                || isRecordingVideo
+                || guide.isActive
+                || !capture.canRepeatLastCapture
+        )
+        .help("Repeat Last Capture")
+        .accessibilityLabel("Repeat Last Capture")
+    }
+
+    private var capturePresetsMenu: some View {
+        Menu {
+            CapturePresetMenuContent(
+                capture: capture,
+                video: video,
+                lifecycle: lifecycle
+            )
+        } label: {
+            headerActionLabel(
+                title: "Presets",
+                systemImage: "slider.horizontal.3",
                 showsChevron: true
             )
         }
@@ -923,8 +933,8 @@ struct ContentView: View {
         .buttonBorderShape(.capsule)
         .controlSize(.small)
         .disabled(capture.isWorking || isRecordingVideo || guide.isActive)
-        .help("Capture Scrolling Content, repeat the last capture, or use a preset.")
-        .accessibilityLabel("More Ways to Capture")
+        .help("Run or manage a capture preset.")
+        .accessibilityLabel("Capture Presets")
     }
 
     private func creationActionButton(
@@ -1779,16 +1789,11 @@ struct ContentView: View {
         allowsActiveDeviceSession: Bool = false
     ) -> some View {
         Button(action: action) {
-            headerActionLabel(
-                title: title,
-                systemImage: systemImage,
-                accent: .red
-            )
+            headerActionLabel(title: title, systemImage: systemImage)
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
         .controlSize(.small)
-        .tint(.red)
         .disabled(
             capture.isWorking
                 || isRecordingVideo

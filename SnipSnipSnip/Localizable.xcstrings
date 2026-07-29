@@ -74,7 +74,13 @@
     "%@ layout" : {
 
     },
+    "%@ Setup" : {
+
+    },
     "%@ shadow" : {
+
+    },
+    "%@ tool choices" : {
 
     },
     "%@ using Region. Open the menu for another capture or image source." : {
@@ -116,6 +122,16 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@: %2$@"
+          }
+        }
+      }
+    },
+    "%@: click to reuse %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: click to reuse %2$@."
           }
         }
       }
@@ -327,6 +343,22 @@
     "Actions for %@" : {
 
     },
+    "Activate the current redaction mode: %@." : {
+
+    },
+    "Activate the last-used %@ tool: %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Activate the last-used %1$@ tool: %2$@."
+          }
+        }
+      }
+    },
+    "Activate the last-used utility: %@." : {
+
+    },
     "Actual Size" : {
 
     },
@@ -456,6 +488,9 @@
 
     },
     "Adjust the selected image overlay opacity." : {
+
+    },
+    "Adjustments apply immediately and remain undoable. Crop handles stay available on the image while another annotation tool is selected." : {
 
     },
     "Advanced" : {
@@ -840,6 +875,9 @@
     "Capture a screenshot" : {
 
     },
+    "Capture a Screenshot immediately from a live source, repeat, or preset." : {
+
+    },
     "Capture After" : {
 
     },
@@ -969,6 +1007,15 @@
     "Choose a Connected Device" : {
 
     },
+    "Choose a different redaction mode." : {
+
+    },
+    "Choose a different tool in the %@ group." : {
+
+    },
+    "Choose a different utility or insert an image." : {
+
+    },
     "Choose a fixed column count, or let Auto determine it." : {
 
     },
@@ -987,7 +1034,13 @@
     "Choose Add in a one-image Screenshot. The chooser explains each result: Compare shows Before and After together or highlights changes; Add as Step puts captures in order for captions and numbering; Combine arranges captures and images as one result. Region is ready by default, and the menu can preselect another source. The purpose changes only after the source is added successfully, and Undo returns to the original Screenshot. Later additions inherit the purpose without asking again. Option-Command-A invokes the same contextual action." : {
 
     },
+    "Choose an annotation or drawing tool to see its properties." : {
+
+    },
     "Choose Annotate Result to place annotations above the arranged items and below optional Polish. Anchored endpoints follow their items through layout changes; Pin Selection to Canvas keeps them in the overall result. Canvas bounds remain in Arrange." : {
+
+    },
+    "Choose another %@ tool." : {
 
     },
     "Choose App..." : {
@@ -999,7 +1052,10 @@
     "Choose Before" : {
 
     },
-    "Choose Create when you want to capture a Screenshot, compare two versions, explain a process, or make a Combined Image. Region, Window, and Screen remain one-action Screenshot shortcuts." : {
+    "Choose Blur, Pixelate, or Redact." : {
+
+    },
+    "Choose Callout, Copy Text, Pick Color, or Insert Image." : {
 
     },
     "Choose Edit Selected Capture, double-click an item, or press Return to crop and annotate only that source. Done returns to the same goal stage with the item selected. Press Option-Return to adjust framing, then Escape to finish." : {
@@ -1087,9 +1143,6 @@
 
     },
     "Choose what you are making. Images you add later will use the same choice." : {
-
-    },
-    "Choose what you want to make, then capture or add its first image." : {
 
     },
     "Choose what you want to make, then see only the controls that help finish it." : {
@@ -1380,10 +1433,16 @@
     "Create Captions Automatically" : {
 
     },
+    "Create Something" : {
+
+    },
     "Create…" : {
 
     },
-    "Crop" : {
+    "Crop handles stay available on the image while you use any annotation tool." : {
+
+    },
+    "Crop Image" : {
 
     },
     "Crop Outside Dimming" : {
@@ -1414,9 +1473,6 @@
 
     },
     "Current format: %@" : {
-
-    },
-    "Current mode: %@. Press to activate or open the menu to change mode." : {
 
     },
     "Current picker color." : {
@@ -1582,6 +1638,9 @@
 
     },
     "Drag the target handle to move where this step points." : {
+
+    },
+    "Drag to capture a selected region of the screen." : {
 
     },
     "Drag to move this floating reference." : {
@@ -2259,9 +2318,6 @@
     "Included" : {
 
     },
-    "Insert an image overlay." : {
-
-    },
     "Insert Image" : {
 
     },
@@ -2269,6 +2325,9 @@
 
     },
     "Inspector scope" : {
+
+    },
+    "Inspector View" : {
 
     },
     "Instruction" : {
@@ -2433,6 +2492,12 @@
     "Look Name" : {
 
     },
+    "Looking for Connected Devices" : {
+
+    },
+    "Looking for connected devices." : {
+
+    },
     "Looking for connected devices…" : {
 
     },
@@ -2550,7 +2615,16 @@
     "More Options" : {
 
     },
+    "More tool choices" : {
+
+    },
+    "More Tools" : {
+
+    },
     "More tools to explore" : {
+
+    },
+    "More Tools: click to reuse %@." : {
 
     },
     "More ways to capture" : {
@@ -3168,6 +3242,9 @@
     "Quality" : {
 
     },
+    "Quick Capture" : {
+
+    },
     "Quit %@" : {
 
     },
@@ -3190,6 +3267,9 @@
 
     },
     "Recognized Text" : {
+
+    },
+    "Record" : {
 
     },
     "Record a Guide" : {
@@ -3237,10 +3317,16 @@
     "Recycle Bin is Empty" : {
 
     },
+    "Redact" : {
+
+    },
     "Redaction" : {
 
     },
-    "Redaction: %@. Click to use; open the menu to change mode." : {
+    "Redaction choices" : {
+
+    },
+    "Redaction: click to use %@." : {
 
     },
     "Redo" : {
@@ -3522,10 +3608,10 @@
     "Run a saved SnipSnipSnip capture preset." : {
 
     },
-    "Run Preset" : {
+    "Run or manage a capture preset." : {
 
     },
-    "Run saved screenshot capture presets or save the last capture as a preset." : {
+    "Run Preset" : {
 
     },
     "Run SnipSnipSnip Capture Preset" : {
@@ -3705,6 +3791,9 @@
     "Select All" : {
 
     },
+    "Select an Annotation" : {
+
+    },
     "Selected" : {
       "comment" : "Accessibility value for a selected item."
     },
@@ -3712,6 +3801,9 @@
 
     },
     "Selected Element" : {
+
+    },
+    "Selected: %@" : {
 
     },
     "Selection bounds hidden" : {
@@ -4057,12 +4149,6 @@
     "Start a new Screenshot, Comparison, Steps, or Combined Image." : {
 
     },
-    "Start a screen video recording." : {
-
-    },
-    "Start a Screenshot, compare two versions, explain a process, or combine images." : {
-
-    },
     "Start at %lld" : {
 
     },
@@ -4171,9 +4257,6 @@
 
     },
     "Stop Recording" : {
-
-    },
-    "Style" : {
 
     },
     "Style the composition canvas" : {
@@ -4380,6 +4463,9 @@
     "Use luminance, outlines, or patterns so differences never rely on color alone." : {
 
     },
+    "Use Quick Capture when you want a one-action Screenshot from Region, Window, Screen, Scrolling Content, a repeat, or a preset. Scroll and Repeat Last are direct actions; Presets stays in its own menu. Under Create Something, choose Comparison, Steps, or Combined Image to open setup with the result already selected. Under Record, choose Region, Window, Screen, Guide, or an available connected device directly." : {
+
+    },
     "Use Screen Inspector" : {
 
     },
@@ -4453,9 +4539,6 @@
 
     },
     "Website" : {
-
-    },
-    "Welcome to %@" : {
 
     },
     "What do you want to make?" : {

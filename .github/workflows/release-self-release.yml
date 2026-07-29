@@ -3,10 +3,6 @@ name: Release Self Hosted Build
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: Optional marketing version (for example 1.0.18)
-        required: false
-        type: string
       changelog:
         description: Optional release notes override
         required: false
@@ -73,10 +69,6 @@ jobs:
           RELEASE_SKIP_TESTS: "true"
         run: |
           lane_args="prerelease:${{ inputs.prerelease }} draft:${{ inputs.draft }}"
-
-          if [ -n "${{ inputs.version }}" ]; then
-            lane_args="$lane_args version:${{ inputs.version }}"
-          fi
 
           if [ -n "${{ inputs.changelog }}" ]; then
             lane_args="$lane_args changelog:${{ inputs.changelog }}"
