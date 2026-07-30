@@ -2272,6 +2272,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertTrue(content.contains("private var quickCaptureActionGroup: some View"))
         XCTAssertTrue(content.contains("private var createSomethingActionGroup: some View"))
         XCTAssertTrue(content.contains("private var recordActionGroup: some View"))
+        XCTAssertTrue(content.contains("private var regionCaptureButton: some View"))
         XCTAssertTrue(content.contains("private var repeatLastCaptureButton: some View"))
         XCTAssertTrue(content.contains("private var capturePresetsMenu: some View"))
         XCTAssertTrue(content.contains("Text(\"Quick Capture\")"))
@@ -2286,6 +2287,18 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertFalse(content.contains("private var recordButton: some View"))
         XCTAssertFalse(content.contains("private var createButton: some View"))
         XCTAssertFalse(content.contains("private var createIntentCard: some View"))
+        let regionButtonStart = try XCTUnwrap(
+            content.range(of: "private var regionCaptureButton: some View")
+        )
+        let repeatButtonStart = try XCTUnwrap(
+            content.range(
+                of: "private var repeatLastCaptureButton: some View",
+                range: regionButtonStart.upperBound..<content.endIndex
+            )
+        )
+        let regionButton = content[regionButtonStart.lowerBound..<repeatButtonStart.lowerBound]
+        XCTAssertTrue(regionButton.contains(".buttonStyle(.bordered)"))
+        XCTAssertFalse(regionButton.contains(".buttonStyle(.borderedProminent)"))
         XCTAssertTrue(content.contains("windowCaptureCard"))
         XCTAssertTrue(
             content.contains(

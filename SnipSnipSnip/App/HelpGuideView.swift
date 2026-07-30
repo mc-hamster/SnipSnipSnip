@@ -130,7 +130,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Take and finish a screenshot",
                             steps: [
-                                "Use Quick Capture to choose Region, Window, or Screen. Region is the primary one-click action; Scroll and Repeat Last are direct actions, and Presets stays in its own menu.",
+                                "Use Quick Capture to choose Region, Window, or Screen. Region, Window, Screen, Scroll, and Repeat Last are direct actions, and Presets stays in its own menu.",
                                 "Use the editor to crop, annotate, redact, or copy text.",
                                 "Choose Copy, Export, Share, Float, or Drag for the result currently shown.",
                                 "Choose Save or Save As when you want to keep an editable .sss document."

@@ -773,7 +773,7 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 8) {
-                primaryRegionCaptureButton
+                regionCaptureButton
                 captureButton(
                     title: WorkflowVocabulary.Source.window,
                     systemImage: "rectangle.on.rectangle",
@@ -879,14 +879,14 @@ struct ContentView: View {
             .accessibilityHidden(true)
     }
 
-    private var primaryRegionCaptureButton: some View {
+    private var regionCaptureButton: some View {
         Button(action: capture.captureRegion) {
             headerActionLabel(
                 title: WorkflowVocabulary.Source.region,
                 systemImage: "selection.pin.in.out"
             )
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
         .controlSize(.small)
         .disabled(capture.isWorking || isRecordingVideo || guide.isActive)

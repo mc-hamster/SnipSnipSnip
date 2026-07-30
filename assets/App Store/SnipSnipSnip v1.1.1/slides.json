@@ -1,0 +1,82 @@
+[
+  {
+    "number": "01",
+    "eyebrow": "CAPTURE • CREATE • RECORD",
+    "headline": "More Than a Screenshot.",
+    "subhead": "Capture, explain, polish, organize, and record—right on your Mac.",
+    "source": "prepared/01-overview.png",
+    "focus": "center"
+  },
+  {
+    "number": "02",
+    "eyebrow": "COMPARISON • STEPS • COMBINED IMAGE",
+    "headline": "Turn Screens Into Clear Stories.",
+    "subhead": "Create visual explanations without leaving the app.",
+    "source": "prepared/02-create.png",
+    "focus": "center"
+  },
+  {
+    "number": "03",
+    "eyebrow": "POLISH",
+    "headline": "Make It Presentation-Ready.",
+    "subhead": "Add spacing, backgrounds, framing, shadows, and Mockups before you share.",
+    "source": "prepared/03-polish.png",
+    "focus": "center"
+  },
+  {
+    "number": "04",
+    "eyebrow": "NON-DESTRUCTIVE EDITING",
+    "headline": "Change Anything. Flatten Nothing.",
+    "subhead": "Crop, annotate, highlight, redact, and undo while your Screenshot stays editable.",
+    "source": "prepared/04-edit.png",
+    "focus": "center"
+  },
+  {
+    "number": "05",
+    "eyebrow": "WHAT CHANGED • INTERACTIVE HTML",
+    "headline": "Share What Changed.",
+    "subhead": "Export one offline HTML file with interactive comparison controls.",
+    "source": "prepared/05-html-export.png",
+    "focus": "center"
+  },
+  {
+    "number": "06",
+    "eyebrow": "STEPS",
+    "headline": "Explain It One Step at a Time.",
+    "subhead": "Add, order, and caption screenshots as clear visual Steps.",
+    "source": "prepared/06-steps.png",
+    "focus": "center"
+  },
+  {
+    "number": "07",
+    "eyebrow": "SNIP LIBRARY",
+    "headline": "Find Any Screenshot Fast.",
+    "subhead": "Search by filename, annotation, and text recognized locally on your Mac.",
+    "source": "prepared/07-library.png",
+    "focus": "center"
+  },
+  {
+    "number": "08",
+    "eyebrow": "CLIPBOARD HISTORY",
+    "headline": "Your Clipboard Has a Memory.",
+    "subhead": "Search, preview, and reuse screenshots, text, files, and more.",
+    "source": "prepared/08-clipboard.png",
+    "focus": "center"
+  },
+  {
+    "number": "09",
+    "eyebrow": "VIDEO",
+    "headline": "Record. Trim. Share.",
+    "subhead": "Record a Region, Window, or Screen with audio, then trim and export.",
+    "source": "prepared/09-video.png",
+    "focus": "center"
+  },
+  {
+    "number": "10",
+    "eyebrow": "SCREEN RULER • SCREEN INSPECTOR",
+    "headline": "Measure Twice. Capture Once.",
+    "subhead": "Check dimensions, colors, pixels, and spacing without leaving your screen.",
+    "source": "prepared/10-tools.png",
+    "focus": "center"
+  }
+]
