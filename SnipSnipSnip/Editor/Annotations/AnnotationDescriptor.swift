@@ -18,8 +18,11 @@ nonisolated enum AnnotationDescriptorRegistry {
             return descriptor(editorTool: .ellipse)
         case .line:
             return descriptor(editorTool: .line, supportsFillEditing: false)
-        case .arrow:
-            return descriptor(editorTool: .arrow, supportsFillEditing: false)
+        case .arrow(let shape):
+            return descriptor(
+                editorTool: shape.sequenceNumber == nil ? .arrow : .numberedArrow,
+                supportsFillEditing: shape.sequenceNumber != nil
+            )
         case .statusMark:
             return descriptor(editorTool: .statusMark)
         case .freehand:

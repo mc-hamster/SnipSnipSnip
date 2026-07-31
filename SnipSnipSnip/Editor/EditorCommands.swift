@@ -126,6 +126,60 @@ nonisolated struct DeleteAnnotationsCommand: DocumentCommand {
     }
 }
 
+nonisolated struct DeleteAnnotationsAndRenumberNumberedArrowsCommand: DocumentCommand {
+    let annotationIDs: [UUID]
+
+    var label: String { "Delete and Renumber" }
+
+    func apply(to snapshot: EditorSnapshot) -> EditorSnapshot {
+        let idSet = Set(annotationIDs)
+        var updated = snapshot
+        updated.annotations.removeAll { idSet.contains($0.id) }
+        updated.selectedAnnotationIDs.removeAll { idSet.contains($0) }
+
+        let sequencePositions = Dictionary(
+            uniqueKeysWithValues: updated.annotations
+                .compactMap { annotation -> (UUID, Int)? in
+                    guard case let .arrow(shape) = annotation.kind,
+                          let number = shape.sequenceNumber else {
+                        return nil
+                    }
+                    return (annotation.id, number)
+                }
+                .sorted { $0.1 < $1.1 }
+                .enumerated()
+                .map { ($0.element.0, $0.offset + 1) }
+        )
+        updated.annotations = updated.annotations.map { annotation in
+            guard let number = sequencePositions[annotation.id] else {
+                return annotation
+            }
+            return annotation.updatingNumberedArrowNumber(number)
+        }
+        return updated
+    }
+}
+
+nonisolated struct ResequenceNumberedArrowsCommand: DocumentCommand {
+    let annotationIDs: [UUID]
+
+    var label: String { "Resequence Numbered Arrows" }
+
+    func apply(to snapshot: EditorSnapshot) -> EditorSnapshot {
+        let positions = Dictionary(
+            uniqueKeysWithValues: annotationIDs.enumerated().map { ($0.element, $0.offset + 1) }
+        )
+        var updated = snapshot
+        updated.annotations = updated.annotations.map { annotation in
+            guard let position = positions[annotation.id] else {
+                return annotation
+            }
+            return annotation.updatingNumberedArrowNumber(position)
+        }
+        return updated
+    }
+}
+
 nonisolated struct SetCropCommand: DocumentCommand {
     let rect: CGRect
 

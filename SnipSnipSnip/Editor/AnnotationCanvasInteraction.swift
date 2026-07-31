@@ -119,6 +119,7 @@ struct AnnotationCanvasInteractionState {
         snapshot: EditorSnapshot,
         imageBounds: CGRect,
         cropAspectRatio: CGFloat?,
+        numberedArrowNumber: Int = 1,
         styleProvider: (EditorTool) -> AnnotationStyle
     ) {
         snapGuides = []
@@ -127,7 +128,13 @@ struct AnnotationCanvasInteractionState {
         case let .drawingRect(tool, anchor):
             updateDraftRect(for: tool, anchor: anchor, point: point, snapshot: snapshot, styleProvider: styleProvider)
         case let .drawingLine(tool, anchor):
-            updateDraftLine(for: tool, anchor: anchor, point: point, styleProvider: styleProvider)
+            updateDraftLine(
+                for: tool,
+                anchor: anchor,
+                point: point,
+                numberedArrowNumber: numberedArrowNumber,
+                styleProvider: styleProvider
+            )
         case let .drawingFreehand(tool, buffer):
             updateDraftFreehand(tool: tool, buffer: buffer, point: point, style: styleProvider(tool))
         case let .moving(annotations, anchor, originalBounds):
@@ -201,8 +208,20 @@ struct AnnotationCanvasInteractionState {
         draftAnnotations = makeRectAnnotation(for: tool, rect: rect, styleProvider: styleProvider).map { [$0] } ?? []
     }
 
-    private mutating func updateDraftLine(for tool: EditorTool, anchor: CGPoint, point: CGPoint, styleProvider: (EditorTool) -> AnnotationStyle) {
-        draftAnnotations = makeLineAnnotation(for: tool, start: anchor, end: point, styleProvider: styleProvider).map { [$0] } ?? []
+    private mutating func updateDraftLine(
+        for tool: EditorTool,
+        anchor: CGPoint,
+        point: CGPoint,
+        numberedArrowNumber: Int,
+        styleProvider: (EditorTool) -> AnnotationStyle
+    ) {
+        draftAnnotations = makeLineAnnotation(
+            for: tool,
+            start: anchor,
+            end: point,
+            numberedArrowNumber: numberedArrowNumber,
+            styleProvider: styleProvider
+        ).map { [$0] } ?? []
     }
 
     private mutating func updateDraftFreehand(tool: EditorTool, buffer: FreehandDraftBuffer, point: CGPoint, style: AnnotationStyle) {
@@ -343,12 +362,25 @@ struct AnnotationCanvasInteractionState {
         tool.makeRectAnnotation(in: rect, style: styleProvider(tool))
     }
 
-    private func makeLineAnnotation(for tool: EditorTool, start: CGPoint, end: CGPoint, styleProvider: (EditorTool) -> AnnotationStyle) -> Annotation? {
+    private func makeLineAnnotation(
+        for tool: EditorTool,
+        start: CGPoint,
+        end: CGPoint,
+        numberedArrowNumber: Int,
+        styleProvider: (EditorTool) -> AnnotationStyle
+    ) -> Annotation? {
         switch tool {
         case .line:
             return Annotation.makeLine(from: start, to: end, style: styleProvider(.line))
         case .arrow:
             return Annotation.makeArrow(from: start, to: end, style: styleProvider(.arrow))
+        case .numberedArrow:
+            return Annotation.makeNumberedArrow(
+                from: start,
+                to: end,
+                number: numberedArrowNumber,
+                style: styleProvider(.numberedArrow)
+            )
         case .measure:
             return Annotation.makeMeasurement(from: start, to: end, style: styleProvider(.measure))
         default:

@@ -161,6 +161,7 @@ final class EditorController: ObservableObject {
     @Published var isRecognizingOCR = false
     @Published private(set) var imageColorSamplingTarget: ImageColorSamplingTarget?
     @Published private(set) var previewedImageSampleColor: RGBAColor?
+    @Published private(set) var numberedArrowResequencingOrder: [UUID]?
     @Published var cropAspectRatioPreset: CropAspectRatioPreset = .freeform
     private(set) var viewport: EditorViewport
     @Published var persistenceRevision = 0
@@ -777,7 +778,9 @@ final class EditorController: ObservableObject {
     }
 
     var canRotateSelection: Bool {
-        selectedCount > 0 && !selectedAnnotations.contains { $0.editorTool == .arrow }
+        selectedCount > 0 && !selectedAnnotations.contains {
+            $0.editorTool == .arrow || $0.editorTool == .numberedArrow
+        }
     }
 
     var selectedImageOverlayOpacity: CGFloat? {
@@ -886,7 +889,8 @@ final class EditorController: ObservableObject {
     }
 
     var showsArrowControls: Bool {
-        selectedAnnotation?.editorTool == .arrow || (selectedAnnotation == nil && activeTool == .arrow)
+        selectedAnnotation.map { $0.editorTool == .arrow || $0.editorTool == .numberedArrow }
+            ?? (activeTool == .arrow || activeTool == .numberedArrow)
     }
 
     var showsStatusMarkControls: Bool {
@@ -932,6 +936,45 @@ final class EditorController: ObservableObject {
 
     var nextCalloutNumber: Int {
         snapshot.nextCalloutNumber
+    }
+
+    var nextNumberedArrowNumber: Int {
+        numberedArrowsInSequence.compactMap { annotation in
+            guard case let .arrow(shape) = annotation.kind else { return nil }
+            return shape.sequenceNumber
+        }.max().map { $0 + 1 } ?? 1
+    }
+
+    var numberedArrowCount: Int {
+        numberedArrowsInSequence.count
+    }
+
+    var selectedNumberedArrowPosition: Int? {
+        guard let selectedAnnotation,
+              case let .arrow(shape) = selectedAnnotation.kind else {
+            return nil
+        }
+        return shape.sequenceNumber
+    }
+
+    var canMoveSelectedNumberedArrowEarlier: Bool {
+        guard let position = selectedNumberedArrowPosition else { return false }
+        return position > 1
+    }
+
+    var canMoveSelectedNumberedArrowLater: Bool {
+        guard let position = selectedNumberedArrowPosition else { return false }
+        return position < numberedArrowCount
+    }
+
+    var numberedArrowResequencingProgress: String? {
+        guard let order = numberedArrowResequencingOrder else { return nil }
+        return "\(order.count) of \(numberedArrowCount) selected"
+    }
+
+    var canFinishNumberedArrowResequencing: Bool {
+        guard let order = numberedArrowResequencingOrder else { return false }
+        return order.count == numberedArrowCount && !order.isEmpty
     }
 
     var zoomPercentageLabel: String {
@@ -1147,15 +1190,21 @@ final class EditorController: ObservableObject {
             return
         }
 
+        var nextNumberedArrowNumber = self.nextNumberedArrowNumber
         let duplicates = selectedAnnotations.map { annotation in
             let translated = annotation.translated(by: offset)
-            return Annotation(
+            var duplicate = Annotation(
                 id: UUID(),
                 groupID: nil,
                 kind: translated.kind,
                 style: translated.style,
                 rotationDegrees: translated.rotationDegrees
             )
+            if duplicate.editorTool == .numberedArrow {
+                duplicate = duplicate.updatingNumberedArrowNumber(nextNumberedArrowNumber)
+                nextNumberedArrowNumber += 1
+            }
+            return duplicate
         }
         for duplicate in duplicates {
             execute(AddAnnotationCommand(annotation: duplicate))
@@ -1208,7 +1257,12 @@ final class EditorController: ObservableObject {
             }
             return false
         }
-        execute(DeleteAnnotationsCommand(annotationIDs: snapshot.selectedAnnotationIDs))
+        let deletedNumberedArrow = selectedAnnotations.contains { $0.editorTool == .numberedArrow }
+        if deletedNumberedArrow {
+            execute(DeleteAnnotationsAndRenumberNumberedArrowsCommand(annotationIDs: snapshot.selectedAnnotationIDs))
+        } else {
+            execute(DeleteAnnotationsCommand(annotationIDs: snapshot.selectedAnnotationIDs))
+        }
         if deletedCallout {
             renumberCallouts()
         }
@@ -1640,6 +1694,65 @@ final class EditorController: ObservableObject {
         execute(UpdateAnnotationCommand(annotation: selectedAnnotation.updatingArrow(headShape: value)))
     }
 
+    func updateNumberedArrowBadgeStyle(_ value: NumberedArrowBadgeStyle) {
+        guard let selectedAnnotation, selectedAnnotation.editorTool == .numberedArrow else {
+            return
+        }
+        execute(UpdateAnnotationCommand(annotation: selectedAnnotation.updatingNumberedArrowBadgeStyle(value)))
+    }
+
+    func moveSelectedNumberedArrowEarlier() {
+        moveSelectedNumberedArrow(by: -1)
+    }
+
+    func moveSelectedNumberedArrowLater() {
+        moveSelectedNumberedArrow(by: 1)
+    }
+
+    func beginNumberedArrowResequencing() {
+        guard numberedArrowCount > 1 else { return }
+        numberedArrowResequencingOrder = []
+        AppAccessibility.announce("Resequence Numbered Arrows. Select each numbered arrow in order.")
+        invalidateCanvas(.cropChrome)
+    }
+
+    func chooseNumberedArrowForResequencing(_ annotationID: UUID) {
+        guard var order = numberedArrowResequencingOrder,
+              !order.contains(annotationID),
+              let annotation = annotation(matching: annotationID),
+              annotation.editorTool == .numberedArrow else {
+            return
+        }
+        order.append(annotationID)
+        numberedArrowResequencingOrder = order
+        AppAccessibility.announce("Sequence position \(order.count) assigned.")
+        invalidateCanvas(.cropChrome)
+    }
+
+    func restartNumberedArrowResequencing() {
+        guard numberedArrowResequencingOrder != nil else { return }
+        numberedArrowResequencingOrder = []
+        AppAccessibility.announce("Sequence selection restarted.")
+    }
+
+    func cancelNumberedArrowResequencing() {
+        guard numberedArrowResequencingOrder != nil else { return }
+        numberedArrowResequencingOrder = nil
+        AppAccessibility.announce("Resequencing cancelled.")
+        invalidateCanvas(.cropChrome)
+    }
+
+    func finishNumberedArrowResequencing() {
+        guard let order = numberedArrowResequencingOrder,
+              order.count == numberedArrowCount,
+              !order.isEmpty else {
+            return
+        }
+        numberedArrowResequencingOrder = nil
+        execute(ResequenceNumberedArrowsCommand(annotationIDs: order))
+        AppAccessibility.announce("Numbered arrows resequenced.")
+    }
+
     func updateCalloutStyle(_ value: CalloutVisualStyle) {
         guard let selectedAnnotation, case .callout = selectedAnnotation.kind else {
             return
@@ -1739,6 +1852,7 @@ final class EditorController: ObservableObject {
         imageColorSamplingTarget = nil
         imageColorSamplingSourceTool = nil
         previewedImageSampleColor = nil
+        numberedArrowResequencingOrder = nil
 
         if clearUIMapSelection {
             selectedUIMapElementID = nil
@@ -2826,6 +2940,40 @@ final class EditorController: ObservableObject {
         }
 
         execute(UpdateAnnotationsCommand(annotations: updated))
+    }
+
+    private var numberedArrowsInSequence: [Annotation] {
+        snapshot.annotations
+            .compactMap { annotation -> (annotation: Annotation, number: Int)? in
+                guard case let .arrow(shape) = annotation.kind,
+                      let number = shape.sequenceNumber else {
+                    return nil
+                }
+                return (annotation, number)
+            }
+            .sorted { lhs, rhs in
+                if lhs.number == rhs.number {
+                    return snapshot.annotations.firstIndex(where: { $0.id == lhs.annotation.id }) ?? 0
+                        < snapshot.annotations.firstIndex(where: { $0.id == rhs.annotation.id }) ?? 0
+                }
+                return lhs.number < rhs.number
+            }
+            .map(\.annotation)
+    }
+
+    private func moveSelectedNumberedArrow(by offset: Int) {
+        guard let selectedAnnotation,
+              selectedAnnotation.editorTool == .numberedArrow,
+              let currentIndex = numberedArrowsInSequence.firstIndex(where: { $0.id == selectedAnnotation.id }) else {
+            return
+        }
+        let destination = currentIndex + offset
+        guard numberedArrowsInSequence.indices.contains(destination) else { return }
+
+        var order = numberedArrowsInSequence.map(\.id)
+        order.swapAt(currentIndex, destination)
+        execute(ResequenceNumberedArrowsCommand(annotationIDs: order))
+        AppAccessibility.announce("Numbered Arrow moved to position \(destination + 1).")
     }
 
     private func shouldReplacePlaceholderText(for annotation: Annotation, currentText: String) -> Bool {

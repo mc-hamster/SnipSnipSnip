@@ -85,6 +85,11 @@ struct EditorView: View {
                 .transition(.opacity)
                 .zIndex(3)
             }
+
+            if controller.numberedArrowResequencingOrder != nil {
+                NumberedArrowResequencingBar(controller: controller)
+                    .zIndex(4)
+            }
         }
         .background(Color(nsColor: .underPageBackgroundColor))
         .inspector(isPresented: $isInspectorPresented) {
@@ -151,6 +156,43 @@ struct EditorView: View {
             NSWorkspace.shared.activateFileViewerSelecting([url])
         }
         controller.dismissNotice()
+    }
+}
+
+private struct NumberedArrowResequencingBar: View {
+    @ObservedObject var controller: EditorController
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Label("Select numbered arrows in the order they should appear.", systemImage: "number.circle")
+                .font(.callout.weight(.medium))
+
+            Text(controller.numberedArrowResequencingProgress ?? "")
+                .font(.callout.monospacedDigit())
+                .foregroundStyle(.secondary)
+
+            Button("Start Over", action: controller.restartNumberedArrowResequencing)
+                .disabled(controller.numberedArrowResequencingOrder?.isEmpty != false)
+
+            Button("Cancel", action: controller.cancelNumberedArrowResequencing)
+
+            Button("Done", action: controller.finishNumberedArrowResequencing)
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(!controller.canFinishNumberedArrowResequencing)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+        .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("editor.numberedArrow.resequence")
     }
 }
 
@@ -598,7 +640,7 @@ private struct FirstAdditionPurposeChoiceButton: View {
 }
 
 struct EditorCommandBar: View {
-    private static let directTools: [EditorTool] = [.select, .crop, .arrow, .text]
+    private static let arrowTools: [EditorTool] = [.arrow, .numberedArrow]
     private static let shapeTools: [EditorTool] = [.rectangle, .ellipse, .line, .statusMark]
     private static let drawingTools: [EditorTool] = [.freehand, .highlighter]
     private static let emphasisTools: [EditorTool] = [.highlight, .spotlight, .measure]
@@ -623,6 +665,7 @@ struct EditorCommandBar: View {
     @State private var pendingFirstAddition:
         ((CompositionAddActions) -> Void)?
     @State private var lastShapeTool: EditorTool = .rectangle
+    @State private var lastArrowTool: EditorTool = .arrow
     @State private var lastDrawingTool: EditorTool = .freehand
     @State private var lastEmphasisTool: EditorTool = .highlight
     @State private var lastMoreTool: EditorTool = .callout
@@ -721,7 +764,16 @@ struct EditorCommandBar: View {
                     }
 
                     EditorCommandGroup("Selection and common tools") {
-                        toolButtons(Self.directTools)
+                        toolButton(.select)
+                        toolButton(.crop)
+                        toolGroupMenu(
+                            title: "Arrow",
+                            systemImage: "arrow.up.right",
+                            tools: Self.arrowTools,
+                            lastUsedTool: $lastArrowTool,
+                            accessibilityIdentifier: "editor.toolGroup.arrow"
+                        )
+                        toolButton(.text)
                     }
                     EditorCommandGroup("Grouped annotation tools") {
                         toolGroupMenu(
@@ -1362,7 +1414,9 @@ struct EditorCommandBar: View {
     }
 
     private func rememberLastUsedTool(_ tool: EditorTool) {
-        if Self.shapeTools.contains(tool) {
+        if Self.arrowTools.contains(tool) {
+            lastArrowTool = tool
+        } else if Self.shapeTools.contains(tool) {
             lastShapeTool = tool
         } else if Self.drawingTools.contains(tool) {
             lastDrawingTool = tool

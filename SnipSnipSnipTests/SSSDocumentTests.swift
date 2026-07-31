@@ -490,7 +490,9 @@ final class SSSDocumentTests: XCTestCase {
                 labelPlacement: .parallelAbove,
                 labelFontSize: 18,
                 labelTextColor: .complementary,
-                headShape: .diamond
+                headShape: .diamond,
+                sequenceNumber: 3,
+                badgeStyle: .outlined
             )
         let callout = Annotation.makeCallout(at: CGPoint(x: 14, y: 10), number: 2)
             .updatingCalloutStyle(.outlined)
@@ -530,6 +532,8 @@ final class SSSDocumentTests: XCTestCase {
         XCTAssertEqual(loadedArrow.labelFontSize, 18)
         XCTAssertEqual(loadedArrow.labelTextColor, .complementary)
         XCTAssertEqual(loadedArrow.headShape, .diamond)
+        XCTAssertEqual(loadedArrow.sequenceNumber, 3)
+        XCTAssertEqual(loadedArrow.badgeStyle, .outlined)
         XCTAssertEqual(loadedCallout.style, .outlined)
         XCTAssertEqual(loadedCallout.leaderPoint, CGPoint(x: 14, y: 10))
 

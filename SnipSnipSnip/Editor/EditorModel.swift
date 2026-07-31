@@ -18,6 +18,7 @@ nonisolated enum EditorTool: String, CaseIterable, Codable, Identifiable {
     case ellipse
     case line
     case arrow
+    case numberedArrow
     case statusMark
     case freehand
     case highlighter
@@ -77,7 +78,7 @@ nonisolated enum EditorTool: String, CaseIterable, Codable, Identifiable {
             return Annotation.makeSpotlight(in: rect, style: style)
         case .statusMark:
             return Annotation.makeStatusMark(in: rect, style: style)
-        case .select, .uiMapInspect, .line, .arrow, .freehand, .highlighter, .text, .callout, .measure, .colorPicker, .ocrText, .crop:
+        case .select, .uiMapInspect, .line, .arrow, .numberedArrow, .freehand, .highlighter, .text, .callout, .measure, .colorPicker, .ocrText, .crop:
             return nil
         }
     }
@@ -137,6 +138,15 @@ nonisolated enum EditorTool: String, CaseIterable, Codable, Identifiable {
                 supportsFillEditing: false,
                 defaultRedactionMode: nil,
                 defaultStyle: AnnotationStyle(strokeColor: .arrowStroke, fillColor: .clear, lineWidth: 5, fontSize: 0, effectRadius: 0)
+            )
+        case .numberedArrow:
+            return EditorToolMetadata(
+                label: "Numbered Arrow",
+                systemImage: "1.circle",
+                supportsStyleEditing: true,
+                supportsFillEditing: true,
+                defaultRedactionMode: nil,
+                defaultStyle: AnnotationStyle(strokeColor: .arrowStroke, fillColor: .arrowStroke, lineWidth: 5, fontSize: 18, effectRadius: 0)
             )
         case .statusMark:
             return EditorToolMetadata(
@@ -283,7 +293,7 @@ nonisolated extension EditorTool {
         switch self {
         case .uiMapInspect, .colorPicker:
             return false
-        case .select, .rectangle, .ellipse, .line, .arrow, .statusMark, .freehand, .highlighter, .highlight, .text, .callout, .measure, .spotlight, .ocrText, .blur, .pixelate, .redact, .crop:
+        case .select, .rectangle, .ellipse, .line, .arrow, .numberedArrow, .statusMark, .freehand, .highlighter, .highlight, .text, .callout, .measure, .spotlight, .ocrText, .blur, .pixelate, .redact, .crop:
             return true
         }
     }
@@ -755,6 +765,22 @@ nonisolated struct ArrowShape: Equatable {
     var labelFontSize: CGFloat = 14
     var labelTextColor: ArrowLabelTextColor = .stroke
     var headShape: ArrowHeadShape = .open
+    var sequenceNumber: Int?
+    var badgeStyle: NumberedArrowBadgeStyle = .filled
+}
+
+nonisolated enum NumberedArrowBadgeStyle: String, CaseIterable, Identifiable {
+    case filled
+    case outlined
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .filled: "Filled"
+        case .outlined: "Outlined"
+        }
+    }
 }
 
 nonisolated struct FreehandShape: Equatable {
@@ -1027,7 +1053,9 @@ nonisolated struct Annotation: Identifiable, Equatable {
         case let .arrow(shape):
             let lineHit = gscDistanceFromPoint(point, toSegmentFrom: shape.start, to: shape.end) <= max(style.lineWidth * 1.5, 10)
             let labelHit = !shape.label.isEmpty && AnnotationGeometry.arrowLabelRect(for: shape).insetBy(dx: -6, dy: -6).contains(point)
-            return lineHit || labelHit
+            let badgeHit = shape.sequenceNumber != nil
+                && AnnotationGeometry.numberedArrowBadgeRect(for: shape).insetBy(dx: -6, dy: -6).contains(point)
+            return lineHit || labelHit || badgeHit
         case let .measurement(shape):
             return gscDistanceFromPoint(point, toSegmentFrom: shape.start, to: shape.end) <= max(style.lineWidth * 1.5, 8)
         case let .freehand(shape):
@@ -1340,7 +1368,9 @@ nonisolated struct Annotation: Identifiable, Equatable {
         labelPlacement: ArrowLabelPlacement? = nil,
         labelFontSize: CGFloat? = nil,
         labelTextColor: ArrowLabelTextColor? = nil,
-        headShape: ArrowHeadShape? = nil
+        headShape: ArrowHeadShape? = nil,
+        sequenceNumber: Int? = nil,
+        badgeStyle: NumberedArrowBadgeStyle? = nil
     ) -> Annotation {
         guard case let .arrow(shape) = kind else {
             return self
@@ -1357,7 +1387,9 @@ nonisolated struct Annotation: Identifiable, Equatable {
             labelPlacement: labelPlacement ?? shape.labelPlacement,
             labelFontSize: labelFontSize ?? shape.labelFontSize,
             labelTextColor: labelTextColor ?? shape.labelTextColor,
-            headShape: headShape ?? shape.headShape
+            headShape: headShape ?? shape.headShape,
+            sequenceNumber: sequenceNumber ?? shape.sequenceNumber,
+            badgeStyle: badgeStyle ?? shape.badgeStyle
         ))
         return copy
     }
@@ -1371,8 +1403,24 @@ nonisolated struct Annotation: Identifiable, Equatable {
             labelPlacement: nil,
             labelFontSize: nil,
             labelTextColor: nil,
-            headShape: nil
+            headShape: nil,
+            sequenceNumber: nil,
+            badgeStyle: nil
         )
+    }
+
+    func updatingNumberedArrowNumber(_ number: Int) -> Annotation {
+        guard case let .arrow(shape) = kind, shape.sequenceNumber != nil else {
+            return self
+        }
+        return updatingArrow(sequenceNumber: max(number, 1))
+    }
+
+    func updatingNumberedArrowBadgeStyle(_ style: NumberedArrowBadgeStyle) -> Annotation {
+        guard case let .arrow(shape) = kind, shape.sequenceNumber != nil else {
+            return self
+        }
+        return updatingArrow(badgeStyle: style)
     }
 
     func updatingCalloutStyle(_ style: CalloutVisualStyle) -> Annotation {
@@ -1416,6 +1464,20 @@ nonisolated struct Annotation: Identifiable, Equatable {
 
     nonisolated static func makeArrow(from start: CGPoint, to end: CGPoint, style: AnnotationStyle = .default(for: .arrow)) -> Annotation {
         Annotation(id: UUID(), groupID: nil, kind: .arrow(ArrowShape(start: start, end: end)), style: style)
+    }
+
+    nonisolated static func makeNumberedArrow(
+        from start: CGPoint,
+        to end: CGPoint,
+        number: Int,
+        style: AnnotationStyle = .default(for: .numberedArrow)
+    ) -> Annotation {
+        Annotation(
+            id: UUID(),
+            groupID: nil,
+            kind: .arrow(ArrowShape(start: start, end: end, sequenceNumber: max(number, 1))),
+            style: style
+        )
     }
 
     nonisolated static func makeStatusMark(in rect: CGRect, style: AnnotationStyle = .default(for: .statusMark)) -> Annotation {

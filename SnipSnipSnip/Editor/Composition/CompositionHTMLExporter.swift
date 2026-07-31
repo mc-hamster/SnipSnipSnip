@@ -1655,7 +1655,26 @@ select {
         """
         let comparisonValueRules = (0...100).map { value in
             let fraction = Double(value) / 100
-            return ".comparison.comparison-value-\(value) { --comparison-position: \(value)%; --comparison-opacity: \(fraction); }"
+            let inverse = 100 - value
+            return """
+            .comparison.comparison-value-\(value) {
+              --comparison-position: \(value)%;
+              --comparison-opacity: \(fraction);
+            }
+            .comparison.comparison-value-\(value)[data-active-mode="wipe"][data-axis="horizontal"] .comparison-after {
+              clip-path: inset(0 \(inverse)% 0 0);
+            }
+            .comparison.comparison-value-\(value)[data-active-mode="wipe"][data-axis="vertical"] .comparison-after {
+              clip-path: inset(0 0 \(inverse)% 0);
+            }
+            .comparison.comparison-value-\(value)[data-active-mode="overlay"] .comparison-after {
+              opacity: \(fraction);
+            }
+            .comparison.comparison-value-\(value)[data-active-mode="difference"] .comparison-difference-rendered,
+            .comparison.comparison-value-\(value)[data-active-mode="change-highlight"] .comparison-change-highlight-rendered {
+              opacity: \(fraction);
+            }
+            """
         }.joined(separator: "\n")
         let comparisonZoomRules = stride(from: 50, through: 200, by: 25).map {
             ".comparison.comparison-zoom-\($0) { --comparison-zoom: \($0)%; }"

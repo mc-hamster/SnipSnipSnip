@@ -662,7 +662,7 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Choose a tool",
-                            body: "The first Edit command row keeps Select, Crop, Arrow, and Text visible as labeled one-click tools. Labeled split controls provide Shapes (Rectangle, Ellipse, Line, and Status Mark), Draw (Freehand and Highlighter), Emphasize (Highlight Box, Spotlight, and Ruler), Redact (Blur, Pixelate, and Redact), and More Tools (Callout, Copy Text, Pick Color, and Insert Image). Click a group’s labeled main button to reuse its last-selected tool, or click its adjacent disclosure arrow to choose a different one. The active direct tool or group has a filled background and stronger boundary as well as its accessibility state. Review, Order & Caption, Arrange, and Polish still begin with Discard. The second Edit row keeps History, Layers and Arrangement, Zoom, Inspector, Output, and References and Drag Out in workflow order. At narrow widths, scroll each row horizontally without losing any action."
+                            body: "The first Edit command row keeps Select, Crop, the Arrow family, and Text visible as labeled one-click controls. Open Arrow’s disclosure menu to choose Arrow or Numbered Arrow. Labeled split controls also provide Shapes (Rectangle, Ellipse, Line, and Status Mark), Draw (Freehand and Highlighter), Emphasize (Highlight Box, Spotlight, and Ruler), Redact (Blur, Pixelate, and Redact), and More Tools (Callout, Copy Text, Pick Color, and Insert Image). Click a group’s labeled main button to reuse its last-selected tool, or click its adjacent disclosure arrow to choose a different one. The active direct tool or group has a filled background and stronger boundary as well as its accessibility state. Review, Order & Caption, Arrange, and Polish still begin with Discard. The second Edit row keeps History, Layers and Arrangement, Zoom, Inspector, Output, and References and Drag Out in workflow order. At narrow widths, scroll each row horizontally without losing any action."
                         ),
                         HelpArticleSection(
                             title: "Select and arrange annotations",
@@ -833,11 +833,11 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Add annotations",
-                            body: "Draw shapes, lines, arrows, checkmarks and X status marks, freehand strokes, marker-style highlighter strokes, highlight boxes, rulers, spotlights, text, and callouts from the direct buttons in the top editor command row. Status Mark offers Circled, Cartoon, and Vintage treatments in the inspector, along with the standard color controls. Text boxes and callouts fit snugly while you type until you manually resize them; after a manual resize, their width stays fixed and they grow taller as text wraps. Selected text boxes and callouts can be edited in place with normal cursor movement, arrow keys, selection, and click-to-position behavior. Insert Image adds an editable overlay that can be moved, resized, rotated, faded, saved, copied, exported, and shared."
+                            body: "Draw shapes, lines, arrows, numbered arrows, checkmarks and X status marks, freehand strokes, marker-style highlighter strokes, highlight boxes, rulers, spotlights, text, and callouts from the top editor command row. For Numbered Arrow, drag from the numbered badge toward the target. Each new Numbered Arrow receives the next number in the current annotation scope. Status Mark offers Circled, Cartoon, and Vintage treatments in the inspector, along with the standard color controls. Text boxes and callouts fit snugly while you type until you manually resize them; after a manual resize, their width stays fixed and they grow taller as text wraps. Selected text boxes and callouts can be edited in place with normal cursor movement, arrow keys, selection, and click-to-position behavior. Insert Image adds an editable overlay that can be moved, resized, rotated, faded, saved, copied, exported, and shared."
                         ),
                         HelpArticleSection(
                             title: "Edit styles",
-                            body: "Use the inspector to change stroke color, fill color, line width, text size, effect strength, arrow heads, arrow labels, status mark symbol and treatment, callout style, rectangle corners, freehand smoothing, and alignment where supported. Use Rotate in the lower editor command row to turn selected annotations by 90 degrees."
+                            body: "Use the inspector to change stroke color, fill color, line width, text size, effect strength, arrow heads, regular Arrow labels, Numbered Arrow badge style and sequence position, status mark symbol and treatment, callout style, rectangle corners, freehand smoothing, and alignment where supported. Use Rotate in the lower editor command row to turn selected annotations by 90 degrees."
                         ),
                         HelpArticleSection(
                             title: "Manage layers",
@@ -854,6 +854,10 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Create a step guide",
                             body: "Numbered callouts can be copied as a step guide from the inspector. If you delete a numbered callout, the remaining callouts are renumbered."
+                        ),
+                        HelpArticleSection(
+                            title: "Sequence numbered arrows",
+                            body: "Numbered Arrows use a contiguous sequence that is separate from numbered Callouts and from layer order. Select one to use Move Earlier or Move Later in Properties. Choose Resequence… to select every Numbered Arrow on the canvas in the order it should appear, then choose Done. Cancel leaves the existing sequence unchanged. Deleting a Numbered Arrow closes the gap; duplicating one appends the copy. Each Screenshot, source-capture editing scope, and assembled result keeps its own sequence. The A key continues to select regular Arrow."
                         )
                     ],
                     important: [],

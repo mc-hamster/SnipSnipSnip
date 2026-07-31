@@ -90,7 +90,11 @@ nonisolated struct AnnotationAccessibilityDescriptor: Equatable, Sendable {
         case .callout(let shape):
             shape.text.isEmpty ? "Callout \(shape.number)" : "Callout \(shape.number): \(shape.text)"
         case .arrow(let shape):
-            shape.label.isEmpty ? nil : shape.label
+            if let number = shape.sequenceNumber {
+                "Numbered Arrow \(number)"
+            } else {
+                shape.label.isEmpty ? nil : shape.label
+            }
         case .redaction:
             nil
         default:

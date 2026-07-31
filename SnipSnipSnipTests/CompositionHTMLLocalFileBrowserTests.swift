@@ -134,23 +134,52 @@ final class CompositionHTMLLocalFileBrowserTests: XCTestCase {
 
     @MainActor
     func testLocalFileDisplaysFullyRenderedComparisonResultsAtFullFidelity() async throws {
-        let cases: [(CompositionHTMLComparisonMode, String, String)] = [
-            (.renderedDifference, "difference", "Difference"),
-            (.renderedChangeHighlight, "change-highlight", "Change Highlight"),
+        let cases: [(
+            mode: CompositionHTMLComparisonMode,
+            expectedMode: String,
+            expectedCaption: String,
+            resultSelector: String,
+            rangeSelector: String,
+            isChangeHighlight: Bool
+        )] = [
+            (
+                .renderedDifference,
+                "difference",
+                "Difference",
+                ".comparison-difference-rendered",
+                "[data-difference-range]",
+                false
+            ),
+            (
+                .renderedChangeHighlight,
+                "change-highlight",
+                "Highlight Changes",
+                ".comparison-change-highlight-rendered",
+                "[data-change-highlight-range]",
+                true
+            ),
         ]
 
-        for (mode, expectedMode, expectedCaption) in cases {
+        for testCase in cases {
+            let renderedResult = item(
+                title: testCase.expectedCaption,
+                stepLabel: "3"
+            )
             let html = try CompositionHTMLExporter.html(for: CompositionHTMLDocument(
-                title: expectedCaption,
-                layout: .comparison(CompositionHTMLComparison(mode: mode)),
+                title: testCase.expectedCaption,
+                layout: .comparison(
+                    CompositionHTMLComparison(mode: testCase.mode)
+                ),
                 items: [
                     item(title: "Before", stepLabel: "1"),
                     item(title: "After", stepLabel: "2"),
                 ],
-                renderedDifference: item(
-                    title: expectedCaption,
-                    stepLabel: "3"
-                )
+                renderedDifference: testCase.isChangeHighlight
+                    ? nil
+                    : renderedResult,
+                renderedChangeHighlight: testCase.isChangeHighlight
+                    ? renderedResult
+                    : nil
             ))
             let fixture = try LocalHTMLFixture(html: html)
             defer { fixture.remove() }
@@ -168,7 +197,7 @@ final class CompositionHTMLLocalFileBrowserTests: XCTestCase {
                 """
                 (() => {
                   const comparison = document.querySelector("[data-comparison]");
-                  const result = comparison.querySelector(".comparison-difference-rendered");
+                  const result = comparison.querySelector("\(testCase.resultSelector)");
                   return JSON.stringify({
                     mode: comparison.dataset.comparisonMode,
                     enhanced: document.documentElement.classList.contains("is-enhanced"),
@@ -181,8 +210,8 @@ final class CompositionHTMLLocalFileBrowserTests: XCTestCase {
                       comparison.querySelector(".comparison-after")
                     ).visibility,
                     resultCaption: result.querySelector("figcaption").textContent.trim(),
-                    resultRange: comparison.querySelector("[data-result-range]").value,
-                    legacyDifferenceRange: comparison.querySelector("[data-difference-range]") !== null,
+                    resultRange: comparison.querySelector("\(testCase.rangeSelector)").value,
+                    legacyResultRange: comparison.querySelector("[data-result-range]") !== null,
                     cspViolations: window.__compositionCSPViolations || []
                   });
                 })()
@@ -190,29 +219,32 @@ final class CompositionHTMLLocalFileBrowserTests: XCTestCase {
                 in: webView
             )
 
-            XCTAssertEqual(initial["mode"] as? String, expectedMode)
+            XCTAssertEqual(initial["mode"] as? String, testCase.expectedMode)
             XCTAssertEqual(initial["enhanced"] as? Bool, true)
             XCTAssertEqual(initial["imageCount"] as? Int, 3)
             XCTAssertEqual(initial["loadedImages"] as? Bool, true)
             XCTAssertEqual(initial["resultOpacity"] as? String, "1")
             XCTAssertEqual(initial["afterVisibility"] as? String, "hidden")
-            XCTAssertEqual(initial["resultCaption"] as? String, expectedCaption)
+            XCTAssertEqual(
+                initial["resultCaption"] as? String,
+                testCase.expectedCaption
+            )
             XCTAssertEqual(initial["resultRange"] as? String, "100")
-            XCTAssertEqual(initial["legacyDifferenceRange"] as? Bool, false)
+            XCTAssertEqual(initial["legacyResultRange"] as? Bool, false)
             XCTAssertEqual(initial["cspViolations"] as? [String], [])
 
             let adjusted = try await evaluateJSON(
                 """
                 (() => {
-                  const range = document.querySelector("[data-result-range]");
+                  const range = document.querySelector("\(testCase.rangeSelector)");
                   range.value = "43";
                   range.dispatchEvent(new Event("input", { bubbles: true }));
                   const comparison = document.querySelector("[data-comparison]");
                   return JSON.stringify({
                     className: comparison.className,
                     rangeValue: range.value,
-                    comparisonValue: getComputedStyle(comparison)
-                      .getPropertyValue("--comparison-value").trim()
+                    comparisonOpacity: getComputedStyle(comparison)
+                      .getPropertyValue("--comparison-opacity").trim()
                   });
                 })()
                 """,
@@ -223,14 +255,20 @@ final class CompositionHTMLLocalFileBrowserTests: XCTestCase {
                     .contains("comparison-value-43")
             )
             XCTAssertEqual(adjusted["rangeValue"] as? String, "43")
-            XCTAssertEqual(adjusted["comparisonValue"] as? String, "0.43")
+            XCTAssertEqual(adjusted["comparisonOpacity"] as? String, "0.43")
             let renderedStyle = try await evaluateJSON(
                 """
                 (() => {
                   const comparison = document.querySelector("[data-comparison]");
                   const result = document.querySelector(
-                    ".comparison-difference-rendered"
+                    "\(testCase.resultSelector)"
                   );
+                  const valueRule = Array.from(document.styleSheets)
+                    .flatMap((sheet) => Array.from(sheet.cssRules))
+                    .find((rule) =>
+                      rule.type === CSSRule.STYLE_RULE &&
+                      rule.selectorText === ".comparison.comparison-value-43"
+                    );
                   const opacityRules = Array.from(document.styleSheets)
                     .flatMap((sheet) => Array.from(sheet.cssRules))
                     .filter((rule) =>
@@ -240,19 +278,29 @@ final class CompositionHTMLLocalFileBrowserTests: XCTestCase {
                     )
                     .map((rule) => rule.cssText);
                   return JSON.stringify({
-                    inheritedValue: getComputedStyle(result)
-                      .getPropertyValue("--comparison-value").trim(),
-                    directSelectorMatches: result.matches(
-                      `.${comparison.classList[1]}.comparison-value-43 .comparison-difference-rendered`
-                    ),
+                    activeMode: comparison.dataset.activeMode,
+                    inheritedOpacity: getComputedStyle(result)
+                      .getPropertyValue("--comparison-opacity").trim(),
+                    ruleOpacity: valueRule?.style
+                      .getPropertyValue("--comparison-opacity").trim(),
                     opacityRules
                   });
                 })()
                 """,
                 in: webView
             )
-            XCTAssertEqual(renderedStyle["inheritedValue"] as? String, "0.43")
-            XCTAssertEqual(renderedStyle["directSelectorMatches"] as? Bool, true)
+            XCTAssertEqual(
+                renderedStyle["activeMode"] as? String,
+                testCase.expectedMode
+            )
+            XCTAssertEqual(
+                renderedStyle["inheritedOpacity"] as? String,
+                "0.43"
+            )
+            XCTAssertEqual(
+                renderedStyle["ruleOpacity"] as? String,
+                "0.43"
+            )
             XCTAssertTrue(
                 try XCTUnwrap(renderedStyle["opacityRules"] as? [String])
                     .contains { $0.contains("opacity: 0.43") },
@@ -296,16 +344,16 @@ final class CompositionHTMLLocalFileBrowserTests: XCTestCase {
                 enhanced: document.documentElement.classList.contains("is-enhanced"),
                 className: comparison.className,
                 beforeVisible: getComputedStyle(
-                  comparison.querySelector(".comparison-side-before")
+                  comparison.querySelector(".comparison-before")
                 ).display !== "none",
                 afterVisible: getComputedStyle(
-                  comparison.querySelector(".comparison-side-after")
+                  comparison.querySelector(".comparison-after")
                 ).display !== "none",
                 pressed: comparison.querySelector(
                   '[data-side-by-side-view="before"]'
                 ).getAttribute("aria-pressed"),
                 status: comparison.querySelector(
-                  "[data-side-by-side-status]"
+                  "[data-comparison-status]"
                 ).textContent.trim()
               });
             })()
@@ -331,13 +379,13 @@ final class CompositionHTMLLocalFileBrowserTests: XCTestCase {
               return JSON.stringify({
                 className: comparison.className,
                 beforeVisible: getComputedStyle(
-                  comparison.querySelector(".comparison-side-before")
+                  comparison.querySelector(".comparison-before")
                 ).display !== "none",
                 afterVisible: getComputedStyle(
-                  comparison.querySelector(".comparison-side-after")
+                  comparison.querySelector(".comparison-after")
                 ).display !== "none",
                 status: comparison.querySelector(
-                  "[data-side-by-side-status]"
+                  "[data-comparison-status]"
                 ).textContent.trim()
               });
             })()

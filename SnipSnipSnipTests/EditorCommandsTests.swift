@@ -60,6 +60,58 @@ final class EditorCommandsTests: XCTestCase {
         XCTAssertEqual(added.nextCalloutNumber, 2)
     }
 
+    func testNumberedArrowUsesDedicatedToolAndIncludesBadgeInBounds() {
+        let annotation = Annotation.makeNumberedArrow(
+            from: CGPoint(x: 40, y: 40),
+            to: CGPoint(x: 120, y: 80),
+            number: 3
+        )
+
+        XCTAssertEqual(annotation.editorTool, .numberedArrow)
+        XCTAssertLessThanOrEqual(annotation.boundingRect.minX, 22)
+        XCTAssertLessThanOrEqual(annotation.boundingRect.minY, 22)
+        guard case let .arrow(shape) = annotation.kind else {
+            return XCTFail("Expected shared arrow geometry")
+        }
+        XCTAssertEqual(shape.sequenceNumber, 3)
+        XCTAssertEqual(shape.badgeStyle, .filled)
+    }
+
+    func testResequenceNumberedArrowsDoesNotChangeLayerOrder() {
+        let first = Annotation.makeNumberedArrow(from: .zero, to: CGPoint(x: 40, y: 20), number: 1)
+        let second = Annotation.makeNumberedArrow(from: CGPoint(x: 0, y: 30), to: CGPoint(x: 40, y: 50), number: 2)
+        let rectangle = Annotation.makeRectangle(in: CGRect(x: 60, y: 0, width: 20, height: 20))
+        let snapshot = makeEditorSnapshot(annotations: [first, rectangle, second])
+
+        let result = ResequenceNumberedArrowsCommand(annotationIDs: [second.id, first.id]).apply(to: snapshot)
+
+        XCTAssertEqual(result.annotations.map(\.id), [first.id, rectangle.id, second.id])
+        let numbers = result.annotations.compactMap { annotation -> Int? in
+            guard case let .arrow(shape) = annotation.kind else { return nil }
+            return shape.sequenceNumber
+        }
+        XCTAssertEqual(numbers, [2, 1])
+    }
+
+    func testDeletingNumberedArrowClosesSequenceGapInSemanticOrder() {
+        let first = Annotation.makeNumberedArrow(from: .zero, to: CGPoint(x: 40, y: 20), number: 1)
+        let second = Annotation.makeNumberedArrow(from: CGPoint(x: 0, y: 30), to: CGPoint(x: 40, y: 50), number: 2)
+        let third = Annotation.makeNumberedArrow(from: CGPoint(x: 0, y: 60), to: CGPoint(x: 40, y: 80), number: 3)
+        let snapshot = makeEditorSnapshot(
+            annotations: [third, first, second],
+            selectedAnnotationIDs: [second.id]
+        )
+
+        let result = DeleteAnnotationsAndRenumberNumberedArrowsCommand(annotationIDs: [second.id]).apply(to: snapshot)
+
+        let positions = Dictionary(uniqueKeysWithValues: result.annotations.compactMap { annotation -> (UUID, Int)? in
+            guard case let .arrow(shape) = annotation.kind, let number = shape.sequenceNumber else { return nil }
+            return (annotation.id, number)
+        })
+        XCTAssertEqual(positions[first.id], 1)
+        XCTAssertEqual(positions[third.id], 2)
+    }
+
     @MainActor
     func testClickingStatusMarkPlacesDefaultSizedMark() {
         let snapshot = makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120))

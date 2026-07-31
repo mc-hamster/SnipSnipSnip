@@ -241,12 +241,4 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
         dependencies.lifecycle.clearError()
     }
 
-    func updatePresentationScenesRootURL(_ url: URL, persists: Bool = true) {
-        let standardizedURL = url.standardizedFileURL
-        presentationScenesRootURL = standardizedURL
-
-        if persists {
-            preferenceStore.savePresentationScenesRootURL(standardizedURL)
-        }
-    }
 }

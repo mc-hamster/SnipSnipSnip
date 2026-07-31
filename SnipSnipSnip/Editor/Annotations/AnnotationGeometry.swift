@@ -28,7 +28,9 @@ nonisolated enum AnnotationGeometry {
                 labelPlacement: shape.labelPlacement,
                 labelFontSize: shape.labelFontSize,
                 labelTextColor: shape.labelTextColor,
-                headShape: shape.headShape
+                headShape: shape.headShape,
+                sequenceNumber: shape.sequenceNumber,
+                badgeStyle: shape.badgeStyle
             ))
         case let .statusMark(shape):
             return .statusMark(StatusMarkShape(rect: transformRect(shape.rect)))
@@ -79,7 +81,8 @@ nonisolated enum AnnotationGeometry {
             return lineBounds(from: shape.start, to: shape.end, padding: 10)
         case let .arrow(shape):
             let lineRect = lineBounds(from: shape.start, to: shape.end, padding: 18)
-            return gscBoundingRect(of: [lineRect, arrowLabelRect(for: shape)]).integral
+            let badgeRect = numberedArrowBadgeRect(for: shape)
+            return gscBoundingRect(of: [lineRect, arrowLabelRect(for: shape), badgeRect]).integral
         case let .statusMark(shape):
             return standardizedRect(shape.rect)
         case let .measurement(shape):
@@ -169,6 +172,19 @@ nonisolated enum AnnotationGeometry {
         }
 
         return gscRotatedBoundingRect(geometry.rect, degrees: geometry.rotationDegrees).integral
+    }
+
+    static func numberedArrowBadgeRect(for shape: ArrowShape) -> CGRect {
+        guard shape.sequenceNumber != nil else {
+            return CGRect(origin: shape.start, size: .zero)
+        }
+        let diameter: CGFloat = 36
+        return CGRect(
+            x: shape.start.x - diameter / 2,
+            y: shape.start.y - diameter / 2,
+            width: diameter,
+            height: diameter
+        ).integral
     }
 
     static func arrowLabelGeometry(for shape: ArrowShape) -> (rect: CGRect, rotationDegrees: CGFloat) {

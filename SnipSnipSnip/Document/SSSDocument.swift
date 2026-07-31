@@ -455,7 +455,8 @@ nonisolated enum SSSDocumentPackage {
                 undoStack: session.undoStack.map(liftedSnapshot),
                 redoStack: session.redoStack.map(liftedSnapshot),
                 toolStyles: session.toolStyles,
-                savedPresentations: session.savedPresentations
+                savedPresentations: session.savedPresentations,
+                hasTruncatedUndoHistory: session.hasTruncatedUndoHistory
             ),
             asset
         )
@@ -3446,6 +3447,7 @@ nonisolated private struct AnnotationRecord: Codable {
     var arrowLabelPlacement: String?
     var arrowLabelFontSize: Double?
     var arrowLabelTextColor: String?
+    var numberedArrowBadgeStyle: String?
     var calloutStyle: String?
     var redactionMode: String?
     var assetID: UUID?
@@ -3475,6 +3477,7 @@ nonisolated private struct AnnotationRecord: Codable {
         arrowLabelPlacement = nil
         arrowLabelFontSize = nil
         arrowLabelTextColor = nil
+        numberedArrowBadgeStyle = nil
         calloutStyle = nil
         redactionMode = nil
         assetID = nil
@@ -3508,6 +3511,8 @@ nonisolated private struct AnnotationRecord: Codable {
             arrowLabelPlacement = shape.labelPlacement.rawValue
             arrowLabelFontSize = Double(shape.labelFontSize)
             arrowLabelTextColor = shape.labelTextColor.rawValue
+            number = shape.sequenceNumber
+            numberedArrowBadgeStyle = shape.badgeStyle.rawValue
         case let .statusMark(shape):
             kind = "statusMark"
             rect = RectRecord(shape.rect)
@@ -3589,7 +3594,9 @@ nonisolated private struct AnnotationRecord: Codable {
                 labelPlacement: ArrowLabelPlacement(rawValue: arrowLabelPlacement ?? ArrowLabelPlacement.parallelAbove.rawValue) ?? .parallelAbove,
                 labelFontSize: CGFloat(arrowLabelFontSize ?? 14),
                 labelTextColor: ArrowLabelTextColor(rawValue: arrowLabelTextColor ?? ArrowLabelTextColor.stroke.rawValue) ?? .stroke,
-                headShape: ArrowHeadShape(rawValue: arrowHeadShape ?? "open") ?? .open
+                headShape: ArrowHeadShape(rawValue: arrowHeadShape ?? "open") ?? .open,
+                sequenceNumber: number,
+                badgeStyle: NumberedArrowBadgeStyle(rawValue: numberedArrowBadgeStyle ?? NumberedArrowBadgeStyle.filled.rawValue) ?? .filled
             ))
         case "statusMark":
             guard let rect else {

@@ -1485,6 +1485,7 @@ private final class AnnotationCanvasOverlayView: NSView {
         }
 
         drawDraftAnnotations(in: canvasRect)
+        drawNumberedArrowResequencingPreview(in: canvasRect)
 
         let displayedSelection = interactionState.draftAnnotations.isEmpty ? controller.selectedAnnotations : interactionState.draftAnnotations
 
@@ -1685,6 +1686,16 @@ private final class AnnotationCanvasOverlayView: NSView {
         window?.makeFirstResponder(self)
         let viewPoint = convert(event.locationInWindow, from: nil)
 
+        if controller.numberedArrowResequencingOrder != nil {
+            if let point = documentPoint(from: viewPoint),
+               let annotation = annotation(at: point),
+               annotation.editorTool == .numberedArrow {
+                controller.chooseNumberedArrowForResequencing(annotation.id)
+            }
+            needsDisplay = true
+            return
+        }
+
         if controller.activeTool != .uiMapInspect,
            let handle = cropHandle(at: viewPoint) {
             interactionState.beginCropResize(
@@ -1733,6 +1744,8 @@ private final class AnnotationCanvasOverlayView: NSView {
             interactionState.beginLineDrawing(tool: .line, anchor: point)
         case .arrow:
             interactionState.beginLineDrawing(tool: .arrow, anchor: point)
+        case .numberedArrow:
+            interactionState.beginLineDrawing(tool: .numberedArrow, anchor: point)
         case .statusMark:
             interactionState.beginStatusMarkDrawing(
                 at: point,
@@ -1814,6 +1827,7 @@ private final class AnnotationCanvasOverlayView: NSView {
                 snapshot: controller.snapshot,
                 imageBounds: imageBounds,
                 cropAspectRatio: controller.cropAspectRatioPreset.ratio,
+                numberedArrowNumber: controller.nextNumberedArrowNumber,
                 styleProvider: controller.style(for:)
             )
             canvasView?.updateDraftCropMask(interactionState.draftCropRect)
@@ -1836,6 +1850,7 @@ private final class AnnotationCanvasOverlayView: NSView {
             snapshot: controller.snapshot,
             imageBounds: imageBounds,
             cropAspectRatio: controller.cropAspectRatioPreset.ratio,
+            numberedArrowNumber: controller.nextNumberedArrowNumber,
             styleProvider: controller.style(for:)
         )
 
@@ -1873,6 +1888,17 @@ private final class AnnotationCanvasOverlayView: NSView {
 
     override func keyDown(with event: NSEvent) {
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+
+        if controller.numberedArrowResequencingOrder != nil {
+            if event.keyCode == 53 {
+                controller.cancelNumberedArrowResequencing()
+                return
+            }
+            if event.keyCode == 36, controller.canFinishNumberedArrowResequencing {
+                controller.finishNumberedArrowResequencing()
+                return
+            }
+        }
 
         if event.keyCode == 48 {
             canvasView?.traverseAnnotations(backward: modifiers.contains(.shift))
@@ -2272,6 +2298,39 @@ private final class AnnotationCanvasOverlayView: NSView {
         for handle in ResizeHandle.allCases {
             let point = handle.position(in: rect)
             CGRect(x: point.x - 4, y: point.y - 4, width: 8, height: 8).fill()
+        }
+    }
+
+    private func drawNumberedArrowResequencingPreview(in canvasRect: CGRect) {
+        guard let order = controller.numberedArrowResequencingOrder else { return }
+
+        for (index, annotationID) in order.enumerated() {
+            guard let annotation = controller.snapshot.annotations.first(where: { $0.id == annotationID }),
+                  case let .arrow(shape) = annotation.kind,
+                  shape.sequenceNumber != nil else {
+                continue
+            }
+
+            let rect = viewRect(for: AnnotationGeometry.numberedArrowBadgeRect(for: shape), in: canvasRect)
+            let badge = NSBezierPath(ovalIn: rect)
+            NSColor.controlAccentColor.setFill()
+            badge.fill()
+            NSColor.selectedControlTextColor.setStroke()
+            badge.lineWidth = 2
+            badge.stroke()
+
+            let text = NSAttributedString(
+                string: "\(index + 1)",
+                attributes: [
+                    .font: NSFont.monospacedDigitSystemFont(
+                        ofSize: max(rect.height * 0.48, 11),
+                        weight: .bold
+                    ),
+                    .foregroundColor: NSColor.selectedControlTextColor
+                ]
+            )
+            let size = text.size()
+            text.draw(at: CGPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2))
         }
     }
 

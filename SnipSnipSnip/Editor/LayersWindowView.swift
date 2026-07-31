@@ -1211,8 +1211,8 @@ private extension AnnotationKind {
             return "circle"
         case .line:
             return "line.diagonal"
-        case .arrow:
-            return "arrow.up.right"
+        case .arrow(let shape):
+            return shape.sequenceNumber == nil ? "arrow.up.right" : "1.circle"
         case .statusMark:
             return "checkmark.circle"
         case .freehand:
@@ -1244,8 +1244,8 @@ private extension AnnotationKind {
             return "Ellipse"
         case .line:
             return "Line"
-        case .arrow:
-            return "Arrow"
+        case .arrow(let shape):
+            return shape.sequenceNumber.map { "Numbered Arrow \($0)" } ?? "Arrow"
         case .statusMark:
             return "Status Mark"
         case .freehand:
@@ -1276,6 +1276,9 @@ private extension AnnotationKind {
         case .callout(let shape):
             return shape.text.trimmingCharacters(in: .whitespacesAndNewlines).sssLayerPreviewText
         case .arrow(let shape):
+            if shape.sequenceNumber != nil {
+                return nil
+            }
             return shape.label.trimmingCharacters(in: .whitespacesAndNewlines).sssLayerPreviewText
         case .statusMark:
             return nil

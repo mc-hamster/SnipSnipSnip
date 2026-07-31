@@ -15,6 +15,15 @@ extension DocumentWorkflowModel {
         presentationScenesRootURL.standardizedFileURL == PresentationSceneStore.defaultRootURL.standardizedFileURL
     }
 
+    func updatePresentationScenesRootURL(_ url: URL, persists: Bool = true) {
+        let standardizedURL = url.standardizedFileURL
+        presentationScenesRootURL = standardizedURL
+
+        if persists {
+            preferenceStore.savePresentationScenesRootURL(standardizedURL)
+        }
+    }
+
     func updateEditorCropOutsideOverlayAlpha(_ value: CGFloat) {
         let clampedAlpha = EditorPreferenceStore.clampedCropOutsideOverlayAlpha(value)
 

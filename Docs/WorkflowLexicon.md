@@ -267,6 +267,17 @@ Library terms identify distinct scopes. Do not shorten them to generic **Library
 
 **Archive** may remain an internal storage or implementation term. It should not name the general user-facing history experience.
 
+## Editor Annotation Terms
+
+| Term | Canonical meaning | Avoid as a synonym |
+| --- | --- | --- |
+| **Arrow** | The regular free-form arrow annotation and the fixed label for its split-control family. | Pointer, connector, or leader when naming the tool. |
+| **Numbered Arrow** | An arrow annotation with an automatically assigned sequence number in a badge at its tail. | Step Arrow or numbered Callout. |
+| **Sequence** | The contiguous semantic order of Numbered Arrows in the current annotation scope. It is independent of layer order. | Layers, z-order, or Steps. |
+| **Resequence** | Select every Numbered Arrow in the order its number should appear. | Rearrange Layers or renumber manually. |
+
+Use **Move Earlier** and **Move Later** for changing one Numbered Arrow's sequence position. Use **Resequence…** for the canvas mode that assigns the complete order. A Screenshot, an individual source capture, and the assembled result each maintain their own Numbered Arrow sequence.
+
 ## Canonical From/To Ledger
 
 The left side contains prior, competing, or ambiguous language. The right side is the canonical product language.

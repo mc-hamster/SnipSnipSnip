@@ -1,6 +1,7 @@
 require "json"
 require "open3"
 require "time"
+require "xcodeproj"
 
 default_platform(:mac)
 
@@ -70,6 +71,22 @@ end
 
 def current_build_number
   get_build_number(xcodeproj: PROJECT_PATH).to_i
+end
+
+def set_shared_project_build_number!(build_number)
+  value = Integer(build_number)
+  UI.user_error!("Build number must be positive.") unless value.positive?
+
+  project = Xcodeproj::Project.open(PROJECT_PATH)
+  project.build_configurations.each do |configuration|
+    configuration.build_settings["CURRENT_PROJECT_VERSION"] = value.to_s
+  end
+  project.targets.each do |target|
+    target.build_configurations.each do |configuration|
+      configuration.build_settings.delete("CURRENT_PROJECT_VERSION")
+    end
+  end
+  project.save
 end
 
 def ensure_xcode_owned_marketing_version!(options)
@@ -329,11 +346,7 @@ private_lane :prepare_version_and_build_number do |options|
 
   next_build = [local_build, remote_build].max + 1
 
-  increment_build_number(
-    build_number: next_build,
-    skip_info_plist: true,
-    xcodeproj: PROJECT_PATH
-  )
+  set_shared_project_build_number!(next_build)
 
   UI.message("Prepared #{version} (#{next_build})")
   {
@@ -348,11 +361,7 @@ private_lane :prepare_local_version_and_build_number do |options|
   version = current_release_version
   next_build = current_build_number + 1
 
-  increment_build_number(
-    build_number: next_build,
-    skip_info_plist: true,
-    xcodeproj: PROJECT_PATH
-  )
+  set_shared_project_build_number!(next_build)
 
   UI.message("Prepared #{version} (#{next_build})")
   {

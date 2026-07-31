@@ -745,6 +745,9 @@
     "Background Type" : {
 
     },
+    "Badge Style" : {
+
+    },
     "Balanced · 30 fps" : {
 
     },
@@ -3158,6 +3161,16 @@
     "Portrait" : {
 
     },
+    "Position %lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Position %1$lld of %2$lld"
+          }
+        }
+      }
+    },
     "Preparing files…" : {
 
     },
@@ -3462,6 +3475,9 @@
 
     },
     "Required for screenshot pixels, live window thumbnails, screen capture, and video recording." : {
+
+    },
+    "Resequence…" : {
 
     },
     "Reserve caption space below each step." : {
@@ -3794,6 +3810,12 @@
     "Select an Annotation" : {
 
     },
+    "Select numbered arrows in the order they should appear." : {
+
+    },
+    "Select numbered arrows on the canvas in their new order." : {
+
+    },
     "Selected" : {
       "comment" : "Accessibility value for a selected item."
     },
@@ -3822,6 +3844,9 @@
 
     },
     "Send to Back" : {
+
+    },
+    "Sequence" : {
 
     },
     "Set Layout" : {
@@ -4156,6 +4181,9 @@
 
     },
     "Start interactive window capture with SnipSnipSnip." : {
+
+    },
+    "Start Over" : {
 
     },
     "Start with Before, then add After and review what changed." : {

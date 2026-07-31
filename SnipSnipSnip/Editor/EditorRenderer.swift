@@ -457,7 +457,9 @@ enum EditorRenderer {
                 labelPlacement: shape.labelPlacement,
                 labelFontSize: shape.labelFontSize * renderScale,
                 labelTextColor: shape.labelTextColor,
-                headShape: shape.headShape
+                headShape: shape.headShape,
+                sequenceNumber: shape.sequenceNumber,
+                badgeStyle: shape.badgeStyle
             ))
         default:
             scaledKind = kind
@@ -940,6 +942,9 @@ enum EditorRenderer {
         if !shape.label.isEmpty {
             drawArrowLabel(shape, style: style, scale: scale)
         }
+        if let number = shape.sequenceNumber {
+            drawNumberedArrowBadge(number, shape: shape, style: style, scale: scale)
+        }
     }
 
     nonisolated private static func drawArrowExport(_ shape: ArrowShape, style: AnnotationStyle, scale: CGFloat, context: CGContext) {
@@ -952,6 +957,87 @@ enum EditorRenderer {
         if !shape.label.isEmpty {
             drawArrowLabelExport(shape, style: style, scale: scale, context: context)
         }
+        if let number = shape.sequenceNumber {
+            drawNumberedArrowBadgeExport(number, shape: shape, style: style, scale: scale, context: context)
+        }
+    }
+
+    private static func drawNumberedArrowBadge(
+        _ number: Int,
+        shape: ArrowShape,
+        style: AnnotationStyle,
+        scale: CGFloat
+    ) {
+        let diameter = scaled(36, by: scale)
+        let rect = CGRect(
+            x: shape.start.x - diameter / 2,
+            y: shape.start.y - diameter / 2,
+            width: diameter,
+            height: diameter
+        )
+        let path = NSBezierPath(ovalIn: rect)
+        let fill = style.fillColor.alpha > 0 ? style.fillColor : style.strokeColor
+
+        if shape.badgeStyle == .filled {
+            fill.nsColor.setFill()
+            path.fill()
+        } else {
+            fill.withAlpha(0.16).nsColor.setFill()
+            path.fill()
+        }
+        style.strokeColor.nsColor.setStroke()
+        path.lineWidth = max(style.lineWidth, scaled(2, by: scale))
+        path.stroke()
+
+        drawCenteredText(
+            "\(number)",
+            in: rect,
+            font: NSFont.monospacedDigitSystemFont(
+                ofSize: max(style.fontSize, scaled(14, by: scale)),
+                weight: .bold
+            ),
+            color: shape.badgeStyle == .filled ? contrastingGlyphColor(for: fill) : style.strokeColor
+        )
+    }
+
+    nonisolated private static func drawNumberedArrowBadgeExport(
+        _ number: Int,
+        shape: ArrowShape,
+        style: AnnotationStyle,
+        scale: CGFloat,
+        context: CGContext
+    ) {
+        let diameter = scaled(36, by: scale)
+        let rect = CGRect(
+            x: shape.start.x - diameter / 2,
+            y: shape.start.y - diameter / 2,
+            width: diameter,
+            height: diameter
+        )
+        let fill = style.fillColor.alpha > 0 ? style.fillColor : style.strokeColor
+
+        context.saveGState()
+        context.setFillColor((shape.badgeStyle == .filled ? fill : fill.withAlpha(0.16)).cgColor)
+        context.addPath(CGPath(ellipseIn: rect, transform: nil))
+        context.fillPath()
+        context.setStrokeColor(style.strokeColor.cgColor)
+        context.setLineWidth(max(style.lineWidth, scaled(2, by: scale)))
+        context.addPath(CGPath(ellipseIn: rect, transform: nil))
+        context.strokePath()
+        context.restoreGState()
+
+        drawCenteredTextExport(
+            "\(number)",
+            in: rect,
+            font: exportFont(size: max(style.fontSize, scaled(14, by: scale)), bold: true),
+            color: (shape.badgeStyle == .filled ? contrastingGlyphColor(for: fill) : style.strokeColor).cgColor,
+            context: context
+        )
+    }
+
+    nonisolated private static func contrastingGlyphColor(for color: RGBAColor) -> RGBAColor {
+        let luminance = 0.2126 * color.red + 0.7152 * color.green + 0.0722 * color.blue
+        return luminance > 0.58 ? .redactionFill : .textForeground
     }
 
     private static func drawStatusMark(in rect: CGRect, style: AnnotationStyle, scale: CGFloat) {

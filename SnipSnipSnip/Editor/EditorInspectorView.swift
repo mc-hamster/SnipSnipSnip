@@ -799,16 +799,18 @@ struct EditorInspectorView: View {
                 if controller.showsArrowControls, let selectedArrow = controller.selectedAnnotation, case let .arrow(shape) = selectedArrow.kind {
                     Divider()
 
-                    Picker("Head Ends", selection: Binding(get: {
-                        shape.headStyle
-                    }, set: { value in
-                        deferPublish { controller.updateArrowHeadStyle(value) }
-                    })) {
-                        ForEach(ArrowHeadStyle.allCases) { headStyle in
-                            Text(headStyle.label).tag(headStyle)
+                    if shape.sequenceNumber == nil {
+                        Picker("Head Ends", selection: Binding(get: {
+                            shape.headStyle
+                        }, set: { value in
+                            deferPublish { controller.updateArrowHeadStyle(value) }
+                        })) {
+                            ForEach(ArrowHeadStyle.allCases) { headStyle in
+                                Text(headStyle.label).tag(headStyle)
+                            }
                         }
+                        .pickerStyle(.segmented)
                     }
-                    .pickerStyle(.segmented)
 
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Head Style")
@@ -839,16 +841,49 @@ struct EditorInspectorView: View {
                             .frame(width: 42)
                     }
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Label")
-                            .font(.caption.weight(.semibold))
-                        TextField("Arrow Label", text: Binding(get: {
-                            controller.selectedArrowLabel
+                    if let sequenceNumber = shape.sequenceNumber {
+                        Picker("Badge Style", selection: Binding(get: {
+                            shape.badgeStyle
                         }, set: { value in
-                            deferPublish { controller.updateArrowLabel(value) }
-                        }))
-                        .textFieldStyle(.roundedBorder)
-                    }
+                            deferPublish { controller.updateNumberedArrowBadgeStyle(value) }
+                        })) {
+                            ForEach(NumberedArrowBadgeStyle.allCases) { style in
+                                Text(style.label).tag(style)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Sequence")
+                                .font(.caption.weight(.semibold))
+
+                            HStack {
+                                Text("Position \(sequenceNumber) of \(controller.numberedArrowCount)")
+                                    .monospacedDigit()
+                                Spacer()
+                                Button("Move Earlier", systemImage: "arrow.up", action: controller.moveSelectedNumberedArrowEarlier)
+                                    .labelStyle(.iconOnly)
+                                    .disabled(!controller.canMoveSelectedNumberedArrowEarlier)
+                                Button("Move Later", systemImage: "arrow.down", action: controller.moveSelectedNumberedArrowLater)
+                                    .labelStyle(.iconOnly)
+                                    .disabled(!controller.canMoveSelectedNumberedArrowLater)
+                            }
+
+                            Button("Resequence…", action: controller.beginNumberedArrowResequencing)
+                                .disabled(controller.numberedArrowCount < 2)
+                                .help("Select numbered arrows on the canvas in their new order.")
+                        }
+                    } else {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Label")
+                                .font(.caption.weight(.semibold))
+                            TextField("Arrow Label", text: Binding(get: {
+                                controller.selectedArrowLabel
+                            }, set: { value in
+                                deferPublish { controller.updateArrowLabel(value) }
+                            }))
+                            .textFieldStyle(.roundedBorder)
+                        }
 
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Label Box")
@@ -884,17 +919,18 @@ struct EditorInspectorView: View {
                         .pickerStyle(.segmented)
                     }
 
-                    HStack {
-                        Text("Label Font")
-                            .help("Set the arrow label font size.")
-                        InspectorSlider(value: Binding(get: {
-                            shape.labelFontSize
-                        }, set: { value in
-                            deferPublish { controller.updateArrowLabelFontSize(value) }
-                        }), range: 8...48, step: 1)
-                        Text("\(Int(shape.labelFontSize))")
-                            .monospacedDigit()
-                            .frame(width: 28)
+                        HStack {
+                            Text("Label Font")
+                                .help("Set the arrow label font size.")
+                            InspectorSlider(value: Binding(get: {
+                                shape.labelFontSize
+                            }, set: { value in
+                                deferPublish { controller.updateArrowLabelFontSize(value) }
+                            }), range: 8...48, step: 1)
+                            Text("\(Int(shape.labelFontSize))")
+                                .monospacedDigit()
+                                .frame(width: 28)
+                        }
                     }
                 }
 

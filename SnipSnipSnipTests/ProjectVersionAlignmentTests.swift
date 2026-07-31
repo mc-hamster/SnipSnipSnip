@@ -40,19 +40,35 @@ final class ProjectVersionAlignmentTests: XCTestCase {
         }
     }
 
-    func testFastlaneBuildNumberBumpsPreserveSharedBuildSettingReferences() throws {
+    func testFastlaneBuildNumberBumpsOnlyTheSharedProjectSetting() throws {
         let fastfile = try String(
             contentsOf: repositoryRoot.appendingPathComponent("fastlane/Fastfile"),
             encoding: .utf8
         )
-        let incrementCallCount = fastfile.components(separatedBy: "increment_build_number(").count - 1
-        let preservingOptionCount = fastfile.components(separatedBy: "skip_info_plist: true").count - 1
 
-        XCTAssertGreaterThan(incrementCallCount, 0)
+        XCTAssertFalse(
+            fastfile.contains("increment_build_number("),
+            "Fastlane's generic increment action creates target-level build-number overrides."
+        )
+        XCTAssertTrue(
+            fastfile.contains("def set_shared_project_build_number!(build_number)")
+        )
+        XCTAssertTrue(
+            fastfile.contains(
+                #"configuration.build_settings["CURRENT_PROJECT_VERSION"] = value.to_s"#
+            )
+        )
+        XCTAssertTrue(
+            fastfile.contains(
+                #"configuration.build_settings.delete("CURRENT_PROJECT_VERSION")"#
+            )
+        )
         XCTAssertEqual(
-            preservingOptionCount,
-            incrementCallCount,
-            "Every Fastlane build-number bump must preserve Info.plist references to CURRENT_PROJECT_VERSION."
+            fastfile.components(
+                separatedBy: "set_shared_project_build_number!(next_build)"
+            ).count - 1,
+            2,
+            "Every release build-number preparation path must update the shared project setting."
         )
     }
 

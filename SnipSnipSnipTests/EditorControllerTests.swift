@@ -1465,6 +1465,51 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testMovingAndBulkResequencingNumberedArrowsPreservesLayers() {
+        let first = Annotation.makeNumberedArrow(from: CGPoint(x: 10, y: 10), to: CGPoint(x: 80, y: 20), number: 1)
+        let second = Annotation.makeNumberedArrow(from: CGPoint(x: 10, y: 40), to: CGPoint(x: 80, y: 50), number: 2)
+        let third = Annotation.makeNumberedArrow(from: CGPoint(x: 10, y: 70), to: CGPoint(x: 80, y: 80), number: 3)
+        let controller = makeController(snapshot: makeEditorSnapshot(
+            annotations: [first, second, third],
+            selectedAnnotationIDs: [second.id]
+        ))
+
+        controller.moveSelectedNumberedArrowEarlier()
+        XCTAssertEqual(controller.selectedNumberedArrowPosition, 1)
+        XCTAssertEqual(controller.snapshot.annotations.map(\.id), [first.id, second.id, third.id])
+
+        controller.beginNumberedArrowResequencing()
+        controller.chooseNumberedArrowForResequencing(third.id)
+        controller.chooseNumberedArrowForResequencing(first.id)
+        controller.chooseNumberedArrowForResequencing(second.id)
+        XCTAssertTrue(controller.canFinishNumberedArrowResequencing)
+        controller.finishNumberedArrowResequencing()
+
+        let positions = Dictionary(uniqueKeysWithValues: controller.snapshot.annotations.compactMap { annotation -> (UUID, Int)? in
+            guard case let .arrow(shape) = annotation.kind, let number = shape.sequenceNumber else { return nil }
+            return (annotation.id, number)
+        })
+        XCTAssertEqual(positions[third.id], 1)
+        XCTAssertEqual(positions[first.id], 2)
+        XCTAssertEqual(positions[second.id], 3)
+        XCTAssertEqual(controller.snapshot.annotations.map(\.id), [first.id, second.id, third.id])
+    }
+
+    @MainActor
+    func testDuplicatingNumberedArrowAppendsSequencePosition() {
+        let first = Annotation.makeNumberedArrow(from: CGPoint(x: 10, y: 10), to: CGPoint(x: 80, y: 20), number: 1)
+        let controller = makeController(snapshot: makeEditorSnapshot(
+            annotations: [first],
+            selectedAnnotationIDs: [first.id]
+        ))
+
+        controller.duplicateSelectedAnnotations()
+
+        XCTAssertEqual(controller.numberedArrowCount, 2)
+        XCTAssertEqual(controller.selectedNumberedArrowPosition, 2)
+    }
+
+    @MainActor
     func testNumericCropUpdateAdjustsCropRect() {
         let snapshot = makeEditorSnapshot(cropRect: CGRect(x: 4, y: 6, width: 80, height: 60))
         let controller = makeController(snapshot: snapshot, captureSize: CGSize(width: 160, height: 120))
