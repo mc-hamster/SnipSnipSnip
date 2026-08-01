@@ -271,7 +271,7 @@ Library terms identify distinct scopes. Do not shorten them to generic **Library
 
 | Term | Canonical meaning | Avoid as a synonym |
 | --- | --- | --- |
-| **Arrow** | The regular free-form arrow annotation and the fixed label for its split-control family. | Pointer, connector, or leader when naming the tool. |
+| **Arrow** | The regular free-form arrow annotation and its named choice in the Arrow-family split control. | Pointer, connector, or leader when naming the tool. |
 | **Numbered Arrow** | An arrow annotation with an automatically assigned sequence number in a badge at its tail. | Step Arrow or numbered Callout. |
 | **Sequence** | The contiguous semantic order of Numbered Arrows in the current annotation scope. It is independent of layer order. | Layers, z-order, or Steps. |
 | **Resequence** | Select every Numbered Arrow in the order its number should appear. | Rearrange Layers or renumber manually. |

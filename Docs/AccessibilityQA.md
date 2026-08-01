@@ -55,7 +55,7 @@ Repeat the essential workflow pass with:
 - [ ] Tab and Shift-Tab traverse annotations from front to back.
 - [ ] Space selects exclusively; Shift-Space toggles additive selection; Escape returns focus to the canvas.
 - [ ] Return starts editing text and callouts.
-- [ ] Arrow exposes Arrow and Numbered Arrow as named choices in one labeled split control, and its main button announces the last-selected arrow variant.
+- [ ] Every tool split control exposes named choices under a stable group name, and its main button visibly labels and announces the last-selected variant.
 - [ ] A Numbered Arrow announces its number, selection state, layer position, and geometry; Move Earlier, Move Later, and Resequence are usable without relying on color.
 - [ ] Resequence announces progress, supports Cancel and Done from the keyboard, and does not change layer order.
 - [ ] Arrow keys move by 1 px; Shift-arrows move by 10 px.

@@ -768,7 +768,6 @@ struct EditorCommandBar: View {
                         toolButton(.crop)
                         toolGroupMenu(
                             title: "Arrow",
-                            systemImage: "arrow.up.right",
                             tools: Self.arrowTools,
                             lastUsedTool: $lastArrowTool,
                             accessibilityIdentifier: "editor.toolGroup.arrow"
@@ -778,21 +777,18 @@ struct EditorCommandBar: View {
                     EditorCommandGroup("Grouped annotation tools") {
                         toolGroupMenu(
                             title: "Shapes",
-                            systemImage: "square.on.circle",
                             tools: Self.shapeTools,
                             lastUsedTool: $lastShapeTool,
                             accessibilityIdentifier: "editor.toolGroup.shapes"
                         )
                         toolGroupMenu(
                             title: "Draw",
-                            systemImage: "pencil.and.scribble",
                             tools: Self.drawingTools,
                             lastUsedTool: $lastDrawingTool,
                             accessibilityIdentifier: "editor.toolGroup.draw"
                         )
                         toolGroupMenu(
                             title: "Emphasize",
-                            systemImage: "scope",
                             tools: Self.emphasisTools,
                             lastUsedTool: $lastEmphasisTool,
                             accessibilityIdentifier: "editor.toolGroup.emphasize"
@@ -1251,7 +1247,6 @@ struct EditorCommandBar: View {
 
     private func toolGroupMenu(
         title: String,
-        systemImage: String,
         tools: [EditorTool],
         lastUsedTool: Binding<EditorTool>,
         accessibilityIdentifier: String
@@ -1262,15 +1257,18 @@ struct EditorCommandBar: View {
             Button {
                 controller.activateToolbarTool(lastUsedTool.wrappedValue)
             } label: {
-                Label(title, systemImage: systemImage)
+                Label(
+                    lastUsedTool.wrappedValue.label,
+                    systemImage: lastUsedTool.wrappedValue.systemImage
+                )
                     .font(.subheadline.weight(.medium))
                     .padding(.horizontal, 8)
                     .frame(height: 28)
             }
             .buttonStyle(EditorDirectToolButtonStyle(isSelected: isSelected))
-            .help("\(title): click to reuse \(lastUsedTool.wrappedValue.label).")
-            .accessibilityLabel(title)
-            .accessibilityHint("Activate the last-used \(title.lowercased()) tool: \(lastUsedTool.wrappedValue.label).")
+            .help("Use \(lastUsedTool.wrappedValue.label). Open the disclosure menu for other \(title.lowercased()) tools.")
+            .accessibilityLabel(lastUsedTool.wrappedValue.label)
+            .accessibilityHint("Activate this tool. Use the adjacent menu to choose another tool in the \(title) group.")
             .accessibilityValue(
                 isSelected
                     ? "Selected: \(controller.activeTool.label)"
@@ -1310,10 +1308,10 @@ struct EditorCommandBar: View {
 
         return HStack(spacing: 2) {
             Button {
-                controller.activateToolbarTool(.blur)
+                controller.activateToolbarTool(controller.currentRedactionMode.editorTool)
             } label: {
                 Label(
-                    "Redact",
+                    controller.currentRedactionMode.label,
                     systemImage: controller.currentRedactionMode.toolbarSystemImage
                 )
                 .font(.subheadline.weight(.medium))
@@ -1321,9 +1319,9 @@ struct EditorCommandBar: View {
                 .frame(height: 28)
             }
             .buttonStyle(EditorDirectToolButtonStyle(isSelected: isSelected))
-            .help("Redaction: click to use \(controller.currentRedactionMode.label).")
-            .accessibilityLabel("Redact")
-            .accessibilityHint("Activate the current redaction mode: \(controller.currentRedactionMode.label).")
+            .help("Use \(controller.currentRedactionMode.label). Open the disclosure menu for other redaction tools.")
+            .accessibilityLabel(controller.currentRedactionMode.label)
+            .accessibilityHint("Activate this tool. Use the adjacent menu to choose another tool in the Redact group.")
             .accessibilityValue(isSelected ? "Selected" : "Not selected")
             .accessibilityIdentifier("editor.toolGroup.redact")
 
@@ -1357,15 +1355,15 @@ struct EditorCommandBar: View {
             Button {
                 controller.activateToolbarTool(lastMoreTool)
             } label: {
-                Label("More Tools", systemImage: "ellipsis.circle")
+                Label(lastMoreTool.label, systemImage: lastMoreTool.systemImage)
                     .font(.subheadline.weight(.medium))
                     .padding(.horizontal, 8)
                     .frame(height: 28)
             }
             .buttonStyle(EditorDirectToolButtonStyle(isSelected: isSelected))
-            .help("More Tools: click to reuse \(lastMoreTool.label).")
-            .accessibilityLabel("More Tools")
-            .accessibilityHint("Activate the last-used utility: \(lastMoreTool.label).")
+            .help("Use \(lastMoreTool.label). Open the disclosure menu for other tools.")
+            .accessibilityLabel(lastMoreTool.label)
+            .accessibilityHint("Activate this tool. Use the adjacent menu to choose another tool in the More Tools group.")
             .accessibilityValue(
                 isSelected
                     ? "Selected: \(controller.activeTool.label)"
