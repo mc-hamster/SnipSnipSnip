@@ -249,7 +249,12 @@ private final class RegionSelectionWindow: NSPanel {
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
         level = .screenSaver
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        collectionBehavior = [
+            .canJoinAllSpaces,
+            .moveToActiveSpace,
+            .fullScreenAuxiliary,
+            .stationary
+        ]
         ignoresMouseEvents = false
         acceptsMouseMovedEvents = true
         hasShadow = false

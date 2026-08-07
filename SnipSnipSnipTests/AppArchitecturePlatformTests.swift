@@ -2687,12 +2687,35 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertTrue(
             regionSelectionOverlay.contains("isFloatingPanel = true")
                 && regionSelectionOverlay.contains("hidesOnDeactivate = false")
-                && regionSelectionOverlay.contains("collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]"),
+                && regionSelectionOverlay.contains(".canJoinAllSpaces")
+                && regionSelectionOverlay.contains(".moveToActiveSpace")
+                && regionSelectionOverlay.contains(".fullScreenAuxiliary")
+                && regionSelectionOverlay.contains(".stationary"),
             "Region selection should stay visible across Spaces, including Safari or video full screen."
         )
         XCTAssertFalse(
             regionSelectionOverlay.contains("NSApp.activate"),
             "Region selection should not eagerly activate the app; activation can be deferred until another app exits full screen."
+        )
+
+        let captureCommands = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+Commands.swift"),
+            encoding: .utf8
+        )
+        let regionCaptureStart = try XCTUnwrap(
+            captureCommands.range(of: "    func beginRegionCapture() {")
+        )
+        let regionCaptureEnd = try XCTUnwrap(
+            captureCommands.range(
+                of: "    func beginRepeatLastCapture() {",
+                range: regionCaptureStart.upperBound..<captureCommands.endIndex
+            )
+        )
+        let regionCapture = String(captureCommands[regionCaptureStart.lowerBound..<regionCaptureEnd.lowerBound])
+        XCTAssertTrue(
+            regionCapture.contains("promoteToRegularApp()")
+                && regionCapture.contains("defer { demoteToAccessoryIfPossible() }"),
+            "Region capture should temporarily use the regular activation policy so its nonactivating panel can enter another app's full-screen Space without activating SnipSnipSnip."
         )
     }
 

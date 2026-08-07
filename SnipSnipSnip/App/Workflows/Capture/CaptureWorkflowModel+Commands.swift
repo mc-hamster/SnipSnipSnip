@@ -118,6 +118,12 @@ extension CaptureWorkflowModel {
             let autosaveSuspension = suspendEditorAutosaveForInteractiveCapture()
             defer { resumeEditorAutosaveAfterInteractiveCapture(autosaveSuspension) }
 
+            // A menu-bar-only app uses the accessory activation policy. Promote it without
+            // activating it so its nonactivating selection panel can join another app's
+            // full-screen Space; activating here would pull the person out of that Space.
+            promoteToRegularApp()
+            defer { demoteToAccessoryIfPossible() }
+
             let hiddenWindow = hideAppWindowIfNeeded()
             defer { restoreAppWindowIfNeeded(hiddenWindow) }
 
