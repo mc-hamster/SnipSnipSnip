@@ -74,8 +74,6 @@ final class WindowSelectionSession: NSObject {
     }
 
     private func presentOverlay() {
-        NSApp.activate(ignoringOtherApps: true)
-
         // Normalize CGWindowList bounds against the active capture desktop union.
         // Mixed-height multi-display setups otherwise inherit the wrong top edge.
         let visibleBounds = visibleWindowBoundsSources(desktopFrame: snapshot.globalFrame)
@@ -139,7 +137,7 @@ final class WindowSelectionSession: NSObject {
     }
 }
 
-private final class WindowSelectionWindow: NSWindow {
+private final class WindowSelectionWindow: NSPanel {
     private let displayFrame: CGRect
     
     init(
@@ -155,15 +153,23 @@ private final class WindowSelectionWindow: NSWindow {
         self.displayFrame = displayPreview.snapshot.overlayFrame
         super.init(
             contentRect: displayPreview.snapshot.overlayFrame,
-            styleMask: .borderless,
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
 
         isOpaque = false
         backgroundColor = .clear
+        isFloatingPanel = true
+        hidesOnDeactivate = false
         level = .screenSaver
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        collectionBehavior = [
+            .canJoinAllApplications,
+            .canJoinAllSpaces,
+            .moveToActiveSpace,
+            .fullScreenAuxiliary,
+            .stationary
+        ]
         ignoresMouseEvents = false
         hasShadow = false
         titleVisibility = .hidden

@@ -250,6 +250,7 @@ private final class RegionSelectionWindow: NSPanel {
         isReleasedWhenClosed = false
         level = .screenSaver
         collectionBehavior = [
+            .canJoinAllApplications,
             .canJoinAllSpaces,
             .moveToActiveSpace,
             .fullScreenAuxiliary,

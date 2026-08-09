@@ -19,8 +19,6 @@ final class DisplaySelectionSession {
     }
 
     private func presentOverlay() {
-        NSApp.activate(ignoringOtherApps: true)
-
         overlayWindows = displays.map { display in
             let overlay = DisplaySelectionWindow(display: display) { [weak self] displayID in
                 self?.finish(with: displayID)
@@ -41,22 +39,30 @@ final class DisplaySelectionSession {
     }
 }
 
-private final class DisplaySelectionWindow: NSWindow {
+private final class DisplaySelectionWindow: NSPanel {
     init(
         display: DisplaySnapshot,
         onComplete: @escaping (CGDirectDisplayID?) -> Void
     ) {
         super.init(
             contentRect: display.overlayFrame,
-            styleMask: .borderless,
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
 
         isOpaque = false
         backgroundColor = .clear
+        isFloatingPanel = true
+        hidesOnDeactivate = false
         level = .screenSaver
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        collectionBehavior = [
+            .canJoinAllApplications,
+            .canJoinAllSpaces,
+            .moveToActiveSpace,
+            .fullScreenAuxiliary,
+            .stationary
+        ]
         ignoresMouseEvents = false
         hasShadow = false
         titleVisibility = .hidden

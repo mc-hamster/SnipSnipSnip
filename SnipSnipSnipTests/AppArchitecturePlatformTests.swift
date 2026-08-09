@@ -2687,6 +2687,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertTrue(
             regionSelectionOverlay.contains("isFloatingPanel = true")
                 && regionSelectionOverlay.contains("hidesOnDeactivate = false")
+                && regionSelectionOverlay.contains(".canJoinAllApplications")
                 && regionSelectionOverlay.contains(".canJoinAllSpaces")
                 && regionSelectionOverlay.contains(".moveToActiveSpace")
                 && regionSelectionOverlay.contains(".fullScreenAuxiliary")
@@ -2712,11 +2713,39 @@ final class AppArchitecturePlatformTests: XCTestCase {
             )
         )
         let regionCapture = String(captureCommands[regionCaptureStart.lowerBound..<regionCaptureEnd.lowerBound])
-        XCTAssertTrue(
+        XCTAssertFalse(
             regionCapture.contains("promoteToRegularApp()")
-                && regionCapture.contains("defer { demoteToAccessoryIfPossible() }"),
-            "Region capture should temporarily use the regular activation policy so its nonactivating panel can enter another app's full-screen Space without activating SnipSnipSnip."
+                || regionCapture.contains("demoteToAccessoryIfPossible()"),
+            "Region capture should not change the app's activation policy while its panel joins another app's full-screen Space."
         )
+    }
+
+    func testInteractiveWindowAndDisplaySelectionOverlaysStayInFullScreenSpaces() throws {
+        let overlayPaths = [
+            "SnipSnipSnip/Capture/WindowSelectionOverlay.swift",
+            "SnipSnipSnip/Capture/DisplaySelectionOverlay.swift"
+        ]
+
+        for path in overlayPaths {
+            let source = try String(
+                contentsOf: repositoryRoot.appendingPathComponent(path),
+                encoding: .utf8
+            )
+
+            XCTAssertTrue(
+                source.contains("NSPanel")
+                    && source.contains("styleMask: [.borderless, .nonactivatingPanel]")
+                    && source.contains(".canJoinAllApplications")
+                    && source.contains(".canJoinAllSpaces")
+                    && source.contains(".moveToActiveSpace")
+                    && source.contains(".fullScreenAuxiliary"),
+                "\(path) should present as a nonactivating panel in the active full-screen Space."
+            )
+            XCTAssertFalse(
+                source.contains("NSApp.activate"),
+                "\(path) should not pull the person out of another app's full-screen Space."
+            )
+        }
     }
 
     func testVideoAndConnectedDeviceBehaviorStayOutOfAppModelExtensions() throws {
