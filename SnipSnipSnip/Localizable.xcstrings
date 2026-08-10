@@ -126,16 +126,6 @@
         }
       }
     },
-    "%@: click to reuse %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@: click to reuse %2$@."
-          }
-        }
-      }
-    },
     "%@. %@. Folder: %@" : {
       "localizations" : {
         "en" : {
@@ -343,20 +333,13 @@
     "Actions for %@" : {
 
     },
-    "Activate the current redaction mode: %@." : {
+    "Activate this tool. Use the adjacent menu to choose another tool in the %@ group." : {
 
     },
-    "Activate the last-used %@ tool: %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Activate the last-used %1$@ tool: %2$@."
-          }
-        }
-      }
+    "Activate this tool. Use the adjacent menu to choose another tool in the More Tools group." : {
+
     },
-    "Activate the last-used utility: %@." : {
+    "Activate this tool. Use the adjacent menu to choose another tool in the Redact group." : {
 
     },
     "Actual Size" : {
@@ -2621,13 +2604,7 @@
     "More tool choices" : {
 
     },
-    "More Tools" : {
-
-    },
     "More tools to explore" : {
-
-    },
-    "More Tools: click to reuse %@." : {
 
     },
     "More ways to capture" : {
@@ -3330,16 +3307,10 @@
     "Recycle Bin is Empty" : {
 
     },
-    "Redact" : {
-
-    },
     "Redaction" : {
 
     },
     "Redaction choices" : {
-
-    },
-    "Redaction: click to use %@." : {
 
     },
     "Redo" : {
@@ -4468,6 +4439,22 @@
 
     },
     "US Letter" : {
+
+    },
+    "Use %@. Open the disclosure menu for other %@ tools." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Use %1$@. Open the disclosure menu for other %2$@ tools."
+          }
+        }
+      }
+    },
+    "Use %@. Open the disclosure menu for other redaction tools." : {
+
+    },
+    "Use %@. Open the disclosure menu for other tools." : {
 
     },
     "Use Add… in the current workflow bar." : {

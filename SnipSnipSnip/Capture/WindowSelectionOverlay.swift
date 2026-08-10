@@ -166,7 +166,6 @@ private final class WindowSelectionWindow: NSPanel {
         collectionBehavior = [
             .canJoinAllApplications,
             .canJoinAllSpaces,
-            .moveToActiveSpace,
             .fullScreenAuxiliary,
             .stationary
         ]

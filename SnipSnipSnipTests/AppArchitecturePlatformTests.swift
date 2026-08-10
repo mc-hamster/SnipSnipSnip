@@ -2689,10 +2689,13 @@ final class AppArchitecturePlatformTests: XCTestCase {
                 && regionSelectionOverlay.contains("hidesOnDeactivate = false")
                 && regionSelectionOverlay.contains(".canJoinAllApplications")
                 && regionSelectionOverlay.contains(".canJoinAllSpaces")
-                && regionSelectionOverlay.contains(".moveToActiveSpace")
                 && regionSelectionOverlay.contains(".fullScreenAuxiliary")
                 && regionSelectionOverlay.contains(".stationary"),
             "Region selection should stay visible across Spaces, including Safari or video full screen."
+        )
+        XCTAssertFalse(
+            regionSelectionOverlay.contains(".moveToActiveSpace"),
+            "Region selection must not combine mutually exclusive canJoinAllSpaces and moveToActiveSpace behaviors."
         )
         XCTAssertFalse(
             regionSelectionOverlay.contains("NSApp.activate"),
@@ -2737,9 +2740,12 @@ final class AppArchitecturePlatformTests: XCTestCase {
                     && source.contains("styleMask: [.borderless, .nonactivatingPanel]")
                     && source.contains(".canJoinAllApplications")
                     && source.contains(".canJoinAllSpaces")
-                    && source.contains(".moveToActiveSpace")
                     && source.contains(".fullScreenAuxiliary"),
                 "\(path) should present as a nonactivating panel in the active full-screen Space."
+            )
+            XCTAssertFalse(
+                source.contains(".moveToActiveSpace"),
+                "\(path) must not combine mutually exclusive canJoinAllSpaces and moveToActiveSpace behaviors."
             )
             XCTAssertFalse(
                 source.contains("NSApp.activate"),

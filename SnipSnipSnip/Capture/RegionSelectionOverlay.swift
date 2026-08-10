@@ -252,7 +252,6 @@ private final class RegionSelectionWindow: NSPanel {
         collectionBehavior = [
             .canJoinAllApplications,
             .canJoinAllSpaces,
-            .moveToActiveSpace,
             .fullScreenAuxiliary,
             .stationary
         ]

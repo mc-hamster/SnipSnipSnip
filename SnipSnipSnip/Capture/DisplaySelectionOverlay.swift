@@ -59,7 +59,6 @@ private final class DisplaySelectionWindow: NSPanel {
         collectionBehavior = [
             .canJoinAllApplications,
             .canJoinAllSpaces,
-            .moveToActiveSpace,
             .fullScreenAuxiliary,
             .stationary
         ]
