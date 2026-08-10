@@ -470,6 +470,64 @@ final class SSSVideoDocumentTests: XCTestCase {
         try? FileManager.default.removeItem(at: sourceURL)
     }
 
+    func testRecoveryCheckpointRoundTripsWithoutPosterOrFormatChange() throws {
+        let sourceURL = try writeTemporaryMediaFile()
+        let packageURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("sssvideo")
+        let document = EditableVideoDocument(
+            recording: makeRecording(sourceURL: sourceURL),
+            session: VideoEditorSession(trimStartSeconds: 1, trimEndSeconds: 12, posterTimeSeconds: 3)
+        )
+        defer {
+            try? FileManager.default.removeItem(at: packageURL)
+            try? FileManager.default.removeItem(at: sourceURL)
+        }
+
+        try SSSVideoDocumentPackage.saveRecoveryCheckpoint(document: document, to: packageURL)
+        let replacement = EditableVideoDocument(
+            recording: document.recording,
+            session: VideoEditorSession(trimStartSeconds: 2, trimEndSeconds: 10, posterTimeSeconds: 4)
+        )
+        try SSSVideoDocumentPackage.saveRecoveryCheckpoint(document: replacement, to: packageURL)
+        let loaded = try SSSVideoDocumentPackage.load(from: packageURL)
+
+        XCTAssertEqual(loaded.session, replacement.session)
+        XCTAssertEqual(loaded.recording.sourceName, document.recording.sourceName)
+        XCTAssertNil(try SSSVideoDocumentPackage.loadPosterImage(from: packageURL))
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: packageURL.appendingPathComponent(SSSVideoDocumentPackage.posterFilename).path
+        ))
+    }
+
+    @MainActor
+    func testRecordingOverlayFinishingDisablesControls() {
+        let model = RecordingControlOverlayModel(
+            title: "Recording Screen",
+            sourceLabel: "Screen",
+            preferences: VideoRecordingPreferences(),
+            phase: .recording,
+            pauseResumeAction: {},
+            stopAction: {},
+            audioOptionsAction: { _, _ in }
+        )
+
+        model.updatePhase(.finishing, commandInFlight: true)
+
+        XCTAssertEqual(model.stateLabel, "Finishing")
+        XCTAssertFalse(model.controlsAreEnabled)
+    }
+
+    func testRecordingOverlayPlacementUsesAndClampsSecondaryVisibleFrame() {
+        let visibleFrame = CGRect(x: -1600, y: 90, width: 900, height: 700)
+        let frame = RecordingOverlayPlacement.frame(in: visibleFrame)
+
+        XCTAssertEqual(frame.midX, visibleFrame.midX, accuracy: 0.001)
+        XCTAssertLessThanOrEqual(frame.maxY, visibleFrame.maxY)
+        XCTAssertGreaterThanOrEqual(frame.minX, visibleFrame.minX)
+        XCTAssertGreaterThanOrEqual(frame.minY, visibleFrame.minY)
+    }
+
     @MainActor
     func testDiscardCurrentDocumentDeletesOwnedTemporaryRecordingFile() throws {
         let sourceURL = try writeTemporaryMediaFile(named: TemporaryVideoMediaManager.recordingOutputURL().lastPathComponent)

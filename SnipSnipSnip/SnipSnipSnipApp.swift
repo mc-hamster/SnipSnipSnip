@@ -119,10 +119,11 @@ private struct CaptureCommands: Commands {
                     .disabled(isCaptureOrRecordingActive || capture.isConnectedDeviceSessionActive)
                 }
 
-                if isRecordingVideo {
+                if video.isRecording {
                     Divider()
 
                     Button("Stop Recording", action: video.stopVideoRecording)
+                        .disabled(video.recordingLifecycle.phase == .finishing)
                 }
             }
 
@@ -231,7 +232,7 @@ private struct CaptureCommands: Commands {
     }
 
     private var isRecordingVideo: Bool {
-        video.activeVideoRecording != nil
+        video.blocksNewCapture
     }
 
     private func hotKey(for action: GlobalHotKeyAction) -> KeyEquivalent {
@@ -422,13 +423,13 @@ private struct DocumentCommands: Commands {
     }
 
     private var canOpenDocument: Bool {
-        !capture.isWorking && video.activeVideoRecording == nil && !guide.isActive && !capture.isConnectedDeviceSessionActive
+        !capture.isWorking && !video.blocksNewCapture && !guide.isActive && !capture.isConnectedDeviceSessionActive
     }
 
     private var canSaveDocument: Bool {
         (documents.editorController != nil || documents.videoEditorController != nil || documents.guideEditorController != nil)
             && !capture.isWorking
-            && video.activeVideoRecording == nil
+            && !video.blocksNewCapture
             && !guide.isActive
     }
 
@@ -741,6 +742,7 @@ struct SnipSnipSnipApp: App {
         _model = StateObject(wrappedValue: model)
         AppTerminationController.shared.configure(
             lifecycle: model.lifecycle,
+            video: model.video,
             guide: model.guide,
             documents: model.documents
         )

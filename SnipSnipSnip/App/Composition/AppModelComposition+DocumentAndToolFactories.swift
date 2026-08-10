@@ -29,6 +29,7 @@ extension AppModelComposition {
                 )
             ),
             recoveryStore: context.recoveryStore,
+            videoRecoveryStore: context.videoRecoveryStore,
             incompatibleDocumentCoordinator: context.overrides.incompatibleDocumentCoordinator,
             preferenceStore: context.preferenceStores.editor,
             pendingRecoverySession: context.pendingRecoverySession,

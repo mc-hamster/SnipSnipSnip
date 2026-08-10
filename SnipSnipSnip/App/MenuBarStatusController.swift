@@ -604,13 +604,13 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             enabled: !isDisabled
         ))
 
-        if isRecordingVideo {
+        if let video, video.isRecording {
             videoRecordingMenu.addItem(.separator())
             videoRecordingMenu.addItem(actionItem(
                 title: "Stop Recording",
                 systemImage: "stop.fill",
                 action: #selector(stopVideoRecording),
-                enabled: true
+                enabled: video.recordingLifecycle.phase != .finishing
             ))
         }
     }
@@ -921,7 +921,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     }
 
     private var isRecordingVideo: Bool {
-        video?.activeVideoRecording != nil
+        video?.blocksNewCapture == true
     }
 
     private var captureShortcutModifiers: NSEvent.ModifierFlags {

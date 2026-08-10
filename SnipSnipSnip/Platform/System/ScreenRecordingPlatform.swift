@@ -83,6 +83,10 @@ nonisolated struct ScreenRecordingAudioLevels: Equatable, Sendable {
 protocol ScreenRecordingPlatformEventSink: AnyObject {
     func recordingPlatformSession(
         _ session: any ScreenRecordingPlatformSession,
+        didStartSegment token: ScreenRecordingSegmentToken
+    )
+    func recordingPlatformSession(
+        _ session: any ScreenRecordingPlatformSession,
         didFinishSegment token: ScreenRecordingSegmentToken
     )
     func recordingPlatformSession(
@@ -103,6 +107,11 @@ nonisolated protocol ScreenRecordingPlatformFrameSink: AnyObject, Sendable {
 }
 
 extension ScreenRecordingPlatformEventSink {
+    func recordingPlatformSession(
+        _ session: any ScreenRecordingPlatformSession,
+        didStartSegment token: ScreenRecordingSegmentToken
+    ) {}
+
     func recordingPlatformSession(
         _ session: any ScreenRecordingPlatformSession,
         didUpdateAudioLevel level: Double,
@@ -428,6 +437,16 @@ private final class LiveScreenRecordingPlatformSession: NSObject, ScreenRecordin
             }
             self.tokenByOutputID[ObjectIdentifier(recordingOutput)] = nil
             self.eventSink?.recordingPlatformSession(self, didFinishSegment: token)
+        }
+    }
+
+    nonisolated func recordingOutputDidStartRecording(_ recordingOutput: SCRecordingOutput) {
+        Task { @MainActor [weak self] in
+            guard let self,
+                  let token = self.tokenByOutputID[ObjectIdentifier(recordingOutput)] else {
+                return
+            }
+            self.eventSink?.recordingPlatformSession(self, didStartSegment: token)
         }
     }
 

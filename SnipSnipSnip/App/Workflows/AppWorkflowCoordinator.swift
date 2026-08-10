@@ -304,7 +304,7 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
 
     func handleGlobalHotKeyAction(_ action: GlobalHotKeyAction) {
         let isCapturing = capture?.isWorking == true
-        let isRecording = video?.isRecording == true
+        let isRecording = video?.blocksNewCapture == true
         let isGuiding = guide?.isActive == true
 
         if action == .guide {
@@ -338,8 +338,8 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
     }
 
     func handleGlobalPresetHotKey(_ presetID: UUID) {
-        guard capture?.isWorking != true, video?.isRecording != true, guide?.isActive != true else {
-            lifecycle?.presentBusyHotKeyFeedback(message: video?.isRecording == true ? "Recording in progress" : "Capture already in progress")
+        guard capture?.isWorking != true, video?.blocksNewCapture != true, guide?.isActive != true else {
+            lifecycle?.presentBusyHotKeyFeedback(message: video?.blocksNewCapture == true ? "Recording in progress" : "Capture already in progress")
             return
         }
         capture?.capturePreset(id: presetID)
@@ -352,7 +352,7 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
 
         return !capture.isWorking
             && !capture.isShowingWindowPicker
-            && video?.isRecording != true
+            && video?.blocksNewCapture != true
             && guide?.isActive != true
             && !capture.isConnectedDeviceSessionActive
     }

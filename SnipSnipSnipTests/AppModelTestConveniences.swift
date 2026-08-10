@@ -9,6 +9,7 @@ extension AppModel {
         defaults: UserDefaults = .standard,
         environment: AppEnvironment? = nil,
         recoveryStore: DocumentRecoveryStore? = nil,
+        videoRecoveryStore: VideoRecoveryStore? = nil,
         clipboardHistoryStore: ClipboardHistoryStore? = nil,
         captureService: (any ScreenCaptureServiceType)? = nil,
         screenRecordingService: ScreenRecordingService? = nil,
@@ -24,6 +25,10 @@ extension AppModel {
             environment: environment,
             compositionOverrides: AppModelCompositionOverrides(
                 recoveryStore: recoveryStore,
+                videoRecoveryStore: videoRecoveryStore ?? VideoRecoveryStore(
+                    rootURL: FileManager.default.temporaryDirectory
+                        .appendingPathComponent("SnipSnipSnipVideoRecoveryTests-\(UUID().uuidString)", isDirectory: true)
+                ),
                 clipboardHistoryStore: clipboardHistoryStore,
                 captureService: captureService,
                 screenRecordingService: screenRecordingService,

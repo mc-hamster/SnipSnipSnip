@@ -26,7 +26,7 @@ protocol CaptureDocumentWorkflowPort: AnyObject {
 
 @MainActor
 protocol CaptureVideoWorkflowPort: AnyObject {
-    var isRecording: Bool { get }
+    var blocksNewCapture: Bool { get }
     var connectedDeviceRecordingPreferences: VideoRecordingPreferences { get }
 }
 

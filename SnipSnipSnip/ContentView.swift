@@ -28,7 +28,7 @@ struct ContentView: View {
     private let windowRefreshTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     private var isRecordingVideo: Bool {
-        video.activeVideoRecording != nil
+        video.recordingLifecycle.blocksNewCapture
     }
 
     var body: some View {
@@ -149,6 +149,9 @@ struct ContentView: View {
                     capture.windowPickerMode = .screenshot
                 },
                 onCancel: {
+                    if case .videoRecording = capture.windowPickerMode {
+                        video.cancelPendingVideoRecording()
+                    }
                     capture.cancelScreenshotWindowPicker()
                 }
             )
@@ -1472,6 +1475,10 @@ struct ContentView: View {
         GeometryReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    if documents.hasRecoverableVideo {
+                        videoRecoveryCard
+                    }
+
                     if lifecycle.showsWelcomeCard {
                         exploreCard
                     }
@@ -1485,6 +1492,22 @@ struct ContentView: View {
                 .padding(24)
                 .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .topLeading)
             }
+        }
+    }
+
+    private var videoRecoveryCard: some View {
+        CaptureModeCard(
+            title: "Recover Last Session",
+            systemImage: "arrow.counterclockwise.circle",
+            detail: "A Video with unsaved work was preserved when the app last closed."
+        ) {
+            HStack(spacing: 10) {
+                Button("Recover Video", action: documents.recoverLastVideoSession)
+                    .buttonStyle(.borderedProminent)
+                Button("Discard Recovery", role: .destructive, action: documents.discardRecoverableVideo)
+                Spacer()
+            }
+            .disabled(documents.isRecoveringVideo)
         }
     }
 

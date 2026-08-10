@@ -1002,7 +1002,7 @@ struct CaptureAutomationSettingsView: View {
     private var canResetPreferencesToDefaults: Bool {
         !capture.isWorking
             && !capture.isShowingWindowPicker
-            && video.activeVideoRecording == nil
+            && !video.blocksNewCapture
             && !guide.isActive
             && !capture.isConnectedDeviceSessionActive
     }

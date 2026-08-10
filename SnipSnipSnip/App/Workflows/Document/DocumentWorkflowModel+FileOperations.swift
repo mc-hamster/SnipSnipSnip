@@ -271,6 +271,7 @@ extension DocumentWorkflowModel {
 
     @discardableResult
     func saveVideoDocument(_ controller: VideoEditorController, to url: URL) async -> Bool {
+        let wasRecoveryCheckpointVideo = currentVideoUsesRecoveryCheckpoint
         let payload = VideoDocumentWritePayload(
             document: EditableVideoDocument(recording: controller.recording, session: controller.documentSession),
             posterImage: controller.posterImage,
@@ -292,6 +293,7 @@ extension DocumentWorkflowModel {
                 posterImage: controller.posterImage
             )
             installVideoController(persistedController, documentURL: url, savedSession: persistedController.documentSession)
+            completeVideoRecoveryAfterSave(wasRecoveryCheckpointVideo)
             return true
         } catch {
             present(error)

@@ -8,6 +8,24 @@ protocol ApplicationExitPreparing: AnyObject {
 
 extension DocumentWorkflowModel: ApplicationExitPreparing {}
 
+struct VideoExitContext: Equatable {
+    let phase: VideoRecordingPhase
+}
+
+@MainActor
+protocol ActiveVideoExitPreparing: AnyObject {
+    var exitContext: VideoExitContext? { get }
+    func prepareRecordingForApplicationExit() async -> Bool
+}
+
+extension VideoWorkflowModel: ActiveVideoExitPreparing {
+    var exitContext: VideoExitContext? {
+        recordingLifecycle.blocksNewCapture
+            ? VideoExitContext(phase: recordingLifecycle.phase)
+            : nil
+    }
+}
+
 @MainActor
 final class AppTerminationController {
     static let shared = AppTerminationController()
@@ -42,20 +60,29 @@ final class AppTerminationController {
         case cancel
     }
 
+    enum ActiveVideoDecision: Equatable {
+        case finalizeAndExit
+        case keepRecordingInBackground
+        case cancel
+    }
+
     typealias QuitConfirmationHandler = @MainActor (AppLifecycleModel?) -> QuitConfirmationResult
     typealias BackgroundHandler = @MainActor () -> Void
     typealias TerminationHandler = @MainActor () -> Void
     typealias RelaunchHandler = @MainActor () -> Void
     typealias ActiveGuideDecisionHandler = @MainActor (GuideExitContext, ExitPurpose) -> ActiveGuideDecision
+    typealias ActiveVideoDecisionHandler = @MainActor (VideoExitContext, ExitPurpose) -> ActiveVideoDecision
 
     private weak var lifecycle: AppLifecycleModel?
     private weak var guide: GuideWorkflowModel?
+    private weak var video: (any ActiveVideoExitPreparing)?
     private weak var documents: (any ApplicationExitPreparing)?
     private let confirmationHandler: QuitConfirmationHandler
     private let backgroundHandler: BackgroundHandler
     private let terminationHandler: TerminationHandler
     private let relaunchHandler: RelaunchHandler
     private let activeGuideDecisionHandler: ActiveGuideDecisionHandler
+    private let activeVideoDecisionHandler: ActiveVideoDecisionHandler
     private var isPresentingQuitConfirmation = false
     private var isFinalizingForTermination = false
     private var isPerformingConfirmedTermination = false
@@ -65,27 +92,36 @@ final class AppTerminationController {
         backgroundHandler: @escaping BackgroundHandler = AppTerminationController.runApplicationInBackground,
         terminationHandler: @escaping TerminationHandler = AppTerminationController.terminateApplication,
         relaunchHandler: @escaping RelaunchHandler = AppTerminationController.relaunchApplication,
-        activeGuideDecisionHandler: @escaping ActiveGuideDecisionHandler = AppTerminationController.presentActiveGuideDecision
+        activeGuideDecisionHandler: @escaping ActiveGuideDecisionHandler = AppTerminationController.presentActiveGuideDecision,
+        activeVideoDecisionHandler: @escaping ActiveVideoDecisionHandler = AppTerminationController.presentActiveVideoDecision
     ) {
         self.confirmationHandler = confirmationHandler
         self.backgroundHandler = backgroundHandler
         self.terminationHandler = terminationHandler
         self.relaunchHandler = relaunchHandler
         self.activeGuideDecisionHandler = activeGuideDecisionHandler
+        self.activeVideoDecisionHandler = activeVideoDecisionHandler
     }
 
     func configure(
         lifecycle: AppLifecycleModel,
+        video: (any ActiveVideoExitPreparing)? = nil,
         guide: GuideWorkflowModel? = nil,
         documents: (any ApplicationExitPreparing)? = nil
     ) {
         self.lifecycle = lifecycle
+        self.video = video
         self.guide = guide
         self.documents = documents
     }
 
     func requestQuit() {
         guard !isPresentingQuitConfirmation, !isFinalizingForTermination else {
+            return
+        }
+
+        if let context = video?.exitContext {
+            handleActiveVideoRequest(context: context, purpose: .quit)
             return
         }
 
@@ -111,7 +147,9 @@ final class AppTerminationController {
         }
 
         Self.logger.info("Restart without confirmation requested")
-        if let context = guide?.exitContext {
+        if let context = video?.exitContext {
+            handleActiveVideoRequest(context: context, purpose: .restart)
+        } else if let context = guide?.exitContext {
             handleActiveGuideRequest(context: context, purpose: .restart)
         } else {
             prepareDocumentsThen { controller in
@@ -133,6 +171,29 @@ final class AppTerminationController {
 
         guard !isPresentingQuitConfirmation else {
             return .terminateCancel
+        }
+
+        if let context = video?.exitContext {
+            let decision = decideActiveVideo(context: context, purpose: .quit)
+            switch decision {
+            case .cancel:
+                return .terminateCancel
+            case .keepRecordingInBackground:
+                runInBackground()
+                return .terminateCancel
+            case .finalizeAndExit:
+                isFinalizingForTermination = true
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    let didFinalize = await video?.prepareRecordingForApplicationExit() ?? true
+                    let didPrepareDocuments = didFinalize
+                        ? await documents?.prepareForApplicationExit() ?? true
+                        : false
+                    isFinalizingForTermination = false
+                    NSApp.reply(toApplicationShouldTerminate: didPrepareDocuments)
+                }
+                return .terminateLater
+            }
         }
 
         if let context = guide?.exitContext {
@@ -240,6 +301,29 @@ final class AppTerminationController {
         }
     }
 
+    private func handleActiveVideoRequest(context: VideoExitContext, purpose: ExitPurpose) {
+        let decision = decideActiveVideo(context: context, purpose: purpose)
+        switch decision {
+        case .cancel:
+            return
+        case .keepRecordingInBackground:
+            runInBackground()
+        case .finalizeAndExit:
+            isFinalizingForTermination = true
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                guard await video?.prepareRecordingForApplicationExit() != false,
+                      await documents?.prepareForApplicationExit() != false else {
+                    isFinalizingForTermination = false
+                    return
+                }
+                isFinalizingForTermination = false
+                if purpose == .restart { relaunchHandler() }
+                performConfirmedTermination()
+            }
+        }
+    }
+
     private func prepareDocumentsThen(
         completion: @escaping @MainActor (AppTerminationController) -> Void
     ) {
@@ -262,6 +346,37 @@ final class AppTerminationController {
         isPresentingQuitConfirmation = true
         defer { isPresentingQuitConfirmation = false }
         return activeGuideDecisionHandler(context, purpose)
+    }
+
+    private func decideActiveVideo(context: VideoExitContext, purpose: ExitPurpose) -> ActiveVideoDecision {
+        isPresentingQuitConfirmation = true
+        defer { isPresentingQuitConfirmation = false }
+        return activeVideoDecisionHandler(context, purpose)
+    }
+
+    static func makeActiveVideoAlert(context: VideoExitContext, purpose: ExitPurpose) -> NSAlert {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = purpose == .restart ? "Stop Video and restart?" : "Stop Video and quit?"
+        alert.informativeText = context.phase == .preparing
+            ? "The pending recording will be canceled before the app exits."
+            : "The recording will be finalized and saved for recovery before the app exits."
+        alert.addButton(withTitle: purpose == .restart ? "Stop & Restart" : "Stop & Quit")
+        if purpose == .quit {
+            alert.addButton(withTitle: "Keep Recording in Background")
+        }
+        alert.addButton(withTitle: "Cancel")
+        return alert
+    }
+
+    private static func presentActiveVideoDecision(
+        context: VideoExitContext,
+        purpose: ExitPurpose
+    ) -> ActiveVideoDecision {
+        let response = makeActiveVideoAlert(context: context, purpose: purpose).runModal()
+        if response == .alertFirstButtonReturn { return .finalizeAndExit }
+        if purpose == .quit, response == .alertSecondButtonReturn { return .keepRecordingInBackground }
+        return .cancel
     }
 
     static func makeActiveGuideAlert(context: GuideExitContext, purpose: ExitPurpose) -> NSAlert {

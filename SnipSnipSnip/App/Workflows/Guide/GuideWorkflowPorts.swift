@@ -12,7 +12,7 @@ protocol GuideCaptureWorkflowPort: AnyObject {
 }
 
 @MainActor
-protocol GuideVideoWorkflowPort: AnyObject { var isRecording: Bool { get } }
+protocol GuideVideoWorkflowPort: AnyObject { var blocksNewCapture: Bool { get } }
 
 @MainActor
 protocol CoordinatorGuidePort: AnyObject {

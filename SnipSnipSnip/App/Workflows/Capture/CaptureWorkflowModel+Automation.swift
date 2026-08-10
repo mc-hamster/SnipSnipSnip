@@ -51,7 +51,7 @@ extension CaptureWorkflowModel {
         guard let automationCoordinator else {
             return .failure(requestID: request.id, code: .internalError, message: "Automation workflow is not available.")
         }
-        guard !isWorking, video?.isRecording != true, guide?.isActive != true, !isConnectedDeviceSessionActive else {
+        guard !isWorking, video?.blocksNewCapture != true, guide?.isActive != true, !isConnectedDeviceSessionActive else {
             return .failure(requestID: request.id, code: .busy, message: "SnipSnipSnip is already working.")
         }
 
@@ -122,9 +122,9 @@ extension CaptureWorkflowModel {
             )
             return .failure(requestID: request.id, code: .internalError, message: "Automation workflow is not available.")
         }
-        guard !isWorking, video?.isRecording != true, guide?.isActive != true, !isConnectedDeviceSessionActive else {
+        guard !isWorking, video?.blocksNewCapture != true, guide?.isActive != true, !isConnectedDeviceSessionActive else {
             ShortcutsAutomationLog.logger.error(
-                "capture.automation busy requestID=\(request.id.uuidString, privacy: .public) isWorking=\(self.isWorking, privacy: .public) videoRecording=\(self.video?.isRecording == true, privacy: .public) connectedDevice=\(self.isConnectedDeviceSessionActive, privacy: .public)"
+                "capture.automation busy requestID=\(request.id.uuidString, privacy: .public) isWorking=\(self.isWorking, privacy: .public) videoBlocksCapture=\(self.video?.blocksNewCapture == true, privacy: .public) connectedDevice=\(self.isConnectedDeviceSessionActive, privacy: .public)"
             )
             return .failure(requestID: request.id, code: .busy, message: "SnipSnipSnip is already working.")
         }
@@ -216,7 +216,7 @@ extension CaptureWorkflowModel {
         guard let automationCoordinator else {
             return .failure(requestID: request.id, code: .internalError, message: "Automation workflow is not available.")
         }
-        guard !isWorking, video?.isRecording != true, guide?.isActive != true, !isConnectedDeviceSessionActive else {
+        guard !isWorking, video?.blocksNewCapture != true, guide?.isActive != true, !isConnectedDeviceSessionActive else {
             return .failure(requestID: request.id, code: .busy, message: "SnipSnipSnip is already working.")
         }
         guard automationCoordinator.canRepeatLastCapture() else {

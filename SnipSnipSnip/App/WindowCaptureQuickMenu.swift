@@ -157,7 +157,7 @@ final class WindowCaptureQuickMenuPresenter: NSObject {
         )
         let context = WindowCaptureMenuContext(
             windows: capture.availableWindows,
-            isActionEnabled: !capture.isWorking && video.activeVideoRecording == nil,
+            isActionEnabled: !capture.isWorking && !video.blocksNewCapture,
             isUIMapEnabled: capabilities.isEnabled(.uiMap) && capture.uiMapEnabled
         )
 

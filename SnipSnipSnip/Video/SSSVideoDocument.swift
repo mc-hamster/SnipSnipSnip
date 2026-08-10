@@ -50,6 +50,31 @@ nonisolated enum SSSVideoDocumentPackage {
         to url: URL,
         files: any FileSystemServicing = SystemFileService()
     ) throws {
+        guard let posterImage else {
+            throw SSSVideoDocumentError.posterUnavailable
+        }
+        try savePackage(
+            document: document,
+            posterData: VideoExporter.pngData(for: posterImage),
+            to: url,
+            files: files
+        )
+    }
+
+    nonisolated static func saveRecoveryCheckpoint(
+        document: EditableVideoDocument,
+        to url: URL,
+        files: any FileSystemServicing = SystemFileService()
+    ) throws {
+        try savePackage(document: document, posterData: nil, to: url, files: files)
+    }
+
+    nonisolated private static func savePackage(
+        document: EditableVideoDocument,
+        posterData: Data?,
+        to url: URL,
+        files: any FileSystemServicing
+    ) throws {
         let temporaryDirectoryURL = files.temporaryDirectory
             .appendingPathComponent("\(temporaryDirectoryPrefix)\(UUID().uuidString)", isDirectory: true)
         let manifest = DocumentManifest(
@@ -74,10 +99,13 @@ nonisolated enum SSSVideoDocumentPackage {
         try files.writeData(manifestData, to: temporaryDirectoryURL.appendingPathComponent(manifestFilename), options: .atomic)
         try files.copyItem(at: document.recording.sourceURL, to: temporaryDirectoryURL.appendingPathComponent(mediaFilename))
 
-        guard let poster = posterImage else {
-            throw SSSVideoDocumentError.posterUnavailable
+        if let posterData {
+            try files.writeData(
+                posterData,
+                to: temporaryDirectoryURL.appendingPathComponent(posterFilename),
+                options: .atomic
+            )
         }
-        try files.writeData(VideoExporter.pngData(for: poster), to: temporaryDirectoryURL.appendingPathComponent(posterFilename), options: .atomic)
 
         if files.fileExists(atPath: url.path) {
             try files.replaceItemAt(url, withItemAt: temporaryDirectoryURL)

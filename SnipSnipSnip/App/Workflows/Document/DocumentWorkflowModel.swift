@@ -50,6 +50,7 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     @Published var recentSnipEntries: [DocumentHistoryEntry]
     @Published var recycleBinEntries: [DocumentHistoryEntry]
     @Published var pendingRecoverySession: PendingRecoverySession?
+    @Published var videoRecoveryState: VideoRecoveryWorkflowState
     @Published var pendingCompositionImportRecovery:
         CompositionImportRecoveryState?
     @Published var isShowingUnsavedChangesPrompt = false
@@ -127,6 +128,7 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     var guidePersistenceObserver: AnyCancellable?
     var savedGuideProject: GuideProject?
     var pendingEditorAction: (() -> Void)?
+    var pendingEditorCancellation: (() -> Void)?
     var editableRedactionSaveConfirmationHandler: @MainActor () -> EditableRedactionSaveDecision = DocumentWorkflowModel.presentEditableRedactionSaveConfirmation
     var documentFormatMigrationDecisionHandler: @MainActor () -> DocumentFormatMigrationDecision = DocumentWorkflowModel.presentDocumentFormatMigrationConfirmation
     var compositionEditableImportChoiceHandler:
@@ -139,6 +141,7 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     init(
         dependencies: DocumentWorkflowDependencies,
         recoveryStore: DocumentRecoveryStore,
+        videoRecoveryStore: VideoRecoveryStore,
         incompatibleDocumentCoordinator: IncompatibleDocumentCoordinator,
         preferenceStore: EditorPreferenceStore,
         pendingRecoverySession: PendingRecoverySession?,
@@ -148,6 +151,7 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     ) {
         self.dependencies = dependencies
         self.recoveryStore = recoveryStore
+        self.videoRecoveryState = VideoRecoveryWorkflowState(store: videoRecoveryStore)
         self.incompatibleDocumentCoordinator = incompatibleDocumentCoordinator
         self.preferenceStore = preferenceStore
         self.pendingRecoverySession = pendingRecoverySession

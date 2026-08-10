@@ -111,7 +111,7 @@ struct CapturePresetMenuContent: View {
     }
 
     private var isCaptureActionDisabled: Bool {
-        capture.isWorking || video.isRecording || capture.isConnectedDeviceSessionActive
+        capture.isWorking || video.blocksNewCapture || capture.isConnectedDeviceSessionActive
     }
 }
 

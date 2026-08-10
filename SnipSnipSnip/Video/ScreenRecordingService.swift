@@ -15,6 +15,7 @@ enum ScreenRecordingError: LocalizedError {
     case recordingAlreadyStopped
     case insufficientStorage
     case unsupportedRecordingFormat
+    case recordingStartTimedOut
     case recordingFailed(String)
 
     var errorDescription: String? {
@@ -41,6 +42,8 @@ enum ScreenRecordingError: LocalizedError {
             return "There is not enough free disk space to start a new recording."
         case .unsupportedRecordingFormat:
             return "This Mac does not support the requested recording format."
+        case .recordingStartTimedOut:
+            return "The recording output did not start in time. Try recording again."
         case .recordingFailed(let message):
             return message
         }
@@ -104,7 +107,8 @@ struct ScreenRecordingService {
             bounds: sourceRect,
             target: fullscreenTarget.target,
             configuration: configuration,
-            preferences: preferences
+            preferences: preferences,
+            presentationFrame: fullscreenTarget.presentationFrame
         )
     }
 
@@ -156,7 +160,8 @@ struct ScreenRecordingService {
             bounds: normalizedRegion,
             target: target,
             configuration: configuration,
-            preferences: preferences
+            preferences: preferences,
+            presentationFrame: presentationFrame(for: display)
         )
     }
 
@@ -199,7 +204,8 @@ struct ScreenRecordingService {
             bounds: sourceWindow.frame.gscIntegralStandardized,
             target: target,
             configuration: configuration,
-            preferences: preferences
+            preferences: preferences,
+            presentationFrame: presentationFrame(forWindowFrame: sourceWindow.frame, displays: content.displays)
         )
     }
 
@@ -222,7 +228,8 @@ struct ScreenRecordingService {
         bounds: CGRect,
         target: ScreenRecordingTarget,
         configuration: ScreenRecordingConfiguration,
-        preferences: VideoRecordingPreferences
+        preferences: VideoRecordingPreferences,
+        presentationFrame: CGRect
     ) async throws -> ScreenRecordingSession {
         let outputURL = TemporaryVideoMediaManager.recordingOutputURL(files: files)
 
@@ -241,13 +248,12 @@ struct ScreenRecordingService {
             sourceName: sourceName,
             bounds: bounds,
             preferences: preferences,
+            presentationFrame: presentationFrame,
             platform: platform,
             files: files,
             clock: clock
         )
-        try session.startRecordingSegment()
-        try await platformSession.startCapture()
-        session.markCaptureStarted()
+        try await session.start()
         return session
     }
 
@@ -298,6 +304,24 @@ struct ScreenRecordingService {
         }
     }
 
+    private func presentationFrame(for display: DisplaySnapshot) -> CGRect {
+        screens.screen(withDisplayID: display.displayID)?.visibleFrame ?? display.overlayFrame
+    }
+
+    private func presentationFrame(forWindowFrame frame: CGRect, displays: [DisplaySnapshot]) -> CGRect {
+        let display = displays.max { left, right in
+            let leftIntersection = left.frame.intersection(frame).gscFiniteOr(.zero)
+            let rightIntersection = right.frame.intersection(frame).gscFiniteOr(.zero)
+            let leftArea = max(leftIntersection.width, 0) * max(leftIntersection.height, 0)
+            let rightArea = max(rightIntersection.width, 0) * max(rightIntersection.height, 0)
+            if leftArea == rightArea { return left.displayID > right.displayID }
+            return leftArea < rightArea
+        } ?? currentDisplay(in: displays)
+        return display.map(presentationFrame(for:))
+            ?? screens.mainScreen?.visibleFrame
+            ?? .zero
+    }
+
     private func resolveFullscreenTarget(
         content: ScreenContentSnapshot,
         mode: VideoRecordingFullscreenDisplayMode,
@@ -315,7 +339,8 @@ struct ScreenRecordingService {
             return FullscreenRecordingTarget(
                 target: displayRecordingTarget(for: display, sourceRect: nil),
                 bounds: display.frame.gscIntegralStandardized,
-                sourceName: display.name
+                sourceName: display.name,
+                presentationFrame: presentationFrame(for: display)
             )
         case .selectedDisplay:
             let display = content.displays.first(where: { $0.displayID == selectedDisplayID })
@@ -328,7 +353,8 @@ struct ScreenRecordingService {
             return FullscreenRecordingTarget(
                 target: displayRecordingTarget(for: display, sourceRect: nil),
                 bounds: display.frame.gscIntegralStandardized,
-                sourceName: display.name
+                sourceName: display.name,
+                presentationFrame: presentationFrame(for: display)
             )
         case .allDisplays:
             guard let anchorDisplay = currentDisplay(in: content.displays) ?? content.displays.first else {
@@ -345,7 +371,8 @@ struct ScreenRecordingService {
             return FullscreenRecordingTarget(
                 target: displayRecordingTarget(for: anchorDisplay, sourceRect: unionBounds),
                 bounds: unionBounds,
-                sourceName: content.displays.count == 1 ? anchorDisplay.name : "All Displays"
+                sourceName: content.displays.count == 1 ? anchorDisplay.name : "All Displays",
+                presentationFrame: presentationFrame(for: anchorDisplay)
             )
         }
     }
@@ -368,6 +395,7 @@ private struct FullscreenRecordingTarget {
     let target: ScreenRecordingTarget
     let bounds: CGRect
     let sourceName: String
+    let presentationFrame: CGRect
 }
 
 @MainActor
@@ -375,12 +403,16 @@ final class RecordingOutputCompletionTracker {
     private var outputURLByToken: [ScreenRecordingSegmentToken: URL] = [:]
     private var continuationsByToken: [ScreenRecordingSegmentToken: [CheckedContinuation<Void, Error>]] = [:]
     private var resultsByToken: [ScreenRecordingSegmentToken: Result<Void, Error>] = [:]
+    private var timeoutTasksByToken: [ScreenRecordingSegmentToken: Task<Void, Never>] = [:]
 
     func track(token: ScreenRecordingSegmentToken, outputURL: URL) {
         outputURLByToken[token] = outputURL
     }
 
-    func wait(for token: ScreenRecordingSegmentToken) async throws {
+    func wait(
+        for token: ScreenRecordingSegmentToken,
+        timeoutNanoseconds: UInt64 = 10_000_000_000
+    ) async throws {
         if let result = resultsByToken[token] {
             try result.get()
             return
@@ -393,6 +425,18 @@ final class RecordingOutputCompletionTracker {
             }
 
             continuationsByToken[token, default: []].append(continuation)
+            if timeoutTasksByToken[token] == nil {
+                timeoutTasksByToken[token] = Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: timeoutNanoseconds)
+                    guard !Task.isCancelled else { return }
+                    _ = self?.finish(
+                        token: token,
+                        result: .failure(ScreenRecordingError.recordingFailed(
+                            "The recording output did not finish in time."
+                        ))
+                    )
+                }
+            }
         }
     }
 
@@ -402,6 +446,7 @@ final class RecordingOutputCompletionTracker {
         }
 
         resultsByToken[token] = result
+        timeoutTasksByToken.removeValue(forKey: token)?.cancel()
         let continuations = continuationsByToken.removeValue(forKey: token) ?? []
         continuations.forEach { $0.resume(with: result) }
 
@@ -426,11 +471,43 @@ final class RecordingOutputCompletionTracker {
 }
 
 @MainActor
+final class RecordingOutputStartTracker {
+    private var resultsByToken: [ScreenRecordingSegmentToken: Result<Void, Error>] = [:]
+    private var continuationsByToken: [ScreenRecordingSegmentToken: CheckedContinuation<Void, Error>] = [:]
+    private var timeoutTasksByToken: [ScreenRecordingSegmentToken: Task<Void, Never>] = [:]
+
+    func wait(for token: ScreenRecordingSegmentToken, timeoutNanoseconds: UInt64) async throws {
+        if let result = resultsByToken[token] {
+            try result.get()
+            return
+        }
+
+        try await withCheckedThrowingContinuation { continuation in
+            continuationsByToken[token] = continuation
+            timeoutTasksByToken[token] = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: timeoutNanoseconds)
+                guard !Task.isCancelled else { return }
+                self?.finish(token: token, result: .failure(ScreenRecordingError.recordingStartTimedOut))
+            }
+        }
+    }
+
+    func finish(token: ScreenRecordingSegmentToken, result: Result<Void, Error>) {
+        guard resultsByToken[token] == nil else { return }
+        resultsByToken[token] = result
+        timeoutTasksByToken.removeValue(forKey: token)?.cancel()
+        continuationsByToken.removeValue(forKey: token)?.resume(with: result)
+    }
+}
+
+@MainActor
 final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
     private static let logger = Logger(subsystem: "com.oontz.SnipSnipSnip", category: "ScreenRecording")
 
     let outputURL: URL
+    let presentationFrame: CGRect
     private(set) var isPaused = false
+    private(set) var recoveredFromSegmentFailure = false
 
     private let kind: VideoRecordingKind
     private let sourceName: String
@@ -446,11 +523,28 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
     private let startedAt: Date
     private var activeSegmentToken: ScreenRecordingSegmentToken?
     private var segmentOutputURLs: [URL] = []
+    private var candidateSegmentOutputURLs: [URL] = []
     private let completionTracker = RecordingOutputCompletionTracker()
+    private let startTracker = RecordingOutputStartTracker()
     private var didStop = false
+    private var isStopping = false
     private var isCaptureRunning = false
+    private var stopTask: Task<CapturedVideoRecording, Error>?
+    private var finalizedRecording: CapturedVideoRecording?
+    private var didReportTerminalFailure = false
+    private var pendingTerminalFailure: Error?
     private var audioLevels = ScreenRecordingAudioLevels()
     var audioLevelHandler: ((ScreenRecordingAudioLevels) -> Void)?
+    var terminalFailureHandler: ((Error) -> Void)? {
+        didSet {
+            guard let terminalFailureHandler,
+                  let pendingTerminalFailure,
+                  !didReportTerminalFailure else { return }
+            self.pendingTerminalFailure = nil
+            didReportTerminalFailure = true
+            terminalFailureHandler(pendingTerminalFailure)
+        }
+    }
 
     init(
         platformSession: any ScreenRecordingPlatformSession,
@@ -460,6 +554,7 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
         sourceName: String,
         bounds: CGRect,
         preferences: VideoRecordingPreferences,
+        presentationFrame: CGRect = .zero,
         platform: any ScreenRecordingPlatform,
         files: any FileSystemServicing,
         clock: any ClockProviding
@@ -469,6 +564,7 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
         self.sourceName = sourceName
         self.bounds = bounds
         self.preferences = preferences
+        self.presentationFrame = presentationFrame
         self.configuration = configuration
         self.platformSession = platformSession
         self.platform = platform
@@ -485,7 +581,27 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
         let token = try platformSession.startRecordingSegment(to: segmentOutputURL)
         activeSegmentToken = token
         completionTracker.track(token: token, outputURL: segmentOutputURL)
+        candidateSegmentOutputURLs.append(segmentOutputURL)
         isPaused = false
+    }
+
+    func start() async throws {
+        try startRecordingSegment()
+        guard let activeSegmentToken else {
+            throw ScreenRecordingError.recordingFailed("The recording output could not be prepared.")
+        }
+
+        do {
+            try await platformSession.startCapture()
+            isCaptureRunning = true
+            try await startTracker.wait(for: activeSegmentToken, timeoutNanoseconds: 10_000_000_000)
+        } catch {
+            if isCaptureRunning { try? await platformSession.stopCapture() }
+            isCaptureRunning = false
+            try? platformSession.removeRecordingSegment(activeSegmentToken)
+            self.activeSegmentToken = nil
+            throw error
+        }
     }
 
     func pause() async throws {
@@ -498,11 +614,21 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
         }
 
         if isCaptureRunning {
-            try await platformSession.stopCapture()
-            isCaptureRunning = false
+            do {
+                try await platformSession.stopCapture()
+                isCaptureRunning = false
+            } catch {
+                reportTerminalFailureIfNeeded(error)
+                throw error
+            }
         }
 
-        try await waitForRecordingOutputToFinish(activeSegmentToken)
+        do {
+            try await waitForRecordingOutputToFinish(activeSegmentToken)
+        } catch {
+            reportTerminalFailureIfNeeded(error)
+            throw error
+        }
         try? platformSession.removeRecordingSegment(activeSegmentToken)
         self.activeSegmentToken = nil
         isPaused = true
@@ -518,9 +644,19 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
             return
         }
 
-        try startRecordingSegment()
-        try await platformSession.startCapture()
-        isCaptureRunning = true
+        do {
+            try startRecordingSegment()
+            guard let activeSegmentToken else { return }
+            try await platformSession.startCapture()
+            isCaptureRunning = true
+            try await startTracker.wait(for: activeSegmentToken, timeoutNanoseconds: 10_000_000_000)
+        } catch {
+            await abandonActiveSegmentAfterFailedRestart()
+            isPaused = true
+            resetAudioLevels()
+            reportTerminalFailureIfNeeded(error)
+            throw error
+        }
     }
 
     func updateAudioOptions(recordsSystemAudio: Bool, recordsMicrophone: Bool) async throws {
@@ -539,9 +675,19 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
 
         let wasCapturing = isCaptureRunning
         if wasCapturing, let activeSegmentToken {
-            try await platformSession.stopCapture()
-            isCaptureRunning = false
-            try await waitForRecordingOutputToFinish(activeSegmentToken)
+            do {
+                try await platformSession.stopCapture()
+                isCaptureRunning = false
+            } catch {
+                reportTerminalFailureIfNeeded(error)
+                throw error
+            }
+            do {
+                try await waitForRecordingOutputToFinish(activeSegmentToken)
+            } catch {
+                reportTerminalFailureIfNeeded(error)
+                throw error
+            }
             try? platformSession.removeRecordingSegment(activeSegmentToken)
             self.activeSegmentToken = nil
         }
@@ -560,29 +706,67 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
         audioLevelHandler?(audioLevels)
 
         if wasCapturing {
-            try startRecordingSegment()
-            try await platformSession.startCapture()
-            isCaptureRunning = true
+            do {
+                try startRecordingSegment()
+                guard let activeSegmentToken else { return }
+                try await platformSession.startCapture()
+                isCaptureRunning = true
+                try await startTracker.wait(for: activeSegmentToken, timeoutNanoseconds: 10_000_000_000)
+            } catch {
+                await abandonActiveSegmentAfterFailedRestart()
+                resetAudioLevels()
+                reportTerminalFailureIfNeeded(error)
+                throw error
+            }
         }
     }
 
-    func stop() async throws -> CapturedVideoRecording {
-        guard !didStop else {
-            throw ScreenRecordingError.recordingAlreadyStopped
+    private func abandonActiveSegmentAfterFailedRestart() async {
+        if isCaptureRunning {
+            try? await platformSession.stopCapture()
+            isCaptureRunning = false
         }
+        guard let activeSegmentToken else { return }
+        try? await waitForRecordingOutputToFinish(activeSegmentToken)
+        try? platformSession.removeRecordingSegment(activeSegmentToken)
+        self.activeSegmentToken = nil
+    }
 
-        didStop = true
+    func stop() async throws -> CapturedVideoRecording {
+        if let finalizedRecording { return finalizedRecording }
+        if let stopTask { return try await stopTask.value }
+        guard !didStop else { throw ScreenRecordingError.recordingAlreadyStopped }
+        let task = Task<CapturedVideoRecording, Error> { @MainActor [weak self] in
+            guard let self else { throw CancellationError() }
+            return try await performStop()
+        }
+        stopTask = task
+        do {
+            let recording = try await task.value
+            finalizedRecording = recording
+            stopTask = nil
+            return recording
+        } catch {
+            stopTask = nil
+            throw error
+        }
+    }
+
+    private func performStop() async throws -> CapturedVideoRecording {
+        isStopping = true
+        defer { isStopping = false }
         let activeSegmentToken = activeSegmentToken
 
         // Keep the recording output attached until the stream is fully stopping so
         // the capture backend does not keep delivering frames to a removed output.
         if isCaptureRunning {
-            try await platformSession.stopCapture()
+            try? await platformSession.stopCapture()
             isCaptureRunning = false
         }
 
         if let activeSegmentToken {
-            try await waitForRecordingOutputToFinish(activeSegmentToken)
+            try? await waitForRecordingOutputToFinish(activeSegmentToken)
+            try? platformSession.removeRecordingSegment(activeSegmentToken)
         }
 
         self.activeSegmentToken = nil
@@ -590,6 +774,7 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
         resetAudioLevels()
         let finalizedOutputURL = try await finalizeOutputURL()
         let duration = await recordingDuration(from: finalizedOutputURL)
+        didStop = true
 
         return CapturedVideoRecording(
             sourceURL: finalizedOutputURL,
@@ -603,41 +788,104 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
     }
 
     private func waitForRecordingOutputToFinish(_ token: ScreenRecordingSegmentToken) async throws {
-        try await completionTracker.wait(for: token)
+        try await completionTracker.wait(for: token, timeoutNanoseconds: 10_000_000_000)
     }
 
     private func finalizeOutputURL() async throws -> URL {
-        guard !segmentOutputURLs.isEmpty else {
+        let usableSegmentURLs = await validatedSegmentURLs(from: candidateSegmentOutputURLs)
+        guard !usableSegmentURLs.isEmpty else {
             Self.logger.error("Finalize recording failed: no segment URLs were captured")
             throw ScreenRecordingError.recordingFailed("The recording finished without any captured segments.")
         }
 
-        Self.logger.notice("Finalize recording with \(self.segmentOutputURLs.count, privacy: .public) segment(s)")
+        Self.logger.notice("Finalize recording with \(usableSegmentURLs.count, privacy: .public) usable segment(s)")
 
-        if segmentOutputURLs.count == 1, let singleSegmentURL = segmentOutputURLs.first {
+        if usableSegmentURLs.count == 1, let singleSegmentURL = usableSegmentURLs.first {
             try? files.removeItem(at: outputURL)
             if singleSegmentURL.standardizedFileURL != outputURL.standardizedFileURL {
-                try files.moveItem(at: singleSegmentURL, to: outputURL)
+                try files.copyItem(at: singleSegmentURL, to: outputURL)
             }
+            guard await isUsableVideo(at: outputURL) else {
+                try? files.removeItem(at: outputURL)
+                throw ScreenRecordingError.recordingFailed("The captured recording could not be validated.")
+            }
+            cleanupCandidateSegments()
             return outputURL
         }
 
         try? files.removeItem(at: outputURL)
         do {
-            try await mergeSegments(at: segmentOutputURLs, to: outputURL)
+            try await mergeSegments(at: usableSegmentURLs, to: outputURL)
         } catch {
             let nsError = error as NSError
             Self.logger.error(
                 "Segment merge failed domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public) description=\(nsError.localizedDescription, privacy: .public)"
             )
-            throw error
+            do {
+                return try await salvageLongestSegment(from: usableSegmentURLs)
+            } catch {
+                throw ScreenRecordingError.recordingFailed(nsError.localizedDescription)
+            }
         }
 
-        // Best-effort cleanup of intermediate segments after merge.
-        for segmentURL in segmentOutputURLs {
+        guard await isUsableVideo(at: outputURL) else {
+            try? files.removeItem(at: outputURL)
+            return try await salvageLongestSegment(from: usableSegmentURLs)
+        }
+        cleanupCandidateSegments()
+        return outputURL
+    }
+
+    private func validatedSegmentURLs(from urls: [URL]) async -> [URL] {
+        var usable: [URL] = []
+        for url in urls where await isUsableVideo(at: url) {
+            usable.append(url)
+        }
+        return usable
+    }
+
+    private func isUsableVideo(at url: URL) async -> Bool {
+        guard files.fileExists(atPath: url.path) else { return false }
+        let asset = AVURLAsset(url: url)
+        guard let duration = try? await asset.load(.duration),
+              duration.seconds.isFinite, duration.seconds > 0,
+              let tracks = try? await asset.loadTracks(withMediaType: .video),
+              !tracks.isEmpty else { return false }
+        return true
+    }
+
+    private func cleanupCandidateSegments() {
+        for segmentURL in candidateSegmentOutputURLs
+        where segmentURL.standardizedFileURL != outputURL.standardizedFileURL {
             try? files.removeItem(at: segmentURL)
         }
+    }
 
+    private func salvageLongestSegment(from segmentURLs: [URL]) async throws -> URL {
+        var best: (url: URL, duration: Double)?
+        for url in segmentURLs {
+            let duration = (try? await AVURLAsset(url: url).load(.duration).seconds) ?? 0
+            if duration > (best?.duration ?? 0) {
+                best = (url, duration)
+            }
+        }
+        guard let best else {
+            throw ScreenRecordingError.recordingFailed("No usable recording segment could be recovered.")
+        }
+
+        try? files.removeItem(at: outputURL)
+        if best.url.standardizedFileURL != outputURL.standardizedFileURL {
+            try files.copyItem(at: best.url, to: outputURL)
+        }
+        guard await isUsableVideo(at: outputURL) else {
+            try? files.removeItem(at: outputURL)
+            throw ScreenRecordingError.recordingFailed("The recording segment could not be recovered.")
+        }
+
+        recoveredFromSegmentFailure = true
+        Self.logger.notice(
+            "Recovered recording from longest valid segment duration=\(best.duration, privacy: .public)s; preserving all candidate segments"
+        )
         return outputURL
     }
 
@@ -759,8 +1007,19 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
 
     func recordingPlatformSession(
         _ session: any ScreenRecordingPlatformSession,
+        didStartSegment token: ScreenRecordingSegmentToken
+    ) {
+        startTracker.finish(token: token, result: .success(()))
+    }
+
+    func recordingPlatformSession(
+        _ session: any ScreenRecordingPlatformSession,
         didFinishSegment token: ScreenRecordingSegmentToken
     ) {
+        // ScreenCaptureKit normally delivers start before finish. Treat a finish as
+        // implicit confirmation too so callback scheduling cannot cause a false
+        // startup timeout after a segment has already completed.
+        startTracker.finish(token: token, result: .success(()))
         resumeFinishContinuation(for: token, with: .success(()))
     }
 
@@ -769,12 +1028,19 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
         segment token: ScreenRecordingSegmentToken,
         didFailWith error: Error
     ) {
+        startTracker.finish(token: token, result: .failure(error))
         resumeFinishContinuation(for: token, with: .failure(error))
+        reportTerminalFailureIfNeeded(error)
     }
 
     func recordingPlatformSession(_ session: any ScreenRecordingPlatformSession, didStopWith error: Error) {
+        isCaptureRunning = false
         if !didStop {
             resumeAllFinishContinuations(with: .failure(error))
+            if let activeSegmentToken {
+                startTracker.finish(token: activeSegmentToken, result: .failure(error))
+            }
+            reportTerminalFailureIfNeeded(error)
         }
     }
 
@@ -811,6 +1077,16 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
 
     func markCaptureStarted() {
         isCaptureRunning = true
+    }
+
+    private func reportTerminalFailureIfNeeded(_ error: Error) {
+        guard !isStopping, !didStop, !didReportTerminalFailure else { return }
+        guard let terminalFailureHandler else {
+            if pendingTerminalFailure == nil { pendingTerminalFailure = error }
+            return
+        }
+        didReportTerminalFailure = true
+        terminalFailureHandler(error)
     }
 
     private func resetAudioLevels() {

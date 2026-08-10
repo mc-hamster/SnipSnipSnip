@@ -109,7 +109,7 @@ final class GuideWorkflowModel: ObservableObject {
         guard dependencies.capabilities.isEnabled(.guideCapture) else { return }
         if isActive { stopGuide(); return }
         guard !dependencies.capture.isWorking,
-              !dependencies.video.isRecording,
+              !dependencies.video.blocksNewCapture,
               !dependencies.capture.isConnectedDeviceSessionActive else {
             outputSink?.handle(GuideWorkflowOutput.presentError("Finish the active capture or recording before starting Guide."))
             return
@@ -625,7 +625,7 @@ extension GuideWorkflowModel: GuideAutomationPort {
                 guard !isActive else {
                     return .failure(requestID: request.id, code: .guideAlreadyActive, message: "A Guide is already active.")
                 }
-                guard !dependencies.capture.isWorking, !dependencies.video.isRecording, !dependencies.capture.isConnectedDeviceSessionActive else {
+                guard !dependencies.capture.isWorking, !dependencies.video.blocksNewCapture, !dependencies.capture.isConnectedDeviceSessionActive else {
                     return .failure(requestID: request.id, code: .busy, message: "Finish the active capture or recording before starting Guide.")
                 }
                 guard dependencies.permissions.preflight([.screenRecording, .accessibility], featureName: "Guide").isGranted else {

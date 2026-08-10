@@ -14,7 +14,7 @@ extension CaptureWorkflowModel {
         _ preset: CapturePreset,
         captureContext: CaptureCompletionContext
     ) {
-        guard !isWorking, video?.isRecording != true, guide?.isActive != true, !isConnectedDeviceSessionActive else {
+        guard !isWorking, video?.blocksNewCapture != true, guide?.isActive != true, !isConnectedDeviceSessionActive else {
             return
         }
 

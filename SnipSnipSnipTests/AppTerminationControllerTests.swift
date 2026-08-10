@@ -244,6 +244,63 @@ final class AppTerminationControllerTests: XCTestCase {
         XCTAssertTrue(alert.messageText.localizedCaseInsensitiveContains("cannot be recovered"))
     }
 
+    func testActiveVideoQuitUsesRecoveryDecisionWithoutOrdinaryConfirmation() async {
+        let lifecycle = makeLifecycle()
+        let video = ActiveVideoExitStub()
+        let documents = OrderedExitPreparationStub(events: video.events)
+        let terminated = expectation(description: "Video finalized and checkpointed before termination")
+        var confirmationCalls = 0
+        let controller = AppTerminationController(
+            confirmationHandler: { _ in
+                confirmationCalls += 1
+                return .init(shouldQuit: true, suppressFutureConfirmations: false)
+            },
+            backgroundHandler: {},
+            terminationHandler: { terminated.fulfill() },
+            activeVideoDecisionHandler: { _, _ in .finalizeAndExit }
+        )
+        controller.configure(lifecycle: lifecycle, video: video, documents: documents)
+
+        controller.requestQuit()
+        await fulfillment(of: [terminated], timeout: 2)
+
+        XCTAssertEqual(confirmationCalls, 0)
+        XCTAssertEqual(video.events.values, ["video", "documents"])
+    }
+
+    func testActiveVideoQuitCanKeepRecordingInBackground() {
+        let lifecycle = makeLifecycle()
+        let video = ActiveVideoExitStub()
+        var backgroundCalls = 0
+        let controller = AppTerminationController(
+            confirmationHandler: { _ in
+                XCTFail("Active Video must bypass ordinary quit confirmation.")
+                return .init(shouldQuit: true, suppressFutureConfirmations: false)
+            },
+            backgroundHandler: { backgroundCalls += 1 },
+            terminationHandler: { XCTFail("Keeping a recording must not terminate.") },
+            activeVideoDecisionHandler: { _, _ in .keepRecordingInBackground }
+        )
+        controller.configure(lifecycle: lifecycle, video: video)
+
+        controller.requestQuit()
+
+        XCTAssertEqual(backgroundCalls, 1)
+        XCTAssertEqual(video.prepareCallCount, 0)
+    }
+
+    func testActiveVideoAlertUsesCanonicalQuitAndRestartActions() {
+        let context = VideoExitContext(phase: .recording)
+        XCTAssertEqual(
+            AppTerminationController.makeActiveVideoAlert(context: context, purpose: .quit).buttons.map(\.title),
+            ["Stop & Quit", "Keep Recording in Background", "Cancel"]
+        )
+        XCTAssertEqual(
+            AppTerminationController.makeActiveVideoAlert(context: context, purpose: .restart).buttons.map(\.title),
+            ["Stop & Restart", "Cancel"]
+        )
+    }
+
     private func makeLifecycle(confirmsBeforeQuitting: Bool = true) -> AppLifecycleModel {
         let suiteName = "AppTerminationControllerTests.\(UUID().uuidString)"
         let defaults = makeDefaults(named: suiteName)
@@ -276,6 +333,38 @@ private final class ExitPreparationStub: ApplicationExitPreparing {
     func prepareForApplicationExit() async -> Bool {
         callCount += 1
         try? await Task.sleep(nanoseconds: 80_000_000)
+        return true
+    }
+}
+
+@MainActor
+private final class ExitEventLog {
+    var values: [String] = []
+}
+
+@MainActor
+private final class ActiveVideoExitStub: ActiveVideoExitPreparing {
+    let events = ExitEventLog()
+    var exitContext: VideoExitContext? = VideoExitContext(phase: .recording)
+    private(set) var prepareCallCount = 0
+
+    func prepareRecordingForApplicationExit() async -> Bool {
+        prepareCallCount += 1
+        events.values.append("video")
+        return true
+    }
+}
+
+@MainActor
+private final class OrderedExitPreparationStub: ApplicationExitPreparing {
+    let events: ExitEventLog
+
+    init(events: ExitEventLog) {
+        self.events = events
+    }
+
+    func prepareForApplicationExit() async -> Bool {
+        events.values.append("documents")
         return true
     }
 }

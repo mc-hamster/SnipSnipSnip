@@ -307,6 +307,10 @@ extension DocumentWorkflowModel {
     }
 
     func prepareForApplicationExit() async -> Bool {
+        guard await writeVideoRecoveryCheckpointIfNeeded() else {
+            return false
+        }
+
         pendingAutosaveTask?.cancel()
         pendingAutosaveTask = nil
 

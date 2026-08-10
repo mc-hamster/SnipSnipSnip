@@ -1569,6 +1569,9 @@
     "Discard Changes" : {
 
     },
+    "Discard Recovery" : {
+
+    },
     "Discard the current video editor session and return to the capture screen." : {
 
     },
@@ -1946,6 +1949,9 @@
 
     },
     "Finish Framing" : {
+
+    },
+    "Finishing" : {
 
     },
     "Finishing Interactive HTML export…" : {
@@ -3000,6 +3006,9 @@
     "Pause the recording." : {
 
     },
+    "Paused" : {
+
+    },
     "PDF" : {
 
     },
@@ -3299,6 +3308,9 @@
 
     },
     "Recover Interrupted Guide" : {
+
+    },
+    "Recover Video" : {
 
     },
     "Recycle Bin" : {

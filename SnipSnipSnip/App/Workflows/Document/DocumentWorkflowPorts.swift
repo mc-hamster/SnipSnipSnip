@@ -105,7 +105,7 @@ protocol ClipboardDocumentWorkflowPort: AnyObject {
 protocol VideoDocumentWorkflowPort: AnyObject {
     var videoEditorController: VideoEditorController? { get }
 
-    func performAfterHandlingUnsavedChanges(_ action: @escaping () -> Void)
+    func prepareForNewVideoRecording() async -> Bool
     func installVideoController(
         _ controller: VideoEditorController,
         documentURL: URL?,

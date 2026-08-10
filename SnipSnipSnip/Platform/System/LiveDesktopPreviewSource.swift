@@ -244,20 +244,24 @@ nonisolated struct LiveDesktopPreviewRegionGeometry {
         display: DisplaySnapshot,
         frame: LiveDesktopPreviewFrame
     ) -> CGRect? {
-        let captureRect = display.captureDisplayTransform.captureGlobalRect(fromOverlayLocalRect: overlayLocalRect)
-        let intersection = captureRect.intersection(frame.sourceGlobalRect).gscIntegralStandardized
+        let captureRect = display.captureDisplayTransform
+            .captureGlobalRect(fromOverlayLocalRect: overlayLocalRect)
+            .intersection(display.frame)
+            .gscIntegralStandardized
 
-        guard intersection.width > 0, intersection.height > 0 else {
+        guard captureRect.width > 0,
+              captureRect.height > 0,
+              frame.sourceGlobalRect.contains(captureRect) else {
             return nil
         }
 
         let scaleX = CGFloat(frame.image.width) / max(frame.sourceGlobalRect.width, 1)
         let scaleY = CGFloat(frame.image.height) / max(frame.sourceGlobalRect.height, 1)
         let topLeftRect = CGRect(
-            x: (intersection.minX - frame.sourceGlobalRect.minX) * scaleX,
-            y: (intersection.minY - frame.sourceGlobalRect.minY) * scaleY,
-            width: intersection.width * scaleX,
-            height: intersection.height * scaleY
+            x: (captureRect.minX - frame.sourceGlobalRect.minX) * scaleX,
+            y: (captureRect.minY - frame.sourceGlobalRect.minY) * scaleY,
+            width: captureRect.width * scaleX,
+            height: captureRect.height * scaleY
         ).integral
 
         return CGRect(

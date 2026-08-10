@@ -201,6 +201,32 @@ final class GeometrySupportTests: XCTestCase {
         XCTAssertEqual(sourceRect, CGRect(x: 440, y: 800, width: 40, height: 40))
     }
 
+    func testLiveDesktopPreviewRejectsPartialFrameCoverageInsteadOfStretchingIt() {
+        let display = DisplaySnapshot(
+            displayID: 1,
+            name: "Display",
+            frame: CGRect(x: 0, y: 0, width: 800, height: 600),
+            scale: 2
+        )
+        let frame = LiveDesktopPreviewFrame(
+            displayID: 1,
+            image: makeSolidImage(
+                width: 40,
+                height: 40,
+                color: PixelSample(red: 0, green: 0, blue: 0, alpha: 255)
+            ),
+            sourceGlobalRect: CGRect(x: 90, y: 90, width: 20, height: 20)
+        )
+
+        let sourceRect = LiveDesktopPreviewRegionGeometry.appKitSourceRect(
+            fromOverlayLocalRect: CGRect(x: 91, y: 90, width: 20, height: 20),
+            display: display,
+            frame: frame
+        )
+
+        XCTAssertNil(sourceRect)
+    }
+
     @MainActor
     func testLiveDesktopPreviewStopsCapturingWhenCursorIsStationary() async {
         let recorder = LivePreviewCaptureRecorder()

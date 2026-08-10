@@ -25,6 +25,8 @@ nonisolated enum WorkflowVocabulary {
     nonisolated enum Status {
         static let guideCapturing = String(localized: "Guide Capturing")
         static let videoRecording = String(localized: "Recording")
+        static let videoPaused = String(localized: "Paused")
+        static let videoFinishing = String(localized: "Finishing")
         static let clipboardMonitoring = String(localized: "Monitoring")
         static let clipboardMonitoringPaused =
             String(localized: "Monitoring Paused")

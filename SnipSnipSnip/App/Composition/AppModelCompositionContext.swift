@@ -7,6 +7,7 @@ struct AppModelCompositionContext {
     let overrides: AppModelCompositionOverrides
     let configuredArchiveLocationURL: URL?
     let recoveryStore: DocumentRecoveryStore
+    let videoRecoveryStore: VideoRecoveryStore
     let clipboardHistoryStore: ClipboardHistoryStore
     let pendingRecoverySession: PendingRecoverySession?
     let shouldPresentOnboardingWindowOnLaunch: Bool
@@ -22,6 +23,7 @@ struct AppModelCompositionContext {
         let preferenceStores = environment.preferenceStores
         let configuredArchiveLocationURL = preferenceStores.archive.loadLocationURL()
         let recoveryStore = overrides.recoveryStore ?? DocumentRecoveryStore(baseURL: configuredArchiveLocationURL)
+        let videoRecoveryStore = overrides.videoRecoveryStore ?? VideoRecoveryStore(files: environment.systemServices.files)
         let pendingRecoverySession = recoveryStore.latestPendingRecovery()
 
         self.environment = environment
@@ -29,6 +31,7 @@ struct AppModelCompositionContext {
         self.overrides = overrides
         self.configuredArchiveLocationURL = configuredArchiveLocationURL
         self.recoveryStore = recoveryStore
+        self.videoRecoveryStore = videoRecoveryStore
         let clipboardPreferences = preferenceStores.clipboard.loadPreferences()
         self.clipboardHistoryStore = overrides.clipboardHistoryStore ?? ClipboardHistoryStore(
             loadStoredHistory: clipboardPreferences.isEnabled
@@ -38,7 +41,7 @@ struct AppModelCompositionContext {
             currentVersion: AppLifecycleConstants.currentOnboardingVersion
         ) < AppLifecycleConstants.currentOnboardingVersion
             || preferenceStores.lifecycle.loadOnboardingResumeCheckpoint() != nil
-        self.shouldPresentMainWindowOnLaunch = pendingRecoverySession != nil
+        self.shouldPresentMainWindowOnLaunch = pendingRecoverySession != nil || videoRecoveryStore.hasRecovery()
         self.floatingReferenceCoordinator = FloatingReferenceCoordinator()
     }
 }

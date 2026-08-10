@@ -5,7 +5,8 @@ import SwiftUI
 @MainActor
 final class RecordingControlOverlayModel: ObservableObject {
     @Published private(set) var elapsedSeconds: TimeInterval = 0
-    @Published private(set) var isPaused: Bool
+    @Published private(set) var phase: VideoRecordingPhase
+    @Published private(set) var isCommandInFlight: Bool
     @Published private(set) var preferences: VideoRecordingPreferences
     @Published private(set) var audioToggleErrorMessage: String?
     @Published private(set) var audioLevels = ScreenRecordingAudioLevels()
@@ -25,7 +26,8 @@ final class RecordingControlOverlayModel: ObservableObject {
         title: String,
         sourceLabel: String,
         preferences: VideoRecordingPreferences,
-        isPaused: Bool,
+        phase: VideoRecordingPhase,
+        isCommandInFlight: Bool = false,
         pauseResumeAction: @escaping () -> Void,
         stopAction: @escaping () -> Void,
         audioOptionsAction: @escaping (_ recordsSystemAudio: Bool, _ recordsMicrophone: Bool) async throws -> Void
@@ -33,12 +35,13 @@ final class RecordingControlOverlayModel: ObservableObject {
         self.title = title
         self.sourceLabel = sourceLabel
         self.preferences = preferences
-        self.isPaused = isPaused
+        self.phase = phase
+        self.isCommandInFlight = isCommandInFlight
         self.pauseResumeAction = pauseResumeAction
         self.stopAction = stopAction
         self.audioOptionsAction = audioOptionsAction
 
-        if isPaused {
+        if phase == .paused {
             pauseStartedAt = Date()
         }
 
@@ -69,7 +72,17 @@ final class RecordingControlOverlayModel: ObservableObject {
     }
 
     var stateLabel: String {
-        isPaused ? "Paused" : WorkflowVocabulary.Status.videoRecording
+        switch phase {
+        case .paused: WorkflowVocabulary.Status.videoPaused
+        case .finishing: WorkflowVocabulary.Status.videoFinishing
+        default: WorkflowVocabulary.Status.videoRecording
+        }
+    }
+
+    var isPaused: Bool { phase == .paused }
+
+    var controlsAreEnabled: Bool {
+        phase != .finishing && !isCommandInFlight
     }
 
     var sourceSummaryLabel: String {
@@ -103,6 +116,7 @@ final class RecordingControlOverlayModel: ObservableObject {
     }
 
     func setRecordsSystemAudio(_ recordsSystemAudio: Bool) {
+        guard controlsAreEnabled else { return }
         updateAudioOptions(
             recordsSystemAudio: recordsSystemAudio,
             recordsMicrophone: preferences.recordsMicrophone
@@ -110,29 +124,34 @@ final class RecordingControlOverlayModel: ObservableObject {
     }
 
     func setRecordsMicrophone(_ recordsMicrophone: Bool) {
+        guard controlsAreEnabled else { return }
         updateAudioOptions(
             recordsSystemAudio: preferences.recordsSystemAudio,
             recordsMicrophone: recordsMicrophone
         )
     }
 
-    func updatePausedState(_ paused: Bool) {
-        guard paused != isPaused else {
-            return
-        }
+    func updatePhase(_ phase: VideoRecordingPhase, commandInFlight: Bool) {
+        let wasPaused = isPaused
+        let willBePaused = phase == .paused
+        self.phase = phase
+        isCommandInFlight = commandInFlight
 
-        if paused {
+        if willBePaused, !wasPaused {
             pauseStartedAt = Date()
-        } else if let pauseStartedAt {
+        } else if !willBePaused, wasPaused, let pauseStartedAt {
             accumulatedPausedDuration += Date().timeIntervalSince(pauseStartedAt)
             self.pauseStartedAt = nil
         }
 
-        isPaused = paused
-        if paused {
+        if willBePaused || phase == .finishing {
             audioLevels = ScreenRecordingAudioLevels()
         }
         tick()
+    }
+
+    func updatePausedState(_ paused: Bool) {
+        updatePhase(paused ? .paused : .recording, commandInFlight: false)
     }
 
     func updateAudioLevels(_ levels: ScreenRecordingAudioLevels) {
@@ -148,6 +167,7 @@ final class RecordingControlOverlayModel: ObservableObject {
     }
 
     private func updateAudioOptions(recordsSystemAudio: Bool, recordsMicrophone: Bool) {
+        guard controlsAreEnabled else { return }
         guard recordsSystemAudio != preferences.recordsSystemAudio
                 || recordsMicrophone != preferences.recordsMicrophone else {
             return
@@ -189,6 +209,53 @@ final class RecordingControlOverlayModel: ObservableObject {
     }
 }
 
+extension RecordingControlOverlayModel {
+    convenience init(
+        title: String,
+        sourceLabel: String,
+        preferences: VideoRecordingPreferences,
+        isPaused: Bool,
+        pauseResumeAction: @escaping () -> Void,
+        stopAction: @escaping () -> Void,
+        audioOptionsAction: @escaping (_ recordsSystemAudio: Bool, _ recordsMicrophone: Bool) async throws -> Void
+    ) {
+        self.init(
+            title: title,
+            sourceLabel: sourceLabel,
+            preferences: preferences,
+            phase: isPaused ? .paused : .recording,
+            pauseResumeAction: pauseResumeAction,
+            stopAction: stopAction,
+            audioOptionsAction: audioOptionsAction
+        )
+    }
+}
+
+nonisolated enum RecordingOverlayPlacement {
+    static let panelSize = CGSize(width: 590, height: 136)
+
+    static func frame(in visibleFrame: CGRect) -> CGRect {
+        let normalized = visibleFrame.standardized
+        guard normalized.width > 0, normalized.height > 0 else {
+            return CGRect(origin: normalized.origin, size: panelSize)
+        }
+        let size = CGSize(
+            width: min(panelSize.width, normalized.width),
+            height: min(panelSize.height, normalized.height)
+        )
+        let x = min(
+            max(normalized.midX - size.width / 2, normalized.minX),
+            normalized.maxX - size.width
+        )
+        let preferredY = normalized.maxY - size.height - 22
+        let y = min(
+            max(preferredY, normalized.minY),
+            normalized.maxY - size.height
+        )
+        return CGRect(origin: CGPoint(x: x, y: y), size: size)
+    }
+}
+
 @MainActor
 final class RecordingControlOverlay {
     private let model: RecordingControlOverlayModel
@@ -198,7 +265,8 @@ final class RecordingControlOverlay {
         title: String,
         sourceLabel: String,
         preferences: VideoRecordingPreferences,
-        isPaused: Bool,
+        phase: VideoRecordingPhase,
+        presentationFrame: CGRect?,
         pauseResumeAction: @escaping () -> Void,
         stopAction: @escaping () -> Void,
         audioOptionsAction: @escaping (_ recordsSystemAudio: Bool, _ recordsMicrophone: Bool) async throws -> Void
@@ -207,7 +275,7 @@ final class RecordingControlOverlay {
             title: title,
             sourceLabel: sourceLabel,
             preferences: preferences,
-            isPaused: isPaused,
+            phase: phase,
             pauseResumeAction: pauseResumeAction,
             stopAction: stopAction,
             audioOptionsAction: audioOptionsAction
@@ -219,7 +287,7 @@ final class RecordingControlOverlay {
             defer: false
         )
         panel.level = .screenSaver
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        panel.collectionBehavior = [.canJoinAllApplications, .canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.sharingType = .none
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
@@ -227,7 +295,7 @@ final class RecordingControlOverlay {
         panel.titlebarAppearsTransparent = true
         panel.hasShadow = true
         panel.contentView = NSHostingView(rootView: RecordingControlOverlayView(model: model))
-        positionPanel()
+        positionPanel(in: presentationFrame)
         panel.orderFrontRegardless()
     }
 
@@ -247,19 +315,20 @@ final class RecordingControlOverlay {
         model.updatePausedState(paused)
     }
 
+    func updatePhase(_ phase: VideoRecordingPhase, commandInFlight: Bool) {
+        model.updatePhase(phase, commandInFlight: commandInFlight)
+    }
+
     func updateAudioLevels(_ levels: ScreenRecordingAudioLevels) {
         model.updateAudioLevels(levels)
     }
 
-    private func positionPanel() {
-        let screenFrame = NSScreen.main?.visibleFrame ?? NSScreen.screens.first?.visibleFrame ?? .zero
-        let frame = CGRect(
-            x: screenFrame.midX - 295,
-            y: screenFrame.maxY - 158,
-            width: 590,
-            height: 136
-        )
-        panel.setFrame(frame, display: true)
+    private func positionPanel(in presentationFrame: CGRect?) {
+        let screenFrame = presentationFrame
+            ?? NSScreen.main?.visibleFrame
+            ?? NSScreen.screens.first?.visibleFrame
+            ?? .zero
+        panel.setFrame(RecordingOverlayPlacement.frame(in: screenFrame), display: true)
     }
 }
 
@@ -275,7 +344,7 @@ private struct RecordingControlOverlayView: View {
                     HStack(spacing: 6) {
                         Text(model.stateLabel)
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(model.isPaused ? .yellow : .red)
+                            .foregroundStyle(stateColor)
 
                         Text(model.title)
                             .font(.caption.weight(.semibold))
@@ -334,6 +403,7 @@ private struct RecordingControlOverlayView: View {
                     )
                     .help("Include or mute microphone narration for this recording only.")
                 }
+                .disabled(!model.controlsAreEnabled)
 
                 HStack(spacing: 8) {
                     Button(action: model.pauseResumeAction) {
@@ -344,6 +414,7 @@ private struct RecordingControlOverlayView: View {
                     }
                     .buttonStyle(RecordingControlButtonStyle(tint: model.isPaused ? .green : .yellow))
                     .controlSize(.small)
+                    .disabled(!model.controlsAreEnabled)
                     .help(model.isPaused ? "Resume the recording." : "Pause the recording.")
 
                     Button(role: .destructive, action: model.stopAction) {
@@ -354,6 +425,7 @@ private struct RecordingControlOverlayView: View {
                     }
                     .buttonStyle(RecordingControlButtonStyle(tint: .red, isProminent: true))
                     .controlSize(.small)
+                    .disabled(!model.controlsAreEnabled)
                     .help("Stop and save the recording.")
                 }
             }
@@ -366,12 +438,28 @@ private struct RecordingControlOverlayView: View {
     private var recordingBeacon: some View {
         ZStack {
             Circle()
-                .fill((model.isPaused ? Color.orange : Color.red).opacity(0.18))
+                .fill(beaconColor.opacity(0.18))
                 .frame(width: 28, height: 28)
 
             Circle()
-                .fill(model.isPaused ? Color.orange : Color.red)
+                .fill(beaconColor)
                 .frame(width: 11, height: 11)
+        }
+    }
+
+    private var beaconColor: Color {
+        switch model.phase {
+        case .paused: .orange
+        case .finishing: .secondary
+        default: .red
+        }
+    }
+
+    private var stateColor: Color {
+        switch model.phase {
+        case .paused: .yellow
+        case .finishing: .secondary
+        default: .red
         }
     }
 }

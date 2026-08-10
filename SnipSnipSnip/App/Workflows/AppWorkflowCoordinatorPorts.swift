@@ -116,7 +116,7 @@ protocol CoordinatorAutomationPort: AnyObject {
 
 @MainActor
 protocol CoordinatorVideoPort: AnyObject {
-    var isRecording: Bool { get }
+    var blocksNewCapture: Bool { get }
 
     func resetVideoPreferencesToDefaults()
 }

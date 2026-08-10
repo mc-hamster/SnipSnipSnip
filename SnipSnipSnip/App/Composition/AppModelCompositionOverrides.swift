@@ -3,6 +3,7 @@ import Foundation
 @MainActor
 struct AppModelCompositionOverrides {
     var recoveryStore: DocumentRecoveryStore?
+    var videoRecoveryStore: VideoRecoveryStore?
     var clipboardHistoryStore: ClipboardHistoryStore?
     var captureService: (any ScreenCaptureServiceType)?
     var screenRecordingService: ScreenRecordingService?
@@ -13,6 +14,7 @@ struct AppModelCompositionOverrides {
 
     init(
         recoveryStore: DocumentRecoveryStore? = nil,
+        videoRecoveryStore: VideoRecoveryStore? = nil,
         clipboardHistoryStore: ClipboardHistoryStore? = nil,
         captureService: (any ScreenCaptureServiceType)? = nil,
         screenRecordingService: ScreenRecordingService? = nil,
@@ -22,6 +24,7 @@ struct AppModelCompositionOverrides {
         launchAtLoginController: LaunchAtLoginController = LaunchAtLoginController()
     ) {
         self.recoveryStore = recoveryStore
+        self.videoRecoveryStore = videoRecoveryStore
         self.clipboardHistoryStore = clipboardHistoryStore
         self.captureService = captureService
         self.screenRecordingService = screenRecordingService

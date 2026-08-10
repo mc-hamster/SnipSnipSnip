@@ -17,6 +17,7 @@ final class VideoWorkflowModel: ObservableObject {
     let recordingService: ScreenRecordingService
     weak var documents: (any VideoDocumentWorkflowPort)?
     @Published var activeVideoRecording: ActiveVideoRecording?
+    let recordingLifecycle = VideoRecordingLifecycleCoordinator()
     @Published var recordingPreferences: VideoRecordingPreferences {
         didSet {
             preferenceStore.saveRecordingPreferences(recordingPreferences)
@@ -28,6 +29,13 @@ final class VideoWorkflowModel: ObservableObject {
         }
     }
     var videoStorageMonitorTask: Task<Void, Never>?
+    var recordingStartTask: Task<Void, Never>?
+    var recordingCommandTail: Task<Void, Never>?
+    var pendingWindowPickerGeneration: UUID?
+    var desiredVideoAudioOptions: VideoRecordingAudioOptions?
+    var completedRecordingGeneration: UUID?
+    var completedRecordingSucceeded = false
+    private var recordingLifecycleObservation: AnyCancellable?
     private let preferenceStore: VideoPreferenceStore
 
     init(
@@ -40,5 +48,8 @@ final class VideoWorkflowModel: ObservableObject {
         self.preferenceStore = preferenceStore
         self.recordingPreferences = preferenceStore.loadRecordingPreferences()
         self.exportPreferences = preferenceStore.loadExportPreferences()
+        self.recordingLifecycleObservation = recordingLifecycle.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
     }
 }

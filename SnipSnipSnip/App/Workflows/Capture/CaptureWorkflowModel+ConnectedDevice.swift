@@ -109,7 +109,7 @@ extension CaptureWorkflowModel {
                 return
             }
 
-            guard video?.isRecording != true, guide?.isActive != true, connectedDevicePreviewController == nil else {
+            guard video?.blocksNewCapture != true, guide?.isActive != true, connectedDevicePreviewController == nil else {
                 present(
                     ConnectedDeviceCaptureError.sessionAlreadyActive,
                     recovering: .connectedDevice(device),

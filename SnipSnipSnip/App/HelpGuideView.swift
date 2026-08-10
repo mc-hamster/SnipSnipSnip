@@ -633,6 +633,10 @@ struct HelpGuideView: View {
                             title: "Choose recording options",
                             body: "Open Settings > Video to set the default quality, frame rate, display used for Screen recording, cursor visibility, click rings, system audio, and microphone narration. During an active recording, use the floating recording control's color-coded System Audio and Mic switches to turn those sources on or off for that recording only. The meters below those switches confirm whether each enabled source is receiving signal."
                         ),
+                        HelpArticleSection(
+                            title: "Quit, restart, and recover",
+                            body: "If you quit during a recording, choose Stop & Quit, Keep Recording in Background, or Cancel. Restart offers Stop & Restart or Cancel. Stop first enters Finishing, preserves the Video for recovery, and exits only after that checkpoint succeeds. Unsaved Videos are also preserved when the app exits. On the next launch, use Recover Last Session to reopen the Video; the recovery remains available until you save the Video or explicitly discard it."
+                        ),
                     ] + (connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(
                             title: "Connected-device recording",
@@ -646,7 +650,8 @@ struct HelpGuideView: View {
                     ],
                     important: [
                         "A region video recording must stay within one display.",
-                        "SnipSnipSnip checks temporary storage before recording and during long recordings so it can stop safely before disk pressure causes a failed write."
+                        "SnipSnipSnip checks temporary storage before recording and during long recordings so it can stop safely before disk pressure causes a failed write.",
+                        "If ScreenCaptureKit stops unexpectedly, SnipSnipSnip enters Finishing and opens any usable captured footage instead of leaving the recording control in a false Recording state."
                     ],
                     relatedIDs: ["copy-save-export", "permissions"]
                 )

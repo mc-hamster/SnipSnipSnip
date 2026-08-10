@@ -76,11 +76,14 @@ extension DocumentWorkflowModel {
 
     func confirmSaveBeforeContinuing() {
         let continuation = pendingEditorAction
+        let cancellation = pendingEditorCancellation
         pendingEditorAction = nil
+        pendingEditorCancellation = nil
         isShowingUnsavedChangesPrompt = false
 
         Task { @MainActor [weak self] in
             guard let self, await self.saveCurrentDocument() else {
+                cancellation?()
                 return
             }
 
@@ -91,6 +94,7 @@ extension DocumentWorkflowModel {
     func discardChangesAndContinue() {
         let continuation = pendingEditorAction
         pendingEditorAction = nil
+        pendingEditorCancellation = nil
         isShowingUnsavedChangesPrompt = false
         discardCurrentDocument()
 
@@ -100,8 +104,11 @@ extension DocumentWorkflowModel {
     }
 
     func cancelPendingEditorAction() {
+        let cancellation = pendingEditorCancellation
         pendingEditorAction = nil
+        pendingEditorCancellation = nil
         isShowingUnsavedChangesPrompt = false
+        cancellation?()
     }
 
     func closeEditor() {
@@ -254,6 +261,7 @@ extension DocumentWorkflowModel {
         currentDocumentURL = nil
         savedDocumentSession = nil
         savedVideoSession = nil
+        currentVideoUsesRecoveryCheckpoint = false
         pendingCompositionImportRecovery = nil
         hasUnsavedChanges = false
         refreshRecoveryPresentationState()
@@ -346,6 +354,7 @@ extension DocumentWorkflowModel {
         savedGuideProject = nil
         cleanupTemporaryVideoSourceIfNeeded(previousTemporaryVideoURL)
         savedVideoSession = nil
+        currentVideoUsesRecoveryCheckpoint = false
         pendingCompositionImportRecovery = nil
         currentDocumentURL = documentURL
         savedDocumentSession = savedSession
@@ -375,6 +384,7 @@ extension DocumentWorkflowModel {
     }
 
     func discardCurrentDocument() {
+        let discardedRecoveryVideo = videoEditorController != nil && currentVideoUsesRecoveryCheckpoint
         let previousTemporaryVideoURL = currentOwnedTemporaryVideoSourceURL(replacingWith: nil)
         clearCurrentRecoveryPendingState()
         editorController = nil
@@ -383,6 +393,9 @@ extension DocumentWorkflowModel {
         savedGuideProject = nil
         savedVideoSession = nil
         cleanupTemporaryVideoSourceIfNeeded(previousTemporaryVideoURL)
+        if discardedRecoveryVideo {
+            clearVideoRecoveryAfterSaveOrDiscard()
+        }
     }
 
     func shelveCurrentDocumentForRecents() {
@@ -410,6 +423,7 @@ extension DocumentWorkflowModel {
         }
 
         pendingEditorAction = action
+        pendingEditorCancellation = nil
         isShowingUnsavedChangesPrompt = true
         requestMainWindowPresentation()
     }
@@ -536,6 +550,7 @@ extension DocumentWorkflowModel {
         pendingCompositionImportRecovery = nil
         currentDocumentURL = documentURL
         savedVideoSession = savedSession
+        currentVideoUsesRecoveryCheckpoint = false
         videoEditorController = controller
         configureVideoEditorObservers()
         updateDocumentChangeTracking()

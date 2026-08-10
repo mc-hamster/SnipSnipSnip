@@ -20,7 +20,7 @@ extension CaptureWorkflowModel {
     }
 
     var canChangePrivateCapture: Bool {
-        !isCapturePrivacyLocked && !isWorking && !isShowingWindowPicker && video?.isRecording != true && guide?.isActive != true && !isConnectedDeviceSessionActive
+        !isCapturePrivacyLocked && !isWorking && !isShowingWindowPicker && video?.blocksNewCapture != true && guide?.isActive != true && !isConnectedDeviceSessionActive
     }
 
     var isInteractiveCaptureActive: Bool {

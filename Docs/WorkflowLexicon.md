@@ -179,6 +179,8 @@ Use **capturing** for the observed interaction activity because a Guide is not a
 
 Within an explicitly identified Video workflow, the shorter statuses are sufficient. Use **Video Recording** only when surrounding context does not establish that the activity is video.
 
+For an active Video, use **Stop & Quit**, **Keep Recording in Background**, and **Cancel** for Quit decisions. Restart uses **Stop & Restart** and **Cancel**. A recovered unsaved Video uses the canonical **Recover Last Session** action.
+
 ### Clipboard
 
 - Monitoring
