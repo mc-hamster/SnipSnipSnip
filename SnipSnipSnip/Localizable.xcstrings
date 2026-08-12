@@ -258,6 +258,9 @@
     "⌥%lld" : {
 
     },
+    "1" : {
+
+    },
     "1 Hour" : {
 
     },
@@ -268,6 +271,9 @@
 
     },
     "2. How should the video sound?" : {
+
+    },
+    "3" : {
 
     },
     "3 Seconds" : {
@@ -289,6 +295,12 @@
 
     },
     "60 fps" : {
+
+    },
+    "128 px" : {
+
+    },
+    "248 px" : {
 
     },
     "A" : {
@@ -351,6 +363,9 @@
     "Add" : {
 
     },
+    "Add a horizontal or vertical ruler above other apps." : {
+
+    },
     "Add a soft shadow around screenshots throughout this Guide." : {
 
     },
@@ -411,10 +426,16 @@
     "Add Step" : {
 
     },
+    "Add the cursor as an editable screenshot overlay where supported." : {
+
+    },
     "Add the cursor as an editable screenshot overlay. Scrolling Capture always excludes it." : {
 
     },
     "Add the first extra capture" : {
+
+    },
+    "Add the pointer as an editable overlay where capture supports it." : {
 
     },
     "Add to Composition" : {
@@ -483,6 +504,9 @@
 
     },
     "Advanced Step Edit" : {
+
+    },
+    "AFTER" : {
 
     },
     "After 1 Day" : {
@@ -656,6 +680,9 @@
     "Arrange several captures and images as one result." : {
 
     },
+    "Arrange several captures or images as one result." : {
+
+    },
     "Arrange steps as a row, column, or grid." : {
 
     },
@@ -734,6 +761,9 @@
     "Balanced · 30 fps" : {
 
     },
+    "BEFORE" : {
+
+    },
     "Bend the selected arrow into a curved connector." : {
 
     },
@@ -774,6 +804,9 @@
 
     },
     "Build a manual step sequence" : {
+
+    },
+    "Build an ordered, captioned sequence of screenshots." : {
 
     },
     "Build Steps manually" : {
@@ -852,7 +885,13 @@
     "Capture a new image and replace one item in the current editable composition." : {
 
     },
+    "Capture a Region" : {
+
+    },
     "Capture a replacement while retaining this item’s identity, caption, and anchored annotations." : {
+
+    },
+    "Capture a Screen" : {
 
     },
     "Capture a screen with SnipSnipSnip." : {
@@ -864,6 +903,9 @@
     "Capture a Screenshot immediately from a live source, repeat, or preset." : {
 
     },
+    "Capture a Window" : {
+
+    },
     "Capture After" : {
 
     },
@@ -871,6 +913,9 @@
 
     },
     "Capture Before" : {
+
+    },
+    "Capture Before and After, then reveal what changed." : {
 
     },
     "Capture clicks, scrolling, and shortcuts as an editable step-by-step guide." : {
@@ -900,6 +945,12 @@
     "Capture HUD" : {
 
     },
+    "Capture it. Explain it. Present it." : {
+
+    },
+    "Capture Options" : {
+
+    },
     "Capture Preset" : {
 
     },
@@ -915,6 +966,9 @@
     "Capture Screenshot" : {
 
     },
+    "Capture Scrolling Content" : {
+
+    },
     "Capture SnipSnipSnip Frontmost Window" : {
 
     },
@@ -928,6 +982,9 @@
 
     },
     "Capture Source" : {
+
+    },
+    "Capture the configured screen or all connected displays." : {
 
     },
     "Capture the frontmost eligible window with SnipSnipSnip." : {
@@ -946,6 +1003,9 @@
 
     },
     "Capture Window" : {
+
+    },
+    "Capture your actions and turn them into editable instructions." : {
 
     },
     "Capture, mark up, and share one image." : {
@@ -1017,6 +1077,9 @@
     "Choose a step to preview and edit it." : {
 
     },
+    "Choose a window and capture it without the surrounding desktop." : {
+
+    },
     "Choose Add in a one-image Screenshot. The chooser explains each result: Compare shows Before and After together or highlights changes; Add as Step puts captures in order for captions and numbering; Combine arranges captures and images as one result. Region is ready by default, and the menu can preselect another source. The purpose changes only after the source is added successfully, and Undo returns to the original Screenshot. Later additions inherit the purpose without asking again. Option-Command-A invokes the same contextual action." : {
 
     },
@@ -1071,6 +1134,9 @@
     "Choose how Guide should follow your work. You’ll select the exact target after Start Guide." : {
 
     },
+    "Choose how long to wait before capture begins." : {
+
+    },
     "Choose how the redaction selection is rendered." : {
 
     },
@@ -1087,6 +1153,9 @@
 
     },
     "Choose one or more formats, then choose where to save them." : {
+
+    },
+    "Choose one window and record its activity as Video." : {
 
     },
     "Choose the After or B item." : {
@@ -1225,6 +1294,9 @@
 
     },
     "Collect captures and images, then arrange them together." : {
+
+    },
+    "Collect content beyond the visible viewport as one Screenshot." : {
 
     },
     "Collection" : {
@@ -1416,10 +1488,19 @@
     "Couldn’t Update Launch at Login" : {
 
     },
+    "Create" : {
+
+    },
+    "Create a Combined Image" : {
+
+    },
+    "Create a Comparison" : {
+
+    },
     "Create Captions Automatically" : {
 
     },
-    "Create Something" : {
+    "Create Steps" : {
 
     },
     "Create…" : {
@@ -1477,6 +1558,9 @@
 
     },
     "Cut" : {
+
+    },
+    "Daily Capture" : {
 
     },
     "Default" : {
@@ -1608,6 +1692,9 @@
     "Dot Size" : {
 
     },
+    "Drag around anything to create an editable Screenshot." : {
+
+    },
     "Drag items to reorder. Drop files between items to Add Here, or over an item to Replace Item. Move buttons and the item menu provide complete keyboard alternatives." : {
 
     },
@@ -1695,6 +1782,9 @@
     "Edit, replace, duplicate, include, exclude, or remove %@." : {
 
     },
+    "Editable overlay" : {
+
+    },
     "Editable SnipSnipSnip Document" : {
 
     },
@@ -1764,6 +1854,9 @@
       }
     },
     "Encoding images…" : {
+
+    },
+    "Entire screen" : {
 
     },
     "Essential shortcuts" : {
@@ -1937,6 +2030,9 @@
 
     },
     "Filter" : {
+
+    },
+    "Find copied text, links, files, images, and recent screenshots." : {
 
     },
     "Fine Tune Shadow" : {
@@ -2155,6 +2251,9 @@
     "Highlight Threshold" : {
 
     },
+    "History" : {
+
+    },
     "History Preview" : {
 
     },
@@ -2298,6 +2397,9 @@
     "Include Pointer" : {
 
     },
+    "Include the Cursor" : {
+
+    },
     "Include the macOS menu bar in still steps and source video when capturing a screen. This setting has no effect on window, app, or region captures." : {
 
     },
@@ -2311,6 +2413,12 @@
 
     },
     "Insert Image" : {
+
+    },
+    "Inspect live pixels, colors, coordinates, and spacing." : {
+
+    },
+    "Inspect the Screen" : {
 
     },
     "Inspector" : {
@@ -2389,6 +2497,9 @@
 
     },
     "Keep Full-Motion Source Video" : {
+
+    },
+    "Keep new captures out of history, recovery, Clipboard History, and OCR indexing." : {
 
     },
     "Keep Off" : {
@@ -2511,6 +2622,9 @@
     "macOS groups screenshot access under Screen Recording. SnipSnipSnip captures only when you choose a capture or recording action." : {
 
     },
+    "Magnify pixels, sample colors, and measure spacing without taking a screenshot." : {
+
+    },
     "Major Tick Every: %lld" : {
 
     },
@@ -2566,6 +2680,9 @@
 
     },
     "Maximum Unpinned Items: %lld" : {
+
+    },
+    "Measure with Screen Rulers" : {
 
     },
     "Method" : {
@@ -2805,7 +2922,16 @@
     "Numbering" : {
 
     },
+    "OCR" : {
+
+    },
+    "Off" : {
+
+    },
     "OK" : {
+
+    },
+    "On" : {
 
     },
     "One capture" : {
@@ -2826,6 +2952,9 @@
     "Open a live connected-device preview. macOS may ask for Camera access because trusted iPhone and iPad screens are exposed as video sources." : {
 
     },
+    "Open a live iPhone or iPad preview and record its screen." : {
+
+    },
     "Open an editable SnipSnipSnip .sss document." : {
 
     },
@@ -2833,6 +2962,9 @@
 
     },
     "Open Capture Window" : {
+
+    },
+    "Open Clipboard History" : {
 
     },
     "Open deleted snips. Deleted items can be restored until the Recycle Bin is emptied or retention expires." : {
@@ -3093,6 +3225,9 @@
     "Place captions above, below, over, or outside the item content." : {
 
     },
+    "Place horizontal or vertical pixel rulers above other apps." : {
+
+    },
     "Placement" : {
 
     },
@@ -3123,7 +3258,13 @@
     "PNG" : {
 
     },
+    "PNG • Desktop" : {
+
+    },
     "PNG…" : {
+
+    },
+    "Point to an action to see what it creates or opens." : {
 
     },
     "Polish" : {
@@ -3250,6 +3391,9 @@
     "Ready" : {
 
     },
+    "REC" : {
+
+    },
     "Recapture" : {
 
     },
@@ -3271,6 +3415,12 @@
     "Record" : {
 
     },
+    "Record a complete screen, then trim and export the Video." : {
+
+    },
+    "Record a Connected Device" : {
+
+    },
     "Record a Guide" : {
 
     },
@@ -3281,6 +3431,18 @@
 
     },
     "Record a Guide; it will build editable steps from your workflow." : {
+
+    },
+    "Record a Region" : {
+
+    },
+    "Record a Screen" : {
+
+    },
+    "Record a Window" : {
+
+    },
+    "Record activity inside a selected area of the screen." : {
 
     },
     "Record Connected Device" : {
@@ -3553,6 +3715,9 @@
     "Reuse a composition template" : {
 
     },
+    "Reuse a saved target, timer, cursor, and output workflow." : {
+
+    },
     "Reveal" : {
 
     },
@@ -3604,6 +3769,9 @@
     "Row" : {
 
     },
+    "Run a Capture Preset" : {
+
+    },
     "Run a saved SnipSnipSnip capture preset." : {
 
     },
@@ -3614,6 +3782,9 @@
 
     },
     "Run SnipSnipSnip Capture Preset" : {
+
+    },
+    "Run the previous capture again when its source is still available." : {
 
     },
     "Run this workflow." : {
@@ -3713,6 +3884,12 @@
 
     },
     "Screen Source" : {
+
+    },
+    "Screen Tools" : {
+
+    },
+    "Screen Tools and Clipboard History" : {
 
     },
     "Screenshot" : {
@@ -3830,6 +4007,9 @@
 
     },
     "Sequence" : {
+
+    },
+    "Set a Capture Timer" : {
 
     },
     "Set Layout" : {
@@ -4490,7 +4670,10 @@
     "Use luminance, outlines, or patterns so differences never rely on color alone." : {
 
     },
-    "Use Quick Capture when you want a one-action Screenshot from Region, Window, Screen, Scrolling Content, a repeat, or a preset. Scroll and Repeat Last are direct actions; Presets stays in its own menu. Under Create Something, choose Comparison, Steps, or Combined Image to open setup with the result already selected. Under Record, choose Region, Window, Screen, Guide, or an available connected device directly." : {
+    "Use Private Capture" : {
+
+    },
+    "Use Quick Capture when you want a one-action Screenshot from Region, Window, Screen, Scrolling Content, a repeat, or a preset. Scroll and Repeat Last are direct actions; Presets stays in its own menu. Under Create, choose Comparison, Steps, or Combined Image to open setup with the result already selected. Under Record, choose Region, Window, Screen, Guide, or an available connected device directly. Use Screen Tools for Screen Ruler and Screen Inspector, and open Clipboard History beside them." : {
 
     },
     "Use Screen Inspector" : {
@@ -4563,6 +4746,9 @@
 
     },
     "W" : {
+
+    },
+    "Wait before capture so you can prepare menus or pointer position." : {
 
     },
     "Website" : {

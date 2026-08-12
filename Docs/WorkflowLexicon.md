@@ -1,7 +1,7 @@
 ---
 description: "Canonical product terminology for SnipSnipSnip workflows, actions, stages, statuses, libraries, and outputs."
 status: active
-last_reviewed: 2026-07-28
+last_reviewed: 2026-08-11
 ---
 
 # SnipSnipSnip Workflow Lexicon
@@ -95,7 +95,9 @@ Source nouns describe where content comes from. They are not action labels by th
 
 Use **More Ways to Capture** as the umbrella for less common capture sources.
 
-**Quick Capture** names the main-window group of one-action Screenshot sources and actions: Region, Window, Screen, Scroll when available, Repeat Last, and Presets. **Scroll** is the compact header label for Capture Scrolling Content, **Repeat Last** is the compact header label for Repeat Last Capture, and **Presets** remains a menu because it contains a variable set of named targets. **Create Something** names the adjacent guided area with direct Comparison, Steps, and Combined Image entries; each opens setup with that result selected so the user only chooses its source and options. Direct Screenshot setup is omitted because Quick Capture already provides the primary one-click Screenshot paths. **Record** names the adjacent activity area with direct Region, Window, Screen, Guide when available, and connected-device entries. These are navigation group labels, not new workflow or output nouns.
+**Quick Capture** names the main-window group of one-action Screenshot sources and actions: Region, Window, Screen, Scroll when available, Repeat Last, and Presets. **Scroll** is the compact header label for Capture Scrolling Content, **Repeat Last** is the compact header label for Repeat Last Capture, and **Presets** remains a menu because it contains a variable set of named targets. **Create** names the adjacent guided area with direct Comparison, Steps, and Combined Image entries; each opens setup with that result selected so the user only chooses its source and options. Direct Screenshot setup is omitted because Quick Capture already provides the primary one-click Screenshot paths. **Record** names the adjacent activity area with direct Region, Window, Screen, Guide when available, and connected-device entries. **Screen Tools** names the utility group containing Screen Ruler and Screen Inspector; direct Clipboard History access sits beside these utilities but keeps its established product name. These are navigation group labels, not new workflow or output nouns.
+
+The header exposes capture-affecting state with compact labels: **Timer: Off**, **Timer: 3s**, **Timer: 5s**, or **Timer: 10s**; **Cursor On** or **Cursor Off**; and **Private On** or **Private Off**. These compact state labels supplement the canonical Timer, Include Cursor, and Private Capture terminology; explanatory copy and Settings continue using the full terms.
 
 ## Action Verbs
 

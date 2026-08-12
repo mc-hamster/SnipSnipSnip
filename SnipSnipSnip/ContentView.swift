@@ -20,6 +20,9 @@ struct ContentView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.openWindow) private var openWindow
     @State private var isPermissionDiagnosticExpanded = false
+    @State private var hoveredCaptureDiscovery: CaptureDiscoveryItem?
+    @State private var selectedCaptureDiscovery: CaptureDiscoveryItem = .overview
+    @FocusState private var focusedCaptureDiscovery: CaptureDiscoveryItem?
     @SceneStorage("editor.inspector.isPresented")
     private var isEditorInspectorPresented = true
     @State private var compositionImportDetails:
@@ -114,6 +117,10 @@ struct ContentView: View {
         .toolbar {
             appToolbarContent
         }
+        .frame(
+            minWidth: hasOpenDocument ? 900 : 1240,
+            minHeight: 600
+        )
         .toolbar(removing: .title)
         .confirmationDialog("Save changes before continuing?", isPresented: $documents.isShowingUnsavedChangesPrompt, titleVisibility: .visible) {
             Button("Save", action: documents.confirmSaveBeforeContinuing)
@@ -605,6 +612,8 @@ struct ContentView: View {
                     Spacer(minLength: 12)
                     if documents.editorController != nil {
                         contextualCreateButton
+                    } else {
+                        captureHeaderOptions
                     }
                     autoCopyToggle
                 }
@@ -615,6 +624,8 @@ struct ContentView: View {
                         Spacer(minLength: 0)
                         if documents.editorController != nil {
                             contextualCreateButton
+                        } else {
+                            captureHeaderOptions
                         }
                         autoCopyToggle
                     }
@@ -647,6 +658,21 @@ struct ContentView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("capture.header")
+        .task(id: hoveredCaptureDiscovery) {
+            guard let hoveredCaptureDiscovery else {
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+            guard !Task.isCancelled else {
+                return
+            }
+            selectedCaptureDiscovery = hoveredCaptureDiscovery
+        }
+        .onChange(of: focusedCaptureDiscovery) { _, focusedItem in
+            if let focusedItem {
+                selectedCaptureDiscovery = focusedItem
+            }
+        }
         .onChange(of: permissions.activePermissionRequest) { _, request in
             if request != nil, hasOpenDocument {
                 isPermissionDiagnosticExpanded = true
@@ -745,27 +771,95 @@ struct ContentView: View {
             .help("Automatically copy the current rendered snip after captures and editor changes.")
     }
 
+    private var captureHeaderOptions: some View {
+        HStack(spacing: 6) {
+            discoveryTarget(.timer) {
+                Menu {
+                    CaptureTimerMenuContent(capture: capture)
+                } label: {
+                    headerActionLabel(
+                        title: capture.captureDelay.shortLabel,
+                        systemImage: "timer"
+                    )
+                }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
+                .controlSize(.small)
+                .help("Choose how long to wait before capture begins.")
+            }
+
+            discoveryTarget(.cursor) {
+                Button {
+                    capture.screenshotIncludesCursor.toggle()
+                } label: {
+                    headerActionLabel(
+                        title: capture.screenshotIncludesCursor
+                            ? "Cursor On"
+                            : "Cursor Off",
+                        systemImage: "cursorarrow"
+                    )
+                }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
+                .controlSize(.small)
+                .help("Add the cursor as an editable screenshot overlay where supported.")
+                .accessibilityValue(capture.screenshotIncludesCursor ? "On" : "Off")
+            }
+
+            discoveryTarget(.privateCapture) {
+                Button {
+                    capture.updatePrivateCaptureEnabled(
+                        !capture.privateCaptureEnabled
+                    )
+                } label: {
+                    headerActionLabel(
+                        title: capture.privateCaptureEnabled
+                            ? "Private On"
+                            : "Private Off",
+                        systemImage: "shield"
+                    )
+                }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
+                .controlSize(.small)
+                .disabled(capture.isWorking || isRecordingVideo || guide.isActive)
+                .help("Keep new captures out of history, recovery, Clipboard History, and OCR indexing.")
+                .accessibilityValue(capture.privateCaptureEnabled ? "On" : "Off")
+            }
+        }
+        .fixedSize()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Capture Options")
+    }
+
     private var captureHeaderActions: some View {
         Group {
             if let controller = documents.editorController {
                 editorSessionBar(controller)
             } else {
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .top, spacing: 16) {
-                        quickCaptureActionGroup
-                        captureHeaderGroupDivider
-                        createSomethingActionGroup
-                        captureHeaderGroupDivider
-                        recordActionGroup
-                    }
+                HStack(alignment: .top, spacing: 18) {
+                    captureDiscoveryActionGroups
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        quickCaptureActionGroup
-                        createSomethingActionGroup
-                        recordActionGroup
-                    }
+                    Divider()
+                        .accessibilityHidden(true)
+
+                    CaptureDiscoveryPreview(
+                        item: selectedCaptureDiscovery
+                    )
+                    .frame(width: 430)
+                    .frame(minHeight: 286)
                 }
             }
+        }
+    }
+
+    private var captureDiscoveryActionGroups: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            quickCaptureActionGroup
+            createSomethingActionGroup
+            recordActionGroup
+            screenToolsActionGroup
         }
     }
 
@@ -780,17 +874,20 @@ struct ContentView: View {
                 captureButton(
                     title: WorkflowVocabulary.Source.window,
                     systemImage: "rectangle.on.rectangle",
+                    discoveryItem: .captureWindow,
                     action: captureWindowFromHeader
                 )
                 captureButton(
                     title: WorkflowVocabulary.Source.screen,
                     systemImage: "macwindow",
+                    discoveryItem: .captureScreen,
                     action: capture.captureCurrentDisplay
                 )
                 if capabilities.isEnabled(.scrollingCapture) {
                     captureButton(
                         title: "Scroll",
                         systemImage: "scroll",
+                        discoveryItem: .captureScrolling,
                         action: capture.captureScrollingArea
                     )
                 }
@@ -805,7 +902,7 @@ struct ContentView: View {
 
     private var createSomethingActionGroup: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text("Create Something")
+            Text("Create")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
@@ -813,25 +910,28 @@ struct ContentView: View {
                 creationActionButton(
                     title: "Comparison",
                     systemImage: "square.split.2x1",
+                    discoveryItem: .comparison,
                     goal: .comparison,
                     help: "Set up a Before and After Comparison."
                 )
                 creationActionButton(
                     title: "Steps",
                     systemImage: "list.number",
+                    discoveryItem: .steps,
                     goal: .instructions(.addCaptures),
                     help: "Build numbered Steps from captures you add."
                 )
                 creationActionButton(
                     title: "Combined Image",
                     systemImage: "rectangle.3.group",
+                    discoveryItem: .combinedImage,
                     goal: .combineImages,
                     help: "Arrange several captures or images as one result."
                 )
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Create Something")
+        .accessibilityLabel("Create")
     }
 
     private var recordActionGroup: some View {
@@ -844,18 +944,21 @@ struct ContentView: View {
                 recordingActionButton(
                     title: WorkflowVocabulary.Source.region,
                     systemImage: "selection.pin.in.out",
+                    discoveryItem: .recordRegion,
                     action: video.recordRegion,
                     help: "Record a selected region of the screen."
                 )
                 recordingActionButton(
                     title: WorkflowVocabulary.Source.window,
                     systemImage: "rectangle.on.rectangle",
+                    discoveryItem: .recordWindow,
                     action: video.presentVideoWindowPicker,
                     help: "Choose a window to record."
                 )
                 recordingActionButton(
                     title: WorkflowVocabulary.Source.screen,
                     systemImage: "macwindow",
+                    discoveryItem: .recordScreen,
                     action: video.recordCurrentDisplay,
                     help: "Record the configured display."
                 )
@@ -876,92 +979,170 @@ struct ContentView: View {
         }
     }
 
-    private var captureHeaderGroupDivider: some View {
-        Divider()
-            .frame(height: 48)
-            .accessibilityHidden(true)
+    private var screenToolsActionGroup: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Screen Tools")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 8) {
+                discoveryTarget(.screenRuler) {
+                    Menu {
+                        Button("New Horizontal Ruler") {
+                            tools.presentScreenRuler(.horizontal)
+                        }
+                        Button("New Vertical Ruler") {
+                            tools.presentScreenRuler(.vertical)
+                        }
+                        if tools.screenRulerCoordinator.hasActiveRulers {
+                            Divider()
+                            Button(
+                                "Close All Screen Rulers",
+                                action: tools.closeAllScreenRulers
+                            )
+                        }
+                    } label: {
+                        headerActionLabel(
+                            title: "Screen Ruler",
+                            systemImage: "ruler",
+                            showsChevron: true
+                        )
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.small)
+                    .help("Add a horizontal or vertical ruler above other apps.")
+                }
+
+                discoveryTarget(.screenInspector) {
+                    Button {
+                        tools.toggleScreenInspector()
+                    } label: {
+                        headerActionLabel(
+                            title: tools.screenInspectorCoordinator.isVisible
+                                ? "Close Inspector"
+                                : "Screen Inspector",
+                            systemImage: "scope"
+                        )
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.small)
+                    .help("Inspect live pixels, colors, coordinates, and spacing.")
+                    .accessibilityLabel(
+                        tools.screenInspectorCoordinator.isVisible
+                            ? "Close Screen Inspector"
+                            : "Open Screen Inspector"
+                    )
+                }
+
+                discoveryTarget(.clipboardHistory) {
+                    Button(action: clipboard.showClipboardManager) {
+                        headerActionLabel(
+                            title: "Clipboard History",
+                            systemImage: "clipboard"
+                        )
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.small)
+                    .help("Find copied text, links, files, images, and recent screenshots.")
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Screen Tools and Clipboard History")
     }
 
     private var regionCaptureButton: some View {
-        Button(action: capture.captureRegion) {
-            headerActionLabel(
-                title: WorkflowVocabulary.Source.region,
-                systemImage: "selection.pin.in.out"
-            )
+        discoveryTarget(.captureRegion) {
+            Button(action: capture.captureRegion) {
+                headerActionLabel(
+                    title: WorkflowVocabulary.Source.region,
+                    systemImage: "selection.pin.in.out"
+                )
+            }
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.capsule)
+            .controlSize(.small)
+            .disabled(capture.isWorking || isRecordingVideo || guide.isActive)
+            .help("Drag to capture a selected region of the screen.")
         }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .controlSize(.small)
-        .disabled(capture.isWorking || isRecordingVideo || guide.isActive)
-        .help("Drag to capture a selected region of the screen.")
     }
 
     private var repeatLastCaptureButton: some View {
-        Button {
-            capture.repeatLastCapture()
-        } label: {
-            headerActionLabel(
-                title: "Repeat Last",
-                systemImage: "arrow.clockwise"
+        discoveryTarget(.repeatLast) {
+            Button {
+                capture.repeatLastCapture()
+            } label: {
+                headerActionLabel(
+                    title: "Repeat Last",
+                    systemImage: "arrow.clockwise"
+                )
+            }
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.capsule)
+            .controlSize(.small)
+            .disabled(
+                capture.isWorking
+                    || isRecordingVideo
+                    || guide.isActive
+                    || !capture.canRepeatLastCapture
             )
+            .help("Repeat Last Capture")
+            .accessibilityLabel("Repeat Last Capture")
         }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .controlSize(.small)
-        .disabled(
-            capture.isWorking
-                || isRecordingVideo
-                || guide.isActive
-                || !capture.canRepeatLastCapture
-        )
-        .help("Repeat Last Capture")
-        .accessibilityLabel("Repeat Last Capture")
     }
 
     private var capturePresetsMenu: some View {
-        Menu {
-            CapturePresetMenuContent(
-                capture: capture,
-                video: video,
-                lifecycle: lifecycle
-            )
-        } label: {
-            headerActionLabel(
-                title: "Presets",
-                systemImage: "slider.horizontal.3",
-                showsChevron: true
-            )
+        discoveryTarget(.presets) {
+            Menu {
+                CapturePresetMenuContent(
+                    capture: capture,
+                    video: video,
+                    lifecycle: lifecycle
+                )
+            } label: {
+                headerActionLabel(
+                    title: "Presets",
+                    systemImage: "slider.horizontal.3",
+                    showsChevron: true
+                )
+            }
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.capsule)
+            .controlSize(.small)
+            .disabled(capture.isWorking || isRecordingVideo || guide.isActive)
+            .help("Run or manage a capture preset.")
+            .accessibilityLabel("Capture Presets")
         }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .controlSize(.small)
-        .disabled(capture.isWorking || isRecordingVideo || guide.isActive)
-        .help("Run or manage a capture preset.")
-        .accessibilityLabel("Capture Presets")
     }
 
     private func creationActionButton(
         title: String,
         systemImage: String,
+        discoveryItem: CaptureDiscoveryItem,
         goal: CreationGoal,
         help: String
     ) -> some View {
-        Button {
-            creation.presentQuickStart(
-                prefilledDraft: CreationDraft(goal: goal)
-            )
-        } label: {
-            headerActionLabel(
-                title: title,
-                systemImage: systemImage
-            )
+        discoveryTarget(discoveryItem) {
+            Button {
+                creation.presentQuickStart(
+                    prefilledDraft: CreationDraft(goal: goal)
+                )
+            } label: {
+                headerActionLabel(
+                    title: title,
+                    systemImage: systemImage
+                )
+            }
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.capsule)
+            .controlSize(.small)
+            .disabled(capture.isWorking || isRecordingVideo || guide.isActive)
+            .help(help)
+            .accessibilityIdentifier("creation.\(creationActionIdentifier(for: goal))")
         }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .controlSize(.small)
-        .disabled(capture.isWorking || isRecordingVideo || guide.isActive)
-        .help(help)
-        .accessibilityIdentifier("creation.\(creationActionIdentifier(for: goal))")
     }
 
     private var contextualCreateButton: some View {
@@ -1789,15 +1970,22 @@ struct ContentView: View {
         return "Deleted \(deletedAt.formatted(date: .abbreviated, time: .shortened))"
     }
 
-    private func captureButton(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            headerActionLabel(title: title, systemImage: systemImage)
+    private func captureButton(
+        title: String,
+        systemImage: String,
+        discoveryItem: CaptureDiscoveryItem,
+        action: @escaping () -> Void
+    ) -> some View {
+        discoveryTarget(discoveryItem) {
+            Button(action: action) {
+                headerActionLabel(title: title, systemImage: systemImage)
+            }
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.capsule)
+            .controlSize(.small)
+            .disabled(capture.isWorking || isRecordingVideo || guide.isActive)
+            .help(captureButtonHelpText(for: title))
         }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .controlSize(.small)
-        .disabled(capture.isWorking || isRecordingVideo || guide.isActive)
-        .help(captureButtonHelpText(for: title))
     }
 
     private func captureWindowFromHeader() {
@@ -1807,26 +1995,29 @@ struct ContentView: View {
     private func recordingActionButton(
         title: String,
         systemImage: String,
+        discoveryItem: CaptureDiscoveryItem,
         action: @escaping () -> Void,
         help: String,
         allowsActiveDeviceSession: Bool = false
     ) -> some View {
-        Button(action: action) {
-            headerActionLabel(title: title, systemImage: systemImage)
+        discoveryTarget(discoveryItem) {
+            Button(action: action) {
+                headerActionLabel(title: title, systemImage: systemImage)
+            }
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.capsule)
+            .controlSize(.small)
+            .disabled(
+                capture.isWorking
+                    || isRecordingVideo
+                    || guide.isActive
+                    || (
+                        capture.isConnectedDeviceSessionActive
+                            && !allowsActiveDeviceSession
+                    )
+            )
+            .help(help)
         }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .controlSize(.small)
-        .disabled(
-            capture.isWorking
-                || isRecordingVideo
-                || guide.isActive
-                || (
-                    capture.isConnectedDeviceSessionActive
-                        && !allowsActiveDeviceSession
-                )
-        )
-        .help(help)
     }
 
     @ViewBuilder
@@ -1835,6 +2026,7 @@ struct ContentView: View {
             recordingActionButton(
                 title: "Device Active",
                 systemImage: "iphone",
+                discoveryItem: .connectedDevice,
                 action: capture.presentConnectedDeviceSessionActiveMessage,
                 help: "Close the current connected-device preview before starting another.",
                 allowsActiveDeviceSession: true
@@ -1848,6 +2040,7 @@ struct ContentView: View {
             recordingActionButton(
                 title: "Connected Device",
                 systemImage: "iphone",
+                discoveryItem: .connectedDevice,
                 action: capture.presentConnectedDeviceEmptyState,
                 help: capture.connectedDeviceEmptyStateMessage
             )
@@ -1856,6 +2049,7 @@ struct ContentView: View {
                 recordingActionButton(
                     title: device.displayName,
                     systemImage: "iphone",
+                    discoveryItem: .connectedDevice,
                     action: { capture.recordConnectedDevice(device) },
                     help: "Open a live preview of \(device.displayName) and record it."
                 )
@@ -1864,18 +2058,20 @@ struct ContentView: View {
     }
 
     private var guideButton: some View {
-        Button(action: guide.presentQuickStart) {
-            headerActionLabel(
-                title: guideButtonTitle,
-                systemImage: guide.isActive ? "stop.circle.fill" : "list.number",
-                accent: .accentColor
-            )
+        discoveryTarget(.guide) {
+            Button(action: guide.presentQuickStart) {
+                headerActionLabel(
+                    title: guideButtonTitle,
+                    systemImage: guide.isActive ? "stop.circle.fill" : "list.number",
+                    accent: .accentColor
+                )
+            }
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.capsule)
+            .controlSize(.small)
+            .disabled(capture.isWorking || isRecordingVideo || guide.isFinishing || guide.isDiscarding)
+            .help("Capture clicks, scrolling, and shortcuts as an editable step-by-step guide.")
         }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .controlSize(.small)
-        .disabled(capture.isWorking || isRecordingVideo || guide.isFinishing || guide.isDiscarding)
-        .help("Capture clicks, scrolling, and shortcuts as an editable step-by-step guide.")
     }
 
     private var guideButtonTitle: String {
@@ -1921,6 +2117,21 @@ struct ContentView: View {
             }
         }
         .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private func discoveryTarget<Content: View>(
+        _ item: CaptureDiscoveryItem,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .focused($focusedCaptureDiscovery, equals: item)
+            .onHover { isInside in
+                if isInside {
+                    hoveredCaptureDiscovery = item
+                } else if hoveredCaptureDiscovery == item {
+                    hoveredCaptureDiscovery = nil
+                }
+            }
     }
 
     private func captureButtonHelpText(for title: String) -> String {

@@ -138,7 +138,11 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Create or record without an extra menu",
-                            body: "Under Create Something, choose Comparison, Steps, or Combined Image to open setup with that result already selected. Under Record, choose Region, Window, Screen, Guide, or an available connected device directly. Use Quick Capture for a one-action Screenshot."
+                            body: "Under Create, choose Comparison, Steps, or Combined Image to open setup with that result already selected. Under Record, choose Region, Window, Screen, Guide, or an available connected device directly. Use Quick Capture for a one-action Screenshot."
+                        ),
+                        HelpArticleSection(
+                            title: "Discover screen tools and capture options",
+                            body: "Use Screen Tools in the main header to add a Screen Ruler or open Screen Inspector. Clipboard History opens beside those utilities. Point to an action or move keyboard focus to it to see an animated explanation of what it creates or opens. The pointer preview changes after a short 50 millisecond dwell, while keyboard focus changes it immediately. Timer, Cursor, Private Capture, and Auto Copy state stays visible beside Ready; choose a state control to change it. The main window keeps the explanation stage visible whenever no document is open, and Reduce Motion shows the fully resolved static scene."
                         ),
                         HelpArticleSection(
                             title: "Know what stays editable",
@@ -325,6 +329,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Add rulers",
                             bullets: [
+                                "Choose Screen Ruler under Screen Tools in the main window.",
                                 "Choose Screen Ruler from the menu bar icon, directly below Clipboard History.",
                                 "Add as many Horizontal or Vertical rulers as you need."
                             ]
@@ -359,6 +364,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Open the inspector",
                             bullets: [
+                                "Choose Screen Inspector under Screen Tools in the main window.",
                                 "Choose Screen Inspector from the menu bar icon or the Capture menu.",
                                 "Use Command-Shift-8 by default, or change the shortcut in Settings > Shortcuts.",
                                 "The inspector floats above other apps so you can keep working while it follows the cursor."
@@ -697,7 +703,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: String(localized: "Choose what to make"),
                             steps: [
-                                String(localized: "Use Quick Capture when you want a one-action Screenshot from Region, Window, Screen, Scrolling Content, a repeat, or a preset. Scroll and Repeat Last are direct actions; Presets stays in its own menu. Under Create Something, choose Comparison, Steps, or Combined Image to open setup with the result already selected. Under Record, choose Region, Window, Screen, Guide, or an available connected device directly."),
+                                String(localized: "Use Quick Capture when you want a one-action Screenshot from Region, Window, Screen, Scrolling Content, a repeat, or a preset. Scroll and Repeat Last are direct actions; Presets stays in its own menu. Under Create, choose Comparison, Steps, or Combined Image to open setup with the result already selected. Under Record, choose Region, Window, Screen, Guide, or an available connected device directly. Use Screen Tools for Screen Ruler and Screen Inspector, and open Clipboard History beside them."),
                                 String(localized: "To explain a process, choose Record a Guide for action-aware capture or Build Steps manually to add and caption each step yourself."),
                                 String(localized: "Choose where the first image will come from: Region, Window, Screen, or Existing Image. Existing Image includes files, the clipboard, and the Snip Library. More ways to capture keeps specialized acquisition methods out of the main decision. Fine-tune appears only when the selected source has optional settings."),
                                 String(localized: "Review the summary and use the single primary action. Cancelling setup, target selection, permission setup, or capture leaves the current document and preferences unchanged.")
@@ -1073,6 +1079,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Screen tools",
                             bullets: [
+                                "Use Screen Tools in the main window to add a Screen Ruler or open Screen Inspector.",
                                 "Use the menu bar icon > Screen Ruler to add horizontal and vertical rulers.",
                                 "Use the menu bar icon > Screen Inspector to inspect live pixels, colors, and coordinates.",
                                 "Use Settings > Capture to adjust ruler appearance and inspector display options."

@@ -2238,6 +2238,14 @@ final class AppArchitecturePlatformTests: XCTestCase {
             contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/ContentView.swift"),
             encoding: .utf8
         )
+        let app = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/SnipSnipSnipApp.swift"),
+            encoding: .utf8
+        )
+        let discoveryPreview = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/App/CaptureDiscoveryPreview.swift"),
+            encoding: .utf8
+        )
         let editor = try String(
             contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/Editor/EditorView.swift"),
             encoding: .utf8
@@ -2275,12 +2283,33 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertTrue(content.contains("private var quickCaptureActionGroup: some View"))
         XCTAssertTrue(content.contains("private var createSomethingActionGroup: some View"))
         XCTAssertTrue(content.contains("private var recordActionGroup: some View"))
+        XCTAssertTrue(content.contains("private var screenToolsActionGroup: some View"))
+        XCTAssertTrue(content.contains("private var captureHeaderOptions: some View"))
         XCTAssertTrue(content.contains("private var regionCaptureButton: some View"))
         XCTAssertTrue(content.contains("private var repeatLastCaptureButton: some View"))
         XCTAssertTrue(content.contains("private var capturePresetsMenu: some View"))
         XCTAssertTrue(content.contains("Text(\"Quick Capture\")"))
-        XCTAssertTrue(content.contains("Text(\"Create Something\")"))
+        XCTAssertTrue(content.contains("Text(\"Create\")"))
         XCTAssertTrue(content.contains("Text(\"Record\")"))
+        XCTAssertTrue(content.contains("Text(\"Screen Tools\")"))
+        XCTAssertTrue(content.contains("CaptureDiscoveryPreview("))
+        XCTAssertTrue(content.contains("Task.sleep(for: .milliseconds(50))"))
+        XCTAssertTrue(content.contains("hasOpenDocument ? 900 : 1240"))
+        XCTAssertFalse(content.contains("ViewThatFits(in: .horizontal) {\n                    HStack(alignment: .top, spacing: 18)"))
+        XCTAssertTrue(app.contains(".defaultSize(width: 1280, height: 700)"))
+        XCTAssertTrue(discoveryPreview.contains("withAnimation(.easeInOut(duration: 0.72))"))
+        XCTAssertTrue(discoveryPreview.contains("guard animates else"))
+        XCTAssertTrue(discoveryPreview.contains("progress = 1"))
+        XCTAssertTrue(discoveryPreview.contains("case presets"))
+        XCTAssertTrue(discoveryPreview.contains("case clipboard"))
+        XCTAssertTrue(discoveryPreview.contains("case privacy"))
+        XCTAssertFalse(discoveryPreview.contains("case symbol"))
+        XCTAssertTrue(content.contains("title: \"Screen Ruler\""))
+        XCTAssertTrue(content.contains(": \"Screen Inspector\""))
+        XCTAssertTrue(content.contains("title: \"Clipboard History\""))
+        XCTAssertTrue(content.contains("capture.captureDelay.shortLabel"))
+        XCTAssertTrue(content.contains("\"Cursor On\""))
+        XCTAssertTrue(content.contains("\"Private On\""))
         XCTAssertTrue(content.contains("private func creationActionButton("))
         XCTAssertTrue(content.contains("private func recordingActionButton("))
         XCTAssertTrue(content.contains("private var connectedDeviceRecordingActions: some View"))
