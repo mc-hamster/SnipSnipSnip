@@ -32,7 +32,7 @@ final class ClipboardManagerWindowController: NSWindowController {
         panel.isFloatingPanel = true
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.hidesOnDeactivate = false
+        panel.hidesOnDeactivate = true
         panel.contentView = NSHostingView(rootView: ClipboardManagerView(clipboard: clipboard))
 
         super.init(window: panel)

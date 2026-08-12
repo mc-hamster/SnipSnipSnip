@@ -1,6 +1,7 @@
 #if DEBUG
 import AppKit
 import CoreGraphics
+import CryptoKit
 import Foundation
 import SwiftUI
 
@@ -61,8 +62,18 @@ enum CompositionUITestLaunchSupport {
         )
         preferences.lifecycle.saveOnboardingResumeCheckpoint(nil)
         preferences.clipboard.saveAutoCopyEnabled(false)
+        var clipboardPreferences = ClipboardPreferences.default
+        clipboardPreferences.isEnabled = true
+        preferences.clipboard.savePreferences(clipboardPreferences)
         preferences.capture.saveAutoRefreshWindowsEnabled(false)
         preferences.capture.saveUIMapEnabled(false)
+        preferences.screenTools.saveInspectorPreferences(
+            ScreenInspectorPreferences(
+                zoomLevel: .eight,
+                showsPixelGrid: true,
+                showsCrosshair: true
+            )
+        )
 
         let permissions = CompositionUITestPermissionService()
         let environment = AppEnvironment(
@@ -84,15 +95,24 @@ enum CompositionUITestLaunchSupport {
                 withIntermediateDirectories: true
             )
         }
+        let clipboardHistoryStore = ClipboardHistoryStore(
+            baseURL: rootURL.appendingPathComponent("Clipboard", isDirectory: true),
+            keyProvider: CompositionUITestClipboardEncryptionKeyProvider(),
+            loadStoredHistory: false
+        )
+        clipboardHistoryStore.activateStorage()
+        seedClipboardHistory(
+            in: clipboardHistoryStore,
+            preferences: clipboardPreferences
+        )
+
         let overrides = AppModelCompositionOverrides(
             recoveryStore: DocumentRecoveryStore(
                 baseURL: rootURL.appendingPathComponent("Recovery", isDirectory: true)
             ),
-            clipboardHistoryStore: ClipboardHistoryStore(
-                baseURL: rootURL.appendingPathComponent("Clipboard", isDirectory: true),
-                loadStoredHistory: false
-            ),
-            captureService: CompositionUITestCaptureService()
+            clipboardHistoryStore: clipboardHistoryStore,
+            captureService: CompositionUITestCaptureService(),
+            screenInspectorCapturePlatform: CompositionUITestScreenCapturePlatform()
         )
         let model = AppModel(
             defaults: defaults,
@@ -103,6 +123,63 @@ enum CompositionUITestLaunchSupport {
         )
         model.lifecycle.confirmsBeforeQuitting = false
         return model
+    }
+
+    private static func seedClipboardHistory(
+        in store: ClipboardHistoryStore,
+        preferences: ClipboardPreferences
+    ) {
+        let now = Date()
+        store.recordText(
+            "Ship 1.1.3: verify screenshots, release notes, and metadata.",
+            sourceApp: ClipboardSourceApp(name: "Notes", bundleIdentifier: "com.apple.Notes"),
+            preferences: preferences,
+            copiedAt: now.addingTimeInterval(-300)
+        )
+        store.recordText(
+            "#EF741B",
+            sourceApp: ClipboardSourceApp(name: "Xcode", bundleIdentifier: "com.apple.dt.Xcode"),
+            preferences: preferences,
+            copiedAt: now.addingTimeInterval(-240)
+        )
+        store.recordText(
+            "{\"version\":\"1.1.3\",\"build\":156,\"channel\":\"App Store\"}",
+            sourceApp: ClipboardSourceApp(name: "Xcode", bundleIdentifier: "com.apple.dt.Xcode"),
+            preferences: preferences,
+            copiedAt: now.addingTimeInterval(-180)
+        )
+        store.recordLink(
+            "https://snipsnipsnip.com",
+            title: "SnipSnipSnip",
+            searchableText: "SnipSnipSnip product website",
+            sourceApp: ClipboardSourceApp(name: "Safari", bundleIdentifier: "com.apple.Safari"),
+            preferences: preferences,
+            copiedAt: now.addingTimeInterval(-120)
+        )
+        store.recordFileURLs(
+            [URL(fileURLWithPath: "/Users/demo/Desktop/SnipSnipSnip-1.1.3-release-notes.pdf")],
+            sourceApp: ClipboardSourceApp(name: "Finder", bundleIdentifier: "com.apple.finder"),
+            preferences: preferences,
+            copiedAt: now.addingTimeInterval(-60)
+        )
+
+        if let pngData = try? ImageExporter.pngData(
+            for: CompositionUITestFixture.capture(ordinal: 0).image
+        ) {
+            store.recordSnip(
+                pngData: pngData,
+                title: "Release comparison – 1.1.3",
+                searchableText: "App Store release comparison 1.1.3",
+                sessionID: nil,
+                preferences: preferences,
+                copiedAt: now
+            )
+        }
+
+        if let newestItem = store.items.first {
+            store.togglePinned(newestItem)
+            store.toggleCollection("Launch", for: newestItem)
+        }
     }
 
     private static func makeUnitTestHostAppModel() -> AppModel {
@@ -713,7 +790,7 @@ nonisolated enum CompositionUITestFixture {
         )
     }
 
-    private nonisolated static func image(
+    nonisolated static func image(
         width: Int,
         height: Int,
         ordinal: Int
@@ -806,6 +883,30 @@ nonisolated enum CompositionUITestFixture {
             preconditionFailure("Unable to finish deterministic UI-test image.")
         }
         return image
+    }
+}
+
+nonisolated private struct CompositionUITestClipboardEncryptionKeyProvider:
+    ClipboardEncryptionKeyProviding
+{
+    func encryptionKey() throws -> SymmetricKey {
+        SymmetricKey(data: Data(repeating: 0x53, count: 32))
+    }
+}
+
+nonisolated private struct CompositionUITestScreenCapturePlatform:
+    ScreenCapturePlatform
+{
+    func shareableContent() async throws -> ScreenContentSnapshot {
+        ScreenContentSnapshot(displays: [], windows: [], applications: [])
+    }
+
+    func captureScreenshot(_ request: ScreenCaptureRequest) async throws -> CGImage {
+        CompositionUITestFixture.image(
+            width: request.configuration.width,
+            height: request.configuration.height,
+            ordinal: 1
+        )
     }
 }
 

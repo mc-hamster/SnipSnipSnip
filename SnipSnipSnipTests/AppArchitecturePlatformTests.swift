@@ -2284,6 +2284,14 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertTrue(content.contains("private var createSomethingActionGroup: some View"))
         XCTAssertTrue(content.contains("private var recordActionGroup: some View"))
         XCTAssertTrue(content.contains("private var screenToolsActionGroup: some View"))
+        XCTAssertTrue(content.contains("private func captureActionRow<Content: View>("))
+        XCTAssertTrue(content.contains("ScrollView(.horizontal, showsIndicators: false)"))
+        XCTAssertTrue(content.contains(".scrollBounceBehavior(.basedOnSize, axes: .horizontal)"))
+        XCTAssertEqual(
+            content.components(separatedBy: "captureActionRow {").count - 1,
+            4,
+            "Every no-document capture action group must contain its own horizontal overflow."
+        )
         XCTAssertTrue(content.contains("private var captureHeaderOptions: some View"))
         XCTAssertTrue(content.contains("private var regionCaptureButton: some View"))
         XCTAssertTrue(content.contains("private var repeatLastCaptureButton: some View"))

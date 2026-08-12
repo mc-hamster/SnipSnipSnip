@@ -387,7 +387,7 @@ struct HelpGuideView: View {
                                 "Use Freeze, Space, or Option-Command-F to hold a static sample while you inspect details.",
                                 "Use Measure or Option-Command-M to set the first point at the current cursor, move to the second point, then use Lock or Option-Command-M again to keep the one-line distance measurement.",
                                 "Use Capture or Option-Command-S to open the current inspector sample in the editor.",
-                                "Close the inspector from the close button, Escape, the menu command, the menu bar, or the global shortcut."
+                                "Close the inspector from the close button, Escape, Command-W, the menu command, the menu bar, or the global shortcut."
                             ]
                         )
                     ],

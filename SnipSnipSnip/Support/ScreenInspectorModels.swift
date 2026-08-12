@@ -76,4 +76,8 @@ struct ScreenInspectorMeasurement: Equatable, Sendable {
 
 enum ScreenInspectorWindowID {
     static let prefix = "screen-inspector-"
+
+    static func isScreenInspectorWindow(_ window: NSWindow?) -> Bool {
+        window?.identifier?.rawValue.hasPrefix(prefix) == true
+    }
 }

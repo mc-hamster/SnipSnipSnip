@@ -127,7 +127,7 @@ Repeat the essential workflow pass with:
 - [ ] Global shortcuts shown in menus and the reference match current preferences.
 - [ ] Known macOS shortcut conflicts produce nonblocking text warnings.
 - [ ] Native Open and Save panel shortcuts win while a panel is active.
-- [ ] Command-W minimizes eligible windows, orders out auxiliary windows, closes Clipboard History, and never terminates or discards a document.
+- [ ] Command-W minimizes eligible windows, orders out stateless auxiliary windows, closes Clipboard History and active Screen Tools, and never terminates or discards a document.
 - [ ] History and Clipboard previews expose semantic content, pin or collection state, filters, restore, and destructive-action context.
 
 ## Sign-off

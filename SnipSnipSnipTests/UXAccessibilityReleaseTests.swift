@@ -223,6 +223,48 @@ final class UXAccessibilityReleaseTests: XCTestCase {
         )
     }
 
+    func testCommandWClosesStatefulScreenToolAndClipboardWindows() {
+        let clipboardWindow = NSWindow()
+        clipboardWindow.identifier = NSUserInterfaceItemIdentifier(
+            ClipboardManagerWindowID.identifier
+        )
+        XCTAssertTrue(AppCommandWClosePolicy.shouldClose(clipboardWindow))
+
+        let inspectorWindow = NSWindow()
+        inspectorWindow.identifier = NSUserInterfaceItemIdentifier(
+            ScreenInspectorWindowID.prefix + UUID().uuidString
+        )
+        XCTAssertTrue(AppCommandWClosePolicy.shouldClose(inspectorWindow))
+
+        let rulerWindow = NSWindow()
+        rulerWindow.identifier = NSUserInterfaceItemIdentifier(
+            ScreenRulerWindowID.prefix + UUID().uuidString
+        )
+        XCTAssertTrue(AppCommandWClosePolicy.shouldClose(rulerWindow))
+
+        XCTAssertFalse(AppCommandWClosePolicy.shouldClose(NSWindow()))
+        XCTAssertFalse(AppCommandWClosePolicy.shouldClose(nil))
+    }
+
+    func testCaptureFeedbackOverlayAvoidsSwiftAppKitCallbackSubclass() throws {
+        let existingWindowIDs = Set(NSApp.windows.map(ObjectIdentifier.init))
+        let overlay = CaptureFeedbackOverlay(title: "3", detail: "Capture Screen")
+        overlay.show()
+        defer {
+            overlay.close()
+        }
+
+        let overlayWindow = try XCTUnwrap(NSApp.windows.first {
+            !existingWindowIDs.contains(ObjectIdentifier($0)) &&
+                $0.frame.size == CGSize(width: 260, height: 112)
+        })
+        let contentView = try XCTUnwrap(overlayWindow.contentView)
+
+        XCTAssertTrue(type(of: contentView) === NSView.self)
+        overlay.update(title: "Captured", detail: "Opening editor")
+        overlayWindow.displayIfNeeded()
+    }
+
     func testNativeFilePanelsSuspendCaptureKeyEquivalents() {
         XCTAssertTrue(NativePanelShortcutPolicy.suspendsCaptureKeyEquivalents(for: NSOpenPanel()))
         XCTAssertTrue(NativePanelShortcutPolicy.suspendsCaptureKeyEquivalents(for: NSSavePanel()))

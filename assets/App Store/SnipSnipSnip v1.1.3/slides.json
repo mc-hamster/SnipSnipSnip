@@ -1,0 +1,83 @@
+[
+  {
+    "number": "01",
+    "eyebrow": "CAPTURE • CREATE",
+    "headline": "More Than a Screenshot.",
+    "subhead": "Capture, explain, polish, and organize—right on your Mac.",
+    "source": "capture-1.1.3/07-capture-home.png",
+    "fit": "cover",
+    "focus": "north"
+  },
+  {
+    "number": "02",
+    "eyebrow": "COMPARISON • STEPS • COMBINED IMAGE",
+    "headline": "Turn Screens Into Clear Stories.",
+    "subhead": "Create visual explanations without leaving the app.",
+    "source": "capture-1.1.3/02-create.png",
+    "fit": "cover",
+    "focus": "north"
+  },
+  {
+    "number": "03",
+    "eyebrow": "POLISH",
+    "headline": "Make It Presentation-Ready.",
+    "subhead": "Add spacing, backgrounds, framing, shadows, and Mockups before you share.",
+    "source": "capture-1.1.3/06-polish.png",
+    "fit": "cover",
+    "focus": "north"
+  },
+  {
+    "number": "04",
+    "eyebrow": "NON-DESTRUCTIVE EDITING",
+    "headline": "Change Anything. Flatten Nothing.",
+    "subhead": "Crop, annotate, highlight, redact, and undo while your Screenshot stays editable.",
+    "source": "capture-1.1.3/01-screenshot-edit.png",
+    "fit": "cover",
+    "focus": "north"
+  },
+  {
+    "number": "05",
+    "eyebrow": "COMPARISON • REVIEW",
+    "headline": "Share What Changed.",
+    "subhead": "Review two versions side by side, highlight changes, and export the result.",
+    "source": "capture-1.1.3/03-comparison.png",
+    "fit": "cover",
+    "focus": "north"
+  },
+  {
+    "number": "06",
+    "eyebrow": "STEPS",
+    "headline": "Explain It One Step at a Time.",
+    "subhead": "Add, order, and caption screenshots as clear visual Steps.",
+    "source": "capture-1.1.3/04-steps.png",
+    "fit": "cover",
+    "focus": "north"
+  },
+  {
+    "number": "07",
+    "eyebrow": "COMBINED IMAGE • ARRANGE",
+    "headline": "Bring Every View Together.",
+    "subhead": "Arrange multiple images into one clear, polished Combined Image.",
+    "source": "capture-1.1.3/05-combined-image.png",
+    "fit": "cover",
+    "focus": "north"
+  },
+  {
+    "number": "08",
+    "eyebrow": "CLIPBOARD HISTORY",
+    "headline": "Your Clipboard Has a Memory.",
+    "subhead": "Search, preview, pin, and reuse text, links, files, images, and Screenshots.",
+    "source": "capture-1.1.3/08-clipboard-history.png",
+    "fit": "cover",
+    "focus": "north"
+  },
+  {
+    "number": "09",
+    "eyebrow": "SCREEN RULER • SCREEN INSPECTOR",
+    "headline": "Measure Twice. Capture Once.",
+    "subhead": "Check dimensions, colors, pixels, and spacing without leaving your screen.",
+    "source": "capture-1.1.3/10-screen-tools-composite.png",
+    "fit": "cover",
+    "focus": "north"
+  }
+]

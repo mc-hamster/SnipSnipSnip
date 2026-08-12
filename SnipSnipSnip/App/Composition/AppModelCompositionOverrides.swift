@@ -6,6 +6,7 @@ struct AppModelCompositionOverrides {
     var videoRecoveryStore: VideoRecoveryStore?
     var clipboardHistoryStore: ClipboardHistoryStore?
     var captureService: (any ScreenCaptureServiceType)?
+    var screenInspectorCapturePlatform: (any ScreenCapturePlatform)?
     var screenRecordingService: ScreenRecordingService?
     var uiMapCaptureService: (any UIMapCaptureServiceType)?
     var connectedDeviceCaptureService: (any ConnectedDeviceCaptureServiceType)?
@@ -17,6 +18,7 @@ struct AppModelCompositionOverrides {
         videoRecoveryStore: VideoRecoveryStore? = nil,
         clipboardHistoryStore: ClipboardHistoryStore? = nil,
         captureService: (any ScreenCaptureServiceType)? = nil,
+        screenInspectorCapturePlatform: (any ScreenCapturePlatform)? = nil,
         screenRecordingService: ScreenRecordingService? = nil,
         uiMapCaptureService: (any UIMapCaptureServiceType)? = nil,
         connectedDeviceCaptureService: (any ConnectedDeviceCaptureServiceType)? = nil,
@@ -27,6 +29,7 @@ struct AppModelCompositionOverrides {
         self.videoRecoveryStore = videoRecoveryStore
         self.clipboardHistoryStore = clipboardHistoryStore
         self.captureService = captureService
+        self.screenInspectorCapturePlatform = screenInspectorCapturePlatform
         self.screenRecordingService = screenRecordingService
         self.uiMapCaptureService = uiMapCaptureService
         self.connectedDeviceCaptureService = connectedDeviceCaptureService

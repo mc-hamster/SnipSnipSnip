@@ -225,7 +225,7 @@ nonisolated extension ScreenRulerPreferences {
 enum ScreenRulerWindowID {
     static let prefix = "screen-ruler-"
 
-    static func isScreenRulerWindow(_ window: NSWindow) -> Bool {
-        window.identifier?.rawValue.hasPrefix(prefix) == true
+    static func isScreenRulerWindow(_ window: NSWindow?) -> Bool {
+        window?.identifier?.rawValue.hasPrefix(prefix) == true
     }
 }

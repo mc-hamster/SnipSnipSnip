@@ -673,6 +673,13 @@ struct ContentView: View {
                 selectedCaptureDiscovery = focusedItem
             }
         }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: NSApplication.didResignActiveNotification
+            )
+        ) { _ in
+            hoveredCaptureDiscovery = nil
+        }
         .onChange(of: permissions.activePermissionRequest) { _, request in
             if request != nil, hasOpenDocument {
                 isPermissionDiagnosticExpanded = true
@@ -869,7 +876,7 @@ struct ContentView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            HStack(spacing: 8) {
+            captureActionRow {
                 regionCaptureButton
                 captureButton(
                     title: WorkflowVocabulary.Source.window,
@@ -906,7 +913,7 @@ struct ContentView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            HStack(spacing: 8) {
+            captureActionRow {
                 creationActionButton(
                     title: "Comparison",
                     systemImage: "square.split.2x1",
@@ -940,7 +947,7 @@ struct ContentView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            HStack(spacing: 8) {
+            captureActionRow {
                 recordingActionButton(
                     title: WorkflowVocabulary.Source.region,
                     systemImage: "selection.pin.in.out",
@@ -985,7 +992,7 @@ struct ContentView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            HStack(spacing: 8) {
+            captureActionRow {
                 discoveryTarget(.screenRuler) {
                     Menu {
                         Button("New Horizontal Ruler") {
@@ -1052,6 +1059,19 @@ struct ContentView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Screen Tools and Clipboard History")
+    }
+
+    private func captureActionRow<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                content()
+            }
+            .padding(.vertical, 2)
+        }
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var regionCaptureButton: some View {

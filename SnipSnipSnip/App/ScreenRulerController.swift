@@ -47,8 +47,17 @@ final class ScreenRulerCoordinator: ObservableObject {
 
         windowControllers[model.id] = controller
         refreshCount()
-        controller.showWindow(nil)
-        controller.window?.orderFrontRegardless()
+        Task { @MainActor [weak self, weak controller] in
+            await Task.yield()
+            guard let self,
+                  let controller,
+                  self.windowControllers[model.id] === controller else {
+                return
+            }
+
+            controller.showWindow(nil)
+            controller.window?.orderFrontRegardless()
+        }
     }
 
     func closeAll() {
@@ -177,7 +186,13 @@ final class ScreenRulerWindowController: NSWindowController {
     }
 
     private static func initialFrame(for kind: ScreenRulerKind) -> CGRect {
-        let visibleFrame = NSScreen.main?.visibleFrame ?? CGRect(x: 160, y: 160, width: 900, height: 600)
+        let mouseLocation = NSEvent.mouseLocation
+        let targetScreen = NSScreen.screens.first { $0.frame.contains(mouseLocation) }
+            ?? NSApp.keyWindow?.screen
+            ?? NSApp.mainWindow?.screen
+            ?? NSScreen.main
+        let visibleFrame = targetScreen?.visibleFrame
+            ?? CGRect(x: 160, y: 160, width: 900, height: 600)
         let size: CGSize
 
         switch kind {

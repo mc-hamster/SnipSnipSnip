@@ -113,6 +113,15 @@ enum AppCloseShortcutDisposition: Equatable {
 }
 
 @MainActor
+enum AppCommandWClosePolicy {
+    static func shouldClose(_ window: NSWindow?) -> Bool {
+        ClipboardManagerWindowID.isClipboardManagerWindow(window)
+            || ScreenInspectorWindowID.isScreenInspectorWindow(window)
+            || ScreenRulerWindowID.isScreenRulerWindow(window)
+    }
+}
+
+@MainActor
 enum NativePanelShortcutPolicy {
     static func suspendsCaptureKeyEquivalents(for window: NSWindow?) -> Bool {
         window is NSOpenPanel || window is NSSavePanel
@@ -201,8 +210,9 @@ final class AppOpenBridge: NSObject, NSApplicationDelegate {
             return event
         }
 
-        if shortcut == "w", ClipboardManagerWindowID.isClipboardManagerWindow(NSApp.keyWindow) {
-            NSApp.keyWindow?.performClose(nil)
+        let activeWindow = NSApp.keyWindow ?? NSApp.mainWindow
+        if shortcut == "w", AppCommandWClosePolicy.shouldClose(activeWindow) {
+            activeWindow?.performClose(nil)
             return nil
         }
 

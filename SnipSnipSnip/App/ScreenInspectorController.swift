@@ -130,7 +130,11 @@ final class ScreenInspectorCoordinator: ObservableObject {
     }
 
     func toggle() {
-        isVisible ? close() : present()
+        if windowController?.window?.isVisible == true {
+            close()
+        } else {
+            present()
+        }
     }
 
     func close() {

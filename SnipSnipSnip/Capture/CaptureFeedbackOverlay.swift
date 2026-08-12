@@ -5,10 +5,47 @@ final class CaptureFeedbackOverlay {
     private static var postCaptureOverlay: CaptureFeedbackOverlay?
 
     private let window: NSWindow
-    private let view: CaptureFeedbackOverlayView
+    private let titleLabel: NSTextField
+    private let detailLabel: NSTextField
 
     init(title: String, detail: String? = nil) {
-        view = CaptureFeedbackOverlayView(title: title, detail: detail)
+        let contentView = NSView(frame: CGRect(x: 0, y: 0, width: 260, height: 112))
+        contentView.wantsLayer = true
+        contentView.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.94).cgColor
+        contentView.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.45).cgColor
+        contentView.layer?.borderWidth = 1
+        contentView.layer?.cornerRadius = 20
+
+        let titleLabel = NSTextField(labelWithString: title)
+        titleLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 28, weight: .bold)
+        titleLabel.textColor = .labelColor
+        titleLabel.alignment = .center
+        titleLabel.lineBreakMode = .byTruncatingTail
+
+        let detailLabel = NSTextField(labelWithString: detail ?? "")
+        detailLabel.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        detailLabel.textColor = .secondaryLabelColor
+        detailLabel.alignment = .center
+        detailLabel.lineBreakMode = .byTruncatingTail
+        detailLabel.isHidden = detail == nil
+
+        let stackView = NSStackView(views: [titleLabel, detailLabel])
+        stackView.orientation = .vertical
+        stackView.alignment = .centerX
+        stackView.spacing = 2
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(stackView)
+        NSLayoutConstraint.activate([
+            stackView.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
+            stackView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+            titleLabel.widthAnchor.constraint(equalToConstant: 224),
+            titleLabel.heightAnchor.constraint(equalToConstant: 34),
+            detailLabel.widthAnchor.constraint(equalToConstant: 224),
+            detailLabel.heightAnchor.constraint(equalToConstant: 20)
+        ])
+
+        self.titleLabel = titleLabel
+        self.detailLabel = detailLabel
         window = NSWindow(
             contentRect: CGRect(x: 0, y: 0, width: 260, height: 112),
             styleMask: [.borderless],
@@ -21,7 +58,7 @@ final class CaptureFeedbackOverlay {
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         window.ignoresMouseEvents = true
         window.hasShadow = true
-        window.contentView = view
+        window.contentView = contentView
         positionNearTopCenter()
     }
 
@@ -30,8 +67,9 @@ final class CaptureFeedbackOverlay {
     }
 
     func update(title: String, detail: String? = nil) {
-        view.title = title
-        view.detail = detail
+        titleLabel.stringValue = title
+        detailLabel.stringValue = detail ?? ""
+        detailLabel.isHidden = detail == nil
     }
 
     func close() {
@@ -68,65 +106,5 @@ final class CaptureFeedbackOverlay {
             x: visibleFrame.midX - size.width / 2,
             y: visibleFrame.maxY - size.height - 36
         ))
-    }
-}
-
-private final class CaptureFeedbackOverlayView: NSView {
-    var title: String {
-        didSet { needsDisplay = true }
-    }
-    var detail: String? {
-        didSet { needsDisplay = true }
-    }
-
-    init(title: String, detail: String?) {
-        self.title = title
-        self.detail = detail
-        super.init(frame: CGRect(x: 0, y: 0, width: 260, height: 112))
-        wantsLayer = true
-    }
-
-    required init?(coder: NSCoder) {
-        nil
-    }
-
-    override var isFlipped: Bool { true }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-
-        let panel = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 20, yRadius: 20)
-        NSColor.windowBackgroundColor.withAlphaComponent(0.94).setFill()
-        panel.fill()
-        NSColor.separatorColor.withAlphaComponent(0.45).setStroke()
-        panel.lineWidth = 1
-        panel.stroke()
-
-        let titleRect = CGRect(x: 18, y: detail == nil ? 34 : 26, width: bounds.width - 36, height: 34)
-        NSString(string: title).draw(
-            in: titleRect,
-            withAttributes: [
-                .foregroundColor: NSColor.labelColor,
-                .font: NSFont.monospacedDigitSystemFont(ofSize: 28, weight: .bold),
-                .paragraphStyle: centeredParagraphStyle
-            ]
-        )
-
-        if let detail {
-            NSString(string: detail).draw(
-                in: CGRect(x: 18, y: 65, width: bounds.width - 36, height: 20),
-                withAttributes: [
-                    .foregroundColor: NSColor.secondaryLabelColor,
-                    .font: NSFont.systemFont(ofSize: 13, weight: .medium),
-                    .paragraphStyle: centeredParagraphStyle
-                ]
-            )
-        }
-    }
-
-    private var centeredParagraphStyle: NSParagraphStyle {
-        let style = NSMutableParagraphStyle()
-        style.alignment = .center
-        return style
     }
 }
