@@ -117,10 +117,12 @@ struct ContentView: View {
         .toolbar {
             appToolbarContent
         }
-        .frame(
-            minWidth: hasOpenDocument ? 900 : 1240,
-            minHeight: 600
-        )
+        .background {
+            MainWindowMinimumSizeBridge(
+                preferredContentSize: preferredMainWindowMinimumContentSize
+            )
+            .frame(width: 0, height: 0)
+        }
         .toolbar(removing: .title)
         .confirmationDialog("Save changes before continuing?", isPresented: $documents.isShowingUnsavedChangesPrompt, titleVisibility: .visible) {
             Button("Save", action: documents.confirmSaveBeforeContinuing)
@@ -702,6 +704,16 @@ struct ContentView: View {
         documents.editorController != nil
             || documents.videoEditorController != nil
             || documents.guideEditorController != nil
+    }
+
+    private var preferredMainWindowMinimumContentSize: CGSize {
+        if documents.guideEditorController != nil {
+            MainWindowLayout.minimumContentSize(for: .guide)
+        } else if documents.videoEditorController != nil {
+            MainWindowLayout.minimumContentSize(for: .video)
+        } else {
+            MainWindowLayout.minimumContentSize
+        }
     }
 
     private var compactPermissionStrip: some View {

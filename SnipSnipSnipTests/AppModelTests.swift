@@ -3,6 +3,18 @@ import XCTest
 
 @MainActor
 final class AppModelTests: XCTestCase {
+    func testScreenRulerOrientationChangesRemainLocalToEachRuler() {
+        let initialPreferences = ScreenRulerPreferences.default
+        let firstRuler = ScreenRulerWindowModel(kind: .horizontal, preferences: initialPreferences)
+        let secondRuler = ScreenRulerWindowModel(kind: .horizontal, preferences: initialPreferences)
+
+        firstRuler.toggleTickEdge()
+
+        XCTAssertEqual(firstRuler.preferences.horizontalTickEdge, .top)
+        XCTAssertEqual(secondRuler.preferences.horizontalTickEdge, .bottom)
+        XCTAssertEqual(secondRuler.preferences.horizontalOrigin, .left)
+    }
+
     private func makeEnvironment(
         defaults: UserDefaults,
         permissionStatus: CapturePermissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)

@@ -3,7 +3,7 @@
 ## Product Build
 
 - Marketing version: 1.1.3
-- Build number: 156
+- Build number: 157
 - Edition gate: `APP_STORE_BUILD`
 - App sandbox entitlement: enabled
 - Bundle identifier: `com.oontz.SnipSnipSnip`
@@ -20,6 +20,9 @@ edition gates as the shipping Mac App Store app.
 - Parallel UI testing disabled
 - Isolated UI-test data
 - Privacy-safe generated demo images
+- App Store-safe fixture names with no UI-test terminology
+- Transient editor notices fully dismissed before capture
+- Deterministic Light appearance
 - Privacy-safe seeded Clipboard History entries
 - Deterministic Screen Inspector sample pixels
 - No Pro-only live Guide creation, Scrolling Capture, Connected Device Capture,

@@ -13,6 +13,8 @@ import SwiftUI
 @MainActor
 enum CompositionUITestLaunchSupport {
     static let launchArgument = "--snipsnipsnip-composition-ui-testing"
+    static let appStoreScreenshotLaunchArgument =
+        "--snipsnipsnip-app-store-screenshots"
     static let runIdentifierEnvironmentKey = "SNIPSNIPSNIP_UI_TEST_RUN_ID"
     static let artifactDirectoryEnvironmentKey =
         "SNIPSNIPSNIP_UI_TEST_ARTIFACT_DIRECTORY"
@@ -38,12 +40,22 @@ enum CompositionUITestLaunchSupport {
         ProcessInfo.processInfo.arguments.contains(launchArgument)
     }
 
+    static var isCapturingAppStoreScreenshots: Bool {
+        ProcessInfo.processInfo.arguments.contains(
+            appStoreScreenshotLaunchArgument
+        )
+    }
+
     static func makeAppModel() -> AppModel {
         guard isEnabled else {
             if AppModel.isRunningUnitTests {
                 return makeUnitTestHostAppModel()
             }
             return AppModel()
+        }
+
+        if isCapturingAppStoreScreenshots {
+            NSApplication.shared.appearance = NSAppearance(named: .aqua)
         }
 
         let runIdentifier = sanitizedRunIdentifier(
@@ -777,12 +789,24 @@ nonisolated enum CompositionUITestFixture {
         let width = ordinal.isMultiple(of: 2) ? 960 : 720
         let height = ordinal.isMultiple(of: 2) ? 600 : 760
         let rect = CGRect(x: 120, y: 80, width: width, height: height)
+        let sourceName: String
+        if ProcessInfo.processInfo.arguments.contains(
+            "--snipsnipsnip-app-store-screenshots"
+        ) {
+            sourceName = switch ordinal {
+            case 0: "Release Before"
+            case 1: "Release After"
+            default: "Release Detail \(ordinal)"
+            }
+        } else {
+            sourceName = ordinal == 0
+                ? "UI Test Initial"
+                : "UI Test Added \(ordinal)"
+        }
         return CapturedScreenshot(
             image: image(width: width, height: height, ordinal: ordinal),
             kind: .region,
-            sourceName: ordinal == 0
-                ? "UI Test Initial"
-                : "UI Test Added \(ordinal)",
+            sourceName: sourceName,
             sourceRect: rect,
             capturedAt: Date(
                 timeIntervalSince1970: 1_700_000_000 + TimeInterval(ordinal)

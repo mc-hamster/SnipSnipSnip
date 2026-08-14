@@ -38,6 +38,7 @@ enum DocumentWindowContentKind {
 protocol DocumentWindowPresenting {
     func syncMainWindowDocumentState(documentURL: URL?, hasUnsavedChanges: Bool, title: String)
     func resizeMainWindowForContent(pixelSize: CGSize, kind: DocumentWindowContentKind, animated: Bool) -> Bool
+    func restoreMainWindowForCaptureHome(animated: Bool)
 }
 
 @MainActor

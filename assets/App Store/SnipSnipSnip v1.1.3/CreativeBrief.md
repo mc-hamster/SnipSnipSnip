@@ -43,8 +43,9 @@ browsing.
   small connective details
 - Type: large near-black rounded display headline; quiet warm-gray supporting
   line
-- Product stage: a near-white framed surface with a soft shadow. Preserve the
-  actual App Store UI inside it; do not recolor or regenerate app pixels.
+- Product stage: the product image fills its allotted area directly, without a
+  synthetic card, border, frame, or shadow. Preserve the actual App Store UI;
+  do not recolor or regenerate app pixels.
 - Product imagery: real SnipSnipSnip Mac App Store UI only
 - Demo content: attractive, privacy-safe, and intentionally authored for the
   campaign
@@ -52,6 +53,8 @@ browsing.
   space and no small feature lists unless the list is the subject
 - Continuity: a subtle orange thread carries the viewer from Capture through
   Create, Polish, Review, and Arrange
+- Sequence: keep filenames ordered for upload, but do not display slide numbers
+  in the artwork
 
 Do not use decorative product-area colors, fake app interfaces, stock-device
 mockups, watermarks, transparent output, or screenshots containing private

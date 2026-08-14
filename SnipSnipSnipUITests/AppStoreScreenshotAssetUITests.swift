@@ -14,7 +14,12 @@ final class AppStoreScreenshotAssetUITests: XCTestCase {
 
         let runIdentifier = UUID().uuidString
         app = XCUIApplication()
-        app.launchArguments = ["--snipsnipsnip-composition-ui-testing"]
+        app.launchArguments = [
+            "--snipsnipsnip-composition-ui-testing",
+            "--snipsnipsnip-app-store-screenshots",
+            "-AppleInterfaceStyle",
+            "Light",
+        ]
         app.launchEnvironment["SNIPSNIPSNIP_UI_TEST_RUN_ID"] = runIdentifier
         app.launch()
         app.activate()
@@ -49,14 +54,17 @@ final class AppStoreScreenshotAssetUITests: XCTestCase {
         XCTAssertTrue(element("editor.annotationCanvas").waitForExistence(timeout: 5))
 
         try promote(to: "Compare", waitingFor: "composition.comparison")
+        try dismissEditorNotice()
         try capture(mainWindow, named: "03-comparison")
         try returnToScreenshot()
 
         try promote(to: "Add as Step", waitingFor: "composition.steps")
+        try dismissEditorNotice()
         try capture(mainWindow, named: "04-steps")
         try returnToScreenshot()
 
         try promote(to: "Combine", waitingFor: "composition.layout")
+        try dismissEditorNotice()
         try capture(mainWindow, named: "05-combined-image")
         try returnToScreenshot()
 
@@ -134,6 +142,20 @@ final class AppStoreScreenshotAssetUITests: XCTestCase {
         XCTAssertTrue(undo.waitForExistence(timeout: 5))
         undo.click()
         XCTAssertTrue(element("editor.annotationCanvas").waitForExistence(timeout: 10))
+    }
+
+    private func dismissEditorNotice() throws {
+        let notice = element("editor.notice")
+        if notice.exists {
+            XCTAssertTrue(
+                notice.waitForNonExistence(timeout: 5),
+                "The transient composition notice should dismiss before the App Store capture."
+            )
+        }
+        XCTAssertFalse(
+            notice.exists,
+            "App Store captures must not include transient editor notices."
+        )
     }
 
     private func element(_ identifier: String) -> XCUIElement {

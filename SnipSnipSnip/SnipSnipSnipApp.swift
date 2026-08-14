@@ -809,7 +809,10 @@ struct SnipSnipSnipApp: App {
                 )
             )
         }
-        .defaultSize(width: 1280, height: 700)
+        .defaultSize(
+            width: MainWindowLayout.defaultContentSize.width,
+            height: MainWindowLayout.defaultContentSize.height
+        )
         .windowResizability(.contentSize)
 #if DEBUG
         .defaultLaunchBehavior(

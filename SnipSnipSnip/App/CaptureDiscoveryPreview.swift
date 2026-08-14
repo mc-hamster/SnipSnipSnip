@@ -428,33 +428,49 @@ struct CaptureDiscoveryIllustration: View {
     }
 
     private var comparison: some View {
-        ZStack {
+        let width: CGFloat = 230
+        let height: CGFloat = 112
+        let wipePosition = 0.18 + progress * 0.64
+        let beforeWidth = width * wipePosition
+        let afterWidth = width - beforeWidth
+
+        return ZStack {
             RoundedRectangle(cornerRadius: 8)
                 .fill(Color.secondary.opacity(0.13))
-                .frame(width: 230, height: 112)
-                .overlay(alignment: .topLeading) {
-                    Text("BEFORE")
-                        .font(.system(size: 8, weight: .bold))
-                        .padding(7)
+                .frame(width: width, height: height)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.secondary.opacity(0.5), lineWidth: 1.5)
                 }
-                .overlay(alignment: .topTrailing) {
-                    Text("AFTER")
-                        .font(.system(size: 8, weight: .bold))
-                        .padding(7)
+
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(accent.opacity(0.18))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(accent.opacity(0.85), lineWidth: 1.5)
                 }
+                .frame(width: width, height: height)
+                .mask {
+                    HStack(spacing: 0) {
+                        Color.clear.frame(width: beforeWidth)
+                        Rectangle().frame(width: afterWidth)
+                    }
+                    .frame(width: width, height: height)
+                }
+
             Rectangle()
-                .fill(accent.opacity(0.22))
-                .frame(width: 115, height: 112)
-                .clipShape(.rect(cornerRadius: 8))
-                .offset(x: 57)
-            Rectangle()
-                .fill(accent)
-                .frame(width: 2, height: 120)
-                .offset(x: -72 + progress * 72)
-            Circle()
-                .fill(accent)
-                .frame(width: 12, height: 12)
-                .offset(x: -72 + progress * 72)
+                .fill(accent.opacity(0.75))
+                .frame(width: 1, height: height - 12)
+                .offset(x: beforeWidth - width / 2)
+
+            HStack {
+                Text("BEFORE")
+                Spacer()
+                Text("AFTER")
+            }
+            .font(.system(size: 8, weight: .bold))
+            .padding(7)
+            .frame(width: width, height: height, alignment: .top)
         }
     }
 
@@ -515,12 +531,56 @@ struct CaptureDiscoveryIllustration: View {
     }
 
     private var recordWindow: some View {
-        ZStack {
+        let selectionProgress = min(progress / 0.62, 1)
+        let recordingProgress = max((progress - 0.52) / 0.48, 0)
+
+        return ZStack {
+            appWindow(tint: Color.secondary.opacity(0.1))
+                .scaleEffect(0.68)
+                .offset(x: -66, y: 22)
+                .opacity(0.72 - selectionProgress * 0.28)
+            appWindow(tint: Color.secondary.opacity(0.12))
+                .scaleEffect(0.68)
+                .offset(x: 66, y: 20)
+                .opacity(0.72 - selectionProgress * 0.28)
+
             appWindow(tint: accent.opacity(0.12))
-                .overlay { RoundedRectangle(cornerRadius: 9).stroke(accent, lineWidth: 2) }
-                .scaleEffect(0.88 + progress * 0.12)
-            recordingBadge.offset(x: -90, y: -52)
-            timeline.offset(y: 55)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 9)
+                        .stroke(accent, lineWidth: 2)
+                        .opacity(selectionProgress)
+                }
+                .scaleEffect(0.84 + selectionProgress * 0.16)
+                .offset(y: 3 - selectionProgress * 8)
+                .shadow(
+                    color: .black.opacity(0.04 + selectionProgress * 0.08),
+                    radius: 3 + selectionProgress * 4,
+                    y: 2
+                )
+
+            Image(systemName: "cursorarrow.click")
+                .font(.title3)
+                .foregroundStyle(.primary)
+                .offset(
+                    x: -104 + selectionProgress * 145,
+                    y: 54 - selectionProgress * 48
+                )
+                .opacity(1 - recordingProgress)
+
+            Image(systemName: "checkmark.circle.fill")
+                .font(.title3)
+                .foregroundStyle(accent)
+                .offset(x: 80, y: -48)
+                .scaleEffect(0.65 + selectionProgress * 0.35)
+                .opacity(selectionProgress * (1 - recordingProgress))
+
+            recordingBadge
+                .offset(x: -78, y: -51)
+                .opacity(recordingProgress)
+                .scaleEffect(0.82 + recordingProgress * 0.18)
+            timeline
+                .offset(y: 58)
+                .opacity(recordingProgress)
         }
     }
 

@@ -13,7 +13,7 @@ await fs.mkdir(outputDirectory, { recursive: true });
 
 const campaignVersion = "1.1.3";
 const canvas = { width: 1440, height: 900 };
-const hero = { x: 72, y: 268, width: 1296, height: 560, radius: 28 };
+const hero = { x: 72, y: 268, width: 1296, height: 560 };
 
 function escapeXML(value) {
   return value
@@ -79,9 +79,6 @@ function chromeSVG(slide) {
           <stop offset="0.45" stop-color="#ff9b45"/>
           <stop offset="1" stop-color="#ff7a21" stop-opacity="0"/>
         </linearGradient>
-        <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%">
-          <feDropShadow dx="0" dy="20" stdDeviation="24" flood-color="#2c2118" flood-opacity="0.20"/>
-        </filter>
       </defs>
 
       <rect width="1440" height="900" fill="url(#background)"/>
@@ -110,29 +107,12 @@ function chromeSVG(slide) {
       )}
 
       <rect x="72" y="250" width="520" height="3" rx="1.5" fill="url(#rule)"/>
-      <rect x="${hero.x}" y="${hero.y}" width="${hero.width}" height="${hero.height}"
-        rx="${hero.radius}" fill="#fffdf9" filter="url(#shadow)"/>
-      <rect x="${hero.x}" y="${hero.y}" width="${hero.width}" height="${hero.height}"
-        rx="${hero.radius}" fill="#ffffff" fill-opacity="0.58" stroke="#2f2922" stroke-opacity="0.10" stroke-width="1"/>
 
       <text x="72" y="868"
         font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif"
         font-size="17" font-weight="700" letter-spacing="1.7" fill="#68625c">
         SNIPSNIPSNIP
       </text>
-      <text x="1368" y="868" text-anchor="end"
-        font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif"
-        font-size="18" font-weight="800" fill="#e76612">
-        ${escapeXML(slide.number)}
-      </text>
-    </svg>
-  `);
-}
-
-function heroMaskSVG() {
-  return Buffer.from(`
-    <svg width="${hero.width}" height="${hero.height}" xmlns="http://www.w3.org/2000/svg">
-      <rect width="${hero.width}" height="${hero.height}" rx="${hero.radius}" fill="#fff"/>
     </svg>
   `);
 }
@@ -141,39 +121,63 @@ async function sourceBuffer(slide) {
   const sourcePath = path.join(root, slide.source);
   try {
     await fs.access(sourcePath);
+    const metadata = await sharp(sourcePath).metadata();
+    const edgeInset = slide.edgeInset ?? 3;
     const foreground = await sharp(sourcePath)
-      .resize({
-        width: hero.width - 70,
-        height: hero.height - 40,
-        fit: slide.fit ?? "contain",
-        position: slide.focus ?? "centre",
-        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      .extract({
+        left: edgeInset,
+        top: edgeInset,
+        width: metadata.width - edgeInset * 2,
+        height: metadata.height - edgeInset * 2,
       })
-      .png()
-      .toBuffer();
-    return await sharp({
-      create: {
+      .resize({
         width: hero.width,
         height: hero.height,
-        channels: 4,
-        background: { r: 255, g: 253, b: 249, alpha: 0 },
-      },
-    })
+        fit: slide.fit ?? "contain",
+        position: slide.focus ?? "centre",
+        background: { r: 255, g: 255, b: 255, alpha: 1 },
+      })
+      // XCTest window screenshots preserve transparency in the rounded
+      // corners. Dropping alpha directly exposes their black hidden RGB
+      // values, so composite those pixels over the window's white surface.
+      .flatten({ background: "#ffffff" })
+      .png()
+      .toBuffer();
+    // AppKit's window screenshots include an opaque dark desktop wedge just
+    // outside the rounded top-left window corner. Fill only that tiny exterior
+    // shape; the traffic lights begin farther in and remain untouched.
+    const topLeftRepairSize = 24;
+    const topLeftRepair = Buffer.from(`
+      <svg width="${topLeftRepairSize}" height="${topLeftRepairSize}" xmlns="http://www.w3.org/2000/svg">
+        <path d="M0 0 H${topLeftRepairSize} A${topLeftRepairSize} ${topLeftRepairSize} 0 0 0 0 ${topLeftRepairSize} Z" fill="#ffffff"/>
+      </svg>
+    `);
+    if (slide.repairTopRight === false) {
+      return sharp(foreground)
+        .composite([{ input: topLeftRepair, left: 0, top: 0 }])
+        .png()
+        .toBuffer();
+    }
+
+    // Window captures include a gray desktop sliver inside the rounded
+    // top-right corner. Extend clean pixels from immediately inside the window
+    // through that corner so the image meets the artwork without a folded-edge
+    // artifact. The traffic-light corner remains untouched.
+    const cornerSize = 48;
+    const cornerFill = await sharp(foreground)
+      .extract({
+        left: hero.width - cornerSize - 12,
+        top: 0,
+        width: 1,
+        height: cornerSize,
+      })
+      .resize({ width: cornerSize, height: cornerSize, fit: "fill" })
+      .png()
+      .toBuffer();
+    return sharp(foreground)
       .composite([
-        {
-          input: await sharp(foreground)
-            .extend({
-              top: 14,
-              bottom: 22,
-              left: 22,
-              right: 22,
-              background: { r: 0, g: 0, b: 0, alpha: 0 },
-            })
-            .png()
-            .toBuffer(),
-          gravity: "centre",
-        },
-        { input: heroMaskSVG(), blend: "dest-in" },
+        { input: topLeftRepair, left: 0, top: 0 },
+        { input: cornerFill, left: hero.width - cornerSize, top: 0 },
       ])
       .png()
       .toBuffer();
@@ -191,14 +195,13 @@ async function sourceBuffer(slide) {
         {
           input: Buffer.from(`
             <svg width="${hero.width}" height="${hero.height}" xmlns="http://www.w3.org/2000/svg">
-              <rect x="1" y="1" width="${hero.width - 2}" height="${hero.height - 2}" rx="${hero.radius}" fill="none" stroke="#ff8a2a" stroke-opacity="0.38" stroke-width="2" stroke-dasharray="10 10"/>
+              <rect x="1" y="1" width="${hero.width - 2}" height="${hero.height - 2}" fill="none" stroke="#ff8a2a" stroke-opacity="0.38" stroke-width="2" stroke-dasharray="10 10"/>
               <text x="${hero.width / 2}" y="${hero.height / 2}" text-anchor="middle"
                 font-family="-apple-system, BlinkMacSystemFont, sans-serif"
                 font-size="22" font-weight="700" letter-spacing="1.2" fill="#8f939b">${label}</text>
             </svg>
           `),
         },
-        { input: heroMaskSVG(), blend: "dest-in" },
       ])
       .png()
       .toBuffer();

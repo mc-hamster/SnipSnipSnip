@@ -337,7 +337,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Work with rulers",
                             bullets: [
-                                "Drag a ruler to position it and resize it from the window edges.",
+                                "Drag a ruler to position it. Resize from the three blue grip lines: the right edge for a Horizontal ruler or the bottom edge for a Vertical ruler. The pointer changes to a grab hand over the draggable target.",
                                 "Click a ruler once to cycle through tick-edge and zero-origin positions.",
                                 "Move the pointer over a ruler to show the current pixel distance when Show Mouse Distance is enabled."
                             ]

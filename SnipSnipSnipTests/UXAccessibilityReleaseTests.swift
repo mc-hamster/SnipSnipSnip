@@ -6,6 +6,50 @@ import XCTest
 
 @MainActor
 final class UXAccessibilityReleaseTests: XCTestCase {
+    func testScreenRulerResizeGripsStayInsideTheRulerAndOutsideCloseControls() {
+        let horizontalBounds = CGRect(x: 0, y: 0, width: 640, height: 86)
+        let horizontalGrip = ScreenRulerResizeGripLayout.gripLineBounds(
+            for: .horizontal,
+            in: horizontalBounds
+        )
+
+        XCTAssertTrue(
+            ScreenRulerResizeGripLayout.visibleRulerBounds(in: horizontalBounds)
+                .contains(horizontalGrip)
+        )
+        XCTAssertFalse(
+            ScreenRulerResizeGripLayout.controlExclusionRect(in: horizontalBounds)
+                .intersects(horizontalGrip)
+        )
+        XCTAssertFalse(
+            ScreenRulerResizeGripLayout.visibleRulerBounds(in: horizontalBounds)
+                .intersects(
+                    ScreenRulerResizeGripLayout.closeButtonVisualRect(
+                        in: horizontalBounds
+                    )
+                )
+        )
+        XCTAssertTrue(
+            ScreenRulerResizeGripLayout.resizeTargetRect(for: .horizontal, in: horizontalBounds)
+                .contains(CGPoint(x: horizontalGrip.midX, y: horizontalGrip.midY))
+        )
+
+        let verticalBounds = CGRect(x: 0, y: 0, width: 86, height: 520)
+        let verticalGrip = ScreenRulerResizeGripLayout.gripLineBounds(
+            for: .vertical,
+            in: verticalBounds
+        )
+
+        XCTAssertTrue(
+            ScreenRulerResizeGripLayout.visibleRulerBounds(in: verticalBounds)
+                .contains(verticalGrip)
+        )
+        XCTAssertTrue(
+            ScreenRulerResizeGripLayout.resizeTargetRect(for: .vertical, in: verticalBounds)
+                .contains(CGPoint(x: verticalGrip.midX, y: verticalGrip.midY))
+        )
+    }
+
     func testRegionCommitModeMapsOntoCompatibleBooleans() {
         var preferences = RegionCapturePreferences()
 

@@ -32,10 +32,7 @@ final class ScreenRulerCoordinator: ObservableObject {
     func present(_ kind: ScreenRulerKind) {
         let model = ScreenRulerWindowModel(
             kind: kind,
-            preferences: preferences,
-            onTickEdgeToggle: { [weak self] kind in
-                self?.toggleTickEdge(for: kind)
-            }
+            preferences: preferences
         )
         let controller = ScreenRulerWindowController(
             model: model,
@@ -73,7 +70,29 @@ final class ScreenRulerCoordinator: ObservableObject {
         activeRulerCount = windowControllers.count
     }
 
-    private func toggleTickEdge(for kind: ScreenRulerKind) {
+}
+
+@MainActor
+final class ScreenRulerWindowModel: ObservableObject, Identifiable {
+    let id = UUID()
+    let kind: ScreenRulerKind
+
+    @Published var preferences: ScreenRulerPreferences
+    @Published var mouseLocation: CGPoint?
+
+    init(
+        kind: ScreenRulerKind,
+        preferences: ScreenRulerPreferences
+    ) {
+        self.kind = kind
+        self.preferences = preferences.sanitized()
+    }
+
+    var title: String {
+        kind.label
+    }
+
+    func toggleTickEdge() {
         var nextPreferences = preferences
 
         switch kind {
@@ -89,36 +108,7 @@ final class ScreenRulerCoordinator: ObservableObject {
             }
         }
 
-        updatePreferences(nextPreferences)
-        preferencesChangeHandler?(preferences)
-    }
-}
-
-@MainActor
-final class ScreenRulerWindowModel: ObservableObject, Identifiable {
-    let id = UUID()
-    let kind: ScreenRulerKind
-    private let onTickEdgeToggle: (ScreenRulerKind) -> Void
-
-    @Published var preferences: ScreenRulerPreferences
-    @Published var mouseLocation: CGPoint?
-
-    init(
-        kind: ScreenRulerKind,
-        preferences: ScreenRulerPreferences,
-        onTickEdgeToggle: @escaping (ScreenRulerKind) -> Void
-    ) {
-        self.kind = kind
-        self.onTickEdgeToggle = onTickEdgeToggle
-        self.preferences = preferences.sanitized()
-    }
-
-    var title: String {
-        kind.label
-    }
-
-    func toggleTickEdge() {
-        onTickEdgeToggle(kind)
+        preferences = nextPreferences.sanitized()
     }
 }
 
@@ -213,7 +203,7 @@ final class ScreenRulerWindowController: NSWindowController {
     private static func minimumSize(for kind: ScreenRulerKind) -> CGSize {
         switch kind {
         case .horizontal:
-            return CGSize(width: 220, height: 70)
+            return CGSize(width: 220, height: 86)
         case .vertical:
             return CGSize(width: 70, height: 220)
         }
@@ -234,6 +224,91 @@ extension ScreenRulerWindowController: NSWindowDelegate {
     }
 }
 
+nonisolated enum ScreenRulerResizeGripLayout {
+    static let rulerSideInset: CGFloat = 12
+    static let rulerTopInset: CGFloat = 28
+    static let rulerBottomInset: CGFloat = 12
+    static let closeButtonHitSize: CGFloat = 28
+    static let closeButtonVisualSize: CGFloat = 20
+    static let controlExclusionWidth = closeButtonHitSize
+    static let controlExclusionHeight = closeButtonHitSize
+    static let resizeTargetDepth: CGFloat = 56
+
+    static func visibleRulerBounds(in bounds: CGRect) -> CGRect {
+        CGRect(
+            x: bounds.minX + rulerSideInset,
+            y: bounds.minY + rulerBottomInset,
+            width: max(0, bounds.width - rulerSideInset * 2),
+            height: max(0, bounds.height - rulerTopInset - rulerBottomInset)
+        )
+    }
+
+    static func controlExclusionRect(in bounds: CGRect) -> CGRect {
+        CGRect(
+            x: bounds.maxX - controlExclusionWidth,
+            y: bounds.maxY - controlExclusionHeight,
+            width: controlExclusionWidth,
+            height: controlExclusionHeight
+        )
+    }
+
+    static func closeButtonVisualRect(in bounds: CGRect) -> CGRect {
+        let inset = (closeButtonHitSize - closeButtonVisualSize) / 2
+        return CGRect(
+            x: bounds.maxX - closeButtonHitSize + inset,
+            y: bounds.maxY - closeButtonHitSize + inset,
+            width: closeButtonVisualSize,
+            height: closeButtonVisualSize
+        )
+    }
+
+    static func gripLineBounds(for kind: ScreenRulerKind, in bounds: CGRect) -> CGRect {
+        let rulerBounds = visibleRulerBounds(in: bounds)
+
+        switch kind {
+        case .horizontal:
+            let minimumY = rulerBounds.minY + 4
+            let maximumY = max(
+                minimumY,
+                min(rulerBounds.maxY - 4, controlExclusionRect(in: bounds).minY - 4)
+            )
+            return CGRect(
+                x: rulerBounds.maxX - 18,
+                y: minimumY,
+                width: 12,
+                height: maximumY - minimumY
+            )
+        case .vertical:
+            let gripWidth = min(42, max(0, rulerBounds.width - 16))
+            return CGRect(
+                x: rulerBounds.midX - gripWidth / 2,
+                y: rulerBounds.minY + 6,
+                width: gripWidth,
+                height: 12
+            )
+        }
+    }
+
+    static func resizeTargetRect(for kind: ScreenRulerKind, in bounds: CGRect) -> CGRect {
+        switch kind {
+        case .horizontal:
+            return CGRect(
+                x: bounds.maxX - resizeTargetDepth,
+                y: bounds.minY,
+                width: resizeTargetDepth,
+                height: max(0, controlExclusionRect(in: bounds).minY - bounds.minY)
+            )
+        case .vertical:
+            return CGRect(
+                x: bounds.minX,
+                y: bounds.minY,
+                width: bounds.width,
+                height: min(resizeTargetDepth, bounds.height)
+            )
+        }
+    }
+}
+
 private struct ScreenRulerWindowView: View {
     @ObservedObject var model: ScreenRulerWindowModel
     let onClose: () -> Void
@@ -241,7 +316,9 @@ private struct ScreenRulerWindowView: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             rulerContent
-                .padding(12)
+                .padding(.horizontal, ScreenRulerResizeGripLayout.rulerSideInset)
+                .padding(.top, ScreenRulerResizeGripLayout.rulerTopInset)
+                .padding(.bottom, ScreenRulerResizeGripLayout.rulerBottomInset)
 
             WindowInteractionOverlayView(kind: model.kind) { point in
                 model.mouseLocation = point
@@ -251,7 +328,6 @@ private struct ScreenRulerWindowView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             controls
-                .padding(6)
                 .zIndex(2)
         }
     }
@@ -279,16 +355,24 @@ private struct ScreenRulerWindowView: View {
     }
 
     private var controls: some View {
-        HStack(spacing: 4) {
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-            }
-            .help("Close this ruler.")
+        Button(action: onClose) {
+            Image(systemName: "xmark")
+                .font(.caption2.weight(.semibold))
+                .frame(
+                    width: ScreenRulerResizeGripLayout.closeButtonVisualSize,
+                    height: ScreenRulerResizeGripLayout.closeButtonVisualSize
+                )
+                .background(.regularMaterial, in: Circle())
+                .frame(
+                    width: ScreenRulerResizeGripLayout.closeButtonHitSize,
+                    height: ScreenRulerResizeGripLayout.closeButtonHitSize
+                )
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .font(.caption.weight(.semibold))
-        .padding(5)
-        .background(.regularMaterial, in: Capsule())
+        .contentShape(Circle())
+        .help("Close this ruler.")
+        .accessibilityLabel("Close this ruler.")
     }
 }
 
@@ -496,10 +580,6 @@ private struct WindowInteractionOverlayView: NSViewRepresentable {
             case bottom
         }
 
-        private let edgeHitSize: CGFloat = 18
-        private let cornerHitSize: CGFloat = 56
-        private let controlExclusionWidth: CGFloat = 52
-        private let controlExclusionHeight: CGFloat = 40
         private let clickMovementThreshold: CGFloat = 3
         var kind: ScreenRulerKind {
             didSet {
@@ -548,21 +628,21 @@ private struct WindowInteractionOverlayView: NSViewRepresentable {
             NSColor.controlAccentColor.withAlphaComponent(0.75).setStroke()
             let path = NSBezierPath()
             path.lineWidth = 1.8
+            let gripBounds = ScreenRulerResizeGripLayout.gripLineBounds(
+                for: kind,
+                in: bounds
+            )
 
             switch kind {
             case .horizontal:
-                let gripHeight: CGFloat = min(42, max(24, bounds.height - 20))
-                let centerY = bounds.midY
-                for offset in stride(from: CGFloat(8), through: 24, by: 8) {
-                    path.move(to: CGPoint(x: bounds.maxX - offset, y: centerY - gripHeight / 2))
-                    path.line(to: CGPoint(x: bounds.maxX - offset, y: centerY + gripHeight / 2))
+                for x in stride(from: gripBounds.minX, through: gripBounds.maxX, by: 6) {
+                    path.move(to: CGPoint(x: x, y: gripBounds.minY))
+                    path.line(to: CGPoint(x: x, y: gripBounds.maxY))
                 }
             case .vertical:
-                let gripWidth: CGFloat = min(42, max(24, bounds.width - 20))
-                let centerX = bounds.midX
-                for offset in stride(from: CGFloat(8), through: 24, by: 8) {
-                    path.move(to: CGPoint(x: centerX - gripWidth / 2, y: bounds.minY + offset))
-                    path.line(to: CGPoint(x: centerX + gripWidth / 2, y: bounds.minY + offset))
+                for y in stride(from: gripBounds.minY, through: gripBounds.maxY, by: 6) {
+                    path.move(to: CGPoint(x: gripBounds.minX, y: y))
+                    path.line(to: CGPoint(x: gripBounds.maxX, y: y))
                 }
             }
 
@@ -577,6 +657,10 @@ private struct WindowInteractionOverlayView: NSViewRepresentable {
             dragStartTopY = window?.frame.maxY
             dragStartBottomInset = window.map { NSEvent.mouseLocation.y - $0.frame.minY }
             didDrag = false
+
+            if isInResizeTarget(localPoint) {
+                NSCursor.closedHand.set()
+            }
         }
 
         override func mouseDragged(with event: NSEvent) {
@@ -614,6 +698,7 @@ private struct WindowInteractionOverlayView: NSViewRepresentable {
 
         override func mouseUp(with event: NSEvent) {
             let shouldToggleTickEdge = activeInteraction != nil && !didDrag
+            let localPoint = convert(event.locationInWindow, from: nil)
             dragStartPoint = nil
             dragStartFrame = nil
             dragStartTopY = nil
@@ -624,10 +709,43 @@ private struct WindowInteractionOverlayView: NSViewRepresentable {
             if shouldToggleTickEdge {
                 onClick()
             }
+
+            updateCursor(for: localPoint)
         }
 
         override func resetCursorRects() {
-            addCursorRect(bounds, cursor: .openHand)
+            let resizeTarget = ScreenRulerResizeGripLayout.resizeTargetRect(
+                for: kind,
+                in: bounds
+            )
+
+            switch kind {
+            case .horizontal:
+                addCursorRect(
+                    CGRect(
+                        x: bounds.minX,
+                        y: bounds.minY,
+                        width: max(0, resizeTarget.minX - bounds.minX),
+                        height: bounds.height
+                    ),
+                    cursor: .openHand
+                )
+            case .vertical:
+                addCursorRect(
+                    CGRect(
+                        x: bounds.minX,
+                        y: resizeTarget.maxY,
+                        width: bounds.width,
+                        height: max(0, bounds.maxY - resizeTarget.maxY)
+                    ),
+                    cursor: .openHand
+                )
+            }
+
+            addCursorRect(
+                resizeTarget,
+                cursor: .openHand
+            )
         }
 
         override func updateTrackingAreas() {
@@ -639,7 +757,13 @@ private struct WindowInteractionOverlayView: NSViewRepresentable {
 
             let area = NSTrackingArea(
                 rect: bounds,
-                options: [.activeAlways, .inVisibleRect, .mouseMoved, .mouseEnteredAndExited],
+                options: [
+                    .activeAlways,
+                    .inVisibleRect,
+                    .mouseMoved,
+                    .mouseEnteredAndExited,
+                    .cursorUpdate
+                ],
                 owner: self
             )
             addTrackingArea(area)
@@ -647,28 +771,34 @@ private struct WindowInteractionOverlayView: NSViewRepresentable {
         }
 
         override func mouseMoved(with event: NSEvent) {
-            onMouseLocationChange(convert(event.locationInWindow, from: nil))
+            let localPoint = convert(event.locationInWindow, from: nil)
+            updateCursor(for: localPoint)
+            onMouseLocationChange(localPoint)
         }
 
         override func mouseEntered(with event: NSEvent) {
-            onMouseLocationChange(convert(event.locationInWindow, from: nil))
+            let localPoint = convert(event.locationInWindow, from: nil)
+            updateCursor(for: localPoint)
+            onMouseLocationChange(localPoint)
         }
 
         override func mouseExited(with event: NSEvent) {
+            NSCursor.arrow.set()
             onMouseLocationChange(nil)
         }
 
-        private func interaction(at point: CGPoint) -> Interaction {
-            let isRight = point.x >= bounds.maxX - edgeHitSize
-            let isBottom = point.y <= bounds.minY + edgeHitSize
+        override func cursorUpdate(with event: NSEvent) {
+            updateCursor(for: convert(event.locationInWindow, from: nil))
+        }
 
+        private func interaction(at point: CGPoint) -> Interaction {
             switch kind {
             case .horizontal:
-                if isRight || point.x >= bounds.maxX - cornerHitSize {
+                if isInResizeTarget(point) {
                     return .right
                 }
             case .vertical:
-                if isBottom || point.y <= bounds.minY + cornerHitSize {
+                if isInResizeTarget(point) {
                     return .bottom
                 }
             }
@@ -676,9 +806,25 @@ private struct WindowInteractionOverlayView: NSViewRepresentable {
             return .move
         }
 
+        private func isInResizeTarget(_ point: CGPoint) -> Bool {
+            ScreenRulerResizeGripLayout.resizeTargetRect(for: kind, in: bounds)
+                .contains(point)
+        }
+
+        private func updateCursor(for point: CGPoint) {
+            if isInControlStrip(point) {
+                NSCursor.arrow.set()
+            } else if isInResizeTarget(point) {
+                (activeInteraction == nil ? NSCursor.openHand : NSCursor.closedHand)
+                    .set()
+            } else {
+                NSCursor.openHand.set()
+            }
+        }
+
         private func isInControlStrip(_ point: CGPoint) -> Bool {
-            point.x >= bounds.maxX - controlExclusionWidth
-                && point.y >= bounds.maxY - controlExclusionHeight
+            ScreenRulerResizeGripLayout.controlExclusionRect(in: bounds)
+                .contains(point)
         }
 
         private func resizeBottomEdge(currentPoint: CGPoint, minimumHeight: CGFloat, frame: inout CGRect) {

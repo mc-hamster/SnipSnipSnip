@@ -3,6 +3,22 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class DocumentWindowPresenterTests: XCTestCase {
+    func testMainWindowLayoutUses1240PointPreferredMinimumWidth() {
+        XCTAssertEqual(MainWindowLayout.minimumContentSize, CGSize(width: 1_240, height: 600))
+        XCTAssertEqual(
+            MainWindowLayout.minimumContentSize(for: .screenshot),
+            MainWindowLayout.minimumContentSize
+        )
+        XCTAssertGreaterThanOrEqual(
+            MainWindowLayout.minimumContentSize(for: .video).width,
+            MainWindowLayout.minimumContentSize.width
+        )
+        XCTAssertGreaterThanOrEqual(
+            MainWindowLayout.minimumContentSize(for: .guide).width,
+            MainWindowLayout.minimumContentSize.width
+        )
+    }
+
     func testResizedFrameKeepsUserPlacedTopLeftCorner() {
         let frame = DocumentWindowPlacementPolicy.resizedFrame(
             currentFrame: CGRect(x: 90, y: 160, width: 900, height: 600),

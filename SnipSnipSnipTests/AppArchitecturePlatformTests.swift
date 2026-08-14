@@ -1358,6 +1358,10 @@ final class AppArchitecturePlatformTests: XCTestCase {
             "Document main-window resizing should route through DocumentWindowPresenting."
         )
         XCTAssertTrue(
+            documentEditorSession.contains("dependencies.windowPresenter.restoreMainWindowForCaptureHome("),
+            "Discarding a document should restore the Capture-home window minimum through the presenter."
+        )
+        XCTAssertTrue(
             documentWindowPresenter.contains("struct LiveDocumentWindowPresenter: DocumentWindowPresenting"),
             "AppKit main-window mutation should be isolated behind the live document window presenter."
         )
@@ -2302,9 +2306,9 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertTrue(content.contains("Text(\"Screen Tools\")"))
         XCTAssertTrue(content.contains("CaptureDiscoveryPreview("))
         XCTAssertTrue(content.contains("Task.sleep(for: .milliseconds(50))"))
-        XCTAssertTrue(content.contains("hasOpenDocument ? 900 : 1240"))
+        XCTAssertTrue(content.contains("MainWindowMinimumSizeBridge("))
         XCTAssertFalse(content.contains("ViewThatFits(in: .horizontal) {\n                    HStack(alignment: .top, spacing: 18)"))
-        XCTAssertTrue(app.contains(".defaultSize(width: 1280, height: 700)"))
+        XCTAssertTrue(app.contains("MainWindowLayout.defaultContentSize.width"))
         XCTAssertTrue(discoveryPreview.contains("withAnimation(.easeInOut(duration: 0.72))"))
         XCTAssertTrue(discoveryPreview.contains("guard animates else"))
         XCTAssertTrue(discoveryPreview.contains("progress = 1"))

@@ -396,6 +396,7 @@ extension DocumentWorkflowModel {
         if discardedRecoveryVideo {
             clearVideoRecoveryAfterSaveOrDiscard()
         }
+        dependencies.windowPresenter.restoreMainWindowForCaptureHome(animated: true)
     }
 
     func shelveCurrentDocumentForRecents() {
