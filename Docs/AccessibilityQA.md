@@ -34,8 +34,8 @@ Repeat the essential workflow pass with:
 - [ ] Clipboard History uses a native radio group whose selected state is visible and announced; enabling it reveals “Also add screenshots that were not copied,” which defaults on for new and reset installations.
 - [ ] A permission restart resumes at Clipboard History without losing choices.
 - [ ] Replay presents one setup-summary page, reflects current choices, and never blocks on the Clipboard decision.
-- [ ] The optional More Tools disclosure and post-onboarding Explore More card list only workflows present in the build.
-- [ ] Dismissing Explore More keeps it dismissed across launches; existing completed installations are not shown it automatically.
+- [ ] The optional More Tools disclosure lists only workflows present in the build.
+- [ ] The main-window discovery stage exposes each available action through pointer hover, keyboard focus, and VoiceOver without duplicating that guidance in a separate content card.
 - [ ] The empty capture screen exposes the full permission card.
 - [ ] An open screenshot, video, or Guide shows the compact permission strip; selecting it or attempting capture expands diagnostics.
 - [ ] Permission status changes are announced.

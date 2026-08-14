@@ -142,7 +142,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Discover screen tools and capture options",
-                            body: "Use Screen Tools in the main header to add a Screen Ruler or open Screen Inspector. Clipboard History opens beside those utilities. Point to an action or move keyboard focus to it to see an animated explanation of what it creates or opens. The pointer preview changes after a short 50 millisecond dwell, while keyboard focus changes it immediately. Timer, Cursor, Private Capture, and Auto Copy state stays visible beside Ready; choose a state control to change it. The main window keeps the explanation stage visible whenever no document is open, and Reduce Motion shows the fully resolved static scene."
+                            body: "Use Screen Tools in the main header to add a Screen Ruler or open Screen Inspector. Clipboard History opens beside those utilities. Point to an action or move keyboard focus to it to see an animated explanation of what it creates or opens. The pointer preview changes after a short 50 millisecond dwell, while keyboard focus changes it immediately. Timer, Cursor, Private Capture, and Auto Copy state stays visible beside Ready; choose a state control to change it. The main window keeps this single discovery stage visible whenever no document is open, and Reduce Motion shows the fully resolved static scene."
                         ),
                         HelpArticleSection(
                             title: "Know what stays editable",

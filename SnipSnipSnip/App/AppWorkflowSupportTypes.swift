@@ -173,7 +173,6 @@ nonisolated enum AppModelPreferenceKey {
     static let completedOnboardingVersion = "appModel.completedOnboardingVersion"
     static let onboardingResumeCheckpoint = "appModel.onboardingResumeCheckpoint"
     static let onboardingClipboardChoiceAcknowledged = "appModel.onboardingClipboardChoiceAcknowledged"
-    static let postOnboardingDiscoveryPending = "appModel.postOnboardingDiscoveryPending"
     static let editorCropOutsideOverlayAlpha = "appModel.editorCropOutsideOverlayAlpha"
     static let editorOutOfCapturePatternSettings = "appModel.editorOutOfCapturePatternSettings"
     static let presentationScenesRootPath = "appModel.presentationScenesRootPath"

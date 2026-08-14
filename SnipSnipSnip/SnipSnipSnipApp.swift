@@ -787,7 +787,6 @@ struct SnipSnipSnipApp: App {
                     creation: model.creation,
                     capabilities: model.capabilities,
                     workflowCoordinator: model.workflowCoordinator,
-                    dismissWelcomeCard: model.lifecycle.dismissWelcomeCard,
                     presentWindowQuickCaptureMenu: {
                         WindowCaptureQuickMenuPresenter.shared.present(
                             capture: model.capture,

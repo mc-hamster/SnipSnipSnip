@@ -14,7 +14,6 @@ struct ContentView: View {
     @ObservedObject var creation: CreationWorkflowModel
     let capabilities: AppCapabilitySnapshot
     let workflowCoordinator: AppWorkflowCoordinator
-    let dismissWelcomeCard: () -> Void
     let presentWindowQuickCaptureMenu: () -> Void
     let performAutomationRequest: (AutomationRequest) async -> Void
     @Environment(\.openURL) private var openURL
@@ -1692,10 +1691,6 @@ struct ContentView: View {
                         videoRecoveryCard
                     }
 
-                    if lifecycle.showsWelcomeCard {
-                        exploreCard
-                    }
-
                     windowCaptureCard
 
                     captureHistoryCard
@@ -1722,43 +1717,6 @@ struct ContentView: View {
             }
             .disabled(documents.isRecoveringVideo)
         }
-    }
-
-    private var exploreCard: some View {
-        CaptureModeCard(
-            title: "Explore More",
-            systemImage: "sparkles",
-            detail: "Your core capture setup is complete. More tools are ready when you need them."
-        ) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(explorationFeatureNames.joined(separator: "  ·  "))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-
-                HStack(spacing: 10) {
-                    Button("Open Help Guide") {
-                        openWindow(id: AppSceneID.helpWindow)
-                        NSApp.activate(ignoringOtherApps: true)
-                    }
-
-                    Button("Dismiss", action: dismissWelcomeCard)
-                        .help("Hide this exploration card.")
-                }
-            }
-        }
-    }
-
-    private var explorationFeatureNames: [String] {
-        var names: [String] = []
-        if capabilities.isEnabled(.guideCapture) { names.append("Guide") }
-        if capabilities.isEnabled(.screenRecording) { names.append("Video") }
-        if capabilities.isEnabled(.presentation) { names.append("Polish") }
-        if capabilities.isEnabled(.recovery) {
-            names.append(WorkflowVocabulary.Library.snipLibrary)
-        }
-        if capabilities.isEnabled(.uiMap) { names.append("UI Map") }
-        if capabilities.isEnabled(.automation) { names.append("Automation") }
-        return names
     }
 
     private var windowCaptureCard: some View {

@@ -22,7 +22,6 @@ final class AppLifecycleModel: ObservableObject {
     @Published var selectedSettingsTab: AppSettingsTab = .general
     @Published var selectedLibrarySettingsSection: LibrarySettingsSection = .snips
     @Published var onboardingPresentationRequest = 0
-    @Published var showsWelcomeCard = false
     @Published var errorMessage: String? {
         didSet {
             if let errorMessage, errorMessage != oldValue {
@@ -71,7 +70,6 @@ final class AppLifecycleModel: ObservableObject {
             currentVersion: AppLifecycleConstants.currentOnboardingVersion
         ) >= AppLifecycleConstants.currentOnboardingVersion
         self.onboardingPresentationMode = hasCompletedCurrentOnboarding ? .replay : .firstRun
-        self.showsWelcomeCard = preferenceStore.loadPostOnboardingDiscoveryPending()
     }
 
     var launchAtLoginStatus: LaunchAtLoginStatus {
@@ -153,14 +151,8 @@ final class AppLifecycleModel: ObservableObject {
     }
 
     func completeOnboarding(requestMainWindowPresentation: () -> Void) {
-        let completedFirstRun = onboardingPresentationMode == .firstRun
         preferenceStore.saveCompletedOnboardingVersion(AppLifecycleConstants.currentOnboardingVersion)
         preferenceStore.saveOnboardingResumeCheckpoint(nil)
-
-        if completedFirstRun {
-            showsWelcomeCard = true
-            preferenceStore.savePostOnboardingDiscoveryPending(true)
-        }
         onboardingPresentationMode = .replay
 
         if shouldOpenMainWindowAfterOnboarding {
@@ -188,16 +180,6 @@ final class AppLifecycleModel: ObservableObject {
 
     func skipOnboarding(requestMainWindowPresentation: () -> Void) {
         completeOnboarding(requestMainWindowPresentation: requestMainWindowPresentation)
-    }
-
-    func dismissWelcomeCard() {
-        guard showsWelcomeCard else {
-            return
-        }
-
-        showsWelcomeCard = false
-        preferenceStore.savePostOnboardingDiscoveryPending(false)
-        preferenceStore.saveWelcomeCardDismissed()
     }
 
     func checkForProUpdates() {

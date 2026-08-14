@@ -83,11 +83,6 @@ extension AppModel {
         set { lifecycle.mainWindowPresentationRequest = newValue }
     }
 
-    var showsWelcomeCard: Bool {
-        get { lifecycle.showsWelcomeCard }
-        set { lifecycle.showsWelcomeCard = newValue }
-    }
-
     var errorMessage: String? {
         get { lifecycle.errorMessage }
         set { lifecycle.errorMessage = newValue }

@@ -507,7 +507,6 @@ final class AppArchitecturePlatformTests: XCTestCase {
             "func requestOnboardingPresentation(",
             "func completeOnboarding(",
             "func skipOnboarding(",
-            "func dismissWelcomeCard(",
             "func checkForProUpdates(",
             "func presentProUpdateCheckResult(",
             "func presentProUpdateCheckFailure(",
@@ -609,7 +608,6 @@ final class AppArchitecturePlatformTests: XCTestCase {
             "func requestOnboardingPresentation(",
             "func completeOnboarding(",
             "func skipOnboarding(",
-            "func dismissWelcomeCard(",
             "func checkForProUpdates(",
         ] {
             XCTAssertFalse(

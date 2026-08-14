@@ -80,7 +80,7 @@ Use one product vocabulary across the main window, setup flows, menus, editors, 
 - Use one accent color for selection and primary actions.
 - Show On/Off, Allowed/Needs Setup, or other status text when a step has meaningful state.
 - Keep Back and Continue in a functional footer. Continue is the sole prominent action, and permission setup or restart replaces Continue when it is required.
-- Place optional capability discovery behind a native disclosure during setup and follow first-run completion with a concise, dismissible exploration card in the main capture window.
+- Place optional capability discovery behind a native disclosure during setup. After setup, the main capture window's persistent explanation stage owns capability discovery; do not add a second post-onboarding discovery card below it.
 - Do not use full-window decorative gradients, colored glow fields, per-step accent themes, or content Glass cards.
 
 ### Sheets and setup flows
