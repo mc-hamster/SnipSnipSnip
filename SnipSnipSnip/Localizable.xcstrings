@@ -10,6 +10,16 @@
     "%.1fs" : {
 
     },
+    "%@ · %@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@ · %3$@"
+          }
+        }
+      }
+    },
     "%@ %lld" : {
       "localizations" : {
         "en" : {
@@ -746,9 +756,6 @@
     "Back" : {
 
     },
-    "Back to Editing" : {
-
-    },
     "Background" : {
 
     },
@@ -1233,9 +1240,6 @@
     "Click a thumbnail to inspect a snapshot before restoring it." : {
 
     },
-    "Click outside the preview to dismiss" : {
-
-    },
     "Click the screenshot to sample a color from the base image." : {
 
     },
@@ -1276,12 +1280,6 @@
 
     },
     "Close this floating reference." : {
-
-    },
-    "Close this preview and return to editing." : {
-
-    },
-    "Close this preview." : {
 
     },
     "Close this ruler." : {
@@ -1657,9 +1655,6 @@
 
     },
     "Discard the current video editor session and return to the capture screen." : {
-
-    },
-    "Dismiss" : {
 
     },
     "Dismiss Import Results" : {
@@ -2059,6 +2054,9 @@
     "Fit all pixels, fill the frame, or display at actual pixel size." : {
 
     },
+    "Fit the screenshot to the window or show it at actual size." : {
+
+    },
     "Fit to View" : {
 
     },
@@ -2251,7 +2249,7 @@
     "History" : {
 
     },
-    "History Preview" : {
+    "History preview. Scroll to pan, pinch or Command-scroll to zoom, and double-click to switch between Fit and Actual Size." : {
 
     },
     "History Storage Target: %lld MB (Pinned Kept)" : {
@@ -2580,6 +2578,9 @@
     "Loading available windows…" : {
 
     },
+    "Loading Preview…" : {
+
+    },
     "Locate Source…" : {
 
     },
@@ -2721,6 +2722,9 @@
     "More Options" : {
 
     },
+    "More preview actions." : {
+
+    },
     "More tool choices" : {
 
     },
@@ -2812,6 +2816,9 @@
 
     },
     "New Vertical Ruler" : {
+
+    },
+    "Next history item" : {
 
     },
     "Next Item" : {
@@ -3016,9 +3023,6 @@
 
     },
     "Open the most recent Guide that was autosaved before an interruption." : {
-
-    },
-    "Open this snapshot in an always-on-top floating reference window." : {
 
     },
     "Open this Snip History item in the editor." : {
@@ -3329,6 +3333,12 @@
 
     },
     "Preview Trim" : {
+
+    },
+    "Preview Unavailable" : {
+
+    },
+    "Previous history item" : {
 
     },
     "Previous Item" : {
@@ -3676,12 +3686,6 @@
     "Restore Fit, centered alignment, 100% zoom, and zero focal offset." : {
 
     },
-    "Restore Snapshot" : {
-
-    },
-    "Restore the document to this history snapshot." : {
-
-    },
     "Restore the editable area to the full captured image." : {
 
     },
@@ -4012,6 +4016,9 @@
     "Set Layout" : {
 
     },
+    "Set preview zoom." : {
+
+    },
     "Set reference opacity. Click anywhere on the track or drag the knob." : {
 
     },
@@ -4244,7 +4251,13 @@
     "Show step number" : {
 
     },
+    "Show the next %@ item." : {
+
+    },
     "Show the pointer in still steps" : {
+
+    },
+    "Show the previous %@ item." : {
 
     },
     "Show the selected element outline in pinned UI Map overlays." : {
@@ -4510,12 +4523,6 @@
     "This permanently removes pinned and unpinned clipboard items from this Mac." : {
 
     },
-    "This snapshot includes edits that were not saved to disk." : {
-
-    },
-    "This snapshot reflects a saved state." : {
-
-    },
     "Tick Spacing" : {
 
     },
@@ -4580,6 +4587,9 @@
 
     },
     "Trim Whitespace" : {
+
+    },
+    "Try Again" : {
 
     },
     "Try the failed files again at their original composition destination." : {
@@ -4832,10 +4842,16 @@
     "Zoom in, zoom out, show actual size, fit the image, or resize the window as zoom changes." : {
 
     },
+    "Zoom in." : {
+
+    },
     "Zoom Level" : {
 
     },
     "Zoom Out" : {
+
+    },
+    "Zoom out." : {
 
     }
   },

@@ -54,7 +54,7 @@ extension DocumentWorkflowModel {
                     return
                 }
 
-                guard let image = try await FloatingReferenceHistoryLoader.loadImage(
+                guard let image = try await HistoryPreviewImageLoader.loadImage(
                     from: entry.packageURL,
                     files: systemServices.files
                 ) else {
@@ -71,6 +71,21 @@ extension DocumentWorkflowModel {
             } catch {
                 self?.presentError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
             }
+        }
+    }
+
+    func presentHistoryPreview(_ request: HistoryPreviewRequest) {
+        historyPreviewCoordinator.present(
+            request,
+            outOfCapturePatternSettings: editorOutOfCapturePatternSettings
+        )
+    }
+
+    func closeHistoryPreview(entryID: UUID?) {
+        if let entryID {
+            historyPreviewCoordinator.close(ifShowing: entryID)
+        } else {
+            historyPreviewCoordinator.close()
         }
     }
 
@@ -384,6 +399,7 @@ extension DocumentWorkflowModel {
     }
 
     func discardCurrentDocument() {
+        historyPreviewCoordinator.close()
         let discardedRecoveryVideo = videoEditorController != nil && currentVideoUsesRecoveryCheckpoint
         let previousTemporaryVideoURL = currentOwnedTemporaryVideoSourceURL(replacingWith: nil)
         clearCurrentRecoveryPendingState()
@@ -654,28 +670,6 @@ extension DocumentWorkflowModel {
         default:
             return .cancel
         }
-    }
-}
-
-nonisolated private enum FloatingReferenceHistoryLoader {
-    static func loadImage(
-        from packageURL: URL,
-        files: any FileSystemServicing
-    ) async throws -> CGImage? {
-        let task = Task.detached(priority: .userInitiated) { () throws -> CGImage? in
-            try Task.checkCancellation()
-            return try SSSDocumentPackage.loadDisplayPreview(
-                from: packageURL,
-                allowsExternalRecoveryBase: true,
-                files: files
-            )?.image
-        }
-
-        return try await withTaskCancellationHandler(operation: {
-            try await task.value
-        }, onCancel: {
-            task.cancel()
-        })
     }
 }
 

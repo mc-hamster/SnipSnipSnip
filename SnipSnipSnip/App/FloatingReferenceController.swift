@@ -284,12 +284,13 @@ final class FloatingReferenceCloseNotifier {
     }
 }
 
-enum FloatingReferenceZoomAction {
+enum FloatingReferenceZoomAction: Equatable {
     case zoomOut
     case zoomIn
     case actualSize
     case fit
     case resizeWindowToZoom
+    case setPercentage(Double)
 }
 
 struct FloatingReferenceZoomRequest: Equatable {
@@ -317,11 +318,13 @@ nonisolated struct FloatingReferenceWindowResizeRequest: Equatable {
 @MainActor
 final class FloatingReferenceWindowModel: ObservableObject, Identifiable {
     let id = UUID()
-    let title: String
-    let subtitle: String?
-    let image: CGImage
-    let pixelSize: CGSize
-    let outOfCapturePatternSettings: EditorOutOfCapturePatternSettings
+    @Published private(set) var title: String
+    @Published private(set) var subtitle: String?
+    @Published private(set) var image: CGImage
+    @Published private(set) var pixelSize: CGSize
+    @Published private(set) var outOfCapturePatternSettings: EditorOutOfCapturePatternSettings
+    let preservesZoomAcrossImageChanges: Bool
+    let togglesFitOnDoubleClick: Bool
 
     @Published var opacity: Double = 1
     @Published var resizesWindowForZoom = false
@@ -329,16 +332,47 @@ final class FloatingReferenceWindowModel: ObservableObject, Identifiable {
     @Published var zoomRequest: FloatingReferenceZoomRequest?
     @Published var windowResizeRequest: FloatingReferenceWindowResizeRequest?
 
-    init(request: FloatingReferenceRequest) {
-        title = request.title
-        subtitle = request.subtitle
-        image = request.image
-        pixelSize = CGSize(width: request.image.width, height: request.image.height)
-        outOfCapturePatternSettings = request.outOfCapturePatternSettings
+    init(
+        title: String,
+        subtitle: String?,
+        image: CGImage,
+        outOfCapturePatternSettings: EditorOutOfCapturePatternSettings,
+        preservesZoomAcrossImageChanges: Bool = false,
+        togglesFitOnDoubleClick: Bool = false
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.image = image
+        self.pixelSize = CGSize(width: image.width, height: image.height)
+        self.outOfCapturePatternSettings = outOfCapturePatternSettings
+        self.preservesZoomAcrossImageChanges = preservesZoomAcrossImageChanges
+        self.togglesFitOnDoubleClick = togglesFitOnDoubleClick
+    }
+
+    convenience init(request: FloatingReferenceRequest) {
+        self.init(
+            title: request.title,
+            subtitle: request.subtitle,
+            image: request.image,
+            outOfCapturePatternSettings: request.outOfCapturePatternSettings
+        )
     }
 
     func requestZoom(_ action: FloatingReferenceZoomAction) {
         zoomRequest = FloatingReferenceZoomRequest(action: action)
+    }
+
+    func updateContent(
+        title: String,
+        subtitle: String?,
+        image: CGImage,
+        outOfCapturePatternSettings: EditorOutOfCapturePatternSettings
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.image = image
+        self.pixelSize = CGSize(width: image.width, height: image.height)
+        self.outOfCapturePatternSettings = outOfCapturePatternSettings
     }
 }
 
@@ -603,7 +637,7 @@ private struct FloatingReferenceWindowView: View {
     }
 }
 
-private struct ZoomableReferenceImageView: NSViewRepresentable {
+struct ZoomableReferenceImageView: NSViewRepresentable {
     @ObservedObject var model: FloatingReferenceWindowModel
 
     func makeCoordinator() -> Coordinator {
@@ -628,17 +662,21 @@ private struct ZoomableReferenceImageView: NSViewRepresentable {
         }
         canvasView.configure(
             image: model.image,
-            outOfCapturePatternSettings: model.outOfCapturePatternSettings
+            outOfCapturePatternSettings: model.outOfCapturePatternSettings,
+            preservesZoomAcrossImageChanges: model.preservesZoomAcrossImageChanges
         )
+        canvasView.togglesFitOnDoubleClick = model.togglesFitOnDoubleClick
         return canvasView
     }
 
     func updateNSView(_ nsView: ZoomableReferenceCanvasView, context: Context) {
         nsView.configure(
             image: model.image,
-            outOfCapturePatternSettings: model.outOfCapturePatternSettings
+            outOfCapturePatternSettings: model.outOfCapturePatternSettings,
+            preservesZoomAcrossImageChanges: model.preservesZoomAcrossImageChanges
         )
         nsView.resizesWindowForZoom = model.resizesWindowForZoom
+        nsView.togglesFitOnDoubleClick = model.togglesFitOnDoubleClick
 
         if let request = model.zoomRequest,
            request.id != context.coordinator.lastZoomRequestID {
@@ -652,7 +690,7 @@ private struct ZoomableReferenceImageView: NSViewRepresentable {
     }
 }
 
-private final class ZoomableReferenceCanvasView: NSView {
+final class ZoomableReferenceCanvasView: NSView {
     private var currentImage: CGImage?
     private var imageSize: CGSize = .zero
     private var image: NSImage?
@@ -663,6 +701,7 @@ private final class ZoomableReferenceCanvasView: NSView {
     private var lastPublishedZoomState: FloatingReferenceZoomState?
 
     var resizesWindowForZoom = false
+    var togglesFitOnDoubleClick = false
     var onZoomStateChange: ((FloatingReferenceZoomState) -> Void)?
     var onWindowResizeRequest: ((CGSize) -> Void)?
 
@@ -732,7 +771,8 @@ private final class ZoomableReferenceCanvasView: NSView {
 
     func configure(
         image: CGImage,
-        outOfCapturePatternSettings: EditorOutOfCapturePatternSettings
+        outOfCapturePatternSettings: EditorOutOfCapturePatternSettings,
+        preservesZoomAcrossImageChanges: Bool = false
     ) {
         let imageDidChange = currentImage !== image
         let patternDidChange = self.outOfCapturePatternSettings != outOfCapturePatternSettings
@@ -744,12 +784,29 @@ private final class ZoomableReferenceCanvasView: NSView {
         self.outOfCapturePatternSettings = outOfCapturePatternSettings
 
         if imageDidChange {
+            let previousImageSize = imageSize
+            let previousDisplayScale = followsFitToViewport ? nil : fixedDisplayScale ?? viewport.displayScale
             currentImage = image
             imageSize = CGSize(width: image.width, height: image.height)
             self.image = NSImage(cgImage: image, size: imageSize)
-            viewport = viewport.updatingContentSize(imageSize, fitToWindow: true)
-            followsFitToViewport = true
-            fixedDisplayScale = nil
+
+            if preservesZoomAcrossImageChanges,
+               let previousDisplayScale,
+               HistoryPreviewZoomContinuityPolicy.shouldPreserveManualZoom(
+                   from: previousImageSize,
+                   to: imageSize
+               ) {
+                viewport = viewport.updatingContentSize(imageSize, fitToWindow: false)
+                viewport = viewport.zoomed(
+                    to: zoomScale(forDisplayScale: previousDisplayScale)
+                )
+                followsFitToViewport = false
+                fixedDisplayScale = viewport.displayScale
+            } else {
+                viewport = viewport.updatingContentSize(imageSize, fitToWindow: true)
+                followsFitToViewport = true
+                fixedDisplayScale = nil
+            }
             needsLayout = true
         }
 
@@ -779,6 +836,23 @@ private final class ZoomableReferenceCanvasView: NSView {
             followsFitToViewport = false
             fixedDisplayScale = viewport.displayScale
             finishZoomChange(resizeWindow: true)
+        case .setPercentage(let percentage):
+            applyFixedDisplayScale(CGFloat(percentage / 100))
+            finishZoomChange(resizeWindow: resizesWindowForZoom)
+        }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard togglesFitOnDoubleClick, event.clickCount == 2 else {
+            super.mouseDown(with: event)
+            return
+        }
+
+        synchronizeViewportToBounds()
+        if followsFitToViewport {
+            applyZoomAction(.actualSize)
+        } else {
+            applyZoomAction(.fit)
         }
     }
 

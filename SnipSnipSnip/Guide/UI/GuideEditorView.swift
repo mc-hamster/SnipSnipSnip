@@ -746,6 +746,7 @@ private struct GuideAdvancedEditorSheet: View {
                 captureSearchQuery: $search,
                 captureHistorySearchResultsLabel: "",
                 historyActions: EditorHistoryActions(
+                    onPresentHistoryPreview: { _ in }, onCloseHistoryPreview: { _ in },
                     onRestoreHistoryEntry: { _ in }, onRestoreRecentSnipEntry: { _ in },
                     onFloatHistoryEntry: { _ in }, onDeleteHistoryEntry: { _ in },
                     onDeleteAllHistoryEntries: {}, onDeleteRecentSnipEntry: { _ in },

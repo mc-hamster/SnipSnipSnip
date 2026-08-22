@@ -22,28 +22,10 @@ struct EditorView: View {
     var compositionActions: CompositionInspectorActions = .unavailable
     var compositionExportProgress: CompositionExportProgressState?
     var onCancelCompositionExport: () -> Void = {}
-    @State private var previewedHistoryEntry: DocumentHistoryEntry?
 
     var body: some View {
         ZStack {
             EditorCanvasScrollContainer(controller: controller)
-
-            if let entry = previewedHistoryEntry {
-                HistoryPreviewOverlayView(
-                    entry: entry,
-                    onClose: {
-                        previewedHistoryEntry = nil
-                    },
-                    onFloat: {
-                        historyActions.onFloatHistoryEntry(entry)
-                    },
-                    onRestore: {
-                        previewedHistoryEntry = nil
-                        historyActions.onRestoreHistoryEntry(entry)
-                    }
-                )
-                    .zIndex(1)
-            }
 
             if let progress = compositionExportProgress {
                 CompositionExportProgressOverlay(
@@ -102,8 +84,7 @@ struct EditorView: View {
                 captureSearchQuery: $captureSearchQuery,
                 captureHistorySearchResultsLabel: captureHistorySearchResultsLabel,
                 actions: historyActions,
-                compositionActions: compositionActions,
-                previewedHistoryEntry: $previewedHistoryEntry
+                compositionActions: compositionActions
             )
             .inspectorColumnWidth(min: 280, ideal: 320, max: 380)
         }
@@ -140,11 +121,6 @@ struct EditorView: View {
                 onCancel: controller.dismissOCRReview
             )
             .frame(width: 480, height: 320)
-        }
-        .onExitCommand {
-            if previewedHistoryEntry != nil {
-                previewedHistoryEntry = nil
-            }
         }
     }
 

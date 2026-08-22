@@ -1022,7 +1022,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Use Change History",
-                            body: "Autosave checkpoints appear in the editor inspector. You can preview, restore, delete individual snapshots, or clear the current snip's history."
+                            body: "Autosave checkpoints appear in the editor inspector. Click a thumbnail or focus it and press Space to open the separate History Preview window without replacing the editor canvas. Use the arrow controls or arrow keys to browse neighboring items, scroll to pan, pinch or Command-scroll to zoom, double-click to switch between Fit and Actual Size, and use the source-appropriate Restore or Open action when you are ready. Close the preview with its standard window control, Escape, or Command-W. You can also delete individual snapshots or clear the current snip's history from the inspector."
                         ),
                         HelpArticleSection(
                             title: "Use the Snip Library",

@@ -14,6 +14,7 @@ struct DocumentWorkflowDependencies {
     let windowPresenter: any DocumentWindowPresenting
     let pasteboardImporter: any DocumentPasteboardImporting
     let floatingReferenceCoordinator: FloatingReferenceCoordinator
+    let historyPreviewCoordinator: HistoryPreviewCoordinator
     let textRecognitionCoordinator: CaptureTextRecognitionCoordinator
 }
 @MainActor
@@ -208,6 +209,10 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
 
     var floatingReferenceCoordinator: FloatingReferenceCoordinator {
         dependencies.floatingReferenceCoordinator
+    }
+
+    var historyPreviewCoordinator: HistoryPreviewCoordinator {
+        dependencies.historyPreviewCoordinator
     }
 
     var isInteractiveCaptureAutosaveSuspended: Bool {

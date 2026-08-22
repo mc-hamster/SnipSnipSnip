@@ -141,6 +141,8 @@ private struct UIMapSourceColorSwatch: View {
 }
 
 struct EditorHistoryActions {
+    let onPresentHistoryPreview: (HistoryPreviewRequest) -> Void
+    let onCloseHistoryPreview: (UUID?) -> Void
     let onRestoreHistoryEntry: (DocumentHistoryEntry) -> Void
     let onRestoreRecentSnipEntry: (DocumentHistoryEntry) -> Void
     let onFloatHistoryEntry: (DocumentHistoryEntry) -> Void
@@ -171,7 +173,6 @@ struct EditorInspectorView: View {
     let captureHistorySearchResultsLabel: String
     let actions: EditorHistoryActions
     var compositionActions: CompositionInspectorActions = .unavailable
-    @Binding var previewedHistoryEntry: DocumentHistoryEntry?
     @State private var isShowingRecycleBin = false
     @State private var selectedPage: EditorInspectorPage = .properties
 
@@ -1175,8 +1176,7 @@ struct EditorInspectorView: View {
     private var changeHistorySection: some View {
         ChangeHistorySectionView(
             historyEntries: historyEntries,
-            actions: actions,
-            previewedHistoryEntry: $previewedHistoryEntry
+            actions: actions
         )
         .equatable()
     }
@@ -1187,8 +1187,7 @@ struct EditorInspectorView: View {
             captureHistoryEntries: captureHistoryEntries,
             captureSearchQuery: $captureSearchQuery,
             captureHistorySearchResultsLabel: captureHistorySearchResultsLabel,
-            actions: actions,
-            previewedHistoryEntry: $previewedHistoryEntry
+            actions: actions
         )
         .equatable()
     }
@@ -1451,7 +1450,6 @@ struct CheckerboardPattern: View {
 private struct ChangeHistorySectionView: View, Equatable {
     let historyEntries: [DocumentHistoryEntry]
     let actions: EditorHistoryActions
-    @Binding var previewedHistoryEntry: DocumentHistoryEntry?
     @State private var showsAllEntries = false
 
     static func == (lhs: ChangeHistorySectionView, rhs: ChangeHistorySectionView) -> Bool {
@@ -1480,7 +1478,10 @@ private struct ChangeHistorySectionView: View, Equatable {
 
                         Spacer(minLength: 8)
 
-                        Button(role: .destructive, action: actions.onDeleteAllHistoryEntries) {
+                        Button(role: .destructive) {
+                            actions.onCloseHistoryPreview(nil)
+                            actions.onDeleteAllHistoryEntries()
+                        } label: {
                             Label("Delete All", systemImage: "trash")
                         }
                         .buttonStyle(.glass)
@@ -1500,15 +1501,30 @@ private struct ChangeHistorySectionView: View, Equatable {
                             restoreHelp: "Restore the document to this history snapshot.",
                             deleteHelp: "Delete this history snapshot.",
                             onPreview: {
-                                previewedHistoryEntry = entry
+                                actions.onPresentHistoryPreview(
+                                    HistoryPreviewRequest(
+                                        contextTitle: WorkflowVocabulary.Library.changeHistory,
+                                        entries: historyEntries,
+                                        selectedEntryID: entry.id,
+                                        primaryAction: HistoryPreviewPrimaryAction(
+                                            title: "Restore",
+                                            systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90",
+                                            help: "Restore the document to this history snapshot.",
+                                            perform: { restoredEntry in
+                                                actions.onRestoreHistoryEntry(restoredEntry)
+                                            }
+                                        ),
+                                        onFloat: { floatedEntry in
+                                            actions.onFloatHistoryEntry(floatedEntry)
+                                        }
+                                    )
+                                )
                             },
                             onRestore: {
                                 actions.onRestoreHistoryEntry(entry)
                             },
                             onDelete: {
-                                if previewedHistoryEntry?.id == entry.id {
-                                    previewedHistoryEntry = nil
-                                }
+                                actions.onCloseHistoryPreview(entry.id)
                                 actions.onDeleteHistoryEntry(entry)
                             }
                         )
@@ -1534,7 +1550,6 @@ private struct RecentSnipsSectionView: View, Equatable {
     @Binding var captureSearchQuery: String
     let captureHistorySearchResultsLabel: String
     let actions: EditorHistoryActions
-    @Binding var previewedHistoryEntry: DocumentHistoryEntry?
     @State private var showsAllRecentSnips = false
 
     static func == (lhs: RecentSnipsSectionView, rhs: RecentSnipsSectionView) -> Bool {
@@ -1578,7 +1593,10 @@ private struct RecentSnipsSectionView: View, Equatable {
 
                     Spacer(minLength: 8)
 
-                    Button(role: .destructive, action: actions.onDeleteAllRecentSnipEntries) {
+                    Button(role: .destructive) {
+                        actions.onCloseHistoryPreview(nil)
+                        actions.onDeleteAllRecentSnipEntries()
+                    } label: {
                         Label("Delete All", systemImage: "trash")
                     }
                     .buttonStyle(.glass)
@@ -1600,15 +1618,30 @@ private struct RecentSnipsSectionView: View, Equatable {
                             restoreHelp: "Restore this recent snip and keep the current one in Recent Snips.",
                             deleteHelp: "Delete this recent snip.",
                             onPreview: {
-                                previewedHistoryEntry = entry
+                                actions.onPresentHistoryPreview(
+                                    HistoryPreviewRequest(
+                                        contextTitle: WorkflowVocabulary.Library.recentSnips,
+                                        entries: recentSnipEntries,
+                                        selectedEntryID: entry.id,
+                                        primaryAction: HistoryPreviewPrimaryAction(
+                                            title: "Restore",
+                                            systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90",
+                                            help: "Restore this recent snip and keep the current one in Recent Snips.",
+                                            perform: { restoredEntry in
+                                                actions.onRestoreRecentSnipEntry(restoredEntry)
+                                            }
+                                        ),
+                                        onFloat: { floatedEntry in
+                                            actions.onFloatHistoryEntry(floatedEntry)
+                                        }
+                                    )
+                                )
                             },
                             onRestore: {
                                 actions.onRestoreRecentSnipEntry(entry)
                             },
                             onDelete: {
-                                if previewedHistoryEntry?.id == entry.id {
-                                    previewedHistoryEntry = nil
-                                }
+                                actions.onCloseHistoryPreview(entry.id)
                                 actions.onDeleteRecentSnipEntry(entry)
                             }
                         )
@@ -1658,15 +1691,30 @@ private struct RecentSnipsSectionView: View, Equatable {
                                 restoreHelp: "Open this Snip History item in the editor.",
                                 deleteHelp: "Delete this Snip History item.",
                                 onPreview: {
-                                    previewedHistoryEntry = entry
+                                    actions.onPresentHistoryPreview(
+                                        HistoryPreviewRequest(
+                                            contextTitle: WorkflowVocabulary.Library.snipHistory,
+                                            entries: filteredCaptureHistoryEntries,
+                                            selectedEntryID: entry.id,
+                                            primaryAction: HistoryPreviewPrimaryAction(
+                                                title: "Open",
+                                                systemImage: "arrow.up.forward.app",
+                                                help: "Open this Snip History item in the editor.",
+                                                perform: { openedEntry in
+                                                    actions.onRestoreHistoryEntry(openedEntry)
+                                                }
+                                            ),
+                                            onFloat: { floatedEntry in
+                                                actions.onFloatHistoryEntry(floatedEntry)
+                                            }
+                                        )
+                                    )
                                 },
                                 onRestore: {
                                     actions.onRestoreHistoryEntry(entry)
                                 },
                                 onDelete: {
-                                    if previewedHistoryEntry?.id == entry.id {
-                                        previewedHistoryEntry = nil
-                                    }
+                                    actions.onCloseHistoryPreview(entry.id)
                                     actions.onDeleteHistoryEntry(entry)
                                 }
                             )
@@ -1683,20 +1731,18 @@ private struct RecycleBinSheetView: View {
     @Environment(\.dismiss) private var dismiss
     let recycleBinEntries: [DocumentHistoryEntry]
     let actions: EditorHistoryActions
-    @State private var previewedEntry: DocumentHistoryEntry?
 
     var body: some View {
-        ZStack {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(WorkflowVocabulary.Library.recycleBin)
-                            .font(.title2.weight(.semibold))
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(WorkflowVocabulary.Library.recycleBin)
+                        .font(.title2.weight(.semibold))
 
-                        Text("Deleted snips stay here temporarily and can be restored before the Recycle Bin is emptied.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
+                    Text("Deleted snips stay here temporarily and can be restored before the Recycle Bin is emptied.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
 
                 Spacer(minLength: 12)
 
@@ -1707,71 +1753,71 @@ private struct RecycleBinSheetView: View {
                 .keyboardShortcut(.cancelAction)
                 .help("Close the Recycle Bin.")
 
-                Button(role: .destructive, action: actions.onEmptyRecycleBin) {
+                Button(role: .destructive) {
+                    actions.onCloseHistoryPreview(nil)
+                    actions.onEmptyRecycleBin()
+                } label: {
                     Label("Empty Recycle Bin", systemImage: "trash.slash")
                 }
-                    .buttonStyle(.glass)
-                    .disabled(recycleBinEntries.isEmpty)
-                    .help("Permanently delete every item currently in the Recycle Bin.")
-                }
-                .padding(20)
-
-                Divider()
-
-                if recycleBinEntries.isEmpty {
-                    ContentUnavailableView(
-                        "Recycle Bin is Empty",
-                        systemImage: "trash",
-                        description: Text("Deleted snips will appear here until retention expires or you empty the Recycle Bin.")
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 14) {
-                            ForEach(recycleBinEntries) { entry in
-                                RecycleBinEntryRowView(
-                                    entry: entry,
-                                    onPreview: {
-                                        previewedEntry = entry
-                                    },
-                                    onRestore: {
-                                        previewedEntry = nil
-                                        actions.onRestoreRecycledHistoryEntry(entry)
-                                        dismiss()
-                                    },
-                                    onPermanentDelete: {
-                                        if previewedEntry?.id == entry.id {
-                                            previewedEntry = nil
-                                        }
-                                        actions.onPermanentlyDeleteRecycledHistoryEntry(entry)
-                                    }
-                                )
-                            }
-                        }
-                        .padding(20)
-                    }
-                }
+                .buttonStyle(.glass)
+                .disabled(recycleBinEntries.isEmpty)
+                .help("Permanently delete every item currently in the Recycle Bin.")
             }
-            .background(Color(nsColor: .windowBackgroundColor))
+            .padding(20)
 
-            if let previewedEntry {
-                HistoryPreviewOverlayView(
-                    entry: previewedEntry,
-                    onClose: {
-                        self.previewedEntry = nil
-                    },
-                    onFloat: {
-                        actions.onFloatHistoryEntry(previewedEntry)
-                    },
-                    onRestore: {
-                        self.previewedEntry = nil
-                        actions.onRestoreRecycledHistoryEntry(previewedEntry)
-                        dismiss()
-                    }
+            Divider()
+
+            if recycleBinEntries.isEmpty {
+                ContentUnavailableView(
+                    "Recycle Bin is Empty",
+                    systemImage: "trash",
+                    description: Text("Deleted snips will appear here until retention expires or you empty the Recycle Bin.")
                 )
-                .zIndex(1)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 14) {
+                        ForEach(recycleBinEntries) { entry in
+                            RecycleBinEntryRowView(
+                                entry: entry,
+                                onPreview: {
+                                    actions.onPresentHistoryPreview(
+                                        HistoryPreviewRequest(
+                                            contextTitle: WorkflowVocabulary.Library.recycleBin,
+                                            entries: recycleBinEntries,
+                                            selectedEntryID: entry.id,
+                                            primaryAction: HistoryPreviewPrimaryAction(
+                                                title: "Restore",
+                                                systemImage: "arrow.uturn.backward.circle",
+                                                help: "Restore this snip and open it in the editor.",
+                                                perform: { restoredEntry in
+                                                    actions.onRestoreRecycledHistoryEntry(restoredEntry)
+                                                    dismiss()
+                                                }
+                                            ),
+                                            onFloat: { floatedEntry in
+                                                actions.onFloatHistoryEntry(floatedEntry)
+                                            }
+                                        )
+                                    )
+                                },
+                                onRestore: {
+                                    actions.onCloseHistoryPreview(entry.id)
+                                    actions.onRestoreRecycledHistoryEntry(entry)
+                                    dismiss()
+                                },
+                                onPermanentDelete: {
+                                    actions.onCloseHistoryPreview(entry.id)
+                                    actions.onPermanentlyDeleteRecycledHistoryEntry(entry)
+                                }
+                            )
+                        }
+                    }
+                    .padding(20)
+                }
             }
         }
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 
@@ -1956,127 +2002,5 @@ private func historyEntriesEqual(_ lhs: [DocumentHistoryEntry], _ rhs: [Document
             && left.sourceDocumentURL == right.sourceDocumentURL
             && left.hasUnsavedChanges == right.hasUnsavedChanges
             && left.searchableText == right.searchableText
-    }
-}
-
-struct HistoryPreviewOverlayView: View {
-    let entry: DocumentHistoryEntry
-    let onClose: () -> Void
-    let onFloat: () -> Void
-    let onRestore: () -> Void
-
-    var body: some View {
-        GeometryReader { proxy in
-            let panelWidth = min(proxy.size.width - 40, 1040)
-            let previewHeight = max(360, min(proxy.size.height * 0.68, 700))
-
-            ZStack {
-                Color.black.opacity(0.48)
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        onClose()
-                    }
-
-                VStack(alignment: .leading, spacing: 20) {
-                    HStack(alignment: .top, spacing: 16) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("History Preview")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-
-                            HStack(spacing: 10) {
-                                Text(entry.label)
-                                    .font(.title2.weight(.semibold))
-
-                                if entry.hasUnsavedChanges {
-                                    Text("Unsaved changes")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(.orange)
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 5)
-                                        .background(Color.orange.opacity(0.12), in: Capsule())
-                                }
-                            }
-
-                            Text(entry.savedAt.formatted(date: .abbreviated, time: .shortened))
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-
-                        Button(action: onClose) {
-                            Label("Close", systemImage: "xmark")
-                        }
-                        .buttonStyle(.glass)
-                        .keyboardShortcut(.cancelAction)
-                        .help("Close this preview.")
-                    }
-
-                    ZStack(alignment: .bottomLeading) {
-                        RoundedRectangle(cornerRadius: 26, style: .continuous)
-                            .fill(Color(nsColor: .controlBackgroundColor))
-
-                        DocumentPreviewThumbnailView(
-                            packageURL: entry.packageURL,
-                            thumbnailSize: CGSize(width: 1180, height: 820),
-                            cornerRadius: 22,
-                            contentMode: .fit
-                        )
-                        .padding(22)
-
-                        Label("Click outside the preview to dismiss", systemImage: "cursorarrow.click")
-                            .font(.footnote.weight(.medium))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .sssFloatingOverlaySurface(cornerRadius: 18, shadowOpacity: 0.08)
-                            .padding(18)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: previewHeight)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 26, style: .continuous)
-                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                    }
-
-                    HStack(spacing: 12) {
-                        Label(
-                            entry.hasUnsavedChanges ? "This snapshot includes edits that were not saved to disk." : "This snapshot reflects a saved state.",
-                            systemImage: entry.hasUnsavedChanges ? "exclamationmark.circle.fill" : "checkmark.circle.fill"
-                        )
-                        .font(.footnote)
-                        .foregroundStyle(entry.hasUnsavedChanges ? .orange : .secondary)
-
-                        Spacer()
-
-                        Button(action: onClose) {
-                            Label("Back to Editing", systemImage: "chevron.backward")
-                        }
-                        .buttonStyle(.glass)
-                        .help("Close this preview and return to editing.")
-
-                        Button(action: onFloat) {
-                            Label("Float Reference", systemImage: "pin")
-                        }
-                        .buttonStyle(.glass)
-                        .help("Open this snapshot in an always-on-top floating reference window.")
-
-                        Button(action: onRestore) {
-                            Label("Restore Snapshot", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
-                        }
-                        .buttonStyle(.glass)
-                        .help("Restore the document to this history snapshot.")
-                    }
-                }
-                .padding(28)
-                .frame(maxWidth: panelWidth)
-                .sssFloatingOverlaySurface(cornerRadius: 20, shadowOpacity: 0.12)
-                .contentShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-                .onTapGesture {
-                }
-                .padding(20)
-            }
-        }
     }
 }

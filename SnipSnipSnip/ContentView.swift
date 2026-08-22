@@ -87,6 +87,8 @@ struct ContentView: View {
                         captureSearchQuery: captureHistorySearchBinding,
                         captureHistorySearchResultsLabel: documents.captureHistorySearchResultsLabel,
                         historyActions: EditorHistoryActions(
+                            onPresentHistoryPreview: documents.presentHistoryPreview,
+                            onCloseHistoryPreview: documents.closeHistoryPreview,
                             onRestoreHistoryEntry: documents.restoreHistoryEntry,
                             onRestoreRecentSnipEntry: documents.restoreRecentSnipEntry,
                             onFloatHistoryEntry: documents.floatHistoryReference,

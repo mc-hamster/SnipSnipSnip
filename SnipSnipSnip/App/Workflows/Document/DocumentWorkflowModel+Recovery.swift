@@ -43,12 +43,14 @@ extension DocumentWorkflowModel {
     }
 
     func restoreHistoryEntry(_ entry: DocumentHistoryEntry) {
+        historyPreviewCoordinator.close()
         performAfterHandlingUnsavedChanges { [weak self] in
             self?.restoreHistoryEntryImmediately(entry)
         }
     }
 
     func restoreRecentSnipEntry(_ entry: DocumentHistoryEntry) {
+        historyPreviewCoordinator.close()
         shelveCurrentDocumentForRecents()
         restoreHistoryEntryImmediately(entry, clearPendingRecovery: false)
     }
@@ -581,6 +583,7 @@ extension DocumentWorkflowModel {
     }
 
     func restoreRecycledHistoryEntry(_ entry: DocumentHistoryEntry) {
+        historyPreviewCoordinator.close()
         performAfterHandlingUnsavedChanges { [weak self] in
             guard let self else {
                 return
