@@ -68,6 +68,16 @@ nonisolated struct DocumentHistoryEntry: Identifiable, Sendable {
     }
 }
 
+nonisolated struct DocumentHistoryPage: Sendable {
+    let entries: [DocumentHistoryEntry]
+    let totalCount: Int
+    let offset: Int
+
+    var hasMore: Bool {
+        offset + entries.count < totalCount
+    }
+}
+
 nonisolated struct PendingRecoverySession: Identifiable, Sendable {
     let id: UUID
     let title: String
@@ -800,6 +810,58 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
         }
     }
 
+    func snipHistorySessionPage(
+        matching query: String,
+        offset: Int,
+        limit: Int
+    ) -> DocumentHistoryPage {
+        let matchingEntries = searchHistoryEntries(matching: query)
+        let latestMatchingEntryBySession = Dictionary(
+            grouping: matchingEntries,
+            by: \.sessionID
+        )
+        .values
+        .compactMap { sessionEntries in
+            sessionEntries.max { $0.savedAt < $1.savedAt }
+        }
+        .sorted { $0.savedAt > $1.savedAt }
+
+        return Self.page(
+            latestMatchingEntryBySession,
+            offset: offset,
+            limit: limit
+        )
+    }
+
+    func recentSnipPage(
+        matching query: String,
+        excluding excludedSessionID: UUID?,
+        offset: Int,
+        limit: Int
+    ) -> DocumentHistoryPage {
+        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let entries = pendingRecoveryEntries(
+            excluding: excludedSessionID
+        )
+        let matchingEntries = normalizedQuery.isEmpty
+            ? entries
+            : entries.filter { $0.matchesSearchQuery(normalizedQuery) }
+        return Self.page(matchingEntries, offset: offset, limit: limit)
+    }
+
+    func recycledSnipPage(
+        matching query: String,
+        offset: Int,
+        limit: Int
+    ) -> DocumentHistoryPage {
+        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let entries = recycledHistoryEntries()
+        let matchingEntries = normalizedQuery.isEmpty
+            ? entries
+            : entries.filter { $0.matchesSearchQuery(normalizedQuery) }
+        return Self.page(matchingEntries, offset: offset, limit: limit)
+    }
+
     func recycledHistoryEntries(limit: Int? = nil) -> [DocumentHistoryEntry] {
         withLockedAccess {
             retryPendingPrivacyExclusionPersistence()
@@ -908,6 +970,21 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
         accessLock.lock()
         defer { accessLock.unlock() }
         return try operation()
+    }
+
+    private static func page(
+        _ entries: [DocumentHistoryEntry],
+        offset: Int,
+        limit: Int
+    ) -> DocumentHistoryPage {
+        let resolvedOffset = min(max(offset, 0), entries.count)
+        let resolvedLimit = max(limit, 1)
+        let endIndex = min(resolvedOffset + resolvedLimit, entries.count)
+        return DocumentHistoryPage(
+            entries: Array(entries[resolvedOffset..<endIndex]),
+            totalCount: entries.count,
+            offset: resolvedOffset
+        )
     }
 
     private func clearPrivacyExclusionRegistry() {

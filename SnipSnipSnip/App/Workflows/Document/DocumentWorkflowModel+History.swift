@@ -51,6 +51,7 @@ extension DocumentWorkflowModel {
         }
 
         scheduleIndexedCaptureHistorySearch()
+        refreshPresentedSnipLibrary()
     }
 
     func initialCaptureHistoryIndexImage(for controller: EditorController) -> CGImage {

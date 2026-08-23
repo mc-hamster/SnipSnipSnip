@@ -13,15 +13,12 @@ struct EditorView: View {
     @ObservedObject var controller: EditorController
     @Binding var isInspectorPresented: Bool
     let historyEntries: [DocumentHistoryEntry]
-    let recentSnipEntries: [DocumentHistoryEntry]
-    let captureHistoryEntries: [DocumentHistoryEntry]
     let recycleBinEntries: [DocumentHistoryEntry]
-    @Binding var captureSearchQuery: String
-    let captureHistorySearchResultsLabel: String
     let historyActions: EditorHistoryActions
     var compositionActions: CompositionInspectorActions = .unavailable
     var compositionExportProgress: CompositionExportProgressState?
     var onCancelCompositionExport: () -> Void = {}
+    var onUndoLibrarySwitch: () -> Void = {}
 
     var body: some View {
         ZStack {
@@ -78,11 +75,7 @@ struct EditorView: View {
             EditorInspectorView(
                 controller: controller,
                 historyEntries: historyEntries,
-                recentSnipEntries: recentSnipEntries,
-                captureHistoryEntries: captureHistoryEntries,
                 recycleBinEntries: recycleBinEntries,
-                captureSearchQuery: $captureSearchQuery,
-                captureHistorySearchResultsLabel: captureHistorySearchResultsLabel,
                 actions: historyActions,
                 compositionActions: compositionActions
             )
@@ -130,6 +123,8 @@ struct EditorView: View {
             NSWorkspace.shared.open(url)
         case .reveal(let url):
             NSWorkspace.shared.activateFileViewerSelecting([url])
+        case .undoLibrarySwitch:
+            onUndoLibrarySwitch()
         }
         controller.dismissNotice()
     }

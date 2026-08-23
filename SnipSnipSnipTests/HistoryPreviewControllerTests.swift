@@ -95,6 +95,117 @@ final class HistoryPreviewControllerTests: XCTestCase {
         XCTAssertTrue(visibleFrame.contains(frame))
     }
 
+    func testSnipLibraryModelStartsWithAUsableSelectionAndChangesScopes() {
+        let recent = makeEntry(index: 1)
+        let history = makeEntry(index: 2)
+        let recycled = makeEntry(index: 3, deletedAt: Date())
+        let model = SnipLibraryWindowModel(
+            request: makeLibraryRequest(
+                recent: [recent],
+                history: [history],
+                recycled: [recycled]
+            ),
+            initialScope: .recent
+        )
+        install([recent], in: model)
+
+        XCTAssertEqual(model.selectedEntry?.id, recent.id)
+        XCTAssertEqual(model.primaryActionTitle, "Open")
+
+        model.changeScope(.recycleBin)
+        install([recycled], in: model)
+
+        XCTAssertEqual(model.selectedEntry?.id, recycled.id)
+        XCTAssertEqual(model.primaryActionTitle, "Restore")
+    }
+
+    func testSnipLibrarySearchKeepsSelectionWhenPossibleAndChoosesFirstMatch() {
+        let first = makeEntry(index: 1, searchableText: "alpha")
+        let second = makeEntry(index: 2, searchableText: "beta")
+        let model = SnipLibraryWindowModel(
+            request: makeLibraryRequest(history: [first, second]),
+            initialScope: .history
+        )
+        install([first, second], in: model)
+
+        model.select(second.id)
+        model.searchQuery = "beta"
+        model.searchDidChange()
+        install([second], in: model, preferredSelection: second.id)
+        XCTAssertEqual(model.selectedEntry?.id, second.id)
+
+        model.searchQuery = "alpha"
+        model.searchDidChange()
+        install([first], in: model, preferredSelection: first.id)
+        XCTAssertEqual(model.selectedEntry?.id, first.id)
+    }
+
+    func testSnipLibrarySearchWithNoMatchClearsSelection() {
+        let entry = makeEntry(index: 1, searchableText: "alpha")
+        let model = SnipLibraryWindowModel(
+            request: makeLibraryRequest(history: [entry]),
+            initialScope: .history
+        )
+        install([entry], in: model)
+
+        model.searchQuery = "not present"
+        model.searchDidChange()
+        install([], in: model)
+
+        XCTAssertTrue(model.visibleEntries.isEmpty)
+        XCTAssertNil(model.selectedEntryID)
+        XCTAssertNil(model.selectedEntry)
+    }
+
+    func testSnipLibraryRefreshSelectsNextAvailableEntryAfterDeletion() {
+        let first = makeEntry(index: 1)
+        let second = makeEntry(index: 2)
+        let model = SnipLibraryWindowModel(
+            request: makeLibraryRequest(history: [first, second]),
+            initialScope: .history
+        )
+        install([first, second], in: model)
+
+        model.prepareForEntryReload(preferredSelection: first.id)
+        install([second], in: model, preferredSelection: first.id)
+
+        XCTAssertEqual(model.selectedEntry?.id, second.id)
+    }
+
+    func testSnipLibraryAppendsPagesWithoutLosingSelection() {
+        let entries = [makeEntry(index: 1), makeEntry(index: 2), makeEntry(index: 3)]
+        let model = SnipLibraryWindowModel(
+            request: makeLibraryRequest(history: entries),
+            initialScope: .history
+        )
+        model.install(
+            page: DocumentHistoryPage(
+                entries: Array(entries.prefix(2)),
+                totalCount: 3,
+                offset: 0
+            ),
+            appending: false,
+            preferredSelection: entries[1].id
+        )
+
+        XCTAssertTrue(model.hasMoreEntries)
+        XCTAssertEqual(model.selectedEntryID, entries[1].id)
+
+        model.install(
+            page: DocumentHistoryPage(
+                entries: [entries[2]],
+                totalCount: 3,
+                offset: 2
+            ),
+            appending: true,
+            preferredSelection: entries[1].id
+        )
+
+        XCTAssertEqual(model.entries.map(\.id), entries.map(\.id))
+        XCTAssertEqual(model.selectedEntryID, entries[1].id)
+        XCTAssertFalse(model.hasMoreEntries)
+    }
+
     private func makeRequest(
         entries: [DocumentHistoryEntry],
         selectedEntryID: UUID
@@ -108,7 +219,59 @@ final class HistoryPreviewControllerTests: XCTestCase {
         )
     }
 
-    private func makeEntry(index: Int) -> DocumentHistoryEntry {
+    private func makeLibraryRequest(
+        recent: [DocumentHistoryEntry] = [],
+        history: [DocumentHistoryEntry] = [],
+        recycled: [DocumentHistoryEntry] = []
+    ) -> SnipLibraryRequest {
+        SnipLibraryRequest(
+            outOfCapturePatternSettings: .default,
+            loadPage: { scope, query, offset, limit in
+                let source = switch scope {
+                case .recent: recent
+                case .history: history
+                case .recycleBin: recycled
+                }
+                let matches = source.filter { $0.matchesSearchQuery(query) }
+                let start = min(max(offset, 0), matches.count)
+                let end = min(start + max(limit, 1), matches.count)
+                return DocumentHistoryPage(
+                    entries: Array(matches[start..<end]),
+                    totalCount: matches.count,
+                    offset: start
+                )
+            },
+            onOpenRecent: { _ in },
+            onOpenHistory: { _ in },
+            onRestoreRecycled: { _ in },
+            onFloat: { _ in },
+            onDelete: { _ in },
+            onPermanentlyDelete: { _ in },
+            onEmptyRecycleBin: {}
+        )
+    }
+
+    private func install(
+        _ entries: [DocumentHistoryEntry],
+        in model: SnipLibraryWindowModel,
+        preferredSelection: UUID? = nil
+    ) {
+        model.install(
+            page: DocumentHistoryPage(
+                entries: entries,
+                totalCount: entries.count,
+                offset: 0
+            ),
+            appending: false,
+            preferredSelection: preferredSelection
+        )
+    }
+
+    private func makeEntry(
+        index: Int,
+        searchableText: String = "",
+        deletedAt: Date? = nil
+    ) -> DocumentHistoryEntry {
         DocumentHistoryEntry(
             id: UUID(),
             sessionID: UUID(),
@@ -120,9 +283,9 @@ final class HistoryPreviewControllerTests: XCTestCase {
             previewAssetURL: nil,
             sourceDocumentURL: nil,
             hasUnsavedChanges: index.isMultiple(of: 2),
-            searchableText: "",
+            searchableText: searchableText,
             packageSizeBytes: nil,
-            deletedAt: nil
+            deletedAt: deletedAt
         )
     }
 }

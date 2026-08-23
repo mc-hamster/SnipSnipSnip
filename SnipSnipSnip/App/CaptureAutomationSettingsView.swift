@@ -20,6 +20,7 @@ struct CaptureAutomationSettingsView: View {
     let resetPreferencesToDefaults: () -> Void
     @State private var isShowingResetDefaultsConfirmation = false
     @State private var isShowingClearClipboardConfirmation = false
+    @State private var isShowingClearSnipHistoryConfirmation = false
     @State private var isImportingGuideLogo = false
     @State private var launchAtLoginErrorMessage: String?
     @Environment(\.openURL) private var openURL
@@ -666,7 +667,7 @@ struct CaptureAutomationSettingsView: View {
                                 named:
                                     "permanently deleting Snip History and emptying the Recycle Bin"
                             ) else { return }
-                            archive.clearArchive()
+                            isShowingClearSnipHistoryConfirmation = true
                         }
                     }
 
@@ -685,11 +686,11 @@ struct CaptureAutomationSettingsView: View {
                     HStack {
                         Text("Deleted Items")
                         Spacer(minLength: 12)
-                        Text("\(documents.recycleBinEntries.count)")
+                        Text(recycleBinItemCountLabel)
                             .foregroundStyle(.secondary)
                     }
 
-                    Button("Empty Recycle Bin", role: .destructive, action: documents.emptyRecycleBin)
+                    Button("Empty Recycle Bin", role: .destructive, action: documents.requestEmptyRecycleBin)
                         .disabled(documents.recycleBinEntries.isEmpty)
 
                     SettingsHelpText("Deleted snips move to the Recycle Bin first. The scheduled cleanup permanently removes items after the configured retention period; the default is 30 days. Choose from 1 to 180 days.")
@@ -947,9 +948,26 @@ struct CaptureAutomationSettingsView: View {
         } message: {
             Text("This permanently removes pinned and unpinned clipboard items from this Mac.")
         }
+        .confirmationDialog(
+            "Permanently delete Snip History and empty the Recycle Bin?",
+            isPresented: $isShowingClearSnipHistoryConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Permanently Delete Everything", role: .destructive, action: archive.clearArchive)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This permanently removes every saved screenshot version and deleted screenshot from this Mac. This cannot be undone.")
+        }
         .onDisappear {
             lifecycle.selectedSettingsTab = .general
         }
+    }
+
+    private var recycleBinItemCountLabel: String {
+        let count = documents.recycleBinEntries.count
+        return count >= DocumentWorkflowConstants.recycleBinLimit
+            ? "\(count)+"
+            : "\(count)"
     }
 
     private var supportDiagnosticsSnapshot: SupportDiagnosticsSnapshot {

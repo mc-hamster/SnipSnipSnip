@@ -361,7 +361,6 @@ final class HistoryPreviewCoordinator {
             return
         }
 
-        close()
         action.perform(entry)
     }
 
@@ -634,7 +633,7 @@ private struct HistoryPreviewWindowView: View {
     }
 }
 
-private struct HistoryPreviewZoomControls: View {
+struct HistoryPreviewZoomControls: View {
     @ObservedObject var model: FloatingReferenceWindowModel
 
     var body: some View {

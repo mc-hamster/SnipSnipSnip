@@ -261,7 +261,7 @@ Library terms identify distinct scopes. Do not shorten them to generic **Library
 
 | Canonical term | Meaning | Do not substitute |
 | --- | --- | --- |
-| **Snip Library** | The main place for browsing saved SnipSnipSnip content. | Library. |
+| **Snip Library** | The modeless browser for Recent Snips, Snip History, and the Recycle Bin, with search and a large preview. | Library or History Browser. |
 | **Recent Snips** | A limited, recent subset of captured content. | Recent captures. |
 | **Snip History** | The historical list of saved snips. | Capture History, Archive History, or visible Archive. |
 | **Change History** | Prior editable versions or autosaved states of an item. | Autosave History. |

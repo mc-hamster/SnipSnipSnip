@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 extension DocumentWorkflowModel {
@@ -43,16 +44,81 @@ extension DocumentWorkflowModel {
     }
 
     func restoreHistoryEntry(_ entry: DocumentHistoryEntry) {
-        historyPreviewCoordinator.close()
-        performAfterHandlingUnsavedChanges { [weak self] in
-            self?.restoreHistoryEntryImmediately(entry)
-        }
+        openHistoryEntryPreservingCurrent(entry)
     }
 
     func restoreRecentSnipEntry(_ entry: DocumentHistoryEntry) {
-        historyPreviewCoordinator.close()
-        shelveCurrentDocumentForRecents()
-        restoreHistoryEntryImmediately(entry, clearPendingRecovery: false)
+        openHistoryEntryPreservingCurrent(
+            entry,
+            clearPendingRecovery: false
+        )
+    }
+
+    private func openHistoryEntryPreservingCurrent(
+        _ entry: DocumentHistoryEntry,
+        clearPendingRecovery: Bool = true
+    ) {
+        if let controller = editorController, !controller.isPrivateDocument {
+            rememberCurrentEditorForLibrarySwitch(controller)
+            shelveCurrentDocumentForRecents()
+            if restoreHistoryEntryImmediately(
+                entry,
+                clearPendingRecovery: clearPendingRecovery
+            ) {
+                showLibrarySwitchNotice()
+            } else {
+                previousLibrarySwitchSnapshot = nil
+            }
+            return
+        }
+
+        previousLibrarySwitchSnapshot = nil
+        performAfterHandlingUnsavedChanges { [weak self] in
+            _ = self?.restoreHistoryEntryImmediately(
+                entry,
+                clearPendingRecovery: clearPendingRecovery
+            )
+        }
+    }
+
+    private func rememberCurrentEditorForLibrarySwitch(_ controller: EditorController) {
+        previousLibrarySwitchSnapshot = LibrarySwitchSnapshot(
+            controller: controller,
+            documentURL: currentDocumentURL,
+            savedSession: savedDocumentSession,
+            recoverySessionID: currentRecoverySessionID
+        )
+    }
+
+    private func showLibrarySwitchNotice() {
+        editorController?.showNotice(
+            EditorNotice(
+                message: "Opened Screenshot. Previous work is safe in Recent Snips.",
+                action: .undoLibrarySwitch,
+                dismissalDelaySeconds: 6
+            )
+        )
+    }
+
+    func undoLastLibrarySwitch() {
+        guard let snapshot = previousLibrarySwitchSnapshot else {
+            return
+        }
+        previousLibrarySwitchSnapshot = nil
+
+        if let controller = editorController, !controller.isPrivateDocument {
+            shelveCurrentDocumentForRecents()
+        }
+        installEditorController(
+            snapshot.controller,
+            documentURL: snapshot.documentURL,
+            savedSession: snapshot.savedSession,
+            recoverySessionID: snapshot.recoverySessionID
+        )
+        editorController?.showNotice(
+            "Returned to the previous Screenshot. The other Screenshot is in Recent Snips."
+        )
+        requestMainWindowPresentation()
     }
 
     func deleteHistoryEntry(_ entry: DocumentHistoryEntry) {
@@ -133,7 +199,11 @@ extension DocumentWorkflowModel {
         )
     }
 
-    func restoreHistoryEntryImmediately(_ entry: DocumentHistoryEntry, clearPendingRecovery: Bool = true) {
+    @discardableResult
+    func restoreHistoryEntryImmediately(
+        _ entry: DocumentHistoryEntry,
+        clearPendingRecovery: Bool = true
+    ) -> Bool {
         do {
             let document = try recoveryStore.restoreDocument(from: entry)
             let controller = EditorController(
@@ -156,9 +226,13 @@ extension DocumentWorkflowModel {
             if clearPendingRecovery {
                 clearRecoveryPendingState(for: entry.sessionID)
             }
+            historyPreviewCoordinator.close()
+            snipLibraryCoordinator.close()
             requestMainWindowPresentation()
+            return true
         } catch {
             present(error)
+            return false
         }
     }
 
@@ -214,6 +288,7 @@ extension DocumentWorkflowModel {
             self.recycleBinEntries = state.recycleBinEntries
             self.pendingRecoverySession = state.pendingRecoverySession
             self.scheduleIndexedCaptureHistorySearch()
+            self.refreshPresentedSnipLibrary()
         }
     }
 
@@ -583,19 +658,37 @@ extension DocumentWorkflowModel {
     }
 
     func restoreRecycledHistoryEntry(_ entry: DocumentHistoryEntry) {
-        historyPreviewCoordinator.close()
-        performAfterHandlingUnsavedChanges { [weak self] in
+        let shouldOfferUndo = editorController?.isPrivateDocument == false
+        if !shouldOfferUndo {
+            previousLibrarySwitchSnapshot = nil
+        }
+        let restore = { [weak self] in
             guard let self else {
                 return
             }
 
             do {
                 try self.recoveryStore.restoreRecycledHistoryEntry(entry)
-                self.restoreHistoryEntryImmediately(entry)
-                self.refreshHistoryEntries()
+                if self.restoreHistoryEntryImmediately(entry) {
+                    self.refreshHistoryEntries()
+                    if shouldOfferUndo {
+                        self.showLibrarySwitchNotice()
+                    }
+                } else {
+                    self.previousLibrarySwitchSnapshot = nil
+                }
             } catch {
+                self.previousLibrarySwitchSnapshot = nil
                 self.present(error)
             }
+        }
+
+        if let controller = editorController, !controller.isPrivateDocument {
+            rememberCurrentEditorForLibrarySwitch(controller)
+            shelveCurrentDocumentForRecents()
+            restore()
+        } else {
+            performAfterHandlingUnsavedChanges(restore)
         }
     }
 
@@ -616,6 +709,59 @@ extension DocumentWorkflowModel {
             triggerArchiveMaintenance()
         } catch {
             present(error)
+        }
+    }
+
+    func requestPermanentlyDeleteRecycledHistoryEntry(
+        _ entry: DocumentHistoryEntry
+    ) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Permanently delete Screenshot?"
+        alert.informativeText = "This screenshot and its saved versions cannot be recovered."
+        alert.addButton(withTitle: "Permanently Delete")
+        alert.addButton(withTitle: "Cancel")
+        alert.buttons.first?.hasDestructiveAction = true
+        presentDestructiveRecoveryAlert(alert) { [weak self] in
+            self?.historyPreviewCoordinator.close(ifShowing: entry.id)
+            self?.permanentlyDeleteRecycledHistoryEntry(entry)
+        }
+    }
+
+    func requestEmptyRecycleBin() {
+        guard !recycleBinEntries.isEmpty else {
+            return
+        }
+        let count = recycleBinEntries.count
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Permanently delete \(count) screenshot\(count == 1 ? "" : "s")?"
+        alert.informativeText = "Everything currently in the Recycle Bin will be removed and cannot be recovered."
+        alert.addButton(withTitle: "Empty Recycle Bin")
+        alert.addButton(withTitle: "Cancel")
+        alert.buttons.first?.hasDestructiveAction = true
+        let recycledEntryIDs = recycleBinEntries.map(\.id)
+        presentDestructiveRecoveryAlert(alert) { [weak self] in
+            recycledEntryIDs.forEach { entryID in
+                self?.historyPreviewCoordinator.close(ifShowing: entryID)
+            }
+            self?.emptyRecycleBin()
+        }
+    }
+
+    private func presentDestructiveRecoveryAlert(
+        _ alert: NSAlert,
+        confirmed: @escaping @MainActor () -> Void
+    ) {
+        if let window = NSApp.keyWindow ?? NSApp.mainWindow {
+            alert.beginSheetModal(for: window) { response in
+                guard response == .alertFirstButtonReturn else {
+                    return
+                }
+                Task { @MainActor in confirmed() }
+            }
+        } else if alert.runModal() == .alertFirstButtonReturn {
+            confirmed()
         }
     }
 }

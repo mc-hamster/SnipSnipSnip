@@ -714,7 +714,6 @@ private struct GuideAdvancedEditorSheet: View {
     @ObservedObject var editor: EditorController
     let onCancel: () -> Void
     let onCommit: () -> Void
-    @State private var search = ""
     @State private var isInspectorPresented = true
 
     var body: some View {
@@ -740,12 +739,9 @@ private struct GuideAdvancedEditorSheet: View {
                 controller: editor,
                 isInspectorPresented: $isInspectorPresented,
                 historyEntries: [],
-                recentSnipEntries: [],
-                captureHistoryEntries: [],
                 recycleBinEntries: [],
-                captureSearchQuery: $search,
-                captureHistorySearchResultsLabel: "",
                 historyActions: EditorHistoryActions(
+                    onPresentSnipLibrary: { _ in },
                     onPresentHistoryPreview: { _ in }, onCloseHistoryPreview: { _ in },
                     onRestoreHistoryEntry: { _ in }, onRestoreRecentSnipEntry: { _ in },
                     onFloatHistoryEntry: { _ in }, onDeleteHistoryEntry: { _ in },

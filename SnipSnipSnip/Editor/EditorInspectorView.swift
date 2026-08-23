@@ -141,6 +141,7 @@ private struct UIMapSourceColorSwatch: View {
 }
 
 struct EditorHistoryActions {
+    let onPresentSnipLibrary: (SnipLibraryScope?) -> Void
     let onPresentHistoryPreview: (HistoryPreviewRequest) -> Void
     let onCloseHistoryPreview: (UUID?) -> Void
     let onRestoreHistoryEntry: (DocumentHistoryEntry) -> Void
@@ -166,14 +167,9 @@ private enum EditorInspectorPage: String, CaseIterable, Identifiable {
 struct EditorInspectorView: View {
     @ObservedObject var controller: EditorController
     let historyEntries: [DocumentHistoryEntry]
-    let recentSnipEntries: [DocumentHistoryEntry]
-    let captureHistoryEntries: [DocumentHistoryEntry]
     let recycleBinEntries: [DocumentHistoryEntry]
-    @Binding var captureSearchQuery: String
-    let captureHistorySearchResultsLabel: String
     let actions: EditorHistoryActions
     var compositionActions: CompositionInspectorActions = .unavailable
-    @State private var isShowingRecycleBin = false
     @State private var selectedPage: EditorInspectorPage = .properties
 
     var body: some View {
@@ -227,13 +223,6 @@ struct EditorInspectorView: View {
             if scope == .composition, selectedPage == .crop {
                 selectedPage = .properties
             }
-        }
-        .sheet(isPresented: $isShowingRecycleBin) {
-            RecycleBinSheetView(
-                recycleBinEntries: recycleBinEntries,
-                actions: actions
-            )
-            .frame(minWidth: 620, minHeight: 520)
         }
     }
 
@@ -345,12 +334,7 @@ struct EditorInspectorView: View {
     @ViewBuilder
     private var historyPage: some View {
         changeHistorySection
-
-        if !recentSnipEntries.isEmpty
-            || !captureHistoryEntries.isEmpty
-            || !captureSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            recentSnipsSection
-        }
+        recentSnipsSection
     }
 
     private var showsContextualStyleProperties: Bool {
@@ -1182,14 +1166,23 @@ struct EditorInspectorView: View {
     }
 
     private var recentSnipsSection: some View {
-        RecentSnipsSectionView(
-            recentSnipEntries: recentSnipEntries,
-            captureHistoryEntries: captureHistoryEntries,
-            captureSearchQuery: $captureSearchQuery,
-            captureHistorySearchResultsLabel: captureHistorySearchResultsLabel,
-            actions: actions
-        )
-        .equatable()
+        InsetGroupBox(verbatim: WorkflowVocabulary.Library.snipLibrary) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Browse every recent, saved, and deleted screenshot in one window. Your last section, search, selection, layout, and window position stay ready for next time.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                Button {
+                    actions.onPresentSnipLibrary(nil)
+                } label: {
+                    Label("Open Snip Library", systemImage: "rectangle.stack")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .help("Open the Snip Library without replacing the editor.")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     private func paletteRow(selection: RGBAColor, action: @escaping @MainActor (RGBAColor) -> Void) -> some View {
@@ -1214,7 +1207,7 @@ struct EditorInspectorView: View {
 
     private var recycleBinFooter: some View {
         Button {
-            isShowingRecycleBin = true
+            actions.onPresentSnipLibrary(.recycleBin)
         } label: {
             HStack(spacing: 8) {
                 Label(WorkflowVocabulary.Library.recycleBin, systemImage: "trash")
@@ -1541,343 +1534,6 @@ private struct ChangeHistorySectionView: View, Equatable {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-    }
-}
-
-private struct RecentSnipsSectionView: View, Equatable {
-    let recentSnipEntries: [DocumentHistoryEntry]
-    let captureHistoryEntries: [DocumentHistoryEntry]
-    @Binding var captureSearchQuery: String
-    let captureHistorySearchResultsLabel: String
-    let actions: EditorHistoryActions
-    @State private var showsAllRecentSnips = false
-
-    static func == (lhs: RecentSnipsSectionView, rhs: RecentSnipsSectionView) -> Bool {
-        historyEntriesEqual(lhs.recentSnipEntries, rhs.recentSnipEntries)
-            && historyEntriesEqual(lhs.captureHistoryEntries, rhs.captureHistoryEntries)
-            && lhs.captureSearchQuery == rhs.captureSearchQuery
-            && lhs.captureHistorySearchResultsLabel == rhs.captureHistorySearchResultsLabel
-    }
-
-    private var displayedRecentSnips: [DocumentHistoryEntry] {
-        if showsAllRecentSnips {
-            return recentSnipEntries
-        }
-
-        return Array(recentSnipEntries.prefix(collapsedInspectorHistoryLimit))
-    }
-
-    private var filteredCaptureHistoryEntries: [DocumentHistoryEntry] {
-        let query = captureSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else {
-            return captureHistoryEntries
-        }
-
-        return captureHistoryEntries.filter { $0.matchesSearchQuery(query) }
-    }
-
-    private var showsSearchResults: Bool {
-        !captureSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    var body: some View {
-        InsetGroupBox(verbatim: WorkflowVocabulary.Library.snipLibrary) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(WorkflowVocabulary.Library.recentSnips)
-                    .font(.subheadline.weight(.semibold))
-
-                HStack(alignment: .top, spacing: 8) {
-                    Text("Switch back to an earlier snip without interrupting the current capture flow.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-
-                    Spacer(minLength: 8)
-
-                    Button(role: .destructive) {
-                        actions.onCloseHistoryPreview(nil)
-                        actions.onDeleteAllRecentSnipEntries()
-                    } label: {
-                        Label("Delete All", systemImage: "trash")
-                    }
-                    .buttonStyle(.glass)
-                    .controlSize(.small)
-                    .disabled(recentSnipEntries.isEmpty)
-                    .help("Delete every recent snip except the one currently open.")
-                }
-
-                if !recentSnipEntries.isEmpty {
-                    ForEach(displayedRecentSnips) { entry in
-                        HistoryEntryRowView(
-                            entry: entry,
-                            title: entry.libraryDisplayTitle,
-                            titleHelp: nil,
-                            subtitle: entry.savedAt.formatted(date: .abbreviated, time: .shortened),
-                            detail: entry.label,
-                            previewHelp: "Open a larger preview of this recent snip.",
-                            restoreLabel: "Restore",
-                            restoreHelp: "Restore this recent snip and keep the current one in Recent Snips.",
-                            deleteHelp: "Delete this recent snip.",
-                            onPreview: {
-                                actions.onPresentHistoryPreview(
-                                    HistoryPreviewRequest(
-                                        contextTitle: WorkflowVocabulary.Library.recentSnips,
-                                        entries: recentSnipEntries,
-                                        selectedEntryID: entry.id,
-                                        primaryAction: HistoryPreviewPrimaryAction(
-                                            title: "Restore",
-                                            systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90",
-                                            help: "Restore this recent snip and keep the current one in Recent Snips.",
-                                            perform: { restoredEntry in
-                                                actions.onRestoreRecentSnipEntry(restoredEntry)
-                                            }
-                                        ),
-                                        onFloat: { floatedEntry in
-                                            actions.onFloatHistoryEntry(floatedEntry)
-                                        }
-                                    )
-                                )
-                            },
-                            onRestore: {
-                                actions.onRestoreRecentSnipEntry(entry)
-                            },
-                            onDelete: {
-                                actions.onCloseHistoryPreview(entry.id)
-                                actions.onDeleteRecentSnipEntry(entry)
-                            }
-                        )
-                    }
-
-                    if recentSnipEntries.count > collapsedInspectorHistoryLimit {
-                        ExpandCollapseHistoryButton(
-                            title: showsAllRecentSnips ? "Less" : "More"
-                        ) {
-                            showsAllRecentSnips.toggle()
-                        }
-                    }
-                } else if !showsSearchResults {
-                    Text("Recent snips appear here when a newer capture replaces the current editor session.")
-                        .foregroundStyle(.secondary)
-                }
-
-                Divider()
-
-                Text(WorkflowVocabulary.Library.snipHistory)
-                    .font(.subheadline.weight(.semibold))
-
-                TextField("Search Snip History", text: $captureSearchQuery)
-                    .textFieldStyle(.roundedBorder)
-
-                Text(captureHistorySearchResultsLabel)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-
-                if showsSearchResults {
-                    if captureHistoryEntries.isEmpty {
-                        Text("Snip History appears here after you have autosaves, recent snips, or saved checkpoints to search.")
-                            .foregroundStyle(.secondary)
-                    } else if filteredCaptureHistoryEntries.isEmpty {
-                        Text("No Snip History items matched the current search.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(filteredCaptureHistoryEntries) { entry in
-                            HistoryEntryRowView(
-                                entry: entry,
-                                title: entry.libraryDisplayTitle,
-                                titleHelp: nil,
-                                subtitle: entry.savedAt.formatted(date: .abbreviated, time: .shortened),
-                                detail: entry.label,
-                                previewHelp: "Open a larger preview of this Snip History item.",
-                                restoreLabel: "Open",
-                                restoreHelp: "Open this Snip History item in the editor.",
-                                deleteHelp: "Delete this Snip History item.",
-                                onPreview: {
-                                    actions.onPresentHistoryPreview(
-                                        HistoryPreviewRequest(
-                                            contextTitle: WorkflowVocabulary.Library.snipHistory,
-                                            entries: filteredCaptureHistoryEntries,
-                                            selectedEntryID: entry.id,
-                                            primaryAction: HistoryPreviewPrimaryAction(
-                                                title: "Open",
-                                                systemImage: "arrow.up.forward.app",
-                                                help: "Open this Snip History item in the editor.",
-                                                perform: { openedEntry in
-                                                    actions.onRestoreHistoryEntry(openedEntry)
-                                                }
-                                            ),
-                                            onFloat: { floatedEntry in
-                                                actions.onFloatHistoryEntry(floatedEntry)
-                                            }
-                                        )
-                                    )
-                                },
-                                onRestore: {
-                                    actions.onRestoreHistoryEntry(entry)
-                                },
-                                onDelete: {
-                                    actions.onCloseHistoryPreview(entry.id)
-                                    actions.onDeleteHistoryEntry(entry)
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-}
-
-private struct RecycleBinSheetView: View {
-    @Environment(\.dismiss) private var dismiss
-    let recycleBinEntries: [DocumentHistoryEntry]
-    let actions: EditorHistoryActions
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(WorkflowVocabulary.Library.recycleBin)
-                        .font(.title2.weight(.semibold))
-
-                    Text("Deleted snips stay here temporarily and can be restored before the Recycle Bin is emptied.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer(minLength: 12)
-
-                Button(action: dismiss.callAsFunction) {
-                    Label("Close", systemImage: "xmark")
-                }
-                .buttonStyle(.glass)
-                .keyboardShortcut(.cancelAction)
-                .help("Close the Recycle Bin.")
-
-                Button(role: .destructive) {
-                    actions.onCloseHistoryPreview(nil)
-                    actions.onEmptyRecycleBin()
-                } label: {
-                    Label("Empty Recycle Bin", systemImage: "trash.slash")
-                }
-                .buttonStyle(.glass)
-                .disabled(recycleBinEntries.isEmpty)
-                .help("Permanently delete every item currently in the Recycle Bin.")
-            }
-            .padding(20)
-
-            Divider()
-
-            if recycleBinEntries.isEmpty {
-                ContentUnavailableView(
-                    "Recycle Bin is Empty",
-                    systemImage: "trash",
-                    description: Text("Deleted snips will appear here until retention expires or you empty the Recycle Bin.")
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 14) {
-                        ForEach(recycleBinEntries) { entry in
-                            RecycleBinEntryRowView(
-                                entry: entry,
-                                onPreview: {
-                                    actions.onPresentHistoryPreview(
-                                        HistoryPreviewRequest(
-                                            contextTitle: WorkflowVocabulary.Library.recycleBin,
-                                            entries: recycleBinEntries,
-                                            selectedEntryID: entry.id,
-                                            primaryAction: HistoryPreviewPrimaryAction(
-                                                title: "Restore",
-                                                systemImage: "arrow.uturn.backward.circle",
-                                                help: "Restore this snip and open it in the editor.",
-                                                perform: { restoredEntry in
-                                                    actions.onRestoreRecycledHistoryEntry(restoredEntry)
-                                                    dismiss()
-                                                }
-                                            ),
-                                            onFloat: { floatedEntry in
-                                                actions.onFloatHistoryEntry(floatedEntry)
-                                            }
-                                        )
-                                    )
-                                },
-                                onRestore: {
-                                    actions.onCloseHistoryPreview(entry.id)
-                                    actions.onRestoreRecycledHistoryEntry(entry)
-                                    dismiss()
-                                },
-                                onPermanentDelete: {
-                                    actions.onCloseHistoryPreview(entry.id)
-                                    actions.onPermanentlyDeleteRecycledHistoryEntry(entry)
-                                }
-                            )
-                        }
-                    }
-                    .padding(20)
-                }
-            }
-        }
-        .background(Color(nsColor: .windowBackgroundColor))
-    }
-}
-
-private struct RecycleBinEntryRowView: View {
-    let entry: DocumentHistoryEntry
-    let onPreview: () -> Void
-    let onRestore: () -> Void
-    let onPermanentDelete: () -> Void
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            Button(action: onPreview) {
-                DocumentPreviewThumbnailView(
-                    packageURL: entry.packageURL,
-                    thumbnailSize: CGSize(width: 116, height: 76),
-                    cornerRadius: 12
-                )
-            }
-            .buttonStyle(.plain)
-            .help("Open a larger preview of this deleted snip.")
-
-            VStack(alignment: .leading, spacing: 5) {
-                Text(entry.libraryDisplayTitle)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-
-                Text(entry.label)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Text(deletedDateLabel)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 12)
-
-            VStack(spacing: 8) {
-                Button("Restore", action: onRestore)
-                    .buttonStyle(.glass)
-                    .help("Restore this snip and open it in the editor.")
-
-                Button(role: .destructive, action: onPermanentDelete) {
-                    Label("Permanently Delete", systemImage: "trash.slash")
-                }
-                .buttonStyle(.glass)
-                .controlSize(.small)
-                .help("Permanently delete this snip from the Recycle Bin.")
-            }
-        }
-        .padding(14)
-        .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-    }
-
-    private var deletedDateLabel: String {
-        guard let deletedAt = entry.deletedAt else {
-            return "Deleted recently"
-        }
-
-        return "Deleted \(deletedAt.formatted(date: .abbreviated, time: .shortened))"
     }
 }
 
