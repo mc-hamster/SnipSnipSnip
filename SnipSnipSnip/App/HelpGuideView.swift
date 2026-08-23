@@ -214,7 +214,7 @@ struct HelpGuideView: View {
                             steps: [
                                 "Choose Quick Controls under Screen Tools in the main window, or choose Show Quick Controls in Settings, the Capture menu, or the menu bar icon.",
                                 "Open Settings > General > Quick Controls, then choose Customize Quick Controls when you want to change its controls or presentation.",
-                                "Drag the dock to either side of a display. It snaps to the nearest screen edge and remembers its edge and vertical position.",
+                                "Drag the application icon or open space in the dock header to either side of a display. The dock snaps to the nearest screen edge and remembers its edge and vertical position.",
                                 "Choose the edge-pointing button to switch between Expanded labeled rows and the space-saving Compact icon rail. The same controls stay in the same order, and the dock always fits them automatically."
                             ]
                         ),

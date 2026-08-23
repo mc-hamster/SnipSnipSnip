@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct QuickControlsDockShell<Content: View>: View {
@@ -67,8 +68,8 @@ struct QuickControlsDockHeader: View {
     }
 
     private var expandedHeader: some View {
-        HStack(spacing: 8) {
-            dragHandle
+        HStack(spacing: 7) {
+            brandMark(size: 28)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Quick Controls")
                     .font(.subheadline.weight(.semibold))
@@ -93,38 +94,50 @@ struct QuickControlsDockHeader: View {
             .accessibilityLabel("Collapse Quick Controls")
             QuickControlsDockMenu()
         }
-        .padding(.horizontal, 10)
+        .padding(.leading, 9)
+        .padding(.trailing, 7)
     }
 
     private var compactHeader: some View {
-        VStack(spacing: 2) {
-            Button(action: togglePresentation) {
-                ZStack(alignment: .topTrailing) {
-                    Image(systemName: edge == .right ? "chevron.left" : "chevron.right")
-                        .font(.system(size: 13, weight: .bold))
-                        .frame(width: 36, height: 28)
-                        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    if status != nil {
-                        Circle()
-                            .fill(Color.orange)
-                            .frame(width: 6, height: 6)
-                            .overlay(Circle().stroke(.background, lineWidth: 1))
-                    }
-                }
+        HStack(spacing: 2) {
+            if edge == .right {
+                expandButton
             }
-            .buttonStyle(.plain)
-            .help(status.map { "\($0). Expand Quick Controls" } ?? "Expand Quick Controls")
-            .accessibilityLabel("Expand Quick Controls")
-            .accessibilityValue(status ?? "Ready")
-            dragHandle
+            brandMark(size: 23, showsStatus: true)
+            if edge == .left {
+                expandButton
+            }
         }
+        .padding(.horizontal, 1)
     }
 
-    private var dragHandle: some View {
-        Image(systemName: "line.3.horizontal")
-            .font(.system(size: 9, weight: .semibold))
-            .foregroundStyle(.tertiary)
-            .accessibilityLabel("Drag to Move Quick Controls")
+    private var expandButton: some View {
+        Button(action: togglePresentation) {
+            Image(systemName: edge == .right ? "chevron.left" : "chevron.right")
+                .font(.system(size: 11, weight: .bold))
+                .frame(width: 21, height: 28)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help(status.map { "\($0). Expand Quick Controls" } ?? "Expand Quick Controls")
+        .accessibilityLabel("Expand Quick Controls")
+        .accessibilityValue(status ?? "Ready")
+    }
+
+    private func brandMark(size: CGFloat, showsStatus: Bool = false) -> some View {
+        Image(nsImage: NSApplication.shared.applicationIconImage)
+            .resizable()
+            .interpolation(.high)
+            .frame(width: size, height: size)
+            .overlay(alignment: .topTrailing) {
+                if showsStatus, status != nil {
+                    Circle()
+                        .fill(Color.orange)
+                        .frame(width: 6, height: 6)
+                        .overlay(Circle().stroke(.background, lineWidth: 1))
+                }
+            }
+            .accessibilityHidden(true)
             .help("Drag to Move Quick Controls")
     }
 }

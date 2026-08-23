@@ -2918,9 +2918,6 @@
     "No Controls" : {
 
     },
-    "No deleted snips." : {
-
-    },
     "No help topics found" : {
 
     },
@@ -3792,13 +3789,7 @@
     "Restore Fit, centered alignment, 100% zoom, and zero focal offset." : {
 
     },
-    "Restore Snapshot" : {
-
-    },
     "Restore the default Quick Controls layout?" : {
-
-    },
-    "Restore the document to this history snapshot." : {
 
     },
     "Restore the editable area to the full captured image." : {
@@ -4663,12 +4654,6 @@
 
     },
     "This replaces the current controls, order, presentation, and screen edge." : {
-
-    },
-    "This snapshot includes edits that were not saved to disk." : {
-
-    },
-    "This snapshot reflects a saved state." : {
 
     },
     "Tick Spacing" : {
