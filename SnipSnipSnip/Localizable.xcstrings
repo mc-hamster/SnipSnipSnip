@@ -74,6 +74,9 @@
     "%@ layout" : {
 
     },
+    "%@ Section" : {
+
+    },
     "%@ Setup" : {
 
     },
@@ -135,6 +138,9 @@
           }
         }
       }
+    },
+    "%@. Expand Quick Controls" : {
+
     },
     "%@…" : {
 
@@ -363,10 +369,19 @@
     "Add" : {
 
     },
+    "Add %@" : {
+
+    },
+    "Add a control from the library, or select one in the preview." : {
+
+    },
     "Add a horizontal or vertical ruler above other apps." : {
 
     },
     "Add a soft shadow around screenshots throughout this Guide." : {
+
+    },
+    "Add after the selected control." : {
 
     },
     "Add an editable solid cover over detected password and other secure fields in still steps. Secure text itself is never saved." : {
@@ -388,6 +403,9 @@
 
     },
     "Add Capture to SnipSnipSnip Composition" : {
+
+    },
+    "Add controls in customization." : {
 
     },
     "Add Editable Items" : {
@@ -445,6 +463,9 @@
 
     },
     "Add…" : {
+
+    },
+    "Added" : {
 
     },
     "Added %@. %lld captures in this result." : {
@@ -1032,6 +1053,9 @@
     "Change how these captures are organized without removing them." : {
 
     },
+    "Changes save immediately. Arrange controls and section headers directly in the Dock Preview." : {
+
+    },
     "Check Again" : {
       "comment" : "Rechecks a missing macOS permission."
     },
@@ -1290,6 +1314,9 @@
     "Collapse permission diagnostics." : {
 
     },
+    "Collapse Quick Controls" : {
+
+    },
     "Collapsed" : {
 
     },
@@ -1411,6 +1438,9 @@
 
     },
     "Control SnipSnipSnip Guide" : {
+
+    },
+    "Controls" : {
 
     },
     "Copied" : {
@@ -1557,6 +1587,15 @@
     "Curve" : {
 
     },
+    "Customize" : {
+
+    },
+    "Customize Quick Controls" : {
+
+    },
+    "Customize Quick Controls…" : {
+
+    },
     "Cut" : {
 
     },
@@ -1659,9 +1698,6 @@
     "Discard the current video editor session and return to the capture screen." : {
 
     },
-    "Dismiss" : {
-
-    },
     "Dismiss Import Results" : {
 
     },
@@ -1680,6 +1716,18 @@
     "Distribute" : {
 
     },
+    "Dock Hidden" : {
+
+    },
+    "Dock Preview" : {
+
+    },
+    "Dock Settings" : {
+
+    },
+    "Dock Visible" : {
+
+    },
     "Document" : {
 
     },
@@ -1690,6 +1738,12 @@
 
     },
     "Dot Size" : {
+
+    },
+    "Drag %@ Section" : {
+
+    },
+    "Drag a control or section header, or use the available Move actions." : {
 
     },
     "Drag around anything to create an editable Screenshot." : {
@@ -1716,7 +1770,13 @@
     "Drag the target handle to move where this step points." : {
 
     },
+    "Drag this section header to change its position." : {
+
+    },
     "Drag to capture a selected region of the screen." : {
+
+    },
+    "Drag to Move Quick Controls" : {
 
     },
     "Drag to move this floating reference." : {
@@ -1893,6 +1953,9 @@
     "Expand permission setup and diagnostics." : {
 
     },
+    "Expand Quick Controls" : {
+
+    },
     "Expanded" : {
 
     },
@@ -2030,6 +2093,9 @@
 
     },
     "Filter" : {
+
+    },
+    "Find a Control" : {
 
     },
     "Find copied text, links, files, images, and recent screenshots." : {
@@ -2233,7 +2299,13 @@
     "Hide Inspector" : {
 
     },
+    "Hide Quick Controls" : {
+
+    },
     "Hide Setup" : {
+
+    },
+    "Hide the configurable Quick Controls dock." : {
 
     },
     "Hide this window and choose a window directly from an on-screen overlay." : {
@@ -2502,6 +2574,9 @@
     "Keep Off" : {
 
     },
+    "Keep Quick Controls Nearby" : {
+
+    },
     "Keep selected items in the document while including or excluding them from this layout." : {
 
     },
@@ -2739,7 +2814,13 @@
     "Move %@ earlier" : {
 
     },
+    "Move %@ Earlier" : {
+
+    },
     "Move %@ later" : {
+
+    },
+    "Move %@ Later" : {
 
     },
     "Move %@ up" : {
@@ -2764,6 +2845,12 @@
 
     },
     "Move preset up." : {
+
+    },
+    "Move Section Earlier" : {
+
+    },
+    "Move Section Later" : {
 
     },
     "Move the focal point left or right inside the frame." : {
@@ -2832,6 +2919,9 @@
     "No Connected Devices" : {
 
     },
+    "No Controls" : {
+
+    },
     "No deleted snips." : {
 
     },
@@ -2876,6 +2966,9 @@
     },
     "Not selected" : {
       "comment" : "Accessibility value for an unselected item."
+    },
+    "Not Selected" : {
+
     },
     "Nothing Available" : {
 
@@ -3301,6 +3394,9 @@
     "Preparing Interactive HTML…" : {
 
     },
+    "Presentation" : {
+
+    },
     "Preset" : {
 
     },
@@ -3380,6 +3476,15 @@
 
     },
     "Quick Capture" : {
+
+    },
+    "Quick Controls" : {
+
+    },
+    "Quick Controls Dock Preview" : {
+
+    },
+    "Quick Controls Menu" : {
 
     },
     "Quit %@" : {
@@ -3535,6 +3640,9 @@
     "Remove" : {
 
     },
+    "Remove %@" : {
+
+    },
     "Remove Finder files and folders from the desktop in captured steps and source video. App windows are still captured normally." : {
 
     },
@@ -3551,6 +3659,9 @@
 
     },
     "Remove the selected items. The final item is always protected." : {
+
+    },
+    "Remove this control from the dock." : {
 
     },
     "Remove this UI Map overlay from copied, shared, and exported screenshots." : {
@@ -3673,10 +3784,16 @@
     "Restore Default Ignored Apps" : {
 
     },
+    "Restore Default Layout" : {
+
+    },
     "Restore Fit, centered alignment, 100% zoom, and zero focal offset." : {
 
     },
     "Restore Snapshot" : {
+
+    },
+    "Restore the default Quick Controls layout?" : {
 
     },
     "Restore the document to this history snapshot." : {
@@ -3862,6 +3979,9 @@
     "Screen Capture" : {
 
     },
+    "Screen Edge" : {
+
+    },
     "Screen Inspector" : {
 
     },
@@ -3886,7 +4006,7 @@
     "Screen Tools" : {
 
     },
-    "Screen Tools and Clipboard History" : {
+    "Screen Tools, Quick Controls, and Clipboard History" : {
 
     },
     "Screenshot" : {
@@ -3973,8 +4093,17 @@
     "Select numbered arrows on the canvas in their new order." : {
 
     },
+    "Select or Drag %@" : {
+
+    },
+    "Select this control. Drag toward the top or bottom of another control to move it before or after." : {
+
+    },
     "Selected" : {
       "comment" : "Accessibility value for a selected item."
+    },
+    "Selected Control" : {
+
     },
     "Selected Display" : {
 
@@ -4112,6 +4241,9 @@
     "Show a brief pulse at clicks in video exports. Crosshairs on still steps are controlled per step." : {
 
     },
+    "Show a configurable edge dock for the SnipSnipSnip actions you use most." : {
+
+    },
     "Show accessibility label" : {
 
     },
@@ -4226,6 +4358,9 @@
     "Show Pixel Grid" : {
 
     },
+    "Show Quick Controls" : {
+
+    },
     "Show Recent Step Previews" : {
 
     },
@@ -4242,6 +4377,9 @@
 
     },
     "Show step number" : {
+
+    },
+    "Show the configurable Quick Controls dock above other apps." : {
 
     },
     "Show the pointer in still steps" : {
@@ -4489,6 +4627,9 @@
     "The current %@ document has unsaved changes." : {
 
     },
+    "The dock fits its controls automatically." : {
+
+    },
     "Theme" : {
 
     },
@@ -4508,6 +4649,9 @@
 
     },
     "This permanently removes pinned and unpinned clipboard items from this Mac." : {
+
+    },
+    "This replaces the current controls, order, presentation, and screen edge." : {
 
     },
     "This snapshot includes edits that were not saved to disk." : {
@@ -4670,7 +4814,7 @@
     "Use Private Capture" : {
 
     },
-    "Use Quick Capture when you want a one-action Screenshot from Region, Window, Screen, Scrolling Content, a repeat, or a preset. Scroll and Repeat Last are direct actions; Presets stays in its own menu. Under Create, choose Comparison, Steps, or Combined Image to open setup with the result already selected. Under Record, choose Region, Window, Screen, Guide, or an available connected device directly. Use Screen Tools for Screen Ruler and Screen Inspector, and open Clipboard History beside them." : {
+    "Use Quick Capture when you want a one-action Screenshot from Region, Window, Screen, Scrolling Content, a repeat, or a preset. Scroll and Repeat Last are direct actions; Presets stays in its own menu. Under Create, choose Comparison, Steps, or Combined Image to open setup with the result already selected. Under Record, choose Region, Window, Screen, Guide, or an available connected device directly. Use Screen Tools for Screen Ruler, Screen Inspector, and Quick Controls, and open Clipboard History beside them." : {
 
     },
     "Use Screen Inspector" : {

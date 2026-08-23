@@ -59,6 +59,7 @@ nonisolated struct AppPreferenceStores {
     let video: VideoPreferenceStore
     let guide: GuidePreferenceStore
     let lifecycle: LifecyclePreferenceStore
+    let quickControls: QuickControlsPreferenceStore
 
     init(storage: PreferenceStorage) {
         self.storage = storage
@@ -71,5 +72,6 @@ nonisolated struct AppPreferenceStores {
         self.video = VideoPreferenceStore(storage: storage)
         self.guide = GuidePreferenceStore(storage: storage)
         self.lifecycle = LifecyclePreferenceStore(storage: storage)
+        self.quickControls = QuickControlsPreferenceStore(storage: storage)
     }
 }

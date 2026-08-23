@@ -26,6 +26,8 @@ final class AppModel: ObservableObject {
     let archive: ArchiveWorkflowModel
     let tools: ToolWorkflowModel
     let creation: CreationWorkflowModel
+    let quickControls: QuickControlsModel
+    let quickControlsCoordinator: QuickControlsCoordinator
     let workflowCoordinator: AppWorkflowCoordinator
     let environment: AppEnvironment
     var capabilities: AppCapabilitySnapshot { environment.capabilities }
@@ -57,6 +59,19 @@ final class AppModel: ObservableObject {
         self.archive = composition.archive
         self.tools = composition.tools
         self.creation = composition.creation
+        let quickControls = QuickControlsModel(
+            capabilities: composition.environment.capabilities,
+            lifecycle: composition.lifecycle,
+            capture: composition.capture,
+            clipboard: composition.clipboard,
+            video: composition.video,
+            guide: composition.guide,
+            tools: composition.tools,
+            creation: composition.creation,
+            preferenceStore: composition.environment.preferenceStores.quickControls
+        )
+        self.quickControls = quickControls
+        self.quickControlsCoordinator = QuickControlsCoordinator(model: quickControls)
         self.automation = composition.automation
         self.automationService = AppAutomationService(host: composition.automation)
         self.workflowCoordinator = composition.workflowCoordinator

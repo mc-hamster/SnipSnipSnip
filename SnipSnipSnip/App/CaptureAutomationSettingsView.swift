@@ -13,6 +13,7 @@ struct CaptureAutomationSettingsView: View {
     @ObservedObject var guide: GuideWorkflowModel
     @ObservedObject var archive: ArchiveWorkflowModel
     @ObservedObject var tools: ToolWorkflowModel
+    @ObservedObject var quickControls: QuickControlsModel
     let capabilities: AppCapabilitySnapshot
     let clock: any ClockProviding
     let requestOnboardingPresentation: () -> Void
@@ -69,13 +70,35 @@ struct CaptureAutomationSettingsView: View {
                         : "Replay onboarding whenever you want a guided walkthrough. Support requests and feature requests start from the support page.")
                 }
 
+                Section("Quick Controls") {
+                    HStack {
+                        if quickControls.isVisible {
+                            Label("Dock Visible", systemImage: "rectangle.on.rectangle")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Label("Dock Hidden", systemImage: "slider.horizontal.3")
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("Customize Quick Controls…") {
+                            quickControls.showCustomization()
+                        }
+
+                        Button(quickControls.isVisible ? "Hide Quick Controls" : "Show Quick Controls") {
+                            quickControls.toggleVisibility()
+                        }
+                    }
+
+                    SettingsHelpText("Choose and arrange controls before showing the dock. It fits the configured controls automatically and remains available from the main window, Capture menu, and menu bar icon. Quick Controls are excluded from screenshots, Guides, and videos captured by SnipSnipSnip.")
+                }
+
                 Section("Reset Settings") {
                     Button("Reset All Settings to Defaults", role: .destructive) {
                         isShowingResetDefaultsConfirmation = true
                     }
                     .disabled(!canResetPreferencesToDefaults)
 
-                    SettingsHelpText("This restores capture, shortcuts, recording, output, Snip Library, naming, and privacy settings to their default values. It does not delete Snip History or Recycle Bin items.")
+                    SettingsHelpText("This restores capture, shortcuts, recording, output, Snip Library, naming, privacy, and Quick Controls settings to their default values. It does not delete Snip History or Recycle Bin items.")
                 }
             }
             .tabItem {

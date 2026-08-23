@@ -11,6 +11,7 @@ struct ContentView: View {
     @ObservedObject var video: VideoWorkflowModel
     @ObservedObject var guide: GuideWorkflowModel
     @ObservedObject var tools: ToolWorkflowModel
+    @ObservedObject var quickControls: QuickControlsModel
     @ObservedObject var creation: CreationWorkflowModel
     let capabilities: AppCapabilitySnapshot
     let workflowCoordinator: AppWorkflowCoordinator
@@ -1054,6 +1055,34 @@ struct ContentView: View {
                     )
                 }
 
+                discoveryTarget(.quickControls) {
+                    Button {
+                        quickControls.toggleVisibility()
+                    } label: {
+                        headerActionLabel(
+                            title: quickControls.isVisible
+                                ? "Hide Quick Controls"
+                                : "Quick Controls",
+                            systemImage: quickControls.isVisible
+                                ? "rectangle.badge.xmark"
+                                : "rectangle.on.rectangle"
+                        )
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.small)
+                    .help(
+                        quickControls.isVisible
+                            ? "Hide the configurable Quick Controls dock."
+                            : "Show the configurable Quick Controls dock above other apps."
+                    )
+                    .accessibilityLabel(
+                        quickControls.isVisible
+                            ? "Hide Quick Controls"
+                            : "Show Quick Controls"
+                    )
+                }
+
                 discoveryTarget(.clipboardHistory) {
                     Button(action: clipboard.showClipboardManager) {
                         headerActionLabel(
@@ -1069,7 +1098,7 @@ struct ContentView: View {
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Screen Tools and Clipboard History")
+        .accessibilityLabel("Screen Tools, Quick Controls, and Clipboard History")
     }
 
     private func captureActionRow<Content: View>(

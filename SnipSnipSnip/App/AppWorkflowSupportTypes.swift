@@ -190,6 +190,7 @@ nonisolated enum AppModelPreferenceKey {
     static let screenshotFilenameTemplate = "appModel.screenshotFilenameTemplate"
     static let screenshotDragOutFormat = "appModel.screenshotDragOutFormat"
     static let privateCaptureEnabled = "appModel.privateCaptureEnabled"
+    static let quickControlsPreferences = "appModel.quickControlsPreferences"
     static let uiMapEnabled = "appModel.uiMapEnabled"
     static let videoExportPreferences = "appModel.videoExportPreferences"
     static let videoRecordingPreferences = "appModel.videoRecordingPreferences"

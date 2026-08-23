@@ -142,7 +142,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Discover screen tools and capture options",
-                            body: "Use Screen Tools in the main header to add a Screen Ruler or open Screen Inspector. Clipboard History opens beside those utilities. Point to an action or move keyboard focus to it to see an animated explanation of what it creates or opens. The pointer preview changes after a short 50 millisecond dwell, while keyboard focus changes it immediately. Timer, Cursor, Private Capture, and Auto Copy state stays visible beside Ready; choose a state control to change it. The main window keeps this single discovery stage visible whenever no document is open, and Reduce Motion shows the fully resolved static scene."
+                            body: "Use Screen Tools in the main header to add a Screen Ruler, open Screen Inspector, or show Quick Controls. Clipboard History opens beside those utilities. Point to an action or move keyboard focus to it to see an animated explanation of what it creates or opens. The pointer preview changes after a short 50 millisecond dwell, while keyboard focus changes it immediately. Timer, Cursor, Private Capture, and Auto Copy state stays visible beside Ready; choose a state control to change it. The main window keeps this single discovery stage visible whenever no document is open, and Reduce Motion shows the fully resolved static scene."
                         ),
                         HelpArticleSection(
                             title: "Know what stays editable",
@@ -203,6 +203,46 @@ struct HelpGuideView: View {
                         ]
                         : [],
                     relatedIDs: ["troubleshoot-capture", "privacy"]
+                ),
+                HelpArticle(
+                    id: "quick-controls",
+                    title: "Use Quick Controls",
+                    summary: "Keep a configurable side dock of familiar SnipSnipSnip actions above other apps.",
+                    sections: [
+                        HelpArticleSection(
+                            title: "Configure and show the dock",
+                            steps: [
+                                "Choose Quick Controls under Screen Tools in the main window, or choose Show Quick Controls in Settings, the Capture menu, or the menu bar icon.",
+                                "Open Settings > General > Quick Controls, then choose Customize Quick Controls when you want to change its controls or presentation.",
+                                "Drag the dock to either side of a display. It snaps to the nearest screen edge and remembers its edge and vertical position.",
+                                "Choose the edge-pointing button to switch between Expanded labeled rows and the space-saving Compact icon rail. The same controls stay in the same order, and the dock always fits them automatically."
+                            ]
+                        ),
+                        HelpArticleSection(
+                            title: "Choose and arrange controls",
+                            steps: [
+                                "Choose the dock menu, then Customize Quick Controls, or use Customize Quick Controls in Settings.",
+                                "Use the searchable Controls library. Screenshot, Create, and Record sections keep still-image actions such as Capture Region distinct from time-based actions such as Record Region.",
+                                "Choose + to add a control. Added controls expose a direct − button in the library and a Remove button in Selected Control; the final control can be removed too.",
+                                "Drag controls within their section in the Dock Preview. Move toward the top or bottom half of a control; the insertion line above or below shows whether the dragged control will land before or after it. You can also select a control and use Move Earlier and Move Later. Drag a section header to rearrange that whole group without changing its internal control order. The preview uses the exact same controls, section order, and presentation as the live dock.",
+                                "Under Dock Settings, choose the Compact or Expanded Presentation and the Left or Right Screen Edge. Height and width follow the controls and presentation automatically.",
+                                "Choose Close when the layout is ready. Changes are saved immediately. An empty dock offers Customize so you can add controls again. Restore Default Layout asks for confirmation before replacing the layout."
+                            ]
+                        ),
+                        HelpArticleSection(
+                            title: "Understand capture and availability behavior",
+                            bullets: [
+                                "Quick Controls calls the same actions used by the main window, Capture menu, menu bar icon, and existing shared Presets and Timer menus.",
+                                "Capture and recording actions become unavailable while another capture, recording, Guide, or connected-device session blocks a new one.",
+                                "The dock follows across Spaces and stays above ordinary windows until hidden.",
+                                "Quick Controls is excluded from screenshots, Guides, and videos captured by SnipSnipSnip. Other screenshot applications and macOS screenshot shortcuts control their own capture behavior."
+                            ]
+                        )
+                    ],
+                    important: [
+                        "Hiding Quick Controls keeps the saved layout and settings. Choose Show Quick Controls whenever you want the dock back."
+                    ],
+                    relatedIDs: ["get-started", "capture-screenshot", "capture-presets"]
                 )
             ] + (proUpdateCheckEnabled ? [
                 HelpArticle(
@@ -703,7 +743,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: String(localized: "Choose what to make"),
                             steps: [
-                                String(localized: "Use Quick Capture when you want a one-action Screenshot from Region, Window, Screen, Scrolling Content, a repeat, or a preset. Scroll and Repeat Last are direct actions; Presets stays in its own menu. Under Create, choose Comparison, Steps, or Combined Image to open setup with the result already selected. Under Record, choose Region, Window, Screen, Guide, or an available connected device directly. Use Screen Tools for Screen Ruler and Screen Inspector, and open Clipboard History beside them."),
+                                String(localized: "Use Quick Capture when you want a one-action Screenshot from Region, Window, Screen, Scrolling Content, a repeat, or a preset. Scroll and Repeat Last are direct actions; Presets stays in its own menu. Under Create, choose Comparison, Steps, or Combined Image to open setup with the result already selected. Under Record, choose Region, Window, Screen, Guide, or an available connected device directly. Use Screen Tools for Screen Ruler, Screen Inspector, and Quick Controls, and open Clipboard History beside them."),
                                 String(localized: "To explain a process, choose Record a Guide for action-aware capture or Build Steps manually to add and caption each step yourself."),
                                 String(localized: "Choose where the first image will come from: Region, Window, Screen, or Existing Image. Existing Image includes files, the clipboard, and the Snip Library. More ways to capture keeps specialized acquisition methods out of the main decision. Fine-tune appears only when the selected source has optional settings."),
                                 String(localized: "Review the summary and use the single primary action. Cancelling setup, target selection, permission setup, or capture leaves the current document and preferences unchanged.")
@@ -1079,7 +1119,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Screen tools",
                             bullets: [
-                                "Use Screen Tools in the main window to add a Screen Ruler or open Screen Inspector.",
+                                "Use Screen Tools in the main window to add a Screen Ruler, open Screen Inspector, or show Quick Controls.",
                                 "Use the menu bar icon > Screen Ruler to add horizontal and vertical rulers.",
                                 "Use the menu bar icon > Screen Inspector to inspect live pixels, colors, and coordinates.",
                                 "Use Settings > Capture to adjust ruler appearance and inspector display options."

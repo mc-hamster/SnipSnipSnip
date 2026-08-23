@@ -18,6 +18,7 @@ enum CaptureDiscoveryItem: String, Hashable {
     case connectedDevice
     case screenRuler
     case screenInspector
+    case quickControls
     case clipboardHistory
     case timer
     case cursor
@@ -42,6 +43,7 @@ enum CaptureDiscoveryItem: String, Hashable {
         case .connectedDevice: "Record a Connected Device"
         case .screenRuler: "Measure with Screen Rulers"
         case .screenInspector: "Inspect the Screen"
+        case .quickControls: "Keep Quick Controls Nearby"
         case .clipboardHistory: "Open Clipboard History"
         case .timer: "Set a Capture Timer"
         case .cursor: "Include the Cursor"
@@ -85,6 +87,8 @@ enum CaptureDiscoveryItem: String, Hashable {
             "Place horizontal or vertical pixel rulers above other apps."
         case .screenInspector:
             "Magnify pixels, sample colors, and measure spacing without taking a screenshot."
+        case .quickControls:
+            "Show a configurable edge dock for the SnipSnipSnip actions you use most."
         case .clipboardHistory:
             "Find copied text, links, files, images, and recent screenshots."
         case .timer:
@@ -128,6 +132,7 @@ enum CaptureDiscoveryItem: String, Hashable {
         case .connectedDevice: .device
         case .screenRuler: .ruler
         case .screenInspector: .inspector
+        case .quickControls: .quickControls
         case .clipboardHistory: .clipboard
         case .timer: .timer
         case .cursor: .cursor
@@ -202,6 +207,7 @@ struct CaptureDiscoveryIllustration: View {
         case device
         case ruler
         case inspector
+        case quickControls
         case clipboard
         case timer
         case cursor
@@ -251,6 +257,8 @@ struct CaptureDiscoveryIllustration: View {
                 ruler
             case .inspector:
                 inspector
+            case .quickControls:
+                quickControlsDock
             case .clipboard:
                 clipboard
             case .timer:
@@ -694,6 +702,89 @@ struct CaptureDiscoveryIllustration: View {
             }
             .offset(x: 34, y: 48)
         }
+    }
+
+    private var quickControlsDock: some View {
+        let dockWidth = 54 + progress * 92
+
+        return ZStack {
+            desktopBackdrop
+                .scaleEffect(0.9)
+                .offset(x: -38)
+                .opacity(0.72)
+
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .frame(width: dockWidth, height: 122)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(Color.secondary.opacity(0.24))
+                }
+                .shadow(color: .black.opacity(0.1), radius: 7, y: 3)
+                .overlay {
+                    VStack(spacing: 7) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "scissors")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(accent)
+                            Capsule()
+                                .fill(Color.secondary.opacity(0.22))
+                                .frame(width: 48 * progress, height: 5)
+                                .opacity(progress)
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(.secondary)
+                                .rotationEffect(.degrees(180 * progress))
+                        }
+                        .padding(.horizontal, 9)
+
+                        quickControlsIllustrationRow(
+                            systemImage: "selection.pin.in.out",
+                            labelWidth: 58
+                        )
+                        quickControlsIllustrationRow(
+                            systemImage: "rectangle.on.rectangle",
+                            labelWidth: 68
+                        )
+                        quickControlsIllustrationRow(
+                            systemImage: "timer",
+                            labelWidth: 42
+                        )
+                    }
+                    .padding(.vertical, 9)
+                }
+                // Keep the screen-facing edge fixed while the dock grows inward.
+                .offset(x: 108 - progress * 46)
+
+            Rectangle()
+                .fill(accent.opacity(0.7))
+                .frame(width: 2, height: 92)
+                .offset(x: 135, y: 0)
+                .opacity(0.45 + progress * 0.55)
+        }
+    }
+
+    private func quickControlsIllustrationRow(
+        systemImage: String,
+        labelWidth: CGFloat
+    ) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.primary)
+                .frame(width: 20, height: 20)
+                .background(accent.opacity(0.14), in: .rect(cornerRadius: 6))
+            Capsule()
+                .fill(Color.secondary.opacity(0.22))
+                .frame(width: labelWidth * progress, height: 5)
+                .opacity(progress)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 8)
+        .frame(height: 24)
+        .background(Color.secondary.opacity(0.08), in: .rect(cornerRadius: 7))
+        .padding(.horizontal, 7)
     }
 
     private var clipboard: some View {

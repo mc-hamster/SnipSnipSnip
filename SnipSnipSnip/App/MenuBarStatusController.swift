@@ -23,6 +23,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     private weak var video: VideoWorkflowModel?
     private weak var guide: GuideWorkflowModel?
     private weak var tools: ToolWorkflowModel?
+    private weak var quickControls: QuickControlsModel?
     private weak var floatingReferences: FloatingReferenceCoordinator?
     private weak var workflowCoordinator: AppWorkflowCoordinator?
     private var capabilities: AppCapabilitySnapshot?
@@ -74,13 +75,16 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         video: VideoWorkflowModel,
         guide: GuideWorkflowModel,
         tools: ToolWorkflowModel,
+        quickControls: QuickControlsModel,
         floatingReferences: FloatingReferenceCoordinator,
         capabilities: AppCapabilitySnapshot,
         workflowCoordinator: AppWorkflowCoordinator,
         consumeOnboardingWindowPresentationFlag: @escaping () -> Bool,
         consumeMainWindowPresentationFlag: @escaping () -> Bool
     ) {
-        guard self.lifecycle !== lifecycle || self.capture !== capture else {
+        guard self.lifecycle !== lifecycle
+                || self.capture !== capture
+                || self.quickControls !== quickControls else {
             return
         }
 
@@ -90,6 +94,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         self.video = video
         self.guide = guide
         self.tools = tools
+        self.quickControls = quickControls
         self.floatingReferences = floatingReferences
         self.capabilities = capabilities
         self.workflowCoordinator = workflowCoordinator
@@ -118,6 +123,10 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             .store(in: &cancellables)
 
         guide.objectWillChange
+            .sink { [weak self] _ in DispatchQueue.main.async { self?.rebuildMainMenu() } }
+            .store(in: &cancellables)
+
+        quickControls.objectWillChange
             .sink { [weak self] _ in DispatchQueue.main.async { self?.rebuildMainMenu() } }
             .store(in: &cancellables)
 
@@ -344,12 +353,18 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         rebuildMainMenu()
     }
 
+    @objc private func toggleQuickControlsVisibility() {
+        quickControls?.toggleVisibility()
+        rebuildMainMenu()
+    }
+
     @objc private func quitApplication() {
         AppTerminationController.shared.requestQuit()
     }
 
     private func rebuildMainMenu() {
-        guard let lifecycle, let capture, let clipboard, let floatingReferences, let capabilities else {
+        guard let lifecycle, let capture, let clipboard, let quickControls,
+              let floatingReferences, let capabilities else {
             return
         }
 
@@ -362,6 +377,13 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             action: #selector(openMainWindow),
             keyEquivalent: "o",
             keyModifiers: captureShortcutModifiers,
+            enabled: true
+        ))
+
+        menu.addItem(actionItem(
+            title: quickControls.isVisible ? "Hide Quick Controls" : "Show Quick Controls",
+            systemImage: "slider.horizontal.3",
+            action: #selector(toggleQuickControlsVisibility),
             enabled: true
         ))
 

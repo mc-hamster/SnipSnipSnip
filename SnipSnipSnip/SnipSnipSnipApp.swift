@@ -22,6 +22,7 @@ private struct CaptureCommands: Commands {
     @ObservedObject var video: VideoWorkflowModel
     @ObservedObject var guide: GuideWorkflowModel
     @ObservedObject var tools: ToolWorkflowModel
+    @ObservedObject var quickControls: QuickControlsModel
     let capabilities: AppCapabilitySnapshot
     let workflowCoordinator: AppWorkflowCoordinator
     @Environment(\.openWindow) private var openWindow
@@ -143,6 +144,11 @@ private struct CaptureCommands: Commands {
 
             Button("Open \(AppBranding.displayName)", action: showMainWindow)
                 .keyboardShortcut(AppShortcut.openWindowKey, modifiers: AppShortcut.modifiers)
+
+            Button(
+                quickControls.isVisible ? "Hide Quick Controls" : "Show Quick Controls",
+                action: quickControls.toggleVisibility
+            )
 
             Menu("Screen Ruler") {
                 Button("New Horizontal Ruler") {
@@ -754,12 +760,14 @@ struct SnipSnipSnipApp: App {
                 video: model.video,
                 guide: model.guide,
                 tools: model.tools,
+                quickControls: model.quickControls,
                 floatingReferences: model.documents.floatingReferenceCoordinator,
                 capabilities: model.capabilities,
                 workflowCoordinator: model.workflowCoordinator,
                 consumeOnboardingWindowPresentationFlag: model.lifecycle.consumeOnboardingWindowPresentationFlag,
                 consumeMainWindowPresentationFlag: model.lifecycle.consumeMainWindowPresentationFlag
             )
+            model.quickControlsCoordinator.activate()
         }
         AutomationAppleScriptBridge.configure(
             automation: model.automation,
@@ -784,6 +792,7 @@ struct SnipSnipSnipApp: App {
                     video: model.video,
                     guide: model.guide,
                     tools: model.tools,
+                    quickControls: model.quickControls,
                     creation: model.creation,
                     capabilities: model.capabilities,
                     workflowCoordinator: model.workflowCoordinator,
@@ -861,6 +870,7 @@ struct SnipSnipSnipApp: App {
                 video: model.video,
                 guide: model.guide,
                 tools: model.tools,
+                quickControls: model.quickControls,
                 capabilities: model.capabilities,
                 workflowCoordinator: model.workflowCoordinator
             )
@@ -916,6 +926,7 @@ struct SnipSnipSnipApp: App {
                 guide: model.guide,
                 archive: model.archive,
                 tools: model.tools,
+                quickControls: model.quickControls,
                 capabilities: model.capabilities,
                 clock: model.environment.systemServices.clock,
                 requestOnboardingPresentation: {
@@ -923,7 +934,10 @@ struct SnipSnipSnipApp: App {
                     model.lifecycle.requestOnboardingPresentation()
                 },
                 checkForProUpdates: model.lifecycle.checkForProUpdates,
-                resetPreferencesToDefaults: model.workflowCoordinator.resetPreferencesToDefaults
+                resetPreferencesToDefaults: {
+                    model.workflowCoordinator.resetPreferencesToDefaults()
+                    model.quickControls.resetPreferencesToDefaults()
+                }
             )
         }
     }
