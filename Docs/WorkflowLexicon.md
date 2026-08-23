@@ -263,10 +263,11 @@ Library terms identify distinct scopes. Do not shorten them to generic **Library
 
 | Canonical term | Meaning | Do not substitute |
 | --- | --- | --- |
-| **Snip Library** | The main place for browsing saved SnipSnipSnip content. | Library. |
+| **Snip Library** | The modeless browser for Recent Snips, Snip History, and the Recycle Bin, with search and a large preview. | Library or History Browser. |
 | **Recent Snips** | A limited, recent subset of captured content. | Recent captures. |
 | **Snip History** | The historical list of saved snips. | Capture History, Archive History, or visible Archive. |
 | **Change History** | Prior editable versions or autosaved states of an item. | Autosave History. |
+| **History Preview** | The modeless auxiliary window for inspecting a Change History, Recent Snips, Snip History, or Recycle Bin screenshot without replacing active editor content. | History overlay or full-screen preview. |
 | **Recycle Bin** | Recoverable deleted items. | Trash when naming the app feature. |
 | **Recover Last Session** | Recovery of work from the most recent interrupted session. | Restore session or crash archive. |
 | **Snip History Storage** | Settings that control retention or storage for Snip History. | Archive settings. |

@@ -23,6 +23,7 @@ extension AppModelComposition {
                 windowPresenter: LiveDocumentWindowPresenter(screens: context.environment.systemServices.screens),
                 pasteboardImporter: LiveDocumentPasteboardImporter(),
                 floatingReferenceCoordinator: context.floatingReferenceCoordinator,
+                historyPreviewCoordinator: context.historyPreviewCoordinator,
                 textRecognitionCoordinator: CaptureTextRecognitionCoordinator(
                     files: context.environment.systemServices.files,
                     scheduler: context.environment.systemServices.scheduler

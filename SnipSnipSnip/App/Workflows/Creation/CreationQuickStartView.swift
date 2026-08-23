@@ -547,10 +547,17 @@ struct CreationExistingSourcePickerView: View {
     let sourceTitle: String
     let recentEntries: [DocumentHistoryEntry]
     let historyEntries: [DocumentHistoryEntry]
+    let outOfCapturePatternSettings: EditorOutOfCapturePatternSettings
+    let loadPreview: @MainActor (DocumentHistoryEntry) async -> CGImage?
     let onChoose: (DocumentHistoryEntry, Bool) -> Void
     let onCancel: () -> Void
     @State private var selectedEntryID: UUID?
     @State private var libraryScope = CreationExistingSourceScope.recent
+    @State private var previewModel: FloatingReferenceWindowModel?
+    @State private var displayedEntryID: UUID?
+    @State private var isLoadingPreview = false
+    @State private var previewErrorMessage: String?
+    @State private var usesRenderedImageOnly = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -559,7 +566,7 @@ struct CreationExistingSourcePickerView: View {
                     .font(.title3.weight(.semibold))
                     .accessibilityAddTraits(.isHeader)
                 Text(
-                    "Choose the exact capture to use. Editable keeps its source items and annotations; Image uses only its rendered preview."
+                    "Choose a screenshot and inspect it at any size. It stays editable unless you turn on Use Rendered Image Only."
                 )
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -581,65 +588,18 @@ struct CreationExistingSourcePickerView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 12)
                 .onChange(of: libraryScope) {
-                    selectedEntryID = nil
+                    selectedEntryID = visibleEntries.first?.id
                 }
             }
 
             Divider()
 
-            if visibleEntries.isEmpty {
-                ContentUnavailableView(
-                    "Nothing Available",
-                    systemImage: "photo.on.rectangle.angled",
-                    description: Text(
-                        "There are no Snip Library items yet."
-                    )
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List(visibleEntries, selection: $selectedEntryID) { entry in
-                    HStack(spacing: 12) {
-                        DocumentPreviewThumbnailView(
-                            packageURL: entry.packageURL,
-                            thumbnailSize: CGSize(
-                                width: 96,
-                                height: 64
-                            ),
-                            cornerRadius: 8
-                        )
+            HSplitView {
+                sourceList
+                    .frame(minWidth: 300, idealWidth: 340, maxWidth: 400)
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(entry.libraryDisplayTitle)
-                                .font(.subheadline.weight(.semibold))
-                                .lineLimit(2)
-                            Text(
-                                entry.savedAt.formatted(
-                                    date: .abbreviated,
-                                    time: .shortened
-                                )
-                            )
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            Text(entry.label)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer(minLength: 8)
-                    }
-                    .padding(.vertical, 4)
-                    .tag(entry.id)
-                    .accessibilityLabel(entry.libraryDisplayTitle)
-                    .accessibilityValue(
-                        entry.id == selectedEntryID
-                            ? "Selected"
-                            : "Not selected"
-                    )
-                    .accessibilityIdentifier(
-                        "creation.existing.entry.\(entry.id.uuidString)"
-                    )
-                }
-                .accessibilityIdentifier("creation.existing.list")
+                sourcePreview
+                    .frame(minWidth: 460, maxWidth: .infinity, maxHeight: .infinity)
             }
 
             Divider()
@@ -650,13 +610,12 @@ struct CreationExistingSourcePickerView: View {
 
                 Spacer()
 
-                Button("Use as Image") {
-                    choose(flattened: true)
-                }
-                .disabled(selectedEntry == nil)
+                Toggle("Use Rendered Image Only", isOn: $usesRenderedImageOnly)
+                    .toggleStyle(.checkbox)
+                    .help("Turn this on only when you want the visible pixels without editable source items and annotations.")
 
-                Button("Use Editable Capture") {
-                    choose(flattened: false)
+                Button("Use Screenshot") {
+                    choose(flattened: usesRenderedImageOnly)
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
@@ -664,8 +623,103 @@ struct CreationExistingSourcePickerView: View {
             }
             .padding(16)
         }
-        .frame(width: 580, height: 520)
+        .frame(width: 900, height: 600)
         .accessibilityIdentifier("creation.existing.picker")
+        .onAppear {
+            if selectedEntryID == nil {
+                selectedEntryID = visibleEntries.first?.id
+            }
+        }
+        .task(id: selectedEntryID) {
+            await refreshPreview()
+        }
+    }
+
+    @ViewBuilder
+    private var sourceList: some View {
+        if visibleEntries.isEmpty {
+            ContentUnavailableView(
+                "Nothing Available",
+                systemImage: "photo.on.rectangle.angled",
+                description: Text("There are no Snip Library items yet.")
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            List(visibleEntries, selection: $selectedEntryID) { entry in
+                HStack(spacing: 12) {
+                    DocumentPreviewThumbnailView(
+                        packageURL: entry.packageURL,
+                        thumbnailSize: CGSize(width: 96, height: 64),
+                        cornerRadius: 8
+                    )
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(entry.libraryDisplayTitle)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(2)
+                        Text(entry.savedAt.formatted(date: .abbreviated, time: .shortened))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 8)
+                }
+                .padding(.vertical, 4)
+                .tag(entry.id)
+                .accessibilityLabel(entry.libraryDisplayTitle)
+                .accessibilityValue(entry.id == selectedEntryID ? "Selected" : "Not selected")
+                .accessibilityIdentifier("creation.existing.entry.\(entry.id.uuidString)")
+            }
+            .accessibilityIdentifier("creation.existing.list")
+        }
+    }
+
+    private var sourcePreview: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(selectedEntry?.libraryDisplayTitle ?? "Screenshot Preview")
+                        .font(.headline)
+                    if let selectedEntry {
+                        Text(selectedEntry.savedAt.formatted(date: .abbreviated, time: .shortened))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer(minLength: 8)
+                if let previewModel {
+                    HistoryPreviewZoomControls(model: previewModel)
+                }
+            }
+            .padding(.horizontal, 14)
+            .frame(minHeight: 54)
+            .background(.bar)
+
+            Divider()
+
+            ZStack {
+                if let previewModel {
+                    ZoomableReferenceImageView(model: previewModel)
+                        .id(displayedEntryID)
+                        .opacity(isLoadingPreview ? 0.55 : 1)
+                } else {
+                    Color(nsColor: .underPageBackgroundColor)
+                }
+
+                if isLoadingPreview {
+                    ProgressView("Loading Preview…")
+                        .padding(12)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+                } else if let previewErrorMessage {
+                    ContentUnavailableView(
+                        "Preview Unavailable",
+                        systemImage: "photo.badge.exclamationmark",
+                        description: Text(previewErrorMessage)
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .help("Scroll to pan, pinch or Command-scroll to zoom, and double-click to switch between Fit and Actual Size.")
+        }
     }
 
     private var selectedEntry: DocumentHistoryEntry? {
@@ -690,6 +744,50 @@ struct CreationExistingSourcePickerView: View {
             return
         }
         onChoose(selectedEntry, flattened)
+    }
+
+    @MainActor
+    private func refreshPreview() async {
+        guard let selectedEntry else {
+            previewModel = nil
+            displayedEntryID = nil
+            isLoadingPreview = false
+            previewErrorMessage = nil
+            return
+        }
+
+        let entryID = selectedEntry.id
+        isLoadingPreview = true
+        previewErrorMessage = nil
+        guard let image = await loadPreview(selectedEntry),
+              !Task.isCancelled,
+              selectedEntryID == entryID else {
+            if !Task.isCancelled, selectedEntryID == entryID {
+                isLoadingPreview = false
+                previewErrorMessage = "This screenshot could not be previewed."
+            }
+            return
+        }
+
+        if let previewModel {
+            previewModel.updateContent(
+                title: selectedEntry.libraryDisplayTitle,
+                subtitle: selectedEntry.savedAt.formatted(date: .abbreviated, time: .shortened),
+                image: image,
+                outOfCapturePatternSettings: outOfCapturePatternSettings
+            )
+        } else {
+            previewModel = FloatingReferenceWindowModel(
+                title: selectedEntry.libraryDisplayTitle,
+                subtitle: selectedEntry.savedAt.formatted(date: .abbreviated, time: .shortened),
+                image: image,
+                outOfCapturePatternSettings: outOfCapturePatternSettings,
+                preservesZoomAcrossImageChanges: true,
+                togglesFitOnDoubleClick: true
+            )
+        }
+        displayedEntryID = entryID
+        isLoadingPreview = false
     }
 }
 

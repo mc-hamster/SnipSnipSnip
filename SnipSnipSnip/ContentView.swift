@@ -82,12 +82,13 @@ struct ContentView: View {
                         controller: editorController,
                         isInspectorPresented: $isEditorInspectorPresented,
                         historyEntries: documents.historyEntries,
-                        recentSnipEntries: documents.recentSnipEntries,
-                        captureHistoryEntries: documents.allCaptureHistoryEntries,
                         recycleBinEntries: documents.recycleBinEntries,
-                        captureSearchQuery: captureHistorySearchBinding,
-                        captureHistorySearchResultsLabel: documents.captureHistorySearchResultsLabel,
                         historyActions: EditorHistoryActions(
+                            onPresentSnipLibrary: { scope in
+                                documents.presentSnipLibrary(initialScope: scope)
+                            },
+                            onPresentHistoryPreview: documents.presentHistoryPreview,
+                            onCloseHistoryPreview: documents.closeHistoryPreview,
                             onRestoreHistoryEntry: documents.restoreHistoryEntry,
                             onRestoreRecentSnipEntry: documents.restoreRecentSnipEntry,
                             onFloatHistoryEntry: documents.floatHistoryReference,
@@ -96,14 +97,16 @@ struct ContentView: View {
                             onDeleteRecentSnipEntry: documents.deleteRecentSnipEntry,
                             onDeleteAllRecentSnipEntries: documents.deleteAllRecentSnipEntries,
                             onRestoreRecycledHistoryEntry: documents.restoreRecycledHistoryEntry,
-                            onPermanentlyDeleteRecycledHistoryEntry: documents.permanentlyDeleteRecycledHistoryEntry,
-                            onEmptyRecycleBin: documents.emptyRecycleBin
+                            onPermanentlyDeleteRecycledHistoryEntry: documents.requestPermanentlyDeleteRecycledHistoryEntry,
+                            onEmptyRecycleBin: documents.requestEmptyRecycleBin
                         ),
                         compositionActions: compositionInspectorActions(for: editorController),
                         compositionExportProgress:
                             documents.compositionExportProgressState,
                         onCancelCompositionExport:
-                            documents.cancelCompositionExport
+                            documents.cancelCompositionExport,
+                        onUndoLibrarySwitch:
+                            documents.undoLastLibrarySwitch
                     )
                     .id(ObjectIdentifier(editorController))
                 } else if let videoController = documents.videoEditorController {
@@ -177,6 +180,13 @@ struct ContentView: View {
                     sourceTitle: pendingExistingSourceTitle(plan),
                     recentEntries: pendingExistingSourceRecentEntries(plan),
                     historyEntries: pendingExistingSourceHistoryEntries(plan),
+                    outOfCapturePatternSettings: documents.editorOutOfCapturePatternSettings,
+                    loadPreview: { entry in
+                        try? await HistoryPreviewImageLoader.loadImage(
+                            from: entry.packageURL,
+                            files: documents.systemServices.files
+                        )
+                    },
                     onChoose: { entry, flattened in
                         let didCreate = documents.createDocument(
                             from: entry,
@@ -1825,8 +1835,19 @@ struct ContentView: View {
             detail: "Find Recent Snips and search Snip History. Annotation and recognized screenshot text can match a search without being shown in the results list."
         ) {
             VStack(alignment: .leading, spacing: 14) {
-                TextField("Search Snip History", text: captureHistorySearchBinding)
-                    .textFieldStyle(.roundedBorder)
+                HStack(spacing: 10) {
+                    TextField("Search Snip History", text: captureHistorySearchBinding)
+                        .textFieldStyle(.roundedBorder)
+
+                    Button("View All") {
+                        documents.presentSnipLibrary(
+                            initialScope: .history,
+                            searchQuery: documents.captureSearchQuery
+                        )
+                    }
+                    .buttonStyle(.glass)
+                    .help("Browse all Recent Snips, Snip History, and Recycle Bin screenshots without replacing the Capture workspace.")
+                }
 
                 Text(captureHistoryResultsLabel)
                     .font(.footnote)
@@ -1843,20 +1864,30 @@ struct ContentView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(Swift.Array(visibleCaptureHistoryEntries.prefix(8))) { (entry: DocumentHistoryEntry) in
+                    ForEach(Swift.Array(visibleCaptureHistoryEntries.prefix(3))) { (entry: DocumentHistoryEntry) in
                         HStack(alignment: .top, spacing: 14) {
-                            DocumentPreviewThumbnailView(
-                                packageURL: entry.packageURL,
-                                thumbnailSize: CGSize(width: 112, height: 74),
-                                cornerRadius: 12
-                            )
+                            Button {
+                                presentCaptureHistoryPreview(
+                                    entry,
+                                    entries: visibleCaptureHistoryEntries
+                                )
+                            } label: {
+                                DocumentPreviewThumbnailView(
+                                    packageURL: entry.packageURL,
+                                    thumbnailSize: CGSize(width: 112, height: 74),
+                                    cornerRadius: 12
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .help("Preview this screenshot without opening it.")
+                            .accessibilityLabel("Preview Screenshot")
 
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(entry.libraryDisplayTitle)
                                     .font(.subheadline.weight(.semibold))
                                     .lineLimit(1)
 
-                                Text("\(entry.label) • \(entry.savedAt.formatted(date: .abbreviated, time: .shortened))")
+                                Text(entry.savedAt.formatted(date: .abbreviated, time: .shortened))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
 
@@ -1885,6 +1916,16 @@ struct ContentView: View {
                             }
                         }
                     }
+
+                    if visibleCaptureHistoryEntries.count > 3 {
+                        Button("View All Screenshots") {
+                            documents.presentSnipLibrary(
+                                initialScope: .history,
+                                searchQuery: documents.captureSearchQuery
+                            )
+                        }
+                        .buttonStyle(.glass)
+                    }
                 }
             }
         }
@@ -1900,6 +1941,10 @@ struct ContentView: View {
 
         guard !query.isEmpty else {
             return "Recent Snips, autosaves, and shelved snips from every session."
+        }
+
+        if count >= DocumentWorkflowConstants.captureHistorySearchLimit {
+            return "\(count)+ Snip History items for \"\(query)\""
         }
 
         return count == 1
@@ -1936,57 +1981,52 @@ struct ContentView: View {
             systemImage: "trash",
             detail: "Deleted snips stay recoverable here until the Recycle Bin is emptied or retention expires."
         ) {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Text(documents.recycleBinEntries.isEmpty ? "No deleted snips." : "\(documents.recycleBinEntries.count) deleted snip\(documents.recycleBinEntries.count == 1 ? "" : "s") available to restore.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+            HStack(spacing: 12) {
+                Text(recycleBinSummary)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
 
-                    Spacer(minLength: 12)
+                Spacer(minLength: 12)
 
-                    Button("Empty Recycle Bin", role: .destructive, action: documents.emptyRecycleBin)
-                        .buttonStyle(.glass)
-                        .disabled(documents.recycleBinEntries.isEmpty)
-                        .help("Permanently delete every item currently in the Recycle Bin.")
+                Button("View Recycle Bin") {
+                    documents.presentSnipLibrary(initialScope: .recycleBin)
                 }
-
-                ForEach(Array(documents.recycleBinEntries.prefix(6))) { entry in
-                    HStack(alignment: .top, spacing: 14) {
-                        DocumentPreviewThumbnailView(
-                            packageURL: entry.packageURL,
-                            thumbnailSize: CGSize(width: 112, height: 74),
-                            cornerRadius: 12
-                        )
-
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(entry.libraryDisplayTitle)
-                                .font(.subheadline.weight(.semibold))
-                                .lineLimit(1)
-
-                            Text(recycleBinDeletedLabel(for: entry))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer(minLength: 8)
-
-                        Button("Restore") {
-                            documents.restoreRecycledHistoryEntry(entry)
-                        }
-                        .buttonStyle(.glass)
-                        .help("Restore this deleted snip and open it in the editor.")
-                    }
-                }
+                .buttonStyle(.glass)
+                .disabled(documents.recycleBinEntries.isEmpty)
+                .help("Inspect deleted screenshots before restoring or permanently deleting them.")
             }
         }
     }
 
-    private func recycleBinDeletedLabel(for entry: DocumentHistoryEntry) -> String {
-        guard let deletedAt = entry.deletedAt else {
-            return "Deleted recently"
+    private var recycleBinSummary: String {
+        let count = documents.recycleBinEntries.count
+        guard count > 0 else {
+            return "No deleted screenshots."
         }
+        let countLabel = count >= DocumentWorkflowConstants.recycleBinLimit
+            ? "\(count)+"
+            : "\(count)"
+        return "\(countLabel) deleted screenshot\(count == 1 ? "" : "s") available to restore."
+    }
 
-        return "Deleted \(deletedAt.formatted(date: .abbreviated, time: .shortened))"
+    private func presentCaptureHistoryPreview(
+        _ entry: DocumentHistoryEntry,
+        entries: [DocumentHistoryEntry]
+    ) {
+        documents.presentHistoryPreview(
+            HistoryPreviewRequest(
+                contextTitle: WorkflowVocabulary.Library.snipHistory,
+                entries: entries,
+                selectedEntryID: entry.id,
+                primaryAction: HistoryPreviewPrimaryAction(
+                    title: "Open",
+                    systemImage: "arrow.up.forward.app",
+                    help: "Open this screenshot in the editor.",
+                    perform: documents.restoreHistoryEntry
+                ),
+                onFloat: documents.floatHistoryReference
+            )
+        )
     }
 
     private func captureButton(

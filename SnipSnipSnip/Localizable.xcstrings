@@ -10,22 +10,22 @@
     "%.1fs" : {
 
     },
+    "%@ · %@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@ · %3$@"
+          }
+        }
+      }
+    },
     "%@ %lld" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@ %2$lld"
-          }
-        }
-      }
-    },
-    "%@ • %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ • %2$@"
           }
         }
       }
@@ -184,16 +184,6 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$lld captured element%2$@"
-          }
-        }
-      }
-    },
-    "%lld deleted snip%@ available to restore." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld deleted snip%2$@ available to restore."
           }
         }
       }
@@ -767,9 +757,6 @@
     "Back" : {
 
     },
-    "Back to Editing" : {
-
-    },
     "Background" : {
 
     },
@@ -822,6 +809,12 @@
 
     },
     "Bring to Front" : {
+
+    },
+    "Browse all Recent Snips, Snip History, and Recycle Bin screenshots without replacing the Capture workspace." : {
+
+    },
+    "Browse every recent, saved, and deleted screenshot in one window. Your last section, search, selection, layout, and window position stay ready for next time." : {
 
     },
     "Build a manual step sequence" : {
@@ -1095,6 +1088,9 @@
     "Choose a ready-made shadow style." : {
 
     },
+    "Choose a screenshot and inspect it at any size. It stays editable unless you turn on Use Rendered Image Only." : {
+
+    },
     "Choose a specific comparison method." : {
 
     },
@@ -1191,9 +1187,6 @@
     "Choose the clearest way to communicate the difference." : {
 
     },
-    "Choose the exact capture to use. Editable keeps its source items and annotations; Image uses only its rendered preview." : {
-
-    },
     "Choose the exact iPhone or iPad to capture for this result." : {
 
     },
@@ -1227,7 +1220,7 @@
     "Choose what you want to make, then see only the controls that help finish it." : {
 
     },
-    "Choose where the first image will come from: Region, Window, Screen, or Existing Image. Existing Image includes files, the clipboard, and the Snip Library. More ways to capture keeps specialized acquisition methods out of the main decision. Fine-tune appears only when the selected source has optional settings." : {
+    "Choose where the first image will come from: Region, Window, Screen, or Existing Image. Existing Image includes files, the clipboard, and the Snip Library. The Snip Library picker keeps the list beside a large scrollable and zoomable preview. Use Screenshot preserves editable captures by default; turn on Use Rendered Image Only only when you want a flattened image. More ways to capture keeps specialized acquisition methods out of the main decision. Fine-tune appears only when the selected source has optional settings." : {
 
     },
     "Choose whether newly captured steps mark where the action happened. You can change this later for any individual step." : {
@@ -1255,9 +1248,6 @@
 
     },
     "Click a thumbnail to inspect a snapshot before restoring it." : {
-
-    },
-    "Click outside the preview to dismiss" : {
 
     },
     "Click the screenshot to sample a color from the base image." : {
@@ -1293,19 +1283,10 @@
     "Close the current connected-device preview before starting another connected-device session." : {
 
     },
-    "Close the Recycle Bin." : {
-
-    },
     "Close these details and retry every failed file at its original composition destination." : {
 
     },
     "Close this floating reference." : {
-
-    },
-    "Close this preview and return to editing." : {
-
-    },
-    "Close this preview." : {
 
     },
     "Close this ruler." : {
@@ -1626,9 +1607,6 @@
     "Delete every history snapshot for this snip." : {
 
     },
-    "Delete every recent snip except the one currently open." : {
-
-    },
     "Delete preset." : {
 
     },
@@ -1654,12 +1632,6 @@
 
     },
     "Deleted Items" : {
-
-    },
-    "Deleted snips stay here temporarily and can be restored before the Recycle Bin is emptied." : {
-
-    },
-    "Deleted snips will appear here until retention expires or you empty the Recycle Bin." : {
 
     },
     "Deleted Step" : {
@@ -2125,6 +2097,9 @@
     "Fit all pixels, fill the frame, or display at actual pixel size." : {
 
     },
+    "Fit the screenshot to the window or show it at actual size." : {
+
+    },
     "Fit to View" : {
 
     },
@@ -2323,7 +2298,7 @@
     "History" : {
 
     },
-    "History Preview" : {
+    "History preview. Scroll to pan, pinch or Command-scroll to zoom, and double-click to switch between Fit and Actual Size." : {
 
     },
     "History Storage Target: %lld MB (Pinned Kept)" : {
@@ -2484,6 +2459,9 @@
     "Insert Image" : {
 
     },
+    "Inspect deleted screenshots before restoring or permanently deleting them." : {
+
+    },
     "Inspect live pixels, colors, coordinates, and spacing." : {
 
     },
@@ -2634,6 +2612,9 @@
     "Length" : {
 
     },
+    "Library Section" : {
+
+    },
     "Line" : {
 
     },
@@ -2652,7 +2633,16 @@
     "List the capture presets available to SnipSnipSnip automation." : {
 
     },
+    "Load More" : {
+
+    },
     "Loading available windows…" : {
+
+    },
+    "Loading Preview…" : {
+
+    },
+    "Loading Screenshots…" : {
 
     },
     "Locate Source…" : {
@@ -2796,6 +2786,9 @@
     "More Options" : {
 
     },
+    "More preview actions." : {
+
+    },
     "More tool choices" : {
 
     },
@@ -2899,6 +2892,9 @@
 
     },
     "New Vertical Ruler" : {
+
+    },
+    "Next history item" : {
 
     },
     "Next Item" : {
@@ -3036,9 +3032,6 @@
     "Open %@" : {
 
     },
-    "Open a larger preview of this deleted snip." : {
-
-    },
     "Open a live connected-device preview. macOS may ask for Camera access because trusted iPhone and iPad screens are exposed as video sources." : {
 
     },
@@ -3093,6 +3086,9 @@
     "Open Snip in Editor" : {
 
     },
+    "Open Snip Library" : {
+
+    },
     "Open SnipSnipSnip Document" : {
 
     },
@@ -3111,7 +3107,7 @@
     "Open the most recent Guide that was autosaved before an interruption." : {
 
     },
-    "Open this snapshot in an always-on-top floating reference window." : {
+    "Open the Snip Library without replacing the editor." : {
 
     },
     "Open this Snip History item in the editor." : {
@@ -3255,13 +3251,13 @@
     "Permanently delete Clipboard History?" : {
 
     },
-    "Permanently delete every item currently in the Recycle Bin." : {
+    "Permanently Delete Everything" : {
 
     },
     "Permanently Delete Snip History and Empty Recycle Bin" : {
 
     },
-    "Permanently delete this snip from the Recycle Bin." : {
+    "Permanently delete Snip History and empty the Recycle Bin?" : {
 
     },
     "Permanently delete unpinned Clipboard History items" : {
@@ -3424,7 +3420,19 @@
     "Preview Frame" : {
 
     },
+    "Preview Screenshot" : {
+
+    },
+    "Preview this screenshot without opening it." : {
+
+    },
     "Preview Trim" : {
+
+    },
+    "Preview Unavailable" : {
+
+    },
+    "Previous history item" : {
 
     },
     "Previous Item" : {
@@ -3505,9 +3513,6 @@
     "Recent Snips" : {
 
     },
-    "Recent snips appear here when a newer capture replaces the current editor session." : {
-
-    },
     "Recent Sources" : {
 
     },
@@ -3578,9 +3583,6 @@
 
     },
     "Recycle Bin" : {
-
-    },
-    "Recycle Bin is Empty" : {
 
     },
     "Redaction" : {
@@ -3800,12 +3802,6 @@
 
     },
     "Restore the editable area to the full captured image." : {
-
-    },
-    "Restore this deleted snip and open it in the editor." : {
-
-    },
-    "Restore this snip and open it in the editor." : {
 
     },
     "Resume" : {
@@ -4030,7 +4026,13 @@
     "Scroll" : {
 
     },
+    "Scroll to pan, pinch or Command-scroll to zoom, and double-click to switch between Fit and Actual Size." : {
+
+    },
     "Scrolling Content" : {
+
+    },
+    "Search %@" : {
 
     },
     "Search clipboard history" : {
@@ -4139,6 +4141,9 @@
 
     },
     "Set Layout" : {
+
+    },
+    "Set preview zoom." : {
 
     },
     "Set reference opacity. Click anywhere on the track or drag the knob." : {
@@ -4382,7 +4387,13 @@
     "Show the configurable Quick Controls dock above other apps." : {
 
     },
+    "Show the next %@ item." : {
+
+    },
     "Show the pointer in still steps" : {
+
+    },
+    "Show the previous %@ item." : {
 
     },
     "Show the selected element outline in pinned UI Map overlays." : {
@@ -4421,9 +4432,6 @@
     "Snip History" : {
 
     },
-    "Snip History appears here after you have autosaves, recent snips, or saved checkpoints to search." : {
-
-    },
     "Snip History Storage" : {
 
     },
@@ -4431,6 +4439,9 @@
 
     },
     "Snip Library Page" : {
+
+    },
+    "Snip Library Unavailable" : {
 
     },
     "Soft" : {
@@ -4600,9 +4611,6 @@
     "Swap A/B" : {
 
     },
-    "Switch back to an earlier snip without interrupting the current capture flow." : {
-
-    },
     "Target Aspect Ratio" : {
 
     },
@@ -4646,6 +4654,9 @@
 
     },
     "This keeps your current documents, Snip History, and Recycle Bin contents, but it restores settings values to their shipped defaults." : {
+
+    },
+    "This permanently removes every saved screenshot version and deleted screenshot from this Mac. This cannot be undone." : {
 
     },
     "This permanently removes pinned and unpinned clipboard items from this Mac." : {
@@ -4726,10 +4737,16 @@
     "Trim Whitespace" : {
 
     },
+    "Try Again" : {
+
+    },
     "Try the failed files again at their original composition destination." : {
 
     },
     "Turn on SnipSnipSnip in System Settings, then return here." : {
+
+    },
+    "Turn this on only when you want the visible pixels without editable source items and annotations." : {
 
     },
     "Type" : {
@@ -4793,16 +4810,10 @@
     "Use Add… in the current workflow bar." : {
 
     },
-    "Use as Image" : {
-
-    },
     "Use Default Location" : {
 
     },
     "Use Device" : {
-
-    },
-    "Use Editable Capture" : {
 
     },
     "Use equal sections or let each item have its own proportional weight." : {
@@ -4817,7 +4828,13 @@
     "Use Quick Capture when you want a one-action Screenshot from Region, Window, Screen, Scrolling Content, a repeat, or a preset. Scroll and Repeat Last are direct actions; Presets stays in its own menu. Under Create, choose Comparison, Steps, or Combined Image to open setup with the result already selected. Under Record, choose Region, Window, Screen, Guide, or an available connected device directly. Use Screen Tools for Screen Ruler, Screen Inspector, and Quick Controls, and open Clipboard History beside them." : {
 
     },
+    "Use Rendered Image Only" : {
+
+    },
     "Use Screen Inspector" : {
+
+    },
+    "Use Screenshot" : {
 
     },
     "Use source colors" : {
@@ -4884,6 +4901,15 @@
 
     },
     "Video smoothness" : {
+
+    },
+    "View All" : {
+
+    },
+    "View All Screenshots" : {
+
+    },
+    "View Recycle Bin" : {
 
     },
     "W" : {
@@ -4976,10 +5002,16 @@
     "Zoom in, zoom out, show actual size, fit the image, or resize the window as zoom changes." : {
 
     },
+    "Zoom in." : {
+
+    },
     "Zoom Level" : {
 
     },
     "Zoom Out" : {
+
+    },
+    "Zoom out." : {
 
     }
   },

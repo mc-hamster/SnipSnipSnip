@@ -13,37 +13,16 @@ struct EditorView: View {
     @ObservedObject var controller: EditorController
     @Binding var isInspectorPresented: Bool
     let historyEntries: [DocumentHistoryEntry]
-    let recentSnipEntries: [DocumentHistoryEntry]
-    let captureHistoryEntries: [DocumentHistoryEntry]
     let recycleBinEntries: [DocumentHistoryEntry]
-    @Binding var captureSearchQuery: String
-    let captureHistorySearchResultsLabel: String
     let historyActions: EditorHistoryActions
     var compositionActions: CompositionInspectorActions = .unavailable
     var compositionExportProgress: CompositionExportProgressState?
     var onCancelCompositionExport: () -> Void = {}
-    @State private var previewedHistoryEntry: DocumentHistoryEntry?
+    var onUndoLibrarySwitch: () -> Void = {}
 
     var body: some View {
         ZStack {
             EditorCanvasScrollContainer(controller: controller)
-
-            if let entry = previewedHistoryEntry {
-                HistoryPreviewOverlayView(
-                    entry: entry,
-                    onClose: {
-                        previewedHistoryEntry = nil
-                    },
-                    onFloat: {
-                        historyActions.onFloatHistoryEntry(entry)
-                    },
-                    onRestore: {
-                        previewedHistoryEntry = nil
-                        historyActions.onRestoreHistoryEntry(entry)
-                    }
-                )
-                    .zIndex(1)
-            }
 
             if let progress = compositionExportProgress {
                 CompositionExportProgressOverlay(
@@ -96,14 +75,9 @@ struct EditorView: View {
             EditorInspectorView(
                 controller: controller,
                 historyEntries: historyEntries,
-                recentSnipEntries: recentSnipEntries,
-                captureHistoryEntries: captureHistoryEntries,
                 recycleBinEntries: recycleBinEntries,
-                captureSearchQuery: $captureSearchQuery,
-                captureHistorySearchResultsLabel: captureHistorySearchResultsLabel,
                 actions: historyActions,
-                compositionActions: compositionActions,
-                previewedHistoryEntry: $previewedHistoryEntry
+                compositionActions: compositionActions
             )
             .inspectorColumnWidth(min: 280, ideal: 320, max: 380)
         }
@@ -141,11 +115,6 @@ struct EditorView: View {
             )
             .frame(width: 480, height: 320)
         }
-        .onExitCommand {
-            if previewedHistoryEntry != nil {
-                previewedHistoryEntry = nil
-            }
-        }
     }
 
     private func performNoticeAction(_ action: EditorNoticeAction) {
@@ -154,6 +123,8 @@ struct EditorView: View {
             NSWorkspace.shared.open(url)
         case .reveal(let url):
             NSWorkspace.shared.activateFileViewerSelecting([url])
+        case .undoLibrarySwitch:
+            onUndoLibrarySwitch()
         }
         controller.dismissNotice()
     }

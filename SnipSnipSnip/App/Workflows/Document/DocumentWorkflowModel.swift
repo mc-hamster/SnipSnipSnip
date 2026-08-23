@@ -14,13 +14,25 @@ struct DocumentWorkflowDependencies {
     let windowPresenter: any DocumentWindowPresenting
     let pasteboardImporter: any DocumentPasteboardImporting
     let floatingReferenceCoordinator: FloatingReferenceCoordinator
+    let historyPreviewCoordinator: HistoryPreviewCoordinator
     let textRecognitionCoordinator: CaptureTextRecognitionCoordinator
 }
+@MainActor
+struct LibrarySwitchSnapshot {
+    let controller: EditorController
+    let documentURL: URL?
+    let savedSession: EditorDocumentSession?
+    let recoverySessionID: UUID?
+}
+
 @MainActor
 final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     var recoveryStore: DocumentRecoveryStore
     let incompatibleDocumentCoordinator: IncompatibleDocumentCoordinator
     let dependencies: DocumentWorkflowDependencies
+    lazy var snipLibraryCoordinator = SnipLibraryCoordinator(
+        files: dependencies.systemServices.files
+    )
     weak var automationCoordinator: (any DocumentAutomationCoordinatorPort)?
     let preferenceStore: EditorPreferenceStore
     @Published var editorController: EditorController? {
@@ -119,6 +131,7 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     var currentRecoverySessionID: UUID?
     var savedEditorAutosaveState: AutosaveState?
     var savedDocumentSession: EditorDocumentSession?
+    var previousLibrarySwitchSnapshot: LibrarySwitchSnapshot?
     var savedVideoSession: VideoEditorSession?
     var lastAutosavedState: AutosaveState?
     var editorRenderObserver: AnyCancellable?
@@ -208,6 +221,10 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
 
     var floatingReferenceCoordinator: FloatingReferenceCoordinator {
         dependencies.floatingReferenceCoordinator
+    }
+
+    var historyPreviewCoordinator: HistoryPreviewCoordinator {
+        dependencies.historyPreviewCoordinator
     }
 
     var isInteractiveCaptureAutosaveSuspended: Bool {

@@ -13,6 +13,7 @@ struct AppModelCompositionContext {
     let shouldPresentOnboardingWindowOnLaunch: Bool
     let shouldPresentMainWindowOnLaunch: Bool
     let floatingReferenceCoordinator: FloatingReferenceCoordinator
+    let historyPreviewCoordinator: HistoryPreviewCoordinator
 
     init(
         defaults: UserDefaults,
@@ -43,5 +44,8 @@ struct AppModelCompositionContext {
             || preferenceStores.lifecycle.loadOnboardingResumeCheckpoint() != nil
         self.shouldPresentMainWindowOnLaunch = pendingRecoverySession != nil || videoRecoveryStore.hasRecovery()
         self.floatingReferenceCoordinator = FloatingReferenceCoordinator()
+        self.historyPreviewCoordinator = HistoryPreviewCoordinator(
+            files: environment.systemServices.files
+        )
     }
 }

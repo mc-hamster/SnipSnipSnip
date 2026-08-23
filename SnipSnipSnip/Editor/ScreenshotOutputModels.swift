@@ -36,11 +36,13 @@ nonisolated enum ScreenshotOutputError: LocalizedError {
 enum EditorNoticeAction: Equatable {
     case open(URL)
     case reveal(URL)
+    case undoLibrarySwitch
 
     var title: String {
         switch self {
         case .open: "Open"
         case .reveal: "Reveal"
+        case .undoLibrarySwitch: "Undo"
         }
     }
 }
