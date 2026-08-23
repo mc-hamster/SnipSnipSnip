@@ -141,7 +141,9 @@ final class MultiCaptureCompositionUITests: XCTestCase {
             create.waitForExistence(timeout: 5),
             "Create should remain available while a screenshot is open."
         )
-        create.click()
+        create.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+        ).click()
 
         XCTAssertTrue(
             identified("creation.quickStart").waitForExistence(timeout: 5)
@@ -1740,7 +1742,9 @@ final class MultiCaptureCompositionUITests: XCTestCase {
                 ) else {
                     return
                 }
-                inspector.scroll(
+                inspector.coordinate(
+                    withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+                ).scroll(
                     byDeltaX: 0,
                     deltaY: direction ? -360 : 360
                 )
@@ -1861,7 +1865,9 @@ final class MultiCaptureCompositionUITests: XCTestCase {
                 guard !element.isHittable else {
                     return
                 }
-                commandBar.scroll(
+                commandBar.coordinate(
+                    withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+                ).scroll(
                     byDeltaX: deltaX,
                     deltaY: 0
                 )
@@ -1895,7 +1901,9 @@ final class MultiCaptureCompositionUITests: XCTestCase {
                 guard !element.isHittable else {
                     return
                 }
-                commandBar.scroll(
+                commandBar.coordinate(
+                    withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+                ).scroll(
                     byDeltaX: deltaX,
                     deltaY: 0
                 )

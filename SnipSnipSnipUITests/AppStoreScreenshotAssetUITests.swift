@@ -47,7 +47,9 @@ final class AppStoreScreenshotAssetUITests: XCTestCase {
 
         let create = element("creation.present")
         XCTAssertTrue(create.waitForExistence(timeout: 5))
-        create.click()
+        create.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+        ).click()
         XCTAssertTrue(element("creation.quickStart").waitForExistence(timeout: 5))
         try capture(mainWindow, named: "02-create")
         app.buttons["Cancel"].firstMatch.click()

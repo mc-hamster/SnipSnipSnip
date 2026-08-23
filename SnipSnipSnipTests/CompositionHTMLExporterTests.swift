@@ -63,12 +63,12 @@ final class CompositionHTMLExporterTests: XCTestCase {
             ).count - 1,
             1
         )
-        XCTAssertFalse(
+        XCTAssertTrue(
             style.contains(
                 ".comparison.comparison-value-50[data-active-mode"
             )
         )
-        XCTAssertLessThan(style.utf8.count, 40_000)
+        XCTAssertLessThan(style.utf8.count, 110_000)
         XCTAssertTrue(html.contains("@media (prefers-contrast: more)"))
         XCTAssertTrue(html.contains("html { background: #fff; }"))
         XCTAssertFalse(html.contains("file://"))

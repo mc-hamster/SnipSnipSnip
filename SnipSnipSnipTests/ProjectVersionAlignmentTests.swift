@@ -7,16 +7,26 @@ final class ProjectVersionAlignmentTests: XCTestCase {
             .deletingLastPathComponent()
     }
 
-    func testBuildNumberIsDefinedOnlyAtProjectLevel() throws {
+    func testExplicitBuildNumberDefinitionsStaySynchronized() throws {
         let projectURL = repositoryRoot
             .appendingPathComponent("SnipSnipSnip.xcodeproj")
             .appendingPathComponent("project.pbxproj")
         let project = try String(contentsOf: projectURL, encoding: .utf8)
 
-        assertSharedProjectSetting(
-            "CURRENT_PROJECT_VERSION",
-            in: project,
-            message: "Keep CURRENT_PROJECT_VERSION only on the project Debug and Release configurations so app targets inherit one shared build number."
+        let values = targetBuildSettingValues(
+            named: "CURRENT_PROJECT_VERSION",
+            targetName: "SnipSnipSnip",
+            in: project
+        )
+        XCTAssertEqual(
+            values.count,
+            2,
+            "Define the app target's Debug and Release build number in Xcode."
+        )
+        XCTAssertEqual(
+            Set(values).count,
+            1,
+            "Keep the app target's Debug and Release build numbers synchronized in Xcode."
         )
     }
 
@@ -40,7 +50,7 @@ final class ProjectVersionAlignmentTests: XCTestCase {
         }
     }
 
-    func testFastlaneBuildNumberBumpsOnlyTheSharedProjectSetting() throws {
+    func testFastlaneBuildNumberBumpsEveryExplicitXcodeSetting() throws {
         let fastfile = try String(
             contentsOf: repositoryRoot.appendingPathComponent("fastlane/Fastfile"),
             encoding: .utf8
@@ -54,21 +64,34 @@ final class ProjectVersionAlignmentTests: XCTestCase {
             fastfile.contains("def set_shared_project_build_number!(build_number)")
         )
         XCTAssertTrue(
+            fastfile.contains(#"candidate.name == TARGET"#),
+            "Release automation must read the Xcode app target's build number first."
+        )
+        XCTAssertTrue(
+            fastfile.contains(#"return Integer(explicit_values.first) unless explicit_values.empty?"#)
+        )
+        XCTAssertTrue(
             fastfile.contains(
                 #"configuration.build_settings["CURRENT_PROJECT_VERSION"] = value.to_s"#
             )
         )
         XCTAssertTrue(
             fastfile.contains(
-                #"configuration.build_settings.delete("CURRENT_PROJECT_VERSION")"#
+                #"configuration.build_settings.key?("CURRENT_PROJECT_VERSION")"#
             )
+        )
+        XCTAssertFalse(
+            fastfile.contains(
+                #"configuration.build_settings.delete("CURRENT_PROJECT_VERSION")"#
+            ),
+            "Release automation must preserve build-number overrides created by Xcode."
         )
         XCTAssertEqual(
             fastfile.components(
                 separatedBy: "set_shared_project_build_number!(next_build)"
             ).count - 1,
             2,
-            "Every release build-number preparation path must update the shared project setting."
+            "Every release build-number preparation path must synchronize the Xcode settings."
         )
     }
 
@@ -314,15 +337,81 @@ final class ProjectVersionAlignmentTests: XCTestCase {
         }
     }
 
-    private func assertSharedProjectSetting(
-        _ settingName: String,
-        in project: String,
-        message: String,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        let values = buildSettingValues(named: settingName, in: project)
-        XCTAssertEqual(values.count, 2, message, file: file, line: line)
-        XCTAssertEqual(Set(values).count, 1, message, file: file, line: line)
+    private func targetBuildSettingValues(
+        named settingName: String,
+        targetName: String,
+        in project: String
+    ) -> [String] {
+        let escapedTargetName = NSRegularExpression.escapedPattern(
+            for: targetName
+        )
+        let configurationListPattern =
+            #"([A-F0-9]+) /\* Build configuration list for PBXNativeTarget \""#
+            + escapedTargetName
+            + #"\" \*/ = \{.*?buildConfigurations = \((.*?)\);"#
+        guard let listRegex = try? NSRegularExpression(
+            pattern: configurationListPattern,
+            options: [.dotMatchesLineSeparators]
+        ) else {
+            return []
+        }
+
+        let projectRange = NSRange(
+            project.startIndex..<project.endIndex,
+            in: project
+        )
+        guard let listMatch = listRegex.firstMatch(
+            in: project,
+            range: projectRange
+        ),
+        let entriesRange = Range(listMatch.range(at: 2), in: project) else {
+            return []
+        }
+
+        let entries = String(project[entriesRange])
+        let identifierPattern = #"([A-F0-9]+) /\* (?:Debug|Release) \*/"#
+        guard let identifierRegex = try? NSRegularExpression(
+            pattern: identifierPattern
+        ) else {
+            return []
+        }
+        let identifierRange = NSRange(
+            entries.startIndex..<entries.endIndex,
+            in: entries
+        )
+        let identifiers = identifierRegex.matches(
+            in: entries,
+            range: identifierRange
+        ).compactMap { match -> String? in
+            guard let range = Range(match.range(at: 1), in: entries) else {
+                return nil
+            }
+            return String(entries[range])
+        }
+
+        return identifiers.flatMap { identifier -> [String] in
+            let configurationPattern = NSRegularExpression.escapedPattern(
+                for: identifier
+            ) + #" /\* (?:Debug|Release) \*/ = \{.*?buildSettings = \{(.*?)\n\s*\};"#
+            guard let configurationRegex = try? NSRegularExpression(
+                pattern: configurationPattern,
+                options: [.dotMatchesLineSeparators]
+            ),
+            let configurationMatch = configurationRegex.firstMatch(
+                in: project,
+                range: projectRange
+            ),
+            let settingsRange = Range(
+                configurationMatch.range(at: 1),
+                in: project
+            ) else {
+                return []
+            }
+            return buildSettingValues(
+                named: settingName,
+                in: String(project[settingsRange])
+            )
+        }
     }
+
 }

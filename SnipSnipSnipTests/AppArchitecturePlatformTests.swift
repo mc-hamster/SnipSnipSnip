@@ -2219,7 +2219,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertTrue(quickStart.contains("Form"))
         XCTAssertTrue(quickStart.contains("Picker("))
         XCTAssertTrue(help.contains("title: \"Take and finish a screenshot\""))
-        XCTAssertTrue(help.contains("Matched names and captured text stay hidden"))
+        XCTAssertTrue(help.contains("without showing those private details in result rows"))
         XCTAssertTrue(help.contains("Use Quick Capture to choose Region, Window, or Screen"))
         XCTAssertTrue(help.contains("Select, Crop, the Arrow family, and Text visible as labeled one-click controls"))
         XCTAssertTrue(help.contains("choose Arrow or Numbered Arrow"))

@@ -1,6 +1,14 @@
 import AppKit
 import Foundation
 
+@MainActor
+struct LibrarySwitchSnapshot {
+    let controller: EditorController
+    let documentURL: URL?
+    let savedSession: EditorDocumentSession?
+    let recoverySessionID: UUID?
+}
+
 extension DocumentWorkflowModel {
     var pendingRecoveryWriteTasks: [UUID: Task<Bool, Never>] {
         get { recoveryOperations.pendingTasks }

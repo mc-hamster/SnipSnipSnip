@@ -70,6 +70,19 @@ def current_release_version
 end
 
 def current_build_number
+  project = Xcodeproj::Project.open(PROJECT_PATH)
+  target = project.targets.find { |candidate| candidate.name == TARGET }
+  UI.user_error!("Xcode target `#{TARGET}` was not found.") if target.nil?
+
+  explicit_values = target.build_configurations.filter_map do |configuration|
+    configuration.build_settings["CURRENT_PROJECT_VERSION"]
+  end.uniq
+  if explicit_values.length > 1
+    UI.user_error!("Keep the #{TARGET} Debug and Release build numbers synchronized in Xcode.")
+  end
+
+  return Integer(explicit_values.first) unless explicit_values.empty?
+
   get_build_number(xcodeproj: PROJECT_PATH).to_i
 end
 
@@ -83,7 +96,9 @@ def set_shared_project_build_number!(build_number)
   end
   project.targets.each do |target|
     target.build_configurations.each do |configuration|
-      configuration.build_settings.delete("CURRENT_PROJECT_VERSION")
+      if configuration.build_settings.key?("CURRENT_PROJECT_VERSION")
+        configuration.build_settings["CURRENT_PROJECT_VERSION"] = value.to_s
+      end
     end
   end
   project.save
