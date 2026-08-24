@@ -48,14 +48,13 @@ Use this to build a new archive, upload it, and make it available to internal Te
 Common variations:
 
 ```bash
-./bin/fastlane mac internal_testing version:1.0.14
 ./bin/fastlane mac internal_testing changelog:"Bug fixes and editor polish"
-./bin/fastlane mac internal_testing version:1.0.14 changelog:"Bug fixes and editor polish"
+./bin/fastlane mac internal_testing skip_waiting:false wait_timeout:5400
 ```
 
 What to expect:
 
-1. Fastlane uses the current marketing version unless you pass `version:...`.
+1. Fastlane uses the marketing version set on the app target in Xcode.
 2. Fastlane bumps the build number automatically.
 3. Fastlane builds the Release archive with `SNIP_BUILD_TARGET=Internal` and uploads it to TestFlight.
 4. Fastlane returns after App Store Connect acknowledges the upload instead of blocking on Apple's processing queue.
@@ -66,7 +65,7 @@ To deliberately wait for full processing during an internal upload, pass `skip_w
 ### Upload for internal testing
 
 ```bash
-./bin/fastlane mac internal_testing version:1.0.1 changelog:"Phase 3 polish and bug fixes"
+./bin/fastlane mac internal_testing changelog:"Phase 3 polish and bug fixes"
 ```
 
 If you omit `changelog`, Fastlane generates one from git commits since the last successful Fastlane upload for that lane and stores the upload state in `~/Library/Caches/SnipSnipSnip/fastlane/upload_state.json` by default.
@@ -75,7 +74,7 @@ Fastlane build products default to `~/Library/Caches/SnipSnipSnip/fastlane` and 
 
 What it does:
 
-1. optionally sets `MARKETING_VERSION` if you pass `version:...`
+1. reads `MARKETING_VERSION` from the app target in Xcode
 2. increments the build number above the current local and TestFlight build numbers
 3. builds the `Release` archive with `SNIP_BUILD_TARGET=Internal`
 4. exports a Mac App Store package
@@ -91,13 +90,12 @@ Use this to build a new archive and submit it to the `External Testers` TestFlig
 
 This repo already defaults `TESTFLIGHT_GROUPS` to `External Testers` in `fastlane/.env`, so the plain command is usually enough. Fastlane builds this archive with `SNIP_BUILD_TARGET=External`, which disables internal/dev-only feature flags.
 
-To distribute to tor
-nal testers:
+To distribute to external testers:
 
 ```bash
 TESTFLIGHT_GROUPS="External Testers" \
 TESTFLIGHT_NOTIFY_EXTERNAL_TESTERS=true \
-./bin/fastlane mac external_testing version:1.0.1 changelog:"Release candidate 1"
+./bin/fastlane mac external_testing changelog:"Release candidate 1"
 ```
 
 `TESTFLIGHT_GROUPS` is required for external distribution.
@@ -131,11 +129,7 @@ Use this to create a production upload and submit it for App Review:
 ./bin/fastlane mac release
 ```
 
-```bash
-./bin/fastlane mac release version:1.0.1
-```
-
-If you omit `version`, the `release` lane automatically increments the patch version from the current marketing version before building.
+Set the intended `x.y.z` marketing version on the app target in Xcode before running this lane. Fastlane treats that value as read-only and bumps only the build number.
 
 Fastlane builds App Store archives with `SNIP_BUILD_TARGET=Release` and adds the Swift compilation condition `APP_STORE_BUILD`. That condition is authoritative: it disables Guide capture, UI Map, scrolling capture, and all Accessibility-assisted workflows even if a runtime target is misconfigured, and compiles their live Accessibility/event-tap backends out of the App Store binary.
 
@@ -194,10 +188,6 @@ Use this to build a release archive with website-only feature flags enabled:
 ./bin/fastlane mac self_release
 ```
 
-```bash
-./bin/fastlane mac self_release version:1.0.1
-```
-
 This lane builds the `Release` configuration with `SNIP_BUILD_TARGET=Self Release` using a Developer ID export profile for website distribution. It does not upload to App Store Connect, it explicitly clears `APP_STORE_BUILD`, and it stamps the app display name as `SnipSnipSnip Pro` for the website-distribution binary.
 
 By default, `self_release` also notarizes and staples the generated `.pkg` so downloaded installs should open without requiring users to manually clear quarantine attributes.
@@ -236,13 +226,13 @@ Common variations:
 
 ```bash
 GITHUB_TOKEN=ghp_xxx \
-./bin/fastlane mac self_release_publish version:1.0.18
+./bin/fastlane mac self_release_publish changelog:"Website release with scrolling capture fixes"
 
 GITHUB_TOKEN=ghp_xxx \
-./bin/fastlane mac self_release_publish version:1.0.18 changelog:"Website release with scrolling capture fixes"
+./bin/fastlane mac self_release_publish draft:true
 
 GITHUB_TOKEN=ghp_xxx \
-./bin/fastlane mac self_release_publish version:1.0.18
+./bin/fastlane mac self_release_publish prerelease:false
 ```
 
 You can also publish through `self_release` directly:
@@ -315,7 +305,7 @@ To enable automatic release after approval:
 
 ```bash
 APP_STORE_AUTOMATIC_RELEASE=true \
-./bin/fastlane mac release version:1.0.1
+./bin/fastlane mac release
 ```
 
 Recommended first production test:
@@ -325,7 +315,7 @@ Recommended first production test:
 RELEASE_METADATA_READY=true \
 RELEASE_TESTS_CONFIRMED=true \
 RELEASE_MANUAL_QA_CONFIRMED=true \
-./bin/fastlane mac release version:1.0.14
+./bin/fastlane mac release
 ```
 
 Then confirm in App Store Connect that the build attached to the intended App Store version and that submission succeeded before treating this lane as production-ready.
@@ -347,7 +337,7 @@ If you omit `build_number`, Fastlane will try to submit the latest processed bui
 Use this when you want to test a build before production:
 
 ```bash
-./bin/fastlane mac internal_testing version:1.0.1 changelog:"Release candidate"
+./bin/fastlane mac internal_testing changelog:"Release candidate"
 ```
 
 Wait for the build to finish processing in App Store Connect, then either:
@@ -372,7 +362,7 @@ Use this when you want Fastlane to build, upload, and submit immediately:
 RELEASE_METADATA_READY=true \
 RELEASE_TESTS_CONFIRMED=true \
 RELEASE_MANUAL_QA_CONFIRMED=true \
-./bin/fastlane mac release version:1.0.1
+./bin/fastlane mac release
 ```
 
 ## CI automation
@@ -414,7 +404,12 @@ Set it to `true` if the app really does use non-exempt encryption.
 - The Fastlane lanes auto-increment the build number before each upload.
 - Fastlane updates `CURRENT_PROJECT_VERSION` without replacing the shipped
   Info.plists' `$(CURRENT_PROJECT_VERSION)` references.
-- If you pass `version:...`, Fastlane updates `MARKETING_VERSION` before building.
+- Set `MARKETING_VERSION` in Xcode before starting a build lane. Passing
+  `version:...` to a build lane is rejected so a release cannot silently differ
+  from the version checked into the project.
+- `version:...` remains available only for lanes that locate an existing remote
+  build, such as `external_testing distribute_only:true`,
+  `clear_external_review`, and `submit_review`.
 
 ## Troubleshooting
 

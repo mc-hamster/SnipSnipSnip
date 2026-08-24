@@ -72,13 +72,17 @@ final class ProjectVersionAlignmentTests: XCTestCase {
         )
         XCTAssertTrue(
             fastfile.contains(
-                #"configuration.build_settings["CURRENT_PROJECT_VERSION"] = value.to_s"#
+                #"project_contents.gsub(setting_pattern)"#
             )
         )
         XCTAssertTrue(
             fastfile.contains(
-                #"configuration.build_settings.key?("CURRENT_PROJECT_VERSION")"#
+                #"File.write(project_file_path, updated_contents)"#
             )
+        )
+        XCTAssertFalse(
+            fastfile.contains("project.save"),
+            "Build-number bumps must preserve the Xcode project file instead of reserializing unrelated objects."
         )
         XCTAssertFalse(
             fastfile.contains(

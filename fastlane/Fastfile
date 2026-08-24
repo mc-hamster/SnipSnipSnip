@@ -90,18 +90,20 @@ def set_shared_project_build_number!(build_number)
   value = Integer(build_number)
   UI.user_error!("Build number must be positive.") unless value.positive?
 
-  project = Xcodeproj::Project.open(PROJECT_PATH)
-  project.build_configurations.each do |configuration|
-    configuration.build_settings["CURRENT_PROJECT_VERSION"] = value.to_s
+  project_file_path = File.join(PROJECT_PATH, "project.pbxproj")
+  project_contents = File.read(project_file_path)
+  setting_pattern = /^([ \t]*CURRENT_PROJECT_VERSION = )([^;]+)(;)$/
+  explicit_values = project_contents.scan(setting_pattern).map { |match| match[1].strip }
+
+  UI.user_error!("No explicit Xcode build-number settings were found.") if explicit_values.empty?
+  unless explicit_values.all? { |candidate| candidate.match?(/\A[1-9]\d*\z/) }
+    UI.user_error!("Every explicit Xcode build-number setting must be a positive integer.")
   end
-  project.targets.each do |target|
-    target.build_configurations.each do |configuration|
-      if configuration.build_settings.key?("CURRENT_PROJECT_VERSION")
-        configuration.build_settings["CURRENT_PROJECT_VERSION"] = value.to_s
-      end
-    end
+
+  updated_contents = project_contents.gsub(setting_pattern) do
+    "#{Regexp.last_match(1)}#{value}#{Regexp.last_match(3)}"
   end
-  project.save
+  File.write(project_file_path, updated_contents)
 end
 
 def ensure_xcode_owned_marketing_version!(options)
