@@ -216,7 +216,7 @@ struct QuickControlDockLabel: View {
             icon.frame(width: 22)
             VStack(alignment: .leading, spacing: 1) {
                 Text(kind.label).font(.caption.weight(.semibold)).lineLimit(1)
-                Text(state.detail ?? detailLabel)
+                Text(state.detail ?? kind.intentDescription)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -269,9 +269,6 @@ struct QuickControlDockLabel: View {
         }
     }
 
-    private var detailLabel: String {
-        kind.category == .record ? "Starts a recording" : kind.category.label
-    }
 }
 
 struct QuickControlDockButtonStyle: ButtonStyle {

@@ -37,17 +37,17 @@ struct QuickControlsCustomizationView: View {
             selectedKind = selectedKind ?? quickControls.preferences.items.first?.kind
         }
         .confirmationDialog(
-            "Restore the default Quick Controls layout?",
+            "Restore Quick Controls defaults?",
             isPresented: $isConfirmingDefaultRestore,
             titleVisibility: .visible
         ) {
-            Button("Restore Default Layout", role: .destructive) {
+            Button("Restore Defaults", role: .destructive) {
                 quickControls.restoreDefaultLayout()
                 selectedKind = quickControls.preferences.items.first?.kind
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This replaces the current controls, order, presentation, and screen edge.")
+            Text("This restores Capture Region, Capture Window, Capture Screen, Repeat Last Capture, Capture Presets, Record Region, and Timer in Expanded presentation on the right edge.")
         }
     }
 
@@ -62,6 +62,15 @@ struct QuickControlsCustomizationView: View {
             }
 
             Spacer()
+
+            Button("Restore Defaults…", systemImage: "arrow.counterclockwise") {
+                isConfirmingDefaultRestore = true
+            }
+            .help("Restore the first-install controls and dock configuration.")
+            .accessibilityIdentifier("quickControls.customization.restoreDefaults")
+
+            Divider()
+                .frame(height: 22)
 
             Button(quickControls.isVisible ? "Hide Quick Controls" : "Show Quick Controls") {
                 quickControls.toggleVisibility()
@@ -179,7 +188,7 @@ struct QuickControlsCustomizationView: View {
                 Text("Dock Preview")
                     .font(.headline)
                 Spacer()
-                Text("The dock fits its controls automatically.")
+                Text("Drag controls or section headers to arrange the dock.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -209,19 +218,9 @@ struct QuickControlsCustomizationView: View {
 
             selectedControlEditor
             dockSettingsEditor
-
-            HStack {
-                Button("Restore Default Layout") {
-                    isConfirmingDefaultRestore = true
-                }
-                Spacer()
-                Text("Drag a control or section header, or use the available Move actions.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
         }
         .padding(18)
-        .background(Color(nsColor: .underPageBackgroundColor))
+        .background(.background)
     }
 
     @ViewBuilder
@@ -471,6 +470,7 @@ private struct QuickControlsDesignerTile: View {
     @Binding var draggedControlKind: QuickControlKind?
 
     @State private var insertionEdge: QuickControlInsertionEdge?
+    @State private var isForbiddenDropTarget = false
 
     var body: some View {
         Button(action: select) {
@@ -492,6 +492,20 @@ private struct QuickControlsDesignerTile: View {
                     .allowsHitTesting(false)
             }
         }
+        .overlay(alignment: .trailing) {
+            if isForbiddenDropTarget {
+                ZStack {
+                    RoundedRectangle(cornerRadius: QuickControlsDockMetrics.controlCornerRadius, style: .continuous)
+                        .strokeBorder(Color.red, lineWidth: 2)
+                    Image(systemName: "nosign")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color.red)
+                        .padding(8)
+                }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
+        }
         .onDrag {
             draggedControlKind = item.kind
             return NSItemProvider(object: item.kind.rawValue as NSString)
@@ -503,6 +517,7 @@ private struct QuickControlsDesignerTile: View {
                 targetHeight: QuickControlsDockMetrics.expandedControlHeight,
                 draggedKind: $draggedControlKind,
                 insertionEdge: $insertionEdge,
+                isForbiddenTarget: $isForbiddenDropTarget,
                 moveRelativeToTarget: moveRelativeToTarget
             )
         )
@@ -533,50 +548,60 @@ private struct QuickControlTileDropDelegate: DropDelegate {
     let targetHeight: CGFloat
     @Binding var draggedKind: QuickControlKind?
     @Binding var insertionEdge: QuickControlInsertionEdge?
+    @Binding var isForbiddenTarget: Bool
     let moveRelativeToTarget: (QuickControlKind, QuickControlInsertionEdge) -> Bool
 
     func validateDrop(info: DropInfo) -> Bool {
         guard let draggedKind else {
             return false
         }
-        return draggedKind != target && draggedKind.category == target.category
+        return QuickControlDropCompatibility.allows(draggedKind, relativeTo: target)
     }
 
     func dropEntered(info: DropInfo) {
-        updateInsertionEdge(for: info)
+        updateFeedback(for: info)
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
         guard validateDrop(info: info) else {
             insertionEdge = nil
+            isForbiddenTarget = true
             return DropProposal(operation: .forbidden)
         }
-        updateInsertionEdge(for: info)
+        updateFeedback(for: info)
         return DropProposal(operation: .move)
     }
 
     func dropExited(info: DropInfo) {
-        insertionEdge = nil
+        clearFeedback()
     }
 
     func performDrop(info: DropInfo) -> Bool {
         guard let draggedKind,
               let insertionEdge,
               validateDrop(info: info) else {
-            self.insertionEdge = nil
+            clearFeedback()
+            self.draggedKind = nil
             return false
         }
         let didMove = moveRelativeToTarget(draggedKind, insertionEdge)
-        self.insertionEdge = nil
+        clearFeedback()
         self.draggedKind = nil
         return didMove
     }
 
-    private func updateInsertionEdge(for info: DropInfo) {
+    private func updateFeedback(for info: DropInfo) {
         guard validateDrop(info: info) else {
             insertionEdge = nil
+            isForbiddenTarget = true
             return
         }
+        isForbiddenTarget = false
         insertionEdge = info.location.y < targetHeight / 2 ? .before : .after
+    }
+
+    private func clearFeedback() {
+        insertionEdge = nil
+        isForbiddenTarget = false
     }
 }

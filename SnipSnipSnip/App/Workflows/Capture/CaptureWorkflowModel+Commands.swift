@@ -40,11 +40,29 @@ extension CaptureWorkflowModel {
     }
 
     func captureCurrentDisplay() {
-        captureCurrentDisplay(intent: .newDocument)
+        captureCurrentDisplay(presentationContext: .application)
+    }
+
+    func captureCurrentDisplay(
+        presentationContext: WorkflowPresentationContext
+    ) {
+        captureCurrentDisplay(
+            intent: .newDocument,
+            presentationContext: presentationContext
+        )
     }
 
     func captureRegion() {
-        captureRegion(intent: .newDocument)
+        captureRegion(presentationContext: .application)
+    }
+
+    func captureRegion(
+        presentationContext: WorkflowPresentationContext
+    ) {
+        captureRegion(
+            intent: .newDocument,
+            presentationContext: presentationContext
+        )
     }
 
     func captureFrontmostWindow() {
@@ -52,7 +70,16 @@ extension CaptureWorkflowModel {
     }
 
     func repeatLastCapture() {
-        repeatLastCapture(intent: .newDocument)
+        repeatLastCapture(presentationContext: .application)
+    }
+
+    func repeatLastCapture(
+        presentationContext: WorkflowPresentationContext
+    ) {
+        repeatLastCapture(
+            intent: .newDocument,
+            presentationContext: presentationContext
+        )
     }
 
     func updatePrivateCaptureEnabled(_ enabled: Bool) {
@@ -118,7 +145,9 @@ extension CaptureWorkflowModel {
             let autosaveSuspension = suspendEditorAutosaveForInteractiveCapture()
             defer { resumeEditorAutosaveAfterInteractiveCapture(autosaveSuspension) }
 
-            let hiddenWindow = hideAppWindowIfNeeded()
+            let hiddenWindow = hideAppWindowIfNeeded(
+                for: captureContext.presentationContext
+            )
             defer { restoreAppWindowIfNeeded(hiddenWindow) }
 
             try? await dependencies.systemServices.scheduler.sleep(nanoseconds: 200_000_000)
@@ -325,7 +354,9 @@ extension CaptureWorkflowModel {
                     ?? privateCaptureEnabled
             )
             defer { endCapturePrivacyLock() }
-            let hiddenWindow = hideAppWindowIfNeeded()
+            let hiddenWindow = hideAppWindowIfNeeded(
+                for: captureContext.presentationContext
+            )
             defer { restoreAppWindowIfNeeded(hiddenWindow) }
 
             if hiddenWindow != nil {
@@ -398,7 +429,9 @@ extension CaptureWorkflowModel {
             defer { endCapturePrivacyLock() }
             let autosaveSuspension = suspendEditorAutosaveForInteractiveCapture()
             defer { resumeEditorAutosaveAfterInteractiveCapture(autosaveSuspension) }
-            let hiddenWindow = hideAppWindowIfNeeded()
+            let hiddenWindow = hideAppWindowIfNeeded(
+                for: captureContext.presentationContext
+            )
             defer { restoreAppWindowIfNeeded(hiddenWindow) }
 
             if hiddenWindow != nil {

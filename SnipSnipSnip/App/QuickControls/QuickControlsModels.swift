@@ -170,6 +170,15 @@ nonisolated enum QuickControlCategory: String, CaseIterable, Identifiable, Senda
 
     var id: String { rawValue }
 
+    static let customizationLibraryOrder: [QuickControlCategory] = [
+        .screenshot,
+        .create,
+        .record,
+        .screenTools,
+        .application,
+        .captureOptions,
+    ]
+
     var label: String {
         switch self {
         case .screenshot:
@@ -185,6 +194,13 @@ nonisolated enum QuickControlCategory: String, CaseIterable, Identifiable, Senda
         case .application:
             "Application"
         }
+    }
+
+}
+
+nonisolated enum QuickControlDropCompatibility {
+    static func allows(_ source: QuickControlKind, relativeTo target: QuickControlKind) -> Bool {
+        source != target && source.category == target.category
     }
 }
 
@@ -279,6 +295,55 @@ nonisolated enum QuickControlKind: String, CaseIterable, Codable, Identifiable, 
             "Screen Inspector"
         case .openApplication:
             "Open \(AppBranding.displayName)"
+        }
+    }
+
+    var intentDescription: String {
+        switch self {
+        case .captureRegion:
+            "Select part of the screen"
+        case .captureWindow:
+            "Choose one app window"
+        case .captureScreen:
+            "Capture all visible content"
+        case .captureScrollingContent:
+            "Include off-screen content"
+        case .repeatLastCapture:
+            "Reuse the last capture setup"
+        case .capturePresets:
+            "Use a saved capture setup"
+        case .timer:
+            "Delay the next capture"
+        case .includeCursor:
+            "Show the pointer in captures"
+        case .privateCapture:
+            "Skip Snip History and OCR"
+        case .autoCopy:
+            "Copy after each capture"
+        case .createComparison:
+            "Review two versions together"
+        case .createSteps:
+            "Explain a process in stills"
+        case .createCombinedImage:
+            "Arrange images as one result"
+        case .recordRegion:
+            "Select an area to record"
+        case .recordWindow:
+            "Choose one window to record"
+        case .recordScreen:
+            "Record all visible content"
+        case .recordGuide:
+            "Turn actions into editable steps"
+        case .clipboardHistory:
+            "Revisit copied items"
+        case .horizontalScreenRuler:
+            "Measure horizontal distance"
+        case .verticalScreenRuler:
+            "Measure vertical distance"
+        case .screenInspector:
+            "Inspect pixels and controls"
+        case .openApplication:
+            "Show the main window"
         }
     }
 
@@ -472,6 +537,7 @@ nonisolated struct QuickControlsPreferences: Codable, Equatable, Sendable {
         QuickControlItem(kind: .captureScreen),
         QuickControlItem(kind: .repeatLastCapture, size: .standard),
         QuickControlItem(kind: .capturePresets),
+        QuickControlItem(kind: .recordRegion),
         QuickControlItem(kind: .timer),
     ]
 

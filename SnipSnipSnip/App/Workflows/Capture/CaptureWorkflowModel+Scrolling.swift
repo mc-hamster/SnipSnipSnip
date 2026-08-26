@@ -8,15 +8,39 @@ extension CaptureWorkflowModel {
     }
 
     func captureScrollingArea(
+        presentationContext: WorkflowPresentationContext
+    ) {
+        captureScrollingArea(
+            intent: .newDocument,
+            presentationContext: presentationContext
+        )
+    }
+
+    func captureScrollingArea(
         intent: CaptureIntent,
         completionRole: CaptureCompletionRole = .standalone,
         oneShotOptions: CaptureOneShotOptions? = nil
+    ) {
+        captureScrollingArea(
+            intent: intent,
+            completionRole: completionRole,
+            oneShotOptions: oneShotOptions,
+            presentationContext: .application
+        )
+    }
+
+    func captureScrollingArea(
+        intent: CaptureIntent,
+        completionRole: CaptureCompletionRole = .standalone,
+        oneShotOptions: CaptureOneShotOptions? = nil,
+        presentationContext: WorkflowPresentationContext
     ) {
         guard dependencies.capabilities.isEnabled(.scrollingCapture) else { return }
         prepareCaptureIntent(
             intent,
             completionRole: completionRole,
-            oneShotOptions: oneShotOptions
+            oneShotOptions: oneShotOptions,
+            presentationContext: presentationContext
         )
         runActionWhenPermissionsReady(
             [.screenRecording, .accessibility],
@@ -50,7 +74,9 @@ extension CaptureWorkflowModel {
             let autosaveSuspension = suspendEditorAutosaveForInteractiveCapture()
             defer { resumeEditorAutosaveAfterInteractiveCapture(autosaveSuspension) }
 
-            let hiddenWindow = hideAppWindowIfNeeded()
+            let hiddenWindow = hideAppWindowIfNeeded(
+                for: captureContext.presentationContext
+            )
             var completedCapture = false
             defer {
                 if !completedCapture {

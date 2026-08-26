@@ -28,14 +28,45 @@ extension VideoWorkflowModel {
     }
 
     func recordCurrentDisplay() {
+        recordCurrentDisplay(presentationContext: .application)
+    }
+
+    func recordCurrentDisplay(
+        presentationContext: WorkflowPresentationContext
+    ) {
         reserveAndPrepareRecording { [weak self] generation in
-            await self?.beginFullscreenVideoRecording(generation: generation)
+            await self?.beginFullscreenVideoRecording(
+                generation: generation,
+                presentationContext: presentationContext
+            )
         }
     }
 
     func recordRegion() {
+        recordRegion(presentationContext: .application)
+    }
+
+    func recordRegion(
+        presentationContext: WorkflowPresentationContext
+    ) {
         reserveAndPrepareRecording { [weak self] generation in
-            await self?.beginRegionVideoRecording(generation: generation)
+            await self?.beginRegionVideoRecording(
+                generation: generation,
+                presentationContext: presentationContext
+            )
+        }
+    }
+
+    func recordWindowOnScreen(
+        presentationContext: WorkflowPresentationContext
+    ) {
+        reserveAndPrepareRecording { [weak self] generation in
+            guard let self else { return }
+            await beginWindowOnScreenVideoRecording(
+                generation: generation,
+                windows: dependencies.capture.availableWindows,
+                presentationContext: presentationContext
+            )
         }
     }
 
@@ -77,28 +108,52 @@ extension VideoWorkflowModel {
         dependencies.capture.dismissWindowPicker()
 
         recordingStartTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            _ = dependencies.capture.beginCapturePrivacyLock()
-            defer { dependencies.capture.endCapturePrivacyLock() }
-            let hiddenWindow = hideAppWindowIfNeeded()
+            await self?.beginWindowOnScreenVideoRecording(
+                generation: generation,
+                windows: windows,
+                presentationContext: .application
+            )
+        }
+    }
 
-            if hiddenWindow != nil {
-                try? await dependencies.systemServices.scheduler.sleep(nanoseconds: 200_000_000)
-            }
+    private func beginWindowOnScreenVideoRecording(
+        generation: UUID,
+        windows: [CaptureWindowSummary],
+        presentationContext: WorkflowPresentationContext
+    ) async {
+        _ = dependencies.capture.beginCapturePrivacyLock()
+        defer { dependencies.capture.endCapturePrivacyLock() }
+        let hiddenWindow = hideAppWindowIfNeeded(for: presentationContext)
 
-            guard isCurrentPreparingGeneration(generation), !Task.isCancelled else {
-                restoreAppWindowIfNeeded(hiddenWindow)
-                return
-            }
+        if hiddenWindow != nil {
+            try? await dependencies.systemServices.scheduler.sleep(
+                nanoseconds: 200_000_000
+            )
+        }
 
-            guard dependencies.permissions.preflight([.screenRecording], featureName: "Video").isGranted else {
-                failPreparingRecording(generation: generation, hiddenWindow: hiddenWindow)
-                return
-            }
+        guard isCurrentPreparingGeneration(generation), !Task.isCancelled else {
+            restoreAppWindowIfNeeded(hiddenWindow)
+            return
+        }
 
-            do {
-                let selectedWindow = try await dependencies.capture.performVideoWork(message: "Pick Window") {
-                    let selection = try await dependencies.capture.videoWindowSelectionSnapshot(fallbackWindows: windows)
+        guard dependencies.permissions.preflight(
+            [.screenRecording],
+            featureName: "Video"
+        ).isGranted else {
+            failPreparingRecording(
+                generation: generation,
+                hiddenWindow: hiddenWindow
+            )
+            return
+        }
+
+        do {
+            let selectedWindow = try await dependencies.capture
+                .performVideoWork(message: "Pick Window") {
+                    let selection = try await dependencies.capture
+                        .videoWindowSelectionSnapshot(
+                            fallbackWindows: windows
+                        )
                     let session = WindowSelectionSession(
                         snapshot: selection.snapshot,
                         windows: selection.windows,
@@ -109,15 +164,26 @@ extension VideoWorkflowModel {
                     return await session.begin()
                 }
 
-                guard let selectedWindow, isCurrentPreparingGeneration(generation), !Task.isCancelled else {
-                    failPreparingRecording(generation: generation, hiddenWindow: hiddenWindow)
-                    return
-                }
-                restoreAppWindowIfNeeded(hiddenWindow)
-                await beginWindowVideoRecording(selectedWindow, generation: generation)
-            } catch {
-                failPreparingRecording(generation: generation, hiddenWindow: hiddenWindow, error: error)
+            guard let selectedWindow,
+                  isCurrentPreparingGeneration(generation),
+                  !Task.isCancelled else {
+                failPreparingRecording(
+                    generation: generation,
+                    hiddenWindow: hiddenWindow
+                )
+                return
             }
+            restoreAppWindowIfNeeded(hiddenWindow)
+            await beginWindowVideoRecording(
+                selectedWindow,
+                generation: generation
+            )
+        } catch {
+            failPreparingRecording(
+                generation: generation,
+                hiddenWindow: hiddenWindow,
+                error: error
+            )
         }
     }
 
@@ -284,7 +350,10 @@ extension VideoWorkflowModel {
         }
     }
 
-    private func beginFullscreenVideoRecording(generation: UUID) async {
+    private func beginFullscreenVideoRecording(
+        generation: UUID,
+        presentationContext: WorkflowPresentationContext
+    ) async {
         guard dependencies.permissions.preflight([.screenRecording], featureName: "Video").isGranted,
               isCurrentPreparingGeneration(generation) else {
             recordingLifecycle.reset(generation: generation)
@@ -300,7 +369,7 @@ extension VideoWorkflowModel {
             return
         }
 
-        let hiddenWindow = hideAppWindowIfNeeded()
+        let hiddenWindow = hideAppWindowIfNeeded(for: presentationContext)
         try? await dependencies.systemServices.scheduler.sleep(nanoseconds: 200_000_000)
         guard isCurrentPreparingGeneration(generation), !Task.isCancelled else {
             restoreAppWindowIfNeeded(hiddenWindow)
@@ -320,7 +389,10 @@ extension VideoWorkflowModel {
         }
     }
 
-    private func beginRegionVideoRecording(generation: UUID) async {
+    private func beginRegionVideoRecording(
+        generation: UUID,
+        presentationContext: WorkflowPresentationContext
+    ) async {
         guard dependencies.permissions.preflight([.screenRecording], featureName: "Video").isGranted,
               isCurrentPreparingGeneration(generation) else {
             recordingLifecycle.reset(generation: generation)
@@ -336,7 +408,7 @@ extension VideoWorkflowModel {
             return
         }
 
-        let hiddenWindow = hideAppWindowIfNeeded()
+        let hiddenWindow = hideAppWindowIfNeeded(for: presentationContext)
         try? await dependencies.systemServices.scheduler.sleep(nanoseconds: 200_000_000)
         guard isCurrentPreparingGeneration(generation), !Task.isCancelled else {
             restoreAppWindowIfNeeded(hiddenWindow)
@@ -602,5 +674,10 @@ extension VideoWorkflowModel {
     private func present(_ error: Error) { dependencies.capture.present(error) }
     private func requestMainWindowPresentation() { dependencies.lifecycle.requestMainWindowPresentation() }
     private func hideAppWindowIfNeeded() -> AppWindowVisibilityToken? { dependencies.appWindowPresenter.hideAppWindowIfNeeded() }
+    private func hideAppWindowIfNeeded(
+        for context: WorkflowPresentationContext
+    ) -> AppWindowVisibilityToken? {
+        dependencies.appWindowPresenter.hideAppWindowIfNeeded(for: context)
+    }
     private func restoreAppWindowIfNeeded(_ token: AppWindowVisibilityToken?) { dependencies.appWindowPresenter.restoreAppWindowIfNeeded(token) }
 }

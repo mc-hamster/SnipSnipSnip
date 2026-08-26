@@ -151,7 +151,10 @@ extension CaptureWorkflowModel {
             pendingRecoveryRequest = nil
             pendingRecoveryCaptureContext = nil
             pendingScrollingPartialCapture = nil
-            dependencies.lifecycle.requestMainWindowPresentation()
+            if failedCaptureContext.presentationContext
+                .shouldReturnToMainWindowAfterCancellation {
+                dependencies.lifecycle.requestMainWindowPresentation()
+            }
             return
         }
 

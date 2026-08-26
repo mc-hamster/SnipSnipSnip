@@ -222,17 +222,22 @@ struct HelpGuideView: View {
                             title: "Choose and arrange controls",
                             steps: [
                                 "Choose the dock menu, then Customize Quick Controls, or use Customize Quick Controls in Settings.",
-                                "Use the searchable Controls library. Screenshot, Create, and Record sections keep still-image actions such as Capture Region distinct from time-based actions such as Record Region.",
+                                "Use the searchable Controls library. Screenshot, Create, and Record sections keep still-image actions such as Capture Region distinct from time-based actions such as Record Region. Less-common Capture Options stay available at the bottom of the library without changing the order of sections already in your dock.",
                                 "Choose + to add a control. Added controls expose a direct − button in the library and a Remove button in Selected Control; the final control can be removed too.",
-                                "Drag controls within their section in the Dock Preview. Move toward the top or bottom half of a control; the insertion line above or below shows whether the dragged control will land before or after it. You can also select a control and use Move Earlier and Move Later. Drag a section header to rearrange that whole group without changing its internal control order. The preview uses the exact same controls, section order, and presentation as the live dock.",
+                                "Drag controls within their section in the Dock Preview. Move toward the top or bottom half of a control; the insertion line above or below shows whether the dragged control will land before or after it. A control cannot move into another section; that target shows a red boundary and prohibition symbol, and the pointer reports a forbidden drop. You can also select a control and use Move Earlier and Move Later. Drag a section header to rearrange that whole group without changing its internal control order. The preview uses the exact same controls, section order, and presentation as the live dock.",
+                                "In Expanded presentation, the small line below each control describes what it does or the effect of its current setting; it does not repeat the section name.",
                                 "Under Dock Settings, choose the Compact or Expanded Presentation and the Left or Right Screen Edge. Height and width follow the controls and presentation automatically.",
-                                "Choose Close when the layout is ready. Changes are saved immediately. An empty dock offers Customize so you can add controls again. Restore Default Layout asks for confirmation before replacing the layout."
+                                "Choose Restore Defaults… in the customization header when you want the first-install layout. After confirmation, it restores Capture Region, Capture Window, Capture Screen, Repeat Last Capture, Capture Presets, Record Region, and Timer in Expanded presentation on the right edge.",
+                                "Choose Close when the layout is ready. Changes are saved immediately. An empty dock offers Customize so you can add controls again."
                             ]
                         ),
                         HelpArticleSection(
                             title: "Understand capture and availability behavior",
                             bullets: [
                                 "Quick Controls calls the same actions used by the main window, Capture menu, menu bar icon, and existing shared Presets and Timer menus.",
+                                "Capture Window and Record Window use the on-screen Window chooser so the main window stays out of the way. Cancel Region or Window selection to return to the app you were using with Quick Controls still available.",
+                                "The dock keeps its display when you expand or collapse it. Clipboard History and Screen Inspector open on that display the first time you choose them from Quick Controls.",
+                                "A completed capture opens its editor. Permission setup and capture problems may open the main window when they need your attention.",
                                 "Capture and recording actions become unavailable while another capture, recording, Guide, or connected-device session blocks a new one.",
                                 "The dock follows across Spaces and stays above ordinary windows until hidden.",
                                 "Quick Controls is excluded from screenshots, Guides, and videos captured by SnipSnipSnip. Other screenshot applications and macOS screenshot shortcuts control their own capture behavior."

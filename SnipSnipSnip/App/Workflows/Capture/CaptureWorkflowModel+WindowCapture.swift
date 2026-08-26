@@ -7,6 +7,16 @@ extension CaptureWorkflowModel {
         presentWindowPicker(intent: .newDocument)
     }
 
+    func captureWindowOnScreen(
+        presentationContext: WorkflowPresentationContext
+    ) {
+        prepareCaptureIntent(
+            .newDocument,
+            presentationContext: presentationContext
+        )
+        pickWindowOnScreen()
+    }
+
     func presentWindowPicker(
         intent: CaptureIntent,
         completionRole: CaptureCompletionRole = .standalone,
@@ -48,7 +58,9 @@ extension CaptureWorkflowModel {
             defer { endCapturePrivacyLock() }
             let autosaveSuspension = suspendEditorAutosaveForInteractiveCapture()
             defer { resumeEditorAutosaveAfterInteractiveCapture(autosaveSuspension) }
-            let hiddenWindow = hideAppWindowIfNeeded()
+            let hiddenWindow = hideAppWindowIfNeeded(
+                for: captureContext.presentationContext
+            )
             defer { restoreAppWindowIfNeeded(hiddenWindow) }
 
             if hiddenWindow != nil {
@@ -170,7 +182,9 @@ extension CaptureWorkflowModel {
             )
             defer { endCapturePrivacyLock() }
 
-            let hiddenWindow = hideAppWindowIfNeeded()
+            let hiddenWindow = hideAppWindowIfNeeded(
+                for: captureContext.presentationContext
+            )
             defer { restoreAppWindowIfNeeded(hiddenWindow) }
 
             if hiddenWindow != nil {

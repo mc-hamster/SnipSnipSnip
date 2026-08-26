@@ -15,6 +15,7 @@ final class QuickControlsModel: ObservableObject {
 
     private let preferenceStore: QuickControlsPreferenceStore
     var showCustomizationHandler: (() -> Void)?
+    var presentationContextProvider: (() -> WorkflowPresentationContext)?
 
     @Published var preferences: QuickControlsPreferences {
         didSet {
@@ -59,7 +60,7 @@ final class QuickControlsModel: ObservableObject {
     }
 
     var catalogByCategory: [(category: QuickControlCategory, kinds: [QuickControlKind])] {
-        QuickControlCategory.allCases.compactMap { category in
+        QuickControlCategory.customizationLibraryOrder.compactMap { category in
             let kinds = QuickControlKind.allCases.filter {
                 $0.category == category
                     && $0.isAvailable(in: capabilities)
@@ -92,31 +93,33 @@ final class QuickControlsModel: ObservableObject {
         switch kind {
         case .capturePresets:
             QuickControlTileState(
-                detail: capture.capturePresets.isEmpty ? "None Saved" : "Choose a Preset",
+                detail: capture.capturePresets.isEmpty ? "No saved setups" : "Choose a saved setup",
                 showsMenuIndicator: true
             )
         case .timer:
             QuickControlTileState(
                 isOn: capture.captureDelay != .immediate,
                 detail: capture.captureDelay == .immediate
-                    ? "Off"
-                    : "\(capture.captureDelay.countdownSeconds) Seconds",
+                    ? "No delay"
+                    : "\(capture.captureDelay.countdownSeconds)-second delay",
                 showsMenuIndicator: true
             )
         case .includeCursor:
             QuickControlTileState(
                 isOn: capture.screenshotIncludesCursor,
-                detail: capture.screenshotIncludesCursor ? "On" : "Off"
+                detail: capture.screenshotIncludesCursor ? "Pointer included" : "Pointer hidden"
             )
         case .privateCapture:
             QuickControlTileState(
                 isOn: capture.privateCaptureEnabled,
-                detail: capture.privateCaptureEnabled ? "On" : "Off"
+                detail: capture.privateCaptureEnabled
+                    ? "Snip History and OCR skipped"
+                    : "Snip History and OCR allowed"
             )
         case .autoCopy:
             QuickControlTileState(
                 isOn: clipboard.autoCopyEnabled,
-                detail: clipboard.autoCopyEnabled ? "On" : "Off"
+                detail: clipboard.autoCopyEnabled ? "Copies after capture" : "Manual copy"
             )
         default:
             QuickControlTileState()
@@ -316,17 +319,28 @@ final class QuickControlsModel: ObservableObject {
     }
 
     func perform(_ kind: QuickControlKind) {
+        let presentationContext = presentationContextProvider?()
+            ?? .quickControls(displayID: nil)
+
         switch kind {
         case .captureRegion:
-            capture.captureRegion()
+            capture.captureRegion(presentationContext: presentationContext)
         case .captureWindow:
-            capture.presentWindowPicker()
+            capture.captureWindowOnScreen(
+                presentationContext: presentationContext
+            )
         case .captureScreen:
-            capture.captureCurrentDisplay()
+            capture.captureCurrentDisplay(
+                presentationContext: presentationContext
+            )
         case .captureScrollingContent:
-            capture.captureScrollingArea()
+            capture.captureScrollingArea(
+                presentationContext: presentationContext
+            )
         case .repeatLastCapture:
-            capture.repeatLastCapture()
+            capture.repeatLastCapture(
+                presentationContext: presentationContext
+            )
         case .createComparison:
             creation.presentQuickStart(prefilledDraft: CreationDraft(goal: .comparison))
             requestMainWindowPresentation()
@@ -337,22 +351,30 @@ final class QuickControlsModel: ObservableObject {
             creation.presentQuickStart(prefilledDraft: CreationDraft(goal: .combineImages))
             requestMainWindowPresentation()
         case .recordRegion:
-            video.recordRegion()
+            video.recordRegion(presentationContext: presentationContext)
         case .recordWindow:
-            video.presentVideoWindowPicker()
+            video.recordWindowOnScreen(
+                presentationContext: presentationContext
+            )
         case .recordScreen:
-            video.recordCurrentDisplay()
+            video.recordCurrentDisplay(
+                presentationContext: presentationContext
+            )
         case .recordGuide:
             guide.presentQuickStart()
             requestMainWindowPresentation()
         case .clipboardHistory:
-            clipboard.showClipboardManager()
+            clipboard.showClipboardManager(
+                presentationContext: presentationContext
+            )
         case .horizontalScreenRuler:
             tools.presentScreenRuler(.horizontal)
         case .verticalScreenRuler:
             tools.presentScreenRuler(.vertical)
         case .screenInspector:
-            tools.toggleScreenInspector()
+            tools.toggleScreenInspector(
+                presentationContext: presentationContext
+            )
         case .openApplication:
             requestMainWindowPresentation()
         case .capturePresets, .timer, .includeCursor, .privateCapture, .autoCopy:

@@ -47,6 +47,7 @@ nonisolated struct CaptureCompletionContext: Equatable, Sendable {
     var intent: CaptureIntent
     var role: CaptureCompletionRole
     var oneShotOptions: CaptureOneShotOptions?
+    var presentationContext: WorkflowPresentationContext
     /// Identifies a persistent acquisition surface whose later captures must
     /// continue the same user goal. Derived append contexts retain this token,
     /// allowing the surface's close handler to clear only its own state.
@@ -56,11 +57,13 @@ nonisolated struct CaptureCompletionContext: Equatable, Sendable {
         intent: CaptureIntent = .newDocument,
         role: CaptureCompletionRole = .standalone,
         oneShotOptions: CaptureOneShotOptions? = nil,
+        presentationContext: WorkflowPresentationContext = .application,
         persistentSurfaceSessionID: UUID? = nil
     ) {
         self.intent = intent
         self.role = role
         self.oneShotOptions = oneShotOptions
+        self.presentationContext = presentationContext
         self.persistentSurfaceSessionID = persistentSurfaceSessionID
     }
 

@@ -18,6 +18,15 @@ extension ClipboardWorkflowModel {
         dependencies.managerPresenter.showClipboardManager(clipboard: self)
     }
 
+    func showClipboardManager(
+        presentationContext: WorkflowPresentationContext
+    ) {
+        dependencies.managerPresenter.showClipboardManager(
+            clipboard: self,
+            presentationContext: presentationContext
+        )
+    }
+
     func updateClipboardHistoryEnabled(_ isEnabled: Bool) {
         if isEnabled {
             historyStore.activateStorage()

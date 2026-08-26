@@ -23,10 +23,25 @@ extension CaptureWorkflowModel {
         completionRole: CaptureCompletionRole = .standalone,
         oneShotOptions: CaptureOneShotOptions? = nil
     ) {
+        prepareCaptureIntent(
+            intent,
+            completionRole: completionRole,
+            oneShotOptions: oneShotOptions,
+            presentationContext: .application
+        )
+    }
+
+    func prepareCaptureIntent(
+        _ intent: CaptureIntent,
+        completionRole: CaptureCompletionRole = .standalone,
+        oneShotOptions: CaptureOneShotOptions? = nil,
+        presentationContext: WorkflowPresentationContext
+    ) {
         activeCaptureContext = CaptureCompletionContext(
             intent: intent,
             role: completionRole,
-            oneShotOptions: oneShotOptions
+            oneShotOptions: oneShotOptions,
+            presentationContext: presentationContext
         )
     }
 
@@ -160,6 +175,7 @@ extension CaptureWorkflowModel {
             ),
             role: role,
             oneShotOptions: completedContext.oneShotOptions,
+            presentationContext: completedContext.presentationContext,
             persistentSurfaceSessionID: sessionID
         )
     }
@@ -185,10 +201,25 @@ extension CaptureWorkflowModel {
         completionRole: CaptureCompletionRole = .standalone,
         oneShotOptions: CaptureOneShotOptions? = nil
     ) {
+        captureCurrentDisplay(
+            intent: intent,
+            completionRole: completionRole,
+            oneShotOptions: oneShotOptions,
+            presentationContext: .application
+        )
+    }
+
+    func captureCurrentDisplay(
+        intent: CaptureIntent,
+        completionRole: CaptureCompletionRole = .standalone,
+        oneShotOptions: CaptureOneShotOptions? = nil,
+        presentationContext: WorkflowPresentationContext
+    ) {
         prepareCaptureIntent(
             intent,
             completionRole: completionRole,
-            oneShotOptions: oneShotOptions
+            oneShotOptions: oneShotOptions,
+            presentationContext: presentationContext
         )
         runScreenshotCaptureWhenPermissionsReady(
             for: .fullscreen,
@@ -203,10 +234,25 @@ extension CaptureWorkflowModel {
         completionRole: CaptureCompletionRole = .standalone,
         oneShotOptions: CaptureOneShotOptions? = nil
     ) {
+        captureRegion(
+            intent: intent,
+            completionRole: completionRole,
+            oneShotOptions: oneShotOptions,
+            presentationContext: .application
+        )
+    }
+
+    func captureRegion(
+        intent: CaptureIntent,
+        completionRole: CaptureCompletionRole = .standalone,
+        oneShotOptions: CaptureOneShotOptions? = nil,
+        presentationContext: WorkflowPresentationContext
+    ) {
         prepareCaptureIntent(
             intent,
             completionRole: completionRole,
-            oneShotOptions: oneShotOptions
+            oneShotOptions: oneShotOptions,
+            presentationContext: presentationContext
         )
 #if DEBUG
         if handleCompositionUITestRegionCaptureIfNeeded() {
@@ -244,10 +290,25 @@ extension CaptureWorkflowModel {
         completionRole: CaptureCompletionRole = .standalone,
         oneShotOptions: CaptureOneShotOptions? = nil
     ) {
+        repeatLastCapture(
+            intent: intent,
+            completionRole: completionRole,
+            oneShotOptions: oneShotOptions,
+            presentationContext: .application
+        )
+    }
+
+    func repeatLastCapture(
+        intent: CaptureIntent,
+        completionRole: CaptureCompletionRole = .standalone,
+        oneShotOptions: CaptureOneShotOptions? = nil,
+        presentationContext: WorkflowPresentationContext
+    ) {
         prepareCaptureIntent(
             intent,
             completionRole: completionRole,
-            oneShotOptions: oneShotOptions
+            oneShotOptions: oneShotOptions,
+            presentationContext: presentationContext
         )
         beginRepeatLastCapture()
     }
@@ -264,7 +325,10 @@ extension CaptureWorkflowModel {
         case .cancelled:
             let captureContext = activeCaptureContext
             resetPreparedCaptureContext(ifMatching: captureContext)
-            dependencies.lifecycle.requestMainWindowPresentation()
+            if captureContext.presentationContext
+                .shouldReturnToMainWindowAfterCancellation {
+                dependencies.lifecycle.requestMainWindowPresentation()
+            }
         case .captured(let capture),
              .staleDestination(let capture):
             if case .staleDestination = outcome {

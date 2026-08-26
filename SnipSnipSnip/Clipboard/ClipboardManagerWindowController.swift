@@ -43,7 +43,7 @@ final class ClipboardManagerWindowController: NSWindowController {
         preconditionFailure("ClipboardManagerWindowController is programmatic-only; use init(model:) instead of init(coder:).")
     }
 
-    func show() {
+    func show(on displayID: CGDirectDisplayID? = nil) {
         guard let window else {
             return
         }
@@ -53,7 +53,19 @@ final class ClipboardManagerWindowController: NSWindowController {
         }
 
         if !hasPositionedWindow {
-            window.center()
+            if let screen = NSScreen.screens.first(where: {
+                $0.gscDisplayID == displayID
+            }) {
+                let visibleFrame = screen.visibleFrame
+                window.setFrameOrigin(
+                    CGPoint(
+                        x: visibleFrame.midX - window.frame.width / 2,
+                        y: visibleFrame.midY - window.frame.height / 2
+                    )
+                )
+            } else {
+                window.center()
+            }
             hasPositionedWindow = true
         }
 

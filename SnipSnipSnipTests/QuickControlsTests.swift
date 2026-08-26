@@ -5,6 +5,35 @@ import XCTest
 
 @MainActor
 final class QuickControlsTests: XCTestCase {
+    func testQuickControlsPresentationContextPreservesDisplayAndCompactCancellation() {
+        let context = WorkflowPresentationContext.quickControls(displayID: 42)
+
+        XCTAssertEqual(context.origin, .quickControls)
+        XCTAssertEqual(context.displayID, 42)
+        XCTAssertFalse(context.shouldHideApplicationWindowForCapture)
+        XCTAssertFalse(context.shouldReturnToMainWindowAfterCancellation)
+    }
+
+    func testApplicationPresentationContextRetainsExistingWindowBehavior() {
+        let context = WorkflowPresentationContext.application
+
+        XCTAssertEqual(context.origin, .application)
+        XCTAssertNil(context.displayID)
+        XCTAssertTrue(context.shouldHideApplicationWindowForCapture)
+        XCTAssertTrue(context.shouldReturnToMainWindowAfterCancellation)
+    }
+
+    func testCaptureCompletionContextCarriesPresentationOriginThroughDeferredWork() {
+        let presentationContext = WorkflowPresentationContext.quickControls(
+            displayID: 7
+        )
+        let context = CaptureCompletionContext(
+            presentationContext: presentationContext
+        )
+
+        XCTAssertEqual(context.presentationContext, presentationContext)
+    }
+
     func testDefaultPreferencesKeepAlwaysAvailableDockHiddenWithUniqueControls() {
         let preferences = QuickControlsPreferences.default
 
@@ -14,7 +43,11 @@ final class QuickControlsTests: XCTestCase {
             Set(preferences.items.map(\.kind)).count,
             preferences.items.count
         )
-        XCTAssertEqual(preferences.items.first?.kind, .captureRegion)
+        XCTAssertEqual(
+            preferences.items.map(\.kind),
+            [.captureRegion, .captureWindow, .captureScreen,
+             .repeatLastCapture, .capturePresets, .recordRegion, .timer]
+        )
         XCTAssertEqual(preferences.resolvedPanelSize, QuickControlsPreferences.defaultPanelSize)
         XCTAssertEqual(preferences.resolvedDockState, .expanded)
         XCTAssertEqual(preferences.resolvedDockEdge, .right)
@@ -94,6 +127,57 @@ final class QuickControlsTests: XCTestCase {
         XCTAssertEqual(QuickControlKind.recordRegion.category, .record)
         XCTAssertEqual(QuickControlKind.captureRegion.label, "Capture Region")
         XCTAssertEqual(QuickControlKind.recordRegion.label, "Record Region")
+        XCTAssertEqual(QuickControlKind.captureRegion.intentDescription, "Select part of the screen")
+        XCTAssertEqual(QuickControlKind.recordRegion.intentDescription, "Select an area to record")
+        XCTAssertTrue(
+            QuickControlKind.allCases.allSatisfy {
+                !$0.intentDescription.isEmpty && $0.intentDescription != $0.category.label
+            }
+        )
+        XCTAssertTrue(
+            QuickControlDropCompatibility.allows(.captureRegion, relativeTo: .captureWindow)
+        )
+        XCTAssertFalse(
+            QuickControlDropCompatibility.allows(.captureRegion, relativeTo: .recordRegion)
+        )
+        XCTAssertFalse(
+            QuickControlDropCompatibility.allows(.captureRegion, relativeTo: .captureRegion)
+        )
+    }
+
+    func testCustomizationLibraryKeepsCaptureOptionsLast() {
+        XCTAssertEqual(
+            QuickControlCategory.customizationLibraryOrder.last,
+            .captureOptions
+        )
+        XCTAssertEqual(
+            Set(QuickControlCategory.customizationLibraryOrder),
+            Set(QuickControlCategory.allCases)
+        )
+    }
+
+    func testRestoreDefaultsReinstatesFirstInstallControlsAndDockConfiguration() {
+        let suiteName = "QuickControlsTests.restoreDefaults"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let model = AppModel(
+            defaults: defaults,
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        ).quickControls
+        var preferences = model.preferences
+        preferences.items = [QuickControlItem(kind: .screenInspector)]
+        preferences.dockState = .compact
+        preferences.dockEdge = .left
+        preferences.isVisible = true
+        model.preferences = preferences
+
+        model.restoreDefaultLayout()
+
+        XCTAssertEqual(model.preferences.items, QuickControlsPreferences.defaultItems)
+        XCTAssertEqual(model.preferences.resolvedDockState, .expanded)
+        XCTAssertEqual(model.preferences.resolvedDockEdge, .right)
+        XCTAssertTrue(model.preferences.isVisible)
     }
 
     func testVisiblePaletteIsPreservedInsteadOfOrderedFrontAgain() {
@@ -134,7 +218,7 @@ final class QuickControlsTests: XCTestCase {
             model.tileState(for: .timer),
             QuickControlTileState(
                 isOn: false,
-                detail: "Off",
+                detail: "No delay",
                 showsMenuIndicator: true
             )
         )
@@ -145,7 +229,7 @@ final class QuickControlsTests: XCTestCase {
             model.tileState(for: .timer),
             QuickControlTileState(
                 isOn: true,
-                detail: "5 Seconds",
+                detail: "5-second delay",
                 showsMenuIndicator: true
             )
         )

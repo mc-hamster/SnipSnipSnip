@@ -63,6 +63,14 @@ final class ToolWorkflowModel: ObservableObject {
         screenInspectorCoordinator.toggle()
     }
 
+    func toggleScreenInspector(
+        presentationContext: WorkflowPresentationContext
+    ) {
+        screenInspectorCoordinator.toggle(
+            on: presentationContext.displayID
+        )
+    }
+
     func closeScreenInspector() {
         screenInspectorCoordinator.close()
     }

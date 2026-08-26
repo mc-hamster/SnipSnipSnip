@@ -8,11 +8,19 @@ struct AppWindowVisibilityToken: Hashable {
 
 @MainActor
 protocol AppWindowPresenting: AnyObject {
-    func hideAppWindowIfNeeded() -> AppWindowVisibilityToken?
+    func hideAppWindowIfNeeded(
+        for context: WorkflowPresentationContext
+    ) -> AppWindowVisibilityToken?
     func restoreAppWindowIfNeeded(_ token: AppWindowVisibilityToken?)
     func promoteToRegularApp()
     func demoteToAccessoryIfPossible()
     func activateApp()
+}
+
+extension AppWindowPresenting {
+    func hideAppWindowIfNeeded() -> AppWindowVisibilityToken? {
+        hideAppWindowIfNeeded(for: .application)
+    }
 }
 
 @MainActor
@@ -44,7 +52,13 @@ final class LiveAppWindowPresenter: AppWindowPresenting {
         self.mainWindowProvider = mainWindowProvider
     }
 
-    func hideAppWindowIfNeeded() -> AppWindowVisibilityToken? {
+    func hideAppWindowIfNeeded(
+        for context: WorkflowPresentationContext
+    ) -> AppWindowVisibilityToken? {
+        guard context.shouldHideApplicationWindowForCapture else {
+            return nil
+        }
+
         let windows = windowProvider()
         let window = windows.first(where: {
             $0.identifier?.rawValue == AppSceneID.mainWindow && $0.isVisible && !$0.isMiniaturized

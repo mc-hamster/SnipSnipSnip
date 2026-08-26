@@ -1715,10 +1715,10 @@
     "Drag %@ Section" : {
 
     },
-    "Drag a control or section header, or use the available Move actions." : {
+    "Drag around anything to create an editable Screenshot." : {
 
     },
-    "Drag around anything to create an editable Screenshot." : {
+    "Drag controls or section headers to arrange the dock." : {
 
     },
     "Drag items to reorder. Drop files between items to Add Here, or over an item to Replace Item. Move buttons and the item menu provide complete keyboard alternatives." : {
@@ -3783,16 +3783,22 @@
     "Restore Default Ignored Apps" : {
 
     },
-    "Restore Default Layout" : {
+    "Restore Defaults" : {
+
+    },
+    "Restore Defaults…" : {
 
     },
     "Restore Fit, centered alignment, 100% zoom, and zero focal offset." : {
 
     },
-    "Restore the default Quick Controls layout?" : {
+    "Restore Quick Controls defaults?" : {
 
     },
     "Restore the editable area to the full captured image." : {
+
+    },
+    "Restore the first-install controls and dock configuration." : {
 
     },
     "Resume" : {
@@ -4626,9 +4632,6 @@
     "The current %@ document has unsaved changes." : {
 
     },
-    "The dock fits its controls automatically." : {
-
-    },
     "Theme" : {
 
     },
@@ -4653,7 +4656,7 @@
     "This permanently removes pinned and unpinned clipboard items from this Mac." : {
 
     },
-    "This replaces the current controls, order, presentation, and screen edge." : {
+    "This restores Capture Region, Capture Window, Capture Screen, Repeat Last Capture, Capture Presets, Record Region, and Timer in Expanded presentation on the right edge." : {
 
     },
     "Tick Spacing" : {

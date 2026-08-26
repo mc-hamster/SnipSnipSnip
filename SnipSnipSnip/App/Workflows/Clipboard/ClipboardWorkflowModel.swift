@@ -9,7 +9,19 @@ protocol ClipboardIgnoredAppPresenting {
 
 @MainActor
 protocol ClipboardManagerPresenting: AnyObject {
-    func showClipboardManager(clipboard: ClipboardWorkflowModel)
+    func showClipboardManager(
+        clipboard: ClipboardWorkflowModel,
+        presentationContext: WorkflowPresentationContext
+    )
+}
+
+extension ClipboardManagerPresenting {
+    func showClipboardManager(clipboard: ClipboardWorkflowModel) {
+        showClipboardManager(
+            clipboard: clipboard,
+            presentationContext: .application
+        )
+    }
 }
 
 @MainActor

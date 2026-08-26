@@ -9,11 +9,16 @@ final class LiveClipboardManagerPresenter: ClipboardManagerPresenting {
         self.workspace = workspace
     }
 
-    func showClipboardManager(clipboard: ClipboardWorkflowModel) {
+    func showClipboardManager(
+        clipboard: ClipboardWorkflowModel,
+        presentationContext: WorkflowPresentationContext
+    ) {
         if managerWindowController == nil {
             managerWindowController = ClipboardManagerWindowController(clipboard: clipboard, workspace: workspace)
         }
 
-        managerWindowController?.show()
+        managerWindowController?.show(
+            on: presentationContext.displayID
+        )
     }
 }

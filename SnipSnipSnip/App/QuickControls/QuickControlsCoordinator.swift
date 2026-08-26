@@ -11,6 +11,7 @@ final class QuickControlsCoordinator: NSObject, NSWindowDelegate {
     private var hasActivated = false
     private var isRestoringFrame = false
     private var pendingDockSnap: DispatchWorkItem?
+    private var paletteDisplayID: CGDirectDisplayID?
 
     init(model: QuickControlsModel) {
         self.model = model
@@ -18,6 +19,12 @@ final class QuickControlsCoordinator: NSObject, NSWindowDelegate {
 
         model.showCustomizationHandler = { [weak self] in
             self?.showCustomization()
+        }
+        model.presentationContextProvider = { [weak self] in
+            .quickControls(
+                displayID: self?.palettePanel?.screen?.gscDisplayID
+                    ?? self?.paletteDisplayID
+            )
         }
 
         preferencesObserver = model.$preferences
@@ -164,6 +171,7 @@ final class QuickControlsCoordinator: NSObject, NSWindowDelegate {
 
         if var stored = model.preferences.panelFrame?.cgRect,
            let screen = screenContainingMeaningfulArea(of: stored) {
+            paletteDisplayID = screen.gscDisplayID
             stored.size = fittedSize(for: model.preferences, on: screen)
             panel.setFrame(
                 anchoredFrame(
@@ -180,6 +188,7 @@ final class QuickControlsCoordinator: NSObject, NSWindowDelegate {
             return
         }
         let visibleFrame = screen.visibleFrame
+        paletteDisplayID = screen.gscDisplayID
         var frame = panel.frame
         frame.size = fittedSize(for: model.preferences, on: screen)
         frame.origin.y = visibleFrame.maxY - frame.height - QuickControlsDockMetrics.screenEdgeInset
@@ -202,7 +211,11 @@ final class QuickControlsCoordinator: NSObject, NSWindowDelegate {
         defer { isRestoringFrame = false }
 
         var frame = panel.frame
-        let screen = panel.screen ?? screenContainingMeaningfulArea(of: frame) ?? NSScreen.main
+        let screen = screen(withDisplayID: paletteDisplayID)
+            ?? panel.screen
+            ?? screenContainingMeaningfulArea(of: frame)
+            ?? NSScreen.main
+        paletteDisplayID = screen?.gscDisplayID
         let size = fittedSize(for: preferences, on: screen)
         panel.minSize = size
         panel.maxSize = size
@@ -274,6 +287,7 @@ final class QuickControlsCoordinator: NSObject, NSWindowDelegate {
         guard !isRestoringFrame else { return }
         let screen = panel.screen ?? screenContainingMeaningfulArea(of: panel.frame) ?? NSScreen.main
         guard let visibleFrame = screen?.visibleFrame else { return }
+        paletteDisplayID = screen?.gscDisplayID
         let distanceToLeft = abs(panel.frame.minX - visibleFrame.minX)
         let distanceToRight = abs(visibleFrame.maxX - panel.frame.maxX)
         let edge: QuickControlsDockEdge = distanceToLeft <= distanceToRight ? .left : .right
@@ -284,6 +298,13 @@ final class QuickControlsCoordinator: NSObject, NSWindowDelegate {
         panel.setFrame(frame, display: true, animate: true)
         isRestoringFrame = false
         model.recordPanelFrame(frame, dockEdge: edge)
+    }
+
+    private func screen(
+        withDisplayID displayID: CGDirectDisplayID?
+    ) -> NSScreen? {
+        guard let displayID else { return nil }
+        return NSScreen.screens.first { $0.gscDisplayID == displayID }
     }
 
 }

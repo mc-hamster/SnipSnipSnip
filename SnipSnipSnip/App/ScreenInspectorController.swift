@@ -91,7 +91,10 @@ final class ScreenInspectorCoordinator: ObservableObject {
         windowController?.model.preferences = sanitizedPreferences
     }
 
-    func present(onClose: (() -> Void)? = nil) {
+    func present(
+        on displayID: CGDirectDisplayID? = nil,
+        onClose: (() -> Void)? = nil
+    ) {
         if let onClose {
             sessionCloseHandler = onClose
         }
@@ -113,6 +116,7 @@ final class ScreenInspectorCoordinator: ObservableObject {
         )
         let controller = ScreenInspectorWindowController(
             model: model,
+            displayID: displayID,
             onPreferencesChange: { [weak self] preferences in
                 self?.preferences = preferences
                 self?.onPreferencesChange(preferences)
@@ -130,10 +134,14 @@ final class ScreenInspectorCoordinator: ObservableObject {
     }
 
     func toggle() {
+        toggle(on: nil)
+    }
+
+    func toggle(on displayID: CGDirectDisplayID?) {
         if windowController?.window?.isVisible == true {
             close()
         } else {
-            present()
+            present(on: displayID)
         }
     }
 
@@ -469,6 +477,7 @@ final class ScreenInspectorWindowController: NSWindowController {
 
     init(
         model: ScreenInspectorWindowModel,
+        displayID: CGDirectDisplayID? = nil,
         onPreferencesChange: @escaping (ScreenInspectorPreferences) -> Void,
         onClose: @escaping () -> Void
     ) {
@@ -477,7 +486,7 @@ final class ScreenInspectorWindowController: NSWindowController {
         self.onClose = onClose
 
         let panel = NSPanel(
-            contentRect: Self.initialFrame(),
+            contentRect: Self.initialFrame(on: displayID),
             styleMask: [.titled, .closable, .resizable, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -522,8 +531,15 @@ final class ScreenInspectorWindowController: NSWindowController {
         notifyClosed()
     }
 
-    private static func initialFrame() -> CGRect {
-        let visibleFrame = NSScreen.main?.visibleFrame ?? CGRect(x: 160, y: 160, width: 900, height: 600)
+    private static func initialFrame(
+        on displayID: CGDirectDisplayID?
+    ) -> CGRect {
+        let targetScreen = NSScreen.screens.first {
+            $0.gscDisplayID == displayID
+        }
+        let visibleFrame = targetScreen?.visibleFrame
+            ?? NSScreen.main?.visibleFrame
+            ?? CGRect(x: 160, y: 160, width: 900, height: 600)
         let size = CGSize(width: 420, height: 540)
 
         return CGRect(

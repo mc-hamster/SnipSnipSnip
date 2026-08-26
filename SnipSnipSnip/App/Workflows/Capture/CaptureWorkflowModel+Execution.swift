@@ -29,7 +29,9 @@ extension CaptureWorkflowModel {
         )
         defer { endCapturePrivacyLock() }
 
-        let hiddenWindow = minimizeAppWindow ? hideAppWindowIfNeeded() : nil
+        let hiddenWindow = minimizeAppWindow
+            ? hideAppWindowIfNeeded(for: captureContext.presentationContext)
+            : nil
         defer { restoreAppWindowIfNeeded(hiddenWindow) }
 
         if hiddenWindow != nil {
@@ -153,6 +155,12 @@ extension CaptureWorkflowModel {
 
     func hideAppWindowIfNeeded() -> AppWindowVisibilityToken? {
         dependencies.appWindowPresenter.hideAppWindowIfNeeded()
+    }
+
+    func hideAppWindowIfNeeded(
+        for context: WorkflowPresentationContext
+    ) -> AppWindowVisibilityToken? {
+        dependencies.appWindowPresenter.hideAppWindowIfNeeded(for: context)
     }
 
     func restoreAppWindowIfNeeded(_ token: AppWindowVisibilityToken?) {

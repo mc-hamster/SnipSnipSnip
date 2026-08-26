@@ -94,6 +94,32 @@ final class AppModelPerformanceTests: XCTestCase {
         window.orderOut(nil)
     }
 
+    func testQuickControlsCaptureLeavesVisibleMainWindowStateUntouched() {
+        let window = retainForTestLifetime(VisibilityTrackingWindow(
+            contentRect: CGRect(x: 0, y: 0, width: 480, height: 320),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        ))
+        window.identifier = NSUserInterfaceItemIdentifier(AppSceneID.mainWindow)
+        window.trackedIsVisible = true
+
+        let presenter = LiveAppWindowPresenter(
+            requestMainWindowPresentation: {},
+            windowProvider: { [window] },
+            keyWindowProvider: { nil },
+            mainWindowProvider: { nil }
+        )
+        let hiddenWindow = presenter.hideAppWindowIfNeeded(
+            for: .quickControls(displayID: 42)
+        )
+
+        XCTAssertNil(hiddenWindow)
+        XCTAssertTrue(window.isVisible)
+
+        window.orderOut(nil)
+    }
+
     private static var retainedModels: [AppModel] = []
 
     private struct MockScreenCaptureService: ScreenCaptureServiceType {
