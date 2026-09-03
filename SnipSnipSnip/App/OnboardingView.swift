@@ -64,6 +64,7 @@ struct OnboardingView: View {
     @ObservedObject var lifecycle: AppLifecycleModel
     @ObservedObject var permissions: PermissionWorkflowModel
     @ObservedObject var clipboard: ClipboardWorkflowModel
+    @ObservedObject var quickControls: QuickControlsModel
     private let capabilities: AppCapabilitySnapshot
     private let completeOnboardingAction: () -> Void
     @Environment(\.dismiss) private var dismiss
@@ -79,12 +80,14 @@ struct OnboardingView: View {
         lifecycle: AppLifecycleModel,
         permissions: PermissionWorkflowModel,
         clipboard: ClipboardWorkflowModel,
+        quickControls: QuickControlsModel,
         capabilities: AppCapabilitySnapshot,
         completeOnboarding: @escaping () -> Void
     ) {
         self.lifecycle = lifecycle
         self.permissions = permissions
         self.clipboard = clipboard
+        self.quickControls = quickControls
         self.capabilities = capabilities
         self.completeOnboardingAction = completeOnboarding
 
@@ -258,6 +261,7 @@ struct OnboardingView: View {
 
     private var readyStep: some View {
         VStack(alignment: .leading, spacing: 18) {
+            quickControlsStartupGroup
             launchAtLoginGroup
 
             InsetGroupBox {
@@ -283,6 +287,7 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 18) {
             screenRecordingGroup(showsSetupActions: true)
             clipboardChoiceGroup
+            quickControlsStartupGroup
             launchAtLoginGroup
             exploreMoreDisclosure
 
@@ -435,6 +440,37 @@ struct OnboardingView: View {
             .padding(.vertical, 2)
         } label: {
             Label("Keep capture ready", systemImage: "menubar.rectangle")
+        }
+    }
+
+    private var quickControlsStartupGroup: some View {
+        InsetGroupBox {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle(
+                    "Show Quick Controls when \(AppBranding.displayName) starts",
+                    isOn: quickControlsStartupBinding
+                )
+                .toggleStyle(.switch)
+                .accessibilityIdentifier("onboarding.quickControls.showOnAppLaunch")
+
+                Text("Keeps your most-used capture and recording actions above other apps with no need to open the main window.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                actionGroup {
+                    Button(quickControls.isVisible ? "Hide Quick Controls" : "Show Quick Controls") {
+                        quickControls.toggleVisibility()
+                    }
+
+                    Button("Customize Quick Controls…") {
+                        quickControls.showCustomization()
+                    }
+                }
+            }
+            .padding(.vertical, 2)
+        } label: {
+            Label("Quick Controls", systemImage: "rectangle.on.rectangle")
         }
     }
 
@@ -753,6 +789,13 @@ struct OnboardingView: View {
                     launchAtLoginErrorMessage = message
                 }
             }
+        )
+    }
+
+    private var quickControlsStartupBinding: Binding<Bool> {
+        Binding(
+            get: { quickControls.showsOnAppLaunch },
+            set: { quickControls.setShowsOnAppLaunch($0) }
         )
     }
 

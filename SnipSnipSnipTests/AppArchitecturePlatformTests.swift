@@ -2030,6 +2030,10 @@ final class AppArchitecturePlatformTests: XCTestCase {
             onboarding.contains("@ObservedObject var clipboard: ClipboardWorkflowModel"),
             "Onboarding should receive the clipboard workflow directly for the opt-in choice."
         )
+        XCTAssertTrue(
+            onboarding.contains("@ObservedObject var quickControls: QuickControlsModel"),
+            "Onboarding should receive Quick Controls directly for its startup choice."
+        )
         XCTAssertFalse(
             onboarding.contains("@ObservedObject var capture: CaptureWorkflowModel")
                 || onboarding.contains("@ObservedObject var guide: GuideWorkflowModel"),
@@ -2199,6 +2203,8 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertTrue(onboarding.contains("Picker(\"Clipboard History\", selection: clipboardChoiceBinding)"))
         XCTAssertTrue(onboarding.contains(".pickerStyle(.radioGroup)"))
         XCTAssertTrue(onboarding.contains("onboarding.clipboard.uncopiedScreenshots"))
+        XCTAssertTrue(onboarding.contains("Show Quick Controls when \\(AppBranding.displayName) starts"))
+        XCTAssertTrue(onboarding.contains("onboarding.quickControls.showOnAppLaunch"))
         XCTAssertTrue(onboarding.contains("Label(\"More tools to explore\", systemImage: \"sparkles\")"))
         XCTAssertTrue(onboarding.contains("Array($0.entries.prefix(3))"))
         XCTAssertTrue(onboarding.contains("Changes save immediately."))

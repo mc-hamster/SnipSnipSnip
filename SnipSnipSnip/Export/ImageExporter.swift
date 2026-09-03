@@ -124,15 +124,15 @@ enum ImageExporter {
     }
 
     nonisolated static func pdfData(for image: CGImage) throws -> Data {
-        let mediaBox = CGRect(x: 0, y: 0, width: image.width, height: image.height)
+        var mediaBox = CGRect(x: 0, y: 0, width: image.width, height: image.height)
         let data = NSMutableData()
 
         guard let consumer = CGDataConsumer(data: data as CFMutableData),
-              let context = CGContext(consumer: consumer, mediaBox: nil, nil) else {
+              let context = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else {
             throw ImageExportError.pdfEncodingFailed
         }
 
-        context.beginPDFPage([kCGPDFContextMediaBox as String: mediaBox] as CFDictionary)
+        context.beginPDFPage(nil)
         context.draw(image, in: mediaBox)
         context.endPDFPage()
         context.closePDF()
@@ -232,7 +232,6 @@ enum ImageExporter {
         let sanitizedOptions = options.sanitized
         let task = Task.detached(priority: .userInitiated) {
             try Task.checkCancellation()
-            let outputURL = mode == .direct ? url : stagingURL(for: url)
             let didStartAccessing = url.startAccessingSecurityScopedResource()
 
             defer {
@@ -241,22 +240,20 @@ enum ImageExporter {
                 }
             }
 
-            do {
-                if mode == .direct {
+            if mode == .direct {
+                do {
                     let encodedData = try data(for: image, format: format, options: sanitizedOptions)
                     try Task.checkCancellation()
-                    try encodedData.write(to: outputURL)
-                } else {
+                    try encodedData.write(to: url)
+                    try Task.checkCancellation()
+                } catch {
+                    try? FileManager.default.removeItem(at: url)
+                    throw error
+                }
+            } else {
+                try ImageExportFileWriter.write(to: url) { outputURL in
                     try encodedWrite(for: image, plan: encodingPlan(for: format, options: sanitizedOptions), to: outputURL)
                 }
-
-                try Task.checkCancellation()
-                if mode == .stagedReplacement {
-                    try installStagedFile(at: outputURL, replacing: url)
-                }
-            } catch {
-                try? FileManager.default.removeItem(at: outputURL)
-                throw error
             }
         }
 
@@ -357,14 +354,14 @@ enum ImageExporter {
     }
 
     nonisolated private static func pdfWrite(_ image: CGImage, to url: URL) throws {
-        let mediaBox = CGRect(x: 0, y: 0, width: image.width, height: image.height)
+        var mediaBox = CGRect(x: 0, y: 0, width: image.width, height: image.height)
 
         guard let consumer = CGDataConsumer(url: url as CFURL),
-              let context = CGContext(consumer: consumer, mediaBox: nil, nil) else {
+              let context = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else {
             throw ImageExportError.pdfEncodingFailed
         }
 
-        context.beginPDFPage([kCGPDFContextMediaBox as String: mediaBox] as CFDictionary)
+        context.beginPDFPage(nil)
         context.draw(image, in: mediaBox)
         context.endPDFPage()
         context.closePDF()
@@ -383,26 +380,6 @@ enum ImageExporter {
         }
 
         return properties as CFDictionary
-    }
-
-    nonisolated private static func stagingURL(for destinationURL: URL) -> URL {
-        destinationURL.deletingLastPathComponent()
-            .appendingPathComponent(".\(destinationURL.lastPathComponent).\(UUID().uuidString).tmp")
-    }
-
-    nonisolated private static func installStagedFile(at stagedURL: URL, replacing destinationURL: URL) throws {
-        let fileManager = FileManager.default
-
-        if fileManager.fileExists(atPath: destinationURL.path) {
-            _ = try fileManager.replaceItemAt(
-                destinationURL,
-                withItemAt: stagedURL,
-                backupItemName: nil,
-                options: []
-            )
-        } else {
-            try fileManager.moveItem(at: stagedURL, to: destinationURL)
-        }
     }
 
     nonisolated private static func normalizedImageForEncoding(_ image: CGImage) throws -> CGImage {

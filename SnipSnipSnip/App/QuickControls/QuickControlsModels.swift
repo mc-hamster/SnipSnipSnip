@@ -554,13 +554,15 @@ nonisolated struct QuickControlsPreferences: Codable, Equatable, Sendable {
     }
 
     static let `default` = QuickControlsPreferences(
-        isVisible: false,
+        isVisible: true,
+        showsOnAppLaunch: true,
         items: defaultItems,
         panelFrame: nil,
         preferredPanelSize: QuickControlsPanelSize(defaultPanelSize)
     )
 
     var isVisible: Bool
+    var showsOnAppLaunch: Bool? = true
     var items: [QuickControlItem]
     var panelFrame: QuickControlsPanelFrame?
     var preferredPanelSize: QuickControlsPanelSize? = nil
@@ -574,6 +576,10 @@ nonisolated struct QuickControlsPreferences: Codable, Equatable, Sendable {
 
     var resolvedDockEdge: QuickControlsDockEdge {
         dockEdge ?? .right
+    }
+
+    var resolvedShowsOnAppLaunch: Bool {
+        showsOnAppLaunch ?? true
     }
 
     var resolvedPanelSize: CGSize {

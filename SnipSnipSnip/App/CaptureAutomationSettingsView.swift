@@ -72,6 +72,12 @@ struct CaptureAutomationSettingsView: View {
                 }
 
                 Section("Quick Controls") {
+                    Toggle(
+                        "Show Quick Controls when \(AppBranding.displayName) starts",
+                        isOn: quickControlsStartupBinding
+                    )
+                    .accessibilityIdentifier("settings.quickControls.showOnAppLaunch")
+
                     HStack {
                         if quickControls.isVisible {
                             Label("Dock Visible", systemImage: "rectangle.on.rectangle")
@@ -90,7 +96,7 @@ struct CaptureAutomationSettingsView: View {
                         }
                     }
 
-                    SettingsHelpText("Choose and arrange controls before showing the dock. It fits the configured controls automatically and remains available from the main window, Capture menu, and menu bar icon. Quick Controls are excluded from screenshots, Guides, and videos captured by SnipSnipSnip.")
+                    SettingsHelpText("Quick Controls appear at startup by default. Hiding the dock now does not change its startup setting. Use Customize Quick Controls to choose and arrange its controls, or show the dock from the main window, Capture menu, or menu bar icon. Quick Controls are excluded from screenshots, Guides, and videos captured by SnipSnipSnip.")
                 }
 
                 Section("Reset Settings") {
@@ -1310,6 +1316,13 @@ struct CaptureAutomationSettingsView: View {
                     launchAtLoginErrorMessage = message
                 }
             }
+        )
+    }
+
+    private var quickControlsStartupBinding: Binding<Bool> {
+        Binding(
+            get: { quickControls.showsOnAppLaunch },
+            set: { quickControls.setShowsOnAppLaunch($0) }
         )
     }
 

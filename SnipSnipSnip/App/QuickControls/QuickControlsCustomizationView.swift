@@ -269,42 +269,54 @@ struct QuickControlsCustomizationView: View {
 
     private var dockSettingsEditor: some View {
         GroupBox("Dock Settings") {
-            HStack(alignment: .top, spacing: 24) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Presentation")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Picker("Presentation", selection: Binding(
-                        get: { quickControls.preferences.resolvedDockState },
-                        set: { quickControls.setDockState($0) }
-                    )) {
-                        ForEach(QuickControlsDockState.allCases) { state in
-                            Text(state.label).tag(state)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 24) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Presentation")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Picker("Presentation", selection: Binding(
+                            get: { quickControls.preferences.resolvedDockState },
+                            set: { quickControls.setDockState($0) }
+                        )) {
+                            ForEach(QuickControlsDockState.allCases) { state in
+                                Text(state.label).tag(state)
+                            }
                         }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                        .frame(width: 180)
                     }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                    .frame(width: 180)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Screen Edge")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Picker("Screen Edge", selection: Binding(
+                            get: { quickControls.preferences.resolvedDockEdge },
+                            set: { quickControls.setDockEdge($0) }
+                        )) {
+                            ForEach(QuickControlsDockEdge.allCases) { edge in
+                                Text(edge.label).tag(edge)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                        .frame(width: 150)
+                    }
+
+                    Spacer(minLength: 0)
                 }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Screen Edge")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Picker("Screen Edge", selection: Binding(
-                        get: { quickControls.preferences.resolvedDockEdge },
-                        set: { quickControls.setDockEdge($0) }
-                    )) {
-                        ForEach(QuickControlsDockEdge.allCases) { edge in
-                            Text(edge.label).tag(edge)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                    .frame(width: 150)
-                }
-
-                Spacer(minLength: 0)
+                Toggle(
+                    "Show Quick Controls when \(AppBranding.displayName) starts",
+                    isOn: Binding(
+                        get: { quickControls.showsOnAppLaunch },
+                        set: { quickControls.setShowsOnAppLaunch($0) }
+                    )
+                )
+                .toggleStyle(.switch)
+                .accessibilityIdentifier("quickControls.customization.showOnAppLaunch")
             }
             .padding(.vertical, 2)
         }
@@ -584,10 +596,13 @@ private struct QuickControlTileDropDelegate: DropDelegate {
             self.draggedKind = nil
             return false
         }
-        let didMove = moveRelativeToTarget(draggedKind, insertionEdge)
+
+        // Clear transient state before the model update rebuilds and reidentifies
+        // preview tiles. Clearing afterward can leave the prohibition overlay
+        // attached to the tile that moved into this position.
         clearFeedback()
         self.draggedKind = nil
-        return didMove
+        return moveRelativeToTarget(draggedKind, insertionEdge)
     }
 
     private func updateFeedback(for info: DropInfo) {

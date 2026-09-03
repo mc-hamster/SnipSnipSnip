@@ -34,6 +34,7 @@ Repeat the essential workflow pass with:
 - [ ] Clipboard History uses a native radio group whose selected state is visible and announced; enabling it reveals “Also add screenshots that were not copied,” which defaults on for new and reset installations.
 - [ ] A permission restart resumes at Clipboard History without losing choices.
 - [ ] Replay presents one setup-summary page, reflects current choices, and never blocks on the Clipboard decision.
+- [ ] Ready and Setup Summary expose “Show Quick Controls when SnipSnipSnip starts” beside Launch at Login; it defaults on, is keyboard and VoiceOver operable, and its immediate Show/Hide and Customize actions announce their current purpose.
 - [ ] The optional More Tools disclosure lists only workflows present in the build.
 - [ ] The main-window discovery stage exposes each available action through pointer hover, keyboard focus, and VoiceOver without duplicating that guidance in a separate content card.
 - [ ] The empty capture screen exposes the full permission card.

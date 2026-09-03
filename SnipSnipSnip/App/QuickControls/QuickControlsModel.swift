@@ -48,11 +48,17 @@ final class QuickControlsModel: ObservableObject {
         self.tools = tools
         self.creation = creation
         self.preferenceStore = preferenceStore
-        self.preferences = preferenceStore.loadPreferences()
+        var initialPreferences = preferenceStore.loadPreferences()
+        initialPreferences.isVisible = initialPreferences.resolvedShowsOnAppLaunch
+        self.preferences = initialPreferences
     }
 
     var isVisible: Bool {
         preferences.isVisible
+    }
+
+    var showsOnAppLaunch: Bool {
+        preferences.resolvedShowsOnAppLaunch
     }
 
     var configuredKinds: Set<QuickControlKind> {
@@ -134,6 +140,12 @@ final class QuickControlsModel: ObservableObject {
 
     func toggleVisibility() {
         setVisible(!isVisible)
+    }
+
+    func setShowsOnAppLaunch(_ showsOnAppLaunch: Bool) {
+        var updated = preferences
+        updated.showsOnAppLaunch = showsOnAppLaunch
+        preferences = updated
     }
 
     func showCustomization() {

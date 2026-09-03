@@ -2570,6 +2570,9 @@
     "Keeps the menu bar capture actions and global shortcuts ready after login." : {
 
     },
+    "Keeps your most-used capture and recording actions above other apps with no need to open the main window." : {
+
+    },
     "Label" : {
 
     },
@@ -4361,6 +4364,9 @@
 
     },
     "Show Quick Controls" : {
+
+    },
+    "Show Quick Controls when %@ starts" : {
 
     },
     "Show Recent Step Previews" : {

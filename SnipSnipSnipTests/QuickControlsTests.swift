@@ -34,10 +34,11 @@ final class QuickControlsTests: XCTestCase {
         XCTAssertEqual(context.presentationContext, presentationContext)
     }
 
-    func testDefaultPreferencesKeepAlwaysAvailableDockHiddenWithUniqueControls() {
+    func testDefaultPreferencesShowDockAtStartupWithUniqueControls() {
         let preferences = QuickControlsPreferences.default
 
-        XCTAssertFalse(preferences.isVisible)
+        XCTAssertTrue(preferences.isVisible)
+        XCTAssertTrue(preferences.resolvedShowsOnAppLaunch)
         XCTAssertFalse(preferences.items.isEmpty)
         XCTAssertEqual(
             Set(preferences.items.map(\.kind)).count,
@@ -384,13 +385,49 @@ final class QuickControlsTests: XCTestCase {
             shouldStartArchiveMaintenance: false
         ).quickControls
 
-        XCTAssertFalse(model.isVisible)
-
-        model.setVisible(true)
         XCTAssertTrue(model.isVisible)
 
-        model.toggleVisibility()
+        model.setVisible(false)
         XCTAssertFalse(model.isVisible)
+
+        model.toggleVisibility()
+        XCTAssertTrue(model.isVisible)
+    }
+
+    func testStartupPreferenceControlsInitialVisibilityWithoutChangingShowHideNow() {
+        let suiteName = "QuickControlsTests.startupVisibility"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = QuickControlsPreferenceStore(storage: defaults)
+        var saved = QuickControlsPreferences.default
+        saved.isVisible = true
+        saved.showsOnAppLaunch = false
+        store.savePreferences(saved)
+
+        let optedOut = AppModel(
+            defaults: defaults,
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        ).quickControls
+
+        XCTAssertFalse(optedOut.isVisible)
+        XCTAssertFalse(optedOut.showsOnAppLaunch)
+
+        optedOut.setVisible(true)
+        XCTAssertTrue(optedOut.isVisible)
+        XCTAssertFalse(optedOut.showsOnAppLaunch)
+
+        optedOut.setShowsOnAppLaunch(true)
+        optedOut.setVisible(false)
+
+        let optedIn = AppModel(
+            defaults: defaults,
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        ).quickControls
+
+        XCTAssertTrue(optedIn.isVisible)
+        XCTAssertTrue(optedIn.showsOnAppLaunch)
     }
 
     func testAddingUsesSelectedInsertionPointAndEveryControlCanBeRemoved() {

@@ -120,11 +120,11 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Finish setup",
-                            body: "Setup asks only for choices needed to keep capture available. Open Settings > General > Show Onboarding Again later to review them. Changes in Setup Summary save immediately; choose Close when you are finished.",
+                            body: "Setup asks only for choices needed to keep capture available and close at hand. Open Settings > General > Show Onboarding Again later to review them. Changes in Setup Summary save immediately; choose Close when you are finished.",
                             steps: [
                                 "Allow Screen Recording so macOS can provide screenshot pixels and live window thumbnails. Restart SnipSnipSnip if setup asks you to.",
                                 "Choose whether to enable encrypted, local Clipboard History.",
-                                "Review Launch at Login, then choose Finish."
+                                "Choose whether to show Quick Controls whenever SnipSnipSnip starts, review Launch at Login, then choose Finish."
                             ]
                         ),
                         HelpArticleSection(
@@ -212,8 +212,9 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Configure and show the dock",
                             steps: [
+                                "Quick Controls appears at startup by default. During setup, keep Show Quick Controls when SnipSnipSnip starts on for the fastest access, or turn it off when you prefer to show the dock only as needed.",
                                 "Choose Quick Controls under Screen Tools in the main window, or choose Show Quick Controls in Settings, the Capture menu, or the menu bar icon.",
-                                "Open Settings > General > Quick Controls, then choose Customize Quick Controls when you want to change its controls or presentation.",
+                                "Open Settings > General > Quick Controls to change the startup choice, check whether the dock is visible, or choose Customize Quick Controls when you want to change its controls or presentation. Startup is also available under Dock Settings in the customization window.",
                                 "Drag the application icon or open space in the dock header to either side of a display. The dock snaps to the nearest screen edge and remembers its edge and vertical position.",
                                 "Choose the edge-pointing button to switch between Expanded labeled rows and the space-saving Compact icon rail. The same controls stay in the same order, and the dock always fits them automatically."
                             ]
@@ -245,7 +246,7 @@ struct HelpGuideView: View {
                         )
                     ],
                     important: [
-                        "Hiding Quick Controls keeps the saved layout and settings. Choose Show Quick Controls whenever you want the dock back."
+                        "Hiding Quick Controls keeps the saved layout and settings and does not change whether it appears at startup. Choose Show Quick Controls whenever you want the dock back."
                     ],
                     relatedIDs: ["get-started", "capture-screenshot", "capture-presets"]
                 )
@@ -986,6 +987,10 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Export screenshots",
                             body: "Choose Polish when you want optional finishing treatment. Look handles transparent, solid, gradient, spotlight, or blurred-screenshot backgrounds, spacing, corners, and shadows. Mockup applies browser, window, phone, tablet, and other designed SVG wrappers. Entering Polish does not apply a treatment automatically. Copy, Export, Share, Float, and Drag use the visible Polish preview; Back to Content restores unwrapped output. Transparent Polish output uses PNG without disabling JPEG or PDF in content stages."
+                        ),
+                        HelpArticleSection(
+                            title: "If screenshot export fails",
+                            body: "Try Export with a new filename in Downloads, and check that the original destination is available and has free space. If Copy works but Export fails, include that detail when contacting support, along with the export format, whether the destination is local, iCloud Drive, an external disk, or a network share, and the exact macOS version and build. Settings > Privacy > Export Diagnostics saves a sanitized report without screenshot contents or raw file paths."
                         ),
                         HelpArticleSection(
                             title: "Export interactive compositions",
