@@ -209,8 +209,7 @@ extension DocumentWorkflowModel {
     }
 
     func copyCurrentEditorImageToClipboard() {
-        pendingAutoCopyTask?.cancel()
-        pendingAutoCopyTask = nil
+        cancelPendingAutoCopy()
 
         guard let controller = editorController else {
             return
@@ -225,9 +224,11 @@ extension DocumentWorkflowModel {
     func cancelPendingAutoCopy() {
         pendingAutoCopyTask?.cancel()
         pendingAutoCopyTask = nil
+        autoCopyRequestGeneration &+= 1
     }
 
     func copyCurrentAnnotatedImageToClipboard() {
+        cancelPendingAutoCopy()
         guard let controller = editorController,
               controller.isDocumentOutputAvailable else {
             return
@@ -239,11 +240,13 @@ extension DocumentWorkflowModel {
     }
 
     func copyCurrentPlainEditorImageToClipboard() {
+        cancelPendingAutoCopy()
         editorController?.copyAnnotatedImage(appearance: .plain)
         clipboardMonitor.markCurrentPasteboardChangeAsHandled()
     }
 
     func copyCurrentStyledEditorImageToClipboard() {
+        cancelPendingAutoCopy()
         editorController?.copyAnnotatedImage(appearance: .styled)
         clipboardMonitor.markCurrentPasteboardChangeAsHandled()
     }
@@ -254,8 +257,7 @@ extension DocumentWorkflowModel {
         editorCommandStateObserver = nil
         videoPersistenceObserver = nil
         textRecognitionCoordinator.cancelAll()
-        pendingAutoCopyTask?.cancel()
-        pendingAutoCopyTask = nil
+        cancelPendingAutoCopy()
         pendingAutosaveTask?.cancel()
         pendingAutosaveTask = nil
         cancelPendingWindowThumbnailRefresh()
@@ -296,7 +298,8 @@ extension DocumentWorkflowModel {
 
     func copyRenderedImageToClipboardAsync(
         from controller: EditorController,
-        appearance: ScreenshotOutputAppearance
+        appearance: ScreenshotOutputAppearance,
+        requestGeneration: UInt
     ) async {
         do {
             let image = try await controller.renderedImageForExport(
@@ -312,6 +315,7 @@ extension DocumentWorkflowModel {
             guard autoCopyEnabled,
                   !controller.isPrivateDocument,
                   editorController === controller,
+                  autoCopyRequestGeneration == requestGeneration,
                   !Task.isCancelled else {
                 return
             }
@@ -327,6 +331,8 @@ extension DocumentWorkflowModel {
 
     func scheduleAutoCopy(for controller: EditorController) {
         pendingAutoCopyTask?.cancel()
+        autoCopyRequestGeneration &+= 1
+        let requestGeneration = autoCopyRequestGeneration
         guard !controller.isPrivateDocument else {
             pendingAutoCopyTask = nil
             return
@@ -348,9 +354,15 @@ extension DocumentWorkflowModel {
 
             await self.copyRenderedImageToClipboardAsync(
                 from: controller,
-                appearance: controller.currentWorkspaceOutputAppearance
+                appearance: controller.currentWorkspaceOutputAppearance,
+                requestGeneration: requestGeneration
             )
 
+            // A superseding request owns the task slot. Do not clear it when
+            // this older render finishes after being cancelled.
+            guard self.autoCopyRequestGeneration == requestGeneration else {
+                return
+            }
             self.pendingAutoCopyTask = nil
         }
     }
