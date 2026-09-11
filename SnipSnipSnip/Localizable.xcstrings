@@ -142,6 +142,16 @@
     "%@. Expand Quick Controls" : {
 
     },
+    "%@. Press Option-%lld while browsing Clipboard History." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@. Press Option-%2$lld while browsing Clipboard History."
+          }
+        }
+      }
+    },
     "%@…" : {
 
     },
@@ -246,6 +256,9 @@
 
     },
     "+%lld earlier" : {
+
+    },
+    "⌘↩" : {
 
     },
     "⌘⇧%@" : {
@@ -1241,6 +1254,9 @@
     "Clear" : {
 
     },
+    "Clear Filters" : {
+
+    },
     "Clear Selection" : {
 
     },
@@ -1260,6 +1276,9 @@
 
     },
     "Clipboard History Disabled" : {
+
+    },
+    "Clipboard History Unavailable" : {
 
     },
     "Close" : {
@@ -1430,9 +1449,6 @@
     "Copied screenshot." : {
 
     },
-    "Copied text, links, images, files, and %@ screenshots appear here." : {
-
-    },
     "Copy" : {
 
     },
@@ -1446,6 +1462,12 @@
 
     },
     "Copy HEX ⌥⌘H" : {
+
+    },
+    "Copy Options" : {
+
+    },
+    "Copy Original" : {
 
     },
     "Copy Path" : {
@@ -1463,6 +1485,9 @@
     "Copy Text" : {
 
     },
+    "Copy text, a link, an image, or a file to start your history." : {
+
+    },
     "Copy the current callouts as a numbered step guide." : {
 
     },
@@ -1475,10 +1500,10 @@
     "Copy the output currently shown in this workspace." : {
 
     },
-    "Copy, Share, Export, Float, and Drag use the visible stage. Edit, Review, Steps, and Arrange output unwrapped content; Polish outputs the visible Look or Mockup. PNG, JPEG, and PDF include the complete result and annotations. Before an oversized raster is created, choose Scale to Fit; a Steps PDF also offers Paginated PDF. Blink exports deterministic GIF, APNG, and MP4 output using its interval, crossfade, and loop settings, with a disclosed 4,096-pixel longest-side cap. Static Blink output defaults to After." : {
+    "Copy the stored original with its formatting, or just its original plain text." : {
 
     },
-    "Copy. Press Option-%lld while Clipboard History is focused." : {
+    "Copy, Share, Export, Float, and Drag use the visible stage. Edit, Review, Steps, and Arrange output unwrapped content; Polish outputs the visible Look or Mockup. PNG, JPEG, and PDF include the complete result and annotations. Before an oversized raster is created, choose Scale to Fit; a Steps PDF also offers Paginated PDF. Blink exports deterministic GIF, APNG, and MP4 output using its interval, crossfade, and loop settings, with a disclosed 4,096-pixel longest-side cap. Static Blink output defaults to After." : {
 
     },
     "Copyright / footer" : {
@@ -1818,6 +1843,9 @@
 
     },
     "Editable SnipSnipSnip Document" : {
+
+    },
+    "Edited · kept while this window is open" : {
 
     },
     "Editor" : {
@@ -2912,7 +2940,10 @@
     "No Capturable %@" : {
 
     },
-    "No Clipboard Items" : {
+    "No clipboard items have been saved yet. Resume monitoring to save new copies." : {
+
+    },
+    "No Clipboard Items Yet" : {
 
     },
     "No Connected Devices" : {
@@ -2922,6 +2953,12 @@
 
     },
     "No help topics found" : {
+
+    },
+    "No items match the current search and filters. Your history has not been deleted." : {
+
+    },
+    "No Matching Clipboard Items" : {
 
     },
     "No Polish" : {
@@ -3318,9 +3355,6 @@
 
     },
     "Plain" : {
-
-    },
-    "Plain Text" : {
 
     },
     "Play" : {
@@ -3738,6 +3772,9 @@
     "Reserve caption space below each step." : {
 
     },
+    "Reset" : {
+
+    },
     "Reset All Settings" : {
 
     },
@@ -3804,6 +3841,12 @@
     "Restore the first-install controls and dock configuration." : {
 
     },
+    "Restore the last deleted item within 30 seconds. Command-Z while browsing." : {
+
+    },
+    "Restore this draft to the original clipboard text." : {
+
+    },
     "Resume" : {
 
     },
@@ -3820,6 +3863,9 @@
 
     },
     "Return to Record a Guide." : {
+
+    },
+    "Return while browsing or Command-Return while editing." : {
 
     },
     "Reuse a composition template" : {
@@ -3904,9 +3950,6 @@
 
     },
     "Sampling screen…" : {
-
-    },
-    "Sanitize formatting by writing only the plain text value." : {
 
     },
     "Save" : {
@@ -4599,6 +4642,9 @@
     "Stop Recording" : {
 
     },
+    "Stored history could not be opened. Use Try Again above after resolving the storage or Keychain problem." : {
+
+    },
     "Style the composition canvas" : {
 
     },
@@ -4750,6 +4796,9 @@
 
     },
     "Undo" : {
+
+    },
+    "Undo Delete" : {
 
     },
     "Undo Last Guide Step" : {
@@ -4975,10 +5024,10 @@
     "You’ll always get editable steps. Choose whether to keep the full-motion source video too." : {
 
     },
-    "Your capture settings are still in place. Choose the quickest way to continue." : {
+    "Your Guide will ask which app, window, or screen to capture." : {
 
     },
-    "Your Guide will ask which app, window, or screen to capture." : {
+    "Your open screenshot and annotations have not been replaced. Your capture settings are still in place. Choose an action below to continue." : {
 
     },
     "ZIP" : {
