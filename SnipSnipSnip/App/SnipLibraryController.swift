@@ -45,6 +45,32 @@ struct SnipLibraryRequest {
     let onDelete: (DocumentHistoryEntry) -> Void
     let onPermanentlyDelete: (DocumentHistoryEntry) -> Void
     let onEmptyRecycleBin: () -> Void
+
+    /// Refresh the loaded range, extending it if new entries pushed the selection
+    /// onto a later page. A missing selection falls back only after reaching the end.
+    func refreshedPage(
+        scope: SnipLibraryScope,
+        query: String,
+        loadedCount: Int,
+        selectedEntryID: UUID?,
+        lastLoadedEntryID: UUID? = nil,
+        pageSize: Int
+    ) async -> DocumentHistoryPage {
+        let retainedIDs = Set([selectedEntryID, lastLoadedEntryID].compactMap { $0 })
+        var page = await loadPage(scope, query, 0, max(loadedCount, pageSize))
+        while !Task.isCancelled,
+              !retainedIDs.isSubset(of: Set(page.entries.map(\.id))),
+              page.entries.count < page.totalCount {
+            let next = await loadPage(scope, query, page.entries.count, pageSize)
+            guard !next.entries.isEmpty else { break }
+            page = DocumentHistoryPage(
+                entries: page.entries + next.entries,
+                totalCount: next.totalCount,
+                offset: 0
+            )
+        }
+        return page
+    }
 }
 
 @MainActor
@@ -215,7 +241,11 @@ final class SnipLibraryWindowModel: ObservableObject {
         isLoadingEntries = false
         entryLoadErrorMessage = nil
 
-        let selectionToKeep = preferredSelection ?? selectedEntryID
+        // Paging must never restore the selection captured before its await.
+        // Keep even an explicit deselection made while another page was loading.
+        if appending { return }
+
+        let selectionToKeep = selectedEntryID ?? preferredSelection
         if let selectionToKeep,
            entries.contains(where: { $0.id == selectionToKeep }) {
             selectedEntryID = selectionToKeep
@@ -336,7 +366,8 @@ final class SnipLibraryCoordinator {
     func update(_ request: SnipLibraryRequest) {
         guard let model else { return }
         model.update(request: request)
-        reloadEntries(preferredSelection: model.selectedEntryID)
+        model.beginLoadingMoreEntries()
+        loadPage(offset: 0, preferredSelection: model.selectedEntryID, refreshing: true)
     }
 
     func close() {
@@ -399,19 +430,28 @@ final class SnipLibraryCoordinator {
         loadPage(offset: model.entries.count, preferredSelection: model.selectedEntryID)
     }
 
-    private func loadPage(offset: Int, preferredSelection: UUID?) {
+    private func loadPage(offset: Int, preferredSelection: UUID?, refreshing: Bool = false) {
         guard let model else { return }
         let scope = model.scope
         let query = model.searchQuery
         let request = model.request
+        let loadedCount = model.entries.count
+        let lastLoadedEntryID = model.entries.last?.id
         entryLoadTask?.cancel()
         entryLoadTask = Task { @MainActor [weak self, weak model] in
-            let page = await request.loadPage(
-                scope,
-                query,
-                offset,
-                Self.pageSize
-            )
+            let page: DocumentHistoryPage
+            if refreshing {
+                page = await request.refreshedPage(
+                    scope: scope,
+                    query: query,
+                    loadedCount: loadedCount,
+                    selectedEntryID: preferredSelection,
+                    lastLoadedEntryID: lastLoadedEntryID,
+                    pageSize: Self.pageSize
+                )
+            } else {
+                page = await request.loadPage(scope, query, offset, Self.pageSize)
+            }
             guard !Task.isCancelled,
                   let self,
                   let model,

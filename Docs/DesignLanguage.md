@@ -260,3 +260,11 @@ Every explicit custom Glass or fixed-dark app surface must appear here. New entr
 - [Windows](https://developer.apple.com/design/human-interface-guidelines/windows)
 - [Sidebars](https://developer.apple.com/design/human-interface-guidelines/sidebars)
 - [Sheets](https://developer.apple.com/design/human-interface-guidelines/sheets)
+
+
+### Clipboard drafts, recovery, and keyboard behavior
+
+- Keep text drafts per item for the Clipboard History window's visible lifetime. Selection and filters do not discard them. Use a small Edited status and Reset next to existing transform controls, and Copy Edited as the primary action when a draft differs from the original.
+- Show recoverable individual deletion as Undo Delete in the existing footer for 30 seconds. Keep permanent bulk removal behind the existing native confirmation.
+- Distinguish empty data, filtered results, disabled or paused monitoring, and unavailable storage using native unavailable-content views. Show storage problems inline with a symbol, readable explanation, and Try Again; do not hide them solely in Settings.
+- Return while browsing/searching invokes the visible primary copy action; Command-Return does the same while editing. Editing fields retain native caret movement, Return, Option-character input, and text undo. Escape leaves an editing field for Search before clearing the query or closing the utility. Sheets and focused native controls retain their own keyboard behavior.

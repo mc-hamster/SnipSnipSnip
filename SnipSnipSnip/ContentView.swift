@@ -2746,7 +2746,7 @@ private struct CaptureRecoverySheetView: View {
             Text(recovery.message)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text("Your capture settings are still in place. Choose the quickest way to continue.")
+            Text("Your open screenshot and annotations have not been replaced. Your capture settings are still in place. Choose an action below to continue.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
@@ -2771,6 +2771,7 @@ private struct CaptureRecoverySheetView: View {
                 performAction(action)
             }
             .buttonStyle(.borderedProminent)
+            .keyboardShortcut(.defaultAction)
         } else {
             Button(label(for: action)) {
                 performAction(action)

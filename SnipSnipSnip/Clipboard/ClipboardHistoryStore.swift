@@ -9,10 +9,12 @@ final class ClipboardHistoryStore: ObservableObject {
     private struct StoredState: Codable {
         var schemaVersion: Int?
         var items: [ClipboardItem]
+        var pendingDeletions: [ClipboardPendingDeletion]?
 
-        init(schemaVersion: Int? = 2, items: [ClipboardItem]) {
+        init(schemaVersion: Int? = 2, items: [ClipboardItem], pendingDeletions: [ClipboardPendingDeletion] = []) {
             self.schemaVersion = schemaVersion
             self.items = items
+            self.pendingDeletions = pendingDeletions
         }
     }
 
@@ -22,11 +24,18 @@ final class ClipboardHistoryStore: ObservableObject {
     private let indexURL: URL
     private let cryptor: ClipboardHistoryCryptor
     private let imageCache = NSCache<NSString, NSImage>()
-    private var isStorageAvailable: Bool
+    @Published private(set) var isStorageAvailable: Bool
     private var hasLoadedStoredHistory: Bool
 
     @Published private(set) var items: [ClipboardItem]
     @Published private(set) var recoveryMessage: String?
+    @Published private(set) var storageWriteErrorMessage: String?
+    @Published private(set) var pendingDeletions: [ClipboardPendingDeletion] = []
+    private var deletionExpiryTask: Task<Void, Never>?
+
+    var canUndoDeletion: Bool { pendingDeletions.contains { $0.expiresAt > Date() } }
+
+    deinit { deletionExpiryTask?.cancel() }
 
     init(
         fileManager: FileManager = .default,
@@ -61,7 +70,13 @@ final class ClipboardHistoryStore: ObservableObject {
         isStorageAvailable = true
         recoveryMessage = nil
 
-        guard let storedData = try? Data(contentsOf: indexURL) else {
+        guard fileManager.fileExists(atPath: indexURL.path) else { return }
+        let storedData: Data
+        do {
+            storedData = try Data(contentsOf: indexURL)
+        } catch {
+            isStorageAvailable = false
+            recoveryMessage = "Clipboard History could not be read. Existing history was left untouched. Check storage access, then try again."
             return
         }
 
@@ -69,6 +84,9 @@ final class ClipboardHistoryStore: ObservableObject {
             let decrypted = try cryptor.decryptIfNeeded(storedData)
             let state = try JSONDecoder().decode(StoredState.self, from: decrypted.data)
             items = state.items.sorted(by: Self.timelineSort)
+            pendingDeletions = state.pendingDeletions ?? []
+            expireDeletedItems()
+            scheduleDeletionExpiry()
             migrateAssetsToEncryption()
             if !decrypted.wasEncrypted {
                 persist()
@@ -87,11 +105,24 @@ final class ClipboardHistoryStore: ObservableObject {
     }
 
     func deactivateStorage() {
+        deletionExpiryTask?.cancel()
+        pendingDeletions = []
         items = []
         imageCache.removeAllObjects()
         recoveryMessage = nil
+        storageWriteErrorMessage = nil
         isStorageAvailable = false
         hasLoadedStoredHistory = false
+    }
+
+    func retryStorage() {
+        if !isStorageAvailable {
+            hasLoadedStoredHistory = false
+            activateStorage()
+        } else {
+            persist()
+            if storageWriteErrorMessage == nil { recoveryMessage = nil }
+        }
     }
 
     static func defaultHistoryURL(fileManager: FileManager = .default) -> URL {
@@ -395,6 +426,15 @@ final class ClipboardHistoryStore: ObservableObject {
         persist()
     }
 
+    func addCollection(_ collectionName: String, for item: ClipboardItem) {
+        let normalizedName = collectionName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let currentItem = items.first(where: { $0.id == item.id }),
+              !currentItem.collectionNames.contains(where: {
+                  $0.localizedCaseInsensitiveCompare(normalizedName) == .orderedSame
+              }) else { return }
+        toggleCollection(normalizedName, for: currentItem)
+    }
+
     func toggleCollection(_ collectionName: String, for item: ClipboardItem) {
         let normalizedName = collectionName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedName.isEmpty,
@@ -414,18 +454,70 @@ final class ClipboardHistoryStore: ObservableObject {
         persist()
     }
 
-    func delete(_ item: ClipboardItem) {
+    func delete(_ item: ClipboardItem, now: Date = Date()) {
         guard let index = items.firstIndex(where: { $0.id == item.id }) else {
             return
         }
 
-        deleteAssets(for: items[index])
-        imageCache.removeObject(forKey: item.id.uuidString as NSString)
+        expireDeletedItems(now: now)
+        pendingDeletions.append(ClipboardPendingDeletion(item: items[index], expiresAt: now.addingTimeInterval(30)))
         items.remove(at: index)
+        persist()
+        scheduleDeletionExpiry()
+    }
+
+    @discardableResult
+    func undoDeletion(now: Date = Date()) -> UUID? {
+        expireDeletedItems(now: now)
+        guard let deletion = pendingDeletions.popLast() else { return nil }
+        // If the same content was copied again, keep its newer assets and identity.
+        if let index = items.firstIndex(where: { $0.contentHash == deletion.item.contentHash }) {
+            items[index].isPinned = items[index].isPinned || deletion.item.isPinned
+            for name in deletion.item.collectionNames where !items[index].collectionNames.contains(name) {
+                items[index].collectionNames.append(name)
+            }
+            items[index].normalizedSearchText = Self.normalizedSearchText(for: items[index])
+            deleteAssets(for: deletion.item)
+            let id = items[index].id
+            items.sort(by: Self.timelineSort)
+            persist()
+            scheduleDeletionExpiry()
+            return id
+        }
+        items.append(deletion.item)
+        items.sort(by: Self.timelineSort)
+        persist()
+        scheduleDeletionExpiry()
+        return deletion.item.id
+    }
+
+    func expireDeletedItems(now: Date = Date()) {
+        let expired = pendingDeletions.filter { $0.expiresAt <= now }
+        guard !expired.isEmpty else { return }
+        expired.forEach {
+            deleteAssets(for: $0.item)
+            imageCache.removeObject(forKey: $0.item.id.uuidString as NSString)
+        }
+        pendingDeletions.removeAll { $0.expiresAt <= now }
         persist()
     }
 
+    private func scheduleDeletionExpiry() {
+        deletionExpiryTask?.cancel()
+        guard let deadline = pendingDeletions.map(\.expiresAt).min() else { return }
+        deletionExpiryTask = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .seconds(max(0, deadline.timeIntervalSinceNow))) }
+            catch { return }
+            guard let self else { return }
+            expireDeletedItems()
+            scheduleDeletionExpiry()
+        }
+    }
+
     func clearUnpinned() {
+        pendingDeletions.filter { !$0.item.isPinned }.forEach { deleteAssets(for: $0.item) }
+        pendingDeletions.removeAll { !$0.item.isPinned }
+        scheduleDeletionExpiry()
         let removedItems = items.filter { !$0.isPinned }
         removedItems.forEach(deleteAssets)
         removedItems.forEach { imageCache.removeObject(forKey: $0.id.uuidString as NSString) }
@@ -434,6 +526,9 @@ final class ClipboardHistoryStore: ObservableObject {
     }
 
     func clearAll() {
+        pendingDeletions.forEach { deleteAssets(for: $0.item) }
+        pendingDeletions = []
+        scheduleDeletionExpiry()
         items.forEach(deleteAssets)
         imageCache.removeAllObjects()
         items.removeAll()
@@ -499,14 +594,15 @@ final class ClipboardHistoryStore: ObservableObject {
             try ensureDirectories()
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let data = try encoder.encode(StoredState(items: items))
+            let data = try encoder.encode(StoredState(items: items, pendingDeletions: pendingDeletions))
             let encryptedData = try cryptor.encrypt(data)
             try writeDataWithBestAvailableFileProtection(
                 encryptedData,
                 to: indexURL
             )
+            storageWriteErrorMessage = nil
         } catch {
-            // Clipboard history should never block capture or copy workflows.
+            storageWriteErrorMessage = "Recent Clipboard History changes could not be saved. Keep the app open, check available disk space and storage access, then try again."
         }
     }
 
@@ -567,7 +663,7 @@ final class ClipboardHistoryStore: ObservableObject {
     }
 
     private func migrateAssetsToEncryption() {
-        let names = Set(items.flatMap { item -> [String] in
+        let names = Set((items + pendingDeletions.map(\.item)).flatMap { item -> [String] in
             var names: [String] = []
             if let assetURL = assetURL(for: item) {
                 names.append(assetURL.lastPathComponent)

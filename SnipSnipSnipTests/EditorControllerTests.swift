@@ -5,6 +5,25 @@ import XCTest
 
 @MainActor
 final class EditorControllerTests: XCTestCase {
+    func testOutputRecoveryPreservesDocumentAndClearsStaleRetry() {
+        let controller = makeController()
+        let original = controller.snapshot
+        var retries = 0
+        controller.reportOutputFailure(NSError(domain: "ExportTest", code: 1), actionTitle: "Export Again…") { retries += 1 }
+        XCTAssertTrue(controller.errorMessage?.contains("unchanged") == true)
+        XCTAssertEqual(controller.snapshot, original)
+        XCTAssertEqual(controller.outputRecoveryActionTitle, "Export Again…")
+        controller.retryFailedOutput()
+        XCTAssertEqual(retries, 1)
+        XCTAssertNil(controller.errorMessage)
+        XCTAssertNil(controller.outputRecoveryActionTitle)
+        controller.reportOutputFailure(NSError(domain: "ExportTest", code: 2), actionTitle: "Copy Again") { retries += 1 }
+        controller.errorMessage = "Unrelated editor error"
+        controller.retryFailedOutput()
+        XCTAssertEqual(retries, 1)
+        XCTAssertEqual(controller.snapshot, original)
+    }
+
     func testFreshCaptureAddsCapturedCursorAsEditableOverlay() {
         let cursorImage = makeSolidImage(width: 12, height: 14, color: PixelSample(red: 10, green: 20, blue: 30, alpha: 255))
         let capture = makeCapturedScreenshot().attachingCursorOverlay(
@@ -2390,6 +2409,113 @@ final class EditorControllerTests: XCTestCase {
         XCTAssertEqual(shape.text, "Label")
         XCTAssertGreaterThan(movedText.boundingRect.minX, originalBounds.minX)
         XCTAssertGreaterThan(movedText.boundingRect.minY, originalBounds.minY)
+    }
+
+    @MainActor
+    func testCanvasArrowKeysNudgeWithoutCreatingTextAndSupportUndo() {
+        let annotation = Annotation.makeRectangle(in: CGRect(x: 20, y: 20, width: 40, height: 30))
+        let controller = makeController(snapshot: makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 160, height: 120),
+            annotations: [annotation], selectedAnnotationIDs: [annotation.id]
+        ))
+        let (_, overlay, window) = makeCanvasHarness(
+            controller: controller, frame: CGRect(x: 0, y: 0, width: 640, height: 480)
+        )
+        let cases: [(UInt16, Int, NSEvent.ModifierFlags, CGSize)] = [
+            (124, NSRightArrowFunctionKey, [], CGSize(width: 1, height: 0)),
+            (123, NSLeftArrowFunctionKey, [.function, .numericPad], CGSize(width: -1, height: 0)),
+            (125, NSDownArrowFunctionKey, [.function, .numericPad, .shift], CGSize(width: 0, height: 10)),
+            (126, NSUpArrowFunctionKey, [.shift], CGSize(width: 0, height: -10))
+        ]
+        for (keyCode, character, modifiers, delta) in cases {
+            sendKeyEvent(.keyDown, keyCode: keyCode, characters: String(UnicodeScalar(character)!),
+                         to: overlay, in: window, modifiers: modifiers)
+            XCTAssertEqual(controller.snapshot.annotations.count, 1)
+            XCTAssertEqual(controller.selectedAnnotation?.boundingRect,
+                           annotation.boundingRect.offsetBy(dx: delta.width, dy: delta.height))
+            controller.undo()
+            XCTAssertEqual(controller.selectedAnnotation?.boundingRect, annotation.boundingRect)
+            controller.redo()
+            XCTAssertEqual(controller.selectedAnnotation?.boundingRect,
+                           annotation.boundingRect.offsetBy(dx: delta.width, dy: delta.height))
+            controller.undo()
+        }
+    }
+
+    @MainActor
+    func testCanvasArrowKeyDoesNotAppendFunctionCharacterToText() {
+        let controller = makeController()
+        controller.beginTextAnnotation(with: "Label")
+        let originalBounds = controller.selectedAnnotation!.boundingRect
+        let (_, overlay, window) = makeCanvasHarness(
+            controller: controller, frame: CGRect(x: 0, y: 0, width: 640, height: 480)
+        )
+        sendKeyEvent(.keyDown, keyCode: 124, characters: String(UnicodeScalar(NSRightArrowFunctionKey)!),
+                     to: overlay, in: window, modifiers: [.numericPad, .function])
+        XCTAssertEqual(controller.selectedText, "Label")
+        XCTAssertEqual(controller.snapshot.annotations.count, 1)
+        XCTAssertEqual(controller.selectedAnnotation?.boundingRect, originalBounds.offsetBy(dx: 1, dy: 0))
+    }
+
+    @MainActor
+    func testRedactionControlsLeaveResequencingAndAllowDrawing() {
+        for useMenu in [false, true] {
+            let first = Annotation.makeNumberedArrow(from: CGPoint(x: 10, y: 10), to: CGPoint(x: 80, y: 20), number: 1)
+            let second = Annotation.makeNumberedArrow(from: CGPoint(x: 10, y: 40), to: CGPoint(x: 80, y: 50), number: 2)
+            let controller = makeController(snapshot: makeEditorSnapshot(
+                cropRect: CGRect(x: 0, y: 0, width: 160, height: 120), annotations: [first, second]
+            ), defaults: makeTestDefaults())
+            let (_, overlay, window) = makeCanvasHarness(
+                controller: controller, frame: CGRect(x: 0, y: 0, width: 640, height: 480)
+            )
+            controller.beginNumberedArrowResequencing()
+            controller.chooseNumberedArrowForResequencing(second.id)
+            if useMenu {
+                controller.updateRedactionMode(.pixelate)
+            } else {
+                controller.activateToolbarTool(.blur)
+            }
+            XCTAssertNil(controller.numberedArrowResequencingOrder)
+            XCTAssertEqual(controller.snapshot.annotations, [first, second])
+            let start = viewPoint(for: CGPoint(x: 100, y: 70), controller: controller)
+            let end = viewPoint(for: CGPoint(x: 140, y: 100), controller: controller)
+            sendMouseEvent(.leftMouseDown, at: start, to: overlay, in: window, eventNumber: 1)
+            sendMouseEvent(.leftMouseDragged, at: end, to: overlay, in: window, eventNumber: 2)
+            sendMouseEvent(.leftMouseUp, at: end, to: overlay, in: window, eventNumber: 3)
+            XCTAssertEqual(controller.snapshot.annotations.count, 3)
+            XCTAssertNotNil(controller.snapshot.annotations.last?.editorTool.defaultRedactionMode)
+        }
+    }
+
+    @MainActor
+    func testEscapeCancelsCanvasDrawingAndCropUntilMouseUp() {
+        for tool: EditorTool in [.rectangle, .freehand, .crop, .select] {
+            let controller = makeController()
+            let original = controller.snapshot
+            let (_, overlay, window) = makeCanvasHarness(
+                controller: controller, frame: CGRect(x: 0, y: 0, width: 640, height: 480)
+            )
+            controller.activateToolbarTool(tool)
+            let start = tool == .select
+                ? cropHandleViewPoint(for: .bottomRight, cropRect: original.cropRect, controller: controller)
+                : viewPoint(for: CGPoint(x: 30, y: 30), controller: controller)
+            let end = viewPoint(for: CGPoint(x: 110, y: 80), controller: controller)
+            sendMouseEvent(.leftMouseDown, at: start, to: overlay, in: window, eventNumber: 1)
+            sendMouseEvent(.leftMouseDragged, at: end, to: overlay, in: window, eventNumber: 2)
+            sendKeyEvent(.keyDown, keyCode: 53, characters: "\u{1b}", to: overlay, in: window)
+            sendMouseEvent(.leftMouseDragged, at: end, to: overlay, in: window, eventNumber: 3)
+            sendMouseEvent(.leftMouseUp, at: end, to: overlay, in: window, eventNumber: 4)
+            XCTAssertEqual(controller.snapshot, original)
+            XCTAssertFalse(controller.canUndo)
+
+            // Cancellation must not disable the next pointer interaction.
+            sendMouseEvent(.leftMouseDown, at: start, to: overlay, in: window, eventNumber: 5)
+            sendMouseEvent(.leftMouseDragged, at: end, to: overlay, in: window, eventNumber: 6)
+            sendMouseEvent(.leftMouseUp, at: end, to: overlay, in: window, eventNumber: 7)
+            XCTAssertNotEqual(controller.snapshot, original)
+            controller.undo()
+            XCTAssertEqual(controller.snapshot, original)
+        }
     }
 
     @MainActor

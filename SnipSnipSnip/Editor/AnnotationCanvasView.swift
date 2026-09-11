@@ -1389,6 +1389,7 @@ private final class AnnotationCanvasOverlayView: NSView {
     }
 
     private var interactionState = AnnotationCanvasInteractionState()
+    private var isPointerInteractionCancelled = false
     private var cropHUDDocumentPoint: CGPoint?
     private var pointerTrackingArea: NSTrackingArea?
     private var uiMapOverlayElementCache: UIMapOverlayElementCache?
@@ -1683,6 +1684,7 @@ private final class AnnotationCanvasOverlayView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        isPointerInteractionCancelled = false
         window?.makeFirstResponder(self)
         let viewPoint = convert(event.locationInWindow, from: nil)
 
@@ -1806,6 +1808,7 @@ private final class AnnotationCanvasOverlayView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        guard !isPointerInteractionCancelled else { return }
         let rawViewPoint = convert(event.locationInWindow, from: nil)
 
         // Crop handle resize must use unclamped document coordinates so dragging
@@ -1867,11 +1870,14 @@ private final class AnnotationCanvasOverlayView: NSView {
         let finalDraftCropRect = interactionState.draftCropRect
 
         defer {
+            isPointerInteractionCancelled = false
             interactionState.reset()
             cropHUDDocumentPoint = nil
             canvasView?.updateDraftCropMask(nil)
             needsDisplay = true
         }
+
+        guard !isPointerInteractionCancelled else { return }
 
         if controller.activeTool == .colorPicker,
            let point = documentPoint(from: convert(event.locationInWindow, from: nil)) {
@@ -1887,7 +1893,9 @@ private final class AnnotationCanvasOverlayView: NSView {
     }
 
     override func keyDown(with event: NSEvent) {
-        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        // Arrow events can also carry Function and Numeric Pad flags. Those
+        // identify the key, not a different annotation command.
+        let modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
 
         if controller.numberedArrowResequencingOrder != nil {
             if event.keyCode == 53 {
@@ -1909,6 +1917,13 @@ private final class AnnotationCanvasOverlayView: NSView {
             return
         }
         if event.keyCode == 53 {
+            if interactionState.dragMode != nil {
+                isPointerInteractionCancelled = true
+            }
+            interactionState.reset()
+            cropHUDDocumentPoint = nil
+            canvasView?.updateDraftCropMask(nil)
+            needsDisplay = true
             canvasView?.returnAccessibilityFocusToCanvas()
             return
         }
@@ -2653,14 +2668,22 @@ private final class AnnotationCanvasOverlayView: NSView {
         }
 
         guard let characters = event.characters, !characters.isEmpty else {
-            return true
+            return false
+        }
+
+        // AppKit encodes navigation/function keys as private-use Unicode scalars.
+        // They must reach the command handlers rather than become annotation text.
+        guard !characters.unicodeScalars.contains(where: {
+            (UInt32(NSUpArrowFunctionKey)...UInt32(NSModeSwitchFunctionKey)).contains($0.value)
+        }) else {
+            return false
         }
 
         let printable = characters.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }
         let text = String(String.UnicodeScalarView(printable))
 
         guard !text.isEmpty else {
-            return true
+            return false
         }
 
         if selected?.isTextEditable == true {

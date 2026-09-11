@@ -72,12 +72,22 @@ extension ClipboardWorkflowModel {
     }
 
     func pauseClipboardMonitoring(for interval: TimeInterval?) {
+        monitoringResumeTask?.cancel()
         let pauseDate = interval.map { Date().addingTimeInterval($0) } ?? .distantFuture
         monitoringPausedUntil = pauseDate
         monitor.pause(until: pauseDate)
+        if let interval {
+            monitoringResumeTask = Task { @MainActor [weak self] in
+                do { try await Task.sleep(for: .seconds(max(0, interval))) }
+                catch { return }
+                guard let self, monitoringPausedUntil == pauseDate else { return }
+                resumeClipboardMonitoring()
+            }
+        }
     }
 
     func resumeClipboardMonitoring() {
+        monitoringResumeTask?.cancel()
         monitoringPausedUntil = nil
         monitor.pause(until: nil)
     }
@@ -202,8 +212,13 @@ extension ClipboardWorkflowModel {
         historyStore.toggleCollection(collectionName, for: item)
     }
 
+    func addClipboardCollection(_ collectionName: String, for item: ClipboardItem) {
+        historyStore.addCollection(collectionName, for: item)
+    }
+
     func deleteClipboardItem(_ item: ClipboardItem) {
         historyStore.delete(item)
+        actionMessage = "Clipboard item deleted."
     }
 
     func openClipboardItem(_ item: ClipboardItem) {
@@ -244,12 +259,8 @@ extension ClipboardWorkflowModel {
             return
         }
 
-        documents.refreshRecoveryPresentationState()
-        let candidates = documents.allCaptureHistoryEntries + documents.recentSnipEntries + documents.historyEntries
-        guard let entry = candidates
-            .filter({ $0.sessionID == sessionID })
-            .sorted(by: { $0.savedAt > $1.savedAt })
-            .first else {
+        guard let entry = documents.latestHistoryEntry(for: sessionID) else {
+            actionMessage = "This snip is no longer available in Snip History. You can still copy it from Clipboard History."
             return
         }
 

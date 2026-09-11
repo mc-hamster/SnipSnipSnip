@@ -22,6 +22,82 @@ final class ClipboardHistoryStoreTests: XCTestCase {
         try? FileManager.default.removeItem(at: FileManager.default.temporaryDirectory.appendingPathComponent(name, isDirectory: true))
     }
 
+    func testDeletionUndoRestoresEncryptedImageAndMetadataAcrossReload() throws {
+        let name = "ClipboardHistoryStoreTests.undoImage"
+        removeStore(named: name)
+        defer { removeStore(named: name) }
+        let store = makeStore(named: name)
+        let data = try ImageExporter.pngData(for: makeSolidImage(width: 8, height: 8, color: PixelSample(red: 10, green: 20, blue: 30, alpha: 255)))
+        store.recordImageData(data, sourceApp: nil, preferences: .default)
+        let item = try XCTUnwrap(store.items.first)
+        store.togglePinned(item)
+        store.addCollection("Keep", for: item)
+        let original = try XCTUnwrap(store.items.first)
+        let asset = try XCTUnwrap(store.assetURL(for: original))
+        store.delete(original)
+        XCTAssertTrue(store.items.isEmpty)
+        XCTAssertTrue(store.canUndoDeletion)
+        XCTAssertTrue(try Data(contentsOf: asset).starts(with: ClipboardHistoryCryptor.envelopeMagic))
+        store.deactivateStorage()
+
+        let reloaded = makeStore(named: name)
+        XCTAssertEqual(reloaded.undoDeletion(), original.id)
+        XCTAssertEqual(reloaded.items.first?.collectionNames, ["Keep"])
+        XCTAssertTrue(reloaded.items.first?.isPinned == true)
+        XCTAssertEqual(reloaded.dataForPasteboard(for: try XCTUnwrap(reloaded.items.first)), data)
+        XCTAssertFalse(reloaded.canUndoDeletion)
+    }
+
+    func testDeletionExpiryAndPermanentClearRemoveUndo() throws {
+        let name = "ClipboardHistoryStoreTests.undoExpiry"
+        removeStore(named: name)
+        defer { removeStore(named: name) }
+        let store = makeStore(named: name)
+        let now = Date()
+        store.recordText("expire", sourceApp: nil, preferences: .default)
+        store.delete(try XCTUnwrap(store.items.first), now: now)
+        XCTAssertNil(store.undoDeletion(now: now.addingTimeInterval(31)))
+        store.recordText("clear", sourceApp: nil, preferences: .default)
+        store.delete(try XCTUnwrap(store.items.first))
+        store.clearUnpinned()
+        XCTAssertFalse(store.canUndoDeletion)
+        store.deactivateStorage()
+        XCTAssertFalse(makeStore(named: name).canUndoDeletion)
+    }
+
+    func testUndoAfterRecopyKeepsNewerEntryAndRestoresPin() throws {
+        let name = "ClipboardHistoryStoreTests.undoRecopy"
+        removeStore(named: name)
+        defer { removeStore(named: name) }
+        let store = makeStore(named: name)
+        store.recordText("same", sourceApp: nil, preferences: .default)
+        let item = try XCTUnwrap(store.items.first)
+        store.togglePinned(item)
+        store.delete(item)
+        store.recordText("same", sourceApp: nil, preferences: .default)
+        let newID = try XCTUnwrap(store.items.first?.id)
+        XCTAssertEqual(store.undoDeletion(), newID)
+        XCTAssertEqual(store.items.count, 1)
+        XCTAssertTrue(store.items[0].isPinned)
+    }
+
+    func testStorageRetryKeepsUnsavedItemsAfterWriteFailure() throws {
+        let name = "ClipboardHistoryStoreTests.retryWrite"
+        removeStore(named: name)
+        defer { removeStore(named: name) }
+        let store = makeStore(named: name)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+        // A regular file prevents creation of the store directory.
+        try Data("blocked".utf8).write(to: root)
+        store.recordText("keep in memory", sourceApp: nil, preferences: .default)
+        XCTAssertNotNil(store.storageWriteErrorMessage)
+        XCTAssertEqual(store.items.first?.plainTextValue, "keep in memory")
+        try FileManager.default.removeItem(at: root)
+        store.retryStorage()
+        XCTAssertNil(store.storageWriteErrorMessage)
+        XCTAssertEqual(makeStore(named: name).items.first?.plainTextValue, "keep in memory")
+    }
+
     func testDeduplicatesItemsByContentHashAndKeepsNewestTimelinePosition() {
         let storeName = "ClipboardHistoryStoreTests.deduplicates"
         removeStore(named: storeName)
@@ -533,6 +609,24 @@ final class ClipboardHistoryStoreTests: XCTestCase {
 
         store.recordText("#12ab34", sourceApp: nil, preferences: .default)
         XCTAssertEqual(store.items.first?.semanticType, .color)
+    }
+
+    func testAddingExistingCollectionPreservesMembershipAcrossReload() throws {
+        let name = "ClipboardHistoryStoreTests.addCollection"
+        removeStore(named: name)
+        defer { removeStore(named: name) }
+        let store = makeStore(named: name)
+        store.recordText("release checklist", sourceApp: nil, preferences: .default)
+        let originalItem = try XCTUnwrap(store.items.first)
+        store.addCollection("Shipping", for: originalItem)
+        // Reuse the original value to model a stale row and normalize case/space.
+        store.addCollection(" shipping ", for: originalItem)
+        XCTAssertEqual(store.items.first?.collectionNames, ["Shipping"])
+        let reloaded = makeStore(named: name)
+        XCTAssertEqual(reloaded.items.first?.collectionNames, ["Shipping"])
+        XCTAssertTrue(reloaded.items.first?.matchesSearchQuery("shipping") == true)
+        reloaded.toggleCollection("Shipping", for: try XCTUnwrap(reloaded.items.first))
+        XCTAssertEqual(reloaded.items.first?.collectionNames, [])
     }
 
     func testNamedCollectionsPersistAcrossReloadAndRemainSearchable() throws {

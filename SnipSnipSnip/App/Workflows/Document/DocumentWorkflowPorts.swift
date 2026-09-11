@@ -93,12 +93,9 @@ protocol DocumentArchiveWorkflowPort: AnyObject {
 @MainActor
 protocol ClipboardDocumentWorkflowPort: AnyObject {
     var currentDocumentURL: URL? { get }
-    var allCaptureHistoryEntries: [DocumentHistoryEntry] { get }
-    var recentSnipEntries: [DocumentHistoryEntry] { get }
-    var historyEntries: [DocumentHistoryEntry] { get }
 
     func recoverySessionTitle(for controller: EditorController, documentURL: URL?) -> String
-    func refreshRecoveryPresentationState()
+    func latestHistoryEntry(for sessionID: UUID) -> DocumentHistoryEntry?
     func restoreHistoryEntry(_ entry: DocumentHistoryEntry)
 }
 
@@ -136,7 +133,11 @@ extension VideoWorkflowModel: DocumentVideoWorkflowPort {}
 extension ArchiveWorkflowModel: DocumentArchiveWorkflowPort {}
 
 @MainActor
-extension DocumentWorkflowModel: ClipboardDocumentWorkflowPort {}
+extension DocumentWorkflowModel: ClipboardDocumentWorkflowPort {
+    func latestHistoryEntry(for sessionID: UUID) -> DocumentHistoryEntry? {
+        recoveryStore.historyEntries(for: sessionID).first
+    }
+}
 
 @MainActor
 extension DocumentWorkflowModel: VideoDocumentWorkflowPort {}

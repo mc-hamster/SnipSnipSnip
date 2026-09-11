@@ -39,6 +39,8 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
     weak var outputSink: (any WorkflowOutputSink)?
     weak var documents: (any ClipboardDocumentWorkflowPort)?
     private let pasteboard: any PasteboardServicing
+    private var historyObservation: AnyCancellable?
+    var monitoringResumeTask: Task<Void, Never>?
     let preferenceStore: ClipboardPreferenceStore
     @Published var autoCopyEnabled: Bool {
         didSet {
@@ -80,10 +82,31 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
         self.preferenceStore = preferenceStore
         self.autoCopyEnabled = preferenceStore.loadAutoCopyEnabled()
         self.preferences = preferenceStore.loadPreferences()
+        historyObservation = historyStore.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
     }
 
     var items: [ClipboardItem] {
         historyStore.items
+    }
+
+    var storageProblem: String? { historyStore.storageWriteErrorMessage ?? historyStore.recoveryMessage }
+
+    var monitoringStatus: String {
+        if !preferences.isEnabled { return "Monitoring Off" }
+        if !historyStore.isStorageAvailable { return "Monitoring Unavailable" }
+        if isClipboardMonitoringPaused { return "Monitoring Paused" }
+        return "Monitoring"
+    }
+
+    func retryClipboardStorage() { historyStore.retryStorage() }
+
+    @discardableResult
+    func undoClipboardDeletion() -> UUID? {
+        let id = historyStore.undoDeletion()
+        actionMessage = id == nil ? "Deletion can no longer be undone." : "Clipboard item restored."
+        return id
     }
 
     func copyItem(_ item: ClipboardItem, plainTextOnly: Bool = false) {

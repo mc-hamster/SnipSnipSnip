@@ -1,3 +1,4 @@
+import Combine
 import CryptoKit
 import XCTest
 @testable import SnipSnipSnip
@@ -19,6 +20,87 @@ final class ClipboardAppModelTests: XCTestCase {
     private func removeClipboardStore(named name: String) {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(name, isDirectory: true)
         try? FileManager.default.removeItem(at: url)
+    }
+
+    func testHistoryMutationsNotifyClipboardWindowModel() throws {
+        let name = "ClipboardAppModelTests.historyObservation"
+        let defaults = makeDefaults(named: name)
+        let store = makeClipboardStore(named: name + ".store")
+        defer {
+            defaults.removePersistentDomain(forName: name)
+            removeClipboardStore(named: name + ".store")
+            removeClipboardStore(named: name + ".recovery")
+        }
+        let model = retainForTestLifetime(AppModel(
+            defaults: defaults,
+            recoveryStore: makeRecoveryStore(named: name + ".recovery"),
+            clipboardHistoryStore: store,
+            shouldCheckCompatibilityOnLaunch: false,
+            shouldStartArchiveMaintenance: false
+        ))
+        var changes = 0
+        let observation = model.clipboard.objectWillChange.sink { changes += 1 }
+        defer { observation.cancel() }
+
+        store.recordText("Clipboard notification test", sourceApp: nil, preferences: .default)
+        XCTAssertGreaterThan(changes, 0)
+        let item = try XCTUnwrap(model.clipboard.items.first)
+        var previousCount = changes
+        model.clipboard.togglePinnedClipboardItem(item)
+        XCTAssertGreaterThan(changes, previousCount)
+        XCTAssertTrue(model.clipboard.items[0].isPinned)
+
+        previousCount = changes
+        model.clipboard.addClipboardCollection("Review", for: item)
+        XCTAssertGreaterThan(changes, previousCount)
+        XCTAssertEqual(model.clipboard.items[0].collectionNames, ["Review"])
+
+        previousCount = changes
+        model.clipboard.deleteClipboardItem(item)
+        XCTAssertGreaterThan(changes, previousCount)
+        XCTAssertTrue(model.clipboard.items.isEmpty)
+    }
+
+    func testOpenClipboardSnipUsesStoredSessionOutsideCachedHistory() throws {
+        let name = "ClipboardAppModelTests.openStoredSnip"
+        let defaults = makeDefaults(named: name)
+        let store = makeClipboardStore(named: name + ".store")
+        let recovery = makeRecoveryStore(named: name + ".recovery")
+        defer {
+            defaults.removePersistentDomain(forName: name)
+            removeClipboardStore(named: name + ".store")
+            removeClipboardStore(named: name + ".recovery")
+        }
+        let model = retainForTestLifetime(AppModel(
+            defaults: defaults, recoveryStore: recovery, clipboardHistoryStore: store,
+            shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false
+        ))
+        let document = makeEditableDocument()
+        let sessionID = try recovery.createSession(title: "Stored clipboard snip", sourceDocumentURL: nil)
+        for label in ["Original", "Latest"] {
+            try recovery.saveCheckpoint(
+                sessionID: sessionID, title: "Stored clipboard snip", sourceDocumentURL: nil,
+                label: label, document: document, previewImage: document.capture.image,
+                pendingRecovery: false, hasUnsavedChanges: false
+            )
+        }
+        store.recordSnip(
+            pngData: try ImageExporter.pngData(for: document.capture.image), title: "Stored clipboard snip",
+            searchableText: "", sessionID: sessionID, preferences: .default
+        )
+        let item = try XCTUnwrap(store.items.first)
+        XCTAssertTrue(model.documents.allCaptureHistoryEntries.isEmpty)
+        XCTAssertTrue(model.documents.recentSnipEntries.isEmpty)
+        XCTAssertEqual(model.documents.latestHistoryEntry(for: sessionID)?.label, "Latest")
+
+        model.clipboard.openClipboardSnip(item)
+        XCTAssertNotNil(model.documents.editorController)
+        XCTAssertEqual(model.documents.currentRecoverySessionID, sessionID)
+
+        try recovery.deleteSession(sessionID)
+        model.clipboard.openClipboardSnip(item)
+        XCTAssertTrue(model.clipboard.actionMessage?.contains("no longer available") == true)
+        XCTAssertEqual(store.items.first?.id, item.id)
     }
 
     func testClipboardHistoryIsOptInByDefault() {

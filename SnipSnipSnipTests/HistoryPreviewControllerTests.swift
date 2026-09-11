@@ -206,6 +206,80 @@ final class HistoryPreviewControllerTests: XCTestCase {
         XCTAssertFalse(model.hasMoreEntries)
     }
 
+    func testSnipLibraryPagingPreservesSelectionChangedDuringLoad() {
+        let entries = (1...3).map { makeEntry(index: $0) }
+        let model = SnipLibraryWindowModel(
+            request: makeLibraryRequest(history: entries), initialScope: .history
+        )
+        install(Array(entries.prefix(2)), in: model)
+        let selectionAtRequest = model.selectedEntryID
+        model.select(entries[1].id)
+        model.install(
+            page: DocumentHistoryPage(entries: [entries[2]], totalCount: 3, offset: 2),
+            appending: true,
+            preferredSelection: selectionAtRequest
+        )
+        XCTAssertEqual(model.selectedEntry?.id, entries[1].id)
+
+        model.select(nil)
+        model.install(
+            page: DocumentHistoryPage(entries: [], totalCount: 3, offset: 3),
+            appending: true,
+            preferredSelection: entries[1].id
+        )
+        XCTAssertNil(model.selectedEntryID)
+    }
+
+    func testSnipLibraryRefreshPreservesLoadedPagesAndNewerSelection() async {
+        let entries = (1...120).map { makeEntry(index: $0) }
+        let request = makeLibraryRequest(history: entries)
+        let model = SnipLibraryWindowModel(request: request, initialScope: .history)
+        install(Array(entries.prefix(100)), in: model)
+        model.select(entries[55].id)
+        let selectionAtRequest = model.selectedEntryID
+        model.beginLoadingMoreEntries()
+        XCTAssertEqual(model.entries.count, 100)
+        let page = await request.refreshedPage(
+            scope: .history, query: "", loadedCount: model.entries.count,
+            selectedEntryID: selectionAtRequest, pageSize: 50
+        )
+        model.select(entries[75].id)
+        model.install(page: page, appending: false, preferredSelection: selectionAtRequest)
+        XCTAssertEqual(model.entries.count, 100)
+        XCTAssertEqual(model.selectedEntry?.id, entries[75].id)
+        XCTAssertTrue(model.hasMoreEntries)
+    }
+
+    func testSnipLibraryRefreshFindsSelectionPushedBeyondLoadedRange() async {
+        let entries = (1...120).map { makeEntry(index: $0) }
+        let inserted = makeEntry(index: 0)
+        let request = makeLibraryRequest(history: [inserted] + entries)
+        let page = await request.refreshedPage(
+            scope: .history, query: "", loadedCount: 100,
+            selectedEntryID: entries[55].id,
+            lastLoadedEntryID: entries[99].id, pageSize: 50
+        )
+        // The user can select the previous last row while the refresh is pending.
+        XCTAssertTrue(page.entries.contains { $0.id == entries[99].id })
+        XCTAssertEqual(page.totalCount, 121)
+    }
+
+    func testSnipLibraryRefreshFallsBackWhenSelectionWasDeleted() async {
+        let entries = (1...120).map { makeEntry(index: $0) }
+        let request = makeLibraryRequest(history: entries)
+        let model = SnipLibraryWindowModel(request: request, initialScope: .history)
+        let deleted = makeEntry(index: 0)
+        install([deleted] + Array(entries.prefix(99)), in: model)
+        model.select(deleted.id)
+        let page = await request.refreshedPage(
+            scope: .history, query: "", loadedCount: 100,
+            selectedEntryID: deleted.id, pageSize: 50
+        )
+        model.install(page: page, appending: false, preferredSelection: deleted.id)
+        XCTAssertEqual(model.selectedEntry?.id, entries.first?.id)
+        XCTAssertEqual(model.entries.count, 120)
+    }
+
     private func makeRequest(
         entries: [DocumentHistoryEntry],
         selectedEntryID: UUID

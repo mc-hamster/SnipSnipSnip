@@ -335,7 +335,7 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Open clipboard history",
-                            body: "Clipboard History is optional and off by default. Make an explicit choice during onboarding or enable it in Settings > Snip Library > Clipboard, then choose Clipboard History from the menu bar icon or use Command-Shift-V. Search is focused when the floating window opens. Press Command-W to close the window."
+                            body: "Clipboard History is optional and off by default. Make an explicit choice during onboarding or enable it in Settings > Snip Library > Clipboard, then choose Clipboard History from the menu bar icon or use Command-Shift-V. Search is focused when the floating window opens. No Matching Clipboard Items means search or filters are hiding results; Clear Filters shows the full history again. Separate messages explain an empty history, disabled monitoring, paused monitoring, or unavailable storage. Storage warnings appear in the window with Try Again. Keep the app open when recent changes could not be saved, resolve storage access or disk space, then retry. Press Command-W to close the window."
                         ),
                         HelpArticleSection(
                             title: "What appears",
@@ -343,15 +343,15 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Copy and paste actions",
-                            body: "Choose Copy to place the selected item on the system clipboard, then switch to the destination and paste with Command-V. Command-Return also copies the selection, and Option-1 through Option-9 copies the matching visible item. Choose Copy Plain Text when you need text without formatting."
+                            body: "Choose Copy to place the selected item on the system clipboard, then switch to the destination and paste with Command-V. Return while browsing or searching and Command-Return while editing activate the visible Copy action. If an item has a draft, the action is Copy Edited and copies that draft as plain text. Row copy buttons and Option-1 through Option-9 while browsing use the same rule. Copy Options > Copy Original preserves the stored content and formatting; Copy Plain Text copies its original text without formatting. Inside a text editor, Return inserts a line break, arrow keys move the caret, and Command-Z undoes text edits. Escape from an editing field returns focus to Search; from Search it clears the query, or closes the window when the query is empty."
                         ),
                         HelpArticleSection(
                             title: "Find and organize items",
-                            body: "Search includes item content, source app, type, collections, link metadata, file paths, and locally recognized text inside images and screenshots. Narrow results by type, date, source app, or collection. The detail pane previews content, edits and transforms text, opens links, checks file availability, and adds named collections. Pin durable favorites for quick access."
+                            body: "Search includes item content, source app, type, collections, link metadata, file paths, and locally recognized text inside images and screenshots. Narrow results by type, date, source app, or collection. The detail pane previews content, edits and transforms text, opens links, checks file availability, and adds named collections. Text drafts stay with each item as you select other rows or change filters, until you close Clipboard History or disable it. Reset restores the original text for the selected item. Adding an existing collection keeps the item in that collection; use Remove to take it out. Pin durable favorites for quick access. Open Snip in Editor finds the latest retained version of a screenshot even when it is no longer recent. If its editable history is unavailable, the clipboard copy remains available."
                         ),
                         HelpArticleSection(
                             title: "Pause and retention",
-                            body: "Use the Monitoring menu in Clipboard History or Settings > Snip Library > Clipboard to pause monitoring for five minutes, one hour, or until restart. Settings also controls unpinned item retention, the item and storage targets, and the maximum size accepted for a single item. Permanently deleting history requires confirmation."
+                            body: "Use the Monitoring menu in Clipboard History or Settings > Snip Library > Clipboard to pause monitoring for five minutes, one hour, or until restart. Settings also controls unpinned item retention, the item and storage targets, and the maximum size accepted for a single item. Delete removes an item from the list and offers Undo Delete for 30 seconds. Command-Z while browsing also restores the last deleted item; native text undo takes precedence in editing fields. Undo clears filters so the restored item is visible. Recovery data remains encrypted and its original deadline survives an app restart. Permanent bulk deletion requires confirmation and removes the affected items from deletion recovery too."
                         ),
                         HelpArticleSection(
                             title: "Ignore apps",
@@ -718,12 +718,16 @@ struct HelpGuideView: View {
                     summary: "Work non-destructively with tools, selections, style controls, and history.",
                     sections: [
                         HelpArticleSection(
+                            title: "Recover from capture and output errors",
+                            body: "Capture recovery explains that open work is unchanged and offers source-specific next actions. Copy, Export, and Share failures keep the editable screenshot intact and offer a retry; Export Again reopens the destination chooser, and transparent Polish can offer Export PNG."
+                        ),
+                        HelpArticleSection(
                             title: "Choose a tool",
                             body: "The first Edit command row keeps Select, Crop, the Arrow family, and Text visible as labeled one-click controls. Open the Arrow disclosure menu to choose Arrow or Numbered Arrow. Split controls also provide Shapes (Rectangle, Ellipse, Line, and Status Mark), Draw (Freehand and Highlighter), Emphasize (Highlight Box, Spotlight, and Ruler), Redact (Blur, Pixelate, and Redact), and More Tools (Callout, Copy Text, Pick Color, and Insert Image). After you choose a tool that remains active, the main button shows that tool’s name and icon and reuses it when clicked. Use the adjacent disclosure arrow to choose a different member of the group. Insert Image remains a one-time action. The active direct tool or group has a filled background and stronger boundary as well as its accessibility state. Review, Order & Caption, Arrange, and Polish still begin with Discard. The second Edit row keeps History, Layers and Arrangement, Zoom, Inspector, Output, and References and Drag Out in workflow order. At narrow widths, scroll each row horizontally without losing any action."
                         ),
                         HelpArticleSection(
                             title: "Select and arrange annotations",
-                            body: "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. Use the trash button in Layers and Arrangement, press Delete, or right-click an annotation and choose Delete. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing, moving, and resizing.",
+                            body: "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. Use the trash button in Layers and Arrangement, press Delete, or right-click an annotation and choose Delete. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing, moving, and resizing. Press Escape before releasing the pointer to cancel a drawing, move, resize, or crop drag without changing the screenshot.",
                             bullets: [
                                 "With VoiceOver or Full Keyboard Access, Tab and Shift-Tab traverse annotations from front to back. Space selects and Shift-Space toggles additive selection; Escape returns focus to the canvas.",
                                 "Arrow keys move a selected annotation by 1 pixel and Shift-arrows move it by 10. Option-arrows resize by 1 pixel and Shift-Option-arrows resize by 10.",
@@ -914,7 +918,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Sequence numbered arrows",
-                            body: "Numbered Arrows use a contiguous sequence that is separate from numbered Callouts and from layer order. Select one to use Move Earlier or Move Later in Properties. Choose Resequence… to select every Numbered Arrow on the canvas in the order it should appear, then choose Done. Cancel leaves the existing sequence unchanged. Deleting a Numbered Arrow closes the gap; duplicating one appends the copy. Each Screenshot, source-capture editing scope, and assembled result keeps its own sequence. The A key continues to select regular Arrow."
+                            body: "Numbered Arrows use a contiguous sequence that is separate from numbered Callouts and from layer order. Select one to use Move Earlier or Move Later in Properties. Choose Resequence… to select every Numbered Arrow on the canvas in the order it should appear, then choose Done. Cancel or choosing another annotation tool leaves the existing sequence unchanged. Deleting a Numbered Arrow closes the gap; duplicating one appends the copy. Each Screenshot, source-capture editing scope, and assembled result keeps its own sequence. The A key continues to select regular Arrow."
                         )
                     ],
                     important: [],

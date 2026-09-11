@@ -82,7 +82,7 @@ struct ClipboardManagerView: View {
     @State private var sourceFilter: String?
     @State private var collectionFilter: String?
     @State private var showsClearConfirmation = false
-    @State private var editedText = ""
+    @State private var drafts = ClipboardDraftStore()
     @State private var newCollectionName = ""
 
     private var filteredItems: [ClipboardItem] {
@@ -118,6 +118,47 @@ struct ClipboardManagerView: View {
         filteredItems.first(where: { $0.id == selectedItemID }) ?? filteredItems.first
     }
 
+    private var editedText: String {
+        get { selectedItem.map { drafts.text(for: $0) } ?? "" }
+        nonmutating set { if let selectedItem { drafts.setText(newValue, for: selectedItem) } }
+    }
+
+    private var editedTextBinding: Binding<String> {
+        Binding(get: { editedText }, set: { editedText = $0 })
+    }
+
+    private var hasFilters: Bool {
+        !clipboard.searchQuery.isEmpty || clipboard.filter != .all || timeFilter != .all
+            || sourceFilter != nil || collectionFilter != nil
+    }
+
+    private func clearFilters() {
+        clipboard.searchQuery = ""
+        clipboard.filter = .all
+        timeFilter = .all
+        sourceFilter = nil
+        collectionFilter = nil
+    }
+
+    private func copy(_ item: ClipboardItem) {
+        if drafts.isEdited(item) {
+            clipboard.copyEditedText(drafts.text(for: item))
+        } else {
+            clipboard.copyClipboardItem(item)
+        }
+    }
+
+    private func copySelection() {
+        if let selectedItem { copy(selectedItem) }
+    }
+
+    private func undoDeletion() {
+        if let id = clipboard.undoClipboardDeletion() {
+            clearFilters()
+            selectedItemID = id
+        }
+    }
+
     private var sourceOptions: [(label: String, value: String)] {
         var seen = Set<String>()
         return clipboard.clipboardHistoryItems.compactMap { item in
@@ -137,6 +178,16 @@ struct ClipboardManagerView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            if let problem = clipboard.storageProblem {
+                HStack(alignment: .top) {
+                    Label(problem, systemImage: "exclamationmark.triangle")
+                        .font(.callout)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button("Try Again", action: clipboard.retryClipboardStorage)
+                }
+                .padding(12)
+                .background(Color(nsColor: .controlBackgroundColor))
+            }
             Divider()
             content
             Divider()
@@ -156,8 +207,16 @@ struct ClipboardManagerView: View {
 
             selectedItemID = ids.first
         }
-        .onChange(of: selectedItemID) { _, _ in
-            editedText = selectedItem?.plainTextValue ?? ""
+        .onChange(of: clipboard.preferences.isEnabled) { _, enabled in
+            if !enabled { drafts.removeAll() }
+        }
+        .onChange(of: clipboard.items.map(\.id) + clipboard.historyStore.pendingDeletions.map { $0.item.id }) { _, ids in
+            drafts.retainItems(Set(ids))
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { notification in
+            if ClipboardManagerWindowID.isClipboardManagerWindow(notification.object as? NSWindow) {
+                drafts.removeAll()
+            }
         }
         .confirmationDialog(
             "Permanently delete unpinned Clipboard History items?",
@@ -186,7 +245,8 @@ struct ClipboardManagerView: View {
                 }
                 .buttonStyle(.borderless)
                 .help("Permanently delete unpinned Clipboard History items")
-                .disabled(clipboard.clipboardHistoryItems.allSatisfy(\.isPinned))
+                .disabled(clipboard.clipboardHistoryItems.allSatisfy(\.isPinned)
+                          && clipboard.historyStore.pendingDeletions.allSatisfy { $0.item.isPinned })
             }
 
             Picker("Filter", selection: $clipboard.filter) {
@@ -234,13 +294,12 @@ struct ClipboardManagerView: View {
                     }
                 } label: {
                     Label(
-                        clipboard.isClipboardMonitoringPaused
-                            ? WorkflowVocabulary.Status.clipboardMonitoringPaused
-                            : WorkflowVocabulary.Status.clipboardMonitoring,
+                        clipboard.monitoringStatus,
                         systemImage: clipboard.isClipboardMonitoringPaused ? "pause.circle.fill" : "dot.radiowaves.left.and.right"
                     )
                 }
                 .menuStyle(.borderlessButton)
+                .disabled(!clipboard.preferences.isEnabled || !clipboard.historyStore.isStorageAvailable)
             }
         }
         .padding(12)
@@ -255,13 +314,28 @@ struct ClipboardManagerView: View {
                 description: Text("Enable clipboard history in Settings > Snip Library > Clipboard.")
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if !clipboard.historyStore.isStorageAvailable {
+            ContentUnavailableView("Clipboard History Unavailable", systemImage: "exclamationmark.triangle",
+                description: Text("Stored history could not be opened. Use Try Again above after resolving the storage or Keychain problem."))
+        } else if filteredItems.isEmpty, hasFilters {
+            ContentUnavailableView {
+                Label("No Matching Clipboard Items", systemImage: "magnifyingglass")
+            } description: {
+                Text("No items match the current search and filters. Your history has not been deleted.")
+            } actions: {
+                Button("Clear Filters", action: clearFilters)
+            }
+        } else if filteredItems.isEmpty, clipboard.isClipboardMonitoringPaused {
+            ContentUnavailableView {
+                Label("Monitoring Paused", systemImage: "pause.circle")
+            } description: {
+                Text("No clipboard items have been saved yet. Resume monitoring to save new copies.")
+            } actions: {
+                Button("Resume Monitoring", action: clipboard.resumeClipboardMonitoring)
+            }
         } else if filteredItems.isEmpty {
-            ContentUnavailableView(
-                "No Clipboard Items",
-                systemImage: "clipboard",
-                description: Text("Copied text, links, images, files, and \(AppBranding.displayName) screenshots appear here.")
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            ContentUnavailableView("No Clipboard Items Yet", systemImage: "clipboard",
+                description: Text("Copy text, a link, an image, or a file to start your history."))
         } else {
             HSplitView {
                 ScrollViewReader { proxy in
@@ -273,7 +347,9 @@ struct ClipboardManagerView: View {
                                     image: clipboard.clipboardPreviewImage(for: item),
                                     shortcutNumber: index < 9 ? index + 1 : nil,
                                     isSelected: selectedItemID == item.id,
-                                    onCopy: { clipboard.copyClipboardItem(item) },
+                                    onCopy: { copy(item) },
+                                    copyTitle: drafts.isEdited(item) ? "Copy Edited" : "Copy",
+                                    onCopyOriginal: { clipboard.copyClipboardItem(item) },
                                     onCopyPlainText: { clipboard.copyClipboardItemAsPlainText(item) },
                                     onTogglePinned: { clipboard.togglePinnedClipboardItem(item) },
                                     onDelete: { clipboard.deleteClipboardItem(item) },
@@ -334,7 +410,8 @@ struct ClipboardManagerView: View {
                                 .frame(height: 64)
                                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(.separator))
                         }
-                        TextEditor(text: $editedText)
+                        TextEditor(text: editedTextBinding)
+                            .id(item.id)
                             .font(.body.monospaced())
                             .frame(minHeight: 150)
                             .overlay(RoundedRectangle(cornerRadius: 6).stroke(.separator))
@@ -346,8 +423,14 @@ struct ClipboardManagerView: View {
                                 Button("lowercase") { editedText = editedText.lowercased() }
                                 Button("Pretty Print JSON") { prettyPrintEditedJSON() }
                             }
-                            Button("Copy Edited") { clipboard.copyEditedText(editedText) }
-                                .disabled(editedText.isEmpty)
+                            Button("Reset") { drafts.reset(item) }
+                                .disabled(!drafts.isEdited(item))
+                                .help("Restore this draft to the original clipboard text.")
+                            if drafts.isEdited(item) {
+                                Text("Edited · kept while this window is open")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     } else if case let .fileURLs(paths) = item.kind {
                         ForEach(paths, id: \.self) { path in
@@ -393,7 +476,7 @@ struct ClipboardManagerView: View {
                     HStack {
                         TextField("Collection name", text: $newCollectionName)
                         Button("Add") {
-                            clipboard.toggleClipboardCollection(newCollectionName, for: item)
+                            clipboard.addClipboardCollection(newCollectionName, for: item)
                             newCollectionName = ""
                         }
                         .disabled(newCollectionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -418,26 +501,33 @@ struct ClipboardManagerView: View {
             if let actionMessage = clipboard.actionMessage {
                 Text(actionMessage)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if clipboard.historyStore.canUndoDeletion {
+                Button("Undo Delete", action: undoDeletion)
+                    .help("Restore the last deleted item within 30 seconds. Command-Z while browsing.")
             }
 
             Spacer()
 
             if let selectedItem, selectedItem.supportsPlainTextSanitization {
-                Menu("Plain Text") {
+                Menu("Copy Options") {
+                    Button("Copy Original") { clipboard.copyClipboardItem(selectedItem) }
                     Button("Copy Plain Text") {
                         clipboard.copyClipboardItemAsPlainText(selectedItem)
                     }
                 }
-                .help("Sanitize formatting by writing only the plain text value.")
+                .help("Copy the stored original with its formatting, or just its original plain text.")
             }
 
-            Button("Copy") {
-                if let selectedItem {
-                    clipboard.copyClipboardItem(selectedItem)
-                }
-            }
-            .disabled(selectedItem == nil)
+            Button(selectedItem.map { drafts.isEdited($0) } == true ? "Copy Edited" : "Copy", action: copySelection)
+                .disabled(selectedItem == nil)
+                .help("Return while browsing or Command-Return while editing.")
+            Text("⌘↩")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
 
         }
         .padding(12)
@@ -447,15 +537,14 @@ struct ClipboardManagerView: View {
         ClipboardShortcutHandler(
             onNumberShortcut: { number in
                 guard number > 0, number <= filteredItems.count else { return }
-                clipboard.copyClipboardItem(filteredItems[number - 1])
+                copy(filteredItems[number - 1])
             },
             onMove: moveSelection,
-            onReturn: { modifiers in
-                guard let selectedItem else { return }
-                if modifiers.contains(.command) {
-                    clipboard.copyClipboardItem(selectedItem)
-                }
-            },
+            onReturn: { _ in copySelection() },
+            onUndoDeletion: undoDeletion,
+            hasDeletionUndo: clipboard.historyStore.canUndoDeletion,
+            onFocusSearch: { isSearchFocused = true },
+            isSearchFocused: isSearchFocused,
             onEscape: {
                 if !clipboard.searchQuery.isEmpty {
                     clipboard.searchQuery = ""
@@ -532,6 +621,8 @@ private struct ClipboardItemRow: View {
     let shortcutNumber: Int?
     let isSelected: Bool
     let onCopy: () -> Void
+    let copyTitle: String
+    let onCopyOriginal: () -> Void
     let onCopyPlainText: () -> Void
     let onTogglePinned: () -> Void
     let onDelete: () -> Void
@@ -621,6 +712,7 @@ private struct ClipboardItemRow: View {
 
             Menu {
                 if item.supportsPlainTextSanitization {
+                    Button("Copy Original", action: onCopyOriginal)
                     Button("Copy Plain Text", action: onCopyPlainText)
                     Divider()
                 }
@@ -644,12 +736,14 @@ private struct ClipboardItemRow: View {
             Button(action: onCopy) {
                 Image(systemName: "doc.on.doc")
             }
-            .help("Copy. Press Option-\(shortcutNumber) while Clipboard History is focused.")
+            .help("\(copyTitle). Press Option-\(shortcutNumber) while browsing Clipboard History.")
+            .accessibilityLabel(copyTitle)
         } else {
             Button(action: onCopy) {
                 Image(systemName: "doc.on.doc")
             }
-            .help("Copy")
+            .help(copyTitle)
+            .accessibilityLabel(copyTitle)
         }
     }
 
@@ -683,87 +777,5 @@ private extension Color {
         let blue = Double((value >> (hasAlpha ? 8 : 0)) & 0xff) / 255
         let alpha = hasAlpha ? Double(value & 0xff) / 255 : 1
         return Color(red: red, green: green, blue: blue, opacity: alpha)
-    }
-}
-
-private struct ClipboardShortcutHandler: NSViewRepresentable {
-    let onNumberShortcut: (Int) -> Void
-    let onMove: (MoveCommandDirection) -> Void
-    let onReturn: (NSEvent.ModifierFlags) -> Void
-    let onEscape: () -> Void
-
-    func makeNSView(context: Context) -> ClipboardShortcutView {
-        let view = ClipboardShortcutView()
-        view.onNumberShortcut = onNumberShortcut
-        view.onMove = onMove
-        view.onReturn = onReturn
-        view.onEscape = onEscape
-        return view
-    }
-
-    func updateNSView(_ view: ClipboardShortcutView, context: Context) {
-        view.onNumberShortcut = onNumberShortcut
-        view.onMove = onMove
-        view.onReturn = onReturn
-        view.onEscape = onEscape
-    }
-}
-
-private final class ClipboardShortcutView: NSView {
-    var onNumberShortcut: ((Int) -> Void)?
-    var onMove: ((MoveCommandDirection) -> Void)?
-    var onReturn: ((NSEvent.ModifierFlags) -> Void)?
-    var onEscape: (() -> Void)?
-    private var monitor: Any?
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-
-        if window == nil {
-            if let monitor {
-                NSEvent.removeMonitor(monitor)
-                self.monitor = nil
-            }
-            return
-        }
-
-        guard monitor == nil else {
-            return
-        }
-
-        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self, self.window?.isKeyWindow == true else {
-                return event
-            }
-
-            let modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
-            let isEditingMultilineText = (self.window?.firstResponder as? NSTextView)?.isFieldEditor == false
-            if modifiers == .option,
-               let characters = event.charactersIgnoringModifiers,
-               let number = Int(characters),
-               (1...9).contains(number) {
-                self.onNumberShortcut?(number)
-                return nil
-            }
-
-            switch event.keyCode {
-            case 125 where modifiers.isEmpty && !isEditingMultilineText:
-                self.onMove?(.down)
-                return nil
-            case 126 where modifiers.isEmpty && !isEditingMultilineText:
-                self.onMove?(.up)
-                return nil
-            case 36 where modifiers.isEmpty && isEditingMultilineText:
-                return event
-            case 36 where modifiers.isSubset(of: [.command, .shift]):
-                self.onReturn?(modifiers)
-                return nil
-            case 53 where modifiers.isEmpty:
-                self.onEscape?()
-                return nil
-            default:
-                return event
-            }
-        }
     }
 }

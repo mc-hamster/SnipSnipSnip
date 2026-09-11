@@ -432,3 +432,12 @@ For any workflow-language change, verify:
 - User-visible App Intent and automation labels agree with the UI while raw compatibility identifiers remain stable.
 - Localization entries and text-based tests reflect the canonical wording.
 - No internal legacy term has leaked into new user-facing copy.
+
+
+## Clipboard editing and recovery
+
+- **Copy Edited** copies the selected item's temporary text draft as plain text. **Copy Original** copies its stored content and compatible formatting; **Copy Plain Text** copies the original text without formatting. **Copy Options** groups these explicit alternatives. **Reset** restores the selected draft to its original text.
+- **Undo Delete** restores an individually deleted Clipboard History item within 30 seconds. Recovery remains encrypted and expires on the original deadline. Permanent bulk deletion clears affected recovery items too.
+- **No Matching Clipboard Items** means active search or filters hide results; **Clear Filters** restores the complete view. **No Clipboard Items Yet** means no items are saved. **Clipboard History Unavailable** identifies a storage access failure.
+- **Monitoring Off**, **Monitoring Paused**, **Monitoring Unavailable**, and **Monitoring** distinguish disabled, paused, inaccessible, and active Clipboard History. **Try Again** retries storage access or saving without discarding in-memory history.
+- **Copy Again**, **Export Again…**, **Export PNG…**, and **Share Again** are explicit screenshot output recovery actions. Retrying Export reopens the destination chooser; it never silently overwrites another file.

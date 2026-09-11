@@ -91,7 +91,15 @@ struct EditorView: View {
                 controller.dismissError()
             }
         })) {
-            Button("OK", role: .cancel) {
+            if let actionTitle = controller.outputRecoveryActionTitle,
+               let retry = controller.outputRecoveryAction {
+                Button(actionTitle) {
+                    controller.dismissError()
+                    retry()
+                }
+                    .keyboardShortcut(.defaultAction)
+            }
+            Button(controller.outputRecoveryActionTitle == nil ? "OK" : "Cancel", role: .cancel) {
                 controller.dismissError()
             }
         } message: {

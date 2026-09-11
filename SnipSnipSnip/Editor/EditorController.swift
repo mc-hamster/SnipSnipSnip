@@ -146,10 +146,28 @@ final class EditorController: ObservableObject {
     @Published private(set) var workflowResumeState: ScreenshotWorkflowResumeState
     @Published var errorMessage: String? {
         didSet {
+            outputRecoveryActionTitle = nil
+            outputRecoveryAction = nil
             if let errorMessage, errorMessage != oldValue {
                 AppAccessibility.announce("Editor error: \(errorMessage)", priority: .high)
             }
         }
+    }
+    @Published private(set) var outputRecoveryActionTitle: String?
+    private(set) var outputRecoveryAction: (() -> Void)?
+
+    func reportOutputFailure(_ error: Error, actionTitle: String, retry: @escaping () -> Void) {
+        guard !(error is CancellationError) else { return }
+        errorMessage = ((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+            + "\n\nYour editable screenshot and annotations are unchanged. You can retry, or cancel and continue editing."
+        outputRecoveryActionTitle = actionTitle
+        outputRecoveryAction = retry
+    }
+
+    func retryFailedOutput() {
+        let action = outputRecoveryAction
+        dismissError()
+        action?()
     }
     @Published private(set) var notice: EditorNotice?
     var noticeMessage: String? { notice?.message }
@@ -1812,6 +1830,8 @@ final class EditorController: ObservableObject {
             return
         }
 
+        clearTransientToolState(clearUIMapSelection: false)
+
         if tool == .blur {
             selectedUIMapElementID = nil
             hoveredUIMapElementID = nil
@@ -1820,8 +1840,6 @@ final class EditorController: ObservableObject {
             invalidateCanvas()
             return
         }
-
-        clearTransientToolState(clearUIMapSelection: false)
 
         if tool == .uiMapInspect {
             guard capabilities.isEnabled(.uiMap), uiMapSnapshot != nil else {
@@ -1885,6 +1903,7 @@ final class EditorController: ObservableObject {
             setWorkspaceMode(.edit)
         }
 
+        clearTransientToolState()
         storePreferredRedactionMode(mode)
 
         if !selectedRedactions.isEmpty {
@@ -2468,13 +2487,17 @@ final class EditorController: ObservableObject {
                         )
                     ))
                 } catch {
-                    self?.errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                    self?.reportOutputFailure(error, actionTitle: "Copy Again") { [weak self] in
+                        self?.copyAnnotatedImage(appearance: appearance)
+                    }
                 }
             }
         } catch is CancellationError {
             return
         } catch {
-            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            reportOutputFailure(error, actionTitle: "Copy Again") { [weak self] in
+                self?.copyAnnotatedImage(appearance: appearance)
+            }
         }
     }
 
@@ -2504,7 +2527,9 @@ final class EditorController: ObservableObject {
         } catch is CancellationError {
             return
         } catch {
-            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            reportOutputFailure(error, actionTitle: "Export Again…") { [weak self] in
+                self?.saveAnnotatedImage(appearance: appearance, format: format, filenameTemplate: filenameTemplate, exportOptions: exportOptions)
+            }
             return
         }
         let suggestedFilename = ImageExporter.editedFilename(
@@ -2537,7 +2562,11 @@ final class EditorController: ObservableObject {
                     dismissalDelaySeconds: 6
                 ))
             } catch {
-                self?.errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                let needsPNG: Bool
+                if case ImageExportError.transparentPresentationRequiresPNG = error { needsPNG = true } else { needsPNG = false }
+                self?.reportOutputFailure(error, actionTitle: needsPNG ? "Export PNG…" : "Export Again…") { [weak self] in
+                    self?.saveAnnotatedImage(appearance: appearance, format: needsPNG ? .png : format, filenameTemplate: filenameTemplate, exportOptions: exportOptions)
+                }
             }
         }
     }
@@ -2549,7 +2578,9 @@ final class EditorController: ObservableObject {
         } catch is CancellationError {
             return
         } catch {
-            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            reportOutputFailure(error, actionTitle: "Share Again") { [weak self] in
+                self?.shareAnnotatedImage(appearance: appearance)
+            }
             return
         }
 
@@ -2558,7 +2589,9 @@ final class EditorController: ObservableObject {
                 let image = try await EditorExportRenderer.renderImage(from: input)
                 try ImageExporter.share(image)
             } catch {
-                self?.errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                self?.reportOutputFailure(error, actionTitle: "Share Again") { [weak self] in
+                    self?.shareAnnotatedImage(appearance: appearance)
+                }
             }
         }
     }
