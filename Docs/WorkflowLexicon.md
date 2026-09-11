@@ -155,7 +155,7 @@ Stage names should describe the current task or the next meaningful task. They s
 | Steps | **Add Step** → **Order & Caption** → optional **Polish** | Collect the next still, organize the sequence, and add explanatory text. |
 | Combined Image | **Add Image** → **Arrange** → optional **Polish** | Add visual material, position it, then optionally apply finishing treatment. |
 | Guide | **Record a Guide** or **Build Steps Manually** → **Edit Guide** | Create the procedure, then refine its steps and explanation. |
-| Video | **Record Video** → **Trim Video** | Record full-motion content, then adjust its bounds. |
+| Video | **Record Video** → **Trim** → optional **Polish** → **Export** | Record full-motion content, remove mistakes, and optionally finish its presentation. |
 
 Use singular stage labels such as **Add Step** and **Add Image** when the immediate action adds one item. Use the plural product noun, such as **Steps**, when naming the workflow or result.
 
@@ -176,6 +176,12 @@ Statuses describe what the app is doing now. They must identify the activity whe
 Use **capturing** for the observed interaction activity because a Guide is not a video recording.
 
 ### Video
+
+**Edit Video** identifies the editor. **Trim** keeps the desired part; **Remove Section** excludes a mistake without deleting source footage and **Restore** brings it back. **Polish** opens presentation controls; **Polish Video** applies a background, smooth cursor, and suggested click-driven zooms as one undoable edit. Opening Polish alone never changes the document. **Zooms**, **Cursor & Clicks**, and **Sound & Shortcuts** name inspector destinations. **Add Zoom at Playhead**, **Follow Cursor**, **Suggest Zooms from Clicks**, and **Use Start Frame as Preview** describe their actual actions. **Reset Video Edits** restores the full source and capture-time appearance and can be undone. Do not introduce Studio Mode or a separate product name for these capabilities.
+
+**Record Keyboard Shortcuts** is an optional Video setting for command/control shortcut labels, not typed text. It requires Accessibility access; ordinary recording and pointer metadata do not. **Search Settings** filters the native category sidebar by category and intent keywords.
+
+Shortcut recording has its own build capability: enabled for Dev and Self Release, unavailable in App Store builds. Do not use the automation capability as a proxy. When unavailable, explain that limitation without directing the user to a missing setting. Existing shortcut data in a saved Video remains viewable.
 
 - Recording
 - Paused
@@ -275,6 +281,18 @@ Library terms identify distinct scopes. Do not shorten them to generic **Library
 **Archive** may remain an internal storage or implementation term. It should not name the general user-facing history experience.
 
 ## Editor Annotation Terms
+
+**Capture Text** selects screen content and copies locally recognized text without opening or replacing a Screenshot document. It is available in Quick Capture, the Capture menu, the menu bar icon menu, and configurable Global Shortcuts (Command-Shift-T by default). **Copy Text** remains the editor's review-and-copy tool. Recognition preserves lines and estimates indentation; **Join Lines** is an explicit paragraph cleanup action. Neither promises exact recovery of source-code whitespace. Private text copies carry a concealed clipboard marker.
+
+**Fit to Text** is the Highlighter's on-by-default, session-only option that fits newly drawn strokes to confidently recognized words and lines. It is not a separate annotation tool. Uncertain recognition or an intervening edit retains the original freehand stroke. Fitting is part of the same undo step.
+
+**Output Size** names the screenshot command row's **Size** control. **Original Size**, **Half Size**, and **Custom Width** set delivered still-image dimensions; **Apply Width** commits a custom width with linked proportions. This is a per-open-document output choice, not an image edit or a saved global preference. It affects Copy, Share, Drag, and PNG/JPEG/PDF exports, including each paginated PDF page. Editable files, original pixels, history previews, animation, Interactive HTML, and automation retain their established sizes.
+
+**Capture Preview** is the optional post-capture thumbnail and action panel, distinct from Quick Controls, History Preview, and Float. In Settings, **Show Capture Preview** enables this alternative for future captures; in View and the menu bar icon menu, it restores an existing preview without opening the editor. **Close Capture Preview** hides it without deleting its document. **Edit** in this panel opens the screenshot editor. **Copy** copies the rendered screenshot, **Export…** chooses a PNG destination, and **Drag Screenshot** delivers rendered output using the configured drag format. Ordinary standalone Screenshots open in the editor by default; opting into Capture Preview does not change automation outcomes or Private Capture.
+
+**After Capture** is the Editor & Output Settings section containing Show Capture Preview and Auto Copy. Both are off when no preference has been stored; existing stored choices remain in force. Restoring defaults turns both off. Explain that automatic copying can occur before redaction, and that Private Capture never copies automatically.
+
+**Redact** names solid covering and is permanently available in the common-tool group. Its disclosure menu retains **Blur** and **Pixelate**. **Highlight Box** is also a direct common tool. Copy completion may say **Copied screenshot with redactions applied. Ready to paste.** This describes the rendered clipboard image, not removal of source pixels from the editable document.
 
 | Term | Canonical meaning | Avoid as a synonym |
 | --- | --- | --- |

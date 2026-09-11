@@ -9,6 +9,7 @@ extension CaptureWorkflowModel {
         minimizeAppWindow: Bool = false,
         runOptions: CaptureRunOptions? = nil,
         completionContext: CaptureCompletionContext? = nil,
+        allowsCapturePreview: Bool = true,
         _ action: () async throws -> CapturedScreenshot
     ) async -> Bool {
         let captureContext =
@@ -49,13 +50,13 @@ extension CaptureWorkflowModel {
         do {
             try await runCaptureDelayIfNeeded(actionName: "Capturing", delay: resolvedRunOptions.captureDelay)
             let capture = try await action()
-            showCapturedFeedback()
             try completeCapture(
                 capture,
                 request: request,
                 isPrivateCapture: isPrivateCapture,
                 runOptions: resolvedRunOptions,
-                completionContext: captureContext
+                completionContext: captureContext,
+                allowsCapturePreview: allowsCapturePreview
             )
             return true
         } catch {
@@ -153,17 +154,28 @@ extension CaptureWorkflowModel {
         CaptureFeedbackOverlay.showCapturedFeedback()
     }
 
+    func finishCapturePresentation(showingPreview: Bool) {
+        shouldKeepAppWindowHiddenAfterCapture = showingPreview
+    }
+
     func hideAppWindowIfNeeded() -> AppWindowVisibilityToken? {
-        dependencies.appWindowPresenter.hideAppWindowIfNeeded()
+        shouldKeepAppWindowHiddenAfterCapture = false
+        return dependencies.appWindowPresenter.hideAppWindowIfNeeded()
     }
 
     func hideAppWindowIfNeeded(
         for context: WorkflowPresentationContext
     ) -> AppWindowVisibilityToken? {
-        dependencies.appWindowPresenter.hideAppWindowIfNeeded(for: context)
+        shouldKeepAppWindowHiddenAfterCapture = false
+        return dependencies.appWindowPresenter.hideAppWindowIfNeeded(for: context)
     }
 
     func restoreAppWindowIfNeeded(_ token: AppWindowVisibilityToken?) {
+        if shouldKeepAppWindowHiddenAfterCapture {
+            shouldKeepAppWindowHiddenAfterCapture = false
+            dependencies.appWindowPresenter.keepAppWindowHidden(token)
+            return
+        }
         dependencies.appWindowPresenter.restoreAppWindowIfNeeded(token)
     }
 

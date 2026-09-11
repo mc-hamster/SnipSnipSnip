@@ -44,7 +44,8 @@ struct AppEnvironment {
             screens: systemServices.screens,
             files: systemServices.files,
             mouse: systemServices.mouse,
-            clock: systemServices.clock
+            clock: systemServices.clock,
+            supportsShortcutCapture: capabilities.isEnabled(.videoShortcutCapture)
         )
     }
 

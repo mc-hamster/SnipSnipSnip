@@ -47,6 +47,7 @@ extension DocumentWorkflowModel {
             return
         }
         let outputInput: CompositionOutputInput
+        let outputSize = controller.screenshotOutputSize
         do {
             outputInput = try controller.compositionOutputInput(
                 appearance: appearance
@@ -163,6 +164,7 @@ extension DocumentWorkflowModel {
                     format: format,
                     to: destination,
                     imageOptions: screenshotImageExportOptions,
+                    stillOutputSize: outputSize,
                     maximumOutputDimension: maximumOutputDimension,
                     forcedPDFItemsPerPage: forcedPDFItemsPerPage,
                     progress: progressHandler

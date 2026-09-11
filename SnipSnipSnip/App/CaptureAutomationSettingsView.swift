@@ -24,11 +24,124 @@ struct CaptureAutomationSettingsView: View {
     @State private var isShowingClearSnipHistoryConfirmation = false
     @State private var isImportingGuideLogo = false
     @State private var launchAtLoginErrorMessage: String?
+    @State private var settingsSearch = ""
     @Environment(\.openURL) private var openURL
 
     var body: some View {
-        TabView(selection: $lifecycle.selectedSettingsTab) {
-            SettingsTabContainer(
+        NavigationSplitView {
+            VStack(spacing: 8) {
+                TextField("Search Settings", text: $settingsSearch)
+                    .textFieldStyle(.roundedBorder)
+                    .padding(.horizontal, 12).padding(.top, 12)
+                    .accessibilityIdentifier("settings.search")
+                List(selection: settingsSelection) {
+                    ForEach(visibleSettingsTabs, id: \.self) { tab in
+                        Label(tab.title, systemImage: tab.symbol).tag(tab)
+                    }
+                }
+                .listStyle(.sidebar)
+                .overlay {
+                    if visibleSettingsTabs.isEmpty {
+                        ContentUnavailableView.search(text: settingsSearch)
+                    }
+                }
+            }
+            .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 260)
+        } detail: {
+            settingsDetail
+        }
+        .frame(minWidth: 820, idealWidth: 900, minHeight: 600, idealHeight: 680)
+        .onChange(of: settingsSearch) {
+            if !visibleSettingsTabs.contains(lifecycle.selectedSettingsTab), let first = visibleSettingsTabs.first {
+                lifecycle.selectedSettingsTab = first
+            }
+        }
+        .task {
+            lifecycle.refreshLaunchAtLoginStatus()
+        }
+        .fileImporter(isPresented: $isImportingGuideLogo, allowedContentTypes: [.image]) { result in
+            guard case .success(let url) = result else { return }
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return }
+            guide.setDefaultLogo(image)
+        }
+        .alert("Couldn't Update Launch at Login", isPresented: Binding(get: {
+            launchAtLoginErrorMessage != nil
+        }, set: { isPresented in
+            if !isPresented {
+                launchAtLoginErrorMessage = nil
+            }
+        })) {
+            Button("OK", role: .cancel) {
+                launchAtLoginErrorMessage = nil
+            }
+
+            Button("Open Login Items") {
+                lifecycle.openLaunchAtLoginSettings()
+                launchAtLoginErrorMessage = nil
+            }
+        } message: {
+            Text(launchAtLoginErrorMessage ?? "")
+        }
+        .confirmationDialog("Reset all settings to defaults?", isPresented: $isShowingResetDefaultsConfirmation, titleVisibility: .visible) {
+            Button("Reset All Settings", role: .destructive) {
+                resetPreferencesToDefaults()
+            }
+
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This keeps your current documents, Snip History, and Recycle Bin contents, but it restores settings values to their shipped defaults.")
+        }
+        .confirmationDialog("Permanently delete Clipboard History?", isPresented: $isShowingClearClipboardConfirmation, titleVisibility: .visible) {
+            Button("Permanently Delete Clipboard History", role: .destructive, action: clipboard.clearClipboardHistory)
+        } message: {
+            Text("This permanently removes pinned and unpinned clipboard items from this Mac.")
+        }
+        .confirmationDialog(
+            "Permanently delete Snip History and empty the Recycle Bin?",
+            isPresented: $isShowingClearSnipHistoryConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Permanently Delete Everything", role: .destructive, action: archive.clearArchive)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This permanently removes every saved screenshot version and deleted screenshot from this Mac. This cannot be undone.")
+        }
+
+    }
+
+
+    private var settingsSelection: Binding<AppSettingsTab?> {
+        Binding(get: { lifecycle.selectedSettingsTab }, set: { if let tab = $0 { lifecycle.selectedSettingsTab = tab } })
+    }
+
+    private var visibleSettingsTabs: [AppSettingsTab] {
+        AppSettingsTab.allCases.filter {
+            ($0 != .guide || capabilities.isEnabled(.guideCapture)) &&
+                (settingsSearch.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                 $0.searchText.localizedStandardContains(settingsSearch.trimmingCharacters(in: .whitespacesAndNewlines)))
+        }
+    }
+
+    @ViewBuilder
+    private var settingsDetail: some View {
+        switch lifecycle.selectedSettingsTab {
+        case .general: generalSettings
+        case .capture: captureSettings
+        case .presets: presetsSettings
+        case .editorOutput: editorOutputSettings
+        case .shortcuts: shortcutsSettings
+        case .recording: recordingSettings
+        case .guide: guideSettings
+        case .library: librarySettings
+        case .privacy: privacySettings
+        }
+    }
+
+    private var generalSettings: some View {
+        SettingsTabContainer(
                 title: "General",
                 summary: "Startup, background behavior, Help, updates, and settings recovery."
             ) {
@@ -108,12 +221,10 @@ struct CaptureAutomationSettingsView: View {
                     SettingsHelpText("This restores capture, shortcuts, recording, output, Snip Library, naming, privacy, and Quick Controls settings to their default values. It does not delete Snip History or Recycle Bin items.")
                 }
             }
-            .tabItem {
-                Label("General", systemImage: "gearshape")
-            }
-            .tag(AppSettingsTab.general)
+    }
 
-            SettingsTabContainer(
+    private var captureSettings: some View {
+        SettingsTabContainer(
                 title: "Capture",
                 summary: "Screenshot behavior and specialized screen tools."
             ) {
@@ -271,12 +382,10 @@ struct CaptureAutomationSettingsView: View {
                     SettingsHelpText("Screen Inspector is a floating live magnifier that samples pixels under the cursor, shows coordinates and color values, and can stay visible while you work in other apps.")
                 }
             }
-            .tabItem {
-                Label("Capture", systemImage: "camera.viewfinder")
-            }
-            .tag(AppSettingsTab.capture)
+    }
 
-            SettingsTabContainer(
+    private var presetsSettings: some View {
+        SettingsTabContainer(
                 title: "Presets",
                 summary: "Saved screenshot setups for repeating common captures quickly."
             ) {
@@ -297,15 +406,19 @@ struct CaptureAutomationSettingsView: View {
                     }
                 }
             }
-            .tabItem {
-                Label("Presets", systemImage: "star")
-            }
-            .tag(AppSettingsTab.presets)
+    }
 
-            SettingsTabContainer(
+    private var editorOutputSettings: some View {
+        SettingsTabContainer(
                 title: "Editor & Output",
                 summary: "Editor defaults, canvas aids, Polish resources, naming, and rendered output."
             ) {
+                Section("After Capture") {
+                    Toggle("Show Capture Preview", isOn: $documents.showsCapturePreview)
+                    SettingsHelpText("Off by default so screenshots open in the editor immediately. Turn on to show a small preview with Copy, Edit, Export, and drag actions instead. Private Capture, explicit presets, and multi-image workflows still open their intended destination.")
+                    Toggle("Auto Copy", isOn: $clipboard.autoCopyEnabled)
+                    SettingsHelpText("Off by default so you can review sensitive details first. When on, screenshots copy after capture and editor changes, before you may have added redactions. Private Capture never copies automatically.")
+                }
                 Section("Naming") {
                     TextField("Filename Template", text: $capture.screenshotFilenameTemplate)
 
@@ -428,12 +541,10 @@ struct CaptureAutomationSettingsView: View {
                     }
                 }
             }
-            .tabItem {
-                Label("Editor & Output", systemImage: "slider.horizontal.3")
-            }
-            .tag(AppSettingsTab.editorOutput)
+    }
 
-            SettingsTabContainer(
+    private var shortcutsSettings: some View {
+        SettingsTabContainer(
                 title: "Shortcuts",
                 summary: "Global actions and built-in keyboard shortcuts are centralized here."
             ) {
@@ -472,12 +583,10 @@ struct CaptureAutomationSettingsView: View {
                     SettingsHelpText("Default global shortcuts can be changed above. Built-in app and editor shortcuts are fixed in this version.")
                 }
             }
-            .tabItem {
-                Label("Shortcuts", systemImage: "keyboard")
-            }
-            .tag(AppSettingsTab.shortcuts)
+    }
 
-            SettingsTabContainer(
+    private var recordingSettings: some View {
+        SettingsTabContainer(
                 title: "Video",
                 summary: "Video quality, frame rate, and optional recording sources are grouped here."
             ) {
@@ -516,18 +625,31 @@ struct CaptureAutomationSettingsView: View {
                     Toggle("Record Microphone", isOn: videoPreferenceBinding(\.recordsMicrophone))
                     Toggle("Show Cursor", isOn: videoPreferenceBinding(\.showsCursor))
                     Toggle("Show Mouse Clicks", isOn: videoPreferenceBinding(\.showsMouseClicks))
+                    if capabilities.isEnabled(.videoShortcutCapture) {
+                        Toggle("Record Keyboard Shortcuts", isOn: Binding(get: {
+                            video.recordingPreferences.recordsKeyboardShortcuts == true
+                        }, set: { enabled in
+                            videoPreferenceBinding(\.recordsKeyboardShortcuts).wrappedValue = enabled
+                        }))
+                        SettingsHelpText("Cursor and click appearance can be changed after recording. Optional keyboard shortcuts require existing Accessibility access and record shortcut names only, never typed text or passwords.")
+                        if video.recordingPreferences.recordsKeyboardShortcuts == true, !permissions.permissionStatus.hasAccessibility {
+                            HStack(alignment: .firstTextBaseline) {
+                                Label("Set up Accessibility to record shortcuts.", systemImage: "lock")
+                                Spacer()
+                                Button("Set Up") { permissions.requestAccessibilityAccess() }
+                                    .disabled(permissions.activePermissionRequest != nil)
+                            }
+                        }
+                    }
 
                     SettingsHelpText("Microphone and system audio remain optional. macOS asks for the matching privacy permission the first time those sources are used.")
-                    SettingsHelpText("Video export targets now live in the video editor Export menu, including MP4 quality or size targets and short GIF/APNG loop export.")
+                    SettingsHelpText("Choose Export in the video editor for MP4 quality or file-size limits, or short GIF/APNG loops. Trims and effects are included.")
                 }
             }
-            .tabItem {
-                Label("Video", systemImage: "record.circle")
-            }
-            .tag(AppSettingsTab.recording)
+    }
 
-            if capabilities.isEnabled(.guideCapture) {
-                SettingsTabContainer(
+    private var guideSettings: some View {
+        SettingsTabContainer(
                     title: "Guide",
                     summary: "Choose how actions become polished, private, editable instructions."
                 ) {
@@ -635,13 +757,10 @@ struct CaptureAutomationSettingsView: View {
                     TextField("File Name", text: guideExportSettingsBinding(\.filenameTemplate))
                 }
                 }
-                .tabItem {
-                    Label("Guide", systemImage: "list.number")
-                }
-                .tag(AppSettingsTab.guide)
-            }
+    }
 
-            SettingsTabContainer(
+    private var librarySettings: some View {
+        SettingsTabContainer(
                 title: WorkflowVocabulary.Library.snipLibrary,
                 summary: "Manage Snip History storage, deleted snips, and Clipboard History in one place."
             ) {
@@ -889,12 +1008,10 @@ struct CaptureAutomationSettingsView: View {
                     }
                 }
             }
-            .tabItem {
-                Label(WorkflowVocabulary.Library.snipLibrary, systemImage: "books.vertical")
-            }
-            .tag(AppSettingsTab.library)
+    }
 
-            SettingsTabContainer(
+    private var privacySettings: some View {
+        SettingsTabContainer(
                 title: "Privacy",
                 summary: "Private Capture, permissions, and diagnostics."
             ) {
@@ -928,68 +1045,6 @@ struct CaptureAutomationSettingsView: View {
                 }
 
             }
-            .tabItem {
-                Label("Privacy", systemImage: "hand.raised")
-            }
-            .tag(AppSettingsTab.privacy)
-        }
-        .frame(width: 700, height: 560)
-        .task {
-            lifecycle.refreshLaunchAtLoginStatus()
-        }
-        .fileImporter(isPresented: $isImportingGuideLogo, allowedContentTypes: [.image]) { result in
-            guard case .success(let url) = result else { return }
-            let scoped = url.startAccessingSecurityScopedResource()
-            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-            guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-                  let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return }
-            guide.setDefaultLogo(image)
-        }
-        .alert("Couldn't Update Launch at Login", isPresented: Binding(get: {
-            launchAtLoginErrorMessage != nil
-        }, set: { isPresented in
-            if !isPresented {
-                launchAtLoginErrorMessage = nil
-            }
-        })) {
-            Button("OK", role: .cancel) {
-                launchAtLoginErrorMessage = nil
-            }
-
-            Button("Open Login Items") {
-                lifecycle.openLaunchAtLoginSettings()
-                launchAtLoginErrorMessage = nil
-            }
-        } message: {
-            Text(launchAtLoginErrorMessage ?? "")
-        }
-        .confirmationDialog("Reset all settings to defaults?", isPresented: $isShowingResetDefaultsConfirmation, titleVisibility: .visible) {
-            Button("Reset All Settings", role: .destructive) {
-                resetPreferencesToDefaults()
-            }
-
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This keeps your current documents, Snip History, and Recycle Bin contents, but it restores settings values to their shipped defaults.")
-        }
-        .confirmationDialog("Permanently delete Clipboard History?", isPresented: $isShowingClearClipboardConfirmation, titleVisibility: .visible) {
-            Button("Permanently Delete Clipboard History", role: .destructive, action: clipboard.clearClipboardHistory)
-        } message: {
-            Text("This permanently removes pinned and unpinned clipboard items from this Mac.")
-        }
-        .confirmationDialog(
-            "Permanently delete Snip History and empty the Recycle Bin?",
-            isPresented: $isShowingClearSnipHistoryConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Permanently Delete Everything", role: .destructive, action: archive.clearArchive)
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This permanently removes every saved screenshot version and deleted screenshot from this Mac. This cannot be undone.")
-        }
-        .onDisappear {
-            lifecycle.selectedSettingsTab = .general
-        }
     }
 
     private var recycleBinItemCountLabel: String {
@@ -1018,6 +1073,7 @@ struct CaptureAutomationSettingsView: View {
     private var shouldShowAccessibilityPermissionDiagnostics: Bool {
         capabilities.isEnabled(.scrollingCapture)
             || capabilities.isEnabled(.guideCapture)
+            || video.recordingPreferences.recordsKeyboardShortcuts == true
             || (capabilities.isEnabled(.uiMap) && capture.uiMapEnabled)
     }
 
@@ -1043,7 +1099,8 @@ struct CaptureAutomationSettingsView: View {
             requirementSummary = "Accessibility is only required for Scrolling Capture."
         }
 
-        return "\(requirementSummary) Region and Screen capture, editor OCR, export, and annotation tools do not depend on Accessibility. Diagnostics export sanitized app, permission, display, storage, and status details without screenshots, clipboard contents, OCR text, annotations, or document data."
+        let supportedFeatures = requirementSummary.replacingOccurrences(of: "only required", with: "required")
+        return "\(supportedFeatures) Optional keyboard-shortcut recording also uses Accessibility. Region and Screen capture, editor OCR, export, and annotation tools do not depend on Accessibility. Diagnostics export sanitized app, permission, display, storage, and status details without screenshots, clipboard contents, OCR text, annotations, or document data."
     }
 
     private var canResetPreferencesToDefaults: Bool {

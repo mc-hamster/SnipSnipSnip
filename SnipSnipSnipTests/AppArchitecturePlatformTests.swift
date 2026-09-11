@@ -53,7 +53,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
             .canRequest(.accessibility)
         )
 
-        for capability in [AppCapability.scrollingCapture, .uiMap, .accessibilityAutomation, .guideCapture] {
+        for capability in [AppCapability.scrollingCapture, .uiMap, .accessibilityAutomation, .guideCapture, .videoShortcutCapture] {
             let service = SystemCapturePermissionService(
                 capabilities: capabilities([.screenRecording, capability]),
                 client: makePermissionClient()
@@ -1894,7 +1894,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
         )
     }
 
-    func testNativeSettingsCommandIsNotDuplicatedAndSettingsResetToGeneralWhenDismissed() throws {
+    func testNativeSettingsCommandIsNotDuplicatedAndSearchKeepsSidebarSelection() throws {
         let app = try String(
             contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/SnipSnipSnipApp.swift"),
             encoding: .utf8
@@ -1912,8 +1912,10 @@ final class AppArchitecturePlatformTests: XCTestCase {
             contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/App/CaptureAutomationSettingsView.swift"),
             encoding: .utf8
         )
-        XCTAssertTrue(settings.contains(".onDisappear"))
-        XCTAssertTrue(settings.contains("lifecycle.selectedSettingsTab = .general"))
+        XCTAssertTrue(settings.contains("NavigationSplitView"))
+        XCTAssertTrue(settings.contains("Search Settings"))
+        XCTAssertTrue(settings.contains("List(selection: settingsSelection)"))
+        XCTAssertFalse(settings.contains("lifecycle.selectedSettingsTab = .general"))
     }
 
     func testAppCommandSurfacesReceiveExplicitWorkflowsInsteadOfObservingAppModel() throws {
@@ -2366,7 +2368,9 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertTrue(editor.contains("title: \"Emphasize\""))
         XCTAssertTrue(editor.contains("\"editor.toolGroup.redact\""))
         XCTAssertTrue(editor.contains("Label(lastMoreTool.label, systemImage: lastMoreTool.systemImage)"))
-        XCTAssertTrue(editor.contains("controller.currentRedactionMode.label"))
+        XCTAssertTrue(editor.contains("controller.activateToolbarTool(.redact)"))
+        XCTAssertTrue(editor.contains("toolButton(.highlight)"))
+        XCTAssertTrue(editor.contains("editor.redaction.outputGuidance"))
         XCTAssertTrue(editor.contains("systemName: \"chevron.down\""))
         XCTAssertTrue(editor.contains("accessibilityIdentifier: \"editor.toolGroup.shapes\""))
         XCTAssertTrue(editor.contains(".accessibilityIdentifier(\"\\(accessibilityIdentifier).choices\")"))

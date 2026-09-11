@@ -10,6 +10,7 @@ nonisolated struct CaptureAutomationPreferences: Codable, Equatable {
     var repeatLastCaptureHotkey: GlobalHotKeyKey = .seven
     var screenInspectorHotkey: GlobalHotKeyKey = .eight
     var guideHotkey: GlobalHotKeyKey = .nine
+    var textCaptureHotkey: GlobalHotKeyKey = .t
 
     private enum CodingKeys: String, CodingKey {
         case globalHotkeysEnabled
@@ -20,6 +21,7 @@ nonisolated struct CaptureAutomationPreferences: Codable, Equatable {
         case repeatLastCaptureHotkey
         case screenInspectorHotkey
         case guideHotkey
+        case textCaptureHotkey
     }
 
     init(
@@ -30,7 +32,8 @@ nonisolated struct CaptureAutomationPreferences: Codable, Equatable {
         frontmostWindowHotkey: GlobalHotKeyKey = .four,
         repeatLastCaptureHotkey: GlobalHotKeyKey = .seven,
         screenInspectorHotkey: GlobalHotKeyKey = .eight,
-        guideHotkey: GlobalHotKeyKey = .nine
+        guideHotkey: GlobalHotKeyKey = .nine,
+        textCaptureHotkey: GlobalHotKeyKey = .t
     ) {
         self.globalHotkeysEnabled = globalHotkeysEnabled
         self.regionHotkey = regionHotkey
@@ -40,6 +43,7 @@ nonisolated struct CaptureAutomationPreferences: Codable, Equatable {
         self.repeatLastCaptureHotkey = repeatLastCaptureHotkey
         self.screenInspectorHotkey = screenInspectorHotkey
         self.guideHotkey = guideHotkey
+        self.textCaptureHotkey = textCaptureHotkey
     }
 
     init(from decoder: Decoder) throws {
@@ -52,12 +56,15 @@ nonisolated struct CaptureAutomationPreferences: Codable, Equatable {
             frontmostWindowHotkey: try container.decodeIfPresent(GlobalHotKeyKey.self, forKey: .frontmostWindowHotkey) ?? .four,
             repeatLastCaptureHotkey: try container.decodeIfPresent(GlobalHotKeyKey.self, forKey: .repeatLastCaptureHotkey) ?? .seven,
             screenInspectorHotkey: try container.decodeIfPresent(GlobalHotKeyKey.self, forKey: .screenInspectorHotkey) ?? .eight,
-            guideHotkey: try container.decodeIfPresent(GlobalHotKeyKey.self, forKey: .guideHotkey) ?? .nine
+            guideHotkey: try container.decodeIfPresent(GlobalHotKeyKey.self, forKey: .guideHotkey) ?? .nine,
+            textCaptureHotkey: try container.decodeIfPresent(GlobalHotKeyKey.self, forKey: .textCaptureHotkey) ?? .t
         )
     }
 
     func key(for action: GlobalHotKeyAction) -> GlobalHotKeyKey {
         switch action {
+        case .textCapture:
+            return textCaptureHotkey
         case .region:
             return regionHotkey
         case .window:
@@ -77,6 +84,8 @@ nonisolated struct CaptureAutomationPreferences: Codable, Equatable {
 
     mutating func setKey(_ key: GlobalHotKeyKey, for action: GlobalHotKeyAction) {
         switch action {
+        case .textCapture:
+            textCaptureHotkey = key
         case .region:
             regionHotkey = key
         case .window:

@@ -181,7 +181,6 @@ extension CaptureWorkflowModel {
                         let fallbackSnapshot = try await captureService.captureDesktopOverlaySnapshot()
                         capture = try await captureService.captureRegion(from: fallbackSnapshot, selection: region)
                     }
-                    showCapturedFeedback()
                     try completeCapture(
                         capture,
                         request: .region(capture.sourceRect),
@@ -195,7 +194,6 @@ extension CaptureWorkflowModel {
                     try await runCaptureDelayIfNeeded(actionName: "Capturing Window", delay: runOptions.captureDelay)
                     let resolvedWindow = try await captureService.resolveWindowTarget(window)
                     let capture = try await captureService.captureWindow(resolvedWindow)
-                    showCapturedFeedback()
                     try completeCapture(
                         capture,
                         request: .window(resolvedWindow),
@@ -389,7 +387,6 @@ extension CaptureWorkflowModel {
                     capture = try await captureService.captureRegion(from: fallbackSnapshot, selection: savedRegion.rect)
                 }
 
-                showCapturedFeedback()
                 try completeCapture(
                     capture,
                     request: .region(capture.sourceRect),
@@ -474,7 +471,6 @@ extension CaptureWorkflowModel {
                 }
 
                 updateRegionTarget(forPresetID: presetID, rect: capture.sourceRect)
-                showCapturedFeedback()
                 try completeCapture(
                     capture,
                     request: .region(capture.sourceRect),

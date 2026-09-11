@@ -53,7 +53,6 @@ extension CaptureWorkflowModel {
             runOptions: runOptions,
             completionContext: completionContext
         )
-        showCapturedFeedback()
 
         if let warning = result.warnings.last {
             dependencies.lifecycle.presentError(warning)

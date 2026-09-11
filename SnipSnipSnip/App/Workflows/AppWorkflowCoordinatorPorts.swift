@@ -20,6 +20,8 @@ protocol CoordinatorPermissionPort: AnyObject {
 
 @MainActor
 protocol CoordinatorCapturePort: AnyObject {
+    func showCapturedFeedback()
+    func finishCapturePresentation(showingPreview: Bool)
     var isConnectedDeviceSessionActive: Bool { get }
     var autoRefreshWindowsEnabled: Bool { get }
     var isInteractiveCaptureActive: Bool { get }
@@ -49,6 +51,7 @@ protocol CoordinatorCapturePort: AnyObject {
         allowsCancellingPendingThumbnailRefresh: Bool
     )
     func captureRegion()
+    func captureText()
     func captureCurrentDisplay()
     func captureFrontmostWindow()
     func capturePreset(_ preset: CapturePreset)
@@ -63,6 +66,9 @@ protocol CoordinatorCapturePort: AnyObject {
 
 @MainActor
 protocol CoordinatorDocumentPort: AnyObject {
+    var hasCapturePreview: Bool { get }
+    func showCapturePreview()
+    func updateCapturePreviewAutoCopy(_ enabled: Bool)
     var editorController: EditorController? { get }
     var videoEditorController: VideoEditorController? { get }
     var guideEditorController: GuideEditorController? { get }
@@ -70,6 +76,7 @@ protocol CoordinatorDocumentPort: AnyObject {
 
     func resetDocumentPreferencesToDefaults()
     func installCapturedScreenshot(_ result: CaptureWorkflowResult) -> CaptureInstallationResult
+    func presentCapturePreview(for result: CaptureWorkflowResult, installation: CaptureInstallationResult) -> Bool
     func scheduleAutoCopy(for controller: EditorController)
     func copyCurrentEditorImageToClipboard()
     func exportWorkflowCapture(
@@ -174,6 +181,7 @@ extension CaptureWorkflowModel: CoordinatorCapturePort {
 @MainActor
 extension DocumentWorkflowModel: CoordinatorDocumentPort {
     func resetDocumentPreferencesToDefaults() {
+        showsCapturePreview = false
         editorSingleKeyToolShortcutsEnabled = true
         editorStartupToolPreference = .default
         updateEditorCropOutsideOverlayAlpha(AppPreferenceDefaults.editorCropOutsideOverlayAlpha)
@@ -190,7 +198,7 @@ extension DocumentWorkflowModel: CoordinatorDocumentPort {
 @MainActor
 extension ClipboardWorkflowModel: CoordinatorClipboardPort {
     func resetClipboardPreferencesToDefaults() {
-        autoCopyEnabled = true
+        autoCopyEnabled = false
         preferences = .default
         historyStore.deactivateStorage()
         searchQuery = ""

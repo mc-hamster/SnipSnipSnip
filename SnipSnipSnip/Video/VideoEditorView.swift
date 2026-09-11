@@ -7,7 +7,7 @@ private struct VideoPlayerContainerView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> AVPlayerView {
         let view = AVPlayerView()
-        view.controlsStyle = .floating
+        view.controlsStyle = .none
         view.player = player
         view.showsSharingServiceButton = false
         view.videoGravity = .resizeAspect
@@ -31,6 +31,8 @@ struct VideoEditorToolbarContent: ToolbarContent {
     let onBack: () -> Void
     let onExportRequest: (VideoExportRequest) -> Void
     let dragOutPayloadProvider: @MainActor () -> PromisedFilePayload?
+    @State private var showsExportOptions = false
+    @State private var pendingExportRequest: VideoExportRequest?
 
     var body: some ToolbarContent {
         ToolbarItem(id: "video-back", placement: .navigation) {
@@ -50,77 +52,85 @@ struct VideoEditorToolbarContent: ToolbarContent {
         }
 
         ToolbarItem(id: "video-export", placement: .primaryAction) {
-            Menu("Export") {
-                let preferredRequest = VideoExportRequest(
-                    format: exportPreferences.format,
-                    target: exportPreferences.target
-                )
-                Button("Export \(exportPreferences.menuLabel)…") {
-                    onExportRequest(preferredRequest)
+            Button("Export…") { showsExportOptions = true }
+            .sheet(isPresented: $showsExportOptions, onDismiss: {
+                if let request = pendingExportRequest {
+                    pendingExportRequest = nil
+                    onExportRequest(request)
                 }
-                .disabled(!VideoExportSupport.capability(for: preferredRequest.format, target: preferredRequest.target).isSupported)
-
-                Divider()
-
-                Section("MP4 Quality") {
-                    ForEach(VideoExportQualityPreset.allCases) { preset in
-                        exportButton(format: .mp4, target: .quality(preset))
-                    }
-                }
-
-                Section("MP4 Size Limit") {
-                    ForEach(VideoExportSizeLimit.allCases) { sizeLimit in
-                        exportButton(format: .mp4, target: .sizeLimit(sizeLimit))
-                    }
-                }
-
-                Section("Animated Loops") {
-                    ForEach(VideoExportQualityPreset.allCases) { preset in
-                        exportButton(format: .gif, target: .quality(preset))
-                        exportButton(format: .apng, target: .quality(preset))
-                    }
+            }) {
+                VideoExportOptionsView(preferences: exportPreferences) { request in
+                    pendingExportRequest = request
+                    showsExportOptions = false
                 }
             }
             .buttonStyle(.glassProminent)
             .buttonBorderShape(.capsule)
-            .help("Export the trimmed video using MP4, GIF, APNG, or another available format.")
-            .disabled(controller.isExporting)
+            .help("Export the finished video as MP4, GIF, or APNG.")
+            .disabled(controller.isExporting || controller.isPreparingPreview || controller.previewError != nil)
         }
 
         ToolbarItem(id: "video-drag", placement: .primaryAction) {
             PromisedFileDragView(
-                accessibilityLabel: "Drag trimmed recording to share",
+                accessibilityLabel: "Drag finished video to share",
                 payloadProvider: dragOutPayloadProvider
             )
             .frame(width: 68, height: 30)
-            .help("Drag the current trimmed export into Finder, Mail, or another app. Export starts after the drop is accepted.")
+            .help("Drag the finished video into Finder, Mail, or another app. Trims and effects are included; export starts after the drop is accepted.")
         }
     }
 
-    @ViewBuilder
-    private func exportButton(format: VideoExportFormat, target: VideoExportTarget) -> some View {
-        let request = VideoExportRequest(format: format, target: target)
-        let capability = VideoExportSupport.capability(for: format, target: target)
-        Button(request.menuLabel) {
-            onExportRequest(request)
-        }
-        .disabled(!capability.isSupported)
-        .help(capability.unsupportedReason ?? format.exportDetail)
-    }
 }
 
 struct VideoEditorView: View {
     @ObservedObject var controller: VideoEditorController
+    var supportsShortcutCapture = true
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @Environment(\.undoManager) private var undoManager
+    @SceneStorage("video.inspector.visible") private var inspectorVisible = true
     private let trimAccent = Color.accentColor
 
     var body: some View {
         VStack(spacing: 0) {
+            HStack(spacing: 16) {
+                Label("Edit Video", systemImage: "video").font(.headline)
+                Text("Trim, polish, then export.").foregroundStyle(.secondary)
+                Spacer()
+                if controller.isPreparingPreview {
+                    ProgressView().controlSize(.small)
+                    Text("Updating Preview").font(.caption).foregroundStyle(.secondary)
+                }
+                Button("Trim") { controller.inspectorSection = .trim; inspectorVisible = true }
+                Button("Polish") { controller.inspectorSection = .polish; inspectorVisible = true }
+                Button { inspectorVisible.toggle() } label: {
+                    Label("Inspector", systemImage: "sidebar.right")
+                }
+                .accessibilityIdentifier("video.inspector.toggle")
+            }
+            .padding(.horizontal, 20).padding(.vertical, 12)
+            Divider()
             videoStage
-
             trimPanel
+            if let message = controller.statusMessage {
+                HStack {
+                    Label(message, systemImage: "checkmark.circle")
+                    Spacer()
+                    Button("Dismiss", action: controller.dismissStatus)
+                }
+                .font(.callout).padding(12)
+                .background(.background)
+                .accessibilityElement(children: .combine)
+            }
         }
+        .inspector(isPresented: $inspectorVisible) {
+            VideoInspectorView(controller: controller, supportsShortcutCapture: supportsShortcutCapture)
+                .inspectorColumnWidth(min: 280, ideal: 320, max: 380)
+        }
+        .onAppear { controller.undoManager = undoManager }
+        .onReceive(NotificationCenter.default.publisher(for: .sssToggleEditorInspector)) { _ in inspectorVisible.toggle() }
+        .onChange(of: controller.inspectorSection) { _, _ in inspectorVisible = true }
+        .onDisappear { controller.endContinuousEdit(); controller.pause() }
         .overlay {
             if let exportProgress = controller.exportProgress {
                 exportProgressOverlay(exportProgress)
@@ -140,69 +150,30 @@ struct VideoEditorView: View {
         } message: {
             Text(controller.errorMessage ?? "")
         }
-        .alert("Video Export", isPresented: Binding(get: {
-            controller.statusMessage != nil
-        }, set: { value in
-            if !value {
-                controller.dismissStatus()
-            }
-        })) {
-            Button("OK", role: .cancel) {
-                controller.dismissStatus()
-            }
-        } message: {
-            Text(controller.statusMessage ?? "")
-        }
     }
 
     private var videoStage: some View {
-        ZStack(alignment: .bottomLeading) {
-            LinearGradient(
-                colors: [Color.black, Color(red: 0.06, green: 0.07, blue: 0.09)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(Color.white.opacity(0.035))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.34), radius: 34, y: 18)
-                .padding(.horizontal, 26)
-                .padding(.vertical, 22)
-
+        ZStack {
+            Color.black
             VideoPlayerContainerView(player: controller.player)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                )
-                .padding(.horizontal, 42)
-                .padding(.vertical, 38)
-
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
-                    playbackPill(title: controller.recording.kind.label, systemImage: "video")
-                    playbackPill(title: controller.recording.sourceName, systemImage: "display")
-                    playbackPill(title: controller.currentTimeLabel + " / " + controller.durationLabel, systemImage: "clock")
+                .padding(20)
+            if let error = controller.previewError {
+                VStack(spacing: 12) {
+                    Label("Preview Unavailable", systemImage: "exclamationmark.triangle")
+                        .font(.headline)
+                    Text(error).multilineTextAlignment(.center)
+                    Button("Try Again", action: controller.refreshPreview)
                 }
-
-                HStack(spacing: 8) {
-                    playbackPill(title: controller.exportSummaryLabel, systemImage: "waveform")
-                    playbackPill(title: "Space pauses or plays", systemImage: "keyboard")
-                }
+                .padding(24).frame(maxWidth: 420)
+                .background(.regularMaterial, in: .rect(cornerRadius: 12))
             }
-            .padding(.leading, 46)
-            .padding(.bottom, 34)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .focusable()
-        .onKeyPress(.space) {
-            controller.togglePlayback()
-            return .handled
-        }
+        .accessibilityLabel("Video preview")
+        .onKeyPress(.space) { controller.togglePlayback(); return .handled }
+        .onKeyPress(.leftArrow) { controller.scrub(to: controller.currentTimeSeconds - 1.0 / Double(controller.recording.preferences.frameRate.rawValue)); return .handled }
+        .onKeyPress(.rightArrow) { controller.scrub(to: controller.currentTimeSeconds + 1.0 / Double(controller.recording.preferences.frameRate.rawValue)); return .handled }
     }
 
     private var trimPanel: some View {
@@ -217,6 +188,7 @@ struct VideoEditorView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 8)
 
+            VideoZoomTimelineView(controller: controller)
             trimMetricsBar
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -229,19 +201,6 @@ struct VideoEditorView: View {
         .overlay(alignment: .top) {
             Divider()
         }
-    }
-
-    private func playbackPill(title: String, systemImage: String) -> some View {
-        Label(title, systemImage: systemImage)
-            .font(.caption.weight(.medium))
-            .foregroundStyle(.white.opacity(0.92))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color.black.opacity(reduceTransparency ? 0.94 : 0.68), in: .capsule)
-            .overlay {
-                Capsule()
-                    .stroke(Color.white.opacity(colorSchemeContrast == .increased ? 0.58 : 0.22), lineWidth: 1)
-            }
     }
 
     private var trimMetricsBar: some View {
@@ -318,10 +277,10 @@ struct VideoEditorView: View {
                             .controlSize(.small)
                             .help("Play the selected trim range from the current playhead or trim start.")
 
-                        Button("Use Start Frame as Poster", action: controller.setPosterToTrimStart)
+                        Button("Use Start Frame as Preview", action: controller.setPosterToTrimStart)
                             .buttonStyle(.glass)
                             .controlSize(.small)
-                            .help("Use the trim start frame as the package poster frame.")
+                            .help("Use the first kept frame as the saved Video preview.")
                     }
                 }
             } else {
@@ -335,10 +294,10 @@ struct VideoEditorView: View {
                         .controlSize(.small)
                         .help("Play the selected trim range from the current playhead or trim start.")
 
-                    Button("Use Start Frame as Poster", action: controller.setPosterToTrimStart)
+                    Button("Use Start Frame as Preview", action: controller.setPosterToTrimStart)
                         .buttonStyle(.glass)
                         .controlSize(.small)
-                        .help("Use the trim start frame as the package poster frame.")
+                        .help("Use the first kept frame as the saved Video preview.")
                 }
             }
         }
@@ -353,6 +312,7 @@ struct VideoEditorView: View {
         .buttonStyle(.borderedProminent)
         .buttonBorderShape(.circle)
         .contentShape(Circle())
+        .disabled(controller.isPreparingPreview || controller.previewError != nil)
         .help(controller.isPlaying ? "Pause playback." : "Play the selected trim range.")
         .accessibilityLabel(controller.isPlaying ? "Pause" : "Play")
         .accessibilityValue(controller.currentTimeLabel)
@@ -449,6 +409,7 @@ private struct VideoTrimTimelineView: View {
                                 let dragOrigin = startHandleDragOrigin ?? controller.session.trimStartSeconds
                                 if startHandleDragOrigin == nil {
                                     startHandleDragOrigin = dragOrigin
+                                    controller.beginContinuousEdit("Trim Video")
                                 }
 
                                 controller.updateTrimStart(
@@ -462,6 +423,7 @@ private struct VideoTrimTimelineView: View {
                             }
                             .onEnded { _ in
                                 startHandleDragOrigin = nil
+                                controller.endContinuousEdit()
                             }
                     )
                     .accessibilityElement()
@@ -481,6 +443,7 @@ private struct VideoTrimTimelineView: View {
                                 let dragOrigin = endHandleDragOrigin ?? controller.session.trimEndSeconds
                                 if endHandleDragOrigin == nil {
                                     endHandleDragOrigin = dragOrigin
+                                    controller.beginContinuousEdit("Trim Video")
                                 }
 
                                 controller.updateTrimEnd(
@@ -494,6 +457,7 @@ private struct VideoTrimTimelineView: View {
                             }
                             .onEnded { _ in
                                 endHandleDragOrigin = nil
+                                controller.endContinuousEdit()
                             }
                     )
                     .accessibilityElement()

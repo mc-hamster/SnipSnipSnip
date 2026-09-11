@@ -69,6 +69,7 @@ extension CaptureWorkflowModel {
         do {
             let destination = try automationCaptureDestinationContext(for: request)
             prepareCaptureIntent(destination.intent)
+            activeCaptureContext.allowsCapturePreview = false
             var leavesCaptureIntentPending = false
             defer {
                 if !leavesCaptureIntentPending {
@@ -140,6 +141,7 @@ extension CaptureWorkflowModel {
         do {
             let destination = try automationCaptureDestinationContext(for: request)
             prepareCaptureIntent(destination.intent)
+            activeCaptureContext.allowsCapturePreview = false
             var leavesCaptureIntentPending = false
             defer {
                 if !leavesCaptureIntentPending {
@@ -195,7 +197,7 @@ extension CaptureWorkflowModel {
                     "capture.automation accepted interactiveWindow requestID=\(request.id.uuidString, privacy: .public)"
                 )
                 leavesCaptureIntentPending = true
-                presentWindowPicker(intent: destination.intent)
+                presentPreparedWindowPicker()
                 return acceptedInteractiveResult(requestID: request.id, kind: "interactiveWindow", warning: nil)
             }
         } catch let error as AutomationExecutionError {
@@ -229,6 +231,7 @@ extension CaptureWorkflowModel {
         do {
             let destination = try automationCaptureDestinationContext(for: request)
             prepareCaptureIntent(destination.intent)
+            activeCaptureContext.allowsCapturePreview = false
             var leavesCaptureIntentPending = false
             defer {
                 if !leavesCaptureIntentPending {
@@ -324,7 +327,8 @@ extension CaptureWorkflowModel {
                 request: .fullscreen,
                 minimizeAppWindow: true,
                 runOptions: runOptions,
-                completionContext: captureContext
+                completionContext: captureContext,
+                allowsCapturePreview: false
             ) { [captureService] in
                 try await captureService.captureFullscreen(
                     mode: runOptions.fullscreenDisplayMode,
@@ -351,7 +355,8 @@ extension CaptureWorkflowModel {
                 request: .frontmostWindow,
                 minimizeAppWindow: true,
                 runOptions: runOptions,
-                completionContext: captureContext
+                completionContext: captureContext,
+                allowsCapturePreview: false
             ) { [captureService] in
                 let window = try await captureService.frontmostWindow()
                 return try await captureService.captureWindow(window)
@@ -377,7 +382,8 @@ extension CaptureWorkflowModel {
                 request: .window(window),
                 minimizeAppWindow: true,
                 runOptions: runOptions,
-                completionContext: captureContext
+                completionContext: captureContext,
+                allowsCapturePreview: false
             ) { [captureService] in
                 try await captureService.captureWindow(window)
             }
@@ -402,7 +408,8 @@ extension CaptureWorkflowModel {
                 request: .region(rect),
                 minimizeAppWindow: true,
                 runOptions: runOptions,
-                completionContext: captureContext
+                completionContext: captureContext,
+                allowsCapturePreview: false
             ) { [captureService] in
                 try await captureService.captureRegion(in: rect)
             }

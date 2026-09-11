@@ -27,6 +27,10 @@ extension CaptureWorkflowModel {
             completionRole: completionRole,
             oneShotOptions: oneShotOptions
         )
+        presentPreparedWindowPicker()
+    }
+
+    func presentPreparedWindowPicker() {
         runWindowScreenshotCaptureWhenPermissionsReady { [weak self] in
             guard let self else {
                 return
@@ -94,7 +98,6 @@ extension CaptureWorkflowModel {
                 try await runCaptureDelayIfNeeded(actionName: "Capturing Window", delay: runOptions.captureDelay)
                 let resolvedWindow = try await captureService.resolveWindowTarget(selectedWindow)
                 let capture = try await captureService.captureWindow(resolvedWindow)
-                showCapturedFeedback()
                 try completeCapture(
                     capture,
                     request: .window(resolvedWindow),
@@ -206,7 +209,6 @@ extension CaptureWorkflowModel {
                 )
                 let resolvedWindow = try await captureService.resolveWindowTarget(window)
                 let capture = try await captureService.captureWindow(resolvedWindow)
-                showCapturedFeedback()
                 try completeCapture(
                     capture,
                     request: .window(resolvedWindow),

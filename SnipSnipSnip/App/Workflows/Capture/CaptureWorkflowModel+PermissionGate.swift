@@ -1,6 +1,7 @@
 import Foundation
 
 enum PendingCapturePermissionCommand {
+    case textCapture
     case currentDisplay
     case region
     case frontmostWindow
@@ -9,6 +10,8 @@ enum PendingCapturePermissionCommand {
 
     func perform(on capture: CaptureWorkflowModel) {
         switch self {
+        case .textCapture:
+            capture.beginTextCapture()
         case .currentDisplay:
             capture.beginFullscreenCapture()
         case .region:
@@ -253,7 +256,6 @@ extension CaptureWorkflowModel {
                 runOptions: runOptions,
                 completionContext: captureContext
             )
-            showCapturedFeedback()
             dependencies.lifecycle.presentError("Partial scrolling capture kept. Review the seams before sharing.")
         } catch {
             present(

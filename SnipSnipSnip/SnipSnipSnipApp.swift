@@ -36,6 +36,10 @@ private struct CaptureCommands: Commands {
         )
 
         CommandMenu("Capture") {
+            Button("Capture Text", action: capture.captureText)
+                .keyboardShortcut(hotKey(for: .textCapture), modifiers: AppShortcut.modifiers)
+                .disabled(isCaptureOrRecordingActive || isNativeFilePanelActive)
+
             Button(
                 "Capture \(WorkflowVocabulary.Source.region)",
                 action: capture.captureRegion
@@ -594,6 +598,9 @@ private struct EditorCommands: Commands {
 
     var body: some Commands {
         CommandGroup(after: .toolbar) {
+            Button("Show Capture Preview", action: documents.showCapturePreview)
+                .disabled(!documents.hasCapturePreview)
+            Divider()
             Button("Add…") {
                 NotificationCenter.default.post(
                     name: .sssRequestContextualCaptureAddition,
@@ -610,7 +617,7 @@ private struct EditorCommands: Commands {
                 NotificationCenter.default.post(name: .sssToggleEditorInspector, object: nil)
             }
             .keyboardShortcut("i", modifiers: [.command, .option])
-            .disabled(documents.editorController == nil)
+            .disabled(documents.editorController == nil && documents.videoEditorController == nil)
         }
 
         CommandGroup(after: .pasteboard) {

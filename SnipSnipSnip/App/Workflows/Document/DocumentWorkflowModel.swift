@@ -27,8 +27,17 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     )
     weak var automationCoordinator: (any DocumentAutomationCoordinatorPort)?
     let preferenceStore: EditorPreferenceStore
+    let capturePreviewCoordinator = CapturePreviewCoordinator()
+    @Published var hasCapturePreview = false
+    @Published var showsCapturePreview: Bool {
+        didSet { preferenceStore.saveShowsCapturePreview(showsCapturePreview) }
+    }
     @Published var editorController: EditorController? {
         didSet {
+            if oldValue !== editorController {
+                capturePreviewCoordinator.clear()
+                hasCapturePreview = false
+            }
             applyEditorPreferences(to: editorController)
             isEditorDocumentOutputAvailable =
                 editorController?.isDocumentOutputAvailable == true
@@ -163,6 +172,7 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
         self.videoRecoveryState = VideoRecoveryWorkflowState(store: videoRecoveryStore)
         self.incompatibleDocumentCoordinator = incompatibleDocumentCoordinator
         self.preferenceStore = preferenceStore
+        self.showsCapturePreview = preferenceStore.loadShowsCapturePreview()
         self.pendingRecoverySession = pendingRecoverySession
         self.allCaptureHistoryEntries = allCaptureHistoryEntries
         self.snipLibraryEntries =

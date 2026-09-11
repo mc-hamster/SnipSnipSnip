@@ -12,7 +12,7 @@ nonisolated struct ClipboardPreferenceStore {
     }
 
     func loadAutoCopyEnabled() -> Bool {
-        storage.object(forKey: AppModelPreferenceKey.autoCopyEnabled) as? Bool ?? true
+        storage.object(forKey: AppModelPreferenceKey.autoCopyEnabled) as? Bool ?? false
     }
 
     func saveAutoCopyEnabled(_ enabled: Bool) {

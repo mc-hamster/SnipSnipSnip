@@ -27,6 +27,7 @@ nonisolated enum BuildTarget: String, Sendable {
 nonisolated enum FeatureToggle: Sendable {
     case scrollingCapture
     case accessibilityAutomation
+    case videoShortcutCapture
     case connectedDeviceCapture
     case uiMap
     case guideCapture
@@ -40,6 +41,7 @@ nonisolated enum FeatureToggle: Sendable {
 nonisolated enum BuildTargetFeatureMatrix {
     private static let enabledFeaturesByTarget: [BuildTarget: Set<FeatureToggle>] = [
         .dev: [
+          .videoShortcutCapture,
           .connectedDeviceCapture,
           .uiMap,
           .guideCapture,
@@ -49,6 +51,7 @@ nonisolated enum BuildTargetFeatureMatrix {
         .externalTesting: [],
         .release: [],
         .selfRelease: [
+            .videoShortcutCapture,
             .scrollingCapture,
             .accessibilityAutomation,
             .connectedDeviceCapture,

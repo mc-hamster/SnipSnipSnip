@@ -6,6 +6,27 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class CompositionOutputExporterTests: XCTestCase {
+    func testStillOutputSizingAgreesForCompositionPNGAndPDF() async throws {
+        let fixture = makeComparisonFixture(mode: .wipe)
+        let original = try CompositionOutputExporter.staticImage(fixture.input)
+        let expected = try ScreenshotOutputSize.half.pixelSize(for: CGSize(width: original.width, height: original.height))
+        for format in [CompositionOutputFormat.png, .pdf] {
+            let url = temporaryURL(extension: format.fileExtension)
+            defer { try? FileManager.default.removeItem(at: url) }
+            _ = try await CompositionOutputExporter.export(fixture.input, format: format, to: url, stillOutputSize: .half)
+            if format == .png {
+                let source = try XCTUnwrap(CGImageSourceCreateWithURL(url as CFURL, nil))
+                let image = try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+                XCTAssertEqual(CGSize(width: image.width, height: image.height), expected)
+            } else {
+                let document = try XCTUnwrap(CGPDFDocument(url as CFURL))
+                let page = try XCTUnwrap(document.page(at: 1))
+                XCTAssertEqual(page.getBoxRect(.mediaBox).size, expected)
+            }
+        }
+        XCTAssertEqual(try CompositionOutputExporter.staticImage(fixture.input).width, original.width)
+    }
+
     func testHTMLItemSizingUsesResourceBudgetRatherThanItemCountLimit() {
         XCTAssertEqual(
             CompositionOutputExporter.htmlItemMaximumDimension(

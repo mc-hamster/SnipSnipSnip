@@ -175,6 +175,10 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         performMenuAction { [weak self] in self?.capture?.captureRegion() }
     }
 
+    @objc private func captureText() {
+        performMenuAction { [weak self] in self?.capture?.captureText() }
+    }
+
     @objc private func captureCurrentDisplay() {
         performMenuAction { [weak self] in self?.capture?.captureCurrentDisplay() }
     }
@@ -238,6 +242,10 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
 
     @objc private func openClipboardHistory() {
         clipboard?.showClipboardManager()
+    }
+
+    @objc private func showCapturePreview() {
+        performMenuAction { [weak self] in self?.workflowCoordinator?.showCapturePreview() }
     }
 
     @objc private func addHorizontalScreenRuler() {
@@ -424,6 +432,12 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             enabled: !isCaptureActionDisabled
         ))
 
+        menu.addItem(captureItem(
+            title: "Capture Text", systemImage: "text.viewfinder", action: #selector(captureText),
+            keyEquivalent: capture.automationPreferences.textCaptureHotkey.label.lowercased(),
+            enabled: !isCaptureActionDisabled
+        ))
+
         if capabilities.isEnabled(.scrollingCapture) {
             menu.addItem(actionItem(
                 title:
@@ -484,6 +498,13 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             keyEquivalent: "v",
             keyModifiers: [.command, .shift],
             enabled: true
+        ))
+
+        menu.addItem(actionItem(
+            title: "Show Capture Preview",
+            systemImage: "photo",
+            action: #selector(showCapturePreview),
+            enabled: workflowCoordinator?.hasCapturePreview == true
         ))
 
         let screenRulerItem = NSMenuItem(title: "Screen Ruler", action: nil, keyEquivalent: "")
@@ -549,7 +570,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             action: #selector(toggleAutoCopy),
             isOn: clipboard.autoCopyEnabled,
             enabled: true,
-            toolTip: "Automatically copy the current rendered snip to the clipboard after each capture and after editor changes."
+            toolTip: "When on, screenshots copy after capture and editor changes, before you may have added redactions. Turn off to review first. Private Capture never copies automatically."
         ))
 
         menu.addItem(.separator())

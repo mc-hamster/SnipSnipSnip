@@ -622,7 +622,7 @@ struct EditorCommandBar: View {
     private static let arrowTools: [EditorTool] = [.arrow, .numberedArrow]
     private static let shapeTools: [EditorTool] = [.rectangle, .ellipse, .line, .statusMark]
     private static let drawingTools: [EditorTool] = [.freehand, .highlighter]
-    private static let emphasisTools: [EditorTool] = [.highlight, .spotlight, .measure]
+    private static let emphasisTools: [EditorTool] = [.spotlight, .measure]
     private static let moreTools: [EditorTool] = [.callout, .ocrText, .colorPicker]
 
     @ObservedObject var controller: EditorController
@@ -646,7 +646,7 @@ struct EditorCommandBar: View {
     @State private var lastShapeTool: EditorTool = .rectangle
     @State private var lastArrowTool: EditorTool = .arrow
     @State private var lastDrawingTool: EditorTool = .freehand
-    @State private var lastEmphasisTool: EditorTool = .highlight
+    @State private var lastEmphasisTool: EditorTool = .spotlight
     @State private var lastMoreTool: EditorTool = .callout
 
     var body: some View {
@@ -752,6 +752,8 @@ struct EditorCommandBar: View {
                             accessibilityIdentifier: "editor.toolGroup.arrow"
                         )
                         toolButton(.text)
+                        toolButton(.highlight)
+                        redactionControl
                     }
                     EditorCommandGroup("Grouped annotation tools") {
                         toolGroupMenu(
@@ -772,7 +774,6 @@ struct EditorCommandBar: View {
                             lastUsedTool: $lastEmphasisTool,
                             accessibilityIdentifier: "editor.toolGroup.emphasize"
                         )
-                        redactionControl
                         moreToolsControl
                     }
                 }
@@ -812,6 +813,13 @@ struct EditorCommandBar: View {
                 .fixedSize(horizontal: true, vertical: false)
             }
             .accessibilityIdentifier("editor.commandBar.edit.secondary.scroll")
+            if controller.activeTool.defaultRedactionMode != nil || controller.containsRedactions {
+                Label("Redact covers sensitive details. Copy and Export apply redactions; editable files retain the original.", systemImage: "lock.shield")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("editor.redaction.outputGuidance")
+            }
         }
     }
 
@@ -1088,7 +1096,7 @@ struct EditorCommandBar: View {
         } label: {
             Label("Copy", systemImage: "doc.on.doc")
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(.borderedProminent)
         .buttonBorderShape(.capsule)
         .help("Copy the output currently shown in this workspace.")
         .accessibilityValue(visibleOutputAccessibilityValue)
@@ -1096,6 +1104,7 @@ struct EditorCommandBar: View {
 
         exportMenu(appearance: appearance)
         shareButton(appearance: appearance)
+        ScreenshotOutputSizeControl(controller: controller, appearance: appearance)
     }
 
     private func exportMenu(
@@ -1283,24 +1292,24 @@ struct EditorCommandBar: View {
     }
 
     private var redactionControl: some View {
-        let isSelected = controller.activeTool.defaultRedactionMode != nil
+        let isSelected = controller.activeTool == .redact
 
         return HStack(spacing: 2) {
             Button {
-                controller.activateToolbarTool(controller.currentRedactionMode.editorTool)
+                controller.activateToolbarTool(.redact)
             } label: {
                 Label(
-                    controller.currentRedactionMode.label,
-                    systemImage: controller.currentRedactionMode.toolbarSystemImage
+                    "Redact",
+                    systemImage: EditorTool.redact.systemImage
                 )
                 .font(.subheadline.weight(.medium))
                 .padding(.horizontal, 8)
                 .frame(height: 28)
             }
             .buttonStyle(EditorDirectToolButtonStyle(isSelected: isSelected))
-            .help("Use \(controller.currentRedactionMode.label). Open the disclosure menu for other redaction tools.")
-            .accessibilityLabel(controller.currentRedactionMode.label)
-            .accessibilityHint("Activate this tool. Use the adjacent menu to choose another tool in the Redact group.")
+            .help("Cover sensitive details with a solid redaction. Blur and Pixelate are in the adjacent menu.")
+            .accessibilityLabel("Redact")
+            .accessibilityHint("Cover sensitive details with a solid redaction.")
             .accessibilityValue(isSelected ? "Selected" : "Not selected")
             .accessibilityIdentifier("editor.toolGroup.redact")
 
@@ -1518,6 +1527,10 @@ private struct OCRReviewView: View {
                 }
 
             HStack {
+                Button("Join Lines") {
+                    text = RecognizedTextFormatting.paragraph(text)
+                }
+                .help("Join the recognized lines into a paragraph. Review before copying.")
                 Spacer()
                 Button("Cancel", action: onCancel)
                     .buttonStyle(.glass)

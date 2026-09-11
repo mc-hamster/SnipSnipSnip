@@ -2615,7 +2615,7 @@ private final class AnnotationCanvasOverlayView: NSView {
         case .none:
             break
         case let .add(annotation):
-            controller.addAnnotation(annotation)
+            controller.addDrawnAnnotation(annotation)
         case let .update(annotations):
             controller.updateAnnotations(annotations)
         case let .select(ids, additive):

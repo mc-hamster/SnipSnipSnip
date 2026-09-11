@@ -342,6 +342,7 @@ nonisolated enum CompositionOutputExporter {
         format: CompositionOutputFormat,
         to destination: URL,
         imageOptions: ImageExportOptions = .default,
+        stillOutputSize: ScreenshotOutputSize = .original,
         maximumOutputDimension: Int? = nil,
         forcedPDFItemsPerPage: Int? = nil,
         progress: CompositionOutputProgressHandler? = nil
@@ -354,6 +355,7 @@ nonisolated enum CompositionOutputExporter {
                 format: format,
                 to: destination,
                 imageOptions: imageOptions,
+                stillOutputSize: stillOutputSize,
                 maximumOutputDimension: maximumOutputDimension,
                 forcedPDFItemsPerPage: forcedPDFItemsPerPage,
                 progress: progress
@@ -366,6 +368,7 @@ nonisolated enum CompositionOutputExporter {
         format: CompositionOutputFormat,
         to destination: URL,
         imageOptions: ImageExportOptions,
+        stillOutputSize: ScreenshotOutputSize,
         maximumOutputDimension: Int?,
         forcedPDFItemsPerPage: Int?,
         progress: CompositionOutputProgressHandler?
@@ -394,7 +397,7 @@ nonisolated enum CompositionOutputExporter {
                 resolvedInput,
                 maximumOutputDimension: maximumOutputDimension
             )
-            let image = rendered.image
+            let image = try stillOutputSize.resized(rendered.image)
             try await atomicFileAsync(destination) { temporaryURL in
                 let imageFormat: ImageExportFormat = format == .png ? .png : .jpeg
                 try await ImageExporter.write(
@@ -420,6 +423,7 @@ nonisolated enum CompositionOutputExporter {
                 summary = try writePDF(
                     resolvedInput,
                     maximumOutputDimension: maximumOutputDimension,
+                    outputSize: stillOutputSize,
                     to: temporaryURL
                 )
             }
@@ -1142,6 +1146,7 @@ nonisolated enum CompositionOutputExporter {
     private static func writePDF(
         _ input: CompositionOutputInput,
         maximumOutputDimension: Int?,
+        outputSize: ScreenshotOutputSize,
         to destination: URL
     ) throws -> PDFRenderSummary {
         let snapshots = try estimatedPageSnapshots(
@@ -1158,11 +1163,12 @@ nonisolated enum CompositionOutputExporter {
             phase: .primary,
             maximumOutputDimension: maximumOutputDimension
         )
+        let firstImage = try outputSize.resized(first.image)
         var firstMediaBox = CGRect(
             x: 0,
             y: 0,
-            width: first.image.width,
-            height: first.image.height
+            width: firstImage.width,
+            height: firstImage.height
         )
         guard let context = CGContext(
             destination as CFURL,
@@ -1182,7 +1188,7 @@ nonisolated enum CompositionOutputExporter {
                     phase: .primary,
                     maximumOutputDimension: maximumOutputDimension
                 )
-            let image = rendered.image
+            let image = index == 0 ? firstImage : try outputSize.resized(rendered.image)
             wasScaled = wasScaled || rendered.wasScaled
             let mediaBox = CGRect(x: 0, y: 0, width: image.width, height: image.height)
             context.beginPDFPage([
@@ -1195,8 +1201,8 @@ nonisolated enum CompositionOutputExporter {
         return PDFRenderSummary(
             pageCount: snapshots.count,
             firstPixelSize: CGSize(
-                width: first.image.width,
-                height: first.image.height
+                width: firstImage.width,
+                height: firstImage.height
             ),
             wasScaled: wasScaled
         )

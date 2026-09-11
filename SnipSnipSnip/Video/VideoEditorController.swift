@@ -77,6 +77,14 @@ final class VideoEditorController: ObservableObject {
     @Published private(set) var statusMessage: String?
     @Published private(set) var exportProgress: VideoExportProgress?
     @Published private(set) var persistenceRevision = 0
+    @Published private(set) var isPreparingPreview = false
+    @Published private(set) var previewError: String?
+    @Published var inspectorSection: VideoInspectorSection = .polish
+    weak var undoManager: UndoManager?
+    private var continuousEditStart: VideoEditorSession?
+    private var continuousEditName: String?
+    private var previewTask: Task<Void, Never>?
+    private var preparedPipeline: VideoRenderPipeline?
     private var posterRefreshTask: Task<Void, Never>?
     private var timelineThumbnailTask: Task<Void, Never>?
     private let timeObserverCleanup: PlayerTimeObserverCleanup
@@ -85,7 +93,9 @@ final class VideoEditorController: ObservableObject {
     private var activeExportCancellation: (() -> Void)?
 
     init(recording: CapturedVideoRecording, session: VideoEditorSession? = nil, posterImage: CGImage? = nil) {
-        let normalizedSession = (session ?? .fullDuration(recording.duration)).normalized(for: recording.duration)
+        var initial = session ?? .fullDuration(recording.duration)
+        if session == nil { initial.effects = .initial(for: recording) }
+        let normalizedSession = initial.normalized(for: recording.duration)
         let player = AVPlayer(url: recording.sourceURL)
 
         self.recording = recording
@@ -98,16 +108,15 @@ final class VideoEditorController: ObservableObject {
         configurePlayerObserver()
         seek(to: self.session.trimStartSeconds)
         refreshTimelineThumbnails()
+        refreshPreview()
 
-        if posterImage == nil {
-            refreshPoster()
-        }
     }
 
     deinit {
         posterRefreshTask?.cancel()
         timelineThumbnailTask?.cancel()
         exportTask?.cancel()
+        previewTask?.cancel()
         timeObserverCleanup.invalidate()
     }
 
@@ -116,7 +125,7 @@ final class VideoEditorController: ObservableObject {
     }
 
     var trimmedDuration: TimeInterval {
-        max(session.trimEndSeconds - session.trimStartSeconds, 0)
+        VideoEditTimeline(session: session, duration: recording.duration).duration
     }
 
     var trimStartLabel: String {
@@ -136,7 +145,7 @@ final class VideoEditorController: ObservableObject {
     }
 
     var exportSummaryLabel: String {
-        let source = recording.preferences.recordsSystemAudio || recording.preferences.recordsMicrophone ? "Audio on" : "Silent"
+        let source = session.effects.audioVolume > 0 && (recording.preferences.recordsSystemAudio || recording.preferences.recordsMicrophone) ? "Audio on" : "Silent"
         return "\(trimmedDurationLabel) clip • \(recording.preferences.frameRate.label) source • \(source)"
     }
 
@@ -149,41 +158,32 @@ final class VideoEditorController: ObservableObject {
     }
 
     func updateTrimStart(_ value: TimeInterval) {
-        let end = max(session.trimEndSeconds, 0)
-        let bounded = min(max(value, 0), max(end - 0.1, 0))
-        var nextSession = session
-        nextSession.trimStartSeconds = bounded
-        nextSession.posterTimeSeconds = min(max(nextSession.posterTimeSeconds, bounded), nextSession.trimEndSeconds)
-        applySession(nextSession, refreshPosterWhenPosterTimeChanges: true)
-
-        previewTrimBoundary(at: bounded)
+        perform(.trimStart(value))
+        previewTrimBoundary(at: session.trimStartSeconds)
     }
 
     func updateTrimEnd(_ value: TimeInterval) {
-        let bounded = min(max(value, session.trimStartSeconds + 0.1), max(recording.duration, session.trimStartSeconds))
-        var nextSession = session
-        nextSession.trimEndSeconds = bounded
-        nextSession.posterTimeSeconds = min(max(nextSession.posterTimeSeconds, nextSession.trimStartSeconds), bounded)
-        applySession(nextSession, refreshPosterWhenPosterTimeChanges: true)
-
-        previewTrimBoundary(at: bounded)
+        perform(.trimEnd(value))
+        previewTrimBoundary(at: session.trimEndSeconds)
     }
 
     func setPosterToTrimStart() {
-        var nextSession = session
-        nextSession.posterTimeSeconds = nextSession.trimStartSeconds
-        if nextSession.posterTimeSeconds == session.posterTimeSeconds {
+        if session.posterTimeSeconds == session.trimStartSeconds {
             refreshPoster()
         } else {
-            applySession(nextSession, refreshPosterWhenPosterTimeChanges: true)
+            perform(.poster(session.trimStartSeconds))
         }
     }
 
     func playTrimmedPreview() {
+        guard !isPreparingPreview, previewError == nil else { return }
         if currentTimeSeconds < session.trimStartSeconds || currentTimeSeconds >= session.trimEndSeconds {
             seek(to: session.trimStartSeconds)
         }
 
+        if let cut = session.removedRanges.first(where: { $0.start <= currentTimeSeconds && currentTimeSeconds < $0.end }) {
+            seek(to: cut.end)
+        }
         player.play()
         isPlaying = true
     }
@@ -202,6 +202,7 @@ final class VideoEditorController: ObservableObject {
     }
 
     func scrub(to seconds: TimeInterval) {
+        pause()
         let bounded = min(max(seconds, 0), recording.duration)
         seek(to: bounded)
     }
@@ -382,6 +383,7 @@ final class VideoEditorController: ObservableObject {
 
     private func applySession(_ proposedSession: VideoEditorSession, refreshPosterWhenPosterTimeChanges: Bool = false) {
         let oldPosterTime = session.posterTimeSeconds
+        let oldEffects = session.effects
         let normalizedSession = proposedSession.normalized(for: recording.duration)
 
         guard normalizedSession != session else {
@@ -391,19 +393,27 @@ final class VideoEditorController: ObservableObject {
         session = normalizedSession
         persistenceRevision += 1
 
+        if normalizedSession.effects != oldEffects {
+            posterImage = nil
+            refreshPreview()
+        }
+
         if refreshPosterWhenPosterTimeChanges, normalizedSession.posterTimeSeconds != oldPosterTime {
+            posterImage = nil
             refreshPoster()
         }
     }
 
     private func refreshPoster() {
+        guard !isPreparingPreview, let renderer = preparedPipeline?.renderer else { return }
         let sourceURL = recording.sourceURL
         let posterTimeSeconds = session.posterTimeSeconds
         posterRefreshTask?.cancel()
         posterRefreshTask = Task { [weak self] in
             do {
                 try await Task.sleep(for: .milliseconds(150))
-                let image = try await VideoExporter.posterFrame(for: sourceURL, at: posterTimeSeconds)
+                let source = try await VideoExporter.posterFrame(for: sourceURL, at: posterTimeSeconds)
+                let image = renderer.cgImage(source, at: posterTimeSeconds)
                 guard !Task.isCancelled else {
                     return
                 }
@@ -452,11 +462,14 @@ final class VideoEditorController: ObservableObject {
                 }
 
                 let seconds = max(time.seconds, 0)
+                guard !self.isPreparingPreview else { return }
                 self.currentTimeSeconds = seconds
 
                 if self.isPlaying && seconds >= self.session.trimEndSeconds {
                     self.pause()
                     self.seek(to: self.session.trimEndSeconds)
+                } else if self.isPlaying, let cut = self.session.removedRanges.first(where: { $0.start <= seconds && seconds < $0.end }) {
+                    self.seek(to: min(cut.end, self.session.trimEndSeconds))
                 }
             }
         }
@@ -466,5 +479,87 @@ final class VideoEditorController: ObservableObject {
     private static func timeLabel(for seconds: TimeInterval) -> String {
         let bounded = max(Int(seconds.rounded(.down)), 0)
         return String(format: "%02d:%02d", bounded / 60, bounded % 60)
+    }
+
+    func perform(_ command: VideoEditCommand) {
+        let next = command.applying(to: session, recording: recording)
+        guard next != session else { return }
+        if continuousEditStart == nil { registerUndo(session: session, name: command.name) }
+        applySession(next, refreshPosterWhenPosterTimeChanges: true)
+    }
+
+    func beginContinuousEdit(_ name: String) {
+        guard continuousEditStart == nil else { return }
+        continuousEditStart = session
+        continuousEditName = name
+    }
+
+    func endContinuousEdit() {
+        if let previous = continuousEditStart, previous != session {
+            registerUndo(session: previous, name: continuousEditName ?? "Edit Video")
+        }
+        continuousEditStart = nil
+        continuousEditName = nil
+    }
+
+    private func registerUndo(session previous: VideoEditorSession, name: String) {
+        undoManager?.registerUndo(withTarget: self) { target in
+            target.registerUndo(session: target.session, name: name)
+            target.applySession(previous, refreshPosterWhenPosterTimeChanges: true)
+        }
+        undoManager?.setActionName(name)
+    }
+
+    func polishVideo() {
+        var effects = session.effects
+        effects.presentation = ScreenshotPresentationPreset.lifted.settings
+        effects.smoothsCursor = true
+        effects.cursorScale = 1.5
+        if let interactions = recording.interactions {
+            effects.zooms = VideoSmartZooms.suggest(track: interactions, duration: recording.duration)
+        }
+        perform(.effects(effects, name: "Polish Video"))
+    }
+
+    func addZoom() {
+        var effects = session.effects
+        let start = min(max(currentTimeSeconds, session.trimStartSeconds), max(session.trimEndSeconds - 1, session.trimStartSeconds))
+        effects.zooms.append(VideoZoom(start: start, end: min(start + 3, session.trimEndSeconds),
+                                      center: recording.interactions?.cursor(at: start, smooth: true) ?? .center))
+        perform(.effects(effects, name: "Add Zoom"))
+        inspectorSection = .zooms
+    }
+
+    func refreshPreview() {
+        let document = EditableVideoDocument(recording: recording, session: session)
+        previewTask?.cancel()
+        posterRefreshTask?.cancel()
+        isPreparingPreview = true
+        previewError = nil
+        pause()
+        previewTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .milliseconds(90))
+                let pipeline = try await VideoRenderPipeline.make(document: document, appliesCuts: false,
+                                                                   sourceAsset: self?.player.currentItem?.asset as? AVURLAsset)
+                guard !Task.isCancelled, let self else { return }
+                let time = self.currentTimeSeconds
+                self.preparedPipeline = pipeline
+                if let item = self.player.currentItem, item.asset === pipeline.asset {
+                    item.videoComposition = pipeline.videoComposition
+                    item.audioMix = pipeline.audioMix
+                } else {
+                    self.player.replaceCurrentItem(with: pipeline.playerItem())
+                }
+                self.seek(to: time)
+                self.isPreparingPreview = false
+                self.refreshPoster()
+            } catch {
+                guard !Task.isCancelled, let self else { return }
+                self.isPreparingPreview = false
+                let reason = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                self.previewError = "\(reason) Your recording and edits are still available in this session."
+            }
+        }
     }
 }

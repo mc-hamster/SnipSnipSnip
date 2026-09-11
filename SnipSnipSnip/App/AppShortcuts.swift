@@ -22,6 +22,7 @@ enum AppShortcut {
             )
         ]),
         ShortcutCatalogSection(title: "Default Global Shortcuts", entries: [
+            ShortcutCatalogEntry(keys: "Command-Shift-T", action: "Capture Text"),
             ShortcutCatalogEntry(
                 keys: "Command-Shift-1",
                 action: "Capture \(WorkflowVocabulary.Source.region)"
@@ -142,6 +143,7 @@ enum AppShortcut {
 
     private static func shortcutActionLabel(for action: GlobalHotKeyAction) -> String {
         switch action {
+        case .textCapture: "Capture Text"
         case .region:
             "Capture \(WorkflowVocabulary.Source.region)"
         case .window:

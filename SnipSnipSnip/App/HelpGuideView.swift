@@ -146,7 +146,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Know what stays editable",
-                            body: "Screenshots open in the screenshot editor and Videos open in the video editor. Auto Copy copies the current screenshot after capture and editor changes when enabled. Import an existing image with File > Import Image. Find saved and recoverable screenshot work in the Snip Library."
+body: "Ordinary screenshots open in the editor immediately so you can annotate, redact, copy, or export without an extra step. Capture Preview is off by default; turn on Show Capture Preview in Settings > Editor & Output > After Capture to use a small lower-left preview instead. In the preview, Copy puts the screenshot on the clipboard; Edit opens the full editor; Export chooses a PNG destination; drag the thumbnail into another app. Close hides only the preview. Show Capture Preview in the menu bar icon menu or View menu brings it back until you edit or replace the screenshot. Non-private work remains available through the editor and Recent Snips. Private Capture, explicit presets, multi-image workflows, and connected-device captures retain their intended destination. Videos open in the video editor. Auto Copy is off by default; if enabled, it copies after capture and editor changes, before you may have added redactions. Previously saved Capture Preview and Auto Copy choices are respected. Import an existing image with File > Import Image."
                         )
                     ],
                     important: [
@@ -670,7 +670,7 @@ struct HelpGuideView: View {
                 HelpArticle(
                     id: "record-video",
                     title: "Record the screen",
-                    summary: "Record a region, window, or screen and trim the video before export.",
+                    summary: "Record, trim, and polish a Video for sharing or technical documentation.",
                     sections: [
                         HelpArticleSection(
                             title: "Start and control a recording",
@@ -678,12 +678,28 @@ struct HelpGuideView: View {
                                 "Choose Record Region, Record Window, or Record Screen.",
                                 "Record Region and Pick On Screen recording start from the live desktop selection overlay, with the live loupe available while you aim. Drag to choose a custom region, or click a window to record the whole window.",
                                 "Use the floating recording control to Pause, Resume, or Stop. The System and Mic meters show live signal when those sources are enabled.",
-                                "When the recording finishes, use the video editor to review and trim the result."
+                                "When the recording finishes, choose Trim to keep the useful part, then Polish for optional finishing. Export when the preview looks right."
                             ]
                         ),
                         HelpArticleSection(
                             title: "Choose recording options",
                             body: "Open Settings > Video to set the default quality, frame rate, display used for Screen recording, cursor visibility, click rings, system audio, and microphone narration. During an active recording, use the floating recording control's color-coded System Audio and Mic switches to turn those sources on or off for that recording only. The meters below those switches confirm whether each enabled source is receiving signal."
+                        ),
+                        HelpArticleSection(
+                            title: "Polish without losing your original",
+                            body: "Choose Polish, then Polish Video for a clean background, smoother cursor, and zooms suggested from recorded clicks. Opening Polish does not apply edits. Adjust the background, shape, spacing, corners, and shadow in the inspector. Zooms lets you add a zoom at the playhead, set precise times and magnification, follow the cursor, or choose a fixed focus. Cursor & Clicks controls cursor size, smoothing, visibility, and click rings. Fine-Tune Motion offers optional motion blur; leave it off for the sharpest text. Preview and export use the same effects."
+                        ),
+                        HelpArticleSection(
+                            title: "Remove a mistake and undo changes",
+                            body: "In Trim, move the playhead to the start of a mistake and choose Mark Start, then move to its end and choose Mark End. Remove Section skips that part in playback and exports, including its sound. Restore brings a removed section back. You can also enter exact seconds. All edits preserve the original recording; Command-Z undoes a change, including an entire slider drag. Reset Video Edits restores the full source and capture-time appearance and can also be undone. Save as .sssvideo to keep the original footage and editable effects together."
+                        ),
+                        HelpArticleSection(
+                            title: "Cursor, sound, and shortcut privacy",
+                            body: "New screen Videos retain separate cursor and click data locally so they can be changed afterward. Older and connected-device Videos may have the cursor baked into the footage; the inspector explains when separate data is unavailable. Sound & Shortcuts adjusts recorded sound and any shortcut labels. To include shortcuts in your next recording, enable Record Keyboard Shortcuts in Settings > Video and use Set Up if Accessibility is missing. Only command/control shortcuts are recorded, never ordinary typed text; secure input is excluded. Shortcut recording is off by default. Normal recording and cursor data do not require Accessibility."
+                        ),
+                        HelpArticleSection(
+                            title: "Find controls quickly",
+                            body: "Trim and Polish stay beside the preview. Show/Hide Inspector (Option-Command-I) opens or hides the detailed controls. With the preview focused, Space plays or pauses and Left/Right Arrow moves one frame. In Settings, Search Settings finds categories by name or words such as microphone, filename, or clipboard."
                         ),
                         HelpArticleSection(
                             title: "Quit, restart, and recover",
@@ -697,7 +713,7 @@ struct HelpGuideView: View {
                     ] : []) + [
                         HelpArticleSection(
                             title: "Export video",
-                            body: "Use the video editor Export menu or File > Export to export MP4 using a quality preset or a size-limited target, or export short silent loops as GIF or APNG. Size-limited exports retry at a lower bitrate if the result exceeds the selected cap. Drag the file icon beside Export to send the current trimmed export to Finder, Mail, or another app. Click the icon without dragging to see a short reminder. The editor window temporarily hides during the drag and returns when the drag finishes. Encoding begins after the destination accepts the drop."
+                            body: "Choose Export beside the Video preview. Select MP4 for a video with sound, GIF for a short documentation loop, or APNG for a crisp silent loop with better color. Choose quality, optionally set Keep Under a File Size for MP4, then Choose Location. File > Export repeats the last export choices. Size-limited exports retry compression when needed. All trims, removed sections, and effects are included. Drag the file icon beside Export to send that same finished result to Finder, Mail, or another app; encoding starts after the destination accepts the drop. The editor hides during the drag and returns afterward."
                         )
                     ],
                     important: [
@@ -723,7 +739,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Choose a tool",
-                            body: "The first Edit command row keeps Select, Crop, the Arrow family, and Text visible as labeled one-click controls. Open the Arrow disclosure menu to choose Arrow or Numbered Arrow. Split controls also provide Shapes (Rectangle, Ellipse, Line, and Status Mark), Draw (Freehand and Highlighter), Emphasize (Highlight Box, Spotlight, and Ruler), Redact (Blur, Pixelate, and Redact), and More Tools (Callout, Copy Text, Pick Color, and Insert Image). After you choose a tool that remains active, the main button shows that tool’s name and icon and reuses it when clicked. Use the adjacent disclosure arrow to choose a different member of the group. Insert Image remains a one-time action. The active direct tool or group has a filled background and stronger boundary as well as its accessibility state. Review, Order & Caption, Arrange, and Polish still begin with Discard. The second Edit row keeps History, Layers and Arrangement, Zoom, Inspector, Output, and References and Drag Out in workflow order. At narrow widths, scroll each row horizontally without losing any action."
+body: "The first Edit command row keeps Select, Crop, the Arrow family, Text, Highlight Box, and Redact together as labeled one-click controls. Open the Arrow disclosure menu to choose Arrow or Numbered Arrow. Redact always starts a solid covering; its adjacent menu also offers Blur and Pixelate. Split controls provide Shapes (Rectangle, Ellipse, Line, and Status Mark), Draw (Freehand and Highlighter), Emphasize (Spotlight and Ruler), and More Tools (Callout, Copy Text, Pick Color, and Insert Image). Except for the permanently available solid Redact action, each split control reuses its last-selected member. Use the adjacent disclosure arrow to choose a different member of the group. Insert Image remains a one-time action. The active direct tool or group has a filled background and stronger boundary as well as its accessibility state. Review, Order & Caption, Arrange, and Polish still begin with Discard. The second Edit row keeps History, Layers and Arrangement, Zoom, Inspector, Output, and References and Drag Out in workflow order. At narrow widths, scroll each row horizontally without losing any action."
                         ),
                         HelpArticleSection(
                             title: "Select and arrange annotations",
@@ -734,6 +750,10 @@ struct HelpGuideView: View {
                                 "Each accessible annotation provides actions for selection, editing text when applicable, duplication, deletion, layer ordering, and grouping. Redacted content is never announced.",
                                 "Layers remains the complete accessible alternative for selection and arrangement."
                             ]
+                        ),
+                        HelpArticleSection(
+                            title: "Review before sharing",
+                            body: "Use solid Redact to cover sensitive details, then choose Copy and wait for the Ready to paste confirmation. Copy and Export apply the visible redactions to the delivered image. Editable screenshot files retain the original pixels so redactions can be changed later; do not send an editable project when you intend to share only the redacted image. Auto Copy is off by default. If you enable it, the original capture may reach the clipboard before you redact it; turn it off before capturing sensitive material. Private Capture never copies automatically."
                         ),
                         HelpArticleSection(
                             title: "Use the inspector",
@@ -901,6 +921,10 @@ struct HelpGuideView: View {
                             body: "Use the inspector to change stroke color, fill color, line width, text size, effect strength, arrow heads, regular Arrow labels, Numbered Arrow badge style and sequence position, status mark symbol and treatment, callout style, rectangle corners, freehand smoothing, and alignment where supported. Use Rotate in the lower editor command row to turn selected annotations by 90 degrees."
                         ),
                         HelpArticleSection(
+                            title: "Fit highlights to text",
+                            body: "Choose Highlighter from Draw or press H, then draw across words. Fit to Text is on by default for this editor session. Local recognition straightens the marker and fits it to confidently recognized words and lines; uncertain text keeps the freehand stroke. Turn off Fit to Text in Properties to draw freely. The stroke appears immediately, and fitting only finishes if you have not made another edit. Undo removes the complete gesture and Redo restores its fitted form."
+                        ),
+                        HelpArticleSection(
                             title: "Manage layers",
                             body: "Use the Layers button in the lower editor command row or Arrange > Show Layers to open a separate Layers window. For a single screenshot, the window shows annotations from front to back. A multi-capture document adds explicit Items, Result, and Capture scopes. Items controls panel selection, order, visibility, duplication, removal, and Edit Selected Capture. Result shows annotations above the assembled canvas, while Capture shows the crop and annotations for one original source with Previous and Next controls. Drag to reorder, or use the visible move buttons, Arrange menu, keyboard shortcuts, context menus, and VoiceOver actions. Group, Ungroup, Delete, and the editing-scope buttons remain available without pointer input. A multi-capture document always keeps at least one item."
                         ),
@@ -955,14 +979,18 @@ struct HelpGuideView: View {
                 HelpArticle(
                     id: "copy-text",
                     title: "Copy text from a screenshot",
-                    summary: "Run local OCR on a selected screenshot region and copy the recognized text.",
+                    summary: "Capture text directly from the screen or review text recognized inside the editor.",
                     sections: [
+                        HelpArticleSection(
+                            title: "Capture text without opening the editor",
+                            body: "Choose Capture Text in Quick Capture, the Capture menu, or the menu bar icon menu, or press Command-Shift-T by default. Drag over text on screen; SnipSnipSnip recognizes it locally and copies it without replacing the open document or saving a screenshot. Escape cancels. If no text is found, the clipboard stays unchanged. Settings > Automation > Global Shortcuts can change the shortcut. Private Capture marks the copied text as concealed so SnipSnipSnip Clipboard History skips it; other clipboard apps may not honor that marker."
+                        ),
                         HelpArticleSection(
                             title: "Copy recognized text",
                             steps: [
                                 "Choose the Copy Text tool in the top editor command row.",
                                 "Drag over the text region in the screenshot.",
-                                "Review the normalized text.",
+                                "Review the recognized text. Line breaks are preserved and indentation is estimated; verify code and commands before using them. Choose Join Lines only when you want a paragraph.",
                                 "Copy the accepted text to the clipboard."
                             ]
                         ),
@@ -1033,6 +1061,10 @@ struct HelpGuideView: View {
                             body: "Save and Save As write .sss screenshot and composition packages or .sssvideo video packages. Use these formats when you may need to revise item order, layout, crop, annotations, redactions, trim range, or other editable state later."
                         ),
                         HelpArticleSection(
+                            title: "Choose output size",
+                            body: "Choose Size beside Copy, Export, and Share. Original Size keeps full resolution; Half Size halves both pixel dimensions; Custom Width lets you enter a width and choose Apply Width while height follows the proportions. The panel shows the output dimensions. This session-only choice applies to copied, dragged, shared, and PNG, JPEG, or PDF output; paginated PDFs size each page. It does not resize the original pixels, annotations, editable files, history previews, animation, Interactive HTML, or automation output. Large compositions may still require safety scaling. Custom output is limited to 32,768 pixels per side and 64 million pixels in total."
+                        ),
+                        HelpArticleSection(
                             title: "Filename suggestions",
                             body: "Settings > Editor & Output controls filename templates for Save As and export. Supported tokens include {kind}, {source}, {width}, {height}, {format}, and date patterns such as {yyyy-MM-dd-HH-mm-ss}. Content output uses the existing edited or composition suffix and Polish keeps the presentation suffix for compatibility; save panels describe the visible stage."
                         )
@@ -1053,7 +1085,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: ".sssvideo video packages",
-                            body: "A .sssvideo package keeps the source media, trim range, poster frame, and recording metadata."
+                            body: "A .sssvideo package keeps the original media, trim and removed sections, preview image, presentation, zooms, and any separate cursor, click, or shortcut data. Reopen it to revise effects without flattening the original. Existing version-2 projects still open with their original trim state."
                         ),
                         HelpArticleSection(
                             title: "Compatibility",

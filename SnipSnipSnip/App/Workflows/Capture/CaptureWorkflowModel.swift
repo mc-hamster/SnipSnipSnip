@@ -25,6 +25,7 @@ final class CaptureWorkflowModel: ObservableObject, AutomationStatusPort, Captur
     weak var documents: (any CaptureDocumentWorkflowPort)?
     weak var video: (any CaptureVideoWorkflowPort)?
     weak var guide: (any CaptureGuideWorkflowPort)?
+    var shouldKeepAppWindowHiddenAfterCapture = false
     @Published var availableWindows: [CaptureWindowSummary] = []
     @Published var windowThumbnailRefreshGeneration = 0
     @Published var isLoadingWindowChoices = false

@@ -144,7 +144,12 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
             }
 
             if workflowOutcome == .openInEditor {
-                lifecycle?.requestMainWindowPresentation()
+                let showedPreview = documents.presentCapturePreview(for: result, installation: installation)
+                capture?.finishCapturePresentation(showingPreview: showedPreview)
+                if !showedPreview {
+                    capture?.showCapturedFeedback()
+                    lifecycle?.requestMainWindowPresentation()
+                }
             }
         case .presentError(let message):
             lifecycle?.presentError(message)
@@ -173,7 +178,8 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
         case .presentError(let message):
             lifecycle?.presentError(message)
         case .autoCopyChanged(let enabled):
-            if enabled {
+            documents?.updateCapturePreviewAutoCopy(enabled)
+            if enabled, documents?.editorController?.isPrivateDocument == false {
                 documents?.copyCurrentEditorImageToClipboard()
             } else {
                 documents?.cancelPendingAutoCopy()
@@ -302,6 +308,10 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
         capture?.canRepeatLastCapture ?? false
     }
 
+    var hasCapturePreview: Bool { documents?.hasCapturePreview == true }
+
+    func showCapturePreview() { documents?.showCapturePreview() }
+
     func handleGlobalHotKeyAction(_ action: GlobalHotKeyAction) {
         let isCapturing = capture?.isWorking == true
         let isRecording = video?.blocksNewCapture == true
@@ -320,6 +330,8 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
         }
 
         switch action {
+        case .textCapture:
+            capture?.captureText()
         case .region:
             capture?.captureRegion()
         case .window:
@@ -433,6 +445,7 @@ struct CaptureWorkflowResult {
     let workflowPreset: CapturePreset?
     let intent: CaptureIntent
     let completionRole: CaptureCompletionRole
+    let allowsCapturePreview: Bool
 
     init(
         capture: CapturedScreenshot,
@@ -446,7 +459,8 @@ struct CaptureWorkflowResult {
         uiMapSkipReason: String?,
         workflowPreset: CapturePreset?,
         intent: CaptureIntent,
-        completionRole: CaptureCompletionRole = .standalone
+        completionRole: CaptureCompletionRole = .standalone,
+        allowsCapturePreview: Bool = false
     ) {
         self.capture = capture
         self.uiMapSourceCapture = uiMapSourceCapture
@@ -460,6 +474,7 @@ struct CaptureWorkflowResult {
         self.workflowPreset = workflowPreset
         self.intent = intent
         self.completionRole = completionRole
+        self.allowsCapturePreview = allowsCapturePreview
     }
 }
 

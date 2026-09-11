@@ -12,6 +12,7 @@ protocol AppWindowPresenting: AnyObject {
         for context: WorkflowPresentationContext
     ) -> AppWindowVisibilityToken?
     func restoreAppWindowIfNeeded(_ token: AppWindowVisibilityToken?)
+    func keepAppWindowHidden(_ token: AppWindowVisibilityToken?)
     func promoteToRegularApp()
     func demoteToAccessoryIfPossible()
     func activateApp()
@@ -64,6 +65,7 @@ final class LiveAppWindowPresenter: AppWindowPresenting {
             $0.identifier?.rawValue == AppSceneID.mainWindow && $0.isVisible && !$0.isMiniaturized
         }) ?? nonRulerWindow(keyWindowProvider()) ?? nonRulerWindow(mainWindowProvider()) ?? windows.first(where: {
             $0.isVisible && !$0.isMiniaturized && !ScreenRulerWindowID.isScreenRulerWindow($0)
+                && $0.identifier?.rawValue != "capture.preview"
         })
 
         guard let window, window.isVisible, !window.isMiniaturized else {
@@ -97,6 +99,11 @@ final class LiveAppWindowPresenter: AppWindowPresenting {
         requestMainWindowPresentation()
     }
 
+    func keepAppWindowHidden(_ token: AppWindowVisibilityToken?) {
+        guard let token else { return }
+        hiddenWindows.removeValue(forKey: token)
+    }
+
     func promoteToRegularApp() {
         guard NSApp.activationPolicy() != .regular else {
             return
@@ -122,7 +129,8 @@ final class LiveAppWindowPresenter: AppWindowPresenting {
     }
 
     private func nonRulerWindow(_ window: NSWindow?) -> NSWindow? {
-        guard let window, !ScreenRulerWindowID.isScreenRulerWindow(window) else {
+        guard let window, !ScreenRulerWindowID.isScreenRulerWindow(window),
+              window.identifier?.rawValue != "capture.preview" else {
             return nil
         }
 

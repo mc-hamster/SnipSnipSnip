@@ -751,6 +751,12 @@ struct EditorInspectorView: View {
                     .pickerStyle(.segmented)
                 }
 
+                if controller.activeTool == .highlighter || controller.selectedAnnotation?.editorTool == .highlighter {
+                    Toggle("Fit to Text", isOn: $controller.smartHighlightEnabled)
+                        .help("Fit new highlights to recognized words and lines. Turn off to draw freely. Uncertain text keeps your freehand stroke.")
+                        .accessibilityIdentifier("editor.highlighter.fitToText")
+                }
+
                 if controller.showsFreehandTuningControls {
                     Divider()
 

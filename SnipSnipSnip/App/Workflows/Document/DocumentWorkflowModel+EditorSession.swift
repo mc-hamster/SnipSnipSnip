@@ -153,27 +153,30 @@ extension DocumentWorkflowModel {
         )
         editorRenderObserver = controller.$snapshot
             .dropFirst()
-            .sink { [weak self, weak controller] _ in
+            .sink { [weak self, weak controller] newSnapshot in
                 guard let self else {
                     return
                 }
 
                 self.updateDocumentChangeTracking(allowDirtyFastPath: true)
 
-                guard self.autoCopyEnabled,
-                      let controller,
-                      !controller.isPrivateDocument,
-                      controller.workspaceMode != .presentation else {
-                    return
-                }
-
+                guard let controller else { return }
                 let renderedState = RenderedEditorState(
-                    snapshot: controller.documentSession.currentSnapshot
+                    snapshot: newSnapshot
                 )
                 guard renderedState != lastRenderedState else {
                     return
                 }
                 lastRenderedState = renderedState
+
+                // A preview represents the captured result, not an older source
+                // underneath newly added annotations or redactions.
+                self.capturePreviewCoordinator.clear()
+                self.hasCapturePreview = false
+
+                guard self.autoCopyEnabled,
+                      !controller.isPrivateDocument,
+                      controller.workspaceMode != .presentation else { return }
 
                 self.scheduleAutoCopy(for: controller)
             }
@@ -208,48 +211,6 @@ extension DocumentWorkflowModel {
         refreshRecoveryPresentationState()
     }
 
-    func copyCurrentEditorImageToClipboard() {
-        cancelPendingAutoCopy()
-
-        guard let controller = editorController else {
-            return
-        }
-
-        controller.copyAnnotatedImage(
-            appearance: controller.currentWorkspaceOutputAppearance
-        )
-        clipboardMonitor.markCurrentPasteboardChangeAsHandled()
-    }
-
-    func cancelPendingAutoCopy() {
-        pendingAutoCopyTask?.cancel()
-        pendingAutoCopyTask = nil
-        autoCopyRequestGeneration &+= 1
-    }
-
-    func copyCurrentAnnotatedImageToClipboard() {
-        cancelPendingAutoCopy()
-        guard let controller = editorController,
-              controller.isDocumentOutputAvailable else {
-            return
-        }
-        controller.copyAnnotatedImage(
-            appearance: controller.currentWorkspaceOutputAppearance
-        )
-        clipboardMonitor.markCurrentPasteboardChangeAsHandled()
-    }
-
-    func copyCurrentPlainEditorImageToClipboard() {
-        cancelPendingAutoCopy()
-        editorController?.copyAnnotatedImage(appearance: .plain)
-        clipboardMonitor.markCurrentPasteboardChangeAsHandled()
-    }
-
-    func copyCurrentStyledEditorImageToClipboard() {
-        cancelPendingAutoCopy()
-        editorController?.copyAnnotatedImage(appearance: .styled)
-        clipboardMonitor.markCurrentPasteboardChangeAsHandled()
-    }
 
     func resetEditorSessionState() {
         editorRenderObserver = nil
@@ -303,7 +264,8 @@ extension DocumentWorkflowModel {
     ) async {
         do {
             let image = try await controller.renderedImageForExport(
-                appearance: appearance
+                appearance: appearance,
+                usesOutputSize: true
             )
             let pngData = try await Task.detached(
                 priority: .utility
@@ -611,6 +573,7 @@ extension DocumentWorkflowModel {
     }
 
     func requestMainWindowPresentation() {
+        capturePreviewCoordinator.close()
         dependencies.lifecycle.requestMainWindowPresentation()
     }
 

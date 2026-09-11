@@ -47,7 +47,8 @@ extension CaptureWorkflowModel {
         cursorCaptureGlobalLocation: CGPoint? = nil,
         shouldAttemptUIMapCapture: Bool = true,
         runOptions: CaptureRunOptions? = nil,
-        completionContext: CaptureCompletionContext? = nil
+        completionContext: CaptureCompletionContext? = nil,
+        allowsCapturePreview: Bool = true
     ) throws {
         guard let outputSink else {
             throw CaptureWorkflowCompletionError.missingCoordinator
@@ -84,7 +85,8 @@ extension CaptureWorkflowModel {
             uiMapSkipReason: uiMapEligibility.skipReason,
             workflowPreset: activeWorkflowPreset,
             intent: captureContext.intent,
-            completionRole: captureContext.role
+            completionRole: captureContext.role,
+            allowsCapturePreview: allowsCapturePreview && captureContext.allowsCapturePreview
         )))
         activeWorkflowPresetID = nil
         AppAccessibility.announce("Capture complete. \(Int(capture.pixelSize.width)) by \(Int(capture.pixelSize.height)) pixels.")

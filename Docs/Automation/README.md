@@ -9,6 +9,8 @@ response. Use App Intents when users want native Shortcuts actions.
 
 ## Interface Choice
 
+Capture Text and Fit to Text are interactive tools, not new v1 automation commands. The editor's session-only Output Size choice does not change CLI, AppleScript, URL, App Intent, preset, or editable-document output. Automation continues using its existing explicit appearance and output contracts. No sample-script procedure or route changed.
+
 - CLI: best for shell scripts, CI-style local workflows, launch agents, and
   tools that want exit codes plus JSON.
 - AppleScript: best for Shortcuts, Script Editor, Automator, and Mac apps that
@@ -28,6 +30,12 @@ returned URL; composition mutation failures and output errors are returned
 directly. Interactive region/window selection and other workflows that require
 continued user input are the only commands that may return
 `acceptedInteractiveWorkflow` before pixels are produced.
+
+Capture Preview is an interactive screenshot preference, not an automation output mode.
+Automated captures retain their existing editor/output routing, including interactive
+region and window requests. Clipboard output checks the actual pasteboard write;
+a rejected write is an output failure, never a successful copy. No command names,
+result fields, or sample-script procedures change.
 
 ## Permissions
 

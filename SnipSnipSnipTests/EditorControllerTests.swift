@@ -1700,7 +1700,7 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
-    func testSelectableOCRUsesCroppedRegionAndNormalizesRecognizedText() async {
+    func testSelectableOCRUsesCroppedRegionAndPreservesRecognizedLines() async {
         let recognizer = StubTextRecognizer(text: "  First line\n\nSecond\tline  ")
         let snapshot = makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 160, height: 120))
         let controller = makeController(snapshot: snapshot, textRecognizer: recognizer)
@@ -1708,7 +1708,7 @@ final class EditorControllerTests: XCTestCase {
         controller.recognizeText(in: CGRect(x: 12, y: 8, width: 30, height: 14))
         await waitForOCR(controller)
 
-        XCTAssertEqual(controller.ocrReviewText, "First line Second line")
+        XCTAssertEqual(controller.ocrReviewText, "  First line\n\nSecond\tline  ")
         XCTAssertEqual(recognizer.lastImageSize, CGSize(width: 30, height: 14))
     }
 

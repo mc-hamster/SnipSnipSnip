@@ -2,6 +2,8 @@
 
 ## Status
 
+Interactive screenshot additions: Capture Text has a configurable global keyboard shortcut but no new external automation route. Highlighter Fit to Text is an interactive annotation gesture. Session-only Output Size is isolated from external automation and preset outputs; original rendering remains their default. Existing sample-script procedures and formats remain unchanged.
+
 This document is the architecture and interface plan for external automation and
 the reference checklist for the v1 implementation.
 
@@ -33,6 +35,11 @@ Implemented v1 coverage:
 - GitHub-only sample scripts under `Docs/Automation/SampleScripts`.
 
 ## Goals
+
+- Keep post-capture preview presentation outside automation routing. Latch the
+  automation presentation choice through interactive selection and permission
+  recovery. Treat a rejected pasteboard clear/write as an output failure through
+  existing error handling, without adding an output mode or result field.
 
 - Provide a stable, product-level automation contract for capture, composition,
   presets, export, clipboard, document opening, and permission preflight.

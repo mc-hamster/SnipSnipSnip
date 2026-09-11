@@ -18,6 +18,7 @@ nonisolated enum AppCapability: String, CaseIterable, Hashable, Sendable {
     case uiMap
     case accessibilityAutomation
     case screenRecording
+    case videoShortcutCapture
     case guideCapture
     case screenRuler
     case screenInspector
@@ -61,6 +62,9 @@ nonisolated struct BuildTargetCapabilityProvider: AppCapabilityProvider {
 
         if isBuildGatedFeatureEnabled(.accessibilityAutomation, for: target) {
             enabled.insert(.accessibilityAutomation)
+        }
+        if isBuildGatedFeatureEnabled(.videoShortcutCapture, for: target) {
+            enabled.insert(.videoShortcutCapture)
         }
 
         if isBuildGatedFeatureEnabled(.connectedDeviceCapture, for: target) {

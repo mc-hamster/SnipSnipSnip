@@ -71,6 +71,7 @@ enum ImageExportError: LocalizedError {
     case encodingFailed
     case pdfEncodingFailed
     case shareUnavailable
+    case clipboardUnavailable
     case transparentPresentationRequiresPNG
 
     var errorDescription: String? {
@@ -81,6 +82,8 @@ enum ImageExportError: LocalizedError {
             return "The PDF document could not be encoded."
         case .shareUnavailable:
             return "The current window is not available for sharing."
+        case .clipboardUnavailable:
+            return String(localized: "The screenshot could not be copied to the clipboard. Try Copy again.")
         case .transparentPresentationRequiresPNG:
             return "Transparent background with shadow requires PNG export. Use Export PNG, Copy, or Share, or switch the Polish background to Solid."
         }
@@ -167,8 +170,9 @@ enum ImageExporter {
         _ data: Data,
         pasteboard: any PasteboardServicing = SystemPasteboardService()
     ) throws {
-        pasteboard.clearContents()
-        pasteboard.setData(data, forType: .png)
+        guard pasteboard.clearContents(), pasteboard.setData(data, forType: .png) else {
+            throw ImageExportError.clipboardUnavailable
+        }
     }
 
     @MainActor

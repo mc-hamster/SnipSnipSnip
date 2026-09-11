@@ -120,8 +120,8 @@ enum VideoExporter {
             destinationURL: url
         )
 
-        let asset = AVURLAsset(url: document.recording.sourceURL)
-        let session = document.session.normalized(for: document.recording.duration)
+        let pipeline = try await VideoRenderPipeline.make(document: document, appliesCuts: true)
+        let asset = pipeline.asset
         let presetName = exportPreset(for: preset)
 
         guard let exportSession = AVAssetExportSession(asset: asset, presetName: presetName) else {
@@ -138,10 +138,8 @@ enum VideoExporter {
         exportSession.outputURL = url
         exportSession.outputFileType = fileType
         exportSession.shouldOptimizeForNetworkUse = format == .mp4
-        exportSession.timeRange = CMTimeRange(
-            start: CMTime(seconds: session.trimStartSeconds, preferredTimescale: 600),
-            end: CMTime(seconds: session.trimEndSeconds, preferredTimescale: 600)
-        )
+        exportSession.videoComposition = pipeline.videoComposition
+        exportSession.audioMix = pipeline.audioMix
 
         let progressTask = Task {
             while !Task.isCancelled {
@@ -328,9 +326,9 @@ enum VideoExporter {
             throw VideoExportError.unsupportedFileType(format)
         }
 
-        let session = document.session.normalized(for: document.recording.duration)
-        let duration = max(session.trimEndSeconds - session.trimStartSeconds, 0)
-        let asset = AVURLAsset(url: document.recording.sourceURL)
+        let pipeline = try await VideoRenderPipeline.make(document: document, appliesCuts: true)
+        let duration = pipeline.duration
+        let asset = pipeline.asset
         let attemptCount = constrainedAttemptScales.count
         let hasAudioTrack = try await asset.loadTracks(withMediaType: .audio).isEmpty == false
         let sourceFileSize = try? fileSize(at: document.recording.sourceURL)
@@ -354,8 +352,8 @@ enum VideoExporter {
         }
 
         let timeRange = CMTimeRange(
-            start: CMTime(seconds: session.trimStartSeconds, preferredTimescale: 600),
-            end: CMTime(seconds: session.trimEndSeconds, preferredTimescale: 600)
+            start: .zero,
+            duration: CMTime(seconds: duration, preferredTimescale: 600)
         )
 
         for attemptIndex in constrainedAttemptScales.indices {
@@ -377,6 +375,8 @@ enum VideoExporter {
             do {
                 try await exportSizeConstrainedAttempt(
                     asset: asset,
+                    videoComposition: pipeline.videoComposition,
+                    audioMix: pipeline.audioMix,
                     format: format,
                     fileLengthLimit: attemptPlan.targetBytes,
                     timeRange: timeRange,
@@ -442,7 +442,9 @@ enum VideoExporter {
     // and fail with IOSurface KERN_NO_ACCESS, corrupting the write and causing -12905 at
     // finishWriting. fileLengthLimit caps the output without a manual bitrate pipeline.
     private static func exportSizeConstrainedAttempt(
-        asset: AVURLAsset,
+        asset: AVAsset,
+        videoComposition: AVVideoComposition,
+        audioMix: AVAudioMix?,
         format: VideoExportFormat,
         fileLengthLimit: Int64,
         timeRange: CMTimeRange,
@@ -483,6 +485,8 @@ enum VideoExporter {
 
         try? FileManager.default.removeItem(at: url)
         exportSession.timeRange = timeRange
+        exportSession.videoComposition = videoComposition
+        exportSession.audioMix = audioMix
         exportSession.fileLengthLimit = fileLengthLimit
 
         let progressTask = Task {
@@ -535,7 +539,12 @@ enum VideoExporter {
 
         try? FileManager.default.removeItem(at: url)
 
-        let plan = AnimatedVideoExportPlan(document: document, format: format, preset: preset)
+        let pipeline = try await VideoRenderPipeline.make(document: document, appliesCuts: true)
+        var exportDocument = document
+        exportDocument.session.trimStartSeconds = 0
+        exportDocument.session.trimEndSeconds = pipeline.duration
+        exportDocument.recording.duration = pipeline.duration
+        let plan = AnimatedVideoExportPlan(document: exportDocument, format: format, preset: preset)
         guard plan.duration > 0 else {
             throw VideoExportError.invalidSizeConstrainedDuration
         }
@@ -551,13 +560,21 @@ enum VideoExporter {
         }
 
         let images = try await animatedFrames(
-            for: document.recording.sourceURL,
+            pipeline: pipeline,
             plan: plan,
             progressHandler: progressHandler
         )
 
         try Task.checkCancellation()
-        try writeAnimatedImage(images, plan: plan, to: url)
+        let writer = Task.detached(priority: .userInitiated) {
+            try writeAnimatedImage(images, plan: plan, to: url)
+        }
+        try await withTaskCancellationHandler {
+            try await writer.value
+        } onCancel: {
+            writer.cancel()
+        }
+        try Task.checkCancellation()
 
         if let progressHandler {
             await MainActor.run {
@@ -571,55 +588,53 @@ enum VideoExporter {
     }
 
     private static func animatedFrames(
-        for url: URL,
+        pipeline: VideoRenderPipeline,
         plan: AnimatedVideoExportPlan,
         progressHandler: (@MainActor (VideoExportProgress) -> Void)?
     ) async throws -> [CGImage] {
-        try await Task.detached(priority: .utility) {
-            let asset = AVURLAsset(url: url)
-            let generator = AVAssetImageGenerator(asset: asset)
-            generator.appliesPreferredTrackTransform = true
-            generator.requestedTimeToleranceBefore = .positiveInfinity
-            generator.requestedTimeToleranceAfter = .positiveInfinity
-            generator.maximumSize = CGSize(width: plan.maximumPixelDimension, height: plan.maximumPixelDimension)
+        let generator = AVAssetImageGenerator(asset: pipeline.asset)
+        generator.videoComposition = pipeline.videoComposition
+        generator.appliesPreferredTrackTransform = true
+        generator.requestedTimeToleranceBefore = .positiveInfinity
+        generator.requestedTimeToleranceAfter = .positiveInfinity
+        generator.maximumSize = CGSize(width: plan.maximumPixelDimension, height: plan.maximumPixelDimension)
 
-            var frames: [CGImage] = []
-            frames.reserveCapacity(plan.frameCount)
+        var frames: [CGImage] = []
+        frames.reserveCapacity(plan.frameCount)
 
-            for index in 0..<plan.frameCount {
-                try Task.checkCancellation()
+        for index in 0..<plan.frameCount {
+            try Task.checkCancellation()
 
-                let progress = Double(index) / Double(max(plan.frameCount, 1))
-                if let progressHandler {
-                    await MainActor.run {
-                        progressHandler(VideoExportProgress(
-                            title: "Rendering \(plan.format.label)",
-                            detail: "\(index + 1) of \(plan.frameCount) frames",
-                            fractionCompleted: progress
-                        ))
-                    }
-                }
-
-                let offset = (Double(index) + 0.5) / Double(max(plan.frameCount, 1))
-                let seconds = plan.trimStartSeconds + min(max(offset, 0), 1) * plan.duration
-                let requestedTime = CMTime(seconds: seconds, preferredTimescale: 600)
-
-                do {
-                    frames.append(try await generateImage(from: generator, at: requestedTime))
-                } catch {
-                    if let previousFrame = frames.last {
-                        frames.append(previousFrame)
-                    } else {
-                        throw error
-                    }
+            let progress = Double(index) / Double(max(plan.frameCount, 1))
+            if let progressHandler {
+                await MainActor.run {
+                    progressHandler(VideoExportProgress(
+                        title: "Rendering \(plan.format.label)",
+                        detail: "\(index + 1) of \(plan.frameCount) frames",
+                        fractionCompleted: progress
+                    ))
                 }
             }
 
-            return frames
-        }.value
+            let offset = (Double(index) + 0.5) / Double(max(plan.frameCount, 1))
+            let seconds = plan.trimStartSeconds + min(max(offset, 0), 1) * plan.duration
+            let requestedTime = CMTime(seconds: seconds, preferredTimescale: 600)
+
+            do {
+                frames.append(try await generateImage(from: generator, at: requestedTime))
+            } catch {
+                if let previousFrame = frames.last {
+                    frames.append(previousFrame)
+                } else {
+                    throw error
+                }
+            }
+        }
+
+        return frames
     }
 
-    private static func writeAnimatedImage(_ images: [CGImage], plan: AnimatedVideoExportPlan, to url: URL) throws {
+    nonisolated private static func writeAnimatedImage(_ images: [CGImage], plan: AnimatedVideoExportPlan, to url: URL) throws {
         guard !images.isEmpty else {
             throw VideoExportError.posterGenerationFailed
         }
@@ -664,6 +679,7 @@ enum VideoExporter {
         CGImageDestinationSetProperties(destination, containerProperties)
 
         for image in images {
+            try Task.checkCancellation()
             CGImageDestinationAddImage(destination, image, frameProperties)
         }
 

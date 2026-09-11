@@ -110,7 +110,7 @@ struct ContentView: View {
                     )
                     .id(ObjectIdentifier(editorController))
                 } else if let videoController = documents.videoEditorController {
-                    VideoEditorView(controller: videoController)
+                    VideoEditorView(controller: videoController, supportsShortcutCapture: capabilities.isEnabled(.videoShortcutCapture))
                 } else {
                     emptyState
                 }
@@ -797,7 +797,7 @@ struct ContentView: View {
             .controlSize(.small)
             .font(.subheadline.weight(.semibold))
             .fixedSize()
-            .help("Automatically copy the current rendered snip after captures and editor changes.")
+            .help("When on, screenshots copy after capture and editor changes, before you may have added redactions. Turn off to review first. Private Capture never copies automatically.")
     }
 
     private var captureHeaderOptions: some View {
@@ -921,6 +921,8 @@ struct ContentView: View {
                     )
                 }
                 repeatLastCaptureButton
+                captureButton(title: "Capture Text", systemImage: "text.viewfinder",
+                    discoveryItem: .captureText, action: capture.captureText)
                 capturePresetsMenu
             }
         }

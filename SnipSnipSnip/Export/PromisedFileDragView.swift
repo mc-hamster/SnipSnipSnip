@@ -36,12 +36,16 @@ struct PromisedFileDragView: NSViewRepresentable {
     let accessibilityLabel: String
     let payloadProvider: @MainActor () -> PromisedFilePayload?
     var showsIcon = true
+    var onClick: (() -> Void)?
+    var shouldRestoreWindowAfterDrag: () -> Bool = { true }
 
     func makeNSView(context: Context) -> PromisedFileDragNSView {
         PromisedFileDragNSView(
             accessibilityLabel: accessibilityLabel,
             payloadProvider: payloadProvider,
-            showsIcon: showsIcon
+            showsIcon: showsIcon,
+            onClick: onClick,
+            shouldRestoreWindowAfterDrag: shouldRestoreWindowAfterDrag
         )
     }
 
@@ -50,6 +54,8 @@ struct PromisedFileDragView: NSViewRepresentable {
         nsView.setAccessibilityLabel(accessibilityLabel)
         nsView.payloadProvider = payloadProvider
         nsView.showsIcon = showsIcon
+        nsView.onClick = onClick
+        nsView.shouldRestoreWindowAfterDrag = shouldRestoreWindowAfterDrag
         nsView.needsDisplay = true
     }
 }
@@ -62,6 +68,8 @@ final class PromisedFileDragNSView: NSView, NSDraggingSource {
     var accessibilityLabelText: String
     var payloadProvider: @MainActor () -> PromisedFilePayload?
     var showsIcon: Bool
+    var onClick: (() -> Void)?
+    var shouldRestoreWindowAfterDrag: () -> Bool
 
     private var mouseDownEvent: NSEvent?
     private var isPressed = false
@@ -74,11 +82,15 @@ final class PromisedFileDragNSView: NSView, NSDraggingSource {
     init(
         accessibilityLabel: String,
         payloadProvider: @escaping @MainActor () -> PromisedFilePayload?,
-        showsIcon: Bool
+        showsIcon: Bool,
+        onClick: (() -> Void)? = nil,
+        shouldRestoreWindowAfterDrag: @escaping () -> Bool = { true }
     ) {
         self.accessibilityLabelText = accessibilityLabel
         self.payloadProvider = payloadProvider
         self.showsIcon = showsIcon
+        self.onClick = onClick
+        self.shouldRestoreWindowAfterDrag = shouldRestoreWindowAfterDrag
         super.init(frame: .zero)
         setAccessibilityElement(true)
         setAccessibilityRole(.button)
@@ -160,7 +172,7 @@ final class PromisedFileDragNSView: NSView, NSDraggingSource {
 
     override func mouseUp(with event: NSEvent) {
         if mouseDownEvent != nil {
-            showClickGuidance()
+            if let onClick { onClick() } else { showClickGuidance() }
         }
         mouseDownEvent = nil
         isPressed = false
@@ -224,6 +236,10 @@ final class PromisedFileDragNSView: NSView, NSDraggingSource {
 
         hiddenWindowDuringDrag = nil
         DispatchQueue.main.async {
+            guard self.shouldRestoreWindowAfterDrag() else {
+                self.dragWindowWasKey = false
+                return
+            }
             if self.dragWindowWasKey {
                 window.makeKeyAndOrderFront(nil)
             } else {

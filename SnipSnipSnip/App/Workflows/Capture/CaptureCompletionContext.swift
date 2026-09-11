@@ -48,6 +48,7 @@ nonisolated struct CaptureCompletionContext: Equatable, Sendable {
     var role: CaptureCompletionRole
     var oneShotOptions: CaptureOneShotOptions?
     var presentationContext: WorkflowPresentationContext
+    var allowsCapturePreview = true
     /// Identifies a persistent acquisition surface whose later captures must
     /// continue the same user goal. Derived append contexts retain this token,
     /// allowing the surface's close handler to clear only its own state.
