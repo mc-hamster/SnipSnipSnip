@@ -74,7 +74,13 @@ nonisolated final class VideoFrameRenderer: @unchecked Sendable {
         contentMask = CIImage(cgImage: mask)
     }
 
-    func render(_ source: CIImage, at time: Double) -> CIImage {
+    /// The source placement in the finished frame, using SwiftUI's top-left coordinates.
+    var sourceRectInOutput: CGRect {
+        CGRect(x: contentRect.minX, y: outputSize.height - contentRect.maxY,
+               width: contentRect.width, height: contentRect.height)
+    }
+
+    func render(_ source: CIImage, at time: Double, applyingZooms: Bool = true) -> CIImage {
         let sourceTime = timeline?.sourceTime(for: time) ?? time
         let sourceBounds = CGRect(origin: .zero, size: contentSize)
         var image = source.transformed(by: CGAffineTransform(translationX: -source.extent.minX, y: -source.extent.minY))
@@ -99,9 +105,9 @@ nonisolated final class VideoFrameRenderer: @unchecked Sendable {
             }
         }
 
-        let focused = zoomed(image, at: sourceTime).cropped(to: sourceBounds)
+        let focused = (applyingZooms ? zoomed(image, at: sourceTime) : image).cropped(to: sourceBounds)
         var content = focused
-        if effects.motionBlur > 0, effects.zooms.contains(where: { $0.amount(at: sourceTime) > 0 && $0.amount(at: sourceTime) < 1 }) {
+        if applyingZooms, effects.motionBlur > 0, effects.zooms.contains(where: { $0.amount(at: sourceTime) > 0 && $0.amount(at: sourceTime) < 1 }) {
             let offset = effects.motionBlur / 90
             let preceding = zoomed(image, at: max(sourceTime - offset, 0)).cropped(to: sourceBounds)
             content = focused.applyingFilter("CIDissolveTransition", parameters: [kCIInputTargetImageKey: preceding, kCIInputTimeKey: 0.35])
@@ -119,20 +125,16 @@ nonisolated final class VideoFrameRenderer: @unchecked Sendable {
         return output.cropped(to: CGRect(origin: .zero, size: outputSize))
     }
 
-    func cgImage(_ image: CGImage, at time: Double) -> CGImage? {
-        let output = render(CIImage(cgImage: image), at: time)
+    func cgImage(_ image: CGImage, at time: Double, applyingZooms: Bool = true) -> CGImage? {
+        let output = render(CIImage(cgImage: image), at: time, applyingZooms: applyingZooms)
         return context.createCGImage(output, from: output.extent)
     }
 
     private func zoomed(_ image: CIImage, at time: Double) -> CIImage {
         guard let zoom = effects.zooms.last(where: { $0.start <= time && time <= $0.end }) else { return image }
-        let amount = zoom.amount(at: time)
-        let scale = 1 + (zoom.scale - 1) * amount
-        let focus = (zoom.followsCursor ? interactions?.cursor(at: time, smooth: true) : nil) ?? zoom.center
-        let half = 0.5 / scale
-        let x = min(max(focus.x, half), 1 - half)
-        let y = min(max(focus.y, half), 1 - half)
-        let center = VideoPoint.center.interpolated(to: VideoPoint(x: x, y: y), fraction: amount)
+        let geometry = VideoZoomGeometry.resolve(zoom, at: time, interactions: interactions)
+        let scale = geometry.scale
+        let center = geometry.center
         return image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
             .transformed(by: CGAffineTransform(translationX: contentSize.width * (0.5 - center.x * scale),
                                               y: contentSize.height * (0.5 - (1 - center.y) * scale)))

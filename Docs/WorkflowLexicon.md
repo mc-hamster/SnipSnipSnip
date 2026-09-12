@@ -155,7 +155,7 @@ Stage names should describe the current task or the next meaningful task. They s
 | Steps | **Add Step** → **Order & Caption** → optional **Polish** | Collect the next still, organize the sequence, and add explanatory text. |
 | Combined Image | **Add Image** → **Arrange** → optional **Polish** | Add visual material, position it, then optionally apply finishing treatment. |
 | Guide | **Record a Guide** or **Build Steps Manually** → **Edit Guide** | Create the procedure, then refine its steps and explanation. |
-| Video | **Record Video** → **Trim** → optional **Polish** → **Export** | Record full-motion content, remove mistakes, and optionally finish its presentation. |
+| Video | **Record Video** → **Review** → optional **Trim** / **Polish** → **Export** | Watch the video first; editing is optional. |
 
 Use singular stage labels such as **Add Step** and **Add Image** when the immediate action adds one item. Use the plural product noun, such as **Steps**, when naming the workflow or result.
 
@@ -177,7 +177,9 @@ Use **capturing** for the observed interaction activity because a Guide is not a
 
 ### Video
 
-**Edit Video** identifies the editor. **Trim** keeps the desired part; **Remove Section** excludes a mistake without deleting source footage and **Restore** brings it back. **Polish** opens presentation controls; **Polish Video** applies a background, smooth cursor, and suggested click-driven zooms as one undoable edit. Opening Polish alone never changes the document. **Zooms**, **Cursor & Clicks**, and **Sound & Shortcuts** name inspector destinations. **Add Zoom at Playhead**, **Follow Cursor**, **Suggest Zooms from Clicks**, and **Use Start Frame as Preview** describe their actual actions. **Reset Video Edits** restores the full source and capture-time appearance and can be undone. Do not introduce Studio Mode or a separate product name for these capabilities.
+**Video — Review** and **Video — Polish** identify the current workflow in the shared contextual header. **Polish** opens the Look inspector; **Back to Content** returns to review without undoing edits or changing the visible/exported Video. **Look** in the Video command row reopens background and presentation controls. Trim, Zooms, Cursor & Clicks, and Sound & Shortcuts are direct editing tools, not choices hidden behind a separate Adjust menu. Screenshot and Video use the same Discard, Undo, Redo, Inspector, Export, and Drag vocabulary and command-group styling.
+
+**Edit Video** identifies the editor. **Play** and **Pause** review the video with current edits; **Back to Start** pauses at the first kept frame. Playback and scrubbing do not require entering an editing section. **Trim** keeps the desired part; **Remove Section** excludes a mistake without deleting source footage and **Restore** brings it back. **Polish** opens presentation controls; **Polish Video** applies a background, smooth cursor, and suggested click-driven zooms as one undoable edit. Opening Polish alone never changes the document. **Zooms**, **Cursor & Clicks**, and **Sound & Shortcuts** name inspector destinations. **Add Zoom at Playhead**, **Follow Cursor**, and **Suggest Zooms from Clicks** describe their actual actions. **Use Start Frame as Thumbnail** changes the saved still image, not playback; it replaces the ambiguous Use Start Frame as Preview label. **Reset Video Edits** restores the full source and capture-time appearance and can be undone. Do not introduce Studio Mode or a separate product name for these capabilities.
 
 **Record Keyboard Shortcuts** is an optional Video setting for command/control shortcut labels, not typed text. It requires Accessibility access; ordinary recording and pointer metadata do not. **Search Settings** filters the native category sidebar by category and intent keywords.
 
@@ -186,6 +188,8 @@ Shortcut recording has its own build capability: enabled for Dev and Self Releas
 - Recording
 - Paused
 - Finishing
+
+**Zoom Target** names the editing-only full-frame view with a destination outline and center marker. **Show Target** selects a zoom and pauses at its midpoint; **Preview Zoom** plays the current edits from that zoom’s start, without editing guides. **Fixed Focus** stays at a chosen source position. Clicking or dragging the target turns off **Follow Cursor**; **Horizontal Focus** and **Vertical Focus** provide the keyboard equivalent. Distinguish a hidden cursor from missing recorded cursor positions: Follow Cursor still follows hidden recorded positions, but uses the saved fixed focus when position data is unavailable at the current frame. Never describe the target guide as part of the exported video.
 
 Within an explicitly identified Video workflow, the shorter statuses are sufficient. Use **Video Recording** only when surrounding context does not establish that the activity is video.
 

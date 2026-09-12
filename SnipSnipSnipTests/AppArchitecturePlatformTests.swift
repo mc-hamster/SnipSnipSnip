@@ -2118,6 +2118,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
                 "SnipSnipSnip/App/ScreenInspectorController.swift",
                 "SnipSnipSnip/Capture/ConnectedDevicePreviewWindowController.swift",
                 "SnipSnipSnip/Video/VideoEditorView.swift",
+                "SnipSnipSnip/Video/VideoPlaybackView.swift",
             ]
         )
         try assertFragment(
@@ -2125,7 +2126,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
             in: files,
             isOnlyUsedIn: [
                 "SnipSnipSnip/Editor/EditorView.swift",
-                "SnipSnipSnip/Video/VideoEditorView.swift",
+                "SnipSnipSnip/Video/VideoTrimTimelineView.swift",
             ]
         )
 
@@ -2139,6 +2140,9 @@ final class AppArchitecturePlatformTests: XCTestCase {
             "ConnectedDevicePreviewWindowController.swift",
             "Editor/EditorView.swift",
             "Video/VideoEditorView.swift",
+            "Video/VideoPlaybackView.swift",
+            "Video/VideoTrimTimelineView.swift",
+            "Video/VideoZoomTargetView.swift",
         ] {
             XCTAssertTrue(design.contains(documentedException), "Fixed-dark exception is not documented: \(documentedException)")
         }
@@ -2374,7 +2378,9 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertTrue(editor.contains("systemName: \"chevron.down\""))
         XCTAssertTrue(editor.contains("accessibilityIdentifier: \"editor.toolGroup.shapes\""))
         XCTAssertTrue(editor.contains(".accessibilityIdentifier(\"\\(accessibilityIdentifier).choices\")"))
-        XCTAssertTrue(editor.contains("struct EditorCommandGroup<Content: View>: View"))
+        let commandGroup = try String(contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/Support/EditorCommandGroup.swift"), encoding: .utf8)
+        XCTAssertTrue(commandGroup.contains("struct EditorCommandGroup<Content: View>: View"))
+        XCTAssertTrue(commandGroup.contains("struct EditorDirectToolButtonStyle: ButtonStyle"))
         XCTAssertTrue(editor.contains("EditorCommandGroup(\"Selection and common tools\")"))
         XCTAssertTrue(editor.contains("EditorCommandGroup(\"Grouped annotation tools\")"))
         XCTAssertTrue(editor.contains("EditorCommandGroup(\"History\")"))
@@ -2436,7 +2442,14 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertTrue(editorInspector.contains("Crop handles stay available on the image while you use any annotation tool."))
         XCTAssertTrue(editorInspector.contains("Adjustments apply immediately and remain undoable."))
         XCTAssertTrue(guide.contains("struct GuideEditorToolbarContent: ToolbarContent"))
-        XCTAssertTrue(video.contains("struct VideoEditorToolbarContent: ToolbarContent"))
+        let videoCommands = try String(contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/Video/VideoEditorCommandBar.swift"), encoding: .utf8)
+        XCTAssertTrue(content.contains("VideoEditorCommandBar("))
+        XCTAssertFalse(content.contains("VideoEditorToolbarContent("))
+        XCTAssertTrue(videoCommands.contains("EditorCommandGroup(\"History\")"))
+        XCTAssertTrue(videoCommands.contains("EditorCommandGroup(\"Inspector\")"))
+        XCTAssertTrue(videoCommands.contains("EditorCommandGroup(\"Output\")"))
+        XCTAssertTrue(videoCommands.contains("EditorDirectToolButtonStyle"))
+        XCTAssertTrue(content.contains("VideoSessionBar("))
         XCTAssertFalse(content.contains("AppModel"))
         XCTAssertFalse(editor.contains("AppModel"))
         XCTAssertFalse(guide.contains("AppModel"))

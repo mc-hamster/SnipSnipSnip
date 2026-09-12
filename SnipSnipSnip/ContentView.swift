@@ -25,6 +25,8 @@ struct ContentView: View {
     @FocusState private var focusedCaptureDiscovery: CaptureDiscoveryItem?
     @SceneStorage("editor.inspector.isPresented")
     private var isEditorInspectorPresented = true
+    @SceneStorage("video.inspector.visible")
+    private var isVideoInspectorPresented = false
     @State private var compositionImportDetails:
         CompositionImportRecoveryState?
 
@@ -61,6 +63,18 @@ struct ContentView: View {
                     onShowUIMap: showUIMapWindow,
                     dragOutPayloadProvider: { documents.promisedAnnotatedImagePayload(appearance: $0) },
                     compositionAddActions: compositionAddActions(for: editorController)
+                )
+                Divider()
+            }
+
+            if let videoController = documents.videoEditorController {
+                VideoEditorCommandBar(
+                    controller: videoController,
+                    inspectorVisible: $isVideoInspectorPresented,
+                    exportPreferences: video.exportPreferences,
+                    onBack: documents.closeEditor,
+                    onExportRequest: video.exportVideo(using:),
+                    dragOutPayloadProvider: video.promisedVideoPayload
                 )
                 Divider()
             }
@@ -110,7 +124,7 @@ struct ContentView: View {
                     )
                     .id(ObjectIdentifier(editorController))
                 } else if let videoController = documents.videoEditorController {
-                    VideoEditorView(controller: videoController, supportsShortcutCapture: capabilities.isEnabled(.videoShortcutCapture))
+                    VideoEditorView(controller: videoController, supportsShortcutCapture: capabilities.isEnabled(.videoShortcutCapture), inspectorVisible: $isVideoInspectorPresented)
                 } else {
                     emptyState
                 }
@@ -302,7 +316,7 @@ struct ContentView: View {
             permissions.refreshPermissions()
 
             guard capture.autoRefreshWindowsEnabled,
-                  documents.editorController == nil,
+                  !hasOpenDocument,
                   !capture.isWorking,
                   !capture.isShowingWindowPicker,
                   permissions.permissionStatus.hasScreenRecording else {
@@ -603,16 +617,6 @@ struct ContentView: View {
                 onShareExports: documents.shareGuideExports,
                 dragOutPayloadProvider: documents.promisedGuidePayload
             )
-        } else if let videoController = documents.videoEditorController {
-            VideoEditorToolbarContent(
-                controller: videoController,
-                documentFilename: documents.currentDocumentFilename,
-                hasUnsavedChanges: documents.hasUnsavedChanges,
-                exportPreferences: video.exportPreferences,
-                onBack: documents.closeEditor,
-                onExportRequest: video.exportVideo(using:),
-                dragOutPayloadProvider: video.promisedVideoPayload
-            )
         }
     }
 
@@ -622,24 +626,24 @@ struct ContentView: View {
                 HStack(alignment: .center, spacing: 10) {
                     captureHeaderIdentity
                     Spacer(minLength: 12)
-                    if documents.editorController != nil {
+                    if documents.editorController != nil || documents.videoEditorController != nil {
                         contextualCreateButton
                     } else {
                         captureHeaderOptions
                     }
-                    autoCopyToggle
+                    if documents.videoEditorController == nil { autoCopyToggle }
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
                     captureHeaderIdentity
                     HStack(spacing: 8) {
                         Spacer(minLength: 0)
-                        if documents.editorController != nil {
+                        if documents.editorController != nil || documents.videoEditorController != nil {
                             contextualCreateButton
                         } else {
                             captureHeaderOptions
                         }
-                        autoCopyToggle
+                        if documents.videoEditorController == nil { autoCopyToggle }
                     }
                 }
             }
@@ -650,7 +654,12 @@ struct ContentView: View {
                 if hasOpenDocument {
                     compactPermissionStrip
                     if isPermissionDiagnosticExpanded {
-                        headerPermissionCallout
+                        if documents.videoEditorController != nil {
+                            ScrollView { headerPermissionCallout }
+                                .frame(height: 120)
+                        } else {
+                            headerPermissionCallout
+                        }
                     }
                 } else {
                     headerPermissionCallout
@@ -865,6 +874,8 @@ struct ContentView: View {
         Group {
             if let controller = documents.editorController {
                 editorSessionBar(controller)
+            } else if let controller = documents.videoEditorController {
+                VideoSessionBar(controller: controller, inspectorVisible: $isVideoInspectorPresented)
             } else {
                 HStack(alignment: .top, spacing: 18) {
                     captureDiscoveryActionGroups

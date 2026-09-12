@@ -79,7 +79,9 @@ final class VideoEditorController: ObservableObject {
     @Published private(set) var persistenceRevision = 0
     @Published private(set) var isPreparingPreview = false
     @Published private(set) var previewError: String?
-    @Published var inspectorSection: VideoInspectorSection = .polish
+    @Published var inspectorSection: VideoInspectorSection = .trim
+    @Published var isPolishing = false
+    @Published var selectedZoomID: UUID?
     weak var undoManager: UndoManager?
     private var continuousEditStart: VideoEditorSession?
     private var continuousEditName: String?
@@ -123,6 +125,12 @@ final class VideoEditorController: ObservableObject {
     var documentSession: VideoEditorSession {
         session
     }
+
+    var previewPixelSize: CGSize {
+        preparedPipeline?.renderer.outputSize ?? recording.bounds.size
+    }
+
+    var previewRenderer: VideoFrameRenderer? { preparedPipeline?.renderer }
 
     var trimmedDuration: TimeInterval {
         VideoEditTimeline(session: session, duration: recording.duration).duration
@@ -191,6 +199,12 @@ final class VideoEditorController: ObservableObject {
     func pause() {
         player.pause()
         isPlaying = false
+    }
+
+    func returnToStart() {
+        let firstKeptTime = VideoEditTimeline(session: session, duration: recording.duration).ranges.first?.start
+            ?? session.trimStartSeconds
+        scrub(to: firstKeptTime)
     }
 
     func togglePlayback() {
@@ -524,9 +538,12 @@ final class VideoEditorController: ObservableObject {
     func addZoom() {
         var effects = session.effects
         let start = min(max(currentTimeSeconds, session.trimStartSeconds), max(session.trimEndSeconds - 1, session.trimStartSeconds))
-        effects.zooms.append(VideoZoom(start: start, end: min(start + 3, session.trimEndSeconds),
-                                      center: recording.interactions?.cursor(at: start, smooth: true) ?? .center))
+        let zoom = VideoZoom(start: start, end: min(start + 3, session.trimEndSeconds),
+                             followsCursor: recording.interactions?.samples.isEmpty == false,
+                             center: recording.interactions?.cursor(at: start, smooth: true) ?? .center)
+        effects.zooms.append(zoom)
         perform(.effects(effects, name: "Add Zoom"))
+        selectedZoomID = zoom.id
         inspectorSection = .zooms
     }
 

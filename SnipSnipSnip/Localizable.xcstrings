@@ -1,288 +1,189 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Capture Text" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Capture Text"
+    "Choose where to zoom" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose where to zoom"
           }
         }
       }
     },
-    "Recognizing Text" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recognizing Text"
+    "Fixed Focus" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fixed Focus"
           }
         }
       }
     },
-    "Text Copied" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Text Copied"
+    "Following the recorded cursor, even though it is hidden in the video." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Following the recorded cursor, even though it is hidden in the video."
           }
         }
       }
     },
-    "Ready to paste" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ready to paste"
+    "Following the recorded cursor." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Following the recorded cursor."
           }
         }
       }
     },
-    "Text copied to the clipboard." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Text copied to the clipboard."
+    "Full frame. Click or drag to choose a fixed focus. The outlined area will fill the video." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full frame. Click or drag to choose a fixed focus. The outlined area will fill the video."
           }
         }
       }
     },
-    "Join Lines" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Join Lines"
+    "Horizontal %@, vertical %@" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Horizontal %@, vertical %@"
           }
         }
       }
     },
-    "Join the recognized lines into a paragraph. Review before copying." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Join the recognized lines into a paragraph. Review before copying."
+    "Move Zoom Target" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move Zoom Target"
           }
         }
       }
     },
-    "Fit to Text" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fit to Text"
+    "No cursor position at this frame. Using the saved fixed focus." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No cursor position at this frame. Using the saved fixed focus."
           }
         }
       }
     },
-    "Fit new highlights to recognized words and lines. Turn off to draw freely. Uncertain text keeps your freehand stroke." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fit new highlights to recognized words and lines. Turn off to draw freely. Uncertain text keeps your freehand stroke."
+    "Open Zooms and select a zoom in the strip below the video, or choose Show Target in its inspector group. The paused Zoom Target view shows the full, unzoomed frame with an outline of the area that will fill the video at the selected magnification and a center marker. The target remains visible even when the cursor is hidden or was not recorded. Click or drag inside the video to choose a fixed focus; this turns off Follow Cursor and the whole drag is one undoable change. For keyboard control, turn off Follow Cursor and adjust Horizontal Focus and Vertical Focus in the inspector. Follow Cursor uses recorded positions even when Show Cursor is off; when no position is available at the current frame, the target view explains that it is using the saved fixed focus. Preview Zoom plays from that zoom’s start with your current edits. Play and scrubbing remain below the video. Guides disappear during playback, when you select another tool, or when you hide the inspector, and are never included in exports." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Zooms and select a zoom in the strip below the video, or choose Show Target in its inspector group. The paused Zoom Target view shows the full, unzoomed frame with an outline of the area that will fill the video at the selected magnification and a center marker. The target remains visible even when the cursor is hidden or was not recorded. Click or drag inside the video to choose a fixed focus; this turns off Follow Cursor and the whole drag is one undoable change. For keyboard control, turn off Follow Cursor and adjust Horizontal Focus and Vertical Focus in the inspector. Follow Cursor uses recorded positions even when Show Cursor is off; when no position is available at the current frame, the target view explains that it is using the saved fixed focus. Preview Zoom plays from that zoom’s start with your current edits. Play and scrubbing remain below the video. Guides disappear during playback, when you select another tool, or when you hide the inspector, and are never included in exports."
           }
         }
       }
     },
-    "Output Size" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Output Size"
+    "Pause at this zoom’s midpoint and show the area it will focus on." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause at this zoom’s midpoint and show the area it will focus on."
           }
         }
       }
     },
-    "Original Size" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Original Size"
+    "Preparing Zoom Target…" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing Zoom Target…"
           }
         }
       }
     },
-    "Half Size" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Half Size"
+    "Preview Zoom" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview Zoom"
           }
         }
       }
     },
-    "Custom Width" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Custom Width"
+    "Select a zoom to see its target on the full frame. Click or drag the target to choose a fixed focus." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select a zoom to see its target on the full frame. Click or drag the target to choose a fixed focus."
           }
         }
       }
     },
-    "Apply Width" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apply Width"
+    "Show Target" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Target"
           }
         }
       }
     },
-    "Width (px)" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Width (px)"
+    "Turn off Follow Cursor and use Horizontal Focus and Vertical Focus in the Zooms inspector to position the target with the keyboard." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn off Follow Cursor and use Horizontal Focus and Vertical Focus in the Zooms inspector to position the target with the keyboard."
           }
         }
       }
     },
-    "Size unavailable" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Size unavailable"
+    "Zoom Target" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoom Target"
           }
         }
       }
     },
-    "Choose pixel dimensions for Copy, Export, Share, and Drag. The editable original stays unchanged." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose pixel dimensions for Copy, Export, Share, and Drag. The editable original stays unchanged."
-          }
-        }
-      }
-    },
-    "Height adjusts automatically to keep the proportions." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Height adjusts automatically to keep the proportions."
-          }
-        }
-      }
-    },
-    "Enter a valid width within the output limits." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enter a valid width within the output limits."
-          }
-        }
-      }
-    },
-    "Applies to copied, exported, shared, and dragged still images. Original pixels and editable files stay unchanged. This choice lasts while this document is open." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Applies to copied, exported, shared, and dragged still images. Original pixels and editable files stay unchanged. This choice lasts while this document is open."
-          }
-        }
-      }
-    },
-    "No text was found. Try selecting a smaller, clearer area. Your clipboard has not changed." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No text was found. Try selecting a smaller, clearer area. Your clipboard has not changed."
-          }
-        }
-      }
-    },
-    "Text could not be copied. Please try Capture Text again." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Text could not be copied. Please try Capture Text again."
-          }
-        }
-      }
-    },
-    "Enter a width from 1 to 32,768 pixels." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enter a width from 1 to 32,768 pixels."
-          }
-        }
-      }
-    },
-    "Choose a smaller width. Resized output is limited to 32,768 pixels per side and 64 million pixels in total." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose a smaller width. Resized output is limited to 32,768 pixels per side and 64 million pixels in total."
-          }
-        }
-      }
-    },
-    "Select text on screen and copy it without opening the editor. Recognition stays on this Mac." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Select text on screen and copy it without opening the editor. Recognition stays on this Mac."
-          }
-        }
-      }
-    },
-    "Fit Highlight to Text" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fit Highlight to Text"
+    "Zoom Target Unavailable" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoom Target Unavailable"
           }
         }
       }
@@ -846,6 +747,17 @@
     "Adjust the selected image overlay opacity." : {
 
     },
+    "Adjust the video's Look. Opening Polish does not change your edits." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adjust the video's Look. Opening Polish does not change your edits."
+          }
+        }
+      }
+    },
     "Adjust the zoom from %@ to %@ seconds." : {
       "localizations" : {
         "en" : {
@@ -1002,6 +914,17 @@
     "Append to Current Composition" : {
 
     },
+    "Applies to copied, exported, shared, and dragged still images. Original pixels and editable files stay unchanged. This choice lasts while this document is open." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Applies to copied, exported, shared, and dragged still images. Original pixels and editable files stay unchanged. This choice lasts while this document is open."
+          }
+        }
+      }
+    },
     "Applies to every step" : {
 
     },
@@ -1043,6 +966,17 @@
     },
     "Apply to Step" : {
 
+    },
+    "Apply Width" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply Width"
+          }
+        }
+      }
     },
     "Arrange" : {
 
@@ -1129,6 +1063,20 @@
     },
     "Back" : {
 
+    },
+    "Back to Content" : {
+
+    },
+    "Back to Start" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back to Start"
+          }
+        }
+      }
     },
     "Background" : {
 
@@ -1388,6 +1336,17 @@
     "Capture Source" : {
 
     },
+    "Capture Text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture Text"
+          }
+        }
+      }
+    },
     "Capture the configured screen or all connected displays." : {
 
     },
@@ -1480,6 +1439,17 @@
     },
     "Choose a screenshot and inspect it at any size. It stays editable unless you turn on Use Rendered Image Only." : {
 
+    },
+    "Choose a smaller width. Resized output is limited to 32,768 pixels per side and 64 million pixels in total." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a smaller width. Resized output is limited to 32,768 pixels per side and 64 million pixels in total."
+          }
+        }
+      }
     },
     "Choose a specific comparison method." : {
 
@@ -1574,6 +1544,17 @@
     "Choose one window and record its activity as Video." : {
 
     },
+    "Choose pixel dimensions for Copy, Export, Share, and Drag. The editable original stays unchanged." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose pixel dimensions for Copy, Export, Share, and Drag. The editable original stays unchanged."
+          }
+        }
+      }
+    },
     "Choose the After or B item." : {
 
     },
@@ -1654,6 +1635,17 @@
     },
     "Click the screenshot to sample a color from the base image." : {
 
+    },
+    "Clicks" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clicks"
+          }
+        }
+      }
     },
     "Clipboard" : {
 
@@ -2082,6 +2074,17 @@
     "Curve" : {
 
     },
+    "Custom Width" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom Width"
+          }
+        }
+      }
+    },
     "Customize" : {
 
     },
@@ -2263,6 +2266,17 @@
     },
     "Drag items to reorder. Drop files between items to Add Here, or over an item to Replace Item. Move buttons and the item menu provide complete keyboard alternatives." : {
 
+    },
+    "Drag Out" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag Out"
+          }
+        }
+      }
     },
     "Drag Screenshot" : {
       "extractionState" : "manual",
@@ -2455,6 +2469,28 @@
     },
     "Encoding images…" : {
 
+    },
+    "Enter a valid width within the output limits." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a valid width within the output limits."
+          }
+        }
+      }
+    },
+    "Enter a width from 1 to 32,768 pixels." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a width from 1 to 32,768 pixels."
+          }
+        }
+      }
     },
     "Entire screen" : {
 
@@ -2665,6 +2701,17 @@
     "Finished Length" : {
       "extractionState" : "manual"
     },
+    "Finished Length: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finished Length: %@"
+          }
+        }
+      }
+    },
     "Finishing" : {
 
     },
@@ -2677,8 +2724,41 @@
     "Fit all pixels, fill the frame, or display at actual pixel size." : {
 
     },
+    "Fit Highlight to Text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fit Highlight to Text"
+          }
+        }
+      }
+    },
+    "Fit new highlights to recognized words and lines. Turn off to draw freely. Uncertain text keeps your freehand stroke." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fit new highlights to recognized words and lines. Turn off to draw freely. Uncertain text keeps your freehand stroke."
+          }
+        }
+      }
+    },
     "Fit the screenshot to the window or show it at actual size." : {
 
+    },
+    "Fit to Text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fit to Text"
+          }
+        }
+      }
     },
     "Fit to View" : {
 
@@ -2818,6 +2898,17 @@
     "H" : {
 
     },
+    "Half Size" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Half Size"
+          }
+        }
+      }
+    },
     "Head Ends" : {
 
     },
@@ -2826,6 +2917,17 @@
     },
     "Height" : {
 
+    },
+    "Height adjusts automatically to keep the proportions." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Height adjusts automatically to keep the proportions."
+          }
+        }
+      }
     },
     "Help" : {
 
@@ -3107,6 +3209,28 @@
     },
     "Items" : {
 
+    },
+    "Join Lines" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Join Lines"
+          }
+        }
+      }
+    },
+    "Join the recognized lines into a paragraph. Review before copying." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Join the recognized lines into a paragraph. Review before copying."
+          }
+        }
+      }
     },
     "JPEG" : {
 
@@ -3576,6 +3700,17 @@
     "No Step Selected" : {
 
     },
+    "No text was found. Try selecting a smaller, clearer area. Your clipboard has not changed." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No text was found. Try selecting a smaller, clearer area. Your clipboard has not changed."
+          }
+        }
+      }
+    },
     "No valid mockups found. Add SVG mockups to the User folder or reload after restoring bundled examples." : {
 
     },
@@ -3641,6 +3776,17 @@
     },
     "Off" : {
 
+    },
+    "Off by default so screenshots open in the editor immediately. Turn on to show a small preview with Copy, Edit, Export, and drag actions instead. Private Capture, explicit presets, and multi-image workflows still open their intended destination." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off by default so screenshots open in the editor immediately. Turn on to show a small preview with Copy, Edit, Export, and drag actions instead. Private Capture, explicit presets, and multi-image workflows still open their intended destination."
+          }
+        }
+      }
     },
     "Off by default so you can review sensitive details first. When on, screenshots copy after capture and editor changes, before you may have added redactions. Private Capture never copies automatically." : {
       "extractionState" : "manual",
@@ -3784,6 +3930,17 @@
     "Orientation" : {
 
     },
+    "Original Size" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Original Size"
+          }
+        }
+      }
+    },
     "Other access is requested only when used" : {
 
     },
@@ -3807,6 +3964,17 @@
     },
     "Output File" : {
 
+    },
+    "Output Size" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Output Size"
+          }
+        }
+      }
     },
     "Overlay" : {
 
@@ -3850,6 +4018,17 @@
     "Pause" : {
 
     },
+    "Pause and return to the first kept frame." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause and return to the first kept frame."
+          }
+        }
+      }
+    },
     "Pause comparison preview" : {
 
     },
@@ -3866,9 +4045,6 @@
 
     },
     "Pause Monitoring Until Restart" : {
-
-    },
-    "Pause playback." : {
 
     },
     "Pause the Before and After preview." : {
@@ -3979,17 +4155,66 @@
     "Play comparison preview" : {
 
     },
+    "Play or pause the video with your current edits." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play or pause the video with your current edits."
+          }
+        }
+      }
+    },
     "Play the Before and After preview." : {
 
     },
-    "Play the selected trim range from the current playhead or trim start." : {
-
+    "Play to review. Editing is optional." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play to review. Editing is optional."
+          }
+        }
+      }
     },
-    "Play the selected trim range." : {
-
+    "Playback" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playback"
+          }
+        }
+      }
+    },
+    "Playback controls" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playback controls"
+          }
+        }
+      }
     },
     "Playhead" : {
 
+    },
+    "Playhead %@ of %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playhead %@ of %@"
+          }
+        }
+      }
     },
     "PNG" : {
 
@@ -4096,9 +4321,6 @@
     "Preview this screenshot without opening it." : {
 
     },
-    "Preview Trim" : {
-
-    },
     "Preview Unavailable" : {
 
     },
@@ -4188,6 +4410,17 @@
     "Ready" : {
 
     },
+    "Ready to paste" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ready to paste"
+          }
+        }
+      }
+    },
     "Ready to Share" : {
       "extractionState" : "manual"
     },
@@ -4208,6 +4441,17 @@
     },
     "Recognized Text" : {
 
+    },
+    "Recognizing Text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recognizing Text"
+          }
+        }
+      }
     },
     "Record" : {
 
@@ -4855,6 +5099,17 @@
     "Select or Drag %@" : {
 
     },
+    "Select text on screen and copy it without opening the editor. Recognition stays on this Mac." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select text on screen and copy it without opening the editor. Recognition stays on this Mac."
+          }
+        }
+      }
+    },
     "Select this control. Drag toward the top or bottom of another control to move it before or after." : {
 
     },
@@ -4939,6 +5194,17 @@
     "Set the spacing between composition items." : {
 
     },
+    "Set the still image shown for the saved Video. This does not start playback." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set the still image shown for the saved Video. This does not start playback."
+          }
+        }
+      }
+    },
     "Set the stroke thickness for the current tool or selection." : {
 
     },
@@ -5014,17 +5280,6 @@
     },
     "Show a configurable edge dock for the SnipSnipSnip actions you use most." : {
 
-    },
-    "Off by default so screenshots open in the editor immediately. Turn on to show a small preview with Copy, Edit, Export, and drag actions instead. Private Capture, explicit presets, and multi-image workflows still open their intended destination." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Off by default so screenshots open in the editor immediately. Turn on to show a small preview with Copy, Edit, Export, and drag actions instead. Private Capture, explicit presets, and multi-image workflows still open their intended destination."
-          }
-        }
-      }
     },
     "Show accessibility label" : {
 
@@ -5219,6 +5474,17 @@
     },
     "Size" : {
 
+    },
+    "Size unavailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Size unavailable"
+          }
+        }
+      }
     },
     "Smaller file · 15 fps" : {
 
@@ -5447,6 +5713,39 @@
     "Text alignment" : {
 
     },
+    "Text Copied" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text Copied"
+          }
+        }
+      }
+    },
+    "Text copied to the clipboard." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text copied to the clipboard."
+          }
+        }
+      }
+    },
+    "Text could not be copied. Please try Capture Text again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text could not be copied. Please try Capture Text again."
+          }
+        }
+      }
+    },
     "The canvas expands automatically as items move or resize." : {
 
     },
@@ -5572,9 +5871,6 @@
     "Trim to Items" : {
 
     },
-    "Trim Video" : {
-
-    },
     "Trim Whitespace" : {
 
     },
@@ -5690,10 +5986,18 @@
     "Use Start Frame as Preview" : {
       "extractionState" : "manual"
     },
-    "Use Steps to arrange captures you already have. Use Guide to record a workflow automatically." : {
-
+    "Use Start Frame as Thumbnail" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Start Frame as Thumbnail"
+          }
+        }
+      }
     },
-    "Use the first kept frame as the saved Video preview." : {
+    "Use Steps to arrange captures you already have. Use Guide to record a workflow automatically." : {
 
     },
     "User contains custom SVG mockups." : {
@@ -5741,6 +6045,28 @@
     "Video" : {
 
     },
+    "Video — Polish" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video — Polish"
+          }
+        }
+      }
+    },
+    "Video — Review" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video — Review"
+          }
+        }
+      }
+    },
     "Video Error" : {
 
     },
@@ -5749,6 +6075,17 @@
     },
     "Video smoothness" : {
 
+    },
+    "Video tools" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video tools"
+          }
+        }
+      }
     },
     "View All" : {
 
@@ -5811,6 +6148,17 @@
     },
     "Width" : {
 
+    },
+    "Width (px)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Width (px)"
+          }
+        }
+      }
     },
     "Width and Height" : {
 

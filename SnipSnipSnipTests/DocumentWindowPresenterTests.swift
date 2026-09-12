@@ -9,9 +9,9 @@ final class DocumentWindowPresenterTests: XCTestCase {
             MainWindowLayout.minimumContentSize(for: .screenshot),
             MainWindowLayout.minimumContentSize
         )
-        XCTAssertGreaterThanOrEqual(
-            MainWindowLayout.minimumContentSize(for: .video).width,
-            MainWindowLayout.minimumContentSize.width
+        XCTAssertEqual(
+            MainWindowLayout.minimumContentSize(for: .video),
+            MainWindowLayout.minimumContentSize
         )
         XCTAssertGreaterThanOrEqual(
             MainWindowLayout.minimumContentSize(for: .guide).width,

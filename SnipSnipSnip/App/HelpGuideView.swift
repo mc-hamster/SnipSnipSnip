@@ -670,7 +670,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                 HelpArticle(
                     id: "record-video",
                     title: "Record the screen",
-                    summary: "Record, trim, and polish a Video for sharing or technical documentation.",
+                    summary: "Record and review a Video, then optionally trim or polish it for sharing.",
                     sections: [
                         HelpArticleSection(
                             title: "Start and control a recording",
@@ -678,8 +678,12 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                                 "Choose Record Region, Record Window, or Record Screen.",
                                 "Record Region and Pick On Screen recording start from the live desktop selection overlay, with the live loupe available while you aim. Drag to choose a custom region, or click a window to record the whole window.",
                                 "Use the floating recording control to Pause, Resume, or Stop. The System and Mic meters show live signal when those sources are enabled.",
-                                "When the recording finishes, choose Trim to keep the useful part, then Polish for optional finishing. Export when the preview looks right."
+                                "When the recording finishes, choose Play beneath the video to watch it. Trim and Polish are optional; you can export without making any edits."
                             ]
+                        ),
+                        HelpArticleSection(
+                            title: "Watch before editing",
+                            body: "The video fits the available window, including portrait recordings. Play/Pause, Back to Start, elapsed time, and the playhead stay beneath it, even when the inspector is open. Drag the playhead to inspect any point; scrubbing pauses playback. Playback includes your current effects and skips removed sections. Back to Start pauses at the first kept frame. Nothing plays automatically. The inspector starts hidden unless you previously chose to show it."
                         ),
                         HelpArticleSection(
                             title: "Choose recording options",
@@ -687,7 +691,11 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                         ),
                         HelpArticleSection(
                             title: "Polish without losing your original",
-                            body: "Choose Polish, then Polish Video for a clean background, smoother cursor, and zooms suggested from recorded clicks. Opening Polish does not apply edits. Adjust the background, shape, spacing, corners, and shadow in the inspector. Zooms lets you add a zoom at the playhead, set precise times and magnification, follow the cursor, or choose a fixed focus. Cursor & Clicks controls cursor size, smoothing, visibility, and click rings. Fine-Tune Motion offers optional motion blur; leave it off for the sharpest text. Preview and export use the same effects."
+                            body: "Choose Polish in the Video workflow header, just as you do for a Screenshot. The header changes to Video — Polish and offers Back to Content. Look opens grouped Background and Effects controls; Polish Video applies a clean background, smoother cursor, and zooms suggested from recorded clicks. Opening Polish or returning to Content does not change your edits. Adjust the background, shape, spacing, corners, and shadow in the inspector. Zooms lets you add a zoom at the playhead, set precise times and magnification, follow the cursor, or choose a fixed focus. Cursor & Clicks controls cursor size, smoothing, visibility, and click rings. Fine-Tune Motion offers optional motion blur; leave it off for the sharpest text. Preview and export use the same effects."
+                        ),
+                        HelpArticleSection(
+                            title: String(localized: "Choose where to zoom"),
+                            body: String(localized: "Open Zooms and select a zoom in the strip below the video, or choose Show Target in its inspector group. The paused Zoom Target view shows the full, unzoomed frame with an outline of the area that will fill the video at the selected magnification and a center marker. The target remains visible even when the cursor is hidden or was not recorded. Click or drag inside the video to choose a fixed focus; this turns off Follow Cursor and the whole drag is one undoable change. For keyboard control, turn off Follow Cursor and adjust Horizontal Focus and Vertical Focus in the inspector. Follow Cursor uses recorded positions even when Show Cursor is off; when no position is available at the current frame, the target view explains that it is using the saved fixed focus. Preview Zoom plays from that zoom’s start with your current edits. Play and scrubbing remain below the video. Guides disappear during playback, when you select another tool, or when you hide the inspector, and are never included in exports.")
                         ),
                         HelpArticleSection(
                             title: "Remove a mistake and undo changes",
@@ -699,7 +707,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                         ),
                         HelpArticleSection(
                             title: "Find controls quickly",
-                            body: "Trim and Polish stay beside the preview. Show/Hide Inspector (Option-Command-I) opens or hides the detailed controls. With the preview focused, Space plays or pauses and Left/Right Arrow moves one frame. In Settings, Search Settings finds categories by name or words such as microphone, filename, or clipboard."
+                            body: "Video uses the same grouped command rows as Screenshot and Polish. Discard comes first, followed by Trim, Zooms, Cursor & Clicks, and Sound & Shortcuts. The next row keeps Undo/Redo, Inspector, Export, and Drag together. Choose an editing tool to open its grouped inspector; the selected tool has a visible boundary. Trim also shows the thumbnail strip: drag it to scrub, or move the handles to keep a smaller part. Use Start Frame as Thumbnail only changes the saved Video's still image; use Play to watch. Show/Hide Inspector (Option-Command-I) opens or hides details without hiding playback. With the preview focused, Space plays or pauses and Left/Right Arrow moves one frame. New capture commands remain available in the Capture menu and shortcuts. In Settings, Search Settings finds categories by name or words such as microphone, filename, or clipboard."
                         ),
                         HelpArticleSection(
                             title: "Quit, restart, and recover",

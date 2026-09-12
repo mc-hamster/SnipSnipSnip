@@ -13,8 +13,7 @@ struct VideoZoomTimelineView: View {
                         Rectangle().fill(.quaternary)
                         ForEach(controller.session.effects.zooms) { zoom in
                             Button {
-                                controller.inspectorSection = .zooms
-                                controller.scrub(to: (zoom.start + zoom.end) / 2)
+                                controller.selectZoom(zoom.id)
                             } label: {
                                 Label("\(zoom.scale, specifier: "%.1f")×", systemImage: "plus.magnifyingglass")
                                     .font(.caption2).lineLimit(1)
@@ -25,6 +24,7 @@ struct VideoZoomTimelineView: View {
                             .offset(x: zoom.start / duration * proxy.size.width)
                             .help("Adjust the zoom from \(zoom.start.formatted()) to \(zoom.end.formatted()) seconds.")
                             .accessibilityLabel("Zoom at \(zoom.start.formatted()) seconds")
+                            .accessibilityValue(controller.selectedZoom?.id == zoom.id ? "Selected" : "Not selected")
                         }
                         ForEach(controller.session.removedRanges) { range in
                             Rectangle().fill(.secondary.opacity(0.5))

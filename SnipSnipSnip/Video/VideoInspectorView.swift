@@ -10,7 +10,7 @@ enum VideoInspectorSection: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .trim: "scissors"
-        case .polish: "wand.and.stars"
+        case .polish: "paintbrush"
         case .zooms: "plus.magnifyingglass"
         case .cursor: "cursorarrow"
         case .audio: "speaker.wave.2"
@@ -26,25 +26,19 @@ struct VideoInspectorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("Adjust", selection: $controller.inspectorSection) {
-                ForEach(VideoInspectorSection.allCases) { section in
-                    Label(section.rawValue, systemImage: section.symbol).tag(section)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    switch controller.inspectorSection {
+                    case .trim: trim
+                    case .polish: polish
+                    case .zooms: zooms
+                    case .cursor: cursor
+                    case .audio: audio
+                    }
                 }
+                .padding(16)
             }
-            .padding(16)
             .accessibilityIdentifier("video.inspector.section")
-            Divider()
-            Form {
-                switch controller.inspectorSection {
-                case .trim: trim
-                case .polish: polish
-                case .zooms: zooms
-                case .cursor: cursor
-                case .audio: audio
-                }
-            }
-            .formStyle(.grouped)
-            .scrollContentBackground(.hidden)
             Divider()
             Text("Your original video is kept. Undo any change with ⌘Z.")
                 .font(.caption)
@@ -57,13 +51,14 @@ struct VideoInspectorView: View {
 
     private var trim: some View {
         Group {
-            Section("Keep This Part") {
+            InsetGroupBox("Keep This Part") {
                 timeField("Start", value: Binding(get: { controller.session.trimStartSeconds }, set: { controller.updateTrimStart($0) }))
                 timeField("End", value: Binding(get: { controller.session.trimEndSeconds }, set: { controller.updateTrimEnd($0) }))
                 LabeledContent("Finished Length", value: controller.trimmedDurationLabel)
-                Button("Use Start Frame as Preview", action: controller.setPosterToTrimStart)
+                Button("Use Start Frame as Thumbnail", action: controller.setPosterToTrimStart)
+                    .help("Set the still image shown for the saved Video. This does not start playback.")
             }
-            Section {
+            InsetGroupBox("Remove a Mistake") {
                 HStack {
                     Button("Mark Start") { cutStart = controller.currentTimeSeconds; cutEnd = max(cutEnd, cutStart) }
                     Button("Mark End") { cutEnd = controller.currentTimeSeconds }
@@ -74,13 +69,11 @@ struct VideoInspectorView: View {
                     controller.perform(.cut(VideoTimeRange(start: cutStart, end: cutEnd)))
                 }
                 .disabled(cutEnd - cutStart < 0.1 || cutStart < controller.session.trimStartSeconds || cutEnd > controller.session.trimEndSeconds || cutEnd - cutStart >= controller.trimmedDuration - 0.1)
-            } header: {
-                Text("Remove a Mistake")
-            } footer: {
                 Text("Move the playhead to each end of the mistake, then mark it. Removed sections stay available to restore.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             if !controller.session.removedRanges.isEmpty {
-                Section("Removed Sections") {
+                InsetGroupBox("Removed Sections") {
                     ForEach(controller.session.removedRanges) { range in
                         HStack {
                             Text("\(range.start, specifier: "%.1f")–\(range.end, specifier: "%.1f") s")
@@ -96,7 +89,7 @@ struct VideoInspectorView: View {
 
     private var polish: some View {
         Group {
-            Section {
+            InsetGroupBox("Polish") {
                 Button(action: controller.polishVideo) {
                     Label("Polish Video", systemImage: "wand.and.stars")
                         .frame(maxWidth: .infinity)
@@ -107,8 +100,8 @@ struct VideoInspectorView: View {
                      ? "Add a clean background. You can add your own zooms next."
                      : "Add a clean background, a smooth cursor, and zooms that follow your clicks.")
                     .font(.callout).foregroundStyle(.secondary)
-            } header: { Text("Ready to Share") }
-            Section("Background") {
+            }
+            InsetGroupBox("Background") {
                 Toggle("Add Background", isOn: Binding(get: { controller.session.effects.presentation.isEnabled }, set: { enabled in
                     var effects = controller.session.effects
                     if enabled && effects.presentation == .plain { effects.presentation = ScreenshotPresentationPreset.lifted.settings }
@@ -135,12 +128,14 @@ struct VideoInspectorView: View {
                     }
                 }
             }
-            DisclosureGroup("Fine-Tune Motion") {
-                adjustment("Motion Blur", value: effect(\.motionBlur, name: "Change Motion Blur"), range: 0...1, format: "%.2f")
-                Text("A little blur softens zoom transitions. Leave it off for the sharpest text.")
-                    .font(.caption).foregroundStyle(.secondary)
+            InsetGroupBox("Effects") {
+                DisclosureGroup("Fine-Tune Motion") {
+                    adjustment("Motion Blur", value: effect(\.motionBlur, name: "Change Motion Blur"), range: 0...1, format: "%.2f")
+                    Text("A little blur softens zoom transitions. Leave it off for the sharpest text.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
-            Section {
+            InsetGroupBox("Reset") {
                 Button("Reset Video Edits") { controller.perform(.reset) }
                 Text("Restore the full recording and its original appearance. You can undo this too.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -150,7 +145,7 @@ struct VideoInspectorView: View {
 
     private var zooms: some View {
         Group {
-            Section {
+            InsetGroupBox("Zooms") {
                 Button("Add Zoom at Playhead", action: controller.addZoom)
                     .accessibilityIdentifier("video.zoom.add")
                 if let interactions = controller.recording.interactions, !interactions.clicks.isEmpty {
@@ -160,11 +155,16 @@ struct VideoInspectorView: View {
                         controller.perform(.effects(effects, name: "Suggest Zooms"))
                     }
                 }
-                Text("Zooms guide attention. Select one below to adjust when and where it focuses.")
+                Text("Select a zoom to see its target on the full frame. Click or drag the target to choose a fixed focus.")
                     .font(.callout).foregroundStyle(.secondary)
             }
             ForEach(controller.session.effects.zooms) { zoom in
-                Section("Zoom at \(zoom.start, specifier: "%.1f") s") {
+                InsetGroupBox("Zoom at \(zoom.start, specifier: "%.1f") s") {
+                    Button { controller.selectZoom(zoom.id) } label: {
+                        Label("Show Target", systemImage: controller.selectedZoom?.id == zoom.id ? "checkmark.circle" : "scope")
+                    }
+                    .accessibilityValue(controller.selectedZoom?.id == zoom.id ? "Selected" : "")
+                    .help("Pause at this zoom’s midpoint and show the area it will focus on.")
                     timeField("Start", value: zoomBinding(zoom.id, \.start))
                     timeField("End", value: zoomBinding(zoom.id, \.end))
                     adjustment("Magnification", value: zoomBinding(zoom.id, \.scale), range: 1...4, format: "%.1f×")
@@ -179,7 +179,8 @@ struct VideoInspectorView: View {
                         adjustment("Transition Seconds", value: zoomBinding(zoom.id, \.transitionDuration), range: 0.15...2, format: "%.2f")
                     }
                     HStack {
-                        Button("Preview") { controller.scrub(to: zoom.start); controller.playTrimmedPreview() }
+                        Button("Preview Zoom") { controller.previewZoom(zoom.id) }
+                            .disabled(controller.isPreparingPreview || controller.previewError != nil)
                         Spacer()
                         Button("Remove", role: .destructive) {
                             var effects = controller.session.effects
@@ -195,34 +196,35 @@ struct VideoInspectorView: View {
     private var cursor: some View {
         Group {
             if controller.recording.interactions == nil {
-                Section {
+                InsetGroupBox("Cursor & Clicks") {
                     Label("Cursor Is Part of This Video", systemImage: "info.circle")
                     Text("This video has no separate cursor data. Record a new Video in SnipSnipSnip to adjust the cursor and clicks afterward.")
                         .foregroundStyle(.secondary)
                 }
             } else {
-                Section("Cursor") {
+                InsetGroupBox("Cursor") {
                     Toggle("Show Cursor", isOn: effect(\.showsCursor, name: "Show Cursor"))
                     Toggle("Smooth Movement", isOn: effect(\.smoothsCursor, name: "Smooth Cursor"))
                         .disabled(!controller.session.effects.showsCursor)
                     adjustment("Size", value: effect(\.cursorScale, name: "Resize Cursor"), range: 0.75...4, format: "%.1f×")
                         .disabled(!controller.session.effects.showsCursor)
                 }
-                Section {
+                InsetGroupBox("Clicks") {
                     Toggle("Highlight Clicks", isOn: effect(\.showsClicks, name: "Highlight Clicks"))
-                } footer: { Text("A brief ring makes each click easy to follow.") }
+                    Text("A brief ring makes each click easy to follow.").font(.caption).foregroundStyle(.secondary)
+                }
             }
         }
     }
 
     private var audio: some View {
         Group {
-            Section("Sound") {
+            InsetGroupBox("Sound") {
                 adjustment("Volume", value: effect(\.audioVolume, name: "Change Volume"), range: 0...2, format: "%.1f×")
                 Text("Set volume to zero to export a silent video. Recorded microphone and system sound are adjusted together.")
                     .font(.caption).foregroundStyle(.secondary)
             }
-            Section("Keyboard Shortcuts") {
+            InsetGroupBox("Keyboard Shortcuts") {
                 if controller.recording.interactions?.shortcuts.isEmpty == false {
                     Toggle("Show Shortcuts", isOn: effect(\.showsShortcuts, name: "Show Shortcuts"))
                 } else {
@@ -285,6 +287,7 @@ struct VideoInspectorView: View {
         return Binding(get: { (controller.session.effects.zooms.first(where: { $0.id == id }) ?? fallback)[keyPath: path] }, set: { value in
             var effects = controller.session.effects
             guard let index = effects.zooms.firstIndex(where: { $0.id == id }) else { return }
+            controller.selectedZoomID = id
             effects.zooms[index][keyPath: path] = value
             controller.perform(.effects(effects, name: "Adjust Zoom"))
         })

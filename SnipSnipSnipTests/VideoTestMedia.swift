@@ -7,16 +7,16 @@ import XCTest
 /// Deterministic source shared by rendering, persistence, and export tests.
 @MainActor
 enum VideoTestMedia {
-    static func make(in directory: URL, duration: Double = 2, withAudio: Bool = false) async throws -> CapturedVideoRecording {
+    static func make(in directory: URL, duration: Double = 2, withAudio: Bool = false, width: Int = 320, height: Int = 240) async throws -> CapturedVideoRecording {
         let url = directory.appendingPathComponent("source.mp4")
         let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
             AVVideoCodecKey: AVVideoCodecType.h264,
-            AVVideoWidthKey: 320, AVVideoHeightKey: 240
+            AVVideoWidthKey: width, AVVideoHeightKey: height
         ])
         let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: [
             kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32ARGB,
-            kCVPixelBufferWidthKey as String: 320, kCVPixelBufferHeightKey as String: 240,
+            kCVPixelBufferWidthKey as String: width, kCVPixelBufferHeightKey as String: height,
             kCVPixelBufferCGImageCompatibilityKey as String: true,
             kCVPixelBufferCGBitmapContextCompatibilityKey as String: true
         ])
@@ -25,16 +25,16 @@ enum VideoTestMedia {
         writer.startSession(atSourceTime: .zero)
         for frame in 0..<Int(duration * 30) {
             var buffer: CVPixelBuffer?
-            CVPixelBufferCreate(kCFAllocatorDefault, 320, 240, kCVPixelFormatType_32ARGB, nil, &buffer)
+            CVPixelBufferCreate(kCFAllocatorDefault, width, height, kCVPixelFormatType_32ARGB, nil, &buffer)
             let pixels = try XCTUnwrap(buffer)
             CVPixelBufferLockBaseAddress(pixels, [])
-            let context = try XCTUnwrap(CGContext(data: CVPixelBufferGetBaseAddress(pixels), width: 320, height: 240,
+            let context = try XCTUnwrap(CGContext(data: CVPixelBufferGetBaseAddress(pixels), width: width, height: height,
                                                   bitsPerComponent: 8, bytesPerRow: CVPixelBufferGetBytesPerRow(pixels),
                                                   space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue))
             context.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
-            context.fill(CGRect(x: 0, y: 0, width: 160, height: 240))
+            context.fill(CGRect(x: 0, y: 0, width: width / 2, height: height))
             context.setFillColor(CGColor(red: 0, green: 0, blue: 1, alpha: 1))
-            context.fill(CGRect(x: 160, y: 0, width: 160, height: 240))
+            context.fill(CGRect(x: width / 2, y: 0, width: width / 2, height: height))
             context.setFillColor(CGColor(gray: 1, alpha: 1))
             context.fill(CGRect(x: 20 + frame, y: 20, width: 20, height: 20))
             CVPixelBufferUnlockBaseAddress(pixels, [])
@@ -52,7 +52,7 @@ enum VideoTestMedia {
         guard writer.status == .completed else { throw writer.error ?? VideoExportError.exportFailed }
         let sourceURL = withAudio ? try await addingAudio(to: url, in: directory, duration: duration) : url
         return CapturedVideoRecording(sourceURL: sourceURL, kind: .region, sourceName: "Video Editing Test",
-                                      bounds: CGRect(x: 0, y: 0, width: 320, height: 240), recordedAt: Date(),
+                                      bounds: CGRect(x: 0, y: 0, width: width, height: height), recordedAt: Date(),
                                       duration: duration, preferences: VideoRecordingPreferences(recordsSystemAudio: withAudio))
     }
 

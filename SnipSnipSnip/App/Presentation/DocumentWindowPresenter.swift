@@ -11,7 +11,7 @@ nonisolated enum MainWindowLayout {
         case .screenshot:
             minimumContentSize
         case .video:
-            CGSize(width: minimumContentSize.width, height: 780)
+            minimumContentSize
         case .guide:
             CGSize(width: 1280, height: 800)
         }
