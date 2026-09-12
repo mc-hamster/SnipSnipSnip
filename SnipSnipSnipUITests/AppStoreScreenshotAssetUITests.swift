@@ -38,7 +38,7 @@ final class AppStoreScreenshotAssetUITests: XCTestCase {
         outputDirectory = nil
     }
 
-    func testCaptureCampaignSources() throws {
+    func testCaptureCampaignSources() async throws {
         let mainWindow = app.windows.firstMatch
         XCTAssertTrue(mainWindow.waitForExistence(timeout: 15))
         XCTAssertTrue(element("editor.annotationCanvas").waitForExistence(timeout: 10))
@@ -112,7 +112,7 @@ final class AppStoreScreenshotAssetUITests: XCTestCase {
         let horizontal = app.menuItems["New Horizontal Ruler"]
         XCTAssertTrue(horizontal.waitForExistence(timeout: 5))
         horizontal.click()
-        waitForPresentation()
+        await waitForPresentation()
         try capture(app, named: "09-screen-ruler")
 
         captureMenu.click()
@@ -125,7 +125,7 @@ final class AppStoreScreenshotAssetUITests: XCTestCase {
         XCTAssertTrue(app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH 'Freeze'")
         ).firstMatch.waitForExistence(timeout: 5))
-        waitForPresentation()
+        await waitForPresentation()
         try capture(app, named: "10-screen-ruler-inspector")
     }
 
@@ -178,7 +178,7 @@ final class AppStoreScreenshotAssetUITests: XCTestCase {
         add(attachment)
     }
 
-    private func waitForPresentation() {
-        Thread.sleep(forTimeInterval: 0.6)
+    private func waitForPresentation() async {
+        try? await Task.sleep(for: .milliseconds(600))
     }
 }
