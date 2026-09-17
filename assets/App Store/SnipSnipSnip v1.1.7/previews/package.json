@@ -1,0 +1,14 @@
+{
+  "name": "snipsnipsnip-app-store-previews-1-1-7",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "render": "node scripts/render.mjs",
+    "verify": "node scripts/retrieve.mjs --verify",
+    "validate": "node scripts/validate.mjs",
+    "retrieve": "node scripts/retrieve.mjs",
+    "test": "node --test scripts/retrieve.test.mjs"
+  },
+  "engines": { "node": ">=22" },
+  "dependencies": { "sharp": "0.35.4" }
+}

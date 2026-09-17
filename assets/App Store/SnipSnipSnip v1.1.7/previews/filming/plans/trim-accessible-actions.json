@@ -1,0 +1,8 @@
+[
+ {"at":0.4,"op":"move","x":66,"y":810,"duration":0.3},
+ {"at":0.8,"op":"adjust","pid":21270,"name":"Trim start","count":10,"interval":0.08},
+ {"at":2,"op":"move","x":1250,"y":810,"duration":0.4},
+ {"at":2.6,"op":"adjust","pid":21270,"name":"Trim end","direction":"decrement","count":10,"interval":0.08},
+ {"at":4.2,"op":"click","x":1040,"y":723,"duration":0.35},
+ {"at":5,"op":"move","x":1180,"y":715,"duration":0.3}
+]

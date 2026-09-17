@@ -1,0 +1,12 @@
+[
+ {"at":0,"op":"activate","pid":30005},
+ {"at":0.3,"op":"activate","pid":21270},
+ {"at":0.7,"op":"move","x":68,"y":169,"duration":0.5},
+ {"at":1.9,"op":"click","x":68,"y":169,"duration":0.1},
+ {"at":3.0,"op":"key","code":53},
+ {"at":3.7,"op":"activate","pid":21543},
+ {"at":4.0,"op":"activate","pid":21270},
+ {"at":4.6,"op":"move","x":68,"y":281,"duration":0.4},
+ {"at":5.8,"op":"click","x":68,"y":281,"duration":0.1},
+ {"at":7.2,"op":"key","code":53}
+]

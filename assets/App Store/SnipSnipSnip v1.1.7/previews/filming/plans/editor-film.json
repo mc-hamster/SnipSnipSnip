@@ -1,0 +1,9 @@
+[
+ {"at":0.6,"op":"drag","fromX":772,"fromY":505,"x":678,"y":570,"duration":1.8},
+ {"at":4.5,"op":"click","x":735,"y":185,"duration":0.8},
+ {"at":6.0,"op":"drag","fromX":590,"fromY":562,"x":670,"y":582,"duration":1.5},
+ {"at":9.6,"op":"click","x":862,"y":185,"duration":0.8},
+ {"at":11.1,"op":"drag","fromX":352,"fromY":642,"x":398,"y":668,"duration":1.5},
+ {"at":14.0,"op":"click","x":145,"y":185,"duration":0.8},
+ {"at":15.5,"op":"move","x":1040,"y":640,"duration":0.7}
+]

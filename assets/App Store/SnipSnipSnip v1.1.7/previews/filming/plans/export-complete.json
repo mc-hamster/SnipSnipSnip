@@ -1,0 +1,5 @@
+[
+ {"at":1.2,"op":"press","pid":21270,"name":"OK"},
+ {"at":2.1,"op":"click","x":1272,"y":723,"duration":0.3},
+ {"at":2.6,"op":"move","x":1450,"y":712,"duration":0.25}
+]

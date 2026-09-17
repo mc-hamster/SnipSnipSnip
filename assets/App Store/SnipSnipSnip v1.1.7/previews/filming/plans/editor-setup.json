@@ -1,0 +1,8 @@
+[
+ {"op":"press","pid":21270,"name":"Grid"},
+ {"op":"press","pid":21270,"name":"Crosshair"},
+ {"op":"press","pid":21270,"name":"8x"},
+ {"op":"press","pid":21270,"name":"Close Esc"},
+ {"op":"click","x":289,"y":185},
+ {"op":"move","x":770,"y":505,"duration":0.8}
+]

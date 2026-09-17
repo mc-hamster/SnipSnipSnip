@@ -1,0 +1,666 @@
+{
+  "schemaVersion": 1,
+  "build": {
+    "version": "1.1.7",
+    "number": 171,
+    "edition": "App Store Release",
+    "sandboxed": true
+  },
+  "format": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "seconds": 30
+  },
+  "driveFolder": "https://drive.google.com/drive/folders/12C2_deds_Tq5zSoSJFqPWial0KpfzLma",
+  "videos": [
+    {
+      "id": "01",
+      "name": "01-Make-feedback-clear",
+      "poster": 27.5,
+      "posterFile": "output/01-Make-feedback-clear-poster.png",
+      "output": "output/01-Make-feedback-clear.mp4",
+      "sha256": "5657f1a28712272bfeabd9c93db85ceca9f2f13eb6a2e13f9b4c139aee82ca03",
+      "bytes": 41925296,
+      "drive": {
+        "fileId": "1OEx6lSWU2V4UITmsG2UF1Vq9Lo4_CCZy",
+        "url": "https://drive.google.com/file/d/1OEx6lSWU2V4UITmsG2UF1Vq9Lo4_CCZy/view?usp=drivesdk"
+      },
+      "audio": "audio/quiet.wav",
+      "lufs": -22,
+      "layout": "legacy",
+      "clips": [
+        {
+          "source": "sources/01-01.mkv",
+          "start": 0,
+          "duration": 14,
+          "crop": [
+            2560,
+            1376,
+            0,
+            0
+          ],
+          "origin": {
+            "take": "01a-editor-live.mov",
+            "start": 0.8,
+            "crop": [
+              2560,
+              1376,
+              0,
+              64
+            ]
+          },
+          "note": "Reviewed live UI footage from the approved original cut."
+        },
+        {
+          "source": "sources/01-02.mkv",
+          "start": 0,
+          "duration": 2.5,
+          "crop": [
+            2560,
+            1376,
+            0,
+            0
+          ],
+          "origin": {
+            "take": "01b-polish-live.mov",
+            "start": 0.3,
+            "crop": [
+              2560,
+              1376,
+              0,
+              64
+            ]
+          },
+          "note": "Reviewed live UI footage from the approved original cut."
+        },
+        {
+          "source": "sources/01-03.mkv",
+          "start": 0,
+          "duration": 3,
+          "crop": [
+            2560,
+            1376,
+            0,
+            0
+          ],
+          "origin": {
+            "take": "01b-polish-live.mov",
+            "start": 30.5,
+            "crop": [
+              2560,
+              1376,
+              0,
+              64
+            ]
+          },
+          "note": "Reviewed live UI footage from the approved original cut."
+        },
+        {
+          "source": "sources/01-04.mkv",
+          "start": 0,
+          "duration": 10.5,
+          "crop": [
+            2560,
+            1376,
+            0,
+            0
+          ],
+          "origin": {
+            "take": "01d-color-live.mov",
+            "start": 0.7,
+            "crop": [
+              2560,
+              1376,
+              0,
+              64
+            ]
+          },
+          "note": "Reviewed live UI footage from the approved original cut."
+        }
+      ],
+      "captions": [
+        [
+          0,
+          5,
+          "SCREENSHOT EDITING + POLISH",
+          "Make your point."
+        ],
+        [
+          5,
+          10,
+          "SCREENSHOT EDITING + POLISH",
+          "Highlight what matters."
+        ],
+        [
+          10,
+          14,
+          "SCREENSHOT EDITING + POLISH",
+          "Hide personal details."
+        ],
+        [
+          14,
+          25.5,
+          "SCREENSHOT EDITING + POLISH",
+          "Give it a polished finish."
+        ],
+        [
+          25.5,
+          30,
+          "SCREENSHOT EDITING + POLISH",
+          "Copy. Ready to share."
+        ]
+      ]
+    },
+    {
+      "id": "02",
+      "name": "02-Capture-it-in-motion-v2",
+      "poster": 5.6,
+      "posterFile": "output/02-Capture-it-in-motion-v2-poster.png",
+      "output": "output/02-Capture-it-in-motion-v2.mp4",
+      "sha256": "db62d6ff12b11c1db0df44dd7a40f695245817a696b9e9ffa12ece5f5267d548",
+      "bytes": 42006863,
+      "drive": {
+        "fileId": "1wPvX3W634G3ZdONkvLWtmIa53_fWJ96J",
+        "url": "https://drive.google.com/file/d/1wPvX3W634G3ZdONkvLWtmIa53_fWJ96J/view?usp=drivesdk"
+      },
+      "audio": "audio/energetic.wav",
+      "lufs": -20,
+      "layout": "contain",
+      "clips": [
+        {
+          "source": "sources/02-01.mkv",
+          "start": 0,
+          "duration": 1.8,
+          "crop": [
+            3024,
+            1512,
+            0,
+            0
+          ],
+          "origin": {
+            "take": "02k-control-pickups.mov",
+            "start": 1.2,
+            "crop": [
+              3024,
+              1512,
+              0,
+              104
+            ]
+          },
+          "note": "Quick Capture Region pickup; source ends at 3.0, before other desktop surfaces appear"
+        },
+        {
+          "source": "sources/02-02.mkv",
+          "start": 0,
+          "duration": 1.4,
+          "crop": [
+            2560,
+            1376,
+            0,
+            0
+          ],
+          "origin": {
+            "take": "02a-region-final.mov",
+            "start": 4.2,
+            "crop": [
+              2560,
+              1376,
+              0,
+              64
+            ]
+          },
+          "note": "Real region capture of Orbit; cut directly to finished editor"
+        },
+        {
+          "source": "sources/02-03.mkv",
+          "start": 0,
+          "duration": 2.2,
+          "crop": [
+            2560,
+            1376,
+            0,
+            0
+          ],
+          "origin": {
+            "take": "02b-annotate-fast.mov",
+            "start": 1.6,
+            "crop": [
+              2560,
+              1376,
+              0,
+              64
+            ]
+          },
+          "note": "Draw arrow in screenshot editor"
+        },
+        {
+          "source": "sources/02-04.mkv",
+          "start": 0,
+          "duration": 1.8,
+          "crop": [
+            2560,
+            1376,
+            0,
+            0
+          ],
+          "origin": {
+            "take": "02b-annotate-fast.mov",
+            "start": 3.8,
+            "crop": [
+              2560,
+              1376,
+              0,
+              64
+            ]
+          },
+          "note": "Choose Highlight Box and mark pricing copy"
+        },
+        {
+          "source": "sources/02-05.mkv",
+          "start": 0,
+          "duration": 1.8,
+          "crop": [
+            2560,
+            1376,
+            0,
+            0
+          ],
+          "origin": {
+            "take": "02b-annotate-fast.mov",
+            "start": 5.6,
+            "crop": [
+              2560,
+              1376,
+              0,
+              64
+            ]
+          },
+          "note": "Copy screenshot and visible success toast"
+        },
+        {
+          "source": "sources/02-06.mkv",
+          "start": 0,
+          "duration": 1.8,
+          "crop": [
+            3024,
+            1512,
+            0,
+            0
+          ],
+          "origin": {
+            "take": "02k-control-pickups.mov",
+            "start": 5.3,
+            "crop": [
+              3024,
+              1512,
+              0,
+              104
+            ]
+          },
+          "note": "Record Region hover/click pickup; end before save confirmation"
+        },
+        {
+          "source": "sources/02-07.mkv",
+          "start": 0,
+          "duration": 3.2,
+          "crop": [
+            1560,
+            900,
+            0,
+            0
+          ],
+          "origin": {
+            "take": "02e-record-final.mov",
+            "start": 8,
+            "crop": [
+              1560,
+              900,
+              0,
+              120
+            ]
+          },
+          "note": "Live typing during actual recording; crop excludes all other apps and user data"
+        },
+        {
+          "source": "sources/02-08.mkv",
+          "start": 0,
+          "duration": 1.8,
+          "crop": [
+            2560,
+            900,
+            0,
+            0
+          ],
+          "origin": {
+            "take": "02g-trim-accessible.mov",
+            "start": 2.4,
+            "crop": [
+              2560,
+              900,
+              0,
+              840
+            ]
+          },
+          "note": "Actual accessibility adjustment of trim start"
+        },
+        {
+          "source": "sources/02-09.mkv",
+          "start": 0,
+          "duration": 1.5,
+          "crop": [
+            2560,
+            900,
+            0,
+            0
+          ],
+          "origin": {
+            "take": "02g-trim-accessible.mov",
+            "start": 4.2,
+            "crop": [
+              2560,
+              900,
+              0,
+              840
+            ]
+          },
+          "note": "Actual trim end adjustment"
+        },
+        {
+          "source": "sources/02-10.mkv",
+          "start": 0,
+          "duration": 4.4,
+          "crop": [
+            2560,
+            900,
+            0,
+            0
+          ],
+          "origin": {
+            "take": "02g-trim-accessible.mov",
+            "start": 5.7,
+            "crop": [
+              2560,
+              900,
+              0,
+              840
+            ]
+          },
+          "note": "Preview Trim click and playback of trimmed section"
+        },
+        {
+          "source": "sources/02-11.mkv",
+          "start": 0,
+          "duration": 2.6,
+          "crop": [
+            3024,
+            1700,
+            0,
+            0
+          ],
+          "origin": {
+            "take": "02i-export-final.mov",
+            "start": 2.4,
+            "crop": [
+              3024,
+              1700,
+              0,
+              0
+            ]
+          },
+          "note": "Export menu and MP4 High choice, before save dialog"
+        },
+        {
+          "source": "sources/02-12.mkv",
+          "start": 0,
+          "duration": 2,
+          "crop": [
+            2000,
+            1000,
+            0,
+            0
+          ],
+          "origin": {
+            "take": "02j-export-complete.mov",
+            "start": 0.7,
+            "crop": [
+              2000,
+              1000,
+              512,
+              300
+            ]
+          },
+          "note": "Verified export success dialog and dismissal; contains only fictional output filename"
+        },
+        {
+          "source": "sources/02-13.mkv",
+          "start": 0,
+          "duration": 3.7,
+          "crop": [
+            904,
+            510,
+            0,
+            0
+          ],
+          "origin": {
+            "take": "SnipSnipSnip-region-recording-2026-09-12-10-46-22.mp4",
+            "start": 0.25,
+            "crop": [
+              904,
+              510,
+              0,
+              0
+            ]
+          },
+          "note": "The actual MP4 exported by SnipSnipSnip, playing the resulting video"
+        }
+      ],
+      "captions": [
+        [
+          0,
+          3.2,
+          "SCREENSHOT",
+          "Capture a moment."
+        ],
+        [
+          3.2,
+          5.4,
+          "SCREENSHOT",
+          "Point it out."
+        ],
+        [
+          5.4,
+          7.2,
+          "SCREENSHOT",
+          "Highlight what matters."
+        ],
+        [
+          7.2,
+          9,
+          "SCREENSHOT",
+          "Copy. Keep moving."
+        ],
+        [
+          9,
+          10.8,
+          "VIDEO",
+          "Record the whole flow."
+        ],
+        [
+          10.8,
+          14,
+          "VIDEO",
+          "Show it in motion."
+        ],
+        [
+          14,
+          17.3,
+          "VIDEO",
+          "Keep the best seconds."
+        ],
+        [
+          17.3,
+          21.7,
+          "VIDEO",
+          "Check the cut."
+        ],
+        [
+          21.7,
+          24.3,
+          "VIDEO",
+          "Export as MP4."
+        ],
+        [
+          24.3,
+          26.3,
+          "VIDEO",
+          "Ready to share."
+        ],
+        [
+          26.3,
+          30,
+          "CAPTURE + RECORD",
+          "Screenshots. Videos. Done."
+        ]
+      ]
+    },
+    {
+      "id": "03",
+      "name": "03-Find-it-reuse-it",
+      "poster": 28,
+      "posterFile": "output/03-Find-it-reuse-it-poster.png",
+      "output": "output/03-Find-it-reuse-it.mp4",
+      "sha256": "ab6dc5233de3b1aeb62d58fadee94214f2769278e391125f1fa93fa2cba8646e",
+      "bytes": 41925513,
+      "drive": {
+        "fileId": "1qG34sVgwuLnb047N8UnwwPQy5M7Yt_9_",
+        "url": "https://drive.google.com/file/d/1qG34sVgwuLnb047N8UnwwPQy5M7Yt_9_/view?usp=drivesdk"
+      },
+      "audio": "audio/quiet.wav",
+      "lufs": -22,
+      "layout": "legacy",
+      "clips": [
+        {
+          "source": "sources/03-01.mkv",
+          "start": 0,
+          "duration": 4.5,
+          "crop": [
+            2560,
+            1392,
+            0,
+            0
+          ],
+          "origin": {
+            "take": "03-clipboard-clean.mov",
+            "start": 3.5,
+            "crop": [
+              2560,
+              1392,
+              0,
+              48
+            ]
+          },
+          "note": "Reviewed live UI footage from the approved original cut."
+        },
+        {
+          "source": "sources/03-02.mkv",
+          "start": 0,
+          "duration": 14,
+          "crop": [
+            2560,
+            1392,
+            0,
+            0
+          ],
+          "origin": {
+            "take": "03-clipboard-clean.mov",
+            "start": 21,
+            "crop": [
+              2560,
+              1392,
+              0,
+              48
+            ]
+          },
+          "note": "Reviewed live UI footage from the approved original cut."
+        },
+        {
+          "source": "sources/03-03.mkv",
+          "start": 0,
+          "duration": 5.5,
+          "crop": [
+            2560,
+            1392,
+            0,
+            0
+          ],
+          "origin": {
+            "take": "03-clipboard-clean.mov",
+            "start": 38,
+            "crop": [
+              2560,
+              1392,
+              0,
+              48
+            ]
+          },
+          "note": "Reviewed live UI footage from the approved original cut."
+        },
+        {
+          "source": "sources/03-04.mkv",
+          "start": 0,
+          "duration": 6,
+          "crop": [
+            2560,
+            1392,
+            0,
+            0
+          ],
+          "origin": {
+            "take": "03-clipboard-clean.mov",
+            "start": 48,
+            "crop": [
+              2560,
+              1392,
+              0,
+              48
+            ]
+          },
+          "note": "Reviewed live UI footage from the approved original cut."
+        }
+      ],
+      "captions": [
+        [
+          0,
+          4.5,
+          "CLIPBOARD HISTORY",
+          "Find something you copied."
+        ],
+        [
+          4.5,
+          14.5,
+          "CLIPBOARD HISTORY",
+          "Edit a reusable draft."
+        ],
+        [
+          14.5,
+          18.5,
+          "CLIPBOARD HISTORY",
+          "Keep the original intact."
+        ],
+        [
+          18.5,
+          24,
+          "CLIPBOARD HISTORY",
+          "Organize in collections."
+        ],
+        [
+          24,
+          30,
+          "CLIPBOARD HISTORY",
+          "Copy. Use it again."
+        ]
+      ]
+    }
+  ]
+}

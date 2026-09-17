@@ -1,0 +1,10 @@
+[
+ {"op":"activate","pid":21270},
+ {"at":0.3,"op":"press","pid":21270,"name":"Capture"},
+ {"at":0.7,"op":"press","pid":21270,"name":"Capture Region"},
+ {"at":2.3,"op":"drag","fromX":114,"fromY":94,"x":1174,"y":750,"duration":1.05},
+ {"at":4.2,"op":"key","code":36},
+ {"at":6,"op":"frame","pid":21270,"title":"SnipSnipSnip","x":0,"y":34,"width":1280,"height":720},
+ {"at":6.5,"op":"press","pid":21270,"name":"Fit to Window"},
+ {"at":7,"op":"move","x":1200,"y":700,"duration":0.3}
+]

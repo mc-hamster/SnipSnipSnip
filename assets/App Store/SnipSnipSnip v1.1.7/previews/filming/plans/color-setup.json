@@ -1,0 +1,6 @@
+[
+ {"op":"click","x":407,"y":186,"duration":0.6},
+ {"at":1.5,"op":"click","x":1187,"y":593,"duration":0.6},
+ {"at":2.8,"op":"click","x":1187,"y":645,"duration":0.6},
+ {"at":4.0,"op":"move","x":1050,"y":566,"duration":0.6}
+]

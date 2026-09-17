@@ -1,0 +1,5 @@
+node_modules/
+build/
+captions/
+*.partial
+filming/bin/

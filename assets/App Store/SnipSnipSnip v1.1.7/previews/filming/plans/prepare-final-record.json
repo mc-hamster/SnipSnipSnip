@@ -1,0 +1,7 @@
+[
+ {"op":"activate","pid":21543},
+ {"op":"select-text","pid":21543,"text":"Share the launch plan."},
+ {"op":"key","code":51,"pid":21543},
+ {"at":0.8,"op":"activate","pid":21270},
+ {"at":1,"op":"move","x":420,"y":250,"duration":0.3}
+]

@@ -1,0 +1,7 @@
+[
+ {"op":"drag","fromX":975,"fromY":520,"x":656,"y":520,"duration":1.0},
+ {"op":"click","x":1138,"y":460},
+ {"op":"click","x":400,"y":148},
+ {"op":"key","code":0,"flags":["cmd"]},
+ {"op":"text","text":"Orbit"}
+]
