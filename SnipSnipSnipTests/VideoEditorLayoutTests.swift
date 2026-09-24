@@ -160,13 +160,7 @@ final class VideoEditorLayoutTests: XCTestCase {
     }
 
     private func host<Content: View>(_ view: NSHostingView<Content>, size: CGSize) -> NSWindow {
-        let window = NSWindow(contentRect: CGRect(origin: CGPoint(x: 40, y: 100), size: size),
-                              styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
-        window.isReleasedWhenClosed = false
-        view.frame = CGRect(origin: .zero, size: size)
-        window.contentView = view
-        window.orderFront(nil)
-        return window
+        HostedViewTestSupport.host(view, size: size)
     }
 
     private func assertPlaybackVisible(in view: NSView, window: NSWindow, trimming: Bool) throws {
@@ -188,12 +182,7 @@ final class VideoEditorLayoutTests: XCTestCase {
     }
 
     private func find(_ identifier: String, in object: Any, depth: Int = 0) -> (any NSAccessibilityProtocol)? {
-        guard depth < 50, let element = object as? any NSAccessibilityProtocol else { return nil }
-        if element.accessibilityIdentifier() == identifier { return element }
-        for child in element.accessibilityChildren() ?? [] {
-            if let match = find(identifier, in: child, depth: depth + 1) { return match }
-        }
-        return nil
+        HostedViewTestSupport.find(identifier, in: object, depth: depth)
     }
 
     private func descendant<T: NSView>(_ type: T.Type, in view: NSView) -> T? {
@@ -202,12 +191,7 @@ final class VideoEditorLayoutTests: XCTestCase {
     }
 
     private func attach(_ view: NSView, name: String) throws {
-        let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
-        view.cacheDisplay(in: view.bounds, to: bitmap)
-        let attachment = XCTAttachment(data: try XCTUnwrap(bitmap.representation(using: .png, properties: [:])), uniformTypeIdentifier: "public.png")
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
+        add(try HostedViewTestSupport.attachment(of: view, name: name))
     }
 
     private func temporaryDirectory() throws -> URL {

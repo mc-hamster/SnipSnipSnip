@@ -1340,7 +1340,7 @@ struct ShadowDirectionPicker: View {
 }
 
 
-struct ThreeByThreeGridLines: Shape {
+nonisolated struct ThreeByThreeGridLines: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
         let thirdWidth = rect.width / 3

@@ -119,7 +119,7 @@ struct VideoZoomTargetView: View {
 }
 
 /// A two-tone outline stays legible on light and dark footage without relying on accent color.
-private struct ZoomTargetOutline: Shape {
+nonisolated private struct ZoomTargetOutline: Shape {
     func path(in rect: CGRect) -> Path {
         Path { path in
             path.addRect(rect.insetBy(dx: 2, dy: 2))

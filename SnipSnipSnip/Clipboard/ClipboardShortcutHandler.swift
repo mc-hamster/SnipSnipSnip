@@ -5,6 +5,7 @@ struct ClipboardShortcutHandler: NSViewRepresentable {
     let onNumberShortcut: (Int) -> Void
     let onMove: (MoveCommandDirection) -> Void
     let onReturn: (NSEvent.ModifierFlags) -> Void
+    let onPreview: () -> Void
     let onUndoDeletion: () -> Void
     let hasDeletionUndo: Bool
     let onFocusSearch: () -> Void
@@ -23,6 +24,7 @@ struct ClipboardShortcutHandler: NSViewRepresentable {
         view.onNumberShortcut = onNumberShortcut
         view.onMove = onMove
         view.onReturn = onReturn
+        view.onPreview = onPreview
         view.onEscape = onEscape
         view.onUndoDeletion = onUndoDeletion
         view.hasDeletionUndo = hasDeletionUndo
@@ -35,6 +37,7 @@ final class ClipboardShortcutView: NSView {
     var onNumberShortcut: ((Int) -> Void)?
     var onMove: ((MoveCommandDirection) -> Void)?
     var onReturn: ((NSEvent.ModifierFlags) -> Void)?
+    var onPreview: (() -> Void)?
     var onEscape: (() -> Void)?
     var onFocusSearch: (() -> Void)?
     var onUndoDeletion: (() -> Void)?
@@ -54,11 +57,19 @@ final class ClipboardShortcutView: NSView {
     }
 
     private var currentFocus: ClipboardShortcutFocus {
-        if let text = window?.firstResponder as? NSTextView {
+        Self.focus(for: window?.firstResponder, isSearchFocused: isSearchFocused)
+    }
+
+    static func focus(for responder: NSResponder?, isSearchFocused: Bool) -> ClipboardShortcutFocus {
+        // Native List uses a table/outline responder. It is a browsing surface,
+        // even though AppKit also classifies it as an NSControl.
+        if responder is NSTableView { return .browsing }
+        if let text = responder as? NSTextView {
+            if !text.isEditable { return .browsing }
             if !text.isFieldEditor { return .textEditor }
             return isSearchFocused ? .search : .textField
         }
-        return window?.firstResponder is NSControl ? .control : .browsing
+        return responder is NSControl ? .control : .browsing
     }
 
     /// Used by the local monitor and by event-level regression tests.
@@ -70,6 +81,7 @@ final class ClipboardShortcutView: NSView {
         ) else { return false }
         switch action {
         case .copy: onReturn?(event.modifierFlags)
+        case .preview: onPreview?()
         case .copyNumber(let number): onNumberShortcut?(number)
         case .previous: onMove?(.up)
         case .next: onMove?(.down)

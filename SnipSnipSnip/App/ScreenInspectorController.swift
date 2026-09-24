@@ -493,8 +493,9 @@ final class ScreenInspectorWindowController: NSWindowController {
         )
         panel.identifier = NSUserInterfaceItemIdentifier(ScreenInspectorWindowID.prefix + UUID().uuidString)
         panel.title = "Screen Inspector"
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
+        panel.titlebarAppearsTransparent = false
+        panel.isOpaque = true
+        panel.backgroundColor = .windowBackgroundColor
         panel.hasShadow = true
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
@@ -731,6 +732,7 @@ private struct ScreenInspectorWindowView: View {
                         .frame(minWidth: 78)
                         .keyboardShortcut(.escape, modifiers: [])
                 }
+                .fixedSize(horizontal: true, vertical: false)
 
                 HStack(spacing: 8) {
                     Button("Copy HEX ⌥⌘H", action: model.copyColorAsHex)
@@ -744,7 +746,10 @@ private struct ScreenInspectorWindowView: View {
                         .disabled(model.sample == nil)
                         .keyboardShortcut("r", modifiers: [.command, .option])
                         .help("Copy the current color as RGB. Shortcut: Option-Command-R.")
+                }
+                .fixedSize(horizontal: true, vertical: false)
 
+                HStack(spacing: 8) {
                     Button("\(model.measurementButtonTitle) ⌥⌘M", action: model.toggleMeasurementPoint)
                         .frame(minWidth: 98)
                         .disabled(model.sample == nil)
@@ -756,6 +761,7 @@ private struct ScreenInspectorWindowView: View {
                         .disabled(model.measurement == nil)
                         .help("Clear the distance measurement.")
                 }
+                .fixedSize(horizontal: true, vertical: false)
             }
             .font(.caption)
         }
@@ -773,7 +779,7 @@ private struct ScreenInspectorWindowView: View {
     }
 }
 
-private struct PixelGridOverlay: Shape {
+nonisolated private struct PixelGridOverlay: Shape {
     let zoomLevel: ScreenInspectorZoomLevel
 
     func path(in rect: CGRect) -> Path {
@@ -798,7 +804,7 @@ private struct PixelGridOverlay: Shape {
     }
 }
 
-private struct CrosshairOverlay: Shape {
+nonisolated private struct CrosshairOverlay: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
         path.move(to: CGPoint(x: rect.midX, y: rect.minY))
@@ -809,7 +815,7 @@ private struct CrosshairOverlay: Shape {
     }
 }
 
-private struct MeasurementOverlay: Shape {
+nonisolated private struct MeasurementOverlay: Shape {
     let sample: ScreenInspectorSample
     let measurement: ScreenInspectorMeasurement
     let zoomLevel: ScreenInspectorZoomLevel

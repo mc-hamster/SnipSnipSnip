@@ -1418,6 +1418,7 @@ private final class RegionSelectionCrosshairOverlayView: RegionSelectionPassThro
 
 @MainActor
 private final class RegionSelectionCursorOverlayView: RegionSelectionPassThroughView {
+    private let dimensionCaptionRenderer = RegionSelectionDimensionCaptionRenderer()
     private let displayPreview: DisplayPreview
     private let fallbackImage: CGImage
     private weak var livePreviewSource: LiveDesktopPreviewSource?
@@ -1647,17 +1648,15 @@ private final class RegionSelectionCursorOverlayView: RegionSelectionPassThrough
     }
 
     private func drawLoupeCaption(in loupeRect: CGRect) {
-        guard isActivelyDraggingSelection, let selectionRect else {
+        guard isActivelyDraggingSelection, let selectionRect,
+              let context = NSGraphicsContext.current?.cgContext else {
             return
         }
 
-        let captionText = "\(Int(selectionRect.width.rounded())) × \(Int(selectionRect.height.rounded()))"
-        NSString(string: captionText).draw(
+        dimensionCaptionRenderer.draw(
+            size: selectionRect.size,
             in: CGRect(x: loupeRect.minX + 12, y: loupeRect.maxY - 24, width: loupeRect.width - 24, height: 14),
-            withAttributes: [
-                .foregroundColor: NSColor.white.withAlphaComponent(0.78),
-                .font: NSFont.monospacedSystemFont(ofSize: 10, weight: .semibold)
-            ]
+            context: context
         )
     }
 }

@@ -27,7 +27,7 @@ enum ClipboardShortcutFocus {
 }
 
 enum ClipboardShortcutAction: Equatable {
-    case copy, copyNumber(Int), previous, next, escape, focusSearch, undoDeletion
+    case copy, copyNumber(Int), previous, next, preview, escape, focusSearch, undoDeletion
 }
 
 enum ClipboardShortcutPolicy {
@@ -41,6 +41,7 @@ enum ClipboardShortcutPolicy {
         }
         if modifiers == .command, characters == "z", focus == .browsing, hasDeletionUndo { return .undoDeletion }
         switch keyCode {
+        case 49 where modifiers.isEmpty && focus == .browsing: return .preview
         case 125 where modifiers.isEmpty && browsing: return .next
         case 126 where modifiers.isEmpty && browsing: return .previous
         case 36, 76:

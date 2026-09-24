@@ -729,7 +729,7 @@ private actor ControlledClipboardSnapshotResolver {
 }
 
 
-nonisolated private struct TestClipboardEncryptionKeyProvider: ClipboardEncryptionKeyProviding {
+nonisolated struct TestClipboardEncryptionKeyProvider: ClipboardEncryptionKeyProviding {
     func encryptionKey() throws -> SymmetricKey {
         SymmetricKey(data: Data(repeating: 0x5a, count: 32))
     }

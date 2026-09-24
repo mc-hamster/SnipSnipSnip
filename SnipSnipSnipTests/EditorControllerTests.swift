@@ -3272,7 +3272,7 @@ nonisolated private final class StubTextRecognizer: CaptureTextRecognizing, @unc
     }
 }
 
-private final class StubUIMapCaptureService: UIMapCaptureServiceType, @unchecked Sendable {
+nonisolated private final class StubUIMapCaptureService: UIMapCaptureServiceType, @unchecked Sendable {
     private let lock = NSLock()
     private let uiMap: UIMapSnapshot?
     private var _captureCallCount = 0

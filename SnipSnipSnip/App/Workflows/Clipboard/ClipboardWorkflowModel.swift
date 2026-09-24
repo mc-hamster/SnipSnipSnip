@@ -109,11 +109,14 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
         return id
     }
 
-    func copyItem(_ item: ClipboardItem, plainTextOnly: Bool = false) {
+    @discardableResult
+    func copyItem(_ item: ClipboardItem, plainTextOnly: Bool = false) -> Bool {
         if writeItemToPasteboard(item, plainTextOnly: plainTextOnly) {
             actionMessage = plainTextOnly ? "Copied as plain text." : "Copied."
+            return true
         } else {
             actionMessage = "This clipboard item is no longer available. Your current clipboard was preserved."
+            return false
         }
     }
 
@@ -183,7 +186,8 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
         monitor.markCurrentPasteboardChangeAsHandled()
     }
 
-    func copyEditedText(_ text: String) {
+    @discardableResult
+    func copyEditedText(_ text: String) -> Bool {
         let item = ClipboardItem(
             id: UUID(),
             kind: .text(text),
@@ -195,7 +199,7 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
             contentHash: "edited",
             byteSize: Int64(text.utf8.count)
         )
-        copyItem(item)
+        return copyItem(item)
     }
 
 }
