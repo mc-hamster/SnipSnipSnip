@@ -28,26 +28,11 @@ extension DocumentWorkflowModel {
 
     @discardableResult
     func saveGuideDocument(_ controller: GuideEditorController, to url: URL) async -> Bool {
-        let document = controller.editableDocument(
-            previewImage: GuideRenderer.renderPreview(project: controller.project, images: controller.stepImages)
-        )
-        let files = systemServices.files
-        do {
-            try await performDocumentWork(message: "Saving Guide") {
-                try await withSecurityScopedAccess(to: url) {
-                    try await Task.detached(priority: .userInitiated) {
-                        try SSSGuideDocumentPackage.save(document: document, to: url, files: files)
-                    }.value
-                }
-            }
-            let persisted = try SSSGuideDocumentPackage.load(from: url, files: files)
-            GuideRecoveryStore().remove(projectID: controller.project.id)
-            let persistedController = GuideEditorController(document: persisted)
-            installGuideController(persistedController, documentURL: url, savedProject: persistedController.project)
-            return true
-        } catch {
-            present(error)
-            return false
+        pendingGuideAutosaveTask?.cancel()
+        pendingGuideAutosaveTask = nil
+        controller.finishMarkerDrag()
+        return await performDocumentWork(message: "Saving Guide") {
+            await persistGuide(controller, to: url)
         }
     }
 
@@ -67,10 +52,15 @@ extension DocumentWorkflowModel {
         guideEditorController = controller
         currentDocumentURL = documentURL
         savedGuideProject = savedProject
-        guidePersistenceObserver = controller.objectWillChange.sink { [weak self] _ in
-            DispatchQueue.main.async {
-                self?.updateDocumentChangeTracking()
-                self?.scheduleGuideAutosave()
+        savedGuideContentVersion = savedProject == nil ? nil : controller.contentVersion
+        // Observe authored changes only: publishing a failure or loading a
+        // thumbnail must not retry a failed save indefinitely.
+        guidePersistenceObserver = controller.$contentRevision.dropFirst().sink { [weak self, weak controller] _ in
+            DispatchQueue.main.async { [weak self, weak controller] in
+                guard let self, let controller, controller === self.guideEditorController else { return }
+                self.invalidateOutdatedGuideExport()
+                self.updateDocumentChangeTracking()
+                self.scheduleGuideAutosave()
             }
         }
         updateDocumentChangeTracking()
@@ -79,28 +69,59 @@ extension DocumentWorkflowModel {
     }
 
     func scheduleGuideAutosave() {
+        guard let controller = guideEditorController,
+              !controller.isSaving,
+              controller.saveFailure == nil,
+              controller.contentVersion != savedGuideContentVersion,
+              let url = currentDocumentURL else { return }
         pendingGuideAutosaveTask?.cancel()
-        guard let controller = guideEditorController, let url = currentDocumentURL else { return }
         pendingGuideAutosaveTask = Task { @MainActor [weak self, weak controller] in
             try? await Task.sleep(for: .milliseconds(700))
             guard !Task.isCancelled, let self, let controller, controller === self.guideEditorController else { return }
-            let project = controller.project
-            let document = controller.editableDocument(
-                previewImage: GuideRenderer.renderPreview(project: project, images: controller.stepImages)
-            )
-            let files = systemServices.files
-            do {
-                try await withSecurityScopedAccess(to: url) {
-                    try await Task.detached(priority: .utility) {
-                        try SSSGuideDocumentPackage.save(document: document, to: url, files: files)
-                    }.value
-                }
-                guard controller === self.guideEditorController else { return }
-                savedGuideProject = project
-                updateDocumentChangeTracking()
-            } catch {
-                controller.notice = "Autosave paused: \(error.localizedDescription)"
+            _ = await self.persistGuide(controller, to: url)
+        }
+    }
+
+    /// Shared by autosave, Retry, Save, and Save As. Publication is guarded by
+    /// both session and write generation, including while switching documents.
+    @discardableResult
+    func persistGuide(_ controller: GuideEditorController, to url: URL) async -> Bool {
+        guard controller === guideEditorController else { return false }
+        let generation = UUID()
+        guideSaveGeneration = generation
+        let version = controller.contentVersion
+        let document = controller.editableDocument()
+        controller.isSaving = true
+        defer {
+            if guideSaveGeneration == generation { controller.isSaving = false }
+        }
+        do {
+            let persisted = try await withSecurityScopedAccess(to: url) {
+                try await guideDocumentWriter.save(document, to: url, files: systemServices.files)
             }
+            guard !Task.isCancelled, guideSaveGeneration == generation,
+                  controller === guideEditorController else { return false }
+            controller.adoptPersistedMedia(from: persisted)
+            currentDocumentURL = url
+            savedGuideProject = document.project
+            savedGuideContentVersion = version
+            controller.setSaveFailure(nil)
+            controller.isSaving = false
+            updateDocumentChangeTracking()
+            if controller.contentVersion == version {
+                GuideRecoveryStore().remove(projectID: document.project.id)
+            } else {
+                scheduleGuideAutosave()
+            }
+            return true
+        } catch is CancellationError {
+            return false
+        } catch {
+            guard !Task.isCancelled, guideSaveGeneration == generation,
+                  controller === guideEditorController else { return false }
+            controller.setSaveFailure(error.localizedDescription)
+            updateDocumentChangeTracking()
+            return false
         }
     }
 

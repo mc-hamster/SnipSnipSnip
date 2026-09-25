@@ -161,6 +161,14 @@ Use singular stage labels such as **Add Step** and **Add Image** when the immedi
 
 After a repeatable Before capture, the Comparison stage uses **Repeat Last Capture for After** as its primary action. This preserves the canonical **Repeat Last Capture** action while naming the After destination that completes the pair. If Before cannot be repeated, use **Capture After** and let the source menu default to Region.
 
+### Guide editing and saving
+
+**Step Note** is explanatory content visible in the step preview and included in exports. Do not call this field Internal Note or imply that it is private authoring content.
+
+**Guide Changes Not Saved** identifies a failed manual save or autosave. Keep **Retry** and **Save As…** beside the explanation until a save succeeds. Save and Save As preserve selection, search, and undo history. **Clear Search** restores step reordering when search is active.
+
+Guide Share, Copy Files, and Reveal in Finder refer to files exported from the current Guide and its current edits. After an edit or a document switch, require another export and explain that the Guide changed. Do not silently reuse an older export.
+
 ## Activity Statuses
 
 Statuses describe what the app is doing now. They must identify the activity when a generic status would be ambiguous.
@@ -177,7 +185,7 @@ Use **capturing** for the observed interaction activity because a Guide is not a
 
 ### Video
 
-**Video — Review** and **Video — Polish** identify the current workflow in the shared contextual header. **Polish** opens the Look inspector; **Back to Content** returns to review without undoing edits or changing the visible/exported Video. **Look** in the Video command row reopens background and presentation controls. Trim, Zooms, Cursor & Clicks, and Sound & Shortcuts are direct editing tools, not choices hidden behind a separate Adjust menu. Screenshot and Video use the same Discard, Undo, Redo, Inspector, Export, and Drag vocabulary and command-group styling.
+**Video — Review** and **Video — Polish** identify the current workflow in the shared contextual header. **Polish** opens the Look inspector; **Back to Content** returns to review without undoing edits or changing the visible/exported Video. **Look** in the Video command row reopens background and presentation controls. Trim, Zooms, Cursor & Clicks, and Sound & Shortcuts are direct editing tools, not choices hidden behind a separate Adjust menu. Screenshot and Video share Undo, Redo, Inspector, Export, and Drag vocabulary and command-group styling. Screenshot offers Back to Capture with a separate Discard action; Video keeps its explicit Discard exit until durable retention supports a similar return path.
 
 **Edit Video** identifies the editor. **Play** and **Pause** review the video with current edits; **Back to Start** pauses at the first kept frame. Playback and scrubbing do not require entering an editing section. **Trim** keeps the desired part; **Remove Section** excludes a mistake without deleting source footage and **Restore** brings it back. **Polish** opens presentation controls; **Polish Video** applies a background, smooth cursor, and suggested click-driven zooms as one undoable edit. Opening Polish alone never changes the document. **Zooms**, **Cursor & Clicks**, and **Sound & Shortcuts** name inspector destinations. **Add Zoom at Playhead**, **Follow Cursor**, and **Suggest Zooms from Clicks** describe their actual actions. **Use Start Frame as Thumbnail** changes the saved still image, not playback; it replaces the ambiguous Use Start Frame as Preview label. **Reset Video Edits** restores the full source and capture-time appearance and can be undone. Do not introduce Studio Mode or a separate product name for these capabilities.
 
@@ -212,7 +220,8 @@ Lifecycle verbs have consistent consequences across workflows.
 
 | Canonical verb | Meaning |
 | --- | --- |
-| **Back** | Return to the preceding choice without completing the current workflow. |
+| **Back** | Return to the preceding choice while preserving state. |
+| **Back to Capture** | Retain the current non-private screenshot in Recent Snips and return to Capture; Private Capture asks for Save, Discard, or Cancel. |
 | **Cancel** | Stop the current temporary operation without accepting it. |
 | **Done** | Accept the current work and leave the editing or arrangement stage. |
 | **Stop** | End an ongoing capture, recording, or monitoring session while retaining the result when applicable. |
@@ -285,6 +294,8 @@ Library terms identify distinct scopes. Do not shorten them to generic **Library
 **Archive** may remain an internal storage or implementation term. It should not name the general user-facing history experience.
 
 ## Editor Annotation Terms
+
+**Auto Crop** tightens the current crop around screenshot content and visible annotations as an immediate, undoable action. It is directly available beside Crop in the first Edit command row without changing the selected annotation tool. **Padded** is the same action with a small margin. The Crop Image inspector places Auto Crop, Padded, and **Reset Crop** above the detailed controls; Reset Crop restores the full captured image.
 
 **Capture Text** selects screen content and copies locally recognized text without opening or replacing a Screenshot document. It is available in Quick Capture, the Capture menu, the menu bar icon menu, and configurable Global Shortcuts (Command-Shift-T by default). **Copy Text** remains the editor's review-and-copy tool. Recognition preserves lines and estimates indentation; **Join Lines** is an explicit paragraph cleanup action. Neither promises exact recovery of source-code whitespace. Private text copies carry a concealed clipboard marker.
 

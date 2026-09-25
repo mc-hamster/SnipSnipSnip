@@ -3,6 +3,40 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class DocumentWindowPresenterTests: XCTestCase {
+    func testEveryDocumentMinimumFitsSmallAvailableContentAreas() {
+        for available in [CGSize(width: 1280, height: 650), CGSize(width: 1024, height: 530)] {
+            for kind: DocumentWindowContentKind in [.screenshot, .guide, .video] {
+                let fitted = MainWindowLayout.fittedContentSize(
+                    preferred: MainWindowLayout.minimumContentSize(for: kind), available: available
+                )
+                XCTAssertLessThanOrEqual(fitted.width, available.width)
+                XCTAssertLessThanOrEqual(fitted.height, available.height)
+            }
+        }
+    }
+
+    func testOversizedWindowFitsSmallOffsetDisplay() {
+        let visible = CGRect(x: -1024, y: 23, width: 1024, height: 577)
+        let fitted = DocumentWindowPlacementPolicy.resizedFrame(
+            currentFrame: CGRect(x: 200, y: 200, width: 1280, height: 800),
+            targetSize: CGSize(width: 1280, height: 800), visibleFrame: visible
+        )
+        XCTAssertEqual(fitted, visible)
+    }
+
+    func testGuideSheetLeavesRoomForItsParentAttachmentOnSmallDisplay() {
+        let size = SheetLayout.contentSize(
+            preferred: CGSize(width: 760, height: 730),
+            visibleFrame: CGRect(x: -1024, y: 23, width: 1024, height: 577),
+            parentContentFrame: CGRect(x: -1000, y: 23, width: 990, height: 530)
+        )
+        XCTAssertEqual(size, CGSize(width: 760, height: 498))
+        XCTAssertEqual(SheetLayout.contentSize(
+            preferred: CGSize(width: 760, height: 730),
+            visibleFrame: CGRect(x: 0, y: 0, width: 1920, height: 1080), parentContentFrame: nil
+        ), CGSize(width: 760, height: 730))
+    }
+
     func testMainWindowLayoutUses1240PointPreferredMinimumWidth() {
         XCTAssertEqual(MainWindowLayout.minimumContentSize, CGSize(width: 1_240, height: 600))
         XCTAssertEqual(

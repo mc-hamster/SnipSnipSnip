@@ -77,9 +77,9 @@ final class AppStoreScreenshotAssetUITests: XCTestCase {
         try capture(mainWindow, named: "06-polish")
         app.buttons["Back to Content"].click()
 
-        let discard = element("editor.discard")
-        XCTAssertTrue(discard.waitForExistence(timeout: 5))
-        discard.click()
+        let back = element("editor.backToCapture")
+        XCTAssertTrue(back.waitForExistence(timeout: 5))
+        back.click()
         if app.sheets.firstMatch.waitForExistence(timeout: 2) {
             let confirmation = app.sheets.firstMatch.buttons["Discard Changes"].firstMatch
             if confirmation.exists {

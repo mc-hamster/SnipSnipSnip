@@ -78,15 +78,9 @@ struct ClipboardItemRow: View {
         Button(action: activate) {
             VStack(alignment: .leading, spacing: 0) {
                 if let image {
-                    GeometryReader { geometry in
-                        Image(nsImage: image)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: geometry.size.width, height: geometry.size.height)
-                            .clipped()
-                    }
-                    .frame(height: 166)
-                    .accessibilityHidden(true)
+                    ClipboardImagePreview(image: image, cropsToFill: true)
+                        .frame(height: 166)
+                        .accessibilityHidden(true)
                 } else {
                     textContent.padding(.horizontal, 14).padding(.top, 13).padding(.bottom, 10)
                 }
@@ -192,24 +186,6 @@ struct ClipboardItemRow: View {
         formatter.unitsStyle = .abbreviated
         return formatter
     }()
-}
-
-struct ClipboardImagePreview: View {
-    let image: NSImage
-    @Environment(\.colorSchemeContrast) private var contrast
-
-    var body: some View {
-        Image(nsImage: image)
-            .resizable()
-            .scaledToFit()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(nsColor: .underPageBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(contrast == .increased ? Color.primary : Color(nsColor: .separatorColor), lineWidth: 1)
-            }
-    }
 }
 
 struct ClipboardColorSwatch: View {

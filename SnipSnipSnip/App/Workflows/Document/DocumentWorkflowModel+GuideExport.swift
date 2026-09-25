@@ -2,6 +2,33 @@ import Foundation
 import UniformTypeIdentifiers
 
 extension DocumentWorkflowModel {
+    func resetGuideExportState() {
+        pendingGuideExportTask?.cancel()
+        pendingGuideExportWorkerTask?.cancel()
+        pendingGuideExportTask = nil
+        pendingGuideExportWorkerTask = nil
+        activeGuideExportID = nil
+        guideExportReceipt = nil
+        guideExportIsActive = false
+        guideExportProgress = nil
+        guideExportStatus = nil
+        guideExportCurrentFormat = nil
+        guideExportCancellationRequested = false
+    }
+
+    func invalidateOutdatedGuideExport() {
+        guard guideExportReceipt != nil, lastGuideExportURLs.isEmpty else { return }
+        guideExportReceipt = nil
+        guideExportStatus = "Guide changed since export. Export again to share your current edits."
+    }
+
+    @discardableResult
+    func acceptGuideExport(_ urls: [URL], version: GuideContentVersion) -> Bool {
+        guard guideEditorController?.contentVersion == version else { return false }
+        guideExportReceipt = GuideExportReceipt(version: version, urls: urls)
+        return true
+    }
+
     func exportCurrentGuide() {
         exportCurrentGuide(showProgressWindow: true)
     }
@@ -49,10 +76,11 @@ extension DocumentWorkflowModel {
         // Preview artwork is not an export input. Avoid rendering it on the
         // main actor before the background job begins.
         let document = controller.editableDocument()
+        let version = controller.contentVersion
         let formats = controller.project.exportSettings.formats
         pendingGuideExportTask?.cancel()
         pendingGuideExportWorkerTask?.cancel()
-        lastGuideExportURLs = []
+        guideExportReceipt = nil
         guideExportIsActive = true
         guideExportProgress = nil
         guideExportStatus = "Preparing Guide export…"
@@ -88,7 +116,10 @@ extension DocumentWorkflowModel {
             guideExportCurrentFormat = nil
             pendingGuideExportWorkerTask = nil
             activeGuideExportID = nil
-            lastGuideExportURLs = result.outputs
+            guard acceptGuideExport(result.outputs, version: version) else {
+                guideExportStatus = "Guide changed during export. Export again to share your current edits."
+                return
+            }
             if Task.isCancelled || guideExportCancellationRequested {
                 guideExportStatus = "Guide export cancelled. Completed files were kept."
                 return

@@ -56,8 +56,7 @@ struct VideoExportOptionsView: View {
                 Text(target.detail).font(.caption).foregroundStyle(.secondary)
             }
             .formStyle(.grouped)
-            .scrollDisabled(true)
-            .frame(height: limitsSize && format == .mp4 ? 280 : 240)
+            .scrollBounceBehavior(.basedOnSize)
             HStack {
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction)
@@ -67,7 +66,7 @@ struct VideoExportOptionsView: View {
             }
         }
         .padding(24)
-        .frame(width: 460)
+        .screenFittedSheet(preferredSize: CGSize(width: 460, height: limitsSize && format == .mp4 ? 480 : 440))
         .background(Color(nsColor: .windowBackgroundColor))
     }
 }

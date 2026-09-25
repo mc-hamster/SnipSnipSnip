@@ -47,7 +47,7 @@ struct GuideQuickStartView: View {
             Divider()
             footer
         }
-        .frame(width: 760, height: 730)
+        .screenFittedSheet(preferredSize: CGSize(width: 760, height: 730))
         .background(Color(nsColor: .windowBackgroundColor))
     }
 

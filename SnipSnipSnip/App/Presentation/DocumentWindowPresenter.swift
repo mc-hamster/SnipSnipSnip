@@ -6,6 +6,13 @@ nonisolated enum MainWindowLayout {
     static let defaultContentSize = CGSize(width: 1280, height: 700)
     static let minimumContentSize = CGSize(width: 1240, height: 600)
 
+    static func fittedContentSize(preferred: CGSize, available: CGSize) -> CGSize {
+        CGSize(
+            width: min(preferred.width, max(1, available.width)),
+            height: min(preferred.height, max(1, available.height))
+        )
+    }
+
     static func minimumContentSize(for kind: DocumentWindowContentKind) -> CGSize {
         switch kind {
         case .screenshot:
@@ -83,13 +90,19 @@ struct LiveDocumentWindowPresenter: DocumentWindowPresenting {
         let chromeWidth: CGFloat = 300 + 30
         let chromeHeight: CGFloat = 150
 
-        let minSize = MainWindowLayout.minimumContentSize(for: kind)
+        let availableContentSize = window.contentRect(forFrameRect: screenContext.visibleFrame).size
+        let minSize = MainWindowLayout.fittedContentSize(
+            preferred: MainWindowLayout.minimumContentSize(for: kind),
+            available: availableContentSize
+        )
         window.contentMinSize = minSize
-        let maxSize = screenContext.visibleFrame.size
+        let maxSize = availableContentSize
 
         let targetWidth = min(max(imagePointSize.width + chromeWidth, minSize.width), maxSize.width)
         let targetHeight = min(max(imagePointSize.height + chromeHeight, minSize.height), maxSize.height)
-        let targetSize = CGSize(width: targetWidth, height: targetHeight)
+        let targetSize = window.frameRect(forContentRect: CGRect(
+            origin: .zero, size: CGSize(width: targetWidth, height: targetHeight)
+        )).size
         let targetFrame = DocumentWindowPlacementPolicy.resizedFrame(
             currentFrame: window.frame,
             targetSize: targetSize,
@@ -113,7 +126,10 @@ struct LiveDocumentWindowPresenter: DocumentWindowPresenting {
             return
         }
 
-        let minimumContentSize = MainWindowLayout.minimumContentSize
+        let minimumContentSize = MainWindowLayout.fittedContentSize(
+            preferred: MainWindowLayout.minimumContentSize,
+            available: window.contentRect(forFrameRect: screenContext.visibleFrame).size
+        )
         window.contentMinSize = minimumContentSize
 
         let minimumFrameSize = window.frameRect(
@@ -176,6 +192,7 @@ final class MainWindowMinimumSizeView: NSView {
     private var windowObservers: [NSObjectProtocol] = []
     private var isApplyingMinimumSize = false
     private var isMinimumSizeRefreshScheduled = false
+    private var lastVisibleFrame: CGRect?
 
     init(preferredContentSize: CGSize) {
         self.preferredContentSize = preferredContentSize
@@ -189,6 +206,7 @@ final class MainWindowMinimumSizeView: NSView {
 
     override func viewDidMoveToWindow() {
         removeWindowObservers()
+        lastVisibleFrame = nil
         super.viewDidMoveToWindow()
         refreshMinimumSize()
 
@@ -240,8 +258,13 @@ final class MainWindowMinimumSizeView: NSView {
         }
         isApplyingMinimumSize = true
         defer { isApplyingMinimumSize = false }
+        let screenChanged = lastVisibleFrame != visibleFrame
+        lastVisibleFrame = visibleFrame
 
-        let minimumContentSize = preferredContentSize
+        let minimumContentSize = MainWindowLayout.fittedContentSize(
+            preferred: preferredContentSize,
+            available: window.contentRect(forFrameRect: visibleFrame).size
+        )
         if window.contentMinSize != minimumContentSize {
             window.contentMinSize = minimumContentSize
         }
@@ -253,20 +276,17 @@ final class MainWindowMinimumSizeView: NSView {
             width: max(window.frame.width, minimumFrameSize.width),
             height: max(window.frame.height, minimumFrameSize.height)
         )
-        guard targetSize != window.frame.size else {
-            return
-        }
-        let fittedFrame = CGRect(
-            origin: CGPoint(
-                x: targetSize.width <= visibleFrame.width
-                    ? min(max(window.frame.minX, visibleFrame.minX), visibleFrame.maxX - targetSize.width)
-                    : visibleFrame.minX,
-                y: targetSize.height <= visibleFrame.height
-                    ? min(max(window.frame.maxY - targetSize.height, visibleFrame.minY), visibleFrame.maxY - targetSize.height)
-                    : visibleFrame.maxY - targetSize.height
-            ),
-            size: targetSize
+        // Let a window travel between displays during a drag. Refit position
+        // when its screen or size changes, not on every ordinary layout update.
+        guard screenChanged || targetSize != window.frame.size
+                || window.frame.width > visibleFrame.width
+                || window.frame.height > visibleFrame.height else { return }
+        let fittedFrame = DocumentWindowPlacementPolicy.resizedFrame(
+            currentFrame: window.frame,
+            targetSize: targetSize,
+            visibleFrame: visibleFrame
         )
+        guard fittedFrame != window.frame else { return }
         window.setFrame(fittedFrame, display: true)
     }
 

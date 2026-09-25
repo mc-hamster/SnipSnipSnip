@@ -45,7 +45,7 @@ struct ContentView: View {
                 EditorCommandBar(
                     controller: editorController,
                     isInspectorPresented: $isEditorInspectorPresented,
-                    onBack: documents.closeEditor,
+                    onBack: documents.returnToCapture,
                     onFloatReference: { documents.floatCurrentEditorReference(appearance: $0) },
                     onExportPNG: { documents.exportAnnotatedImage(as: .png, appearance: $0) },
                     onExportJPEG: { documents.exportAnnotatedImage(as: .jpeg, appearance: $0) },
@@ -62,8 +62,10 @@ struct ContentView: View {
                     onShowLayers: showLayersWindow,
                     onShowUIMap: showUIMapWindow,
                     dragOutPayloadProvider: { documents.promisedAnnotatedImagePayload(appearance: $0) },
-                    compositionAddActions: compositionAddActions(for: editorController)
+                    compositionAddActions: compositionAddActions(for: editorController),
+                    onDiscard: documents.closeEditor
                 )
+                .disabled(capture.isWorking)
                 Divider()
             }
 
@@ -88,7 +90,9 @@ struct ContentView: View {
                         onAddRecentSnip: { documents.addRecentSnip($0, to: guideController) },
                         savedThemes: guide.savedThemes,
                         onSaveTheme: guide.saveTheme,
-                        onSetDefaultBranding: guide.setDefaultBranding
+                        onSetDefaultBranding: guide.setDefaultBranding,
+                        onRetrySave: documents.saveDocument,
+                        onSaveAs: documents.saveDocumentAs
                     )
                         .id(ObjectIdentifier(guideController))
                 } else if let editorController = documents.editorController {

@@ -895,7 +895,7 @@ final class MultiCaptureCompositionUITests: XCTestCase {
             "Add…",
             "Screenshot editing should lead with the single low-friction Add action."
         )
-        assertDiscardAvailableInCurrentDocumentStage()
+        assertBackToCaptureAvailableInCurrentDocumentStage()
         assertScreenshotInspectorIsolation()
         assertRoutineOutputUsesPlainLanguage()
     }
@@ -921,7 +921,7 @@ final class MultiCaptureCompositionUITests: XCTestCase {
             )
             assertPurposeInspectorIsolation(for: goal)
             assertRoutineOutputUsesPlainLanguage()
-            assertDiscardAvailableInCurrentDocumentStage()
+            assertBackToCaptureAvailableInCurrentDocumentStage()
             XCTAssertEqual(
                 app.staticTexts.matching(
                     NSPredicate(format: "label CONTAINS[c] %@", "Presentation")
@@ -957,18 +957,18 @@ final class MultiCaptureCompositionUITests: XCTestCase {
         }
     }
 
-    private func assertDiscardAvailableInCurrentDocumentStage(
+    private func assertBackToCaptureAvailableInCurrentDocumentStage(
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        let discard = identified("editor.discard")
+        let back = identified("editor.backToCapture")
         XCTAssertTrue(
-            discard.waitForExistence(timeout: 5),
-            "Every screenshot-document stage should expose Discard.",
+            back.waitForExistence(timeout: 5),
+            "Every screenshot-document stage should expose Back to Capture.",
             file: file,
             line: line
         )
-        XCTAssertEqual(discard.label, "Discard", file: file, line: line)
+        XCTAssertEqual(back.label, "Back to Capture", file: file, line: line)
     }
 
     private func promoteScreenshot(to goal: IntentGoal) {

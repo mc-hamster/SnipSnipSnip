@@ -13,59 +13,64 @@ struct VideoEditorCommandBar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    Button(action: onBack) { Label("Discard", systemImage: "xmark") }
-                        .buttonStyle(.bordered)
-                        .buttonBorderShape(.capsule)
-                        .help("Discard the current video editor session and return to the capture screen.")
-                        .accessibilityIdentifier("video.discard")
-                    EditorCommandGroup("Video tools") {
-                        tool(.trim)
-                        tool(.zooms)
-                        tool(.cursor)
-                        tool(.audio)
+            HStack(spacing: 8) {
+                Button(action: onBack) { Label("Discard", systemImage: "xmark") }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .help("Discard the current video editor session and return to the capture screen.")
+                    .accessibilityIdentifier("video.discard")
+                ScrollView(.horizontal) {
+                    HStack(spacing: 6) {
+                        EditorCommandGroup("Video tools") {
+                            tool(.trim)
+                            tool(.zooms)
+                            tool(.cursor)
+                            tool(.audio)
+                        }
+                        if controller.isPolishing {
+                            EditorCommandGroup("Polish") { tool(.polish) }
+                        }
                     }
-                    if controller.isPolishing {
-                        EditorCommandGroup("Polish") { tool(.polish) }
-                    }
+                    .fixedSize(horizontal: true, vertical: false)
                 }
-                .fixedSize(horizontal: true, vertical: false)
             }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    EditorCommandGroup("History") {
-                        Button { undoManager?.undo() } label: { Image(systemName: "arrow.uturn.backward") }
-                            .buttonStyle(.bordered).buttonBorderShape(.circle)
-                            .help("Undo").accessibilityLabel("Undo")
-                            .disabled(undoManager?.canUndo != true)
-                        Button { undoManager?.redo() } label: { Image(systemName: "arrow.uturn.forward") }
-                            .buttonStyle(.bordered).buttonBorderShape(.circle)
-                            .help("Redo").accessibilityLabel("Redo")
-                            .disabled(undoManager?.canRedo != true)
+            HStack(spacing: 8) {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 8) {
+                        EditorCommandGroup("History") {
+                            Button { undoManager?.undo() } label: { Image(systemName: "arrow.uturn.backward") }
+                                .buttonStyle(.bordered).buttonBorderShape(.circle)
+                                .help("Undo").accessibilityLabel("Undo")
+                                .disabled(undoManager?.canUndo != true)
+                            Button { undoManager?.redo() } label: { Image(systemName: "arrow.uturn.forward") }
+                                .buttonStyle(.bordered).buttonBorderShape(.circle)
+                                .help("Redo").accessibilityLabel("Redo")
+                                .disabled(undoManager?.canRedo != true)
+                        }
+                        EditorCommandGroup("Inspector") {
+                            Toggle(isOn: $inspectorVisible) { Label("Inspector", systemImage: "sidebar.right") }
+                                .toggleStyle(.button)
+                                .buttonStyle(.bordered).buttonBorderShape(.capsule)
+                                .help(inspectorVisible ? "Hide Inspector" : "Show Inspector")
+                                .accessibilityValue(inspectorVisible ? "Shown" : "Hidden")
+                                .accessibilityIdentifier("video.inspector.toggle")
+                        }
+                        EditorCommandGroup("Drag Out") {
+                            PromisedFileDragView(accessibilityLabel: "Drag finished video to share", payloadProvider: dragOutPayloadProvider)
+                                .frame(width: 72, height: 30)
+                                .help("Drag the finished video into Finder, Mail, or another app. Trims and effects are included; export starts after the drop is accepted.")
+                        }
                     }
-                    EditorCommandGroup("Inspector") {
-                        Toggle(isOn: $inspectorVisible) { Label("Inspector", systemImage: "sidebar.right") }
-                            .toggleStyle(.button)
-                            .buttonStyle(.bordered).buttonBorderShape(.capsule)
-                            .help(inspectorVisible ? "Hide Inspector" : "Show Inspector")
-                            .accessibilityValue(inspectorVisible ? "Shown" : "Hidden")
-                            .accessibilityIdentifier("video.inspector.toggle")
-                    }
-                    EditorCommandGroup("Output") {
-                        Button { showsExportOptions = true } label: { Label("Export…", systemImage: "square.and.arrow.up") }
-                            .buttonStyle(.borderedProminent).buttonBorderShape(.capsule)
-                            .help("Export the finished video as MP4, GIF, or APNG.")
-                            .disabled(controller.isExporting || controller.isPreparingPreview || controller.previewError != nil)
-                            .accessibilityIdentifier("video.export")
-                    }
-                    EditorCommandGroup("Drag Out") {
-                        PromisedFileDragView(accessibilityLabel: "Drag finished video to share", payloadProvider: dragOutPayloadProvider)
-                            .frame(width: 72, height: 30)
-                            .help("Drag the finished video into Finder, Mail, or another app. Trims and effects are included; export starts after the drop is accepted.")
-                    }
+                    .fixedSize(horizontal: true, vertical: false)
                 }
-                .fixedSize(horizontal: true, vertical: false)
+                EditorCommandGroup("Output") {
+                    Button { showsExportOptions = true } label: { Label("Export…", systemImage: "square.and.arrow.up") }
+                        .buttonStyle(.borderedProminent).buttonBorderShape(.capsule)
+                        .help("Export the finished video as MP4, GIF, or APNG.")
+                        .disabled(controller.isExporting || controller.isPreparingPreview || controller.previewError != nil)
+                        .accessibilityIdentifier("video.export")
+                }
+                .fixedSize()
             }
         }
         .padding(.horizontal, 12).padding(.vertical, 8)

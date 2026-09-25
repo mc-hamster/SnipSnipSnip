@@ -45,7 +45,17 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     }
     @Published private(set) var isEditorDocumentOutputAvailable = false
     @Published var videoEditorController: VideoEditorController?
-    @Published var guideEditorController: GuideEditorController?
+    @Published var guideEditorController: GuideEditorController? {
+        didSet {
+            if oldValue !== guideEditorController {
+                resetGuideExportState()
+                pendingGuideAutosaveTask?.cancel()
+                pendingGuideAutosaveTask = nil
+                guideSaveGeneration = nil
+                oldValue?.isSaving = false
+            }
+        }
+    }
     @Published var currentDocumentURL: URL?
     @Published var hasUnsavedChanges = false
     @Published var guideExportIsActive = false
@@ -53,7 +63,10 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     @Published var guideExportStatus: String?
     @Published var guideExportCurrentFormat: GuideExportFormat?
     @Published var guideExportCancellationRequested = false
-    @Published var lastGuideExportURLs: [URL] = []
+    @Published var guideExportReceipt: GuideExportReceipt?
+    var lastGuideExportURLs: [URL] {
+        guideExportReceipt?.currentURLs(for: guideEditorController?.contentVersion) ?? []
+    }
     @Published var compositionExportProgressState:
         CompositionExportProgressState?
     @Published var captureSearchQuery = ""
@@ -126,6 +139,9 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     var pendingCaptureHistorySearchTask: Task<Void, Never>?
     var recoveryOperations = RecoveryOperationState()
     var pendingGuideAutosaveTask: Task<Void, Never>?
+    var guideDocumentWriter: any GuideDocumentWriting = GuideDocumentWriter()
+    var guideSaveGeneration: UUID?
+    var savedGuideContentVersion: GuideContentVersion?
     var pendingGuideExportTask: Task<Void, Never>?
     var pendingGuideExportWorkerTask: Task<GuideExportResult, Never>?
     var activeGuideExportID: UUID?

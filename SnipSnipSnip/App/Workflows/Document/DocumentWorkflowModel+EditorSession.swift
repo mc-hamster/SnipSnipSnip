@@ -373,10 +373,14 @@ extension DocumentWorkflowModel {
     }
 
     func discardCurrentDocument() {
+        closeCurrentDocument(keepingScreenshotInRecents: false)
+    }
+
+    func closeCurrentDocument(keepingScreenshotInRecents: Bool) {
         historyPreviewCoordinator.close()
         let discardedRecoveryVideo = videoEditorController != nil && currentVideoUsesRecoveryCheckpoint
         let previousTemporaryVideoURL = currentOwnedTemporaryVideoSourceURL(replacingWith: nil)
-        clearCurrentRecoveryPendingState()
+        if !keepingScreenshotInRecents { clearCurrentRecoveryPendingState() }
         editorController = nil
         videoEditorController = nil
         guideEditorController = nil
@@ -454,7 +458,7 @@ extension DocumentWorkflowModel {
         }
 
         if let controller = guideEditorController {
-            hasUnsavedChanges = currentDocumentURL == nil || controller.project != savedGuideProject
+            hasUnsavedChanges = currentDocumentURL == nil || controller.contentVersion != savedGuideContentVersion
             syncMainWindowDocumentState()
             return
         }

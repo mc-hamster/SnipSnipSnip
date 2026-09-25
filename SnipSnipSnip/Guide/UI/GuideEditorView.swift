@@ -11,18 +11,45 @@ struct GuideEditorView: View {
     let savedThemes: [GuideTheme]
     let onSaveTheme: (GuideTheme) -> Void
     let onSetDefaultBranding: (GuideTheme, CGImage?) -> Void
+    var onRetrySave: () -> Void = {}
+    var onSaveAs: () -> Void = {}
     @State private var isImportingImages = false
     @State private var isImportingLogo = false
     @State private var inspectorScope: GuideInspectorScope = .step
     @SceneStorage("guide.inspector.isPresented") private var isInspectorPresented = true
 
     var body: some View {
-        NavigationSplitView {
-            stepList
-                .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 360)
-        } detail: {
-            canvas
-                .frame(minWidth: 500)
+        VStack(spacing: 0) {
+            if let message = controller.saveFailure {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("Guide Changes Not Saved", systemImage: "exclamationmark.triangle")
+                            .font(.headline)
+                            .foregroundStyle(.orange)
+                        Text(message).font(.callout).lineLimit(3).help(message)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    if controller.isSaving { ProgressView().controlSize(.small) }
+                    Button("Retry", action: onRetrySave)
+                        .disabled(controller.isSaving)
+                        .accessibilityIdentifier("guide.save.retry")
+                    Button("Save As…", action: onSaveAs)
+                        .disabled(controller.isSaving)
+                        .accessibilityIdentifier("guide.saveAs")
+                }
+                .padding(12)
+                .background(Color(nsColor: .controlBackgroundColor))
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("guide.saveFailure")
+                Divider()
+            }
+            NavigationSplitView {
+                stepList
+                    .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 360)
+            } detail: {
+                canvas
+                    .frame(minWidth: 0)
+            }
         }
         .inspector(isPresented: $isInspectorPresented) {
             inspector
@@ -52,6 +79,14 @@ struct GuideEditorView: View {
     private var stepList: some View {
         VStack(spacing: 8) {
             TextField("Search steps", text: $controller.searchQuery).textFieldStyle(.roundedBorder).padding([.top, .horizontal], 10)
+            if !controller.canReorderSteps {
+                HStack {
+                    Text("Clear Search to reorder steps.").font(.caption).foregroundStyle(.secondary)
+                    Button("Clear Search") { controller.searchQuery = "" }
+                        .buttonStyle(.borderless)
+                }
+                .padding(.horizontal, 10)
+            }
             List(selection: $controller.selection) {
                 ForEach(visibleSteps) { step in
                     HStack(alignment: .top, spacing: 8) {
@@ -81,6 +116,7 @@ struct GuideEditorView: View {
                         }
                     }
                     .tag(step.id)
+                    .moveDisabled(!controller.canReorderSteps)
                     .task(id: step.id) {
                         controller.requestThumbnail(for: step.id, priority: .userInitiated)
                         controller.prefetchThumbnails(after: step.id)
@@ -92,28 +128,38 @@ struct GuideEditorView: View {
                 }
                 .onMove(perform: controller.reorder)
             }
-            HStack {
-                Menu("Add") {
-                    Button("Import Images…") { isImportingImages = true }
-                    if !recentSnips.isEmpty {
-                        Menu("Recent Snips") {
-                            ForEach(recentSnips.prefix(10)) { entry in
-                                Button(entry.libraryMenuTitle) {
-                                    onAddRecentSnip(entry)
+            VStack(spacing: 8) {
+                HStack {
+                    Menu("Add") {
+                        Button("Import Images…") { isImportingImages = true }
+                        if !recentSnips.isEmpty {
+                            Menu("Recent Snips") {
+                                ForEach(recentSnips.prefix(10)) { entry in
+                                    Button(entry.libraryMenuTitle) {
+                                        onAddRecentSnip(entry)
+                                    }
                                 }
                             }
                         }
                     }
+                    Spacer()
+                    Text("\(controller.includedSteps.count) included").font(.caption).foregroundStyle(.secondary)
                 }
-                Button("Delete", role: .destructive, action: controller.deleteSelected)
-                    .disabled(controller.selection.isEmpty)
-                    .help("Delete the selected steps. Deleted steps remain available to restore from their context menu.")
-                Button("Duplicate", action: controller.duplicateSelected).disabled(controller.selection.isEmpty)
-                Button { controller.moveSelection(by: -1) } label: { Image(systemName: "arrow.up") }.disabled(controller.selection.isEmpty)
-                Button { controller.moveSelection(by: 1) } label: { Image(systemName: "arrow.down") }.disabled(controller.selection.isEmpty)
-                Spacer()
-                Text("\(controller.includedSteps.count) included").font(.caption).foregroundStyle(.secondary)
-            }.padding(10)
+                HStack {
+                    Button("Delete", role: .destructive, action: controller.deleteSelected)
+                        .disabled(controller.selection.isEmpty)
+                        .help("Delete the selected steps. Deleted steps remain available to restore from their context menu.")
+                    Button("Duplicate", action: controller.duplicateSelected).disabled(controller.selection.isEmpty)
+                    Button { controller.moveSelection(by: -1) } label: { Image(systemName: "arrow.up") }
+                        .disabled(controller.selection.isEmpty || !controller.canReorderSteps)
+                        .help("Move Selected Steps Up").accessibilityLabel("Move Selected Steps Up")
+                    Button { controller.moveSelection(by: 1) } label: { Image(systemName: "arrow.down") }
+                        .disabled(controller.selection.isEmpty || !controller.canReorderSteps)
+                        .help("Move Selected Steps Down").accessibilityLabel("Move Selected Steps Down")
+                    Spacer(minLength: 0)
+                }
+            }
+            .padding(10)
         }
         .fileImporter(isPresented: $isImportingImages, allowedContentTypes: [.image], allowsMultipleSelection: true) { result in
             guard case .success(let urls) = result else { return }
@@ -304,8 +350,8 @@ struct GuideEditorView: View {
                     }
 
                     GuideInspectorDisclosureSection(
-                        title: "Internal Note",
-                        subtitle: "Optional context included with this step"
+                        title: "Step Note",
+                        subtitle: "Visible in the preview and included in exports"
                     ) {
                         TextEditor(text: noteBinding(step.id))
                             .frame(minHeight: 70)
@@ -752,7 +798,7 @@ private struct GuideAdvancedEditorSheet: View {
             )
         }
         .toolbar(removing: .title)
-        .frame(minWidth: 1000, minHeight: 700)
+        .screenFittedSheet(preferredSize: CGSize(width: 1100, height: 750))
     }
 }
 
@@ -883,36 +929,44 @@ private struct GuideExportOptionsSheet: View {
                     .foregroundStyle(.secondary)
             }
 
-            VStack(alignment: .leading, spacing: 14) {
-                formatGroup("Documents", formats: [.pdf, .docx])
-                formatGroup("Animated sharing", formats: [.gif, .apng])
-                formatGroup("Video", formats: [.fullMotionMP4, .highlightMP4, .slideshowMP4])
-                formatGroup("Files and packages", formats: [.stepImages, .zip])
-            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        formatGroup("Documents", formats: [.pdf, .docx])
+                        formatGroup("Animated sharing", formats: [.gif, .apng])
+                        formatGroup("Video", formats: [.fullMotionMP4, .highlightMP4, .slideshowMP4])
+                        formatGroup("Files and packages", formats: [.stepImages, .zip])
+                    }
 
-            if controller.mediaSegmentURLs.isEmpty {
-                Label("Full Motion MP4 and Action Highlights require source video.", systemImage: "info.circle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                Label("Full Motion MP4 and Action Highlights include captured microphone and system audio.", systemImage: "waveform")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+                    if controller.mediaSegmentURLs.isEmpty {
+                        Label("Full Motion MP4 and Action Highlights require source video.", systemImage: "info.circle")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Label("Full Motion MP4 and Action Highlights include captured microphone and system audio.", systemImage: "waveform")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
-            Toggle("Show export progress window", isOn: $showsProgressWindow)
-                .help("Keep a small, cancellable export status window open while files are generated.")
+                    Toggle("Show export progress window", isOn: $showsProgressWindow)
+                        .help("Keep a small, cancellable export status window open while files are generated.")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .scrollBounceBehavior(.basedOnSize)
 
             HStack {
                 Button("Cancel", action: onCancel)
+                    .keyboardShortcut(.cancelAction)
                 Spacer()
                 Button("Choose Folder & Export") { onExport(showsProgressWindow) }
+                    .keyboardShortcut(.defaultAction)
                     .buttonStyle(.borderedProminent)
                     .disabled(controller.project.exportSettings.formats.isEmpty)
             }
         }
         .padding(24)
-        .frame(width: 440)
+        .screenFittedSheet(preferredSize: CGSize(width: 480, height: 650))
     }
 
     private func requiresSourceVideo(_ format: GuideExportFormat) -> Bool {

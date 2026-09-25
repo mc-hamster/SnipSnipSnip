@@ -459,9 +459,15 @@ extension DocumentWorkflowModel {
         recordRecoveryCheckpoint(for: controller, label: hasUnsavedChanges ? "Autosave" : "Saved", pendingRecovery: hasUnsavedChanges)
     }
 
-    func recordRecoveryCheckpoint(for controller: EditorController, label: String, pendingRecovery: Bool) {
+    @discardableResult
+    func recordRecoveryCheckpoint(
+        for controller: EditorController,
+        label: String,
+        pendingRecovery: Bool,
+        mustComplete: Bool = false
+    ) -> Task<Bool, Never>? {
         guard !controller.isPrivateDocument, let currentRecoverySessionID else {
-            return
+            return nil
         }
 
         controller.commitPendingTextEdits()
@@ -487,8 +493,9 @@ extension DocumentWorkflowModel {
             recoverySessionsWithPendingClearEnqueued.remove(currentRecoverySessionID)
         }
 
-        enqueueRecoveryOperation(
+        return enqueueRecoveryOperation(
             taskID: taskID,
+            mustComplete: mustComplete,
             operation: {
                 try await RecoveryCheckpointWriter.save(payload)
             },
