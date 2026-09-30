@@ -539,7 +539,6 @@ final class EditorControllerTests: XCTestCase {
         let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
         let defaults = makeTestDefaults()
         let model = retainForTestLifetime(AppModel(defaults: defaults, recoveryStore: store, shouldCheckCompatibilityOnLaunch: false))
-        model.autoCopyEnabled = false
 
         let text = Annotation.makeText(at: CGPoint(x: 40, y: 40)).updatingText("Hello")
         let snapshot = makeEditorSnapshot(
@@ -1725,7 +1724,6 @@ final class EditorControllerTests: XCTestCase {
             uiMapCaptureService: uiMapCaptureService,
             shouldCheckCompatibilityOnLaunch: false
         ))
-        model.autoCopyEnabled = false
         model.uiMapEnabled = true
         model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
 
@@ -1764,7 +1762,6 @@ final class EditorControllerTests: XCTestCase {
             uiMapCaptureService: uiMapCaptureService,
             shouldCheckCompatibilityOnLaunch: false
         ))
-        model.autoCopyEnabled = false
         model.uiMapEnabled = true
         model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
 
@@ -1794,7 +1791,6 @@ final class EditorControllerTests: XCTestCase {
             uiMapCaptureService: uiMapCaptureService,
             shouldCheckCompatibilityOnLaunch: false
         ))
-        model.autoCopyEnabled = false
         model.uiMapEnabled = false
 
         try model.capture.completeCapture(
@@ -1827,7 +1823,6 @@ final class EditorControllerTests: XCTestCase {
             uiMapCaptureService: uiMapCaptureService,
             shouldCheckCompatibilityOnLaunch: false
         ))
-        model.autoCopyEnabled = false
         model.uiMapEnabled = true
         model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
 
@@ -1871,7 +1866,6 @@ final class EditorControllerTests: XCTestCase {
             uiMapCaptureService: uiMapCaptureService,
             shouldCheckCompatibilityOnLaunch: false
         ))
-        model.autoCopyEnabled = false
         model.uiMapEnabled = true
         model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
 
@@ -2098,7 +2092,7 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
-    func testUIMapPinTogglePublishesSnapshotChangeForAutoCopyObservers() async {
+    func testUIMapPinTogglePublishesRenderedSnapshotChange() async {
         let uiMap = makeTestUIMap()
         let elementID = uiMap.elements[0].id
         let controller = makeController(
@@ -2198,7 +2192,6 @@ final class EditorControllerTests: XCTestCase {
         let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
         let defaults = makeTestDefaults()
         let model = retainForTestLifetime(AppModel(defaults: defaults, recoveryStore: store, shouldCheckCompatibilityOnLaunch: false))
-        model.autoCopyEnabled = false
         model.privateCaptureEnabled = true
 
         try model.capture.completeCapture(
@@ -2222,7 +2215,6 @@ final class EditorControllerTests: XCTestCase {
         let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
         let defaults = makeTestDefaults()
         let model = retainForTestLifetime(AppModel(defaults: defaults, recoveryStore: store, shouldCheckCompatibilityOnLaunch: false))
-        model.autoCopyEnabled = false
         model.privateCaptureEnabled = true
 
         try model.capture.completeCapture(

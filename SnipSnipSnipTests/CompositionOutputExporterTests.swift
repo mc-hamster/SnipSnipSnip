@@ -6,6 +6,59 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class CompositionOutputExporterTests: XCTestCase {
+    func testPrintAcceptsTransparentPolishWhilePDFExportStillRequiresPNG() async throws {
+        let fixture = makeComparisonFixture(mode: .sideBySide)
+        var snapshot = fixture.input.snapshot
+        snapshot.presentation = ScreenshotPresentation(
+            isEnabled: true, background: .transparent,
+            padding: 12, cornerRadius: 0, shadow: .off
+        )
+        let input = CompositionOutputInput(
+            baseImage: fixture.input.baseImage, snapshot: snapshot,
+            compositionAssets: fixture.input.compositionAssets, appearance: .styled
+        )
+        let data = try await CompositionOutputExporter.printPDFData(input)
+        let provider = try XCTUnwrap(CGDataProvider(data: data as CFData))
+        XCTAssertEqual(try XCTUnwrap(CGPDFDocument(provider)).numberOfPages, 1)
+        let destination = temporaryURL(extension: "pdf")
+        defer { try? FileManager.default.removeItem(at: destination) }
+        do {
+            _ = try await CompositionOutputExporter.export(input, format: .pdf, to: destination)
+            XCTFail("File export must retain its transparency restriction.")
+        } catch {
+            XCTAssertEqual(error as? CompositionOutputError, .transparentPresentationRequiresPNG)
+        }
+    }
+
+    func testPrintPaginatesIncludedStepsWithoutChangingDocumentSettings() async throws {
+        let fixture = makeComparisonFixture(mode: .sideBySide)
+        var composition = try XCTUnwrap(fixture.input.snapshot.composition)
+        composition.layout.mode = .steps
+        composition.steps.itemsPerPage = nil
+        composition.items[1].isIncluded = false
+        composition.items.append(CompositionItem(assetID: fixture.items[1].assetID))
+        let assets = Array(fixture.input.compositionAssets.values)
+        let input = outputInput(composition: composition, assets: assets)
+        let data = try await CompositionOutputExporter.printPDFData(input)
+        let provider = try XCTUnwrap(CGDataProvider(data: data as CFData))
+        let pdf = try XCTUnwrap(CGPDFDocument(provider))
+        XCTAssertEqual(pdf.numberOfPages, 2)
+        XCTAssertNil(input.snapshot.composition?.steps.itemsPerPage)
+    }
+
+    func testPrintComparisonMatchesStaticPDFOutputSize() async throws {
+        let fixture = makeComparisonFixture(mode: .blink)
+        let image = try CompositionOutputExporter.staticImage(fixture.input)
+        let expected = try ScreenshotOutputSize.half.pixelSize(
+            for: CGSize(width: image.width, height: image.height)
+        )
+        let data = try await CompositionOutputExporter.printPDFData(fixture.input, outputSize: .half)
+        let provider = try XCTUnwrap(CGDataProvider(data: data as CFData))
+        let pdf = try XCTUnwrap(CGPDFDocument(provider))
+        XCTAssertEqual(pdf.numberOfPages, 1)
+        XCTAssertEqual(try XCTUnwrap(pdf.page(at: 1)).getBoxRect(.mediaBox).size, expected)
+    }
+
     func testStillOutputSizingAgreesForCompositionPNGAndPDF() async throws {
         let fixture = makeComparisonFixture(mode: .wipe)
         let original = try CompositionOutputExporter.staticImage(fixture.input)

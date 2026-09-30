@@ -302,12 +302,10 @@ final class AppArchitecturePlatformTests: XCTestCase {
 
         defaults.set(Data([0xFF, 0x00]), forKey: AppModelPreferenceKey.capturePresets)
         defaults.set(0.25, forKey: AppModelPreferenceKey.screenshotJPEGQuality)
-        defaults.set(true, forKey: AppModelPreferenceKey.autoCopyEnabled)
         defaults.set(Data([0x01]), forKey: AppModelPreferenceKey.screenRulerPreferences)
 
         XCTAssertTrue(stores.capture.loadCapturePresets().isEmpty)
         XCTAssertEqual(stores.capture.loadScreenshotJPEGQuality(), ImageExportOptions.sanitizedJPEGQuality(0.25))
-        XCTAssertTrue(stores.clipboard.loadAutoCopyEnabled())
         XCTAssertEqual(stores.screenTools.loadRulerPreferences(), .default)
         XCTAssertFalse(stores.capture.loadUIMapEnabled(defaultEnabled: false))
 
@@ -492,7 +490,6 @@ final class AppArchitecturePlatformTests: XCTestCase {
         for forbiddenShellFragment in [
             "var editorController:",
             "var videoEditorController:",
-            "var autoCopyEnabled:",
             "var captureDelay:",
             "var screenshotJPEGQuality:",
             "var permissionStatus:",
@@ -642,7 +639,6 @@ final class AppArchitecturePlatformTests: XCTestCase {
 
         for forbiddenHook in [
             "automationPreferencesChangeHandler",
-            "autoCopyChangeHandler",
             "maintenanceRequestHandler",
         ] {
             try assertFragment(
@@ -660,10 +656,6 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertTrue(
             coordinator.contains("protocol WorkflowOutputSink"),
             "Workflows that only emit domain outputs should depend on a sink protocol, not the concrete coordinator."
-        )
-        XCTAssertTrue(
-            coordinator.contains("case .autoCopyChanged(let enabled):"),
-            "Clipboard preference changes should route through typed workflow output instead of mutable runtime callback hooks."
         )
         XCTAssertTrue(
             workflowModels.contains("weak var outputSink: (any WorkflowOutputSink)?"),
@@ -989,10 +981,6 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertFalse(
             captureCompletion.contains("scheduleClipboardSnipRecording"),
             "Clipboard history routing belongs to AppWorkflowCoordinator and ClipboardWorkflowModel, not CaptureWorkflowModel."
-        )
-        XCTAssertFalse(
-            captureCompletion.contains("scheduleAutoCopy"),
-            "Auto-copy routing belongs to AppWorkflowCoordinator and DocumentWorkflowModel, not CaptureWorkflowModel."
         )
         XCTAssertTrue(
             coordinator.contains("documents.installCapturedScreenshot(result)"),

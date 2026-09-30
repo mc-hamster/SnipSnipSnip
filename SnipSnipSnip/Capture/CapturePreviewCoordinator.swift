@@ -30,7 +30,6 @@ final class CapturePreviewCoordinator {
 
     func present(
         controller: EditorController,
-        autoCopyEnabled: Bool,
         copy: @escaping (@escaping (Bool) -> Void) -> Void,
         edit: @escaping () -> Void,
         export: @escaping () -> Void,
@@ -38,7 +37,6 @@ final class CapturePreviewCoordinator {
     ) {
         clear()
         let model = CapturePreviewModel(
-            autoCopyEnabled: autoCopyEnabled,
             copy: copy, edit: edit, export: export, drag: drag
         )
         self.model = model
@@ -134,7 +132,6 @@ final class CapturePreviewModel: ObservableObject {
     @Published var message: String
     @Published var isCopying = false
     @Published var hasError = false
-    @Published var autoCopyEnabled: Bool
     let copy: (@escaping (Bool) -> Void) -> Void
     let edit: () -> Void
     let export: () -> Void
@@ -142,17 +139,14 @@ final class CapturePreviewModel: ObservableObject {
     var close: () -> Void = {}
     var allowsWindowRestoration = true
 
-    init(autoCopyEnabled: Bool, copy: @escaping (@escaping (Bool) -> Void) -> Void,
+    init(copy: @escaping (@escaping (Bool) -> Void) -> Void,
          edit: @escaping () -> Void, export: @escaping () -> Void,
          drag: @escaping () -> PromisedFilePayload?) {
-        self.autoCopyEnabled = autoCopyEnabled
         self.copy = copy
         self.edit = edit
         self.export = export
         self.drag = drag
-        message = autoCopyEnabled
-            ? String(localized: "Auto Copy is on. Captures and edits copy automatically.")
-            : String(localized: "Review sensitive details before copying or dragging.")
+        message = String(localized: "Review sensitive details before copying or dragging.")
     }
 
     func copyScreenshot() {
@@ -167,14 +161,5 @@ final class CapturePreviewModel: ObservableObject {
                 ? String(localized: "Copied screenshot. Ready to paste.")
                 : String(localized: "Could not copy. Try again or open in Editor.")
         }
-    }
-
-    func updateAutoCopy(_ enabled: Bool) {
-        autoCopyEnabled = enabled
-        guard !isCopying else { return }
-        message = enabled
-            ? String(localized: "Auto Copy is on. Captures and edits copy automatically.")
-            : String(localized: "Review sensitive details before copying or dragging.")
-        hasError = false
     }
 }

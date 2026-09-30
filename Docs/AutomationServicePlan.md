@@ -1,5 +1,7 @@
 # Automation Service Plan
 
+Screenshot capture and editor changes preserve the clipboard. Clipboard delivery requires an explicit copy output or a Capture Preset with Copy to Clipboard as its outcome. The retired global Auto Copy preference is ignored, including during automated captures. Existing copy commands, result fields, and sample-script procedures remain unchanged.
+
 ## Status
 
 Interactive screenshot additions: Capture Text has a configurable global keyboard shortcut but no new external automation route. Highlighter Fit to Text is an interactive annotation gesture. Session-only Output Size is isolated from external automation and preset outputs; original rendering remains their default. Existing sample-script procedures and formats remain unchanged.

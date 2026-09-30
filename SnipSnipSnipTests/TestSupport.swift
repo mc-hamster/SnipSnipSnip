@@ -716,3 +716,23 @@ func makeCaptureWindow(
         thumbnail: resolvedThumbnail
     )
 }
+
+/// Use an isolated pasteboard while exercising app-level output routing.
+@MainActor
+func makePasteboardTestEnvironment(
+    defaults: UserDefaults,
+    pasteboard: any PasteboardServicing
+) -> AppEnvironment {
+    let permissions = TestCapturePermissionService()
+    let live = AppSystemServices.live(permissions: permissions)
+    let services = AppSystemServices(
+        files: live.files, workspace: live.workspace, screens: live.screens,
+        mouse: live.mouse, windowFocus: live.windowFocus, bundle: live.bundle,
+        pasteboard: pasteboard, clock: live.clock, ids: live.ids,
+        scheduler: live.scheduler, permissions: permissions,
+        accessibility: live.accessibility, screenCapturePlatform: live.screenCapturePlatform,
+        screenRecordingPlatform: live.screenRecordingPlatform,
+        connectedDevicePlatform: live.connectedDevicePlatform
+    )
+    return AppEnvironment(defaults: defaults, systemServices: services)
+}

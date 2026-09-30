@@ -5,6 +5,35 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class AutomationContractTests: XCTestCase {
+    @MainActor
+    func testExplicitAutomationCopyPreservesContractWithoutGlobalAutoCopy() async throws {
+        let name = "AutomationContractTests.explicitCopy.\(UUID())"
+        let defaults = makeDefaults(named: name)
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set(true, forKey: "appModel.autoCopyEnabled")
+        let pasteboard = TestPasteboardService()
+        pasteboard.setString("Existing clipboard", forType: .string)
+        let app = retainForTestLifetime(AppModel(
+            defaults: defaults,
+            environment: makePasteboardTestEnvironment(defaults: defaults, pasteboard: pasteboard),
+            recoveryStore: DocumentRecoveryStore(baseURL: FileManager.default.temporaryDirectory.appendingPathComponent(name)),
+            shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false
+        ))
+        try app.capture.completeCapture(makeCapturedScreenshot(), request: .fullscreen,
+                                        isPrivateCapture: false, shouldAttemptUIMapCapture: false,
+                                        allowsCapturePreview: false)
+        let service = AutomationOutputService(port: app.automation, pasteboard: pasteboard)
+        let before = pasteboard.changeCount
+        let editorResults = try await service.write(.openEditor)
+        XCTAssertEqual(editorResults.map(\.kind), [.openedEditor])
+        try await Task.sleep(nanoseconds: 350_000_000)
+        XCTAssertEqual(pasteboard.changeCount, before)
+        XCTAssertEqual(pasteboard.string(forType: .string), "Existing clipboard")
+        let copyResults = try await service.write(.copyRenderedImage)
+        XCTAssertEqual(copyResults.map(\.kind), [.copiedClipboard])
+        XCTAssertNotNil(pasteboard.data(forType: .png))
+    }
+
     func testAutomationValueParserParsesSharedRectangleFormat() {
         XCTAssertEqual(
             AutomationValueParser.rect(" 10, 20, 300, 200 "),

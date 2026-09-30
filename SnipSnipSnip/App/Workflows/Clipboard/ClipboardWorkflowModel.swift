@@ -42,12 +42,6 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
     private var historyObservation: AnyCancellable?
     var monitoringResumeTask: Task<Void, Never>?
     let preferenceStore: ClipboardPreferenceStore
-    @Published var autoCopyEnabled: Bool {
-        didSet {
-            preferenceStore.saveAutoCopyEnabled(autoCopyEnabled)
-            outputSink?.handle(.autoCopyChanged(autoCopyEnabled))
-        }
-    }
     @Published var preferences: ClipboardPreferences {
         didSet {
             let sanitizedPreferences = preferences.sanitized()
@@ -80,7 +74,6 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
         self.monitor = monitor
         self.pasteboard = pasteboard
         self.preferenceStore = preferenceStore
-        self.autoCopyEnabled = preferenceStore.loadAutoCopyEnabled()
         self.preferences = preferenceStore.loadPreferences()
         historyObservation = historyStore.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()

@@ -416,8 +416,6 @@ struct CaptureAutomationSettingsView: View {
                 Section("After Capture") {
                     Toggle("Show Capture Preview", isOn: $documents.showsCapturePreview)
                     SettingsHelpText("Off by default so screenshots open in the editor immediately. Turn on to show a small preview with Copy, Edit, Export, and drag actions instead. Private Capture, explicit presets, and multi-image workflows still open their intended destination.")
-                    Toggle("Auto Copy", isOn: $clipboard.autoCopyEnabled)
-                    SettingsHelpText("Off by default so you can review sensitive details first. When on, screenshots copy after capture and editor changes, before you may have added redactions. Private Capture never copies automatically.")
                 }
                 Section("Naming") {
                     TextField("Filename Template", text: $capture.screenshotFilenameTemplate)

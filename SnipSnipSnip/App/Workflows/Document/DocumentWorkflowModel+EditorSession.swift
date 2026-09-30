@@ -173,12 +173,6 @@ extension DocumentWorkflowModel {
                 // underneath newly added annotations or redactions.
                 self.capturePreviewCoordinator.clear()
                 self.hasCapturePreview = false
-
-                guard self.autoCopyEnabled,
-                      !controller.isPrivateDocument,
-                      controller.workspaceMode != .presentation else { return }
-
-                self.scheduleAutoCopy(for: controller)
             }
 
         editorPersistenceObserver = controller.$persistenceRevision
@@ -218,7 +212,6 @@ extension DocumentWorkflowModel {
         editorCommandStateObserver = nil
         videoPersistenceObserver = nil
         textRecognitionCoordinator.cancelAll()
-        cancelPendingAutoCopy()
         pendingAutosaveTask?.cancel()
         pendingAutosaveTask = nil
         cancelPendingWindowThumbnailRefresh()
@@ -244,89 +237,6 @@ extension DocumentWorkflowModel {
         hasUnsavedChanges = false
         refreshRecoveryPresentationState()
         syncMainWindowDocumentState()
-    }
-
-    func copyRenderedImageToClipboard(
-        from controller: EditorController,
-        appearance: ScreenshotOutputAppearance
-    ) throws {
-        let image = try controller.exportedImageForInteractiveUse(
-            appearance: appearance
-        )
-        try ImageExporter.copyToClipboard(image, pasteboard: systemServices.pasteboard)
-        clipboardMonitor.markCurrentPasteboardChangeAsHandled()
-    }
-
-    func copyRenderedImageToClipboardAsync(
-        from controller: EditorController,
-        appearance: ScreenshotOutputAppearance,
-        requestGeneration: UInt
-    ) async {
-        do {
-            let image = try await controller.renderedImageForExport(
-                appearance: appearance,
-                usesOutputSize: true
-            )
-            let pngData = try await Task.detached(
-                priority: .utility
-            ) {
-                try Task.checkCancellation()
-                return try ImageExporter.pngData(for: image)
-            }.value
-
-            guard autoCopyEnabled,
-                  !controller.isPrivateDocument,
-                  editorController === controller,
-                  autoCopyRequestGeneration == requestGeneration,
-                  !Task.isCancelled else {
-                return
-            }
-
-            try ImageExporter.copyPNGDataToClipboard(pngData, pasteboard: systemServices.pasteboard)
-            clipboardMonitor.markCurrentPasteboardChangeAsHandled()
-        } catch is CancellationError {
-            // Cancellation is expected when a newer auto-copy task supersedes this one.
-        } catch {
-            presentError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
-        }
-    }
-
-    func scheduleAutoCopy(for controller: EditorController) {
-        pendingAutoCopyTask?.cancel()
-        autoCopyRequestGeneration &+= 1
-        let requestGeneration = autoCopyRequestGeneration
-        guard !controller.isPrivateDocument else {
-            pendingAutoCopyTask = nil
-            return
-        }
-        pendingAutoCopyTask = Task { @MainActor [weak self, weak controller] in
-            do {
-                try await self?.systemServices.scheduler.sleep(nanoseconds: ClipboardWorkflowConstants.autoCopyDebounceNanoseconds)
-            } catch {
-                return
-            }
-
-            guard let self,
-                  self.autoCopyEnabled,
-                  let controller,
-                  !controller.isPrivateDocument,
-                  self.editorController === controller else {
-                return
-            }
-
-            await self.copyRenderedImageToClipboardAsync(
-                from: controller,
-                appearance: controller.currentWorkspaceOutputAppearance,
-                requestGeneration: requestGeneration
-            )
-
-            // A superseding request owns the task slot. Do not clear it when
-            // this older render finishes after being cancelled.
-            guard self.autoCopyRequestGeneration == requestGeneration else {
-                return
-            }
-            self.pendingAutoCopyTask = nil
-        }
     }
 
     func installEditorController(

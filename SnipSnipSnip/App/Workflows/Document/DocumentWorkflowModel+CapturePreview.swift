@@ -14,7 +14,6 @@ extension DocumentWorkflowModel {
         hasCapturePreview = true
         capturePreviewCoordinator.present(
             controller: controller,
-            autoCopyEnabled: autoCopyEnabled,
             copy: { [weak self, weak controller] completion in
                 guard let self, let controller, self.editorController === controller else {
                     completion(false)
@@ -43,9 +42,5 @@ extension DocumentWorkflowModel {
     func showCapturePreview() {
         guard hasCapturePreview else { return }
         capturePreviewCoordinator.show()
-    }
-
-    func updateCapturePreviewAutoCopy(_ enabled: Bool) {
-        capturePreviewCoordinator.model?.updateAutoCopy(enabled)
     }
 }

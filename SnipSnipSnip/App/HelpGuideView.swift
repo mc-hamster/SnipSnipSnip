@@ -142,11 +142,11 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Discover screen tools and capture options",
-                            body: "Use Screen Tools in the main header to add a Screen Ruler, open Screen Inspector, or show Quick Controls. Clipboard History opens beside those utilities. Point to an action or move keyboard focus to it to see an animated explanation of what it creates or opens. The pointer preview changes after a short 50 millisecond dwell, while keyboard focus changes it immediately. Timer, Cursor, Private Capture, and Auto Copy state stays visible beside Ready; choose a state control to change it. The main window keeps this single discovery stage visible whenever no document is open, and Reduce Motion shows the fully resolved static scene."
+                            body: "Use Screen Tools in the main header to add a Screen Ruler, open Screen Inspector, or show Quick Controls. Clipboard History opens beside those utilities. Point to an action or move keyboard focus to it to see an animated explanation of what it creates or opens. The pointer preview changes after a short 50 millisecond dwell, while keyboard focus changes it immediately. Timer, Cursor, and Private Capture state stays visible beside Ready; choose a state control to change it. The main window keeps this single discovery stage visible whenever no document is open, and Reduce Motion shows the fully resolved static scene."
                         ),
                         HelpArticleSection(
                             title: "Know what stays editable",
-body: "Ordinary screenshots open in the editor immediately so you can annotate, redact, copy, or export without an extra step. Capture Preview is off by default; turn on Show Capture Preview in Settings > Editor & Output > After Capture to use a small lower-left preview instead. In the preview, Copy puts the screenshot on the clipboard; Edit opens the full editor; Export chooses a PNG destination; drag the thumbnail into another app. Close hides only the preview. Show Capture Preview in the menu bar icon menu or View menu brings it back until you edit or replace the screenshot. Non-private work remains available through the editor and Recent Snips. Private Capture, explicit presets, multi-image workflows, and connected-device captures retain their intended destination. Videos open in the video editor. Auto Copy is off by default; if enabled, it copies after capture and editor changes, before you may have added redactions. Previously saved Capture Preview and Auto Copy choices are respected. Import an existing image with File > Import Image."
+body: "Ordinary screenshots open in the editor immediately so you can annotate, redact, copy, or export without an extra step. Capture Preview is off by default; turn on Show Capture Preview in Settings > Editor & Output > After Capture to use a small lower-left preview instead. In the preview, Copy puts the screenshot on the clipboard; Edit opens the full editor; Export chooses a PNG destination; drag the thumbnail into another app. Close hides only the preview. Show Capture Preview in the menu bar icon menu or View menu brings it back until you edit or replace the screenshot. Non-private work remains available through the editor and Recent Snips. Private Capture, explicit presets, multi-image workflows, and connected-device captures retain their intended destination. Videos open in the video editor. Capture and editor changes leave the clipboard unchanged until you choose Copy. For capture-and-paste workflows, use a Capture Preset with Copy to Clipboard as its outcome. Previously saved Capture Preview choices are respected. Import an existing image with File > Import Image."
                         )
                     ],
                     important: [
@@ -764,7 +764,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                         ),
                         HelpArticleSection(
                             title: "Review before sharing",
-                            body: "Use solid Redact to cover sensitive details, then choose Copy and wait for the Ready to paste confirmation. Copy and Export apply the visible redactions to the delivered image. Editable screenshot files retain the original pixels so redactions can be changed later; do not send an editable project when you intend to share only the redacted image. Auto Copy is off by default. If you enable it, the original capture may reach the clipboard before you redact it; turn it off before capturing sensitive material. Private Capture never copies automatically."
+                            body: "Use solid Redact to cover sensitive details, then choose Copy and wait for the Ready to paste confirmation. Copy and Export apply the visible redactions to the delivered image. Editable screenshot files retain the original pixels so redactions can be changed later; do not send an editable project when you intend to share only the redacted image. Review sensitive details before choosing Copy or using a Capture Preset with Copy to Clipboard as its outcome."
                         ),
                         HelpArticleSection(
                             title: "Use the inspector",
@@ -1020,12 +1020,16 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
             articles: [
                 HelpArticle(
                     id: "copy-save-export",
-                    title: "Copy, save, export, and share",
+                    title: "Copy, save, export, share, and print",
                     summary: "Choose the right output for editing later or sending now.",
                     sections: [
                         HelpArticleSection(
                             title: "Use Copy or Share",
-                            body: "Copy, Export, Share, Float, and Drag follow the visible stage. Edit, Comparison Review, Steps, and Arrange use the unwrapped content, annotations, pinned UI Map overlays, and flattened redactions. Polish uses the visible Look or Mockup; when none is configured, it uses the same unwrapped content. Back to Content changes the boundary explicitly. Edit Selected Capture and Annotate Result hide document output until Done returns to the focused content stage. When Auto Copy runs after capture or an Edit change, it uses that same visible-stage output. Polish changes do not trigger Auto Copy."
+                            body: "Copy, Export, Share, Float, and Drag follow the visible stage. Edit, Comparison Review, Steps, and Arrange use the unwrapped content, annotations, pinned UI Map overlays, and flattened redactions. Polish uses the visible Look or Mockup; when none is configured, it uses the same unwrapped content. Back to Content changes the boundary explicitly. Edit Selected Capture and Annotate Result hide document output until Done returns to the focused content stage. Capturing or editing does not update the clipboard; choose Copy when the visible result is ready."
+                        ),
+                        HelpArticleSection(
+                            title: "Print the current document",
+                            body: "Choose File > Print… or press Command-P to open the macOS print dialog for the current Screenshot, Comparison, Steps, Combined Image, or Guide. Choose a printer, paper, page range, or the dialog’s PDF options. Printing includes the current annotations and redactions; Polish prints its visible Look or Mockup. Transparent areas use the paper background. Steps prints one included step per page, while Guide uses its PDF paper, orientation, cover, and compact-layout settings. Each page fits the printable area and rotates automatically. Very large compositions may be reduced to safe rendering limits. Printing preserves your editable work and does not mark it saved. Print is unavailable for Video, empty Guides, active capture, or nested screenshot editing; finish nested editing before printing."
                         ),
                         HelpArticleSection(
                             title: "Export screenshots",

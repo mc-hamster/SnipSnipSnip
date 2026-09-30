@@ -42,10 +42,6 @@ nonisolated enum WorkflowVocabulary {
     }
 }
 
-nonisolated enum ClipboardWorkflowConstants {
-    static let autoCopyDebounceNanoseconds: UInt64 = 250_000_000
-}
-
 nonisolated enum DocumentWorkflowConstants {
     static let autosaveDebounceNanoseconds: UInt64 = 1_250_000_000
     static let captureHistoryLimit = 36

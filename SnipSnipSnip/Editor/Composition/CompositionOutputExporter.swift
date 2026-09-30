@@ -1069,6 +1069,38 @@ nonisolated enum CompositionOutputExporter {
 
     // MARK: - PDF
 
+    /// Paper can receive transparent artwork. Reuse the PDF page renderer without
+    /// applying the file-export restriction that requires PNG for transparency.
+    static func printPDFData(
+        _ input: CompositionOutputInput,
+        outputSize: ScreenshotOutputSize = .original
+    ) async throws -> Data {
+        try await PresentationPerformanceMetrics.withLoggingSuppressed(
+            input.suppressesContentDiagnostics
+        ) {
+            try printingPDFData(input, outputSize: outputSize)
+        }
+    }
+
+    private static func printingPDFData(
+        _ input: CompositionOutputInput,
+        outputSize: ScreenshotOutputSize
+    ) throws -> Data {
+        let input = inputWithForcedPDFPagination(input, itemsPerPage: 1)
+        let preflight = try Self.preflight(input, format: .pdf)
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SnipSnipSnip-Print-\(UUID().uuidString).pdf")
+        defer { try? FileManager.default.removeItem(at: url) }
+        _ = try writePDF(
+            input,
+            maximumOutputDimension: preflight.isOversized
+                ? preflight.recommendedMaximumOutputDimension : nil,
+            outputSize: outputSize,
+            to: url
+        )
+        return try Data(contentsOf: url)
+    }
+
     private struct PDFRenderSummary {
         let pageCount: Int
         let firstPixelSize: CGSize

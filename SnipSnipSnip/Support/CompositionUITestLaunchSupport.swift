@@ -73,7 +73,6 @@ enum CompositionUITestLaunchSupport {
             AppLifecycleConstants.currentOnboardingVersion
         )
         preferences.lifecycle.saveOnboardingResumeCheckpoint(nil)
-        preferences.clipboard.saveAutoCopyEnabled(false)
         var clipboardPreferences = ClipboardPreferences.default
         clipboardPreferences.isEnabled = true
         preferences.clipboard.savePreferences(clipboardPreferences)

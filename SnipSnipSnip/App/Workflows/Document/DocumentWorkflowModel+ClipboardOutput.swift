@@ -18,8 +18,6 @@ extension DocumentWorkflowModel {
         appearance: ScreenshotOutputAppearance,
         completion: ((Bool) -> Void)? = nil
     ) {
-        cancelPendingAutoCopy()
-
         guard let controller = editorController else {
             completion?(false)
             return
@@ -33,12 +31,6 @@ extension DocumentWorkflowModel {
                 completion?(succeeded)
             }
         )
-    }
-
-    func cancelPendingAutoCopy() {
-        pendingAutoCopyTask?.cancel()
-        pendingAutoCopyTask = nil
-        autoCopyRequestGeneration &+= 1
     }
 
     func copyCurrentAnnotatedImageToClipboard() {

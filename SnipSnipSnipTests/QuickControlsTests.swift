@@ -108,6 +108,51 @@ final class QuickControlsTests: XCTestCase {
         )
     }
 
+    func testRetiredAutoCopyControlMigrationPreservesRemainingLayoutAndSettings() throws {
+        let name = "QuickControlsTests.retiredControl.\(UUID())"
+        let defaults = makeDefaults(named: name)
+        defer { defaults.removePersistentDomain(forName: name) }
+        let stored: [String: Any] = [
+            "isVisible": false, "showsOnAppLaunch": false,
+            "items": [
+                ["kind": "screenInspector", "size": "wide"],
+                ["kind": "autoCopy", "size": "compact"],
+                ["kind": "captureRegion", "size": "standard"],
+            ],
+            "panelFrame": ["x": 120, "y": 240, "width": 64, "height": 400],
+            "densityVersion": QuickControlsPreferences.currentDensityVersion,
+            "dockState": "compact", "dockEdge": "left",
+        ]
+        defaults.set(try JSONSerialization.data(withJSONObject: stored),
+                     forKey: AppModelPreferenceKey.quickControlsPreferences)
+        let store = QuickControlsPreferenceStore(storage: defaults)
+        let loaded = store.loadPreferences()
+        XCTAssertEqual(loaded.items, [
+            QuickControlItem(kind: .screenInspector, size: .wide),
+            QuickControlItem(kind: .captureRegion, size: .standard),
+        ])
+        XCTAssertFalse(loaded.isVisible)
+        XCTAssertFalse(loaded.resolvedShowsOnAppLaunch)
+        XCTAssertEqual(loaded.resolvedDockState, .compact)
+        XCTAssertEqual(loaded.resolvedDockEdge, .left)
+        XCTAssertEqual(loaded.panelFrame?.x, 120)
+        XCTAssertEqual(loaded.panelFrame?.y, 240)
+        XCTAssertEqual(loaded.panelFrame?.height, loaded.resolvedPanelSize.height)
+        XCTAssertNil(QuickControlKind(rawValue: "autoCopy"))
+        store.savePreferences(loaded)
+        XCTAssertEqual(store.loadPreferences(), loaded)
+        let saved = try XCTUnwrap(defaults.data(forKey: AppModelPreferenceKey.quickControlsPreferences))
+        XCTAssertFalse(String(decoding: saved, as: UTF8.self).contains("autoCopy"))
+    }
+
+    func testRemovingOnlyRetiredControlLeavesIntentionalEmptyDock() throws {
+        let data = Data(#"{"isVisible":true,"items":[{"kind":"autoCopy","size":"compact"}]}"#.utf8)
+        let loaded = try JSONDecoder().decode(QuickControlsPreferences.self, from: data).migratedToCurrentDock()
+        XCTAssertTrue(loaded.items.isEmpty)
+        XCTAssertTrue(loaded.isVisible)
+        XCTAssertTrue(loaded.resolvedShowsOnAppLaunch)
+    }
+
     func testControlCatalogFollowsBuildCapabilitiesWithoutChangingSavedIdentity() {
         let release = BuildTargetCapabilityProvider().snapshot(for: .release)
         let development = BuildTargetCapabilityProvider().snapshot(for: .dev)
@@ -443,7 +488,7 @@ final class QuickControlsTests: XCTestCase {
         XCTAssertEqual(
             model.preferences.items.map(\.kind),
             [.captureRegion, .captureWindow, .clipboardHistory, .captureScreen,
-             .repeatLastCapture, .capturePresets, .timer]
+             .repeatLastCapture, .capturePresets, .recordRegion, .timer]
         )
 
         for kind in model.preferences.items.dropFirst().map(\.kind) {

@@ -76,7 +76,6 @@ protocol DocumentCaptureWorkflowPort: AnyObject {
 
 @MainActor
 protocol DocumentClipboardWorkflowPort: AnyObject {
-    var autoCopyEnabled: Bool { get }
     var monitor: ClipboardMonitor { get }
 }
 

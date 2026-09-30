@@ -28,6 +28,7 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     weak var automationCoordinator: (any DocumentAutomationCoordinatorPort)?
     let preferenceStore: EditorPreferenceStore
     let capturePreviewCoordinator = CapturePreviewCoordinator()
+    let printCoordinator = DocumentPrintCoordinator()
     @Published var hasCapturePreview = false
     @Published var showsCapturePreview: Bool {
         didSet { preferenceStore.saveShowsCapturePreview(showsCapturePreview) }
@@ -129,11 +130,6 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
             preferenceStore.saveUIMapPinnedOverlayDefaults(uiMapPinnedOverlayDefaults)
         }
     }
-    var pendingAutoCopyTask: Task<Void, Never>?
-    /// Monotonically identifies the newest auto-copy request. Rendering happens
-    /// asynchronously, so task cancellation alone cannot prevent an older render
-    /// from finishing after a newer editor change.
-    var autoCopyRequestGeneration: UInt = 0
     var pendingAutosaveTask: Task<Void, Never>?
     var pendingRecoveryRefreshTask: Task<Void, Never>?
     var pendingCaptureHistorySearchTask: Task<Void, Never>?

@@ -145,7 +145,7 @@ Search filters nine category names and manually maintained keyword strings. It d
 
 **Refinement:** Index control labels and useful synonyms, then navigate to the exact category, nested page, and section. Keep the search field, but make its results specific enough to act on.
 
-**Acceptance:** Search “clipboard,” “auto copy,” “include cursor,” and “JPEG quality.” Each query exposes the corresponding control without a second manual search through the page.
+**Acceptance:** Search “clipboard,” “capture preview,” “include cursor,” and “JPEG quality.” Each query exposes the corresponding control without a second manual search through the page.
 
 Evidence: [search filtering/navigation](../SnipSnipSnip/App/CaptureAutomationSettingsView.swift), lines 54–57 and 120–126; [nested Snip Library selection](../SnipSnipSnip/App/CaptureAutomationSettingsView.swift), line 767; [keyword catalog](../SnipSnipSnip/App/SettingsNavigation.swift).
 
@@ -187,6 +187,6 @@ Evidence: [copy handler](../SnipSnipSnip/Clipboard/ClipboardManagerView.swift), 
 
 ## Already addressed and excluded from this backlog
 
-The reviewed tree already contains default editor opening, opt-in Capture Preview, Auto Copy off by default, direct solid Redact, clipboard draft-aware copy and deletion recovery, searchable/paged Snip Library, video review-first controls with preview retry, and pending direct Auto Crop access. These should not be proposed again as missing refinements.
+The reviewed tree already contains default editor opening, opt-in Capture Preview, explicit screenshot copying, direct solid Redact, clipboard draft-aware copy and deletion recovery, searchable/paged Snip Library, video review-first controls with preview retry, and pending direct Auto Crop access. These should not be proposed again as missing refinements.
 
 Any implementation that changes workflow labels or behavior must update Help and the Workflow Lexicon in the same change. Layout changes must update the Design Language where they alter a reusable pattern. The persistence, reorder, document-switching, and export-association changes need focused regression coverage; visual and focus behavior still needs a live walkthrough when the Mac is unlocked.

@@ -635,7 +635,6 @@ struct ContentView: View {
                     } else {
                         captureHeaderOptions
                     }
-                    if documents.videoEditorController == nil { autoCopyToggle }
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -647,7 +646,6 @@ struct ContentView: View {
                         } else {
                             captureHeaderOptions
                         }
-                        if documents.videoEditorController == nil { autoCopyToggle }
                     }
                 }
             }
@@ -802,15 +800,6 @@ struct ContentView: View {
                     .strokeBorder(permissionStatusTint.opacity(0.55), lineWidth: 1)
             }
             .help(headerCaptureReady ? "Capture permissions are ready." : permissionCalloutSummary)
-    }
-
-    private var autoCopyToggle: some View {
-        Toggle("Auto Copy", isOn: $clipboard.autoCopyEnabled)
-            .toggleStyle(.switch)
-            .controlSize(.small)
-            .font(.subheadline.weight(.semibold))
-            .fixedSize()
-            .help("When on, screenshots copy after capture and editor changes, before you may have added redactions. Turn off to review first. Private Capture never copies automatically.")
     }
 
     private var captureHeaderOptions: some View {

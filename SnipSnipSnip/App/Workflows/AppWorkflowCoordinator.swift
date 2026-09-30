@@ -100,7 +100,7 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
                 return
             }
             let workflowOutcome = result.workflowPreset?.outcome ?? .openInEditor
-            let willBeCopied = workflowOutcome == .copyToClipboard || clipboard?.autoCopyEnabled == true
+            let willBeCopied = workflowOutcome == .copyToClipboard
 
             if !result.isPrivateCapture, installation.disposition == .newDocument {
                 clipboard?.scheduleClipboardSnipRecording(
@@ -123,8 +123,6 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
                         lifecycle?.presentError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
                     }
                 }
-            } else if clipboard?.autoCopyEnabled == true, installation.disposition == .newDocument {
-                documents.scheduleAutoCopy(for: controller)
             }
 
             if result.shouldProcessUIMap {
@@ -177,13 +175,6 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
         switch output {
         case .presentError(let message):
             lifecycle?.presentError(message)
-        case .autoCopyChanged(let enabled):
-            documents?.updateCapturePreviewAutoCopy(enabled)
-            if enabled, documents?.editorController?.isPrivateDocument == false {
-                documents?.copyCurrentEditorImageToClipboard()
-            } else {
-                documents?.cancelPendingAutoCopy()
-            }
         }
     }
 
@@ -531,7 +522,6 @@ enum DocumentWorkflowOutput {
 }
 
 enum ClipboardWorkflowOutput {
-    case autoCopyChanged(Bool)
     case presentError(String)
 }
 

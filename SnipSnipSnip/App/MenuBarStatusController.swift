@@ -258,15 +258,6 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         rebuildMainMenu()
     }
 
-    @objc private func toggleAutoCopy() {
-        guard let clipboard else {
-            return
-        }
-
-        clipboard.autoCopyEnabled.toggle()
-        rebuildMainMenu()
-    }
-
     @objc private func toggleGlobalHotkeys() {
         guard let capture else {
             return
@@ -371,7 +362,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     }
 
     private func rebuildMainMenu() {
-        guard let lifecycle, let capture, let clipboard, let quickControls,
+        guard let lifecycle, let capture, let quickControls,
               let floatingReferences, let capabilities else {
             return
         }
@@ -564,14 +555,6 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         let regionSettingsItem = NSMenuItem(title: "Region Capture Settings", action: nil, keyEquivalent: "")
         regionSettingsItem.submenu = regionCaptureSettingsMenu
         menu.addItem(regionSettingsItem)
-
-        menu.addItem(toggleItem(
-            title: "Auto Copy",
-            action: #selector(toggleAutoCopy),
-            isOn: clipboard.autoCopyEnabled,
-            enabled: true,
-            toolTip: "When on, screenshots copy after capture and editor changes, before you may have added redactions. Turn off to review first. Private Capture never copies automatically."
-        ))
 
         menu.addItem(.separator())
 

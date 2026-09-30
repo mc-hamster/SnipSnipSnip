@@ -200,7 +200,6 @@ final class AppModelPerformanceTests: XCTestCase {
         let model = AppModel(defaults: defaults, recoveryStore: recoveryStore, captureService: MockScreenCaptureService(), shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false)
         model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
         model.captureDelay = .immediate
-        model.autoCopyEnabled = false
         return model
     }
 

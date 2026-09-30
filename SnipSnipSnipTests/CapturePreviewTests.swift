@@ -20,20 +20,62 @@ final class CapturePreviewTests: XCTestCase {
         XCTAssertFalse(CapturePreviewPolicy.shouldPresent(result: result(), disposition: .newDocument, isEnabled: false))
     }
 
-    func testPreviewAndManualCopyDefaultsRespectStoredChoices() {
+    func testPreviewDefaultsRespectStoredChoices() {
         let name = "CapturePreviewTests.preferences.\(UUID())"
         let defaults = makeDefaults(named: name)
         defer { defaults.removePersistentDomain(forName: name) }
         let editor = EditorPreferenceStore(storage: defaults)
-        let clipboard = ClipboardPreferenceStore(storage: defaults)
         XCTAssertFalse(editor.loadShowsCapturePreview())
-        XCTAssertFalse(clipboard.loadAutoCopyEnabled())
         editor.saveShowsCapturePreview(true)
-        clipboard.saveAutoCopyEnabled(true)
         XCTAssertTrue(EditorPreferenceStore(storage: defaults).loadShowsCapturePreview())
-        XCTAssertTrue(ClipboardPreferenceStore(storage: defaults).loadAutoCopyEnabled())
         editor.saveShowsCapturePreview(false)
         XCTAssertFalse(EditorPreferenceStore(storage: defaults).loadShowsCapturePreview())
+    }
+
+    func testCaptureAndEditsPreserveClipboardEvenWithLegacyAutoCopyEnabled() async throws {
+        for showsPreview in [false, true] {
+            let pasteboard = TestPasteboardService()
+            pasteboard.setString("Previously copied text", forType: .string)
+            let initialChangeCount = pasteboard.changeCount
+            let app = makeApp(pasteboard: pasteboard, legacyAutoCopyEnabled: true)
+            app.documents.showsCapturePreview = showsPreview
+            app.workflowCoordinator.handle(.captureCompleted(result()))
+            try await Task.sleep(nanoseconds: 350_000_000)
+            XCTAssertEqual(pasteboard.changeCount, initialChangeCount)
+            let controller = try XCTUnwrap(app.documents.editorController)
+            controller.execute(AddAnnotationCommand(annotation: .makeSolidRedaction(
+                in: CGRect(x: 5, y: 5, width: 30, height: 25)
+            )))
+            try await Task.sleep(nanoseconds: 350_000_000)
+            XCTAssertEqual(pasteboard.changeCount, initialChangeCount)
+            XCTAssertEqual(pasteboard.string(forType: .string), "Previously copied text")
+            XCTAssertNil(pasteboard.data(forType: .png))
+
+            var copied: Bool?
+            app.documents.copyCurrentEditorImageToClipboard { copied = $0 }
+            await waitUntil { copied != nil }
+            XCTAssertEqual(copied, true)
+            XCTAssertNotNil(pasteboard.data(forType: .png))
+            XCTAssertTrue(controller.notice?.message.contains("redactions applied") == true)
+        }
+    }
+
+    func testCopyPresetStillCopiesOnceAndLaterEditsPreserveClipboard() async throws {
+        let pasteboard = TestPasteboardService()
+        let app = makeApp(pasteboard: pasteboard, legacyAutoCopyEnabled: true)
+        let preset = CapturePreset(name: "Capture and paste", target: .fullscreen,
+                                   options: CaptureRunOptions(), outcome: .copyToClipboard)
+        app.workflowCoordinator.handle(.captureCompleted(result(preset: preset)))
+        await waitUntil { pasteboard.data(forType: .png) != nil }
+        let png = try XCTUnwrap(pasteboard.data(forType: .png))
+        let changeCount = pasteboard.changeCount
+        let controller = try XCTUnwrap(app.documents.editorController)
+        controller.execute(AddAnnotationCommand(annotation: .makeSolidRedaction(
+            in: CGRect(x: 5, y: 5, width: 30, height: 25)
+        )))
+        try await Task.sleep(nanoseconds: 350_000_000)
+        XCTAssertEqual(pasteboard.changeCount, changeCount)
+        XCTAssertEqual(pasteboard.data(forType: .png), png)
     }
 
     func testRedactionDefaultsToSolidButKeepsStoredMode() {
@@ -53,7 +95,7 @@ final class CapturePreviewTests: XCTestCase {
     func testCopyWaitsForCompletionAndCanRetryFailure() {
         var pending: ((Bool) -> Void)?
         var requests = 0
-        let model = CapturePreviewModel(autoCopyEnabled: false, copy: {
+        let model = CapturePreviewModel(copy: {
             requests += 1
             pending = $0
         }, edit: {}, export: {}, drag: { nil })
@@ -148,7 +190,7 @@ final class CapturePreviewTests: XCTestCase {
         let controller = EditorController(capture: makeCapturedScreenshot(), capabilities: testCapabilities)
         let coordinator = CapturePreviewCoordinator()
         coordinator.presentsWindows = false
-        coordinator.present(controller: controller, autoCopyEnabled: false,
+        coordinator.present(controller: controller,
                             copy: { $0(true) }, edit: {}, export: {}, drag: { nil })
         let model = try XCTUnwrap(coordinator.model)
         coordinator.close()
@@ -171,7 +213,7 @@ final class CapturePreviewTests: XCTestCase {
         let coordinator = CapturePreviewCoordinator()
         coordinator.presentsWindows = false
         for controller in [first, second] {
-            coordinator.present(controller: controller, autoCopyEnabled: false,
+            coordinator.present(controller: controller,
                                 copy: { $0(true) }, edit: {}, export: {}, drag: { nil })
         }
         await waitUntil { coordinator.model?.image != nil }
@@ -264,8 +306,6 @@ final class CapturePreviewTests: XCTestCase {
             XCTAssertGreaterThan(app.lifecycle.mainWindowPresentationRequest, count)
             if isPrivate {
                 XCTAssertNil(app.documents.currentRecoverySessionID)
-                app.clipboard.autoCopyEnabled = true
-                XCTAssertNil(app.documents.pendingAutoCopyTask)
                 XCTAssertNil(app.documents.editorController?.notice)
             }
         }
@@ -293,7 +333,7 @@ final class CapturePreviewTests: XCTestCase {
         let controller = EditorController(capture: makeCapturedScreenshot(), capabilities: testCapabilities)
         let coordinator = CapturePreviewCoordinator()
         coordinator.presentsWindows = true
-        coordinator.present(controller: controller, autoCopyEnabled: false,
+        coordinator.present(controller: controller,
                             copy: { $0(true) }, edit: {}, export: {}, drag: { nil })
         defer { coordinator.clear() }
         XCTAssertTrue(coordinator.panel?.styleMask.contains(.nonactivatingPanel) == true)
@@ -312,7 +352,7 @@ final class CapturePreviewTests: XCTestCase {
         let expected = try await controller.renderedImageForExport(appearance: .plain)
         let coordinator = CapturePreviewCoordinator()
         coordinator.presentsWindows = false
-        coordinator.present(controller: controller, autoCopyEnabled: false,
+        coordinator.present(controller: controller,
                             copy: { $0(true) }, edit: {}, export: {}, drag: { nil })
         defer { coordinator.clear() }
         await waitUntil { coordinator.model?.image != nil }
@@ -325,7 +365,7 @@ final class CapturePreviewTests: XCTestCase {
 
     func testPreviewRendersInLightDarkAndAccessibilityAppearances() throws {
         for appearance in [NSAppearance.Name.aqua, .darkAqua, .accessibilityHighContrastAqua, .accessibilityHighContrastDarkAqua] {
-            let model = CapturePreviewModel(autoCopyEnabled: false, copy: { $0(true) }, edit: {}, export: {}, drag: { nil })
+            let model = CapturePreviewModel(copy: { $0(true) }, edit: {}, export: {}, drag: { nil })
             model.image = makeCoordinateImage(width: 500, height: 300)
             let view = NSHostingView(rootView: CapturePreviewView(model: model))
             view.appearance = NSAppearance(named: appearance)
@@ -344,10 +384,18 @@ final class CapturePreviewTests: XCTestCase {
         CapturePreviewPolicy.shouldPresent(result: result, disposition: disposition, isEnabled: true)
     }
 
-    private func makeApp() -> AppModel {
+    private func makeApp(
+        pasteboard: (any PasteboardServicing)? = nil,
+        legacyAutoCopyEnabled: Bool = false
+    ) -> AppModel {
         let name = "CapturePreviewTests.app.\(UUID())"
         let defaults = makeDefaults(named: name)
-        let environment = AppEnvironment(defaults: defaults, permissions: TestCapturePermissionService())
+        if legacyAutoCopyEnabled {
+            defaults.set(true, forKey: "appModel.autoCopyEnabled")
+        }
+        let environment = pasteboard.map {
+            makePasteboardTestEnvironment(defaults: defaults, pasteboard: $0)
+        } ?? AppEnvironment(defaults: defaults, permissions: TestCapturePermissionService())
         let model = retainForTestLifetime(AppModel(defaults: defaults, environment: environment,
             recoveryStore: DocumentRecoveryStore(baseURL: FileManager.default.temporaryDirectory.appendingPathComponent(name)),
             shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false))
@@ -356,13 +404,14 @@ final class CapturePreviewTests: XCTestCase {
     }
 
     private func result(allowsPreview: Bool = true, isPrivate: Bool = false,
-                        kind: CaptureKind = .region, role: CaptureCompletionRole = .standalone) -> CaptureWorkflowResult {
+                        kind: CaptureKind = .region, role: CaptureCompletionRole = .standalone,
+                        preset: CapturePreset? = nil) -> CaptureWorkflowResult {
         let capture = makeCapturedScreenshot(kind: kind)
         return CaptureWorkflowResult(capture: capture, uiMapSourceCapture: capture,
             request: .region(capture.sourceRect), runOptions: CaptureRunOptions(),
             isPrivateCapture: isPrivate, checkpointLabel: "Capture",
             shouldAttemptUIMapCapture: false, shouldProcessUIMap: false,
-            uiMapSkipReason: nil, workflowPreset: nil, intent: .newDocument,
+            uiMapSkipReason: nil, workflowPreset: preset, intent: .newDocument,
             completionRole: role, allowsCapturePreview: allowsPreview)
     }
 }

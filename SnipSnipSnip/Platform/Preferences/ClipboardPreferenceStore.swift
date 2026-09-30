@@ -11,14 +11,6 @@ nonisolated struct ClipboardPreferenceStore {
         self.storage = storage
     }
 
-    func loadAutoCopyEnabled() -> Bool {
-        storage.object(forKey: AppModelPreferenceKey.autoCopyEnabled) as? Bool ?? false
-    }
-
-    func saveAutoCopyEnabled(_ enabled: Bool) {
-        storage.set(enabled, forKey: AppModelPreferenceKey.autoCopyEnabled)
-    }
-
     func loadPreferences() -> ClipboardPreferences {
         var loadedPreferences = preferences.load(from: storage)
         let existingMatches = Set(loadedPreferences.ignoredApps.map { $0.id })

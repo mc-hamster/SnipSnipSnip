@@ -591,7 +591,6 @@ extension DocumentWorkflowModel {
         captureHistorySearchGeneration += 1
         recoveryRefreshGeneration += 1
         textRecognitionCoordinator.cancelAll()
-        cancelPendingAutoCopy()
 
         guard let sessionID = currentRecoverySessionID else {
             pendingRecoverySession = nil

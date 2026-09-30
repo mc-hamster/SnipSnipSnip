@@ -12,6 +12,7 @@ enum AppShortcut {
             ShortcutCatalogEntry(keys: "Command-Q", action: "Quit or run in background"),
             ShortcutCatalogEntry(keys: "Command-S", action: "Save"),
             ShortcutCatalogEntry(keys: "Shift-Command-S", action: "Save As"),
+            ShortcutCatalogEntry(keys: "Command-P", action: "Print"),
             ShortcutCatalogEntry(
                 keys: "Command-C",
                 action: String(localized: "Copy current workspace output")

@@ -113,11 +113,14 @@ final class ClipboardAppModelTests: XCTestCase {
         XCTAssertTrue(preferences.recordsUncopiedSnips)
     }
 
-    func testCompletedCaptureRecordsSnipWhenAutoCopyIsDisabled() async throws {
-        let suiteName = "ClipboardAppModelTests.autoCopyDisabled"
-        let storeName = "ClipboardAppModelTests.autoCopyDisabled.store"
+    func testCompletedCaptureRecordsSnipWithoutCopying() async throws {
+        let suiteName = "ClipboardAppModelTests.uncopiedCapture"
+        let storeName = "ClipboardAppModelTests.uncopiedCapture.store"
         let defaults = makeDefaults(named: suiteName)
-        defaults.set(false, forKey: AppModelPreferenceKey.autoCopyEnabled)
+        defaults.set(true, forKey: "appModel.autoCopyEnabled")
+        let pasteboard = TestPasteboardService()
+        pasteboard.setString("Existing clipboard", forType: .string)
+        let before = pasteboard.changeCount
         defer {
             defaults.removePersistentDomain(forName: suiteName)
             removeClipboardStore(named: storeName)
@@ -126,7 +129,8 @@ final class ClipboardAppModelTests: XCTestCase {
         let store = makeClipboardStore(named: storeName)
         let model = retainForTestLifetime(AppModel(
             defaults: defaults,
-            recoveryStore: makeRecoveryStore(named: "ClipboardAppModelTests.autoCopyDisabled.recovery"),
+            environment: makePasteboardTestEnvironment(defaults: defaults, pasteboard: pasteboard),
+            recoveryStore: makeRecoveryStore(named: "ClipboardAppModelTests.uncopiedCapture.recovery"),
             clipboardHistoryStore: store,
             shouldCheckCompatibilityOnLaunch: false,
             shouldStartArchiveMaintenance: false
@@ -145,12 +149,44 @@ final class ClipboardAppModelTests: XCTestCase {
         }
 
         XCTAssertEqual(model.clipboard.clipboardHistoryItems.count, 1)
+        XCTAssertEqual(pasteboard.changeCount, before)
+        XCTAssertEqual(pasteboard.string(forType: .string), "Existing clipboard")
         guard case let .snip(_, _, title) = try XCTUnwrap(model.clipboard.clipboardHistoryItems.first).kind else {
             XCTFail("Expected a snip clipboard item")
             return
         }
         XCTAssertTrue(title.hasSuffix(".sss"))
         XCTAssertTrue(try XCTUnwrap(model.clipboard.clipboardHistoryItems.first).searchableText.contains("Timeline Source"))
+    }
+
+    func testCopyPresetRecordsSnipWhenUncopiedScreenshotHistoryIsDisabled() async throws {
+        let name = "ClipboardAppModelTests.copyPreset.\(UUID())"
+        let defaults = makeDefaults(named: name)
+        let pasteboard = TestPasteboardService()
+        let store = makeClipboardStore(named: name + ".store")
+        defer {
+            defaults.removePersistentDomain(forName: name)
+            removeClipboardStore(named: name + ".store")
+            removeClipboardStore(named: name + ".recovery")
+        }
+        let model = retainForTestLifetime(AppModel(
+            defaults: defaults,
+            environment: makePasteboardTestEnvironment(defaults: defaults, pasteboard: pasteboard),
+            recoveryStore: makeRecoveryStore(named: name + ".recovery"),
+            clipboardHistoryStore: store,
+            shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false
+        ))
+        model.clipboard.updateClipboardHistoryEnabled(true)
+        model.clipboard.updateRecordsUncopiedSnips(false)
+        let preset = CapturePreset(name: "Copy preset", target: .fullscreen,
+                                   options: CaptureRunOptions(), outcome: .copyToClipboard)
+        model.capture.capturePresets = [preset]
+        model.capture.activeWorkflowPresetID = preset.id
+        try model.capture.completeCapture(makeCapturedScreenshot(), request: .fullscreen,
+                                        isPrivateCapture: false, shouldAttemptUIMapCapture: false)
+        await waitUntil { store.items.count == 1 && pasteboard.data(forType: .png) != nil }
+        XCTAssertEqual(store.items.count, 1)
+        XCTAssertNotNil(pasteboard.data(forType: .png))
     }
 
     func testPrivateCaptureDoesNotRecordClipboardSnip() async throws {
@@ -188,7 +224,6 @@ final class ClipboardAppModelTests: XCTestCase {
         let suiteName = "ClipboardAppModelTests.uncopiedSnipsDisabled"
         let storeName = "ClipboardAppModelTests.uncopiedSnipsDisabled.store"
         let defaults = makeDefaults(named: suiteName)
-        defaults.set(false, forKey: AppModelPreferenceKey.autoCopyEnabled)
         defer {
             defaults.removePersistentDomain(forName: suiteName)
             removeClipboardStore(named: storeName)

@@ -1,5 +1,7 @@
 # SnipSnipSnip Automation
 
+Screenshot capture and editor changes preserve the clipboard. Clipboard delivery requires an explicit copy output or a Capture Preset with Copy to Clipboard as its outcome. The retired global Auto Copy preference is ignored, including during automated captures. Existing copy commands, result fields, and sample-script procedures remain unchanged.
+
 SnipSnipSnip exposes one automation contract through four external interfaces:
 the `snipsnipsnipctl` command-line helper, AppleScript, the
 `snipsnipsnip://` URL scheme, and App Intents for Apple Shortcuts and Spotlight.

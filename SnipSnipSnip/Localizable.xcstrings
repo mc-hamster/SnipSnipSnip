@@ -1,6 +1,56 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "The document could not be prepared for printing." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The document could not be prepared for printing."
+          }
+        }
+      }
+    },
+    "Copy, save, export, share, and print" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy, save, export, share, and print"
+          }
+        }
+      }
+    },
+    "Print the current document" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Print the current document"
+          }
+        }
+      }
+    },
+    "Print…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Print…"
+          }
+        }
+      }
+    },
+    "Print" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Print"
+          }
+        }
+      }
+    },
     "" : {
 
     },
@@ -875,20 +925,6 @@
     },
     "Auto" : {
 
-    },
-    "Auto Copy" : {
-
-    },
-    "Auto Copy is on. Captures and edits copy automatically." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Auto Copy is on. Captures and edits copy automatically."
-          }
-        }
-      }
     },
     "Auto Crop" : {
 

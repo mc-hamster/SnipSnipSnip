@@ -4,7 +4,6 @@ struct QuickControlsView: View {
     @ObservedObject private var quickControls: QuickControlsModel
     @ObservedObject private var lifecycle: AppLifecycleModel
     @ObservedObject private var capture: CaptureWorkflowModel
-    @ObservedObject private var clipboard: ClipboardWorkflowModel
     @ObservedObject private var video: VideoWorkflowModel
     @ObservedObject private var guide: GuideWorkflowModel
 
@@ -12,7 +11,6 @@ struct QuickControlsView: View {
         self.quickControls = quickControls
         self.lifecycle = quickControls.lifecycle
         self.capture = quickControls.capture
-        self.clipboard = quickControls.clipboard
         self.video = quickControls.video
         self.guide = quickControls.guide
     }
@@ -97,10 +95,6 @@ struct QuickControlsView: View {
         case .privateCapture:
             toggleButton(item.kind, presentation: presentation, state: state) {
                 capture.updatePrivateCaptureEnabled(!capture.privateCaptureEnabled)
-            }
-        case .autoCopy:
-            toggleButton(item.kind, presentation: presentation, state: state) {
-                clipboard.autoCopyEnabled.toggle()
             }
         default:
             Button { quickControls.perform(item.kind) } label: {

@@ -242,6 +242,7 @@ Do not use **Clear** as a synonym for irreversible deletion. Do not use **Done**
 | **Copy** | Put the result on the clipboard. |
 | **Export** | Produce a file or alternate format from the current result. |
 | **Share** | Send the result through the macOS sharing system. |
+| **Print** | Send the current Screenshot, Comparison, Steps, Combined Image, or Guide to the native macOS print dialog. |
 | **Float** | Keep the result visible in a floating presentation. |
 | **Drag** | Provide the result as a draggable item for another destination. |
 | **Reveal in Finder** | Show an existing file in Finder. |
@@ -301,11 +302,11 @@ Library terms identify distinct scopes. Do not shorten them to generic **Library
 
 **Fit to Text** is the Highlighter's on-by-default, session-only option that fits newly drawn strokes to confidently recognized words and lines. It is not a separate annotation tool. Uncertain recognition or an intervening edit retains the original freehand stroke. Fitting is part of the same undo step.
 
-**Output Size** names the screenshot command row's **Size** control. **Original Size**, **Half Size**, and **Custom Width** set delivered still-image dimensions; **Apply Width** commits a custom width with linked proportions. This is a per-open-document output choice, not an image edit or a saved global preference. It affects Copy, Share, Drag, and PNG/JPEG/PDF exports, including each paginated PDF page. Editable files, original pixels, history previews, animation, Interactive HTML, and automation retain their established sizes.
+**Output Size** names the screenshot command row's **Size** control. **Original Size**, **Half Size**, and **Custom Width** set delivered still-image dimensions; **Apply Width** commits a custom width with linked proportions. This is a per-open-document output choice, not an image edit or a saved global preference. It affects Copy, Share, Drag, Print, and PNG/JPEG/PDF exports, including each paginated PDF page. Editable files, original pixels, history previews, animation, Interactive HTML, and automation retain their established sizes.
 
 **Capture Preview** is the optional post-capture thumbnail and action panel, distinct from Quick Controls, History Preview, and Float. In Settings, **Show Capture Preview** enables this alternative for future captures; in View and the menu bar icon menu, it restores an existing preview without opening the editor. **Close Capture Preview** hides it without deleting its document. **Edit** in this panel opens the screenshot editor. **Copy** copies the rendered screenshot, **Export…** chooses a PNG destination, and **Drag Screenshot** delivers rendered output using the configured drag format. Ordinary standalone Screenshots open in the editor by default; opting into Capture Preview does not change automation outcomes or Private Capture.
 
-**After Capture** is the Editor & Output Settings section containing Show Capture Preview and Auto Copy. Both are off when no preference has been stored; existing stored choices remain in force. Restoring defaults turns both off. Explain that automatic copying can occur before redaction, and that Private Capture never copies automatically.
+**After Capture** is the Editor & Output Settings section containing Show Capture Preview. It is off when no preference has been stored; existing stored choices remain in force. Restoring defaults turns it off. Capturing and editing a Screenshot preserve the clipboard until Copy is chosen. **Copy to Clipboard** is the explicit Capture Preset outcome for capture-and-paste workflows; explicit automation copy outputs remain available.
 
 **Redact** names solid covering and is permanently available in the common-tool group. Its disclosure menu retains **Blur** and **Pixelate**. **Highlight Box** is also a direct common tool. Copy completion may say **Copied screenshot with redactions applied. Ready to paste.** This describes the rendered clipboard image, not removal of source pixels from the editable document.
 

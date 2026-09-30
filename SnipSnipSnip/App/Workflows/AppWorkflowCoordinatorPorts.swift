@@ -68,7 +68,6 @@ protocol CoordinatorCapturePort: AnyObject {
 protocol CoordinatorDocumentPort: AnyObject {
     var hasCapturePreview: Bool { get }
     func showCapturePreview()
-    func updateCapturePreviewAutoCopy(_ enabled: Bool)
     var editorController: EditorController? { get }
     var videoEditorController: VideoEditorController? { get }
     var guideEditorController: GuideEditorController? { get }
@@ -77,13 +76,11 @@ protocol CoordinatorDocumentPort: AnyObject {
     func resetDocumentPreferencesToDefaults()
     func installCapturedScreenshot(_ result: CaptureWorkflowResult) -> CaptureInstallationResult
     func presentCapturePreview(for result: CaptureWorkflowResult, installation: CaptureInstallationResult) -> Bool
-    func scheduleAutoCopy(for controller: EditorController)
     func copyCurrentEditorImageToClipboard()
     func exportWorkflowCapture(
         from controller: EditorController,
         to destination: CapturePresetExportDestination
     ) async throws -> URL
-    func cancelPendingAutoCopy()
     func installCapturedRecording(_ recording: CapturedVideoRecording)
     func installCapturedGuide(_ document: EditableGuideDocument)
     func exportCurrentGuide()
@@ -99,7 +96,6 @@ protocol CoordinatorDocumentPort: AnyObject {
 
 @MainActor
 protocol CoordinatorClipboardPort: AnyObject {
-    var autoCopyEnabled: Bool { get }
 
     func resetClipboardPreferencesToDefaults()
     func scheduleClipboardSnipRecording(
@@ -198,7 +194,6 @@ extension DocumentWorkflowModel: CoordinatorDocumentPort {
 @MainActor
 extension ClipboardWorkflowModel: CoordinatorClipboardPort {
     func resetClipboardPreferencesToDefaults() {
-        autoCopyEnabled = false
         preferences = .default
         historyStore.deactivateStorage()
         searchQuery = ""

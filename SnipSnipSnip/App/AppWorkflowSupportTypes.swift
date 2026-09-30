@@ -154,7 +154,6 @@ enum DocumentFormatMigrationDecision {
 }
 
 nonisolated enum AppModelPreferenceKey {
-    static let autoCopyEnabled = "appModel.autoCopyEnabled"
     static let showsCapturePreview = "appModel.showsCapturePreview"
     static let autoRefreshWindowsEnabled = "appModel.autoRefreshWindowsEnabled"
     static let archiveLocationBookmarkData = "appModel.archiveLocationBookmarkData"

@@ -333,6 +333,7 @@ private struct DocumentCommands: Commands {
     @ObservedObject var video: VideoWorkflowModel
     @ObservedObject var guide: GuideWorkflowModel
     @ObservedObject var creation: CreationWorkflowModel
+    @ObservedObject var printing: DocumentPrintCoordinator
     @FocusedValue(\.documentOutputCommandIsAvailable)
     private var focusedDocumentOutputIsAvailable
 
@@ -362,6 +363,12 @@ private struct DocumentCommands: Commands {
             Button("Save As…", action: documents.saveDocumentAs)
                 .keyboardShortcut("S", modifiers: [.command, .shift])
                 .disabled(!canSaveDocument)
+        }
+
+        CommandGroup(replacing: .printItem) {
+            Button("Print…", action: documents.printCurrentDocument)
+                .keyboardShortcut("p", modifiers: .command)
+                .disabled(!canPrintCurrentContent || printing.isPrinting)
         }
 
         CommandGroup(after: .importExport) {
@@ -454,6 +461,16 @@ private struct DocumentCommands: Commands {
     private var documentOutputIsAvailable: Bool {
         focusedDocumentOutputIsAvailable
             ?? documents.isEditorDocumentOutputAvailable
+    }
+
+    private var canPrintCurrentContent: Bool {
+        guard !capture.isWorking, !video.blocksNewCapture, !guide.isActive,
+              focusedDocumentOutputIsAvailable != false,
+              documents.videoEditorController == nil else { return false }
+        if let controller = documents.guideEditorController {
+            return !controller.includedSteps.isEmpty
+        }
+        return documents.editorController != nil && documentOutputIsAvailable
     }
 }
 
@@ -854,7 +871,8 @@ struct SnipSnipSnipApp: App {
                 documents: model.documents,
                 video: model.video,
                 guide: model.guide,
-                creation: model.creation
+                creation: model.creation,
+                printing: model.documents.printCoordinator
             )
             PasteboardCommands(documents: model.documents)
             EditorCommands(

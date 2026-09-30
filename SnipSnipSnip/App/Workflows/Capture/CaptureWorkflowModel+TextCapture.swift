@@ -37,7 +37,7 @@ extension CaptureWorkflowModel {
                     livePreviewCapturePlatform: dependencies.systemServices.screenCapturePlatform)
                 guard let selection = await session.begin(), case let .region(rect, _) = selection else { return }
                 // Use the selected pixels; no cursor, preset, editor installation,
-                // auto-copy image, UI Map, recovery or Snip History side effects.
+                // screenshot output, UI Map, recovery or Snip History side effects.
                 let screenshot = try await captureService.captureRegionDirect(in: rect)
                 dependencies.lifecycle.updateWorkingMessage("Recognizing Text")
                 try await TextCaptureService().copyText(in: screenshot.image, isPrivate: isPrivate,
