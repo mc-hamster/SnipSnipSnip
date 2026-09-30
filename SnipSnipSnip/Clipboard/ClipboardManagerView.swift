@@ -340,6 +340,7 @@ struct ClipboardManagerView: View {
             .focused($isHistoryFocused)
             .accessibilityLabel("Clipboard Items")
             .accessibilityIdentifier("clipboard.list")
+            .background { ClipboardHistoryFeedSurface() }
             .onChange(of: selectedItemID) { _, id in
                 if let id {
                     withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) { proxy.scrollTo(id) }

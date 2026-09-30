@@ -1,5 +1,7 @@
 import AppKit
 import CryptoKit
+import ImageIO
+import UniformTypeIdentifiers
 import XCTest
 @testable import SnipSnipSnip
 
@@ -128,6 +130,193 @@ final class ClipboardHistoryStoreTests: XCTestCase {
         XCTAssertEqual(store.items.count, 2)
         XCTAssertEqual(store.items.first?.previewText, "repeat value")
         XCTAssertEqual(store.items.first?.sourceApp?.name, "Mail")
+    }
+
+    func testImageRecopyDeduplicatesPixelsAcrossEncodingsAndRepresentations() throws {
+        let name = "ClipboardHistoryStoreTests.imageRecopy"
+        removeStore(named: name)
+        defer { removeStore(named: name) }
+        let store = makeStore(named: name)
+        let image = makeCoordinateImage(width: 16, height: 12)
+        let firstData = try pngData(image, comment: "First encoding")
+        let secondData = try pngData(image, comment: "Different metadata")
+        XCTAssertNotEqual(firstData, secondData)
+        store.recordImageData(firstData, sourceApp: nil, preferences: .default, copiedAt: Date(timeIntervalSince1970: 1))
+        let original = try XCTUnwrap(store.items.first)
+        store.togglePinned(original)
+        store.addCollection("Review", for: original)
+        let snapshots = [PasteboardItemSnapshot(representations: [
+            PasteboardRepresentationSnapshot(typeIdentifier: NSPasteboard.PasteboardType.png.rawValue, data: secondData),
+            PasteboardRepresentationSnapshot(typeIdentifier: NSPasteboard.PasteboardType.tiff.rawValue, data: try XCTUnwrap(NSBitmapImageRep(cgImage: image).tiffRepresentation))
+        ])]
+        store.recordImageData(
+            secondData, sourceApp: ClipboardSourceApp(name: "Preview", bundleIdentifier: "com.apple.Preview"),
+            preferences: .default, copiedAt: Date(timeIntervalSince1970: 3), pasteboardItems: snapshots
+        )
+        XCTAssertEqual(store.items.count, 1)
+        let retained = try XCTUnwrap(store.items.first)
+        XCTAssertEqual(retained.id, original.id)
+        XCTAssertTrue(retained.isPinned)
+        XCTAssertEqual(retained.collectionNames, ["Review"])
+        XCTAssertEqual(retained.sourceApp?.name, "Preview")
+        XCTAssertEqual(retained.copiedAt, Date(timeIntervalSince1970: 3))
+        XCTAssertEqual(store.dataForPasteboard(for: retained), secondData)
+        XCTAssertEqual(store.pasteboardItemSnapshots(for: retained), snapshots)
+
+        // Delayed ingestion must not replace the newer payload or source.
+        store.recordImageData(firstData, sourceApp: nil, preferences: .default, copiedAt: Date(timeIntervalSince1970: 2))
+        let reloaded = makeStore(named: name)
+        XCTAssertEqual(reloaded.items, store.items)
+        XCTAssertEqual(reloaded.dataForPasteboard(for: retained), secondData)
+        XCTAssertEqual(reloaded.pasteboardItemSnapshots(for: retained), snapshots)
+    }
+
+    func testImageIdentityKeepsChangedPixelsDimensionsSelectionsAndPDFsSeparate() throws {
+        let name = "ClipboardHistoryStoreTests.distinctImages"
+        removeStore(named: name)
+        defer { removeStore(named: name) }
+        let store = makeStore(named: name)
+        let first = try ImageExporter.pngData(for: makeCoordinateImage(width: 8, height: 6))
+        let changed = try ImageExporter.pngData(for: makeRGBAImage(width: 8, height: 6) { x, y in
+            PixelSample(red: UInt8(x), green: UInt8(y), blue: 200, alpha: 255)
+        })
+        let resized = try ImageExporter.pngData(for: makeCoordinateImage(width: 6, height: 8))
+        for data in [first, changed, resized] {
+            store.recordImageData(data, sourceApp: nil, preferences: .default)
+        }
+        let firstItem = PasteboardItemSnapshot(representations: [
+            PasteboardRepresentationSnapshot(typeIdentifier: NSPasteboard.PasteboardType.png.rawValue, data: first)
+        ])
+        for secondData in [changed, resized] {
+            store.recordImageData(first, sourceApp: nil, preferences: .default, pasteboardItems: [
+                firstItem,
+                PasteboardItemSnapshot(representations: [
+                    PasteboardRepresentationSnapshot(typeIdentifier: NSPasteboard.PasteboardType.png.rawValue, data: secondData)
+                ])
+            ])
+        }
+        for pdf in ["document A", "document B"] {
+            store.recordImageData(first, sourceApp: nil, preferences: .default, pasteboardItems: [
+                PasteboardItemSnapshot(representations: [
+                    PasteboardRepresentationSnapshot(typeIdentifier: NSPasteboard.PasteboardType.pdf.rawValue, data: Data(pdf.utf8))
+                ])
+            ])
+        }
+        store.recordSnip(pngData: first, title: "Editable screenshot", searchableText: "", sessionID: UUID(), preferences: .default)
+        XCTAssertEqual(store.items.count, 8)
+        XCTAssertEqual(makeStore(named: name).items.count, 8)
+
+        let animationData = NSMutableData()
+        let animation = try XCTUnwrap(CGImageDestinationCreateWithData(animationData, UTType.gif.identifier as CFString, 2, nil))
+        CGImageDestinationAddImage(animation, makeCoordinateImage(width: 8, height: 6), nil)
+        CGImageDestinationAddImage(animation, makeCoordinateImage(width: 6, height: 8), nil)
+        XCTAssertTrue(CGImageDestinationFinalize(animation))
+        let animationSnapshots = [PasteboardItemSnapshot(representations: [
+            PasteboardRepresentationSnapshot(typeIdentifier: UTType.gif.identifier, data: animationData as Data)
+        ])]
+        XCTAssertNil(ClipboardImageIdentity.pixelHash(for: first, pasteboardItems: animationSnapshots))
+        store.recordImageData(first, sourceApp: nil, preferences: .default, pasteboardItems: animationSnapshots)
+        XCTAssertEqual(store.items.count, 9)
+    }
+
+    func testImageMigrationPreservesEntriesWithMissingOriginalRepresentations() throws {
+        let name = "ClipboardHistoryStoreTests.migrateMissingRepresentation"
+        removeStore(named: name)
+        defer { removeStore(named: name) }
+        let store = makeStore(named: name)
+        let data = try ImageExporter.pngData(for: makeCoordinateImage(width: 8, height: 6))
+        store.recordImageData(data, sourceApp: nil, preferences: .default)
+        let current = try XCTUnwrap(store.items.first)
+        var legacy = current
+        legacy.id = UUID()
+        legacy.kind = .image(assetName: "legacy.png")
+        legacy.contentHash = "legacy-unreadable-pdf"
+        legacy.storedPayload = ClipboardStoredPayload(items: [ClipboardStoredPayloadItem(representations: [
+            ClipboardStoredRepresentation(typeIdentifier: NSPasteboard.PasteboardType.png.rawValue, value: .inlineData(data)),
+            ClipboardStoredRepresentation(typeIdentifier: NSPasteboard.PasteboardType.pdf.rawValue, value: .assetName("missing.pdf"))
+        ])])
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+        let cryptor = ClipboardHistoryCryptor(keyProvider: TestClipboardEncryptionKeyProvider())
+        try cryptor.encrypt(data).write(to: root.appendingPathComponent("assets/legacy.png"))
+        struct LegacyState: Encodable { let items: [ClipboardItem] }
+        try cryptor.encrypt(JSONEncoder().encode(LegacyState(items: [current, legacy])))
+            .write(to: root.appendingPathComponent("clipboard-history.json"))
+        let reloaded = makeStore(named: name)
+        XCTAssertEqual(reloaded.items.count, 2)
+        XCTAssertEqual(reloaded.items.first(where: { $0.id == legacy.id })?.contentHash, legacy.contentHash)
+        XCTAssertEqual(reloaded.dataForPasteboard(for: legacy), data)
+    }
+
+    func testLegacyImageDuplicatesConsolidateWithMetadataAndDeletionRecovery() throws {
+        let name = "ClipboardHistoryStoreTests.migrateImages"
+        removeStore(named: name)
+        defer { removeStore(named: name) }
+        let store = makeStore(named: name)
+        let image = makeCoordinateImage(width: 12, height: 8)
+        let latestData = try pngData(image, comment: "Latest")
+        let oldData = try pngData(image, comment: "Older")
+        let snapshots = [PasteboardItemSnapshot(representations: [
+            PasteboardRepresentationSnapshot(typeIdentifier: NSPasteboard.PasteboardType.png.rawValue, data: latestData)
+        ])]
+        store.recordImageData(latestData, sourceApp: nil, preferences: .default, title: "Latest", pasteboardItems: snapshots)
+        var latest = try XCTUnwrap(store.items.first)
+        latest.contentHash = "legacy-latest"
+        latest.collectionNames = ["Review"]
+        var older = latest
+        older.id = UUID()
+        older.kind = .image(assetName: "legacy-copy.png")
+        older.storedPayload = nil
+        older.contentHash = "legacy-older"
+        older.copiedAt = latest.copiedAt.addingTimeInterval(-60)
+        older.isPinned = true
+        older.collectionNames = ["Shipping", "review"]
+        var deleted = older
+        deleted.id = UUID()
+        deleted.kind = .image(assetName: "deleted-copy.png")
+        deleted.contentHash = "legacy-deleted"
+        deleted.collectionNames = ["Recovered"]
+        let deadline = Date().addingTimeInterval(30)
+        struct LegacyState: Encodable {
+            var schemaVersion = 2
+            let items: [ClipboardItem]
+            let pendingDeletions: [ClipboardPendingDeletion]
+        }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+        let cryptor = ClipboardHistoryCryptor(keyProvider: TestClipboardEncryptionKeyProvider())
+        for asset in ["legacy-copy.png", "deleted-copy.png"] {
+            try cryptor.encrypt(oldData).write(to: root.appendingPathComponent("assets/" + asset))
+        }
+        let state = LegacyState(items: [latest, older], pendingDeletions: [ClipboardPendingDeletion(item: deleted, expiresAt: deadline)])
+        try cryptor.encrypt(JSONEncoder().encode(state)).write(to: root.appendingPathComponent("clipboard-history.json"))
+
+        let migrated = makeStore(named: name)
+        XCTAssertNil(migrated.recoveryMessage)
+        XCTAssertEqual(migrated.items.count, 1)
+        let retained = try XCTUnwrap(migrated.items.first)
+        XCTAssertEqual(retained.id, older.id)
+        XCTAssertTrue(retained.isPinned)
+        XCTAssertEqual(retained.collectionNames, ["Review", "Shipping"])
+        XCTAssertEqual(retained.title, "Latest")
+        XCTAssertEqual(retained.copiedAt, latest.copiedAt)
+        XCTAssertTrue(retained.matchesSearchQuery("shipping"))
+        XCTAssertEqual(migrated.dataForPasteboard(for: retained), latestData)
+        XCTAssertEqual(migrated.pasteboardItemSnapshots(for: retained), snapshots)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("assets/legacy-copy.png").path))
+        XCTAssertEqual(migrated.pendingDeletions.first?.expiresAt, deadline)
+        let reloaded = makeStore(named: name)
+        XCTAssertEqual(reloaded.items, migrated.items)
+        XCTAssertEqual(reloaded.undoDeletion(), retained.id)
+        XCTAssertEqual(reloaded.items.count, 1)
+        XCTAssertTrue(reloaded.items[0].collectionNames.contains("Recovered"))
+        XCTAssertEqual(reloaded.dataForPasteboard(for: reloaded.items[0]), latestData)
+    }
+
+    private func pngData(_ image: CGImage, comment: String) throws -> Data {
+        let data = NSMutableData()
+        let destination = try XCTUnwrap(CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil))
+        CGImageDestinationAddImage(destination, image, [kCGImagePropertyPNGDictionary: [kCGImagePropertyPNGComment: comment]] as CFDictionary)
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
+        return data as Data
     }
 
     func testPrunesUnpinnedItemsByMaximumItemCount() {

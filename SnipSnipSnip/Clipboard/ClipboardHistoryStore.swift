@@ -85,11 +85,20 @@ final class ClipboardHistoryStore: ObservableObject {
             let state = try JSONDecoder().decode(StoredState.self, from: decrypted.data)
             items = state.items.sorted(by: Self.timelineSort)
             pendingDeletions = state.pendingDeletions ?? []
+            let imageMigration = migrateImageIdentities()
             expireDeletedItems()
             scheduleDeletionExpiry()
             migrateAssetsToEncryption()
-            if !decrypted.wasEncrypted {
+            if !decrypted.wasEncrypted || imageMigration.changed {
                 persist()
+                // Save the consolidated index before removing obsolete assets.
+                // Preserve any asset shared with a retained or recoverable item.
+                if storageWriteErrorMessage == nil {
+                    let retainedAssets = Set((items + pendingDeletions.map(\.item)).flatMap(Self.assetNames))
+                    imageMigration.obsoleteAssets.subtracting(retainedAssets).forEach {
+                        try? fileManager.removeItem(at: assetsURL.appendingPathComponent($0))
+                    }
+                }
             }
         } catch {
             items = []
@@ -286,7 +295,7 @@ final class ClipboardHistoryStore: ObservableObject {
     ) {
         guard isStorageAvailable else { return }
         guard Int64(data.count) + Self.payloadByteSize(pasteboardItems, excludingMatching: data) <= preferences.sanitized().maxItemSizeBytes else { return }
-        let hash = Self.contentHash(prefix: "Image", data: data, pasteboardItems: pasteboardItems)
+        let hash = Self.imageContentHash(data: data, pasteboardItems: pasteboardItems)
         let assetName = "\(UUID().uuidString).png"
         let previewText = title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Image" : title
         let resolvedSearchableText = searchableText ?? previewText
@@ -622,9 +631,18 @@ final class ClipboardHistoryStore: ObservableObject {
     }
 
     private func deleteAssets(for item: ClipboardItem) {
+        Self.assetNames(for: item).forEach { assetName in
+            try? fileManager.removeItem(at: assetsURL.appendingPathComponent(assetName))
+        }
+    }
+
+    private static func assetNames(for item: ClipboardItem) -> Set<String> {
         var assetNames = Set<String>()
-        if let assetURL = assetURL(for: item) {
-            assetNames.insert(assetURL.lastPathComponent)
+        switch item.kind {
+        case let .image(assetName), let .snip(assetName, _, _):
+            assetNames.insert(assetName)
+        default:
+            break
         }
         item.storedPayload?.items.forEach { storedItem in
             storedItem.representations.forEach { representation in
@@ -633,9 +651,65 @@ final class ClipboardHistoryStore: ObservableObject {
                 }
             }
         }
-        assetNames.forEach { assetName in
-            try? fileManager.removeItem(at: assetsURL.appendingPathComponent(assetName))
+        return assetNames
+    }
+
+    private func migrateImageIdentities() -> (changed: Bool, obsoleteAssets: Set<String>) {
+        var changed = false
+        func migrated(_ item: ClipboardItem) -> ClipboardItem {
+            guard case .image = item.kind,
+                  !item.contentHash.hasPrefix("image-v1:"),
+                  let data = dataForPasteboard(for: item) else { return item }
+            let snapshots: [PasteboardItemSnapshot]
+            if let payload = item.storedPayload {
+                // Do not collapse entries whose original selection is unreadable.
+                guard let storedSnapshots = pasteboardItemSnapshots(for: item),
+                      zip(storedSnapshots, payload.items).allSatisfy({
+                          $0.representations.count == $1.representations.count
+                      }) else { return item }
+                snapshots = storedSnapshots
+            } else {
+                snapshots = []
+            }
+            var result = item
+            result.contentHash = Self.imageContentHash(data: data, pasteboardItems: snapshots)
+            changed = true
+            return result
         }
+
+        let previousAssets = Set(items.flatMap(Self.assetNames))
+        var consolidated: [ClipboardItem] = []
+        var imageIndices: [String: Int] = [:]
+        for original in items {
+            let item = migrated(original)
+            guard case .image = item.kind, item.contentHash.hasPrefix("image-v1:") else {
+                consolidated.append(item)
+                continue
+            }
+            guard let index = imageIndices[item.contentHash] else {
+                imageIndices[item.contentHash] = consolidated.count
+                consolidated.append(item)
+                continue
+            }
+            let existing = consolidated[index]
+            var retained = existing.copiedAt >= item.copiedAt ? existing : item
+            retained.id = existing.id
+            retained.isPinned = existing.isPinned || item.isPinned
+            for name in existing.collectionNames + item.collectionNames where !retained.collectionNames.contains(where: {
+                $0.localizedCaseInsensitiveCompare(name) == .orderedSame
+            }) {
+                retained.collectionNames.append(name)
+            }
+            retained.collectionNames.sort { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+            retained.normalizedSearchText = Self.normalizedSearchText(for: retained)
+            consolidated[index] = retained
+            changed = true
+        }
+        items = consolidated.sorted(by: Self.timelineSort)
+        pendingDeletions = pendingDeletions.map {
+            ClipboardPendingDeletion(item: migrated($0.item), expiresAt: $0.expiresAt)
+        }
+        return (changed, previousAssets.subtracting(Set(items.flatMap(Self.assetNames))))
     }
 
     private func writeEncryptedAsset(_ data: Data, named assetName: String) throws {
@@ -779,6 +853,11 @@ final class ClipboardHistoryStore: ObservableObject {
     static func contentHash(prefix: String, data: Data) -> String {
         let digest = SHA256.hash(data: Data(prefix.utf8) + data)
         return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func imageContentHash(data: Data, pasteboardItems: [PasteboardItemSnapshot]) -> String {
+        "image-v1:" + (ClipboardImageIdentity.pixelHash(for: data, pasteboardItems: pasteboardItems)
+            ?? contentHash(prefix: "Image", data: data, pasteboardItems: pasteboardItems))
     }
 
     private static func contentHash(

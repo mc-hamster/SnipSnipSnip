@@ -14,6 +14,17 @@ struct ClipboardPaletteSurface: View {
     }
 }
 
+/// The item feed has a quiet canvas so white content cards remain distinct in Light appearance.
+struct ClipboardHistoryFeedSurface: View {
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    var body: some View {
+        Color(nsColor: .windowBackgroundColor)
+            .overlay(Color.primary.opacity(contrast == .increased ? 0.16 : 0.10))
+            .allowsHitTesting(false)
+    }
+}
+
 struct ClipboardScopePicker: View {
     @Binding var selection: ClipboardItemFilter
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

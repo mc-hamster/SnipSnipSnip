@@ -478,6 +478,7 @@ For any workflow-language change, verify:
 
 ### Clipboard browsing and organization
 
+- Repeated copies of the same single image update one Clipboard History item using decoded pixels, independent of image encoding and clipboard format metadata. Keep pins and collection membership, and use the latest copy's content and time. Consolidate existing duplicates when history loads. Preserve distinct multi-item selections, PDFs, animations, and editable snips.
 - **Content Type** identifies the All, Text, Links, Images, Files, Snips, and Pinned scopes. **Filters** opens the secondary **When**, **Source**, and **Collection** choices. **Reset Filters** resets only those secondary choices; **Clear Filters** also clears Search and returns Content Type to All. **Clear Search** changes only the search query.
 - **Preview** opens the full selected clipboard item without copying it; **Back** returns to the card feed. Clicking a clipboard card copies it, while arrow-key selection only changes the selection. **Clipboard Actions** contains window-wide commands, including **Permanently Delete Unpinned Items…**. **More Actions** contains commands for one item. **Copied** is temporary confirmation of a successful clipboard write, distinct from row selection.
 - **Pinned**, **Today**, **Yesterday**, and dated headings organize the clipboard list. They do not change the numbered copy shortcuts' order. **Details** discloses the selected item's precise copy time, source, size, and stored item count.
