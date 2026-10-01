@@ -8,66 +8,52 @@ nonisolated enum AnnotationGeometry {
         point transformPoint: (CGPoint) -> CGPoint
     ) -> AnnotationKind {
         switch kind {
-        case let .rectangle(shape):
-            return .rectangle(RectangleShape(rect: transformRect(shape.rect)))
-        case let .ellipse(shape):
-            return .ellipse(EllipseShape(rect: transformRect(shape.rect)))
-        case let .line(shape):
-            return .line(LineShape(
-                start: transformPoint(shape.start),
-                end: transformPoint(shape.end)
-            ))
-        case let .arrow(shape):
-            return .arrow(ArrowShape(
-                start: transformPoint(shape.start),
-                end: transformPoint(shape.end),
-                curvature: shape.curvature,
-                headStyle: shape.headStyle,
-                label: shape.label,
-                labelBoxColor: shape.labelBoxColor,
-                labelPlacement: shape.labelPlacement,
-                labelFontSize: shape.labelFontSize,
-                labelTextColor: shape.labelTextColor,
-                headShape: shape.headShape,
-                sequenceNumber: shape.sequenceNumber,
-                badgeStyle: shape.badgeStyle
-            ))
-        case let .statusMark(shape):
-            return .statusMark(StatusMarkShape(rect: transformRect(shape.rect)))
-        case let .freehand(shape):
-            return .freehand(FreehandShape(points: shape.points.map(transformPoint)))
-        case let .highlighter(shape):
-            return .highlighter(HighlighterShape(points: shape.points.map(transformPoint)))
-        case let .highlight(shape):
-            return .highlight(HighlightShape(rect: transformRect(shape.rect)))
-        case let .text(shape):
-            return .text(TextShape(
-                rect: transformRect(shape.rect),
-                text: shape.text,
-                alignment: shape.alignment,
-                automaticallySizesToText: shape.automaticallySizesToText
-            ))
-        case let .callout(shape):
-            return .callout(CalloutShape(
-                rect: transformRect(shape.rect),
-                number: shape.number,
-                text: shape.text,
-                alignment: shape.alignment,
-                style: shape.style,
-                leaderPoint: shape.leaderPoint.map(transformPoint),
-                automaticallySizesToText: shape.automaticallySizesToText
-            ))
-        case let .measurement(shape):
-            return .measurement(MeasurementShape(
-                start: transformPoint(shape.start),
-                end: transformPoint(shape.end)
-            ))
-        case let .spotlight(shape):
-            return .spotlight(SpotlightShape(rect: transformRect(shape.rect), isEllipse: shape.isEllipse))
-        case let .imageOverlay(shape):
-            return .imageOverlay(ImageOverlayShape(assetID: shape.assetID, rect: transformRect(shape.rect), image: shape.image, opacity: shape.opacity, role: shape.role))
-        case let .redaction(shape):
-            return .redaction(RedactionShape(rect: transformRect(shape.rect), mode: shape.mode))
+        case .rectangle(var shape):
+            shape.rect = transformRect(shape.rect)
+            return .rectangle(shape)
+        case .ellipse(var shape):
+            shape.rect = transformRect(shape.rect)
+            return .ellipse(shape)
+        case .line(var shape):
+            shape.start = transformPoint(shape.start)
+            shape.end = transformPoint(shape.end)
+            return .line(shape)
+        case .arrow(var shape):
+            shape.start = transformPoint(shape.start)
+            shape.end = transformPoint(shape.end)
+            return .arrow(shape)
+        case .statusMark(var shape):
+            shape.rect = transformRect(shape.rect)
+            return .statusMark(shape)
+        case .freehand(var shape):
+            shape.points = shape.points.map(transformPoint)
+            return .freehand(shape)
+        case .highlighter(var shape):
+            shape.points = shape.points.map(transformPoint)
+            return .highlighter(shape)
+        case .highlight(var shape):
+            shape.rect = transformRect(shape.rect)
+            return .highlight(shape)
+        case .text(var shape):
+            shape.rect = transformRect(shape.rect)
+            return .text(shape)
+        case .callout(var shape):
+            shape.rect = transformRect(shape.rect)
+            shape.leaderPoint = shape.leaderPoint.map(transformPoint)
+            return .callout(shape)
+        case .measurement(var shape):
+            shape.start = transformPoint(shape.start)
+            shape.end = transformPoint(shape.end)
+            return .measurement(shape)
+        case .spotlight(var shape):
+            shape.rect = transformRect(shape.rect)
+            return .spotlight(shape)
+        case .imageOverlay(var shape):
+            shape.rect = transformRect(shape.rect)
+            return .imageOverlay(shape)
+        case .redaction(var shape):
+            shape.rect = transformRect(shape.rect)
+            return .redaction(shape)
         }
     }
 

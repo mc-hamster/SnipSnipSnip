@@ -1130,8 +1130,8 @@ nonisolated struct Annotation: Identifiable, Equatable {
         var copy = self
 
         switch kind {
-        case let .text(shape):
-            let fittedRect = refittingBounds
+        case .text(var shape):
+            shape.rect = refittingBounds
                 ? fittedTextRect(
                     for: text,
                     shape: shape,
@@ -1139,35 +1139,19 @@ nonisolated struct Annotation: Identifiable, Equatable {
                     autoTextBounds: autoTextBounds
                 )
                 : shape.rect.gscIntegralStandardized
-            copy.kind = .text(TextShape(
-                rect: fittedRect,
-                text: text,
-                alignment: shape.alignment,
-                automaticallySizesToText: shape.automaticallySizesToText
-            ))
-        case let .callout(shape):
-            let fittedRect: CGRect
-
-            if refittingBounds {
-                fittedRect = fittedCalloutRect(
+            shape.text = text
+            copy.kind = .text(shape)
+        case .callout(var shape):
+            shape.rect = refittingBounds
+                ? fittedCalloutRect(
                     for: text,
                     shape: shape,
                     maximumAutoTextWidth: maximumAutoTextWidth,
                     autoTextBounds: autoTextBounds
                 )
-            } else {
-                fittedRect = shape.rect.gscIntegralStandardized
-            }
-
-            copy.kind = .callout(CalloutShape(
-                rect: fittedRect,
-                number: shape.number,
-                text: text,
-                alignment: shape.alignment,
-                style: shape.style,
-                leaderPoint: shape.leaderPoint,
-                automaticallySizesToText: shape.automaticallySizesToText
-            ))
+                : shape.rect.gscIntegralStandardized
+            shape.text = text
+            copy.kind = .callout(shape)
         default:
             return self
         }
@@ -1193,12 +1177,13 @@ nonisolated struct Annotation: Identifiable, Equatable {
     }
 
     func updatingRedactionMode(_ mode: RedactionMode) -> Annotation {
-        guard case let .redaction(shape) = kind else {
+        guard case .redaction(var shape) = kind else {
             return self
         }
 
         var copy = self
-        copy.kind = .redaction(RedactionShape(rect: shape.rect, mode: mode))
+        shape.mode = mode
+        copy.kind = .redaction(shape)
         return copy
     }
 
@@ -1212,23 +1197,12 @@ nonisolated struct Annotation: Identifiable, Equatable {
         var copy = self
 
         switch kind {
-        case let .text(shape):
-            copy.kind = .text(TextShape(
-                rect: shape.rect,
-                text: shape.text,
-                alignment: alignment,
-                automaticallySizesToText: shape.automaticallySizesToText
-            ))
-        case let .callout(shape):
-            copy.kind = .callout(CalloutShape(
-                rect: shape.rect,
-                number: shape.number,
-                text: shape.text,
-                alignment: alignment,
-                style: shape.style,
-                leaderPoint: shape.leaderPoint,
-                automaticallySizesToText: shape.automaticallySizesToText
-            ))
+        case .text(var shape):
+            shape.alignment = alignment
+            copy.kind = .text(shape)
+        case .callout(var shape):
+            shape.alignment = alignment
+            copy.kind = .callout(shape)
         default:
             return self
         }
@@ -1237,31 +1211,18 @@ nonisolated struct Annotation: Identifiable, Equatable {
     }
 
     func disablingAutomaticTextSizing() -> Annotation {
+        var copy = self
         switch kind {
-        case let .text(shape):
-            var copy = self
-            copy.kind = .text(TextShape(
-                rect: shape.rect,
-                text: shape.text,
-                alignment: shape.alignment,
-                automaticallySizesToText: false
-            ))
-            return copy
-        case let .callout(shape):
-            var copy = self
-            copy.kind = .callout(CalloutShape(
-                rect: shape.rect,
-                number: shape.number,
-                text: shape.text,
-                alignment: shape.alignment,
-                style: shape.style,
-                leaderPoint: shape.leaderPoint,
-                automaticallySizesToText: false
-            ))
-            return copy
+        case .text(var shape):
+            shape.automaticallySizesToText = false
+            copy.kind = .text(shape)
+        case .callout(var shape):
+            shape.automaticallySizesToText = false
+            copy.kind = .callout(shape)
         default:
             return self
         }
+        return copy
     }
 
     private func fittedTextRect(
@@ -1343,20 +1304,13 @@ nonisolated struct Annotation: Identifiable, Equatable {
     }
 
     func updatingCalloutNumber(_ number: Int) -> Annotation {
-        guard case let .callout(shape) = kind else {
+        guard case .callout(var shape) = kind else {
             return self
         }
 
         var copy = self
-        copy.kind = .callout(CalloutShape(
-            rect: shape.rect,
-            number: number,
-            text: shape.text,
-            alignment: shape.alignment,
-            style: shape.style,
-            leaderPoint: shape.leaderPoint,
-            automaticallySizesToText: shape.automaticallySizesToText
-        ))
+        shape.number = number
+        copy.kind = .callout(shape)
         return copy
     }
 
@@ -1372,25 +1326,22 @@ nonisolated struct Annotation: Identifiable, Equatable {
         sequenceNumber: Int? = nil,
         badgeStyle: NumberedArrowBadgeStyle? = nil
     ) -> Annotation {
-        guard case let .arrow(shape) = kind else {
+        guard case .arrow(var shape) = kind else {
             return self
         }
 
         var copy = self
-        copy.kind = .arrow(ArrowShape(
-            start: shape.start,
-            end: shape.end,
-            curvature: curvature ?? shape.curvature,
-            headStyle: headStyle ?? shape.headStyle,
-            label: label ?? shape.label,
-            labelBoxColor: labelBoxColor ?? shape.labelBoxColor,
-            labelPlacement: labelPlacement ?? shape.labelPlacement,
-            labelFontSize: labelFontSize ?? shape.labelFontSize,
-            labelTextColor: labelTextColor ?? shape.labelTextColor,
-            headShape: headShape ?? shape.headShape,
-            sequenceNumber: sequenceNumber ?? shape.sequenceNumber,
-            badgeStyle: badgeStyle ?? shape.badgeStyle
-        ))
+        if let curvature { shape.curvature = curvature }
+        if let headStyle { shape.headStyle = headStyle }
+        if let label { shape.label = label }
+        if let labelBoxColor { shape.labelBoxColor = labelBoxColor }
+        if let labelPlacement { shape.labelPlacement = labelPlacement }
+        if let labelFontSize { shape.labelFontSize = labelFontSize }
+        if let labelTextColor { shape.labelTextColor = labelTextColor }
+        if let headShape { shape.headShape = headShape }
+        if let sequenceNumber { shape.sequenceNumber = sequenceNumber }
+        if let badgeStyle { shape.badgeStyle = badgeStyle }
+        copy.kind = .arrow(shape)
         return copy
     }
 
@@ -1424,20 +1375,13 @@ nonisolated struct Annotation: Identifiable, Equatable {
     }
 
     func updatingCalloutStyle(_ style: CalloutVisualStyle) -> Annotation {
-        guard case let .callout(shape) = kind else {
+        guard case .callout(var shape) = kind else {
             return self
         }
 
         var copy = self
-        copy.kind = .callout(CalloutShape(
-            rect: shape.rect,
-            number: shape.number,
-            text: shape.text,
-            alignment: shape.alignment,
-            style: style,
-            leaderPoint: shape.leaderPoint,
-            automaticallySizesToText: shape.automaticallySizesToText
-        ))
+        shape.style = style
+        copy.kind = .callout(shape)
         return copy
     }
 

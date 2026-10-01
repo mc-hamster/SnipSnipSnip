@@ -392,12 +392,15 @@ final class AppArchitecturePlatformTests: XCTestCase {
             "SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+ConnectedDevice.swift",
             "SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+Execution.swift",
             "SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+PermissionGate.swift",
+            "SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+PresetRegionCapture.swift",
             "SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+Presets.swift",
             "SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+Scrolling.swift",
+            "SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+ScrollingSelection.swift",
             "SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+WindowCapture.swift",
             "SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+Windows.swift",
             "SnipSnipSnip/App/Workflows/Clipboard/ClipboardWorkflowModel+Clipboard.swift",
             "SnipSnipSnip/App/Workflows/Document/DocumentWorkflowModel+EditorSession.swift",
+            "SnipSnipSnip/App/Workflows/Document/DocumentWorkflowModel+ImageOutput.swift",
             "SnipSnipSnip/App/Workflows/Document/DocumentWorkflowModel+Recovery.swift",
             "SnipSnipSnip/App/Workflows/Document/DocumentWorkflowModel+History.swift",
             "SnipSnipSnip/App/Workflows/Permission/PermissionWorkflowModel.swift",
@@ -766,6 +769,10 @@ final class AppArchitecturePlatformTests: XCTestCase {
             contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+ScrollingExecution.swift"),
             encoding: .utf8
         )
+        let captureScrollingSelection = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+ScrollingSelection.swift"),
+            encoding: .utf8
+        )
         let captureWindowCapture = try String(
             contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+WindowCapture.swift"),
             encoding: .utf8
@@ -1010,6 +1017,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
             )
             XCTAssertTrue(
                 captureScrolling.contains(scrollingMember)
+                    || captureScrollingSelection.contains(scrollingMember)
                     || captureScrollingExecution.contains(scrollingMember),
                 "Expected scrolling capture member missing: \(scrollingMember)"
             )
@@ -2221,9 +2229,9 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertTrue(help.contains("title: \"Take and finish a screenshot\""))
         XCTAssertTrue(help.contains("without showing those private details in result rows"))
         XCTAssertTrue(help.contains("Use Quick Capture to choose Region, Window, or Screen"))
-        XCTAssertTrue(help.contains("Select, Crop, the Arrow family, and Text visible as labeled one-click controls"))
+        XCTAssertTrue(help.contains("Select, Crop, Auto Crop, the Arrow family, Text, Highlight Box, and Redact together as labeled one-click controls"))
         XCTAssertTrue(help.contains("choose Arrow or Numbered Arrow"))
-        XCTAssertTrue(help.contains("the main button shows that tool’s name and icon"))
+        XCTAssertTrue(help.contains("each split control reuses its last-selected member"))
         XCTAssertTrue(help.contains("Insert Image remains a one-time action"))
         XCTAssertTrue(help.contains("Crop Image, Properties, and History directly visible"))
         XCTAssertTrue(help.contains("Crop changes apply immediately and remain available through Undo and Change History"))
@@ -2349,12 +2357,13 @@ final class AppArchitecturePlatformTests: XCTestCase {
         )
         XCTAssertFalse(content.contains("ToolbarItem(id: \"capture-region\""))
         XCTAssertTrue(editor.contains("struct EditorCommandBar: View"))
-        XCTAssertTrue(editor.contains("ScrollView(.horizontal, showsIndicators: false)"))
+        XCTAssertTrue(editor.contains("ScrollView(.horizontal)"))
+        XCTAssertTrue(editor.contains(".accessibilityIdentifier(\"editor.commandBar.edit.tools.scroll\")"))
         XCTAssertTrue(editor.contains("private static let arrowTools: [EditorTool] = [.arrow, .numberedArrow]"))
         XCTAssertTrue(editor.contains("accessibilityIdentifier: \"editor.toolGroup.arrow\""))
         XCTAssertTrue(editor.contains("private func toolGroupMenu("))
         XCTAssertTrue(editor.contains("lastUsedTool.wrappedValue.label"))
-        XCTAssertTrue(editor.contains("lastUsedTool.wrappedValue.systemImage"))
+        XCTAssertTrue(editor.contains("StableEditorToolLabel(tool: lastUsedTool.wrappedValue, family: tools)"))
         XCTAssertTrue(editor.contains("title: \"Shapes\""))
         XCTAssertTrue(editor.contains("title: \"Draw\""))
         XCTAssertTrue(editor.contains("title: \"Emphasize\""))
