@@ -26,6 +26,28 @@ final class EditorCommandsTests: XCTestCase {
         XCTAssertTrue(deleted.selectedAnnotationIDs.isEmpty)
     }
 
+    func testAddingExistingAnnotationIDLeavesSnapshotUnchanged() {
+        let annotation = Annotation.makeRectangle(in: CGRect(x: 20, y: 30, width: 100, height: 60))
+        let added = AddAnnotationCommand(annotation: annotation).apply(to: emptySnapshot)
+
+        XCTAssertEqual(AddAnnotationCommand(annotation: annotation).apply(to: added), added)
+        XCTAssertEqual(
+            AddAnnotationCommand(annotation: annotation.translated(by: CGSize(width: 10, height: 10)))
+                .apply(to: added),
+            added
+        )
+    }
+
+    func testAddingDistinctAnnotationsPreservesBothLayers() {
+        let first = Annotation.makeRectangle(in: CGRect(x: 20, y: 30, width: 100, height: 60))
+        let second = Annotation.makeRectangle(in: first.boundingRect)
+        let added = AddAnnotationCommand(annotation: first).apply(to: emptySnapshot)
+        let result = AddAnnotationCommand(annotation: second).apply(to: added)
+
+        XCTAssertEqual(result.annotations, [first, second])
+        XCTAssertEqual(result.selectedAnnotationIDs, [second.id])
+    }
+
     func testCropCommandNormalizesRect() {
         let cropped = SetCropCommand(rect: CGRect(x: 200, y: 150, width: -50, height: -25)).apply(to: emptySnapshot)
 

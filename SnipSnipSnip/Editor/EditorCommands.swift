@@ -46,6 +46,12 @@ nonisolated struct AddAnnotationCommand: DocumentCommand {
     var label: String { "Add Annotation" }
 
     func apply(to snapshot: EditorSnapshot) -> EditorSnapshot {
+        // Replaying a placement must not introduce a second layer with the
+        // same identity. Intentional duplication creates a fresh ID first.
+        guard !snapshot.annotations.contains(where: { $0.id == annotation.id }) else {
+            return snapshot
+        }
+
         var updated = snapshot
         updated.annotations.append(annotation)
 

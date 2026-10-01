@@ -1514,6 +1514,38 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testRepeatedNumberedArrowPlacementDoesNotDuplicateLayerOrUndoEntry() {
+        let controller = makeController()
+        let first = Annotation.makeNumberedArrow(
+            from: CGPoint(x: 10, y: 10), to: CGPoint(x: 80, y: 20),
+            number: controller.nextNumberedArrowNumber
+        )
+        controller.addDrawnAnnotation(first)
+        let revision = controller.persistenceRevision
+        controller.addDrawnAnnotation(first)
+
+        XCTAssertEqual(controller.snapshot.annotations, [first])
+        XCTAssertEqual(controller.persistenceRevision, revision)
+        XCTAssertEqual(controller.nextNumberedArrowNumber, 2)
+
+        let second = Annotation.makeNumberedArrow(
+            from: CGPoint(x: 10, y: 40), to: CGPoint(x: 80, y: 50),
+            number: controller.nextNumberedArrowNumber
+        )
+        controller.addDrawnAnnotation(second)
+        XCTAssertEqual(controller.snapshot.annotations, [first, second])
+        XCTAssertEqual(controller.nextNumberedArrowNumber, 3)
+
+        controller.undo()
+        XCTAssertEqual(controller.snapshot.annotations, [first])
+        controller.undo()
+        XCTAssertTrue(controller.snapshot.annotations.isEmpty)
+        controller.redo()
+        controller.redo()
+        XCTAssertEqual(controller.snapshot.annotations, [first, second])
+    }
+
+    @MainActor
     func testDuplicatingNumberedArrowAppendsSequencePosition() {
         let first = Annotation.makeNumberedArrow(from: CGPoint(x: 10, y: 10), to: CGPoint(x: 80, y: 20), number: 1)
         let controller = makeController(snapshot: makeEditorSnapshot(

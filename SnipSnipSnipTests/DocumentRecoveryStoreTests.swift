@@ -55,6 +55,59 @@ final class DocumentRecoveryStoreTests: XCTestCase {
         try? FileManager.default.removeItem(at: rootURL)
     }
 
+    func testDuplicateAnnotationIDsThrowWithoutReplacingLastRecoveryCheckpoint() throws {
+        let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
+        var document = makeDocument()
+        let arrow = Annotation.makeNumberedArrow(
+            from: CGPoint(x: 2, y: 2), to: CGPoint(x: 20, y: 12), number: 1
+        )
+        document.session.initialSnapshot.annotations = [arrow]
+        document.session.currentSnapshot.annotations = [arrow]
+        let sessionID = try store.createSession(title: "Draft.sss", sourceDocumentURL: nil)
+        func save(_ document: EditableScreenshotDocument) throws {
+            try store.saveCheckpoint(
+                sessionID: sessionID,
+                title: "Draft.sss",
+                sourceDocumentURL: nil,
+                label: "Autosave",
+                document: document,
+                previewImage: document.capture.image,
+                pendingRecovery: true,
+                hasUnsavedChanges: true
+            )
+        }
+        try save(document)
+        let entry = try XCTUnwrap(store.historyEntries(for: sessionID).first)
+        var duplicated = document.session.currentSnapshot
+        duplicated.annotations.append(try XCTUnwrap(duplicated.annotations.first))
+
+        // Exercise both dictionaries in the summary, including its preferred
+        // previous snapshot from undo history rather than the initial state.
+        for location in ["initial", "current", "undo"] {
+            var malformed = document
+            switch location {
+            case "initial": malformed.session.initialSnapshot = duplicated
+            case "current": malformed.session.currentSnapshot = duplicated
+            default: malformed.session.undoStack = [duplicated]
+            }
+
+            XCTAssertThrowsError(try save(malformed), location) { error in
+                guard case SSSDocumentError.invalidComposition("duplicate annotation IDs") = error else {
+                    return XCTFail("Unexpected recovery error: \(error)")
+                }
+            }
+            XCTAssertEqual(store.historyEntries(for: sessionID).map(\.id), [entry.id])
+            XCTAssertEqual(store.latestPendingRecovery()?.latestEntry.id, entry.id)
+            let restored = try store.restoreDocument(from: entry)
+            XCTAssertEqual(
+                editorSessionRemovingComposition(from: restored.session),
+                document.session
+            )
+        }
+    }
+
     func testRecoveryCheckpointsShareBaseImageAcrossSession() throws {
         let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let store = retainForTestLifetime(DocumentRecoveryStore(baseURL: rootURL))
