@@ -6,7 +6,7 @@ The revised order separates release blockers from the usability improvements wor
 
 **Only #1 and #2 should block shipment:** sharing unrelated or stale output, and saving failures that users cannot see. Resolve those two first. **The planned usability scope is #3 through #5:** a clear screenshot completion path, usable windows on smaller displays, and Guide Save that preserves editing context. These are the three investments that should define the refinement work in this backlog.
 
-**Original cut line: after #5; approved scope now includes #6 and #7.** Both are implemented as small corrections alongside #1–#5. Items #8 through #11 belong after 1.2. Item #12 needs user validation before deciding whether to change it at all. If capacity shrinks, preserve #3 as the primary usability outcome, narrow #4 to ensuring controls remain onscreen, and move #5 to the next update. The proposed ranks are product judgments based on the code paths; reach and frequency have not been measured with usage data.
+**Original cut line: after #5; approved scope now includes #6 and #7.** Both are implemented as small corrections alongside #1–#5. A subsequent approved experience-polish pass implements #8, #9, and #10, and adds #12 as the explicit Copy and Return action. Ordinary Copy keeps its stay-open behavior. Item #11 remains a follow-up. If capacity shrinks, preserve #3 as the primary usability outcome, narrow #4 to ensuring controls remain onscreen, and move #5 to the next update. The proposed ranks are product judgments based on the code paths; reach and frequency have not been measured with usage data.
 
 Effort is relative: S is a focused correction and M crosses a few collaborators. The former large layout proposal is deliberately narrowed for this release; a full responsive-layout overhaul is outside the committed scope.
 
@@ -21,11 +21,11 @@ This pass inspected capture, screenshot output, document switching, composition 
 | 5 | Planned 1.2 fix | Preserve Guide undo, selection, and search through Save | Saving is a routine action and should not interrupt editing; narrower reach than the screenshot loop | M |
 | 6 | Approved small correction | Guard drag reordering while Guide search is active | Incorrect behavior, but a specific path with an undo/clear-search workaround; use a small guard before a full reorder redesign | S for guard |
 | 7 | Approved small correction | Rename exported “Internal Note” | Cheap correction of a misleading label; does not justify expanding release scope | S |
-| 8 | After 1.2 | Keep the current document until Open/Import succeeds | Requires a discard-then-cancel sequence; less frequent than normal completion and Save | M |
-| 9 | After 1.2 | Navigate Settings search to the matching control | Helpful during configuration, with manual browsing already available | M |
-| 10 | After 1.2 | Keep Guide setup/export choices temporary until committed | Surprising Cancel behavior, but less recurring than the editing actions above | M |
+| 8 | Implemented in experience polish | Keep the current document until Open/Import succeeds | Requires a discard-then-cancel sequence; less frequent than normal completion and Save | M |
+| 9 | Implemented in experience polish | Navigate Settings search to the matching control | Helpful during configuration, with manual browsing already available | M |
+| 10 | Implemented in experience polish | Keep Guide setup/export choices temporary until committed | Surprising Cancel behavior, but less recurring than the editing actions above | M |
 | 11 | After 1.2 | Add zoom/pan to Guide review | Helps precision work on a subset of Guides; useful but not necessary for the first refinement release | M |
-| 12 | Validate first | Return focus after keyboard clipboard copy | Current stay-open behavior is intentional; changing it may inconvenience repeated-copy users | S–M if validated |
+| 12 | Implemented as explicit action | Return focus after keyboard clipboard copy | Current stay-open behavior is intentional; changing it may inconvenience repeated-copy users | S–M if validated |
 
 ## Implementation status
 
@@ -39,9 +39,18 @@ This pass inspected capture, screenshot output, document switching, composition 
 | 6 | Drag and arrow reordering are disabled during Guide search. Clear Search restores normal reordering. | Guarded filtered move, clear-search reorder, and Undo. |
 | 7 | Step Note replaces Internal Note and explicitly says that it appears in previews and exports. Output behavior is unchanged. | Help, Workflow Lexicon, inspector wording, and string-catalog consistency review. |
 
-Help, Design Language, and Workflow Lexicon match the implementation. Existing Auto Crop work is preserved. Items #8–#12 remain outside this change.
+Help, Design Language, and Workflow Lexicon match the implementation. Existing Auto Crop work is preserved. The later experience-polish pass implements #8–#10 and the explicit action in #12; only #11 remains outside the current work.
 
 Validation: the app and unit/UI test targets compile with `xcodebuild build-for-testing`. Thirteen isolated checks using the production layout policies and export-receipt model pass without launching an app. `git diff --check` and string-catalog JSON validation pass. App-hosted tests and a live visual walkthrough are still pending because the user-owned app process remains running; the repository’s single-instance guard was preserved. Compilation does not establish that those runtime acceptance checks pass. The relevant new suites are `GuideUsabilityTests`, `ScreenshotCompletionTests`, and `UsabilityLayoutTests`, alongside the expanded `DocumentWindowPresenterTests` and existing Guide/recovery suites.
+
+
+### Subsequent experience polish
+
+Open/Import prepares a valid replacement before the unsaved decision, so cancellation and load errors preserve the current editor. Guide setup and export use drafts until capture starts or an export folder is accepted. Settings search indexes controls and navigates to their category, nested page, and scroll target. Clipboard History adds explicit Copy and Return (Shift-Command-Return), preserving ordinary Copy and editing drafts.
+
+The same pass adds snap acquisition/release tolerance and an Option override, preserves manual canvas magnification on resize, reserves split-tool/output label widths, coalesces identical Copy requests, shows delayed Copying/Exporting feedback, and uses shared completion overlays without resizing the media area. Guide exports offer explicit Reveal in Finder and preserve focus. Drag-Out Format and searchable window lists address the two corresponding smaller follow-ups below.
+
+Validation: the app and test targets compile. All 249 non-Video checks pass in the broad hosted run, and all six Video layout tests pass in the final rerun: 255 distinct regression tests, run serially with one app host at a time. Coverage includes snapping, viewport resizing, pending output, cancellation, Clipboard interaction and previews, Settings/window search, Guide state, automation contracts, single-instance safeguards, and native layout/accessibility. Small-window light/dark/high-contrast screenshots were inspected. The shared hosting helper now activates and reads Xcode 27’s SwiftUI accessibility tree; the inspector fixture waits for actual appearance and settled native window frames. String-catalog JSON/symbol generation and whitespace checks pass, and the pre-existing localization edits are preserved. The earlier validation paragraph above describes the original audit implementation only.
 
 The original numbered details follow in the same strict priority order.
 
@@ -182,8 +191,8 @@ Evidence: [copy handler](../SnipSnipSnip/Clipboard/ClipboardManagerView.swift), 
 ## Smaller follow-ups after the ranked work
 
 - **Explain partial image imports.** Guide image import silently skips undecodable images. Retain successful imports and identify failed files with a retry action, following composition intake's existing pattern. Evidence: `GuideEditorView.swift`, lines 118–127.
-- **Narrow “Screenshot Format.”** The Settings picker binds to `screenshotDragOutFormat`, while explicit exports choose their format separately. Name the affected delivery path so selecting JPEG does not imply all screenshot exports will become JPEG. Evidence: `CaptureAutomationSettingsView.swift`, line 429; `DocumentWorkflowModel+FileOperations.swift`, lines 57–83.
-- **Improve window-picker scanning.** The reusable list offers neither search nor an explicit empty-results explanation; its guidance also says “capture” when reused for Video. Verify this with many windows before prioritizing it. Evidence: `Preview/CaptureWindowPickerView.swift` and the picker wiring in `ContentView.swift`.
+- **Implemented: narrow “Screenshot Format.”** The Settings picker binds to `screenshotDragOutFormat`, while explicit exports choose their format separately. Name the affected delivery path so selecting JPEG does not imply all screenshot exports will become JPEG. Evidence: `CaptureAutomationSettingsView.swift`, line 429; `DocumentWorkflowModel+FileOperations.swift`, lines 57–83.
+- **Implemented: improve window-picker scanning.** The reusable list offers neither search nor an explicit empty-results explanation; its guidance also says “capture” when reused for Video. Verify this with many windows before prioritizing it. Evidence: `Preview/CaptureWindowPickerView.swift` and the picker wiring in `ContentView.swift`.
 
 ## Already addressed and excluded from this backlog
 

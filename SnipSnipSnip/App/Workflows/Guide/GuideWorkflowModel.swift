@@ -57,6 +57,7 @@ final class GuideWorkflowModel: ObservableObject {
     private var captureDiscardObservation: AnyCancellable?
 
     @Published var isShowingQuickStart = false
+    @Published private(set) var captureSetupDraft: GuideCaptureSetupDraft?
     @Published var capturePreferences: GuideCapturePreferences { didSet { preferenceStore.saveCapturePreferences(capturePreferences) } }
     @Published var exportSettings: GuideExportSettings { didSet { preferenceStore.saveExportSettings(exportSettings) } }
     @Published var theme: GuideTheme { didSet { preferenceStore.saveTheme(theme) } }
@@ -119,8 +120,19 @@ final class GuideWorkflowModel: ObservableObject {
         // Display; remembering the previous choice should set a sensible default,
         // not hide those choices.
         targetPickerKind = nil
-        if !isShowingQuickStart { restoreLastSourceSelection() }
+        if !isShowingQuickStart {
+            restoreLastSourceSelection()
+            captureSetupDraft = GuideCaptureSetupDraft(
+                preferences: capturePreferences, sourceKind: selectedSourceKind
+            )
+        }
         isShowingQuickStart = true
+    }
+
+    func cancelQuickStart() {
+        captureSetupDraft = nil
+        targetPickerKind = nil
+        isShowingQuickStart = false
     }
 
     func completeFirstUseSetup() {
@@ -161,8 +173,12 @@ final class GuideWorkflowModel: ObservableObject {
         setDefaultLogo(logo)
     }
 
-    func beginSelectedSourceSelection() {
+    func beginSelectedSourceSelection(setup: GuideCaptureSetupDraft? = nil) {
         guard dependencies.capabilities.isEnabled(.guideCapture) else { return }
+        let draft = setup ?? captureSetupDraft ?? GuideCaptureSetupDraft(
+            preferences: capturePreferences, sourceKind: selectedSourceKind
+        )
+        captureSetupDraft = draft
         guard dependencies.permissions.preflight(
             [.screenRecording, .accessibility],
             featureName: "Guide"
@@ -172,7 +188,7 @@ final class GuideWorkflowModel: ObservableObject {
 
         targetPickerKind = nil
         isShowingQuickStart = false
-        let sourceKind = selectedSourceKind
+        let sourceKind = draft.sourceKind
         Task { @MainActor [weak self] in
             await self?.selectTargetOnScreen(sourceKind: sourceKind)
         }
@@ -181,8 +197,6 @@ final class GuideWorkflowModel: ObservableObject {
     func selectTarget(_ window: CaptureWindowSummary, as kind: GuideTargetPickerKind) {
         guard dependencies.capabilities.isEnabled(.guideCapture) else { return }
         targetPickerKind = nil
-        selectedSourceKind = kind.rawValue
-        selectedWindowID = window.id
         start(source: kind.source(for: window))
     }
 
@@ -197,7 +211,6 @@ final class GuideWorkflowModel: ObservableObject {
         }
 
         targetPickerKind = nil
-        selectedSourceKind = kind.rawValue
         Task { @MainActor [weak self] in
             guard let self else { return }
             try? await dependencies.systemServices.scheduler.sleep(nanoseconds: 180_000_000)
@@ -224,7 +237,11 @@ final class GuideWorkflowModel: ObservableObject {
         Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                try await startImmediately(source: source, privateCapture: dependencies.capture.privateCaptureEnabled)
+                try await startImmediately(
+                    source: source,
+                    privateCapture: dependencies.capture.privateCaptureEnabled,
+                    setup: captureSetupDraft
+                )
             } catch {
                 returnToQuickStart()
                 outputSink?.handle(GuideWorkflowOutput.presentError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription))
@@ -465,8 +482,6 @@ final class GuideWorkflowModel: ObservableObject {
             case .region(let rect, _):
                 return .source(.region(rect))
             case .window(let window):
-                selectedSourceKind = GuideTargetPickerKind.window.rawValue
-                selectedWindowID = window.id
                 return .source(GuideTargetPickerKind.window.source(for: window))
             }
 
@@ -482,7 +497,6 @@ final class GuideWorkflowModel: ObservableObject {
             )
             switch await session.beginOutcome() {
             case .window(let window):
-                selectedWindowID = window.id
                 return .source(kind.source(for: window))
             case .chooseFromList:
                 return .chooseFromList(kind)
@@ -506,7 +520,6 @@ final class GuideWorkflowModel: ObservableObject {
             guard let displayID else {
                 return .cancelled
             }
-            selectedDisplayID = displayID
             return .source(.displays(.selected([displayID])))
         }
     }
@@ -517,13 +530,15 @@ final class GuideWorkflowModel: ObservableObject {
             WindowSelectionPrompt(
                 instructionText: "Hover a window, then click to start the Guide. Esc returns to setup.",
                 listButtonTitle: "Choose from List…",
-                windowLabel: \.displayTitle
+                windowLabel: \.displayTitle,
+                targetActionHelp: String(localized: "Press to start the Guide with this window.")
             )
         case .app:
             WindowSelectionPrompt(
                 instructionText: "Hover any window from an app, then click to follow that app. Esc returns to setup.",
                 listButtonTitle: "Choose from List…",
-                windowLabel: \.ownerName
+                windowLabel: \.ownerName,
+                targetActionHelp: String(localized: "Press to follow this app in the Guide.")
             )
         }
     }
@@ -550,7 +565,11 @@ final class GuideWorkflowModel: ObservableObject {
         isShowingQuickStart = true
     }
 
-    private func startImmediately(source: GuideCaptureSource, privateCapture: Bool) async throws {
+    private func startImmediately(
+        source: GuideCaptureSource,
+        privateCapture: Bool,
+        setup: GuideCaptureSetupDraft? = nil
+    ) async throws {
         guard dependencies.capabilities.isEnabled(.guideCapture) else {
             throw AutomationExecutionError(
                 code: .proFeatureRequired,
@@ -560,13 +579,31 @@ final class GuideWorkflowModel: ObservableObject {
         isShowingQuickStart = false
         try await captureCoordinator.start(
             source: source,
-            preferences: capturePreferences,
+            preferences: setup?.preferences ?? capturePreferences,
             exportSettings: exportSettings,
             theme: theme,
             logoImage: defaultLogoImage,
             privateCapture: privateCapture,
             guideShortcutKeyCode: dependencies.capture.guideHotKeyCode
         )
+        if let setup {
+            capturePreferences = setup.preferences
+            completeFirstUseSetup()
+            captureSetupDraft = nil
+            switch source {
+            case .window(let id, _, _, _):
+                selectedSourceKind = "window"
+                selectedWindowID = id
+            case .app(let processID, _, _, _):
+                selectedSourceKind = "app"
+                selectedWindowID = availableWindows.first(where: { $0.ownerPID == processID })?.id
+            case .region:
+                selectedSourceKind = "region"
+            case .displays(let selection):
+                selectedSourceKind = "display"
+                if case .selected(let identifiers) = selection { selectedDisplayID = identifiers.first }
+            }
+        }
         preferenceStore.saveLastSource(source)
         dependencies.lifecycle.updateWorkingMessage(
             "\(WorkflowVocabulary.Status.guideCapturing) • 0 steps"
@@ -643,6 +680,9 @@ extension GuideWorkflowModel: GuideAutomationPort {
                     source = .displays(.current)
                 case .region:
                     selectedSourceKind = "region"
+                    captureSetupDraft = GuideCaptureSetupDraft(
+                        preferences: capturePreferences, sourceKind: "region"
+                    )
                     isShowingQuickStart = true
                     return .success(
                         requestID: request.id,

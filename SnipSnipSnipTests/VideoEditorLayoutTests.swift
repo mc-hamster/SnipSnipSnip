@@ -6,6 +6,38 @@ import XCTest
 
 @MainActor
 final class VideoEditorLayoutTests: XCTestCase {
+    func testCompletionNoticePreservesPlayerAndPlaybackControlFrames() async throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let recording = try await VideoTestMedia.make(in: directory, duration: 0.5)
+        let controller = VideoEditorController(recording: recording)
+        await waitUntil { !controller.isPreparingPreview }
+        let view = NSHostingView(rootView: VideoEditorWorkspace(
+            controller: controller, inspectorVisible: .constant(false)))
+        let window = host(view, size: CGSize(width: 1240, height: 600))
+        defer { window.close() }
+        try await Task.sleep(for: .milliseconds(100))
+        view.layoutSubtreeIfNeeded()
+        let player = try XCTUnwrap(descendant(AVPlayerView.self, in: view))
+        let playerFrame = player.convert(player.bounds, to: view)
+        let controlsFrame = try XCTUnwrap(find("video.playback.controls", in: view)).accessibilityFrame()
+
+        let url = directory.appendingPathComponent("Exported.mp4")
+        controller.showStatus(EditorNotice(message: "Exported MP4 to Exported.mp4.",
+                                           action: .reveal(url), dismissalDelaySeconds: nil))
+        try await Task.sleep(for: .milliseconds(100))
+        view.layoutSubtreeIfNeeded()
+        XCTAssertEqual(player.convert(player.bounds, to: view), playerFrame)
+        XCTAssertEqual(try XCTUnwrap(find("video.playback.controls", in: view)).accessibilityFrame(), controlsFrame)
+        XCTAssertEqual(controller.statusNotice?.action, .reveal(url))
+        XCTAssertNotNil(find("video.notice", in: view))
+        controller.dismissStatus()
+        try await Task.sleep(for: .milliseconds(100))
+        view.layoutSubtreeIfNeeded()
+        XCTAssertEqual(player.convert(player.bounds, to: view), playerFrame)
+        XCTAssertNil(controller.statusNotice)
+    }
+
     func testPlaybackRemainsVisibleForPortraitLandscapeAndSquareVideo() async throws {
         for size in [CGSize(width: 720, height: 1280), CGSize(width: 1280, height: 720), CGSize(width: 720, height: 720)] {
             let directory = try temporaryDirectory()
@@ -81,7 +113,6 @@ final class VideoEditorLayoutTests: XCTestCase {
         view.layoutSubtreeIfNeeded()
         XCTAssertNotNil(find("video.backToContent", in: view))
         XCTAssertNotNil(find("video.tool.Polish", in: view))
-        XCTAssertNotNil(find("video.polish.automatic", in: view))
         try assertPlaybackVisible(in: view, window: window, trimming: false)
         try attach(view, name: "Video Main Window - Polish - Portrait - 1240x600")
         controller.isPolishing = false
@@ -90,7 +121,58 @@ final class VideoEditorLayoutTests: XCTestCase {
         view.layoutSubtreeIfNeeded()
         XCTAssertEqual(controller.documentSession, original, "Workflow navigation must not alter Video effects or trim")
         XCTAssertEqual(controller.persistenceRevision, 0)
+        // This ContentView has no SwiftUI Scene lifecycle, so its SceneStorage
+        // inspector binding remains at the watch-first default. Inspector
+        // transitions are covered below with a mounted, mutable State binding.
+        try assertPlaybackVisible(in: view, window: window, trimming: false)
+    }
+
+    func testSectionNavigationOpensInspectorWithoutEditingVideoOrHidingPlayback() async throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let recording = try await VideoTestMedia.make(in: directory, width: 320, height: 560)
+        let controller = VideoEditorController(recording: recording)
+        await waitUntil { !controller.isPreparingPreview }
+        XCTAssertNil(controller.previewError)
+        let original = controller.documentSession
+        var didAppear = false
+        let view = NSHostingView(rootView: VideoInspectorLifecycleFixture(
+            controller: controller, onAppear: { didAppear = true }))
+        let window = host(view, size: CGSize(width: 1240, height: 600))
+        defer { window.close() }
+        // AX nodes are available before onAppear installs the section observer.
+        // Wait for the actual mounted lifecycle before testing navigation.
+        await waitUntil { didAppear }
+        XCTAssertTrue(didAppear, "The Video editor must finish mounting before section navigation")
+        await waitUntil { self.find("video.playback.seek", in: view) != nil }
+        XCTAssertNil(find("video.inspector.section", in: view))
+
+        controller.isPolishing = true
+        controller.inspectorSection = .polish
+        await waitUntil {
+            guard let polish = self.find("video.polish.automatic", in: window) else { return false }
+            let frame = polish.accessibilityFrame()
+            return frame.width > 0 && frame.height > 0
+                && window.convertToScreen(window.contentLayoutRect).contains(frame)
+        }
+        view.layoutSubtreeIfNeeded()
+        let polish = try XCTUnwrap(find("video.polish.automatic", in: window))
+        let visible = window.convertToScreen(window.contentLayoutRect)
+        let polishFrame = polish.accessibilityFrame()
+        XCTAssertGreaterThan(polishFrame.width, 0)
+        XCTAssertGreaterThan(polishFrame.height, 0)
+        XCTAssertTrue(visible.contains(polishFrame), "Polish must fit inside native window content: \(polishFrame), visible: \(visible)")
+        try assertPlaybackVisible(in: view, window: window, trimming: false)
+        try attach(view, name: "Video Inspector - Polish - Portrait")
+
+        controller.isPolishing = false
+        controller.inspectorSection = .trim
+        await waitUntil { self.find("video.trim.playhead", in: view) != nil }
+        view.layoutSubtreeIfNeeded()
         try assertPlaybackVisible(in: view, window: window, trimming: true)
+        XCTAssertEqual(controller.documentSession, original, "Inspector navigation must not alter Video effects or trim")
+        XCTAssertEqual(controller.persistenceRevision, 0)
+        try attach(view, name: "Video Inspector - Trim - Portrait")
     }
 
     func testPlayPauseScrubAndBackToStartDoNotEditTheRecording() async throws {
@@ -198,5 +280,16 @@ final class VideoEditorLayoutTests: XCTestCase {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("VideoEditorLayoutTests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
+    }
+}
+
+private struct VideoInspectorLifecycleFixture: View {
+    @ObservedObject var controller: VideoEditorController
+    let onAppear: () -> Void
+    @State private var inspectorVisible = false
+
+    var body: some View {
+        VideoEditorView(controller: controller, inspectorVisible: $inspectorVisible)
+            .onAppear(perform: onAppear)
     }
 }

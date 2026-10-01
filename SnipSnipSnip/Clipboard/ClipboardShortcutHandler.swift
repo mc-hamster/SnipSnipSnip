@@ -80,7 +80,7 @@ final class ClipboardShortcutView: NSView {
             modifiers: event.modifierFlags, focus: focus, hasDeletionUndo: hasDeletionUndo
         ) else { return false }
         switch action {
-        case .copy: onReturn?(event.modifierFlags)
+        case .copy, .copyAndReturn: onReturn?(event.modifierFlags)
         case .preview: onPreview?()
         case .copyNumber(let number): onNumberShortcut?(number)
         case .previous: onMove?(.up)

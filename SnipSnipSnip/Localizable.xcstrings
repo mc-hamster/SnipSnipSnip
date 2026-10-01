@@ -1,56 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "The document could not be prepared for printing." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The document could not be prepared for printing."
-          }
-        }
-      }
-    },
-    "Copy, save, export, share, and print" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copy, save, export, share, and print"
-          }
-        }
-      }
-    },
-    "Print the current document" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Print the current document"
-          }
-        }
-      }
-    },
-    "Print…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Print…"
-          }
-        }
-      }
-    },
-    "Print" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Print"
-          }
-        }
-      }
-    },
     "" : {
 
     },
@@ -1962,6 +1912,17 @@
     },
     "Copy the stored original with its formatting, or just its original plain text." : {
 
+    },
+    "Copy, save, export, share, and print" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy, save, export, share, and print"
+          }
+        }
+      }
     },
     "Copy, Share, Export, Float, and Drag use the visible stage. Edit, Review, Steps, and Arrange output unwrapped content; Polish outputs the visible Look or Mockup. PNG, JPEG, and PDF include the complete result and annotations. Before an oversized raster is created, choose Scale to Fit; a Steps PDF also offers Paginated PDF. Blink exports deterministic GIF, APNG, and MP4 output using its interval, crossfade, and loop settings, with a disclosed 4,096-pixel longest-side cap. Static Blink output defaults to After." : {
 
@@ -4710,8 +4671,40 @@
     "Primary Label" : {
 
     },
+    "Print" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Print"
+          }
+        }
+      }
+    },
     "Print · 300 dpi" : {
 
+    },
+    "Print the current document" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Print the current document"
+          }
+        }
+      }
+    },
+    "Print…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Print…"
+          }
+        }
+      }
     },
     "Privacy Policy" : {
 
@@ -6233,6 +6226,16 @@
     "The current %@ document has unsaved changes." : {
 
     },
+    "The document could not be prepared for printing." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The document could not be prepared for printing."
+          }
+        }
+      }
+    },
     "The screenshot could not be copied to the clipboard. Try Copy again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6812,6 +6815,644 @@
     },
     "Zooms guide attention. Select one below to adjust when and where it focuses." : {
       "extractionState" : "manual"
+    },
+    "A successful export shows the filename and Reveal in Finder. Choose it to select the file in Finder. This brief confirmation does not resize the player, change playback, or move your editing controls. Export progress remains cancellable, and errors stay available until you dismiss them." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A successful export shows the filename and Reveal in Finder. Choose it to select the file in Finder. This brief confirmation does not resize the player, change playback, or move your editing controls. Export progress remains cancellable, and errors stay available until you dismiss them."
+          }
+        }
+      }
+    },
+    "Accessibility" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accessibility"
+          }
+        }
+      }
+    },
+    "Arrow Length" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrow Length"
+          }
+        }
+      }
+    },
+    "Arrow Width" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrow Width"
+          }
+        }
+      }
+    },
+    "Choose a visible window or open the list of available windows." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a visible window or open the list of available windows."
+          }
+        }
+      }
+    },
+    "Click Export to choose one or more formats. The sheet groups formats by purpose: Documents (PDF and Word Document), Animated sharing (GIF and APNG), Video (Full Motion, Action Highlights, and Step Slideshow MP4), and Files and packages (step images and ZIP). PDF and GIF are selected by default. PDF and Word exports use print-quality stills to keep captured interface text sharp. The format choices live in this export sheet. They stay temporary until you accept an export folder and export starts; cancelling either chooser preserves the Guide settings and Undo history." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click Export to choose one or more formats. The sheet groups formats by purpose: Documents (PDF and Word Document), Animated sharing (GIF and APNG), Video (Full Motion, Action Highlights, and Step Slideshow MP4), and Files and packages (step images and ZIP). PDF and GIF are selected by default. PDF and Word exports use print-quality stills to keep captured interface text sharp. The format choices live in this export sheet. They stay temporary until you accept an export folder and export starts; cancelling either chooser preserves the Guide settings and Undo history."
+          }
+        }
+      }
+    },
+    "Click a card or choose Copy to place its content on the system clipboard, then switch to the destination and paste with Command-V. The palette stays open after ordinary copying. Choose Copy and Return or press Shift-Command-Return to copy the selected item and return to the application you opened Clipboard History from, then paste with Command-V. Copy and Return uses the same draft-aware content as Copy Edited. If copying fails or the destination application is no longer available, the palette stays open with an explanation and keeps your drafts. Return while browsing or searching and Command-Return while editing activate the visible Copy action. If an item has a draft, the action is Copy Edited and copies that draft as plain text. Card clicks and Option-1 through Option-9 while browsing use the same draft-aware rule, with shortcut numbers following the visible cards across day sections. Copied appears beside an item only after a successful copy. Arrow keys select without copying. Choose Preview, the eye button on a hovered or selected card, or Space while browsing to inspect the full item. Back returns to the cards with search, filters, scroll position, selection, and drafts intact. More Actions and the contextual menu retain the item commands. Copy Options > Copy Original preserves the stored content and formatting; Copy Plain Text copies its original text without formatting. Inside a text editor, Return inserts a line break, arrow keys move the caret, and Command-Z undoes text edits. Escape from an editing field returns focus to Search; from Preview it returns to the cards; from Search it clears the query, or closes the window when the query is empty. Command-F returns from Preview to Search." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click a card or choose Copy to place its content on the system clipboard, then switch to the destination and paste with Command-V. The palette stays open after ordinary copying. Choose Copy and Return or press Shift-Command-Return to copy the selected item and return to the application you opened Clipboard History from, then paste with Command-V. Copy and Return uses the same draft-aware content as Copy Edited. If copying fails or the destination application is no longer available, the palette stays open with an explanation and keeps your drafts. Return while browsing or searching and Command-Return while editing activate the visible Copy action. If an item has a draft, the action is Copy Edited and copies that draft as plain text. Card clicks and Option-1 through Option-9 while browsing use the same draft-aware rule, with shortcut numbers following the visible cards across day sections. Copied appears beside an item only after a successful copy. Arrow keys select without copying. Choose Preview, the eye button on a hovered or selected card, or Space while browsing to inspect the full item. Back returns to the cards with search, filters, scroll position, selection, and drafts intact. More Actions and the contextual menu retain the item commands. Copy Options > Copy Original preserves the stored content and formatting; Copy Plain Text copies its original text without formatting. Inside a text editor, Return inserts a line break, arrow keys move the caret, and Command-Z undoes text edits. Escape from an editing field returns focus to Search; from Preview it returns to the cards; from Search it clears the query, or closes the window when the query is empty. Command-F returns from Preview to Search."
+          }
+        }
+      }
+    },
+    "Copied. The previous app is unavailable; your item is ready to paste." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied. The previous app is unavailable; your item is ready to paste."
+          }
+        }
+      }
+    },
+    "Copy and Return" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy and Return"
+          }
+        }
+      }
+    },
+    "Copy selected item while browsing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy selected item while browsing"
+          }
+        }
+      }
+    },
+    "Copy the selected item, then return to the app used before Clipboard History. Shift-Command-Return." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy the selected item, then return to the app used before Clipboard History. Shift-Command-Return."
+          }
+        }
+      }
+    },
+    "Copy, Export, Share, Float, and Drag follow the visible stage. Edit, Comparison Review, Steps, and Arrange use the unwrapped content, annotations, pinned UI Map overlays, and flattened redactions. Polish uses the visible Look or Mockup; when none is configured, it uses the same unwrapped content. Back to Content changes the boundary explicitly. Edit Selected Capture and Annotate Result hide document output until Done returns to the focused content stage. Capturing or editing does not update the clipboard; choose Copy when the visible result is ready. Copy confirms success only after the clipboard write. If preparation takes a moment, its button shows Copying…; repeated requests for an unchanged result share that copy. You can continue editing while the requested image is prepared. Export similarly shows Exporting… after you choose a destination when preparation takes a moment. Export completion identifies the file and offers Reveal in Finder. Routine confirmations appear without moving the canvas or video player." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy, Export, Share, Float, and Drag follow the visible stage. Edit, Comparison Review, Steps, and Arrange use the unwrapped content, annotations, pinned UI Map overlays, and flattened redactions. Polish uses the visible Look or Mockup; when none is configured, it uses the same unwrapped content. Back to Content changes the boundary explicitly. Edit Selected Capture and Annotate Result hide document output until Done returns to the focused content stage. Capturing or editing does not update the clipboard; choose Copy when the visible result is ready. Copy confirms success only after the clipboard write. If preparation takes a moment, its button shows Copying…; repeated requests for an unchanged result share that copy. You can continue editing while the requested image is prepared. Export similarly shows Exporting… after you choose a destination when preparation takes a moment. Export completion identifies the file and offers Reveal in Finder. Routine confirmations appear without moving the canvas or video player."
+          }
+        }
+      }
+    },
+    "Drag sends the output shown in the active content or Polish stage to Finder, Mail, or another app. If you click without dragging, SnipSnipSnip shows a short reminder. During the drag, the editor window temporarily hides so you can reach the destination, then returns when the drag finishes. Settings > Editor & Output > Export & Sharing names this preference Drag-Out Format. It controls whether screenshot drag-out normally uses PNG, JPEG, or PDF and also sets JPEG quality. Choosing a format here does not change the format selected explicitly in Export. Transparent Polish output automatically uses PNG so the result stays faithful." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag sends the output shown in the active content or Polish stage to Finder, Mail, or another app. If you click without dragging, SnipSnipSnip shows a short reminder. During the drag, the editor window temporarily hides so you can reach the destination, then returns when the drag finishes. Settings > Editor & Output > Export & Sharing names this preference Drag-Out Format. It controls whether screenshot drag-out normally uses PNG, JPEG, or PDF and also sets JPEG quality. Choosing a format here does not change the format selected explicitly in Export. Transparent Polish output automatically uses PNG so the result stays faithful."
+          }
+        }
+      }
+    },
+    "Drag-Out Format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag-Out Format"
+          }
+        }
+      }
+    },
+    "Drag-Out Format controls files delivered by dragging from the screenshot editor. Export chooses its format separately. JPEG Quality applies to JPEG exports and drag-out files. Transparent Polish output automatically uses PNG." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag-Out Format controls files delivered by dragging from the screenshot editor. Export chooses its format separately. JPEG Quality applies to JPEG exports and drag-out files. Transparent Polish output automatically uses PNG."
+          }
+        }
+      }
+    },
+    "Empty Deleted Snips After" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empty Deleted Snips After"
+          }
+        }
+      }
+    },
+    "Exporting screenshot" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporting screenshot"
+          }
+        }
+      }
+    },
+    "Exporting…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporting…"
+          }
+        }
+      }
+    },
+    "File > Open and Import Image keep your current editing session while you choose and load a replacement. Cancelling the chooser or choosing an unreadable or unsupported file keeps the current document, selection, zoom, and Undo history. If the replacement loads successfully and the current document needs a save decision, choose Save, Discard, or Cancel before switching. Cancel keeps your current work." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File > Open and Import Image keep your current editing session while you choose and load a replacement. Cancelling the chooser or choosing an unreadable or unsupported file keeps the current document, selection, zoom, and Undo history. If the replacement loads successfully and the current document needs a save decision, choose Save, Discard, or Cancel before switching. Cancel keeps your current work."
+          }
+        }
+      }
+    },
+    "Find a window" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find a window"
+          }
+        }
+      }
+    },
+    "Find the exported video" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find the exported video"
+          }
+        }
+      }
+    },
+    "History Storage Target" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "History Storage Target"
+          }
+        }
+      }
+    },
+    "Hover a visible window to highlight it, then click to select it for Video." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hover a visible window to highlight it, then click to select it for Video."
+          }
+        }
+      }
+    },
+    "Hover a window, then click to record Video. Esc cancels." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hover a window, then click to record Video. Esc cancels."
+          }
+        }
+      }
+    },
+    "Major Tick Every" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Major Tick Every"
+          }
+        }
+      }
+    },
+    "Maximum Item Size" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maximum Item Size"
+          }
+        }
+      }
+    },
+    "Maximum Snip History Size" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maximum Snip History Size"
+          }
+        }
+      }
+    },
+    "Maximum Unpinned Items" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maximum Unpinned Items"
+          }
+        }
+      }
+    },
+    "No Available Windows" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Available Windows"
+          }
+        }
+      }
+    },
+    "No Matching Windows" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Matching Windows"
+          }
+        }
+      }
+    },
+    "Open a list of available windows." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open a list of available windows."
+          }
+        }
+      }
+    },
+    "Open a window and reopen this chooser, or try Pick On Screen." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open a window and reopen this chooser, or try Pick On Screen."
+          }
+        }
+      }
+    },
+    "Open or import without losing your place" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open or import without losing your place"
+          }
+        }
+      }
+    },
+    "Press to follow this app in the Guide." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press to follow this app in the Guide."
+          }
+        }
+      }
+    },
+    "Press to record this window." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press to record this window."
+          }
+        }
+      }
+    },
+    "Press to select this window for Video." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press to select this window for Video."
+          }
+        }
+      }
+    },
+    "Press to start the Guide with this window." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press to start the Guide with this window."
+          }
+        }
+      }
+    },
+    "Preview selected item while browsing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview selected item while browsing"
+          }
+        }
+      }
+    },
+    "Record this window." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record this window."
+          }
+        }
+      }
+    },
+    "Review the plain-language capture summary, or expand Fine-tune capture for optional video smoothness, pointer, desktop cleanup, on-device instruction, secure-field, and display menu-bar choices. These choices stay temporary until the selected target starts capturing successfully. Cancel setup or target selection to keep your saved defaults unchanged. Hover over any choice for a plain-language explanation; the defaults work well for most Guides." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review the plain-language capture summary, or expand Fine-tune capture for optional video smoothness, pointer, desktop cleanup, on-device instruction, secure-field, and display menu-bar choices. These choices stay temporary until the selected target starts capturing successfully. Cancel setup or target selection to keep your saved defaults unchanged. Hover over any choice for a plain-language explanation; the defaults work well for most Guides."
+          }
+        }
+      }
+    },
+    "Screenshot Capture › Advanced" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screenshot Capture › Advanced"
+          }
+        }
+      }
+    },
+    "Search Apps and Windows" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search Apps and Windows"
+          }
+        }
+      }
+    },
+    "Search by app name or window title." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search by app name or window title."
+          }
+        }
+      }
+    },
+    "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. Use the trash button in Layers and Arrangement, press Delete, or right-click an annotation and choose Delete. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing, moving, and resizing rectangles. Their magnetic distance stays consistent at every zoom level, and an acquired guide remains stable until you move away. Hold Option while moving or resizing to temporarily bypass snapping; release it to resume alignment. Press Escape before releasing the pointer to cancel a drawing, move, resize, or crop drag without changing the screenshot." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. Use the trash button in Layers and Arrangement, press Delete, or right-click an annotation and choose Delete. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing, moving, and resizing rectangles. Their magnetic distance stays consistent at every zoom level, and an acquired guide remains stable until you move away. Hold Option while moving or resizing to temporarily bypass snapping; release it to resume alignment. Press Escape before releasing the pointer to cancel a drawing, move, resize, or crop drag without changing the screenshot."
+          }
+        }
+      }
+    },
+    "The Choose Window list can search application names and window titles. No Matching Windows means the search hides available windows; clear the search to see them. No Available Windows means there are no eligible windows to choose. Pick On Screen remains available, with instructions for Screenshot or Video as appropriate." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Choose Window list can search application names and window titles. No Matching Windows means the search hides available windows; clear the search to see them. No Available Windows means there are no eligible windows to choose. Pick On Screen remains available, with instructions for Screenshot or Video as appropriate."
+          }
+        }
+      }
+    },
+    "The native right inspector keeps Crop Image, Properties, and History directly visible. Crop Image opens Auto Crop, Padded, and Reset Crop above the exact crop controls without changing the selected annotation tool. Properties shows only controls for the current tool or selection and names that context, such as Arrow, Text, or Selection. History uses the full inspector for Change History and the Snip Library instead of stacking them beneath editing controls; the History button includes the current document’s change count. Crop handles remain available on the image while any annotation tool is selected, and crop changes apply immediately through normal undo. Comparison, Steps, Arrange, Look, and Mockup continue to show their stage-specific inspector. The inspector is visible by default and remembered for each window scene. Use the Inspector control immediately after Zoom, or View > Show/Hide Inspector (Command-Option-I), to toggle it. A chosen magnification and the content at the center of the canvas remain stable when the inspector or window changes size; Fit to Window follows the available canvas." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The native right inspector keeps Crop Image, Properties, and History directly visible. Crop Image opens Auto Crop, Padded, and Reset Crop above the exact crop controls without changing the selected annotation tool. Properties shows only controls for the current tool or selection and names that context, such as Arrow, Text, or Selection. History uses the full inspector for Change History and the Snip Library instead of stacking them beneath editing controls; the History button includes the current document’s change count. Crop handles remain available on the image while any annotation tool is selected, and crop changes apply immediately through normal undo. Comparison, Steps, Arrange, Look, and Mockup continue to show their stage-specific inspector. The inspector is visible by default and remembered for each window scene. Use the Inspector control immediately after Zoom, or View > Show/Hide Inspector (Command-Option-I), to toggle it. A chosen magnification and the content at the center of the canvas remain stable when the inspector or window changes size; Fit to Window follows the available canvas."
+          }
+        }
+      }
+    },
+    "Video uses the same grouped command rows as Screenshot and Polish. Discard comes first, followed by Trim, Zooms, Cursor & Clicks, and Sound & Shortcuts. The next row groups Undo/Redo, Inspector, and Drag beside Export. Discard and Export stay visible when secondary controls need horizontal scrolling, and the window fits the available display area. Choose an editing tool to open its grouped inspector; the selected tool has a visible boundary. Trim also shows the thumbnail strip: drag it to scrub, or move the handles to keep a smaller part. Use Start Frame as Thumbnail only changes the saved Video's still image; use Play to watch. Show/Hide Inspector (Option-Command-I) opens or hides details without hiding playback. With the preview focused, Space plays or pauses and Left/Right Arrow moves one frame. New capture commands remain available in the Capture menu and shortcuts. Search Settings finds individual controls by their labels and related words. Choose a result to open its category and any nested page, scroll to the setting, and briefly highlight it. For example, JPEG quality reveals JPEG Quality in Editor & Output, while clipboard settings open the Clipboard page of Snip Library." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video uses the same grouped command rows as Screenshot and Polish. Discard comes first, followed by Trim, Zooms, Cursor & Clicks, and Sound & Shortcuts. The next row groups Undo/Redo, Inspector, and Drag beside Export. Discard and Export stay visible when secondary controls need horizontal scrolling, and the window fits the available display area. Choose an editing tool to open its grouped inspector; the selected tool has a visible boundary. Trim also shows the thumbnail strip: drag it to scrub, or move the handles to keep a smaller part. Use Start Frame as Thumbnail only changes the saved Video's still image; use Play to watch. Show/Hide Inspector (Option-Command-I) opens or hides details without hiding playback. With the preview focused, Space plays or pauses and Left/Right Arrow moves one frame. New capture commands remain available in the Capture menu and shortcuts. Search Settings finds individual controls by their labels and related words. Choose a result to open its category and any nested page, scroll to the setting, and briefly highlight it. For example, JPEG quality reveals JPEG Quality in Editor & Output, while clipboard settings open the Clipboard page of Snip Library."
+          }
+        }
+      }
+    },
+    "Window selection targets" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window selection targets"
+          }
+        }
+      }
+    },
+    "After export, the completion message offers Reveal in Finder without switching apps automatically. Share through the native share sheet, copy the exported files, or reveal them in Finder for Mail, Messages, Slack, Notion, and other standard destinations. These actions use only an export of the current Guide and its current edits. If you edit the Guide, including while an export is running, export again before sharing. Opening another Guide clears the previous export actions." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After export, the completion message offers Reveal in Finder without switching apps automatically. Share through the native share sheet, copy the exported files, or reveal them in Finder for Mail, Messages, Slack, Notion, and other standard destinations. These actions use only an export of the current Guide and its current edits. If you edit the Guide, including while an export is running, export again before sharing. Opening another Guide clears the previous export actions."
+          }
+        }
+      }
+    },
+    "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. Use the trash button in Layers and Arrangement, press Delete, or right-click an annotation and choose Delete. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing rectangle-shaped annotations and moving or resizing selections. Their magnetic distance stays consistent at every zoom level, and an acquired guide remains stable until you move away. Hold Option while moving or resizing to temporarily bypass snapping; release it to resume alignment. Press Escape before releasing the pointer to cancel a drawing, move, resize, or crop drag without changing the screenshot." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. Use the trash button in Layers and Arrangement, press Delete, or right-click an annotation and choose Delete. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing rectangle-shaped annotations and moving or resizing selections. Their magnetic distance stays consistent at every zoom level, and an acquired guide remains stable until you move away. Hold Option while moving or resizing to temporarily bypass snapping; release it to resume alignment. Press Escape before releasing the pointer to cancel a drawing, move, resize, or crop drag without changing the screenshot."
+          }
+        }
+      }
+    },
+    "Setting %@ in %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Setting %@ in %@."
+          }
+        }
+      }
+    },
+    "Current packages open directly. A file rejected by File > Open stays untouched, and your current editing session remains open. During launch and recovery compatibility checks, older unsupported packages and recovery checkpoints can be moved to the macOS Trash when they no longer match the current document baseline." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current packages open directly. A file rejected by File > Open stays untouched, and your current editing session remains open. During launch and recovery compatibility checks, older unsupported packages and recovery checkpoints can be moved to the macOS Trash when they no longer match the current document baseline."
+          }
+        }
+      }
+    },
+    "Choose the right output preference" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose the right output preference"
+          }
+        }
+      }
+    },
+    "Drag-Out Format in Editor & Output controls files shared by dragging from the screenshot editor. Export chooses its format separately. JPEG Quality applies to JPEG exports and drag-out files." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag-Out Format in Editor & Output controls files shared by dragging from the screenshot editor. Export chooses its format separately. JPEG Quality applies to JPEG exports and drag-out files."
+          }
+        }
+      }
+    },
+    "Find a setting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find a setting"
+          }
+        }
+      }
+    },
+    "Open Settings with Command-Comma and use Search Settings. Search Settings finds individual controls by their labels and related words. Choose a result to open its category and any nested page, scroll to the setting, and briefly highlight it. For example, JPEG quality reveals JPEG Quality in Editor & Output, while clipboard settings open the Clipboard page of Snip Library. Clearing search keeps the category you chose." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Settings with Command-Comma and use Search Settings. Search Settings finds individual controls by their labels and related words. Choose a result to open its category and any nested page, scroll to the setting, and briefly highlight it. For example, JPEG quality reveals JPEG Quality in Editor & Output, while clipboard settings open the Clipboard page of Snip Library. Clearing search keeps the category you chose."
+          }
+        }
+      }
+    },
+    "Search directly for the control you want to change." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search directly for the control you want to change."
+          }
+        }
+      }
+    },
+    "Video uses the same grouped command rows as Screenshot and Polish. Discard comes first, followed by Trim, Zooms, Cursor & Clicks, and Sound & Shortcuts. The next row groups Undo/Redo, Inspector, and Drag beside Export. Discard and Export stay visible when secondary controls need horizontal scrolling, and the window fits the available display area. Choose an editing tool to open its grouped inspector; the selected tool has a visible boundary. Trim also shows the thumbnail strip: drag it to scrub, or move the handles to keep a smaller part. Use Start Frame as Thumbnail only changes the saved Video's still image; use Play to watch. Show/Hide Inspector (Option-Command-I) opens or hides details without hiding playback. With the preview focused, Space plays or pauses and Left/Right Arrow moves one frame. New capture commands remain available in the Capture menu and shortcuts." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video uses the same grouped command rows as Screenshot and Polish. Discard comes first, followed by Trim, Zooms, Cursor & Clicks, and Sound & Shortcuts. The next row groups Undo/Redo, Inspector, and Drag beside Export. Discard and Export stay visible when secondary controls need horizontal scrolling, and the window fits the available display area. Choose an editing tool to open its grouped inspector; the selected tool has a visible boundary. Trim also shows the thumbnail strip: drag it to scrub, or move the handles to keep a smaller part. Use Start Frame as Thumbnail only changes the saved Video's still image; use Play to watch. Show/Hide Inspector (Option-Command-I) opens or hides details without hiding playback. With the preview focused, Space plays or pauses and Left/Right Arrow moves one frame. New capture commands remain available in the Capture menu and shortcuts."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

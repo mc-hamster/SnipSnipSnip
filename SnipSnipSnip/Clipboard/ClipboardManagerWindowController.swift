@@ -14,7 +14,7 @@ enum ClipboardManagerWindowID {
 final class ClipboardManagerWindowController: NSWindowController {
     private weak var clipboard: ClipboardWorkflowModel?
     private let workspace: any WorkspaceServicing
-    private var previousApplicationProcessIdentifier: pid_t?
+    private var previousApplication: ClipboardReturnTarget?
     private var hasPositionedWindow = false
 
     init(clipboard: ClipboardWorkflowModel, workspace: any WorkspaceServicing) {
@@ -39,9 +39,11 @@ final class ClipboardManagerWindowController: NSWindowController {
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.hidesOnDeactivate = true
-        panel.contentView = NSHostingView(rootView: ClipboardManagerView(clipboard: clipboard))
-
         super.init(window: panel)
+        panel.contentView = NSHostingView(rootView: ClipboardManagerView(
+            clipboard: clipboard,
+            returnToPreviousApplication: { [weak self] in self?.returnToPreviousApplication() ?? false }
+        ))
     }
 
     @available(*, unavailable)
@@ -55,7 +57,10 @@ final class ClipboardManagerWindowController: NSWindowController {
         }
 
         if !window.isVisible {
-            previousApplicationProcessIdentifier = workspace.frontmostApplicationProcessIdentifier
+            previousApplication = ClipboardReturnTarget(
+                application: workspace.frontmostApplication,
+                ownProcessIdentifier: ProcessInfo.processInfo.processIdentifier
+            )
         }
 
         if !hasPositionedWindow {
@@ -78,5 +83,15 @@ final class ClipboardManagerWindowController: NSWindowController {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         NotificationCenter.default.post(name: ClipboardManagerWindowID.didShowNotification, object: window)
+    }
+
+    @discardableResult
+    func returnToPreviousApplication() -> Bool {
+        guard let window, window.isKeyWindow,
+              let processIdentifier = previousApplication?.availableProcessIdentifier(in: workspace.runningApplications),
+              workspace.activateApplication(processIdentifier: processIdentifier) else { return false }
+        // Keep the utility mounted: returning is not closing its draft session.
+        window.orderOut(nil)
+        return true
     }
 }

@@ -39,7 +39,7 @@ final class ClipboardPresentationTests: XCTestCase {
                 view.layoutSubtreeIfNeeded()
                 let visible = window.convertToScreen(view.convert(view.bounds, to: nil)).insetBy(dx: -1, dy: -1)
                 for identifier in ["clipboard.search", "clipboard.scope", "clipboard.filters", "clipboard.monitoring",
-                                   "clipboard.actions", "clipboard.copy"] {
+                                   "clipboard.actions", "clipboard.copy", "clipboard.copyAndReturn"] {
                     let element = try XCTUnwrap(HostedViewTestSupport.find(identifier, in: view), identifier)
                     let frame = element.accessibilityFrame()
                     XCTAssertGreaterThan(frame.width, 0, identifier)
@@ -61,6 +61,8 @@ final class ClipboardPresentationTests: XCTestCase {
             for (name, query) in [("Link", "developer.apple.com"), ("Image", "Design reference"),
                                   ("Color", "#A3B18A"), ("Text", "Keep the content")] {
                 fixture.model.searchQuery = query
+                XCTAssertEqual(fixture.model.items.filter { $0.matchesSearchQuery(query) }.count, 1,
+                               "The \(name) preview fixture must match its search query.")
                 let view = NSHostingView(rootView: ClipboardManagerView(clipboard: fixture.model))
                 view.appearance = NSAppearance(named: appearance)
                 let window = HostedViewTestSupport.host(view, size: CGSize(width: 520, height: 720))
@@ -174,7 +176,7 @@ final class ClipboardPresentationTests: XCTestCase {
                 preferences: enabled, copiedAt: now.addingTimeInterval(-86400))
             store.recordText("#A3B18A", sourceApp: ClipboardSourceApp(name: "Xcode", bundleIdentifier: "com.apple.dt.Xcode"),
                              preferences: enabled, copiedAt: now.addingTimeInterval(-240))
-            store.recordLink("https://developer.apple.com/design/", title: "Apple Design Resources", searchableText: "design",
+            store.recordLink("https://developer.apple.com/design/", title: "Apple Design Resources",
                 sourceApp: ClipboardSourceApp(name: "Safari", bundleIdentifier: "com.apple.Safari"),
                 preferences: enabled, copiedAt: now.addingTimeInterval(-180))
             store.recordText("{\"appearance\":\"system\",\"previews\":true}", sourceApp: nil,

@@ -1,7 +1,7 @@
 ---
 description: "Canonical product terminology for SnipSnipSnip workflows, actions, stages, statuses, libraries, and outputs."
 status: active
-last_reviewed: 2026-08-11
+last_reviewed: 2026-09-30
 ---
 
 # SnipSnipSnip Workflow Lexicon
@@ -189,7 +189,7 @@ Use **capturing** for the observed interaction activity because a Guide is not a
 
 **Edit Video** identifies the editor. **Play** and **Pause** review the video with current edits; **Back to Start** pauses at the first kept frame. Playback and scrubbing do not require entering an editing section. **Trim** keeps the desired part; **Remove Section** excludes a mistake without deleting source footage and **Restore** brings it back. **Polish** opens presentation controls; **Polish Video** applies a background, smooth cursor, and suggested click-driven zooms as one undoable edit. Opening Polish alone never changes the document. **Zooms**, **Cursor & Clicks**, and **Sound & Shortcuts** name inspector destinations. **Add Zoom at Playhead**, **Follow Cursor**, and **Suggest Zooms from Clicks** describe their actual actions. **Use Start Frame as Thumbnail** changes the saved still image, not playback; it replaces the ambiguous Use Start Frame as Preview label. **Reset Video Edits** restores the full source and capture-time appearance and can be undone. Do not introduce Studio Mode or a separate product name for these capabilities.
 
-**Record Keyboard Shortcuts** is an optional Video setting for command/control shortcut labels, not typed text. It requires Accessibility access; ordinary recording and pointer metadata do not. **Search Settings** filters the native category sidebar by category and intent keywords.
+**Record Keyboard Shortcuts** is an optional Video setting for command/control shortcut labels, not typed text. It requires Accessibility access; ordinary recording and pointer metadata do not. **Search Settings** finds specific controls by their labels and related words, and selecting a result opens its category, nested page, and section.
 
 Shortcut recording has its own build capability: enabled for Dev and Self Release, unavailable in App Store builds. Do not use the automation capability as a proxy. When unavailable, explain that limitation without directing the user to a missing setting. Existing shortcut data in a saved Video remains viewable.
 
@@ -484,3 +484,12 @@ For any workflow-language change, verify:
 - **Preview** opens the full selected clipboard item without copying it; **Back** returns to the card feed. Clicking a clipboard card copies it, while arrow-key selection only changes the selection. **Clipboard Actions** contains window-wide commands, including **Permanently Delete Unpinned Items…**. **More Actions** contains commands for one item. **Copied** is temporary confirmation of a successful clipboard write, distinct from row selection.
 - **Pinned**, **Today**, **Yesterday**, and dated headings organize the clipboard list. They do not change the numbered copy shortcuts' order. **Details** discloses the selected item's precise copy time, source, size, and stored item count.
 - **Add to Collection** assigns an existing or newly named collection. **Remove from [collection name]** removes membership only. **Edit Text** opens the temporary text editor; **Done** returns to its preview and keeps the draft. **Edited · Original kept** identifies a preview of a temporary draft. **Clipboard Text Preview**, **Edit Clipboard Text**, **Clipboard Image Preview**, and **Color Preview** are the accessible names of the inspector's content surfaces. **Reveal in Finder** locates copied files; **Open Snip in Editor** retains its existing editable-history behavior.
+
+
+## Experience polish terms
+
+- **Copy and Return** copies the selected Clipboard History item's draft-aware content, then returns to the application from which Clipboard History was opened. Its shortcut is **Shift-Command-Return**. It never pastes automatically. Ordinary **Copy**, card clicks, Return while browsing, and Command-Return retain the palette's stay-open behavior. Failures or an unavailable destination keep the palette and drafts.
+- **Copying…** and **Exporting…** identify slow pending screenshot output on the existing completion control. The accessible names are **Copying screenshot…** and **Exporting screenshot**. Success wording remains **Copied screenshot. Ready to paste.**, with the existing redaction-aware variant. Completion is announced only after delivery succeeds.
+- **Drag-Out Format** replaces **Screenshot Format** in Editor & Output > Export & Sharing. It controls promised-file drag delivery, not explicitly chosen Export formats. JPEG Quality retains its current meaning.
+- **No Available Windows** means discovery returned no eligible windows. **No Matching Windows** means a search hides available windows. **Search Apps and Windows** matches application names and window titles. Window-selection instructions use Capture for a Screenshot and Record for Video.
+- **Cancel** in Open, Import Image, Guide setup, and Guide export-options/destination selection preserves the current editing context and prior settings. Starting an operation commits its chosen settings; cancelling an already started operation stops that job.

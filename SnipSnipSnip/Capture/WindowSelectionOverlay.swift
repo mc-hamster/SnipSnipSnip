@@ -17,11 +17,28 @@ nonisolated struct WindowSelectionPrompt {
     let instructionText: String
     let listButtonTitle: String?
     let windowLabel: @Sendable (CaptureWindowSummary) -> String
+    let targetActionHelp: String
+
+    init(instructionText: String, listButtonTitle: String?,
+         windowLabel: @escaping @Sendable (CaptureWindowSummary) -> String,
+         targetActionHelp: String = String(localized: "Press to capture this window.")) {
+        self.instructionText = instructionText
+        self.listButtonTitle = listButtonTitle
+        self.windowLabel = windowLabel
+        self.targetActionHelp = targetActionHelp
+    }
 
     static let capture = WindowSelectionPrompt(
-        instructionText: "Hover a window, then click to capture. Esc cancels.",
+        instructionText: String(localized: "Hover a window, then click to capture. Esc cancels."),
         listButtonTitle: nil,
         windowLabel: \.displayTitle
+    )
+
+    static let video = WindowSelectionPrompt(
+        instructionText: String(localized: "Hover a window, then click to record Video. Esc cancels."),
+        listButtonTitle: nil,
+        windowLabel: \.displayTitle,
+        targetActionHelp: String(localized: "Press to record this window.")
     )
 }
 
@@ -236,8 +253,8 @@ private final class WindowSelectionView: NSView {
         wantsLayer = true
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
-        setAccessibilityLabel("Window capture targets")
-        setAccessibilityHelp("Choose a visible window or open the list of capturable targets.")
+        setAccessibilityLabel(String(localized: "Window selection targets"))
+        setAccessibilityHelp(String(localized: "Choose a visible window or open the list of available windows."))
         setAccessibilityIdentifier("capture.window.targets")
         if let listButtonTitle = prompt.listButtonTitle {
             let listButton = NSButton(
@@ -248,7 +265,7 @@ private final class WindowSelectionView: NSView {
             listButton.bezelStyle = .rounded
             listButton.controlSize = .large
             listButton.translatesAutoresizingMaskIntoConstraints = false
-            listButton.setAccessibilityHelp("Open a list of capturable targets.")
+            listButton.setAccessibilityHelp(String(localized: "Open a list of available windows."))
             addSubview(listButton)
             NSLayoutConstraint.activate([
                 listButton.topAnchor.constraint(equalTo: topAnchor, constant: 20),
@@ -433,7 +450,9 @@ private final class WindowSelectionView: NSView {
                 target: self,
                 window: candidate,
                 frame: visibleRect,
-                isSelected: candidate.id == hoveredWindowID
+                isSelected: candidate.id == hoveredWindowID,
+                label: prompt.windowLabel(candidate),
+                actionHelp: prompt.targetActionHelp
             )
         }
         setAccessibilityChildren(targets)
@@ -871,20 +890,22 @@ nonisolated private final class WindowCaptureAccessibilityElement: NSAccessibili
         target: WindowSelectionView,
         window: CaptureWindowSummary,
         frame: CGRect,
-        isSelected: Bool
+        isSelected: Bool,
+        label: String,
+        actionHelp: String
     ) {
         self.target = target
         self.windowID = window.id
         super.init()
         setAccessibilityParent(target)
         setAccessibilityRole(.button)
-        setAccessibilityLabel(window.displayTitle)
+        setAccessibilityLabel(label)
         setAccessibilityValue(
             "\(Int(window.frame.width)) by \(Int(window.frame.height)) pixels"
         )
         setAccessibilitySelected(isSelected)
         setAccessibilityFrame(frame)
-        setAccessibilityHelp("Press to capture this window.")
+        setAccessibilityHelp(actionHelp)
         setAccessibilityIdentifier("capture.window.target.\(window.id)")
     }
 

@@ -94,9 +94,11 @@ enum AppShortcut {
             ShortcutCatalogEntry(keys: "Escape", action: "Close Screen Inspector")
         ]),
         ShortcutCatalogSection(title: "Clipboard History", entries: [
-            ShortcutCatalogEntry(keys: "Return", action: "Paste selected item"),
+            ShortcutCatalogEntry(keys: "Return", action: "Copy selected item while browsing"),
             ShortcutCatalogEntry(keys: "Command-Return", action: "Copy selected item"),
-            ShortcutCatalogEntry(keys: "Shift-Return", action: "Paste selected item as plain text"),
+            ShortcutCatalogEntry(keys: "Shift-Command-Return", action: "Copy and Return"),
+            ShortcutCatalogEntry(keys: "Space", action: "Preview selected item while browsing"),
+            ShortcutCatalogEntry(keys: "Command-F", action: "Search Clipboard History"),
             ShortcutCatalogEntry(keys: "Arrow Keys", action: "Move selection"),
             ShortcutCatalogEntry(keys: "Escape", action: "Clear search, then close Clipboard History"),
             ShortcutCatalogEntry(keys: "Option-1 through Option-9", action: "Copy visible item")

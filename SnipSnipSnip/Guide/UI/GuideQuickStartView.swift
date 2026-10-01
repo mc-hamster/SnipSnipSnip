@@ -9,16 +9,23 @@ struct GuideQuickStartView: View {
     @State private var audioIntent: GuideAudioIntent
     @State private var showsStepNumbers: Bool
     @State private var showsActionTargets: Bool
+    @State private var draftPreferences: GuideCapturePreferences
+    @State private var draftSourceKind: String
     @State private var isShowingFineTune = false
 
     init(guide: GuideWorkflowModel, permissions: PermissionWorkflowModel) {
         self.guide = guide
         self.permissions = permissions
-        let intent = GuideCaptureSetupIntent(preferences: guide.capturePreferences)
+        let draft = guide.captureSetupDraft ?? GuideCaptureSetupDraft(
+            preferences: guide.capturePreferences, sourceKind: guide.selectedSourceKind
+        )
+        let intent = GuideCaptureSetupIntent(preferences: draft.preferences)
         _outputIntent = State(initialValue: intent.output)
         _audioIntent = State(initialValue: intent.audio)
         _showsStepNumbers = State(initialValue: intent.showsStepNumbers)
         _showsActionTargets = State(initialValue: intent.showsActionTargets)
+        _draftPreferences = State(initialValue: draft.preferences)
+        _draftSourceKind = State(initialValue: draft.sourceKind)
     }
 
     var body: some View {
@@ -147,7 +154,7 @@ struct GuideQuickStartView: View {
             Text("Choose how Guide should follow your work. You’ll select the exact target after Start Guide.")
                 .foregroundStyle(.secondary)
 
-            Picker("Source", selection: $guide.selectedSourceKind) {
+            Picker("Source", selection: $draftSourceKind) {
                 Label(WorkflowVocabulary.Source.region, systemImage: "selection.pin.in.out").tag("region")
                 Label(WorkflowVocabulary.Source.window, systemImage: "rectangle.on.rectangle").tag("window")
                 Label(WorkflowVocabulary.Source.app, systemImage: "app.dashed").tag("app")
@@ -156,7 +163,7 @@ struct GuideQuickStartView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
 
-            Text(sourceHelp(for: guide.selectedSourceKind))
+            Text(sourceHelp(for: draftSourceKind))
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -172,7 +179,7 @@ struct GuideQuickStartView: View {
             DisclosureGroup(isExpanded: $isShowingFineTune) {
                 VStack(alignment: .leading, spacing: 12) {
                     if outputIntent == .stepsAndVideo {
-                        Picker("Video smoothness", selection: $guide.capturePreferences.framesPerSecond) {
+                        Picker("Video smoothness", selection: $draftPreferences.framesPerSecond) {
                             Text("Smaller file · 15 fps").tag(15)
                             Text("Balanced · 30 fps").tag(30)
                             Text("Extra smooth · 60 fps").tag(60)
@@ -180,17 +187,17 @@ struct GuideQuickStartView: View {
                         .help("Set the frame rate for full-motion and action-highlight video. This does not change the quality of still steps; higher frame rates use more storage.")
                     }
 
-                    Toggle("Show the pointer in still steps", isOn: $guide.capturePreferences.showsCursorInSteps)
+                    Toggle("Show the pointer in still steps", isOn: $draftPreferences.showsCursorInSteps)
                         .help("Draw the pointer at its recorded position in each still step. This does not add the pointer to the captured source video.")
-                    Toggle("Hide desktop icons", isOn: $guide.capturePreferences.hidesDesktopIcons)
+                    Toggle("Hide desktop icons", isOn: $draftPreferences.hidesDesktopIcons)
                         .help("Remove Finder files and folders from the desktop in captured steps and source video. App windows are still captured normally.")
-                    Toggle("Polish step instructions on this Mac", isOn: $guide.capturePreferences.aiCaptionRefinement)
+                    Toggle("Polish step instructions on this Mac", isOn: $draftPreferences.aiCaptionRefinement)
                         .help("Rewrite automatically generated instructions to sound more natural using on-device processing. Turn this off to keep the original action-based wording; nothing is uploaded.")
-                    Toggle("Mask secure fields", isOn: $guide.capturePreferences.masksSecureFields)
+                    Toggle("Mask secure fields", isOn: $draftPreferences.masksSecureFields)
                         .help("Add an editable solid cover over detected password and other secure fields in still steps. Secure text itself is never saved.")
 
-                    if guide.selectedSourceKind == "display" {
-                        Toggle("Include the menu bar", isOn: $guide.capturePreferences.menuBarIncludedForDisplays)
+                    if draftSourceKind == "display" {
+                        Toggle("Include the menu bar", isOn: $draftPreferences.menuBarIncludedForDisplays)
                             .help("Include the macOS menu bar in still steps and source video when capturing a screen. This setting has no effect on window, app, or region captures.")
                     }
                 }
@@ -226,15 +233,13 @@ struct GuideQuickStartView: View {
 
                 Spacer(minLength: 12)
 
-                Button("Cancel") { guide.isShowingQuickStart = false }
+                Button("Cancel", action: guide.cancelQuickStart)
                     .buttonStyle(.bordered)
                     .keyboardShortcut(.cancelAction)
                     .help("Close Guide setup without starting a capture.")
 
                 Button("Start Guide") {
-                    applyIntent()
-                    guide.completeFirstUseSetup()
-                    guide.beginSelectedSourceSelection()
+                    guide.beginSelectedSourceSelection(setup: captureSetup)
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
@@ -279,7 +284,7 @@ struct GuideQuickStartView: View {
     }
 
     private var sourceSummary: String {
-        switch guide.selectedSourceKind {
+        switch draftSourceKind {
         case "window": return "choose a window after Start"
         case "app": return "choose an app after Start"
         case "region": return "draw a region after Start"
@@ -288,7 +293,7 @@ struct GuideQuickStartView: View {
     }
 
     private var targetSelectionPrompt: String {
-        switch guide.selectedSourceKind {
+        switch draftSourceKind {
         case "window":
             return "After Start Guide, click the window to follow or choose it from a list."
         case "app":
@@ -331,12 +336,15 @@ struct GuideQuickStartView: View {
         }
     }
 
-    private func applyIntent() {
-        guide.capturePreferences = GuideCaptureSetupIntent(
-            output: outputIntent,
-            audio: audioIntent,
-            showsStepNumbers: showsStepNumbers,
-            showsActionTargets: showsActionTargets
-        ).applying(to: guide.capturePreferences)
+    private var captureSetup: GuideCaptureSetupDraft {
+        GuideCaptureSetupDraft(
+            preferences: GuideCaptureSetupIntent(
+                output: outputIntent,
+                audio: audioIntent,
+                showsStepNumbers: showsStepNumbers,
+                showsActionTargets: showsActionTargets
+            ).applying(to: draftPreferences),
+            sourceKind: draftSourceKind
+        )
     }
 }

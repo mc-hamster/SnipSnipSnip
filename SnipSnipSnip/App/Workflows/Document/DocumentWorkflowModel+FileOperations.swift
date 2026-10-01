@@ -11,30 +11,35 @@ extension DocumentWorkflowModel {
     }
 
     func openDocumentPanel() {
-        performAfterHandlingUnsavedChanges { [weak self] in
-            self?.presentOpenDocumentPanel()
-        }
+        presentOpenDocumentPanel()
     }
 
     func importImagePanel() {
-        performAfterHandlingUnsavedChanges { [weak self] in
-            self?.presentImportImagePanel()
-        }
+        presentImportImagePanel()
     }
 
     func openDocument(at url: URL) {
+        guard let candidate = prepareDocument(from: url) else { return }
+        let isReopeningUnsavedDocument = hasUnsavedChanges
+            && currentDocumentURL?.standardizedFileURL == url.standardizedFileURL
         performAfterHandlingUnsavedChanges { [weak self] in
-            self?.loadDocument(from: url)
+            guard let self else { return }
+            // Save may have just updated this same file. Keep the saved editor
+            // rather than installing the older candidate loaded before Save.
+            if isReopeningUnsavedDocument,
+               self.currentDocumentURL?.standardizedFileURL == url.standardizedFileURL,
+               !self.hasUnsavedChanges {
+                return
+            }
+            self.installPreparedDocument(candidate, documentURL: url)
         }
     }
 
     func openExternalFile(at url: URL) {
-        performAfterHandlingUnsavedChanges { [weak self] in
-            if Self.isEditableDocumentURL(url) {
-                self?.loadDocument(from: url)
-            } else {
-                self?.importImage(from: url)
-            }
+        if Self.isEditableDocumentURL(url) {
+            openDocument(at: url)
+        } else {
+            importImage(from: url)
         }
     }
 
@@ -306,7 +311,7 @@ extension DocumentWorkflowModel {
             return
         }
 
-        loadDocument(from: url)
+        openDocument(at: url)
     }
 
     func presentImportImagePanel() {
@@ -321,51 +326,68 @@ extension DocumentWorkflowModel {
         await dependencies.panels.selectSaveDestination(suggestedFilename: suggestedFilename, contentType: contentType)
     }
 
-    func loadDocument(from url: URL) {
-        if handleIncompatibleDocumentIfNeeded(at: url) {
-            return
-        }
+    /// A complete replacement is prepared before the current document can be
+    /// discarded. Keeping the controller alive also avoids reopening the file
+    /// after the person approves the switch.
+    private enum PreparedDocument {
+        case screenshot(EditorController)
+        case video(VideoEditorController)
+        case guide(GuideEditorController)
+    }
 
+    func loadDocument(from url: URL) {
+        guard let candidate = prepareDocument(from: url) else { return }
+        installPreparedDocument(candidate, documentURL: url)
+    }
+
+    private func prepareDocument(from url: URL) -> PreparedDocument? {
         do {
-            if url.pathExtension.lowercased() == "sssguide" {
-                let document = try withSecurityScopedAccess(to: url) {
-                    try SSSGuideDocumentPackage.load(from: url, files: systemServices.files)
+            return try withSecurityScopedAccess(to: url) {
+                if url.pathExtension.lowercased() == "sssguide" {
+                    let document = try SSSGuideDocumentPackage.load(from: url, files: systemServices.files)
+                    return .guide(GuideEditorController(document: document))
+                } else if url.pathExtension.lowercased() == "sssvideo" {
+                    let document = try SSSVideoDocumentPackage.load(from: url, files: systemServices.files)
+                    let posterImage = try? SSSVideoDocumentPackage.loadPosterImage(from: url, files: systemServices.files)
+                    return .video(VideoEditorController(
+                        recording: document.recording,
+                        session: document.session,
+                        posterImage: posterImage
+                    ))
+                } else {
+                    let document = try SSSDocumentPackage.load(from: url, files: systemServices.files)
+                    let controller = EditorController(
+                        capture: document.capture,
+                        session: document.session,
+                        capabilities: capabilities,
+                        uiMapOverlayOptions: uiMapPinnedOverlayDefaults,
+                        isPrivateDocument: document.isPrivate,
+                        workflowResumeState: document.workflowResumeState,
+                        sourceDocumentFormatVersion: document.sourceFormatVersion,
+                        compositionStoredAssets: document.compositionStoredAssets
+                    )
+                    controller.restoreWorkflowWorkspace()
+                    return .screenshot(controller)
                 }
-                let controller = GuideEditorController(document: document)
-                installGuideController(controller, documentURL: url, savedProject: controller.project)
-                presentGuideDocumentProNoticeIfNeeded()
-            } else if url.pathExtension.lowercased() == "sssvideo" {
-                let document = try withSecurityScopedAccess(to: url) {
-                    try SSSVideoDocumentPackage.load(from: url, files: systemServices.files)
-                }
-                let posterImage = try? SSSVideoDocumentPackage.loadPosterImage(from: url, files: systemServices.files)
-                let controller = VideoEditorController(
-                    recording: document.recording,
-                    session: document.session,
-                    posterImage: posterImage
-                )
-                installVideoController(controller, documentURL: url, savedSession: controller.documentSession)
-            } else {
-                let document = try withSecurityScopedAccess(to: url) {
-                    try SSSDocumentPackage.load(from: url, files: systemServices.files)
-                }
-                let controller = EditorController(
-                    capture: document.capture,
-                    session: document.session,
-                    capabilities: capabilities,
-                    uiMapOverlayOptions: uiMapPinnedOverlayDefaults,
-                    isPrivateDocument: document.isPrivate,
-                    workflowResumeState: document.workflowResumeState,
-                    sourceDocumentFormatVersion: document.sourceFormatVersion,
-                    compositionStoredAssets: document.compositionStoredAssets
-                )
-                controller.restoreWorkflowWorkspace()
-                installEditorController(controller, documentURL: url, savedSession: controller.documentSession)
             }
-            requestMainWindowPresentation()
         } catch {
             present(error)
+            return nil
         }
+    }
+
+    private func installPreparedDocument(_ candidate: PreparedDocument, documentURL: URL?) {
+        switch candidate {
+        case .screenshot(let controller):
+            installEditorController(controller, documentURL: documentURL,
+                                    savedSession: documentURL == nil ? nil : controller.documentSession)
+        case .video(let controller):
+            installVideoController(controller, documentURL: documentURL, savedSession: controller.documentSession)
+        case .guide(let controller):
+            installGuideController(controller, documentURL: documentURL, savedProject: controller.project)
+            presentGuideDocumentProNoticeIfNeeded()
+        }
+        requestMainWindowPresentation()
     }
 
     func importImage(from url: URL) {
@@ -375,12 +397,12 @@ extension DocumentWorkflowModel {
                       let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
                     throw ImportedImageLoadError()
                 }
-
                 return image
             }
-
-            let sourceName = url.deletingPathExtension().lastPathComponent
-            importImage(image, sourceName: sourceName)
+            let controller = importedImageController(image, sourceName: url.deletingPathExtension().lastPathComponent)
+            performAfterHandlingUnsavedChanges { [weak self] in
+                self?.installPreparedDocument(.screenshot(controller), documentURL: nil)
+            }
         } catch {
             present(error)
         }
@@ -394,14 +416,24 @@ extension DocumentWorkflowModel {
                 throw ImportedImageLoadError()
             }
 
-            importImage(image, sourceName: sourceName ?? "Shared Photo")
-            dependencies.pasteboardImporter.clearPasteboard(named: pasteboardName)
+            importImage(image, sourceName: sourceName ?? "Shared Photo") { [weak self] in
+                self?.dependencies.pasteboardImporter.clearPasteboard(named: pasteboardName)
+            }
         } catch {
             present(error)
         }
     }
 
-    private func importImage(_ image: CGImage, sourceName: String?) {
+    private func importImage(_ image: CGImage, sourceName: String?, onCommit: @escaping () -> Void) {
+        let controller = importedImageController(image, sourceName: sourceName)
+        performAfterHandlingUnsavedChanges { [weak self] in
+            guard let self else { return }
+            self.installPreparedDocument(.screenshot(controller), documentURL: nil)
+            onCommit()
+        }
+    }
+
+    private func importedImageController(_ image: CGImage, sourceName: String?) -> EditorController {
         let resolvedSourceName: String
 
         if let sourceName, !sourceName.isEmpty {
@@ -417,13 +449,11 @@ extension DocumentWorkflowModel {
             sourceRect: CGRect(origin: .zero, size: CGSize(width: image.width, height: image.height)),
             capturedAt: systemServices.clock.now()
         )
-        let controller = EditorController(
+        return EditorController(
             capture: capture,
             capabilities: capabilities,
             uiMapOverlayOptions: uiMapPinnedOverlayDefaults
         )
-        installEditorController(controller, documentURL: nil, savedSession: nil)
-        requestMainWindowPresentation()
     }
 
     private static func isEditableDocumentURL(_ url: URL) -> Bool {

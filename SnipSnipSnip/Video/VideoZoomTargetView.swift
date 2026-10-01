@@ -87,6 +87,7 @@ struct VideoZoomTargetView: View {
         }
         .padding(12)
         .background(Color(nsColor: .underPageBackgroundColor))
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("video.zoom.targetEditor")
         .task(id: Request(time: controller.currentTimeSeconds, renderer: controller.previewRenderer.map(ObjectIdentifier.init), retry: retry)) {
             guard let renderer = controller.previewRenderer else { return }

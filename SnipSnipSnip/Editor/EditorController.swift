@@ -171,6 +171,7 @@ final class EditorController: ObservableObject {
         dismissError()
         action?()
     }
+    let outputActivity = ScreenshotOutputActivity()
     @Published private(set) var notice: EditorNotice?
     var noticeMessage: String? { notice?.message }
     var editorSingleKeyToolShortcutsEnabled = true
@@ -2488,26 +2489,29 @@ final class EditorController: ObservableObject {
         do {
             let input = try exportRenderInput(for: appearance)
             let hasRedactions = containsRedactions
-            Task { @MainActor [weak self] in
-                do {
-                    let pngData = try await EditorExportRenderer.renderPNGData(from: input)
-                    try ImageExporter.copyPNGDataToClipboard(pngData, pasteboard: pasteboard)
+            outputActivity.copy(
+                key: ScreenshotCopyRequestKey(
+                    contentRevision: presentationContentRevision,
+                    appearance: appearance,
+                    outputSize: input.outputSize
+                ),
+                render: { try await EditorExportRenderer.renderPNGData(from: input) },
+                deliver: { try ImageExporter.copyPNGDataToClipboard($0, pasteboard: pasteboard) },
+                didSucceed: { [weak self] in
                     self?.showNotice(EditorNotice(
                         message: hasRedactions
                             ? String(localized: "Copied screenshot with redactions applied. Ready to paste.")
                             : String(localized: "Copied screenshot. Ready to paste."),
-                        accessibilityAnnouncement: String(
-                            localized: "Screenshot copied to the clipboard."
-                        )
+                        accessibilityAnnouncement: String(localized: "Screenshot copied to the clipboard.")
                     ))
-                    completion?(true)
-                } catch {
-                    completion?(false)
+                },
+                didFail: { [weak self] error in
                     self?.reportOutputFailure(error, actionTitle: "Copy Again") { [weak self] in
                         self?.copyAnnotatedImage(appearance: appearance, pasteboard: pasteboard, completion: completion)
                     }
-                }
-            }
+                },
+                completion: completion
+            )
         } catch is CancellationError {
             completion?(false)
             return
@@ -2540,12 +2544,15 @@ final class EditorController: ObservableObject {
         filenameTemplate: ScreenshotFilenameTemplate = ScreenshotFilenameTemplate.default,
         exportOptions: ImageExportOptions = .default
     ) {
+        guard let exportID = outputActivity.beginExport() else { return }
         let input: EditorExportRenderInput
         do {
             input = try exportRenderInput(for: appearance)
         } catch is CancellationError {
+            outputActivity.finishExport(id: exportID)
             return
         } catch {
+            outputActivity.finishExport(id: exportID)
             reportOutputFailure(error, actionTitle: "Export Again…") { [weak self] in
                 self?.saveAnnotatedImage(appearance: appearance, format: format, filenameTemplate: filenameTemplate, exportOptions: exportOptions)
             }
@@ -2557,7 +2564,9 @@ final class EditorController: ObservableObject {
             appearance: appearance
         )
 
+        let activity = outputActivity
         Task { @MainActor [weak self] in
+            defer { activity.finishExport(id: exportID) }
             do {
                 if input.snapshot.presentation.requiresPNGForFaithfulExport, format != .png {
                     throw ImageExportError.transparentPresentationRequiresPNG
@@ -2571,6 +2580,7 @@ final class EditorController: ObservableObject {
                     return
                 }
 
+                activity.beginExportRendering(id: exportID)
                 let image = try await EditorExportRenderer.renderImage(from: input)
                 try await ImageExporter.write(image, format: format, to: url, options: exportOptions)
                 self?.showNotice(EditorNotice(

@@ -172,6 +172,7 @@ struct VideoTrimTimelineView: View {
                     }
             )
         }
+        .accessibilityElement(children: .contain)
     }
 
     private func filmstrip(width: CGFloat, height: CGFloat) -> some View {

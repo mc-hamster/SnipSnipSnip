@@ -19,7 +19,7 @@ extension DocumentWorkflowModel {
     func invalidateOutdatedGuideExport() {
         guard guideExportReceipt != nil, lastGuideExportURLs.isEmpty else { return }
         guideExportReceipt = nil
-        guideExportStatus = "Guide changed since export. Export again to share your current edits."
+        setGuideExportCompletionStatus("Guide changed since export. Export again to share your current edits.")
     }
 
     @discardableResult
@@ -71,13 +71,22 @@ extension DocumentWorkflowModel {
     }
 
     func exportCurrentGuide(showProgressWindow: Bool) {
+        guard let formats = guideEditorController?.project.exportSettings.formats else { return }
+        exportCurrentGuide(formats: formats, showProgressWindow: showProgressWindow)
+    }
+
+    func exportCurrentGuide(formats: Set<GuideExportFormat>, showProgressWindow: Bool) {
         guard let controller = guideEditorController,
-              let directory = dependencies.panels.selectExportDirectory() else { return }
+              !formats.isEmpty,
+              let directory = dependencies.panels.selectExportDirectory(),
+              guideEditorController === controller else { return }
+        if formats != controller.project.exportSettings.formats {
+            controller.update(name: "Change Export Formats") { $0.exportSettings.formats = formats }
+        }
         // Preview artwork is not an export input. Avoid rendering it on the
         // main actor before the background job begins.
         let document = controller.editableDocument()
         let version = controller.contentVersion
-        let formats = controller.project.exportSettings.formats
         pendingGuideExportTask?.cancel()
         pendingGuideExportWorkerTask?.cancel()
         guideExportReceipt = nil
@@ -117,23 +126,28 @@ extension DocumentWorkflowModel {
             pendingGuideExportWorkerTask = nil
             activeGuideExportID = nil
             guard acceptGuideExport(result.outputs, version: version) else {
-                guideExportStatus = "Guide changed during export. Export again to share your current edits."
+                setGuideExportCompletionStatus("Guide changed during export. Export again to share your current edits.")
                 return
             }
             if Task.isCancelled || guideExportCancellationRequested {
-                guideExportStatus = "Guide export cancelled. Completed files were kept."
+                setGuideExportCompletionStatus("Guide export cancelled. Completed files were kept.")
                 return
             }
             if result.failures.isEmpty {
                 controller?.notice = "Exported \(result.outputs.count) Guide files."
-                guideExportStatus = "Exported \(result.outputs.count) Guide files."
-                if !result.outputs.isEmpty { systemServices.workspace.activateFileViewerSelecting(result.outputs) }
+                setGuideExportCompletionStatus("Exported \(result.outputs.count) Guide files.")
             } else {
                 let failures = result.failures.map { "\($0.key.label): \($0.value)" }.joined(separator: "\n")
+                setGuideExportCompletionStatus("Some formats failed; successful files were kept.", announce: false)
+                // The persistent error presentation announces the failure once.
                 presentError("Some Guide exports failed.\n\(failures)")
-                guideExportStatus = "Some formats failed; successful files were kept."
             }
         }
+    }
+
+    private func setGuideExportCompletionStatus(_ message: String, announce: Bool = true) {
+        guideExportStatus = message
+        if announce { AppAccessibility.announce(message) }
     }
 
     func cancelGuideExport() {

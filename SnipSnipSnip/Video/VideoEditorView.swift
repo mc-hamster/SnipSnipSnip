@@ -34,22 +34,26 @@ struct VideoEditorWorkspace: View {
                 showsTrimControls: inspectorVisible && controller.inspectorSection == .trim,
                 showsZoomTargets: inspectorVisible && controller.inspectorSection == .zooms
             )
-            if let message = controller.statusMessage {
-                HStack {
-                    Label(message, systemImage: "checkmark.circle")
-                    Spacer()
-                    Button("Dismiss", action: controller.dismissStatus)
-                }
-                .font(.callout).padding(12)
-                .background(.background)
-                .accessibilityElement(children: .combine)
-                .fixedSize(horizontal: false, vertical: true)
-            }
+
         }
         .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
         .inspector(isPresented: $inspectorVisible) {
             VideoInspectorView(controller: controller, supportsShortcutCapture: supportsShortcutCapture)
                 .inspectorColumnWidth(min: 280, ideal: 320, max: 380)
+        }
+        .overlay {
+            if let notice = controller.statusNotice {
+                OutputNoticeView(
+                    notice: notice,
+                    onAction: { action in
+                        if case .reveal(let url) = action {
+                            NSWorkspace.shared.activateFileViewerSelecting([url])
+                        }
+                    },
+                    onDismiss: controller.dismissStatus
+                )
+                .accessibilityIdentifier("video.notice")
+            }
         }
         .overlay {
             if let exportProgress = controller.exportProgress {

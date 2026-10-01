@@ -343,7 +343,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                         ),
                         HelpArticleSection(
                             title: "Copy and paste actions",
-                            body: "Click a card or choose Copy to place its content on the system clipboard, then switch to the destination and paste with Command-V. The palette stays open after copying. Return while browsing or searching and Command-Return while editing activate the visible Copy action. If an item has a draft, the action is Copy Edited and copies that draft as plain text. Card clicks and Option-1 through Option-9 while browsing use the same draft-aware rule, with shortcut numbers following the visible cards across day sections. Copied appears beside an item only after a successful copy. Arrow keys select without copying. Choose Preview, the eye button on a hovered or selected card, or Space while browsing to inspect the full item. Back returns to the cards with search, filters, scroll position, selection, and drafts intact. More Actions and the contextual menu retain the item commands. Copy Options > Copy Original preserves the stored content and formatting; Copy Plain Text copies its original text without formatting. Inside a text editor, Return inserts a line break, arrow keys move the caret, and Command-Z undoes text edits. Escape from an editing field returns focus to Search; from Preview it returns to the cards; from Search it clears the query, or closes the window when the query is empty. Command-F returns from Preview to Search."
+                            body: "Click a card or choose Copy to place its content on the system clipboard, then switch to the destination and paste with Command-V. The palette stays open after ordinary copying. Choose Copy and Return or press Shift-Command-Return to copy the selected item and return to the application you opened Clipboard History from, then paste with Command-V. Copy and Return uses the same draft-aware content as Copy Edited. If copying fails or the destination application is no longer available, the palette stays open with an explanation and keeps your drafts. Return while browsing or searching and Command-Return while editing activate the visible Copy action. If an item has a draft, the action is Copy Edited and copies that draft as plain text. Card clicks and Option-1 through Option-9 while browsing use the same draft-aware rule, with shortcut numbers following the visible cards across day sections. Copied appears beside an item only after a successful copy. Arrow keys select without copying. Choose Preview, the eye button on a hovered or selected card, or Space while browsing to inspect the full item. Back returns to the cards with search, filters, scroll position, selection, and drafts intact. More Actions and the contextual menu retain the item commands. Copy Options > Copy Original preserves the stored content and formatting; Copy Plain Text copies its original text without formatting. Inside a text editor, Return inserts a line break, arrow keys move the caret, and Command-Z undoes text edits. Escape from an editing field returns focus to Search; from Preview it returns to the cards; from Search it clears the query, or closes the window when the query is empty. Command-F returns from Preview to Search."
                         ),
                         HelpArticleSection(
                             title: "Find and organize items",
@@ -462,7 +462,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                                 "Choose Number each step to make every captured step start with a visible number. Leave it off for unnumbered steps. In either case, you can show or hide the number later for any individual step in the Step inspector.",
                                 "Choose Show action crosshairs to mark where each captured action happened. Leave it off for clean steps without crosshairs. You can show or hide the crosshairs later for any individual step in the Marker section of the Step inspector.",
                                 "Choose Region, Window, App, or Screen in Record a Guide. These match the capture terms used in the main window; App additionally follows you between one app’s windows. This choice controls how Guide follows your work, but it does not select the exact target yet. Window and App Guides automatically follow the active source when it moves, resizes, or crosses onto a mixed-scale or rotated display.",
-                                "Review the plain-language capture summary, or expand Fine-tune capture for optional video smoothness, pointer, desktop cleanup, on-device instruction, secure-field, and display menu-bar choices. Hover over any choice for a plain-language explanation; the defaults work well for most Guides.",
+                                "Review the plain-language capture summary, or expand Fine-tune capture for optional video smoothness, pointer, desktop cleanup, on-device instruction, secure-field, and display menu-bar choices. These choices stay temporary until the selected target starts capturing successfully. Cancel setup or target selection to keep your saved defaults unchanged. Hover over any choice for a plain-language explanation; the defaults work well for most Guides.",
                                 "Choose Start Guide, then select the live target on screen. Draw a Region; hover and click a Window; click any window belonging to an App; or click a Screen when more than one display is connected. Window and App also offer Choose from List when the target is hidden or easier to recognize by name. Escape returns to Record a Guide without losing the choices you already made. A Guide region stays on the display where the drag begins; the selector visibly clamps it at that display edge. Ordinary screenshot regions may still span displays. Screen capture includes every visible app—even SnipSnipSnip itself when you are demonstrating it—while keeping the floating Guide controls out of the result.",
                                 "Work normally. One click, double-click, text selection, scroll burst, three-finger swipe, non-secure text-entry burst, supported keyboard shortcut, or Manual Step creates one step. Guide waits briefly after a swipe so a transition between Spaces can finish before it saves the step. Printable typing is captured even in custom and web editors that do not expose a standard macOS text value. When a non-secure focused field does expose its value, paste, dictation, and input-method edits are detected too. Text changes are grouped into one step after about 0.65 seconds without a change rather than creating a step per key.",
                                 "Use the floating HUD to pause, add a manual step, delete a recent step, stop, or discard. Discard closes the HUD immediately while Guide removes the live capture and its recovery checkpoint. Its System Audio and Mic controls use the same live meters and switches as the recording controls; turn either source on or off for the active Guide while it is capturing. The newest 20 step previews stay available in the HUD without making a long session progressively heavier; all earlier steps remain in the Guide. Hover a preview to see a larger version with its step number and captured instruction. When source video needs a moment to close safely, the HUD replaces the capture timer with the real finalization stage: stopping media, preparing the document, rendering the preview, or saving recovery. It does not invent a time estimate.",
@@ -496,11 +496,11 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                         HelpArticleSection(
                             title: "Export and share",
                             bullets: [
-                                "Click Export to choose one or more formats. The sheet groups formats by purpose: Documents (PDF and Word Document), Animated sharing (GIF and APNG), Video (Full Motion, Action Highlights, and Step Slideshow MP4), and Files and packages (step images and ZIP). PDF and GIF are selected by default. PDF and Word exports use print-quality stills to keep captured interface text sharp. The format choices live in this export sheet, not the editor inspector.",
+                                "Click Export to choose one or more formats. The sheet groups formats by purpose: Documents (PDF and Word Document), Animated sharing (GIF and APNG), Video (Full Motion, Action Highlights, and Step Slideshow MP4), and Files and packages (step images and ZIP). PDF and GIF are selected by default. PDF and Word exports use print-quality stills to keep captured interface text sharp. The format choices live in this export sheet. They stay temporary until you accept an export folder and export starts; cancelling either chooser preserves the Guide settings and Undo history.",
                                 "Choose whether to show the separate export-progress window. It reports the active format plus real step, segment, encoder, ZIP-entry, or byte progress. Work without a measurable fraction uses an activity indicator and a concrete stage such as Finalizing video. You can cancel a long or multi-format export while keeping completed top-level files. Each file is written to a temporary sibling and replaces the destination only after it finishes, so cancellation, an encoder failure, or app interruption does not overwrite an earlier good export. ZIP uses ZIP64 for large media and succeeds only when every selected nested format succeeds. Stale partial export files are cleaned up automatically.",
                                 "Full Motion preserves capture chronology. Other step-based exports use the current Guide order. Video click highlights appear only as a brief pulse at each click and obey the current Guide's Show click target highlights setting.",
                                 "Full Motion and Action Highlights require source video and include captured microphone or system audio. Slideshow MP4 remains available when source video is off.",
-                                "After export, share through the native share sheet, copy the exported files, or reveal them in Finder for Mail, Messages, Slack, Notion, and other standard destinations. These actions use only an export of the current Guide and its current edits. If you edit the Guide, including while an export is running, export again before sharing. Opening another Guide clears the previous export actions.",
+                                "After export, the completion message offers Reveal in Finder without switching apps automatically. Share through the native share sheet, copy the exported files, or reveal them in Finder for Mail, Messages, Slack, Notion, and other standard destinations. These actions use only an export of the current Guide and its current edits. If you edit the Guide, including while an export is running, export again before sharing. Opening another Guide clears the previous export actions.",
                                 "Guide setup, Edit Screenshot, and export sheets fit the available display area. Scroll their options while Cancel and the completion action stay visible."
                             ]
                         ),
@@ -575,6 +575,10 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                     title: "Take a screenshot",
                     summary: "Capture a region, window, screen image, or repeat a previous capture.",
                     sections: [
+                        HelpArticleSection(
+                            title: "Find a window",
+                            body: "The Choose Window list can search application names and window titles. No Matching Windows means the search hides available windows; clear the search to see them. No Available Windows means there are no eligible windows to choose. Pick On Screen remains available, with instructions for Screenshot or Video as appropriate."
+                        ),
                         HelpArticleSection(
                             title: "Capture a region",
                             steps: [
@@ -676,6 +680,10 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                     summary: "Record and review a Video, then optionally trim or polish it for sharing.",
                     sections: [
                         HelpArticleSection(
+                            title: "Find the exported video",
+                            body: "A successful export shows the filename and Reveal in Finder. Choose it to select the file in Finder. This brief confirmation does not resize the player, change playback, or move your editing controls. Export progress remains cancellable, and errors stay available until you dismiss them."
+                        ),
+                        HelpArticleSection(
                             title: "Start and control a recording",
                             steps: [
                                 "Choose Record Region, Record Window, or Record Screen.",
@@ -710,7 +718,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                         ),
                         HelpArticleSection(
                             title: "Find controls quickly",
-                            body: "Video uses the same grouped command rows as Screenshot and Polish. Discard comes first, followed by Trim, Zooms, Cursor & Clicks, and Sound & Shortcuts. The next row groups Undo/Redo, Inspector, and Drag beside Export. Discard and Export stay visible when secondary controls need horizontal scrolling, and the window fits the available display area. Choose an editing tool to open its grouped inspector; the selected tool has a visible boundary. Trim also shows the thumbnail strip: drag it to scrub, or move the handles to keep a smaller part. Use Start Frame as Thumbnail only changes the saved Video's still image; use Play to watch. Show/Hide Inspector (Option-Command-I) opens or hides details without hiding playback. With the preview focused, Space plays or pauses and Left/Right Arrow moves one frame. New capture commands remain available in the Capture menu and shortcuts. In Settings, Search Settings finds categories by name or words such as microphone, filename, or clipboard."
+                            body: "Video uses the same grouped command rows as Screenshot and Polish. Discard comes first, followed by Trim, Zooms, Cursor & Clicks, and Sound & Shortcuts. The next row groups Undo/Redo, Inspector, and Drag beside Export. Discard and Export stay visible when secondary controls need horizontal scrolling, and the window fits the available display area. Choose an editing tool to open its grouped inspector; the selected tool has a visible boundary. Trim also shows the thumbnail strip: drag it to scrub, or move the handles to keep a smaller part. Use Start Frame as Thumbnail only changes the saved Video's still image; use Play to watch. Show/Hide Inspector (Option-Command-I) opens or hides details without hiding playback. With the preview focused, Space plays or pauses and Left/Right Arrow moves one frame. New capture commands remain available in the Capture menu and shortcuts."
                         ),
                         HelpArticleSection(
                             title: "Quit, restart, and recover",
@@ -754,7 +762,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                         ),
                         HelpArticleSection(
                             title: "Select and arrange annotations",
-                            body: "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. Use the trash button in Layers and Arrangement, press Delete, or right-click an annotation and choose Delete. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing, moving, and resizing. Press Escape before releasing the pointer to cancel a drawing, move, resize, or crop drag without changing the screenshot.",
+                            body: "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. Use the trash button in Layers and Arrangement, press Delete, or right-click an annotation and choose Delete. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing rectangle-shaped annotations and moving or resizing selections. Their magnetic distance stays consistent at every zoom level, and an acquired guide remains stable until you move away. Hold Option while moving or resizing to temporarily bypass snapping; release it to resume alignment. Press Escape before releasing the pointer to cancel a drawing, move, resize, or crop drag without changing the screenshot.",
                             bullets: [
                                 "With VoiceOver or Full Keyboard Access, Tab and Shift-Tab traverse annotations from front to back. Space selects and Shift-Space toggles additive selection; Escape returns focus to the canvas.",
                                 "Arrow keys move a selected annotation by 1 pixel and Shift-arrows move it by 10. Option-arrows resize by 1 pixel and Shift-Option-arrows resize by 10.",
@@ -768,7 +776,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                         ),
                         HelpArticleSection(
                             title: "Use the inspector",
-                            body: "The native right inspector keeps Crop Image, Properties, and History directly visible. Crop Image opens Auto Crop, Padded, and Reset Crop above the exact crop controls without changing the selected annotation tool. Properties shows only controls for the current tool or selection and names that context, such as Arrow, Text, or Selection. History uses the full inspector for Change History and the Snip Library instead of stacking them beneath editing controls; the History button includes the current document’s change count. Crop handles remain available on the image while any annotation tool is selected, and crop changes apply immediately through normal undo. Comparison, Steps, Arrange, Look, and Mockup continue to show their stage-specific inspector. The inspector is visible by default and remembered for each window scene. Use the Inspector control immediately after Zoom, or View > Show/Hide Inspector (Command-Option-I), to toggle it."
+                            body: "The native right inspector keeps Crop Image, Properties, and History directly visible. Crop Image opens Auto Crop, Padded, and Reset Crop above the exact crop controls without changing the selected annotation tool. Properties shows only controls for the current tool or selection and names that context, such as Arrow, Text, or Selection. History uses the full inspector for Change History and the Snip Library instead of stacking them beneath editing controls; the History button includes the current document’s change count. Crop handles remain available on the image while any annotation tool is selected, and crop changes apply immediately through normal undo. Comparison, Steps, Arrange, Look, and Mockup continue to show their stage-specific inspector. The inspector is visible by default and remembered for each window scene. Use the Inspector control immediately after Zoom, or View > Show/Hide Inspector (Command-Option-I), to toggle it. A chosen magnification and the content at the center of the canvas remain stable when the inspector or window changes size; Fit to Window follows the available canvas."
                         )
                     ],
                     important: [
@@ -1025,7 +1033,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                     sections: [
                         HelpArticleSection(
                             title: "Use Copy or Share",
-                            body: "Copy, Export, Share, Float, and Drag follow the visible stage. Edit, Comparison Review, Steps, and Arrange use the unwrapped content, annotations, pinned UI Map overlays, and flattened redactions. Polish uses the visible Look or Mockup; when none is configured, it uses the same unwrapped content. Back to Content changes the boundary explicitly. Edit Selected Capture and Annotate Result hide document output until Done returns to the focused content stage. Capturing or editing does not update the clipboard; choose Copy when the visible result is ready."
+                            body: "Copy, Export, Share, Float, and Drag follow the visible stage. Edit, Comparison Review, Steps, and Arrange use the unwrapped content, annotations, pinned UI Map overlays, and flattened redactions. Polish uses the visible Look or Mockup; when none is configured, it uses the same unwrapped content. Back to Content changes the boundary explicitly. Edit Selected Capture and Annotate Result hide document output until Done returns to the focused content stage. Capturing or editing does not update the clipboard; choose Copy when the visible result is ready. Copy confirms success only after the clipboard write. If preparation takes a moment, its button shows Copying…; repeated requests for an unchanged result share that copy. You can continue editing while the requested image is prepared. Export similarly shows Exporting… after you choose a destination when preparation takes a moment. Export completion identifies the file and offers Reveal in Finder. Routine confirmations appear without moving the canvas or video player."
                         ),
                         HelpArticleSection(
                             title: "Print the current document",
@@ -1069,7 +1077,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                         ),
                         HelpArticleSection(
                             title: "Drag output into another app",
-                            body: "Drag sends the output shown in the active content or Polish stage to Finder, Mail, or another app. If you click without dragging, SnipSnipSnip shows a short reminder. During the drag, the editor window temporarily hides so you can reach the destination, then returns when the drag finishes. Settings > Editor & Output controls whether screenshot drag-out normally uses PNG, JPEG, or PDF and sets JPEG quality. Transparent Polish output automatically uses PNG so the result stays faithful."
+                            body: "Drag sends the output shown in the active content or Polish stage to Finder, Mail, or another app. If you click without dragging, SnipSnipSnip shows a short reminder. During the drag, the editor window temporarily hides so you can reach the destination, then returns when the drag finishes. Settings > Editor & Output > Export & Sharing names this preference Drag-Out Format. It controls whether screenshot drag-out normally uses PNG, JPEG, or PDF and also sets JPEG quality. Choosing a format here does not change the format selected explicitly in Export. Transparent Polish output automatically uses PNG so the result stays faithful."
                         ),
                         HelpArticleSection(
                             title: "Save editable work",
@@ -1095,6 +1103,10 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                     summary: "Save work as .sss or .sssvideo packages when you need to reopen and revise it.",
                     sections: [
                         HelpArticleSection(
+                            title: "Open or import without losing your place",
+                            body: "File > Open and Import Image keep your current editing session while you choose and load a replacement. Cancelling the chooser or choosing an unreadable or unsupported file keeps the current document, selection, zoom, and Undo history. If the replacement loads successfully and the current document needs a save decision, choose Save, Discard, or Cancel before switching. Cancel keeps your current work."
+                        ),
+                        HelpArticleSection(
                             title: ".sss screenshot packages",
                             body: "A .sss package keeps the base image, preview, crop, annotations, optional Polish settings, image overlay assets, undo and redo history, and searchable metadata."
                         ),
@@ -1104,7 +1116,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                         ),
                         HelpArticleSection(
                             title: "Compatibility",
-                            body: "Current packages open directly. Older unsupported packages and recovery checkpoints can be moved to the macOS Trash when SnipSnipSnip detects that they no longer match the current document baseline."
+                            body: "Current packages open directly. A file rejected by File > Open stays untouched, and your current editing session remains open. During launch and recovery compatibility checks, older unsupported packages and recovery checkpoints can be moved to the macOS Trash when they no longer match the current document baseline."
                         )
                     ],
                     important: [
@@ -1166,6 +1178,23 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                         "Use rendered output, not editable .sss packages, when redactions must be irreversible for the recipient."
                     ],
                     relatedIDs: ["redact", "permissions", "editable-documents"]
+                ),
+                HelpArticle(
+                    id: "find-settings",
+                    title: "Find a setting",
+                    summary: "Search directly for the control you want to change.",
+                    sections: [
+                        HelpArticleSection(
+                            title: "Search Settings",
+                            body: "Open Settings with Command-Comma and use Search Settings. Search Settings finds individual controls by their labels and related words. Choose a result to open its category and any nested page, scroll to the setting, and briefly highlight it. For example, JPEG quality reveals JPEG Quality in Editor & Output, while clipboard settings open the Clipboard page of Snip Library. Clearing search keeps the category you chose."
+                        ),
+                        HelpArticleSection(
+                            title: "Choose the right output preference",
+                            body: "Drag-Out Format in Editor & Output controls files shared by dragging from the screenshot editor. Export chooses its format separately. JPEG Quality applies to JPEG exports and drag-out files."
+                        )
+                    ],
+                    important: [],
+                    relatedIDs: ["keyboard-shortcuts", "copy-save-export", "clipboard-history"]
                 ),
                 HelpArticle(
                     id: "keyboard-shortcuts",

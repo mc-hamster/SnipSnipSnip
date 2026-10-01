@@ -72,6 +72,48 @@ final class ClipboardInteractionTests: XCTestCase {
             focus: .search, hasDeletionUndo: true))
     }
 
+    func testCopyAndReturnShortcutIsDistinctAndPreservesNativeReturn() {
+        for focus in [ClipboardShortcutFocus.browsing, .search, .textEditor, .textField, .control] {
+            XCTAssertEqual(ClipboardShortcutPolicy.action(keyCode: 36, characters: "\r", modifiers: [.command, .shift],
+                focus: focus, hasDeletionUndo: false), .copyAndReturn)
+            XCTAssertNil(ClipboardShortcutPolicy.action(keyCode: 36, characters: "\r", modifiers: .shift,
+                focus: focus, hasDeletionUndo: false))
+        }
+        XCTAssertEqual(ClipboardShortcutPolicy.action(keyCode: 76, characters: "\r", modifiers: [.command, .shift],
+            focus: .browsing, hasDeletionUndo: false), .copyAndReturn)
+    }
+
+    func testCopyAndReturnOnlyActivatesAfterSuccessfulExplicitCopy() {
+        var activationCount = 0
+        let activate = { activationCount += 1; return true }
+        XCTAssertEqual(ClipboardCopyReturnPolicy.finish(copySucceeded: false, requestedReturn: true,
+            returnToApplication: activate), .stayed)
+        XCTAssertEqual(ClipboardCopyReturnPolicy.finish(copySucceeded: true, requestedReturn: false,
+            returnToApplication: activate), .stayed)
+        XCTAssertEqual(activationCount, 0)
+        XCTAssertEqual(ClipboardCopyReturnPolicy.finish(copySucceeded: true, requestedReturn: true,
+            returnToApplication: activate), .returned)
+        XCTAssertEqual(activationCount, 1)
+        XCTAssertEqual(ClipboardCopyReturnPolicy.finish(copySucceeded: true, requestedReturn: true,
+            returnToApplication: { false }), .unavailable)
+    }
+
+    func testCopyReturnTargetRejectsSelfMissingAppAndReusedProcessIdentifier() throws {
+        let target = WorkspaceRunningApplicationSnapshot(processIdentifier: 100, activationPolicy: .regular,
+            bundleIdentifier: "com.example.editor", localizedName: "Editor", bundleURL: URL(fileURLWithPath: "/Applications/Editor.app"))
+        XCTAssertNil(ClipboardReturnTarget(application: nil, ownProcessIdentifier: 200))
+        XCTAssertNil(ClipboardReturnTarget(application: target, ownProcessIdentifier: 100))
+        let captured = try XCTUnwrap(ClipboardReturnTarget(application: target, ownProcessIdentifier: 200))
+        XCTAssertNil(captured.availableProcessIdentifier(in: []))
+        XCTAssertEqual(captured.availableProcessIdentifier(in: [target]), 100)
+        let reused = WorkspaceRunningApplicationSnapshot(processIdentifier: 100, activationPolicy: .regular,
+            bundleIdentifier: "com.example.other", localizedName: "Other", bundleURL: URL(fileURLWithPath: "/Applications/Other.app"))
+        XCTAssertNil(captured.availableProcessIdentifier(in: [reused]))
+        let accessory = WorkspaceRunningApplicationSnapshot(processIdentifier: 300, activationPolicy: .accessory,
+            bundleIdentifier: nil, localizedName: nil, bundleURL: nil)
+        XCTAssertNil(ClipboardReturnTarget(application: accessory, ownProcessIdentifier: 200))
+    }
+
     func testSpacePreviewsOnlyWhileBrowsing() {
         XCTAssertEqual(ClipboardShortcutPolicy.action(keyCode: 49, characters: " ", modifiers: [],
             focus: .browsing, hasDeletionUndo: false), .preview)

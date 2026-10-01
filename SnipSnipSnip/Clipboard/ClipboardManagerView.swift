@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ClipboardManagerView: View {
     @ObservedObject var clipboard: ClipboardWorkflowModel
+    var returnToPreviousApplication: () -> Bool = { false }
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -411,6 +412,15 @@ struct ClipboardManagerView: View {
                 .help("Return while browsing or Command-Return while editing.")
                 .accessibilityIdentifier("clipboard.copy")
             }
+            HStack {
+                Spacer()
+                Button("Copy and Return") {
+                    if let selected { copy(selected, returning: true) }
+                }
+                .disabled(selected == nil)
+                .help("Copy the selected item, then return to the app used before Clipboard History. Shift-Command-Return.")
+                .accessibilityIdentifier("clipboard.copyAndReturn")
+            }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
@@ -428,7 +438,7 @@ struct ClipboardManagerView: View {
             }, reveal: { clipboard.revealClipboardFiles(item) })
     }
 
-    private func copy(_ item: ClipboardItem, original: Bool = false, plainText: Bool = false) {
+    private func copy(_ item: ClipboardItem, original: Bool = false, plainText: Bool = false, returning: Bool = false) {
         let succeeded: Bool
         if !original, !plainText, drafts.isEdited(item) {
             succeeded = clipboard.copyEditedText(drafts.text(for: item))
@@ -437,6 +447,10 @@ struct ClipboardManagerView: View {
         }
         copyFeedback = succeeded ? CopyFeedback(itemID: item.id) : nil
         lastSuccessfulCopyMessage = succeeded ? clipboard.actionMessage : nil
+        if ClipboardCopyReturnPolicy.finish(copySucceeded: succeeded, requestedReturn: returning,
+                                            returnToApplication: returnToPreviousApplication) == .unavailable {
+            clipboard.actionMessage = String(localized: "Copied. The previous app is unavailable; your item is ready to paste.")
+        }
         if let message = clipboard.actionMessage { AppAccessibility.announce(message) }
     }
 
@@ -496,7 +510,9 @@ struct ClipboardManagerView: View {
                 if direction == .up { selectedItemID = items[max(index - 1, 0)].id }
                 if direction == .down { selectedItemID = items[min(index + 1, items.count - 1)].id }
             },
-            onReturn: { _ in if let selected { copy(selected) } },
+            onReturn: { modifiers in
+                if let selected { copy(selected, returning: modifiers.contains(.shift)) }
+            },
             onPreview: { if let selected { showPreview(selected) } },
             onUndoDeletion: undoDeletion, hasDeletionUndo: clipboard.historyStore.canUndoDeletion,
             onFocusSearch: focusSearch, isSearchFocused: isSearchFocused,

@@ -25,6 +25,8 @@ struct CaptureAutomationSettingsView: View {
     @State private var isImportingGuideLogo = false
     @State private var launchAtLoginErrorMessage: String?
     @State private var settingsSearch = ""
+    @State private var searchNavigation: SettingsSearchNavigation?
+    @State private var uiMapAdvancedExpanded = false
     @Environment(\.openURL) private var openURL
 
     var body: some View {
@@ -34,26 +36,52 @@ struct CaptureAutomationSettingsView: View {
                     .textFieldStyle(.roundedBorder)
                     .padding(.horizontal, 12).padding(.top, 12)
                     .accessibilityIdentifier("settings.search")
-                List(selection: settingsSelection) {
-                    ForEach(visibleSettingsTabs, id: \.self) { tab in
-                        Label(tab.title, systemImage: tab.symbol).tag(tab)
+                    .onSubmit {
+                        if let result = settingsSearchResults.first { selectSearchResult(result) }
                     }
-                }
-                .listStyle(.sidebar)
-                .overlay {
-                    if visibleSettingsTabs.isEmpty {
-                        ContentUnavailableView.search(text: settingsSearch)
+                if settingsSearch.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    List(selection: settingsSelection) {
+                        ForEach(visibleSettingsTabs, id: \.self) { tab in
+                            Label(tab.title, systemImage: tab.symbol).tag(tab)
+                        }
+                    }
+                    .listStyle(.sidebar)
+                } else {
+                    List {
+                        ForEach(settingsSearchResults) { result in
+                            Button {
+                                selectSearchResult(result)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(result.title)
+                                    Text(result.breadcrumb)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.vertical, 3)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("settings.result.\(result.id)")
+                        }
+                    }
+                    .listStyle(.sidebar)
+                    .overlay {
+                        if settingsSearchResults.isEmpty {
+                            ContentUnavailableView.search(text: settingsSearch)
+                        }
                     }
                 }
             }
             .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 260)
         } detail: {
             settingsDetail
+                .environment(\.settingsSearchNavigation, searchNavigation)
         }
         .frame(minWidth: 820, idealWidth: 900, minHeight: 600, idealHeight: 680)
-        .onChange(of: settingsSearch) {
-            if !visibleSettingsTabs.contains(lifecycle.selectedSettingsTab), let first = visibleSettingsTabs.first {
-                lifecycle.selectedSettingsTab = first
+        .onChange(of: settingsSearch) { _, query in
+            if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                searchNavigation = nil
             }
         }
         .task {
@@ -114,15 +142,37 @@ struct CaptureAutomationSettingsView: View {
 
 
     private var settingsSelection: Binding<AppSettingsTab?> {
-        Binding(get: { lifecycle.selectedSettingsTab }, set: { if let tab = $0 { lifecycle.selectedSettingsTab = tab } })
+        Binding(get: { lifecycle.selectedSettingsTab }, set: {
+            if let tab = $0 {
+                searchNavigation = nil
+                lifecycle.selectedSettingsTab = tab
+            }
+        })
     }
 
     private var visibleSettingsTabs: [AppSettingsTab] {
         AppSettingsTab.allCases.filter {
-            ($0 != .guide || capabilities.isEnabled(.guideCapture)) &&
-                (settingsSearch.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                 $0.searchText.localizedStandardContains(settingsSearch.trimmingCharacters(in: .whitespacesAndNewlines)))
+            $0 != .guide || capabilities.isEnabled(.guideCapture)
         }
+    }
+
+    private var settingsSearchResults: [SettingsSearchResult] {
+        SettingsSearchResult.search(settingsSearch, capabilities: capabilities).filter {
+            switch $0.id {
+            case "capture.selectedDisplay": capture.screenshotFullscreenDisplayMode == .selectedDisplay
+            case "recording.selectedDisplay": video.recordingPreferences.fullscreenDisplayMode == .selectedDisplay
+            case "privacy.accessibility": shouldShowAccessibilityPermissionDiagnostics
+            default: true
+            }
+        }
+    }
+
+    private func selectSearchResult(_ result: SettingsSearchResult) {
+        lifecycle.selectedSettingsTab = result.tab
+        if let page = result.libraryPage { lifecycle.selectedLibrarySettingsSection = page }
+        if result.id.hasPrefix("capture.uiMap") { uiMapAdvancedExpanded = true }
+        searchNavigation = SettingsSearchNavigation(targetID: result.id)
+        AppAccessibility.announce(String(localized: "Setting \(result.title) in \(result.breadcrumb)."))
     }
 
     @ViewBuilder
@@ -147,6 +197,7 @@ struct CaptureAutomationSettingsView: View {
             ) {
                 Section("Startup") {
                     Toggle("Launch \(AppBranding.displayName) at Login", isOn: launchAtLoginBinding)
+                        .settingsSearchTarget("general.launchLogin")
 
                     HStack {
                         Label("Status", systemImage: lifecycle.launchAtLoginStatus.systemImage)
@@ -162,20 +213,24 @@ struct CaptureAutomationSettingsView: View {
                     }
 
                     Toggle("Confirm Before Quitting", isOn: $lifecycle.confirmsBeforeQuitting)
+                        .settingsSearchTarget("general.confirmQuit")
                     SettingsHelpText("Command-Q and Quit \(AppBranding.displayName) ask whether to run in the background or quit so the menu bar icon, shortcuts, and clipboard history stay available unless this is turned off.")
                 }
 
                 Section("Help & Onboarding") {
                     Button("Show Onboarding Again", action: requestOnboardingPresentation)
+                        .settingsSearchTarget("general.onboarding")
                     Button("Open Support Page") {
                         openURL(AppLinks.support)
                     }
+                        .settingsSearchTarget("general.support")
 
                     if capabilities.isEnabled(.proUpdateCheck) {
                         Button(
                             lifecycle.isCheckingProUpdates ? "Checking for Pro Updates..." : "Check for Pro Updates...",
                             action: checkForProUpdates
                         )
+                            .settingsSearchTarget("general.updates")
                         .disabled(lifecycle.isCheckingProUpdates)
                     }
 
@@ -189,6 +244,7 @@ struct CaptureAutomationSettingsView: View {
                         "Show Quick Controls when \(AppBranding.displayName) starts",
                         isOn: quickControlsStartupBinding
                     )
+                        .settingsSearchTarget("general.quickControlsStartup")
                     .accessibilityIdentifier("settings.quickControls.showOnAppLaunch")
 
                     HStack {
@@ -203,6 +259,7 @@ struct CaptureAutomationSettingsView: View {
                         Button("Customize Quick Controls…") {
                             quickControls.showCustomization()
                         }
+                            .settingsSearchTarget("general.customizeQuickControls")
 
                         Button(quickControls.isVisible ? "Hide Quick Controls" : "Show Quick Controls") {
                             quickControls.toggleVisibility()
@@ -216,6 +273,7 @@ struct CaptureAutomationSettingsView: View {
                     Button("Reset All Settings to Defaults", role: .destructive) {
                         isShowingResetDefaultsConfirmation = true
                     }
+                        .settingsSearchTarget("general.reset")
                     .disabled(!canResetPreferencesToDefaults)
 
                     SettingsHelpText("This restores capture, shortcuts, recording, output, Snip Library, naming, privacy, and Quick Controls settings to their default values. It does not delete Snip History or Recycle Bin items.")
@@ -230,6 +288,7 @@ struct CaptureAutomationSettingsView: View {
             ) {
                 Section("Screenshot Capture") {
                     Toggle("Include Cursor as Editable Overlay", isOn: $capture.screenshotIncludesCursor)
+                        .settingsSearchTarget("capture.cursor")
                     SettingsHelpText("When enabled, region, window, frontmost-window, screen, and repeat screenshots add the current cursor as a movable, resizable, removable overlay. Scrolling Capture always excludes the cursor while stitching.")
 
                     Picker("After Selecting a Region", selection: regionCaptureCommitModeBinding) {
@@ -237,6 +296,7 @@ struct CaptureAutomationSettingsView: View {
                             Text(mode.title).tag(mode)
                         }
                     }
+                        .settingsSearchTarget("capture.regionCommit")
                     SettingsHelpText(capture.regionCapturePreferences.commitMode.detail)
 
                     Picker("Screen Capture", selection: $capture.screenshotFullscreenDisplayMode) {
@@ -244,6 +304,7 @@ struct CaptureAutomationSettingsView: View {
                             Text(mode.label).tag(mode)
                         }
                     }
+                        .settingsSearchTarget("capture.screenSource")
 
                     if capture.screenshotFullscreenDisplayMode == .selectedDisplay {
                         Picker("Selected Display", selection: selectedScreenshotDisplayIDBinding) {
@@ -251,14 +312,16 @@ struct CaptureAutomationSettingsView: View {
                                 Text(option.name).tag(Optional(option.id))
                             }
                         }
+                            .settingsSearchTarget("capture.selectedDisplay")
                     }
 
                     SettingsHelpText(capture.screenshotFullscreenDisplayMode.detail)
 
                     if capabilities.isEnabled(.uiMap) {
-                        DisclosureGroup("Advanced") {
+                        DisclosureGroup("Advanced", isExpanded: $uiMapAdvancedExpanded) {
                             VStack(alignment: .leading, spacing: 10) {
                                 Toggle("Enable UI Map for Window captures", isOn: uiMapBinding)
+                                    .settingsSearchTarget("capture.uiMapEnabled")
                                 SettingsHelpText("Save available names, roles, identifiers, and locations of visible interface elements when capturing a window. Region, screen, scrolling, recording, and connected-device captures do not include UI Map metadata.")
 
                                 VStack(alignment: .leading, spacing: 8) {
@@ -266,17 +329,29 @@ struct CaptureAutomationSettingsView: View {
                                         .font(.subheadline.weight(.semibold))
 
                                     Toggle("Show outline", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsOutline))
+                                        .settingsSearchTarget("capture.uiMapOutline")
                                     Toggle("Show source", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsSource))
+                                        .settingsSearchTarget("capture.uiMapSource")
                                     Toggle("Show name", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsLabel))
+                                        .settingsSearchTarget("capture.uiMapName")
                                     Toggle("Show accessibility label", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsAccessibilityLabel))
+                                        .settingsSearchTarget("capture.uiMapAccessibilityLabel")
                                     Toggle("Show identifier", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsIdentifier))
+                                        .settingsSearchTarget("capture.uiMapIdentifier")
                                     Toggle("Show role", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsRole))
+                                        .settingsSearchTarget("capture.uiMapRole")
                                     Toggle("Show value", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsValue))
+                                        .settingsSearchTarget("capture.uiMapValue")
                                     Toggle("Show coordinates", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsCoordinates))
+                                        .settingsSearchTarget("capture.uiMapCoordinates")
                                     Toggle("Show dimensions", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsDimensions))
+                                        .settingsSearchTarget("capture.uiMapDimensions")
                                     Toggle("Show owning app", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsOwningApplication))
+                                        .settingsSearchTarget("capture.uiMapOwningApp")
                                     Toggle("Show bundle identifier", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsBundleIdentifier))
+                                        .settingsSearchTarget("capture.uiMapBundleIdentifier")
                                     Toggle("Show parent hierarchy", isOn: uiMapPinnedOverlayDefaultsBinding(\.showsParentHierarchy))
+                                        .settingsSearchTarget("capture.uiMapParent")
                                 }
 
                                 SettingsHelpText("Choose which details are shown by default when pinned UI Map elements are rendered on copied, shared, or exported screenshots.")
@@ -305,13 +380,16 @@ struct CaptureAutomationSettingsView: View {
                     }
 
                     Toggle("Show Mouse Distance", isOn: screenRulerBinding(\.showsMouseDistance))
+                        .settingsSearchTarget("capture.mouseDistance")
                     Toggle("Show Half Markers", isOn: screenRulerBinding(\.showsHalfMarkers))
+                        .settingsSearchTarget("capture.halfMarkers")
 
                     Picker("Horizontal Tick Edge", selection: screenRulerBinding(\.horizontalTickEdge)) {
                         ForEach(ScreenRulerHorizontalTickEdge.allCases) { edge in
                             Text(edge.label).tag(edge)
                         }
                     }
+                        .settingsSearchTarget("capture.horizontalTickEdge")
                     .pickerStyle(.segmented)
 
                     Picker("Vertical Tick Edge", selection: screenRulerBinding(\.verticalTickEdge)) {
@@ -319,6 +397,7 @@ struct CaptureAutomationSettingsView: View {
                             Text(edge.label).tag(edge)
                         }
                     }
+                        .settingsSearchTarget("capture.verticalTickEdge")
                     .pickerStyle(.segmented)
 
                     Picker("Horizontal 0 Origin", selection: screenRulerBinding(\.horizontalOrigin)) {
@@ -326,6 +405,7 @@ struct CaptureAutomationSettingsView: View {
                             Text(origin.label).tag(origin)
                         }
                     }
+                        .settingsSearchTarget("capture.horizontalOrigin")
                     .pickerStyle(.segmented)
 
                     Picker("Vertical 0 Origin", selection: screenRulerBinding(\.verticalOrigin)) {
@@ -333,6 +413,7 @@ struct CaptureAutomationSettingsView: View {
                             Text(origin.label).tag(origin)
                         }
                     }
+                        .settingsSearchTarget("capture.verticalOrigin")
                     .pickerStyle(.segmented)
 
                     HStack {
@@ -343,6 +424,7 @@ struct CaptureAutomationSettingsView: View {
                     }
 
                     Slider(value: screenRulerOpacityBinding, in: 0.35...1, step: 0.01)
+                        .settingsSearchTarget("capture.rulerOpacity")
 
                     HStack {
                         Text("Tick Spacing")
@@ -352,10 +434,12 @@ struct CaptureAutomationSettingsView: View {
                     }
 
                     Slider(value: screenRulerTickSpacingBinding, in: 4...50, step: 1)
+                        .settingsSearchTarget("capture.tickSpacing")
 
                     Stepper(value: screenRulerMajorTickBinding, in: 2...20, step: 1) {
                         Text("Major Tick Every: \(tools.screenRulerPreferences.majorTickEvery)")
                     }
+                        .settingsSearchTarget("capture.majorTick")
 
                     SettingsHelpText("Screen rulers are floating, resizable overlays. Click a ruler once to cycle through tick edge and zero-origin combinations, or set the default horizontal and vertical ruler positions here. Visible rulers are included in screenshots when the captured area contains them.")
                 }
@@ -374,10 +458,13 @@ struct CaptureAutomationSettingsView: View {
                             Text(zoomLevel.label).tag(zoomLevel)
                         }
                     }
+                        .settingsSearchTarget("capture.zoom")
                     .pickerStyle(.segmented)
 
                     Toggle("Show Pixel Grid", isOn: screenInspectorBinding(\.showsPixelGrid))
+                        .settingsSearchTarget("capture.pixelGrid")
                     Toggle("Show Crosshair", isOn: screenInspectorBinding(\.showsCrosshair))
+                        .settingsSearchTarget("capture.crosshair")
 
                     SettingsHelpText("Screen Inspector is a floating live magnifier that samples pixels under the cursor, shows coordinates and color values, and can stay visible while you work in other apps.")
                 }
@@ -405,6 +492,7 @@ struct CaptureAutomationSettingsView: View {
                         }
                     }
                 }
+                    .settingsSearchTarget("presets.presets")
             }
     }
 
@@ -415,20 +503,23 @@ struct CaptureAutomationSettingsView: View {
             ) {
                 Section("After Capture") {
                     Toggle("Show Capture Preview", isOn: $documents.showsCapturePreview)
+                        .settingsSearchTarget("editorOutput.preview")
                     SettingsHelpText("Off by default so screenshots open in the editor immediately. Turn on to show a small preview with Copy, Edit, Export, and drag actions instead. Private Capture, explicit presets, and multi-image workflows still open their intended destination.")
                 }
                 Section("Naming") {
                     TextField("Filename Template", text: $capture.screenshotFilenameTemplate)
+                        .settingsSearchTarget("editorOutput.filename")
 
                     SettingsHelpText("Filename tokens: {kind}, {source}, {width}, {height}, {format}, and date patterns such as {yyyy-MM-dd-HH-mm-ss}.")
                 }
 
                 Section("Export & Sharing") {
-                    Picker("Screenshot Format", selection: $capture.screenshotDragOutFormat) {
+                    Picker("Drag-Out Format", selection: $capture.screenshotDragOutFormat) {
                         ForEach(ImageExportFormat.allCases) { format in
                             Text(format.label).tag(format)
                         }
                     }
+                        .settingsSearchTarget("editorOutput.dragFormat")
 
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
@@ -439,9 +530,11 @@ struct CaptureAutomationSettingsView: View {
                         }
 
                         Slider(value: screenshotJPEGQualityBinding, in: ImageExportOptions.minimumJPEGQuality...ImageExportOptions.maximumJPEGQuality, step: 0.01)
+                            .accessibilityLabel("JPEG Quality")
+                            .settingsSearchTarget("editorOutput.jpegQuality")
                     }
 
-                    SettingsHelpText("Drag the file icon from the screenshot editor to share the visible result. JPEG quality applies to Export JPEG and JPEG drag-out sharing. Transparent Polish output automatically uses PNG so the result stays faithful.")
+                    SettingsHelpText("Drag-Out Format controls files delivered by dragging from the screenshot editor. Export chooses its format separately. JPEG Quality applies to JPEG exports and drag-out files. Transparent Polish output automatically uses PNG.")
                 }
 
                 Section("Editor") {
@@ -452,6 +545,7 @@ struct CaptureAutomationSettingsView: View {
                             Text(tool.label).tag(EditorStartupToolPreference.tool(tool))
                         }
                     }
+                        .settingsSearchTarget("editorOutput.defaultTool")
 
                     SettingsHelpText("Choose Last Used to start each new editor session with the tool you selected most recently, or choose a specific tool to always start there.")
 
@@ -464,12 +558,14 @@ struct CaptureAutomationSettingsView: View {
                         }
 
                         Slider(value: cropOutsideOverlayAlphaBinding, in: 0...0.9, step: 0.01)
+                            .settingsSearchTarget("editorOutput.cropDimming")
 
                         SettingsHelpText("Controls how dark the area outside the green crop box appears after the editor refocuses on a crop that is larger than the visible stage.")
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
                         Toggle("Show Out-of-Capture Crosshatch", isOn: outOfCapturePatternEnabledBinding)
+                            .settingsSearchTarget("editorOutput.crosshatch")
 
                         HStack {
                             Text("Pattern Spacing")
@@ -479,6 +575,7 @@ struct CaptureAutomationSettingsView: View {
                         }
 
                         Slider(value: outOfCapturePatternSpacingBinding, in: 16...96, step: 1)
+                            .settingsSearchTarget("editorOutput.patternSpacing")
                             .disabled(!documents.editorOutOfCapturePatternSettings.isEnabled)
 
                         HStack {
@@ -489,6 +586,7 @@ struct CaptureAutomationSettingsView: View {
                         }
 
                         Slider(value: outOfCapturePatternLineOpacityBinding, in: 0.05...0.9, step: 0.01)
+                            .settingsSearchTarget("editorOutput.lineOpacity")
                             .disabled(!documents.editorOutOfCapturePatternSettings.isEnabled)
 
                         HStack {
@@ -499,6 +597,7 @@ struct CaptureAutomationSettingsView: View {
                         }
 
                         Slider(value: outOfCapturePatternDotDiameterBinding, in: 2...12, step: 1)
+                            .settingsSearchTarget("editorOutput.dotSize")
                             .disabled(!documents.editorOutOfCapturePatternSettings.isEnabled)
 
                         HStack {
@@ -509,6 +608,7 @@ struct CaptureAutomationSettingsView: View {
                         }
 
                         Slider(value: outOfCapturePatternDotOpacityBinding, in: 0.05...1, step: 0.01)
+                            .settingsSearchTarget("editorOutput.dotOpacity")
                             .disabled(!documents.editorOutOfCapturePatternSettings.isEnabled)
 
                         SettingsHelpText("The crosshatch marks canvas space outside the original captured image. It is editor-only and is never included when copying, exporting, sharing, or saving rendered output.")
@@ -529,6 +629,7 @@ struct CaptureAutomationSettingsView: View {
 
                         HStack {
                             Button("Choose Mockup Folder...", action: documents.choosePresentationScenesRoot)
+                                .settingsSearchTarget("editorOutput.mockups")
                             Button("Reveal Mockup Folder", action: documents.revealPresentationScenesRoot)
                             Button("Reset to Default Folder", action: documents.resetPresentationScenesRootToDefault)
                                 .disabled(documents.usesDefaultPresentationScenesRoot)
@@ -548,6 +649,7 @@ struct CaptureAutomationSettingsView: View {
             ) {
                 Section("Global Shortcuts") {
                     Toggle("Enable Global Shortcuts", isOn: automationBinding(\.globalHotkeysEnabled))
+                        .settingsSearchTarget("shortcuts.global")
 
                     ForEach(availableGlobalHotKeyActions, id: \.rawValue) { action in
                         Picker(action.label + " Shortcut", selection: automationHotKeyBinding(for: action)) {
@@ -555,6 +657,7 @@ struct CaptureAutomationSettingsView: View {
                                 Text("Command-Shift-" + key.label).tag(key)
                             }
                         }
+                            .settingsSearchTarget("shortcuts.global.\(action.rawValue)")
 
                         if let warning = capture.automationPreferences.key(for: action).knownSystemConflictWarning {
                             Label(warning, systemImage: "exclamationmark.triangle")
@@ -568,6 +671,7 @@ struct CaptureAutomationSettingsView: View {
 
                 Section("Editor Shortcuts") {
                     Toggle("Enable Single-Key Tool Shortcuts", isOn: $documents.editorSingleKeyToolShortcutsEnabled)
+                        .settingsSearchTarget("shortcuts.tools")
                     SettingsHelpText("Single-key tool shortcuts work only when the screenshot canvas has focus and text entry is not active.")
                 }
 
@@ -580,6 +684,7 @@ struct CaptureAutomationSettingsView: View {
                     )
                     SettingsHelpText("Default global shortcuts can be changed above. Built-in app and editor shortcuts are fixed in this version.")
                 }
+                    .settingsSearchTarget("shortcuts.reference")
             }
     }
 
@@ -594,6 +699,7 @@ struct CaptureAutomationSettingsView: View {
                             Text(quality.label).tag(quality)
                         }
                     }
+                        .settingsSearchTarget("recording.quality")
 
                     SettingsHelpText(video.recordingPreferences.quality.detail)
 
@@ -602,6 +708,7 @@ struct CaptureAutomationSettingsView: View {
                             Text(frameRate.label).tag(frameRate)
                         }
                     }
+                        .settingsSearchTarget("recording.frameRate")
                 }
 
                 Section("Recording Sources") {
@@ -610,6 +717,7 @@ struct CaptureAutomationSettingsView: View {
                             Text(mode.label).tag(mode)
                         }
                     }
+                        .settingsSearchTarget("recording.screenSource")
 
                     if video.recordingPreferences.fullscreenDisplayMode == .selectedDisplay {
                         Picker("Selected Display", selection: selectedRecordingDisplayIDBinding) {
@@ -617,18 +725,24 @@ struct CaptureAutomationSettingsView: View {
                                 Text(option.name).tag(Optional(option.id))
                             }
                         }
+                            .settingsSearchTarget("recording.selectedDisplay")
                     }
 
                     Toggle("Record System Audio", isOn: videoPreferenceBinding(\.recordsSystemAudio))
+                        .settingsSearchTarget("recording.audio")
                     Toggle("Record Microphone", isOn: videoPreferenceBinding(\.recordsMicrophone))
+                        .settingsSearchTarget("recording.microphone")
                     Toggle("Show Cursor", isOn: videoPreferenceBinding(\.showsCursor))
+                        .settingsSearchTarget("recording.cursor")
                     Toggle("Show Mouse Clicks", isOn: videoPreferenceBinding(\.showsMouseClicks))
+                        .settingsSearchTarget("recording.clicks")
                     if capabilities.isEnabled(.videoShortcutCapture) {
                         Toggle("Record Keyboard Shortcuts", isOn: Binding(get: {
                             video.recordingPreferences.recordsKeyboardShortcuts == true
                         }, set: { enabled in
                             videoPreferenceBinding(\.recordsKeyboardShortcuts).wrappedValue = enabled
                         }))
+                            .settingsSearchTarget("recording.keyboard")
                         SettingsHelpText("Cursor and click appearance can be changed after recording. Optional keyboard shortcuts require existing Accessibility access and record shortcut names only, never typed text or passwords.")
                         if video.recordingPreferences.recordsKeyboardShortcuts == true, !permissions.permissionStatus.hasAccessibility {
                             HStack(alignment: .firstTextBaseline) {
@@ -653,23 +767,33 @@ struct CaptureAutomationSettingsView: View {
                 ) {
                 Section("Capture") {
                     Toggle("Keep Full-Motion Source Video", isOn: guideCapturePreferenceBinding(\.sourceVideoEnabled))
+                        .settingsSearchTarget("guide.sourceVideo")
                     Picker("Source Frame Rate", selection: guideCapturePreferenceBinding(\.framesPerSecond)) {
                         Text("15 fps").tag(15)
                         Text("30 fps · Balanced").tag(30)
                         Text("60 fps").tag(60)
                     }
+                        .settingsSearchTarget("guide.frameRate")
                     Toggle("Record System Audio", isOn: guideCapturePreferenceBinding(\.capturesSystemAudio))
+                        .settingsSearchTarget("guide.audio")
                     Toggle("Record Microphone", isOn: guideCapturePreferenceBinding(\.capturesMicrophone))
+                        .settingsSearchTarget("guide.microphone")
                     SettingsHelpText("Source video is on by default so Full Motion and Action Highlights remain available. Turn it off when you only need PDF, animated, image, ZIP, or slideshow output.")
                 }
 
                 Section("Steps & Privacy") {
                     Toggle("Create Captions Automatically", isOn: guideCapturePreferenceBinding(\.automaticCaptions))
+                        .settingsSearchTarget("guide.captions")
                     Toggle("Refine Captions On Device", isOn: guideCapturePreferenceBinding(\.aiCaptionRefinement))
+                        .settingsSearchTarget("guide.refineCaptions")
                     Toggle("Mask Secure Fields", isOn: guideCapturePreferenceBinding(\.masksSecureFields))
+                        .settingsSearchTarget("guide.secureFields")
                     Toggle("Show Cursor in Still Steps", isOn: guideCapturePreferenceBinding(\.showsCursorInSteps))
+                        .settingsSearchTarget("guide.cursor")
                     Toggle("Hide Desktop Icons", isOn: guideCapturePreferenceBinding(\.hidesDesktopIcons))
+                        .settingsSearchTarget("guide.desktopIcons")
                     Toggle("Include Menu Bar in Screen Guides", isOn: guideCapturePreferenceBinding(\.menuBarIncludedForDisplays))
+                        .settingsSearchTarget("guide.menuBar")
                     SettingsHelpText("Private Guide follows Private Capture: it skips Snip History, OCR indexing, diagnostics content, and AI refinement. Screen images and metadata never leave this Mac.")
                 }
 
@@ -680,11 +804,14 @@ struct CaptureAutomationSettingsView: View {
                         Text("Bottom Right").tag("bottomRight")
                         Text("Bottom Left").tag("bottomLeft")
                     }
+                        .settingsSearchTarget("guide.hudCorner")
                     Toggle("Show Recent Step Previews", isOn: guideCapturePreferenceBinding(\.hudPreviewsEnabled))
+                        .settingsSearchTarget("guide.stepPreviews")
                 }
 
                 Section("Default Brand Profile") {
                     TextField("Organization", text: guideThemeBinding(\.organizationName))
+                        .settingsSearchTarget("guide.organization")
                     HStack {
                         Button(guide.defaultLogoImage == nil ? "Choose Logo…" : "Replace Logo…") {
                             isImportingGuideLogo = true
@@ -694,8 +821,10 @@ struct CaptureAutomationSettingsView: View {
                         }
                     }
                     TextField("Copyright / footer", text: guideThemeBinding(\.footer))
+                        .settingsSearchTarget("guide.footer")
                     Text("Legal statement").font(.caption).foregroundStyle(.secondary)
                     TextEditor(text: guideOptionalThemeStringBinding(\.legalStatement))
+                        .settingsSearchTarget("guide.legal")
                         .frame(minHeight: 72)
                         .overlay(RoundedRectangle(cornerRadius: 6).stroke(.separator))
                     SettingsHelpText("This profile is copied into every new Guide and travels with the saved .sssguide document. Existing Guides keep their own branding. Use the Guide editor's Use as Default button to replace this profile from a finished design.")
@@ -703,8 +832,10 @@ struct CaptureAutomationSettingsView: View {
 
                 Section("Default Design & Export") {
                     TextField("Theme Name", text: guideThemeBinding(\.name))
+                        .settingsSearchTarget("guide.themeName")
                     HStack {
                         Button("Save Theme") { guide.saveTheme(guide.theme) }
+                            .settingsSearchTarget("guide.saveTheme")
                         if !guide.savedThemes.isEmpty {
                             Menu("Saved Themes") {
                                 ForEach(guide.savedThemes) { theme in
@@ -724,35 +855,51 @@ struct CaptureAutomationSettingsView: View {
                             Text(appearance.rawValue.capitalized).tag(appearance)
                         }
                     }
+                        .settingsSearchTarget("guide.appearance")
                     Stepper("Arrow Width: \(guide.theme.markerLineWidth, specifier: "%.0f") pt", value: guideThemeBinding(\.markerLineWidth), in: 1...12)
+                        .settingsSearchTarget("guide.arrowWidth")
                     Stepper("Arrow Length: \(guide.theme.markerLength, specifier: "%.0f") pt", value: guideThemeBinding(\.markerLength), in: 24...240)
+                        .settingsSearchTarget("guide.arrowLength")
                     Toggle("PDF", isOn: guideExportFormatBinding(.pdf))
+                        .settingsSearchTarget("guide.pdf")
                     Toggle("GIF", isOn: guideExportFormatBinding(.gif))
+                        .settingsSearchTarget("guide.gif")
                     Toggle("APNG", isOn: guideExportFormatBinding(.apng))
+                        .settingsSearchTarget("guide.apng")
                     Toggle("Full Motion MP4", isOn: guideExportFormatBinding(.fullMotionMP4))
+                        .settingsSearchTarget("guide.fullMotion")
                     Toggle("Action Highlights MP4", isOn: guideExportFormatBinding(.highlightMP4))
+                        .settingsSearchTarget("guide.highlights")
                     Toggle("Step Slideshow MP4", isOn: guideExportFormatBinding(.slideshowMP4))
+                        .settingsSearchTarget("guide.slideshow")
                     Toggle("Step Images", isOn: guideExportFormatBinding(.stepImages))
+                        .settingsSearchTarget("guide.images")
                     Toggle("ZIP", isOn: guideExportFormatBinding(.zip))
+                        .settingsSearchTarget("guide.zip")
                     Picker("PDF Paper", selection: guideExportSettingsBinding(\.pdfPaper)) {
                         Text("Automatic").tag(GuidePDFPaper.automatic)
                         Text("US Letter").tag(GuidePDFPaper.letter)
                         Text("A4").tag(GuidePDFPaper.a4)
                     }
+                        .settingsSearchTarget("guide.pdfPaper")
                     Picker("PDF Orientation", selection: guideExportSettingsBinding(\.pdfOrientation)) {
                         Text("Portrait").tag(GuidePDFOrientation.portrait)
                         Text("Landscape").tag(GuidePDFOrientation.landscape)
                     }
+                        .settingsSearchTarget("guide.pdfOrientation")
                     Picker("PDF Quality", selection: guideExportSettingsBinding(\.pdfDPI)) {
                         Text("Compact · 144 dpi").tag(144)
                         Text("Standard · 216 dpi").tag(216)
                         Text("Print · 300 dpi").tag(300)
                     }
+                        .settingsSearchTarget("guide.pdfQuality")
                     Picker("Step Image Format", selection: guideExportSettingsBinding(\.stepImageFormat)) {
                         Text("PNG").tag(GuideStepImageFormat.png)
                         Text("JPEG").tag(GuideStepImageFormat.jpeg)
                     }
+                        .settingsSearchTarget("guide.imageFormat")
                     TextField("File Name", text: guideExportSettingsBinding(\.filenameTemplate))
+                        .settingsSearchTarget("guide.filename")
                 }
                 }
     }
@@ -785,6 +932,7 @@ struct CaptureAutomationSettingsView: View {
 
                     HStack {
                         Button("Choose Location…", action: archive.chooseArchiveLocation)
+                            .settingsSearchTarget("library.snipLocation")
 
                         Button("Use Default Location", action: archive.resetArchiveLocationToDefault)
                             .disabled(archive.usesDefaultArchiveLocation)
@@ -799,6 +947,7 @@ struct CaptureAutomationSettingsView: View {
                     }), in: ArchiveWorkflowConstants.minimumMaximumSizeMB...10_240, step: 100) {
                         Text("Maximum Snip History Size: \(archive.maximumSizeMB) MB")
                     }
+                        .settingsSearchTarget("library.snipLimit")
 
                     HStack {
                         Text("Current Size")
@@ -816,6 +965,7 @@ struct CaptureAutomationSettingsView: View {
                             isShowingClearSnipHistoryConfirmation = true
                         }
                     }
+                        .settingsSearchTarget("library.deleteSnips")
 
                     SettingsHelpText("\(AppBranding.displayName) periodically trims the oldest Snip History checkpoints until storage is back under the configured limit.")
                 }
@@ -828,6 +978,7 @@ struct CaptureAutomationSettingsView: View {
                     }), in: ArchiveWorkflowConstants.minimumRecycleBinRetentionDays...ArchiveWorkflowConstants.maximumRecycleBinRetentionDays, step: 1) {
                         Text("Empty Deleted Snips After: \(archive.recycleBinRetentionDays) day\(archive.recycleBinRetentionDays == 1 ? "" : "s")")
                     }
+                        .settingsSearchTarget("library.snipRetention")
 
                     HStack {
                         Text("Deleted Items")
@@ -837,6 +988,7 @@ struct CaptureAutomationSettingsView: View {
                     }
 
                     Button("Empty Recycle Bin", role: .destructive, action: documents.requestEmptyRecycleBin)
+                        .settingsSearchTarget("library.emptyBin")
                         .disabled(documents.recycleBinEntries.isEmpty)
 
                     SettingsHelpText("Deleted snips move to the Recycle Bin first. The scheduled cleanup permanently removes items after the configured retention period; the default is 30 days. Choose from 1 to 180 days.")
@@ -848,6 +1000,7 @@ struct CaptureAutomationSettingsView: View {
                     }, set: { value in
                         clipboard.updateClipboardHistoryEnabled(value)
                     }))
+                        .settingsSearchTarget("library.clipboardEnabled")
 
                     SettingsHelpText("Optional and off by default. Turning this on begins monitoring supported copied content and loads or creates an encrypted local history whose key is protected by Keychain. macOS may ask you to allow Keychain access.")
 
@@ -858,6 +1011,7 @@ struct CaptureAutomationSettingsView: View {
                     }), in: 10...1_000, step: 10) {
                         Text("Maximum Unpinned Items: \(clipboard.preferences.maxItemCount)")
                     }
+                        .settingsSearchTarget("library.clipboardItems")
 
                     Stepper(value: Binding(get: {
                         clipboard.preferences.maxStorageMB
@@ -866,6 +1020,7 @@ struct CaptureAutomationSettingsView: View {
                     }), in: 25...5_120, step: 25) {
                         Text("History Storage Target: \(clipboard.preferences.maxStorageMB) MB (Pinned Kept)")
                     }
+                        .settingsSearchTarget("library.clipboardStorage")
 
                     Stepper(value: Binding(get: {
                         clipboard.preferences.maxItemSizeMB
@@ -874,6 +1029,7 @@ struct CaptureAutomationSettingsView: View {
                     }), in: 1...250, step: 5) {
                         Text("Maximum Item Size: \(clipboard.preferences.maxItemSizeMB) MB")
                     }
+                        .settingsSearchTarget("library.clipboardItemSize")
 
                     Picker("Delete Unpinned Items", selection: Binding(get: {
                         clipboard.preferences.retentionDays
@@ -886,12 +1042,14 @@ struct CaptureAutomationSettingsView: View {
                         Text("After 30 Days").tag(30)
                         Text("After 90 Days").tag(90)
                     }
+                        .settingsSearchTarget("library.clipboardRetention")
 
                     Toggle("Add Screenshots That Were Not Copied", isOn: Binding(get: {
                         clipboard.preferences.recordsUncopiedSnips
                     }, set: { value in
                         clipboard.updateRecordsUncopiedSnips(value)
                     }))
+                        .settingsSearchTarget("library.uncopiedSnips")
                     .disabled(!clipboard.preferences.isEnabled)
 
                     HStack {
@@ -923,6 +1081,7 @@ struct CaptureAutomationSettingsView: View {
                     Button("Permanently Delete Clipboard History", role: .destructive) {
                         isShowingClearClipboardConfirmation = true
                     }
+                        .settingsSearchTarget("library.deleteClipboard")
                         .disabled(clipboard.clipboardHistoryItems.isEmpty)
 
                     if let recoveryMessage = clipboard.historyStore.recoveryMessage {
@@ -948,8 +1107,10 @@ struct CaptureAutomationSettingsView: View {
                                 }
                             }
                         }
+                            .settingsSearchTarget("library.ignoreApps")
 
                         Button("Choose App...", action: clipboard.chooseIgnoredClipboardApp)
+                            .settingsSearchTarget("library.chooseIgnoredApp")
                     }
 
                     if !clipboard.clipboardRecentSourceAppIgnoreCandidates.isEmpty {
@@ -1015,6 +1176,7 @@ struct CaptureAutomationSettingsView: View {
             ) {
                 Section("Private Capture") {
                     Toggle("Private Capture", isOn: privateCaptureBinding)
+                        .settingsSearchTarget("privacy.private")
                         .disabled(!capture.canChangePrivateCapture)
 
                     SettingsHelpText("Private Capture keeps the current capture out of Snip History, Recent Snips, the Recycle Bin, Clipboard History, and background OCR indexing. You can still explicitly save or export the result. The setting is locked while a capture or recording is active so the in-progress capture uses the privacy choice it started with.")
@@ -1022,8 +1184,10 @@ struct CaptureAutomationSettingsView: View {
 
                 Section("Permission Diagnostics") {
                     PermissionStatusRow(requirement: .screenRecording, permissions: permissions)
+                        .settingsSearchTarget("privacy.screenRecording")
                     if shouldShowAccessibilityPermissionDiagnostics {
                         PermissionStatusRow(requirement: .accessibility, permissions: permissions)
+                            .settingsSearchTarget("privacy.accessibility")
                     }
 
                     Button("Export Diagnostics…") {
@@ -1034,6 +1198,7 @@ struct CaptureAutomationSettingsView: View {
                             lifecycle.errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
                         }
                     }
+                        .settingsSearchTarget("privacy.diagnostics")
 
                     SettingsHelpText(
                         shouldShowAccessibilityPermissionDiagnostics
@@ -1627,6 +1792,8 @@ private struct SettingsTabContainer<Content: View>: View {
     let title: String
     let summary: String
     @ViewBuilder var content: Content
+    @Environment(\.settingsSearchNavigation) private var searchNavigation
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -1641,10 +1808,21 @@ private struct SettingsTabContainer<Content: View>: View {
             .padding(.horizontal, 20)
             .padding(.top, 16)
 
-            Form {
-                content
+            ScrollViewReader { proxy in
+                Form {
+                    content
+                }
+                .formStyle(.grouped)
+                .task(id: searchNavigation?.id) {
+                    guard let searchNavigation else { return }
+                    // Let the chosen category and nested page lay out their rows.
+                    await Task.yield()
+                    guard !Task.isCancelled else { return }
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                        proxy.scrollTo(searchNavigation.targetID, anchor: .center)
+                    }
+                }
             }
-            .formStyle(.grouped)
         }
     }
 }

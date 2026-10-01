@@ -40,6 +40,7 @@ struct AnnotationCanvasInteractionState {
     private(set) var snapGuides: [SnapGuide] = []
     private var cachedSnapCandidates: SnapCandidateSet?
     private var cachedSnapCandidateExcludedIDs: [UUID] = []
+    private var snapSession = AnnotationSnapSession()
 
     mutating func beginRectDrawing(tool: EditorTool, anchor: CGPoint) {
         clearSnapCandidateCache()
@@ -120,13 +121,15 @@ struct AnnotationCanvasInteractionState {
         imageBounds: CGRect,
         cropAspectRatio: CGFloat?,
         numberedArrowNumber: Int = 1,
+        displayScale: CGFloat = 1,
+        bypassesSnapping: Bool = false,
         styleProvider: (EditorTool) -> AnnotationStyle
     ) {
         snapGuides = []
 
         switch dragMode {
         case let .drawingRect(tool, anchor):
-            updateDraftRect(for: tool, anchor: anchor, point: point, snapshot: snapshot, styleProvider: styleProvider)
+            updateDraftRect(for: tool, anchor: anchor, point: point, snapshot: snapshot, displayScale: displayScale, styleProvider: styleProvider)
         case let .drawingLine(tool, anchor):
             updateDraftLine(
                 for: tool,
@@ -138,11 +141,11 @@ struct AnnotationCanvasInteractionState {
         case let .drawingFreehand(tool, buffer):
             updateDraftFreehand(tool: tool, buffer: buffer, point: point, style: styleProvider(tool))
         case let .moving(annotations, anchor, originalBounds):
-            updateMovedAnnotations(annotations, anchor: anchor, originalBounds: originalBounds, snapshot: snapshot, point: point)
+            updateMovedAnnotations(annotations, anchor: anchor, originalBounds: originalBounds, snapshot: snapshot, point: point, displayScale: displayScale, bypassesSnapping: bypassesSnapping)
         case let .movingCrop(anchor, originalBounds):
             updateMovedCrop(anchor: anchor, originalBounds: originalBounds, imageBounds: imageBounds, point: point)
         case let .resizing(annotations, originalBounds, handle):
-            updateResizedAnnotations(annotations, originalBounds: originalBounds, handle: handle, snapshot: snapshot, point: point)
+            updateResizedAnnotations(annotations, originalBounds: originalBounds, handle: handle, snapshot: snapshot, point: point, displayScale: displayScale, bypassesSnapping: bypassesSnapping)
         case let .resizingCrop(originalBounds, handle):
             updateResizedCrop(originalBounds: originalBounds, handle: handle, imageBounds: imageBounds, point: point, aspectRatio: cropAspectRatio)
         case let .cropping(anchor):
@@ -189,6 +192,7 @@ struct AnnotationCanvasInteractionState {
         anchor: CGPoint,
         point: CGPoint,
         snapshot: EditorSnapshot,
+        displayScale: CGFloat,
         styleProvider: (EditorTool) -> AnnotationStyle
     ) {
         // Preserve the click-placement preview through tiny pointer movement.
@@ -196,7 +200,8 @@ struct AnnotationCanvasInteractionState {
             return
         }
 
-        let resolution = gscSnapPoint(point, candidates: snapCandidates(excluding: [], snapshot: snapshot))
+        let candidates = snapCandidates(excluding: [], snapshot: snapshot)
+        let resolution = snapSession.snapPoint(point, candidates: candidates, displayScale: displayScale)
         let snappedPoint = resolution.point
         let rect = CGRect(
             x: min(anchor.x, snappedPoint.x),
@@ -238,13 +243,19 @@ struct AnnotationCanvasInteractionState {
         anchor: CGPoint,
         originalBounds: CGRect,
         snapshot: EditorSnapshot,
-        point: CGPoint
+        point: CGPoint,
+        displayScale: CGFloat,
+        bypassesSnapping: Bool
     ) {
         let rawDelta = CGSize(width: point.x - anchor.x, height: point.y - anchor.y)
         let movedBounds = originalBounds.offsetBy(dx: rawDelta.width, dy: rawDelta.height)
-        let resolution = gscSnapRect(
+        let candidates = snapCandidates(excluding: annotations.map(\.id), snapshot: snapshot)
+        let resolution = snapSession.snapRect(
             movedBounds,
-            candidates: snapCandidates(excluding: annotations.map(\.id), snapshot: snapshot)
+            candidates: candidates,
+            within: snapshot.cropRect,
+            displayScale: displayScale,
+            bypassed: bypassesSnapping
         )
         let snappedDelta = CGSize(width: resolution.rect.minX - originalBounds.minX, height: resolution.rect.minY - originalBounds.minY)
         snapGuides = resolution.guides
@@ -256,7 +267,9 @@ struct AnnotationCanvasInteractionState {
         originalBounds: CGRect,
         handle: ResizeHandle,
         snapshot: EditorSnapshot,
-        point: CGPoint
+        point: CGPoint,
+        displayScale: CGFloat,
+        bypassesSnapping: Bool
     ) {
         let signedBounds = gscSignedScaleBounds(for: originalBounds, handle: handle, point: point)
         let clampedRect = signedBounds.rect.gscClamped(to: snapshot.cropRect)
@@ -266,10 +279,13 @@ struct AnnotationCanvasInteractionState {
         }
 
         let clampedBounds = signedBounds.resolved(to: clampedRect)
-        let resolution = gscSnapSignedScaleBounds(
+        let candidates = snapCandidates(excluding: annotations.map(\.id), snapshot: snapshot)
+        let resolution = snapSession.snapSignedScaleBounds(
             clampedBounds,
             handle: handle,
-            candidates: snapCandidates(excluding: annotations.map(\.id), snapshot: snapshot)
+            candidates: candidates,
+            displayScale: displayScale,
+            bypassed: bypassesSnapping
         )
         snapGuides = resolution.guides
         if annotations.count == 1 {
@@ -415,6 +431,7 @@ struct AnnotationCanvasInteractionState {
     private mutating func clearSnapCandidateCache() {
         cachedSnapCandidates = nil
         cachedSnapCandidateExcludedIDs = []
+        snapSession.reset()
     }
 
     private func annotationsIntersectingDraftSelection(in snapshot: EditorSnapshot) -> [Annotation] {

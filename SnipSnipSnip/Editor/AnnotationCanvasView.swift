@@ -1389,6 +1389,7 @@ private final class AnnotationCanvasOverlayView: NSView {
     }
 
     private var interactionState = AnnotationCanvasInteractionState()
+    private var lastDragViewPoint: CGPoint?
     private var isPointerInteractionCancelled = false
     private var cropHUDDocumentPoint: CGPoint?
     private var pointerTrackingArea: NSTrackingArea?
@@ -1685,6 +1686,7 @@ private final class AnnotationCanvasOverlayView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         isPointerInteractionCancelled = false
+        lastDragViewPoint = nil
         window?.makeFirstResponder(self)
         let viewPoint = convert(event.locationInWindow, from: nil)
 
@@ -1810,6 +1812,25 @@ private final class AnnotationCanvasOverlayView: NSView {
     override func mouseDragged(with event: NSEvent) {
         guard !isPointerInteractionCancelled else { return }
         let rawViewPoint = convert(event.locationInWindow, from: nil)
+        lastDragViewPoint = rawViewPoint
+        updatePointerInteraction(at: rawViewPoint, modifierFlags: event.modifierFlags)
+    }
+
+    override func flagsChanged(with event: NSEvent) {
+        guard !isPointerInteractionCancelled, let lastDragViewPoint else {
+            super.flagsChanged(with: event)
+            return
+        }
+
+        switch interactionState.dragMode {
+        case .moving, .resizing:
+            updatePointerInteraction(at: lastDragViewPoint, modifierFlags: event.modifierFlags)
+        default:
+            super.flagsChanged(with: event)
+        }
+    }
+
+    private func updatePointerInteraction(at rawViewPoint: CGPoint, modifierFlags: NSEvent.ModifierFlags) {
 
         // Crop handle resize must use unclamped document coordinates so dragging
         // at or beyond the image edge still registers. updateResizedCrop clamps
@@ -1831,6 +1852,8 @@ private final class AnnotationCanvasOverlayView: NSView {
                 imageBounds: imageBounds,
                 cropAspectRatio: controller.cropAspectRatioPreset.ratio,
                 numberedArrowNumber: controller.nextNumberedArrowNumber,
+                displayScale: controller.viewport.displayScale,
+                bypassesSnapping: modifierFlags.intersection(.deviceIndependentFlagsMask).contains(.option),
                 styleProvider: controller.style(for:)
             )
             canvasView?.updateDraftCropMask(interactionState.draftCropRect)
@@ -1854,6 +1877,8 @@ private final class AnnotationCanvasOverlayView: NSView {
             imageBounds: imageBounds,
             cropAspectRatio: controller.cropAspectRatioPreset.ratio,
             numberedArrowNumber: controller.nextNumberedArrowNumber,
+            displayScale: controller.viewport.displayScale,
+            bypassesSnapping: modifierFlags.intersection(.deviceIndependentFlagsMask).contains(.option),
             styleProvider: controller.style(for:)
         )
 
@@ -1872,6 +1897,7 @@ private final class AnnotationCanvasOverlayView: NSView {
         defer {
             isPointerInteractionCancelled = false
             interactionState.reset()
+            lastDragViewPoint = nil
             cropHUDDocumentPoint = nil
             canvasView?.updateDraftCropMask(nil)
             needsDisplay = true

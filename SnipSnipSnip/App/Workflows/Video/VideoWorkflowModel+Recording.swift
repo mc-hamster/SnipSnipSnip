@@ -159,7 +159,8 @@ extension VideoWorkflowModel {
                         windows: selection.windows,
                         capabilities: dependencies.capabilities,
                         accessibility: dependencies.systemServices.accessibility,
-                        screens: dependencies.systemServices.screens
+                        screens: dependencies.systemServices.screens,
+                        prompt: .video
                     )
                     return await session.begin()
                 }

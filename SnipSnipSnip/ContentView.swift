@@ -155,6 +155,10 @@ struct ContentView: View {
         .sheet(isPresented: $capture.isShowingWindowPicker) {
             CaptureWindowPickerView(
                 windows: capture.availableWindows,
+                purpose: {
+                    if case .videoRecording = capture.windowPickerMode { return .video }
+                    return .screenshot
+                }(),
                 onSelect: { window in
                     switch capture.windowPickerMode {
                     case .videoRecording:
@@ -609,7 +613,9 @@ struct ContentView: View {
             GuideEditorToolbarContent(
                 controller: guideController,
                 onBack: documents.closeEditor,
-                onExport: { documents.exportCurrentGuide(showProgressWindow: $0) },
+                onExport: { formats, showProgressWindow in
+                    documents.exportCurrentGuide(formats: formats, showProgressWindow: showProgressWindow)
+                },
                 exportIsActive: documents.guideExportIsActive,
                 exportProgress: documents.guideExportProgress,
                 exportStatus: documents.guideExportStatus,

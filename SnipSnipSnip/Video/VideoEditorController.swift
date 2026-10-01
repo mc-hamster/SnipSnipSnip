@@ -74,7 +74,9 @@ final class VideoEditorController: ObservableObject {
             }
         }
     }
-    @Published private(set) var statusMessage: String?
+    @Published private(set) var statusNotice: EditorNotice?
+    var statusMessage: String? { statusNotice?.message }
+    private var statusDismissalTask: Task<Void, Never>?
     @Published private(set) var exportProgress: VideoExportProgress?
     @Published private(set) var persistenceRevision = 0
     @Published private(set) var isPreparingPreview = false
@@ -115,6 +117,7 @@ final class VideoEditorController: ObservableObject {
     }
 
     deinit {
+        statusDismissalTask?.cancel()
         posterRefreshTask?.cancel()
         timelineThumbnailTask?.cancel()
         exportTask?.cancel()
@@ -249,7 +252,21 @@ final class VideoEditorController: ObservableObject {
     }
 
     func dismissStatus() {
-        statusMessage = nil
+        statusDismissalTask?.cancel()
+        statusDismissalTask = nil
+        statusNotice = nil
+    }
+
+    func showStatus(_ notice: EditorNotice) {
+        statusDismissalTask?.cancel()
+        statusNotice = notice
+        AppAccessibility.announce(notice.accessibilityAnnouncement)
+        guard let delay = notice.dismissalDelaySeconds else { return }
+        statusDismissalTask = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .seconds(delay)) } catch { return }
+            guard self?.statusNotice?.id == notice.id else { return }
+            self?.dismissStatus()
+        }
     }
 
     private func exportVideoAsync(using request: VideoExportRequest) async {
@@ -272,7 +289,11 @@ final class VideoEditorController: ObservableObject {
                 using: request,
                 to: url
             )
-            statusMessage = "Exported \(request.menuLabel) to \(url.lastPathComponent)."
+            showStatus(EditorNotice(
+                message: "Exported \(request.menuLabel) to \(url.lastPathComponent).",
+                action: .reveal(url),
+                dismissalDelaySeconds: 6
+            ))
         } catch is CancellationError {
             // Cancellation is user-initiated and should quietly dismiss progress.
         } catch {
@@ -293,7 +314,10 @@ final class VideoEditorController: ObservableObject {
             resolvedRequest = request
         } else {
             resolvedRequest = VideoExportRequest(format: .mp4, target: .quality(.balanced), updatesDefaults: false)
-            statusMessage = "Drag-out sharing fell back to MP4 because \(request.format.label) export is unavailable."
+            showStatus(EditorNotice(
+                message: "Drag-out sharing fell back to MP4 because \(request.format.label) export is unavailable.",
+                dismissalDelaySeconds: 6
+            ))
         }
 
         let dragOutExport = VideoDragOutExport(

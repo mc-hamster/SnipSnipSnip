@@ -27,7 +27,7 @@ enum ClipboardShortcutFocus {
 }
 
 enum ClipboardShortcutAction: Equatable {
-    case copy, copyNumber(Int), previous, next, preview, escape, focusSearch, undoDeletion
+    case copy, copyAndReturn, copyNumber(Int), previous, next, preview, escape, focusSearch, undoDeletion
 }
 
 enum ClipboardShortcutPolicy {
@@ -45,12 +45,46 @@ enum ClipboardShortcutPolicy {
         case 125 where modifiers.isEmpty && browsing: return .next
         case 126 where modifiers.isEmpty && browsing: return .previous
         case 36, 76:
+            if modifiers == [.command, .shift] { return .copyAndReturn }
             if modifiers == .command || (modifiers.isEmpty && browsing) { return .copy }
         case 53 where modifiers.isEmpty:
             return focus == .textEditor || focus == .textField ? .focusSearch : .escape
         default: break
         }
         return nil
+    }
+}
+
+/// Retain app identity as well as its PID so a stale window session cannot
+/// activate an unrelated process that later reuses that identifier.
+struct ClipboardReturnTarget {
+    let application: WorkspaceRunningApplicationSnapshot
+
+    init?(application: WorkspaceRunningApplicationSnapshot?, ownProcessIdentifier: pid_t) {
+        guard let application, application.processIdentifier != ownProcessIdentifier,
+              application.activationPolicy == .regular else { return nil }
+        self.application = application
+    }
+
+    func availableProcessIdentifier(in applications: [WorkspaceRunningApplicationSnapshot]) -> pid_t? {
+        applications.first {
+            $0.processIdentifier == application.processIdentifier &&
+                $0.activationPolicy == .regular &&
+                $0.bundleIdentifier == application.bundleIdentifier &&
+                $0.bundleURL == application.bundleURL
+        }?.processIdentifier
+    }
+}
+
+enum ClipboardCopyReturnOutcome: Equatable {
+    case stayed, returned, unavailable
+}
+
+enum ClipboardCopyReturnPolicy {
+    static func finish(copySucceeded: Bool, requestedReturn: Bool,
+                       returnToApplication: () -> Bool) -> ClipboardCopyReturnOutcome {
+        guard copySucceeded, requestedReturn else { return .stayed }
+        return returnToApplication() ? .returned : .unavailable
     }
 }
 

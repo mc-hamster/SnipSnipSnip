@@ -33,35 +33,12 @@ struct EditorView: View {
             }
 
             if let notice = controller.notice {
-                HStack(spacing: 10) {
-                    Text(notice.message)
-                        .font(.caption.weight(.medium))
-
-                    if let action = notice.action {
-                        Button(action.title) {
-                            performNoticeAction(action)
-                        }
-                        .buttonStyle(.borderless)
-                    }
-
-                    Button {
-                        controller.dismissNotice()
-                    } label: {
-                        Image(systemName: "xmark")
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("Dismiss notification")
-                    .help("Dismiss notification")
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .sssFloatingOverlaySurface(cornerRadius: 18, shadowOpacity: 0.10)
-                .padding(16)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel(notice.accessibilityAnnouncement)
+                OutputNoticeView(
+                    notice: notice,
+                    onAction: performNoticeAction,
+                    onDismiss: controller.dismissNotice
+                )
                 .accessibilityIdentifier("editor.notice")
-                .transition(.opacity)
                 .zIndex(3)
             }
 
@@ -1121,16 +1098,10 @@ struct EditorCommandBar: View {
     private func outputCommands(
         appearance: ScreenshotOutputAppearance
     ) -> some View {
-        Button {
-            onCopy(appearance)
-        } label: {
-            Label("Copy", systemImage: "doc.on.doc")
-        }
-        .buttonStyle(.borderedProminent)
-        .buttonBorderShape(.capsule)
-        .help("Copy the output currently shown in this workspace.")
-        .accessibilityValue(visibleOutputAccessibilityValue)
-        .accessibilityIdentifier("editor.output.copy.current")
+        ScreenshotCopyButton(
+            activity: controller.outputActivity,
+            outputDescription: visibleOutputAccessibilityValue
+        ) { onCopy(appearance) }
 
         exportMenu(appearance: appearance)
         shareButton(appearance: appearance)
@@ -1140,18 +1111,12 @@ struct EditorCommandBar: View {
     private func exportMenu(
         appearance: ScreenshotOutputAppearance
     ) -> some View {
-        Menu {
+        ScreenshotExportMenu(
+            activity: controller.outputActivity,
+            outputDescription: visibleOutputAccessibilityValue
+        ) {
             outputFormatButtons(appearance: appearance)
-        } label: {
-            Label("Export", systemImage: "square.and.arrow.down")
         }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .help("Export the output currently shown in this workspace.")
-        .accessibilityValue(visibleOutputAccessibilityValue)
-        .accessibilityIdentifier(
-            "editor.output.export.current"
-        )
     }
 
     @ViewBuilder
@@ -1288,10 +1253,7 @@ struct EditorCommandBar: View {
             Button {
                 controller.activateToolbarTool(lastUsedTool.wrappedValue)
             } label: {
-                Label(
-                    lastUsedTool.wrappedValue.label,
-                    systemImage: lastUsedTool.wrappedValue.systemImage
-                )
+                StableEditorToolLabel(tool: lastUsedTool.wrappedValue, family: tools)
                     .font(.subheadline.weight(.medium))
                     .padding(.horizontal, 8)
                     .frame(height: 28)

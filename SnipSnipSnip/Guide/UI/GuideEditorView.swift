@@ -805,7 +805,7 @@ private struct GuideAdvancedEditorSheet: View {
 struct GuideEditorToolbarContent: ToolbarContent {
     @ObservedObject var controller: GuideEditorController
     let onBack: () -> Void
-    let onExport: (Bool) -> Void
+    let onExport: (Set<GuideExportFormat>, Bool) -> Void
     var exportIsActive = false
     var exportProgress: Double? = nil
     var exportStatus: String? = nil
@@ -875,9 +875,9 @@ struct GuideEditorToolbarContent: ToolbarContent {
                         GuideExportOptionsSheet(
                             controller: controller,
                             onCancel: { isShowingExportOptions = false },
-                            onExport: { showProgressWindow in
+                            onExport: { formats, showProgressWindow in
                                 isShowingExportOptions = false
-                                onExport(showProgressWindow)
+                                onExport(formats, showProgressWindow)
                             }
                         )
                     }
@@ -909,7 +909,13 @@ struct GuideEditorToolbarContent: ToolbarContent {
         }
         if let exportStatus {
             ToolbarItem(id: "guide-export-status", placement: .primaryAction) {
-                Text(exportStatus).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                HStack(spacing: 8) {
+                    Text(exportStatus).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    if hasExportedFiles && !exportIsActive {
+                        Button("Reveal in Finder", action: onRevealExports)
+                            .buttonStyle(.borderless)
+                    }
+                }
             }
         }
     }
@@ -918,8 +924,20 @@ struct GuideEditorToolbarContent: ToolbarContent {
 private struct GuideExportOptionsSheet: View {
     @ObservedObject var controller: GuideEditorController
     let onCancel: () -> Void
-    let onExport: (Bool) -> Void
+    let onExport: (Set<GuideExportFormat>, Bool) -> Void
     @State private var showsProgressWindow = true
+    @State private var draftFormats: Set<GuideExportFormat>
+
+    init(
+        controller: GuideEditorController,
+        onCancel: @escaping () -> Void,
+        onExport: @escaping (Set<GuideExportFormat>, Bool) -> Void
+    ) {
+        self.controller = controller
+        self.onCancel = onCancel
+        self.onExport = onExport
+        _draftFormats = State(initialValue: controller.project.exportSettings.formats)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -959,10 +977,10 @@ private struct GuideExportOptionsSheet: View {
                 Button("Cancel", action: onCancel)
                     .keyboardShortcut(.cancelAction)
                 Spacer()
-                Button("Choose Folder & Export") { onExport(showsProgressWindow) }
+                Button("Choose Folder & Export") { onExport(draftFormats, showsProgressWindow) }
                     .keyboardShortcut(.defaultAction)
                     .buttonStyle(.borderedProminent)
-                    .disabled(controller.project.exportSettings.formats.isEmpty)
+                    .disabled(draftFormats.isEmpty)
             }
         }
         .padding(24)
@@ -988,12 +1006,10 @@ private struct GuideExportOptionsSheet: View {
 
     private func formatBinding(_ format: GuideExportFormat) -> Binding<Bool> {
         Binding(
-            get: { controller.project.exportSettings.formats.contains(format) },
+            get: { draftFormats.contains(format) },
             set: { enabled in
-                controller.update(name: "Change Export Formats") { project in
-                    if enabled { project.exportSettings.formats.insert(format) }
-                    else { project.exportSettings.formats.remove(format) }
-                }
+                if enabled { draftFormats.insert(format) }
+                else { draftFormats.remove(format) }
             }
         )
     }

@@ -1,5 +1,12 @@
 import Foundation
 
+/// Temporary setup travels through target selection without changing saved
+/// preferences. It becomes the default only after capture starts successfully.
+nonisolated struct GuideCaptureSetupDraft: Equatable, Sendable {
+    var preferences: GuideCapturePreferences
+    var sourceKind: String
+}
+
 nonisolated enum GuideOutputIntent: String, CaseIterable, Identifiable, Sendable {
     case stepsOnly
     case stepsAndVideo

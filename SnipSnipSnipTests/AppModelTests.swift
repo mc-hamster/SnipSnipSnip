@@ -2506,8 +2506,8 @@ final class AppModelTests: XCTestCase {
         XCTAssertNil(model.pendingRecoverySession)
     }
 
-    func testLoadDocumentCancelsAndTerminatesForIncompatiblePackage() throws {
-        let suiteName = "AppModelTests.loadDocumentCancelsAndTerminatesForIncompatiblePackage"
+    func testLoadDocumentRejectsIncompatiblePackageWithoutReplacingWorkOrTerminating() throws {
+        let suiteName = "AppModelTests.loadDocumentRejectsIncompatiblePackage"
         let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
@@ -2522,8 +2522,8 @@ final class AppModelTests: XCTestCase {
 
         var didTerminate = false
         let coordinator = IncompatibleDocumentCoordinator(
-            confirmationHandler: { _ in false },
-            trashHandler: { _ in XCTFail("Did not expect trash on cancellation") },
+            confirmationHandler: { _ in XCTFail("Opening a selected file must not invoke startup compatibility handling"); return false },
+            trashHandler: { _ in XCTFail("An incompatible selected file must be preserved") },
             cancellationNoticeHandler: { _ in },
             terminationHandler: { didTerminate = true }
         )
@@ -2539,10 +2539,21 @@ final class AppModelTests: XCTestCase {
             )
         )
 
+        let current = EditorController(capture: makeCapturedScreenshot(),
+            defaults: defaults, capabilities: testCapabilities, isPrivateDocument: true)
+        current.updateCropRect(CGRect(x: 2, y: 2, width: 20, height: 20))
+        model.documents.installEditorController(current, documentURL: nil, savedSession: nil,
+            shouldCreateRecoverySession: false)
+        let currentSession = current.documentSession
+
         model.documents.loadDocument(from: packageURL)
 
-        XCTAssertTrue(didTerminate)
-        XCTAssertNil(model.editorController)
+        XCTAssertFalse(didTerminate)
+        XCTAssertTrue(model.editorController === current)
+        XCTAssertEqual(current.documentSession, currentSession)
+        XCTAssertFalse(model.documents.isShowingUnsavedChangesPrompt)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: packageURL.path))
+        XCTAssertNotNil(model.lifecycle.errorMessage)
     }
 }
 
