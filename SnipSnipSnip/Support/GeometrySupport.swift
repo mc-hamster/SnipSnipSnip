@@ -317,8 +317,8 @@ nonisolated private func gscScaledCoordinate(
         return newMinTarget
     }
 
-    let ratio = (value - oldMin) / oldLength
-    return newMinTarget + ratio * (newMaxTarget - newMinTarget)
+    let scale = (newMaxTarget - newMinTarget) / oldLength
+    return newMinTarget + (value - oldMin) * scale
 }
 
 nonisolated func gscInnerSignedScaleBounds(
@@ -326,8 +326,8 @@ nonisolated func gscInnerSignedScaleBounds(
     from outerBounds: CGRect,
     to newOuterBounds: SignedScaleBounds
 ) -> SignedScaleBounds {
-    let innerBounds = innerBounds.gscIntegralStandardized
-    let outerBounds = outerBounds.gscIntegralStandardized
+    let innerBounds = innerBounds.standardized
+    let outerBounds = outerBounds.standardized
 
     return SignedScaleBounds(
         minXTarget: newOuterBounds.minXTarget + (innerBounds.minX - outerBounds.minX),
@@ -346,7 +346,7 @@ nonisolated func gscScaledRect(_ rect: CGRect, from oldBounds: CGRect, to newBou
         y: min(minPoint.y, maxPoint.y),
         width: abs(maxPoint.x - minPoint.x),
         height: abs(maxPoint.y - minPoint.y)
-    ).integral
+    )
 }
 
 nonisolated func gscScaledRect(_ rect: CGRect, from oldBounds: CGRect, to newBounds: SignedScaleBounds) -> CGRect {
@@ -359,7 +359,7 @@ nonisolated func gscScaledRect(_ rect: CGRect, from oldBounds: CGRect, to newBou
         y: min(minPoint.y, maxPoint.y),
         width: abs(maxPoint.x - minPoint.x),
         height: abs(maxPoint.y - minPoint.y)
-    ).integral
+    )
 }
 
 nonisolated func gscCenteredCropRect(around center: CGPoint, size: CGFloat, within bounds: CGRect) -> CGRect {
@@ -788,7 +788,7 @@ nonisolated func gscFittedTextRect(
         y: normalizedRect.minY,
         width: targetWidth,
         height: targetHeight
-    ).gscIntegralStandardized
+    )
 }
 
 nonisolated func gscSnugTextRect(
@@ -895,7 +895,7 @@ nonisolated func gscFittedCalloutRect(
         y: normalizedRect.minY,
         width: min(max(bodyWidth + badgeAllowance, minSize.width), maxWidth),
         height: max(fittedBodyRect.height, minSize.height)
-    ).gscIntegralStandardized
+    )
 }
 
 nonisolated func gscSuggestedTextRect(adjacentTo selectionBounds: CGRect, within canvasBounds: CGRect, size: CGSize = CGSize(width: 260, height: 80), padding: CGFloat = 14) -> CGRect {

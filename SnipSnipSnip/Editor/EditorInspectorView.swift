@@ -396,6 +396,7 @@ struct EditorInspectorView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
+                .accessibilityIdentifier("editor.composition.inspector.done")
             }
         }
     }

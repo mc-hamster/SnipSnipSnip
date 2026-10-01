@@ -615,59 +615,59 @@ final class CaptureModelsTests: XCTestCase {
         XCTAssertEqual(resolved?.id, 42)
     }
 
-    func testWindowBoundsByIDParsesCGWindowBoundsDictionary() {
-        let desktopFrame = CGRect(x: 0, y: -900, width: 3360, height: 1980)
-        let cgWindowBounds = CGRect(x: 1920, y: 120, width: 640, height: 400)
-
-        XCTAssertEqual(
-            gscAppKitScreenRect(fromCGWindowBounds: cgWindowBounds, desktopFrame: desktopFrame),
-            CGRect(x: 1920, y: 560, width: 640, height: 400)
-        )
-
-        let windowInfo: [[String: Any]] = [
-            [
+    func testWindowBoundsByIDUsesExplicitDisplayCoordinates() {
+        let cases: [(capture: CGRect, overlay: CGRect, window: CGRect, expected: CGRect)] = [
+            (CGRect(x: 0, y: 0, width: 1920, height: 1080),
+             CGRect(x: 0, y: 0, width: 1920, height: 1080),
+             CGRect(x: 120, y: 90, width: 600, height: 400),
+             CGRect(x: 120, y: 590, width: 600, height: 400)),
+            (CGRect(x: -1600, y: -900, width: 1600, height: 900),
+             CGRect(x: -1600, y: 1080, width: 1600, height: 900),
+             CGRect(x: -1500, y: -800, width: 400, height: 300),
+             CGRect(x: -1500, y: 1580, width: 400, height: 300)),
+            (CGRect(x: 0, y: 1080, width: 1280, height: 720),
+             CGRect(x: 0, y: -720, width: 1280, height: 720),
+             CGRect(x: 100, y: 1180, width: 400, height: 300),
+             CGRect(x: 100, y: -400, width: 400, height: 300)),
+            (CGRect(x: 1920, y: 100, width: 1440, height: 900),
+             CGRect(x: 1920, y: 80, width: 1440, height: 900),
+             CGRect(x: 2000, y: 200, width: 400, height: 300),
+             CGRect(x: 2000, y: 580, width: 400, height: 300)),
+            (CGRect(x: -2000, y: -100, width: 2000, height: 1000),
+             CGRect(x: -1000, y: 100, width: 1000, height: 500),
+             CGRect(x: -1800, y: 100, width: 800, height: 400),
+             CGRect(x: -900, y: 300, width: 400, height: 200))
+        ]
+        for fixture in cases {
+            let window = fixture.window
+            let info: [[String: Any]] = [[
                 kCGWindowNumber as String: NSNumber(value: 17),
                 kCGWindowBounds as String: [
-                    "X": 1920,
-                    "Y": 120,
-                    "Width": 640,
-                    "Height": 400
+                    "X": window.minX, "Y": window.minY,
+                    "Width": window.width, "Height": window.height
                 ]
-            ]
-        ]
-
-        let boundsByID = gscWindowBoundsByID(from: windowInfo)
-
-        let expectedBounds = gscAppKitScreenRect(fromCGWindowBounds: cgWindowBounds, desktopFrame: NSScreen.screens.reduce(CGRect.null) { partialResult, screen in
-            partialResult.union(screen.frame)
-        })
-
-        XCTAssertEqual(boundsByID[17], expectedBounds)
+            ]]
+            let transform = CaptureDisplayTransform(captureFrame: fixture.capture, overlayFrame: fixture.overlay)
+            let bounds = gscWindowBoundsByID(from: info, displayTransform: transform)
+            XCTAssertEqual(bounds[17], fixture.expected)
+            XCTAssertEqual(gscTopmostWindow(
+                at: fixture.expected.center,
+                in: [makeCaptureWindow(id: 17, frame: window)],
+                visibleBoundsByID: bounds
+            )?.id, 17)
+        }
     }
 
-    func testWindowBoundsByIDCanUseCaptureDesktopFrameForMixedHeightDisplays() {
-        let captureDesktopFrame = CGRect(x: -3780, y: -1178, width: 5292, height: 2160)
-        let cgWindowBounds = CGRect(x: -3143, y: -282, width: 1519, height: 1128)
-        let windowInfo: [[String: Any]] = [
-            [
-                kCGWindowNumber as String: NSNumber(value: 52),
-                kCGWindowBounds as String: [
-                    "X": -3143,
-                    "Y": -282,
-                    "Width": 1519,
-                    "Height": 1128
-                ]
-            ]
-        ]
-
-        XCTAssertEqual(
-            gscAppKitScreenRect(fromCGWindowBounds: cgWindowBounds, desktopFrame: captureDesktopFrame),
-            CGRect(x: -3143, y: 136, width: 1519, height: 1128)
+    func testWindowBoundsByIDSkipsMalformedEntries() {
+        let transform = CaptureDisplayTransform(
+            captureFrame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+            overlayFrame: CGRect(x: 0, y: 0, width: 1920, height: 1080)
         )
-        XCTAssertEqual(
-            gscWindowBoundsByID(from: windowInfo, desktopFrame: captureDesktopFrame)[52],
-            CGRect(x: -3143, y: 136, width: 1519, height: 1128)
-        )
+        XCTAssertTrue(gscWindowBoundsByID(from: [
+            [kCGWindowNumber as String: NSNumber(value: 1)],
+            [kCGWindowBounds as String: ["X": 10, "Y": 20, "Width": 30, "Height": 40]],
+            [kCGWindowNumber as String: NSNumber(value: 2), kCGWindowBounds as String: ["X": "invalid"]]
+        ], displayTransform: transform).isEmpty)
     }
 
     func testTopmostWindowCanPreferVisibleScreenSpaceBounds() {

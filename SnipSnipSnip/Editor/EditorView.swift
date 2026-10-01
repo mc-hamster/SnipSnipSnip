@@ -788,6 +788,7 @@ struct EditorCommandBar: View {
             .buttonBorderShape(.capsule)
             .keyboardShortcut(.defaultAction)
             .help("Apply these edits and return to the focused content stage.")
+            .accessibilityIdentifier("editor.composition.done")
 
             Text(controller.compositionEditingScopeTitle ?? "Composition Editing")
                 .font(.headline)

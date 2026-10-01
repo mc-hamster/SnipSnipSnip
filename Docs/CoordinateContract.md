@@ -58,6 +58,8 @@ spaces only through the transform types in
 
 ## Allowed Transforms
 
+- `TopLeftRectTransform`
+  - Scales between explicit top-left, y-down bounds without rounding intermediate geometry.
 - `CaptureScreenTransform`
   - Quartz capture global <-> display-local capture points.
 - `AppKitOverlayTransform`
@@ -93,6 +95,10 @@ pixel scale implicitly.
 - Standardize and integral-round only at explicit boundaries:
   capture source rect creation, preview crop rect creation, document snapshot
   initialization, and final export crop clipping.
+- Annotation scaling and composition editing projections preserve fractional
+  geometry. Preview pixel rects round at crop creation, after scaling completes.
+- Window-list bounds use the capture and overlay frames of the active display,
+  through `CaptureDisplayTransform`; desktop-union height is not a screen-space origin.
 - Do not store mixed logical-point and pixel units in the same field.
 - Do not use booleans such as `flipY` to change the meaning of a rect
   parameter. Different coordinate meanings require different APIs.

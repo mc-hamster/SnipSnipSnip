@@ -3773,10 +3773,10 @@ final class EditorController: ObservableObject {
         }
         let sourceBounds = CGRect(origin: .zero, size: sourceSize)
         let destinationBounds = CGRect(origin: .zero, size: destinationSize)
-        let styleScale = min(
-            destinationSize.width / sourceSize.width,
-            destinationSize.height / sourceSize.height
-        )
+        // Proxy pixel rounding can change the aspect ratio slightly. Use the
+        // same length in both directions so entering and leaving is reversible.
+        let styleScale = max(destinationSize.width, destinationSize.height)
+            / max(sourceSize.width, sourceSize.height)
         var scaled = annotation.scaled(
             from: sourceBounds,
             to: destinationBounds

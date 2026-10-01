@@ -411,6 +411,26 @@ final class CompositionEditingScopeTests: XCTestCase {
             0.20,
             accuracy: 0.01
         )
+        guard case .rectangle(let originalShape) = stored.kind else {
+            return XCTFail("Expected the stored rectangle")
+        }
+        for _ in 0..<4 {
+            controller.enterCompositionEditing()
+            controller.finishCompositionEditing()
+            let restored = try XCTUnwrap(controller.composition?.canvas.annotations.first { $0.id == annotation.id })
+            guard case .rectangle(let shape) = restored.kind else {
+                return XCTFail("Expected the restored rectangle")
+            }
+            assertRectsEqual(shape.rect, originalShape.rect)
+            XCTAssertEqual(restored.id, stored.id)
+            let restoredLengths = [restored.style.lineWidth, restored.style.fontSize,
+                restored.style.effectRadius, restored.style.cornerRadius, restored.style.freehandSimplification]
+            let storedLengths = [stored.style.lineWidth, stored.style.fontSize,
+                stored.style.effectRadius, stored.style.cornerRadius, stored.style.freehandSimplification]
+            for (actual, expected) in zip(restoredLengths, storedLengths) {
+                XCTAssertEqual(actual, expected, accuracy: 0.000_000_001)
+            }
+        }
     }
 
     @MainActor

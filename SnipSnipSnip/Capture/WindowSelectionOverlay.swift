@@ -91,10 +91,6 @@ final class WindowSelectionSession: NSObject {
     }
 
     private func presentOverlay() {
-        // Normalize CGWindowList bounds against the active capture desktop union.
-        // Mixed-height multi-display setups otherwise inherit the wrong top edge.
-        let visibleBounds = visibleWindowBoundsSources(desktopFrame: snapshot.globalFrame)
-
         #if DEBUG
         WindowPickerDiagnostics.log("[WindowPicker] Diagnostics version: 2026-05-13-stale-highlight-fix-v6")
         WindowPickerDiagnostics.log("[WindowPicker] presentOverlay: \(windows.count) total windows")
@@ -102,6 +98,9 @@ final class WindowSelectionSession: NSObject {
         #endif
 
         overlayWindows = snapshot.displayPreviews.compactMap { displayPreview in
+            let visibleBounds = visibleWindowBoundsSources(
+                displayTransform: displayPreview.snapshot.captureDisplayTransform
+            )
             let displayWindows = windows.filter {
                 let converted = resolvedOverlayScreenRect(
                     for: $0,
@@ -129,7 +128,6 @@ final class WindowSelectionSession: NSObject {
             let overlay = WindowSelectionWindow(
                 displayPreview: displayPreview,
                 windows: displayWindows,
-                desktopFrame: snapshot.globalFrame,
                 capabilities: capabilities,
                 accessibility: accessibility,
                 screens: screens,
@@ -160,7 +158,6 @@ private final class WindowSelectionWindow: NSPanel {
     init(
         displayPreview: DisplayPreview,
         windows: [CaptureWindowSummary],
-        desktopFrame: CGRect,
         capabilities: AppCapabilitySnapshot,
         accessibility: any AccessibilityPlatform,
         screens: any ScreenTopologyProviding,
@@ -193,7 +190,6 @@ private final class WindowSelectionWindow: NSPanel {
         contentView = WindowSelectionView(
             displayPreview: displayPreview,
             windows: windows,
-            desktopFrame: desktopFrame,
             displayFrame: displayFrame,
             capabilities: capabilities,
             accessibility: accessibility,
@@ -212,11 +208,9 @@ private final class WindowSelectionView: NSView {
     private let windows: [CaptureWindowSummary]
     private let displayTransform: CaptureDisplayTransform
     private let accessibilityTransform: CaptureAccessibilityTransform?
-    private let desktopFrame: CGRect
     private let displayFrame: CGRect
     private let capabilities: AppCapabilitySnapshot
     private let accessibility: any AccessibilityPlatform
-    private let screens: any ScreenTopologyProviding
     private let prompt: WindowSelectionPrompt
     private let onComplete: (WindowSelectionOutcome) -> Void
     private var hoveredWindowID: CGWindowID?
@@ -227,7 +221,6 @@ private final class WindowSelectionView: NSView {
     init(
         displayPreview: DisplayPreview,
         windows: [CaptureWindowSummary],
-        desktopFrame: CGRect,
         displayFrame: CGRect,
         capabilities: AppCapabilitySnapshot,
         accessibility: any AccessibilityPlatform,
@@ -239,14 +232,12 @@ private final class WindowSelectionView: NSView {
         self.displayTransform = displayPreview.snapshot.captureDisplayTransform
         self.capabilities = capabilities
         self.accessibility = accessibility
-        self.screens = screens
         self.prompt = prompt
 #if APP_STORE_BUILD
         self.accessibilityTransform = nil
 #else
         self.accessibilityTransform = Self.makeAccessibilityTransform(for: displayPreview.snapshot, screens: screens)
 #endif
-        self.desktopFrame = desktopFrame.standardized
         self.displayFrame = displayFrame
         self.onComplete = onComplete
         super.init(frame: CGRect(origin: .zero, size: displayPreview.snapshot.overlayFrame.size))
@@ -353,14 +344,14 @@ private final class WindowSelectionView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         let screenPoint = appKitScreenPoint(from: event)
-        let freshBounds = visibleWindowBoundsSources(desktopFrame: desktopFrame)
+        let freshBounds = visibleWindowBoundsSources(displayTransform: displayTransform)
         let resolved = resolveWindow(at: screenPoint, boundsSources: freshBounds)
         updateHover(windowID: resolved?.window.id, screenRect: resolved?.screenRect)
     }
 
     override func mouseDown(with event: NSEvent) {
         let screenPoint = appKitScreenPoint(from: event)
-        let freshBounds = visibleWindowBoundsSources(desktopFrame: desktopFrame)
+        let freshBounds = visibleWindowBoundsSources(displayTransform: displayTransform)
 
         guard let selected = resolveWindow(at: screenPoint, boundsSources: freshBounds)?.window else {
             NSSound.beep()
@@ -425,7 +416,7 @@ private final class WindowSelectionView: NSView {
     }
 
     private func refreshAccessibilityTargets(postNotification: Bool) {
-        let boundsSources = visibleWindowBoundsSources(desktopFrame: desktopFrame)
+        let boundsSources = visibleWindowBoundsSources(displayTransform: displayTransform)
         let targets = windows.compactMap { candidate -> WindowCaptureAccessibilityElement? in
             let convertedRect = resolvedOverlayScreenRect(
                 for: candidate,
@@ -503,29 +494,8 @@ private final class WindowSelectionView: NSView {
             #endif
         }
 
-        #if DEBUG
-        let localRect = CGRect(
-            x: screenRect.minX - displayFrame.minX,
-            y: displayFrame.maxY - screenRect.maxY,
-            width: screenRect.width,
-            height: screenRect.height
-        ).gscIntegralStandardized
-        
-        WindowPickerDiagnostics.log("[WindowPicker.viewLocalRect] Conversion:")
-        WindowPickerDiagnostics.log("[WindowPicker.viewLocalRect]   screenRect.minX=\(screenRect.minX) - displayFrame.minX=\(displayFrame.minX) = localX=\(localRect.minX)")
-        WindowPickerDiagnostics.log("[WindowPicker.viewLocalRect]   displayFrame.maxY=\(displayFrame.maxY) - screenRect.maxY=\(screenRect.maxY) = localY=\(localRect.minY)")
-        WindowPickerDiagnostics.log("[WindowPicker.viewLocalRect]   screenRect.maxY=\(screenRect.maxY), screenRect.minY=\(screenRect.minY)")
-        WindowPickerDiagnostics.log("[WindowPicker.viewLocalRect]   Result: \(localRect)")
-        
-        return localRect
-        #else
-        return CGRect(
-            x: screenRect.minX - displayFrame.minX,
-            y: displayFrame.maxY - screenRect.maxY,
-            width: screenRect.width,
-            height: screenRect.height
-        ).gscIntegralStandardized
-        #endif
+        return AppKitOverlayTransform(overlayFrame: displayFrame)
+            .localRect(fromGlobalRect: screenRect).gscIntegralStandardized
     }
 
     private func resolveWindow(
@@ -836,10 +806,7 @@ private final class WindowSelectionView: NSView {
             ).gscIntegralStandardized
         }
 
-        let desktopFrame = screens.screens.reduce(CGRect.null) { partialResult, screen in
-            partialResult.union(screen.frame)
-        }.standardized
-        return gscAppKitScreenRect(fromCGWindowBounds: accessibilityRect, desktopFrame: desktopFrame)
+        return displayTransform.overlayGlobalRect(fromCaptureGlobalRect: accessibilityRect)
     }
 
     private func accessibilityFrame(of element: AccessibilityElementHandle) -> CGRect? {
@@ -989,40 +956,11 @@ private func resolvedTopmostWindow(
         }
 }
 
-private func visibleWindowBoundsSources(screens: any ScreenTopologyProviding = SystemScreenTopologyService()) -> WindowBoundsSources {
-    visibleWindowBoundsSources(desktopFrame: screens.screens.reduce(CGRect.null) { partialResult, screen in
-        partialResult.union(screen.frame)
-    })
-}
-
-private func visibleWindowBoundsSources(desktopFrame: CGRect) -> WindowBoundsSources {
+private func visibleWindowBoundsSources(displayTransform: CaptureDisplayTransform) -> WindowBoundsSources {
     guard let windowInfo = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
         return WindowBoundsSources(converted: [:], raw: [:])
     }
 
-    return WindowBoundsSources(
-        converted: gscWindowBoundsByID(from: windowInfo, desktopFrame: desktopFrame),
-        raw: rawWindowBoundsByID(from: windowInfo, desktopFrame: desktopFrame)
-    )
-}
-
-private func rawWindowBoundsByID(from windowInfo: [[String: Any]], desktopFrame: CGRect) -> [CGWindowID: CGRect] {
-    let normalizedDesktopFrame = desktopFrame.standardized
-
-    return windowInfo.reduce(into: [:]) { partialResult, info in
-        guard let windowNumber = info[kCGWindowNumber as String] as? NSNumber,
-              let boundsDictionary = info[kCGWindowBounds as String] as? [String: Any] else {
-            return
-        }
-
-        var bounds = CGRect.zero
-        guard CGRectMakeWithDictionaryRepresentation(boundsDictionary as CFDictionary, &bounds) else {
-            return
-        }
-
-        partialResult[CGWindowID(windowNumber.uint32Value)] = gscAppKitScreenRect(
-            fromCGWindowBounds: bounds,
-            desktopFrame: normalizedDesktopFrame
-        )
-    }
+    let bounds = gscWindowBoundsByID(from: windowInfo, displayTransform: displayTransform)
+    return WindowBoundsSources(converted: bounds, raw: bounds)
 }

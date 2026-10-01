@@ -5,6 +5,24 @@ import XCTest
 
 let testCapabilities = BuildTargetCapabilityProvider().snapshot(for: .dev)
 
+nonisolated func assertRectsEqual(
+    _ actual: CGRect, _ expected: CGRect, accuracy: CGFloat = 0.000_000_001,
+    file: StaticString = #filePath, line: UInt = #line
+) {
+    XCTAssertEqual(actual.minX, expected.minX, accuracy: accuracy, file: file, line: line)
+    XCTAssertEqual(actual.minY, expected.minY, accuracy: accuracy, file: file, line: line)
+    XCTAssertEqual(actual.width, expected.width, accuracy: accuracy, file: file, line: line)
+    XCTAssertEqual(actual.height, expected.height, accuracy: accuracy, file: file, line: line)
+}
+
+/// Document workflow tests must not resize or retitle windows owned by another fixture.
+@MainActor
+struct TestDocumentWindowPresenter: DocumentWindowPresenting {
+    func syncMainWindowDocumentState(documentURL: URL?, hasUnsavedChanges: Bool, title: String) {}
+    func resizeMainWindowForContent(pixelSize: CGSize, kind: DocumentWindowContentKind, animated: Bool) -> Bool { false }
+    func restoreMainWindowForCaptureHome(animated: Bool) {}
+}
+
 nonisolated func makeDefaults(named suiteName: String) -> UserDefaults {
     let defaults = UserDefaults(suiteName: suiteName)!
     defaults.removePersistentDomain(forName: suiteName)

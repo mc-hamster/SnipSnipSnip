@@ -1075,9 +1075,10 @@ nonisolated struct Annotation: Identifiable, Equatable {
     }
 
     func scaled(from oldBounds: CGRect, to newBounds: CGRect) -> Annotation {
-        transformingGeometry(
-            rect: { gscScaledRect($0, from: oldBounds, to: newBounds) },
-            point: { gscScaledPoint($0, from: oldBounds, to: newBounds) }
+        let transform = TopLeftRectTransform(sourceBounds: oldBounds, targetBounds: newBounds)
+        return transformingGeometry(
+            rect: transform.targetRect(fromSourceRect:),
+            point: transform.targetPoint(fromSourcePoint:)
         )
     }
 
@@ -1138,7 +1139,7 @@ nonisolated struct Annotation: Identifiable, Equatable {
                     maximumAutoTextWidth: maximumAutoTextWidth,
                     autoTextBounds: autoTextBounds
                 )
-                : shape.rect.gscIntegralStandardized
+                : shape.rect.standardized
             shape.text = text
             copy.kind = .text(shape)
         case .callout(var shape):
@@ -1149,7 +1150,7 @@ nonisolated struct Annotation: Identifiable, Equatable {
                     maximumAutoTextWidth: maximumAutoTextWidth,
                     autoTextBounds: autoTextBounds
                 )
-                : shape.rect.gscIntegralStandardized
+                : shape.rect.standardized
             shape.text = text
             copy.kind = .callout(shape)
         default:

@@ -6,6 +6,31 @@ import XCTest
 
 @MainActor
 final class TransactionalIntakeTests: XCTestCase {
+    func testExportFixtureDoesNotMutateAnExistingMainWindowOrViewport() async throws {
+        let window = NSWindow(
+            contentRect: CGRect(x: 40, y: 100, width: 800, height: 500),
+            styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false
+        )
+        window.identifier = NSUserInterfaceItemIdentifier(AppSceneID.mainWindow)
+        window.isReleasedWhenClosed = false
+        window.title = "Unrelated test window"
+        window.orderFront(nil)
+        defer { window.close() }
+        let frame = window.frame
+        let title = window.title
+        let fixture = try TransactionalIntakeFixture()
+        defer { fixture.cleanUp() }
+        let controller = fixture.installScreenshot()
+        let viewport = controller.viewport
+
+        fixture.documents.exportAnnotatedImage(as: .png, appearance: .plain)
+        await waitUntil { !controller.outputActivity.isExporting }
+
+        XCTAssertEqual(controller.viewport, viewport)
+        XCTAssertEqual(window.frame, frame)
+        XCTAssertEqual(window.title, title)
+    }
+
     func testCancelledCompositionExportDestinationReleasesActivityWithoutChangingSession() async throws {
         let fixture = try TransactionalIntakeFixture()
         defer { fixture.cleanUp() }
@@ -416,7 +441,7 @@ private struct TransactionalIntakeFixture {
             capabilities: ports.capabilities, systemServices: ports.systemServices,
             lifecycle: ports.lifecycle, capture: ports.capture, clipboard: ports.clipboard,
             video: ports.video, archive: ports.archive, panels: panels,
-            windowPresenter: ports.windowPresenter, pasteboardImporter: ports.pasteboardImporter,
+            windowPresenter: TestDocumentWindowPresenter(), pasteboardImporter: ports.pasteboardImporter,
             floatingReferenceCoordinator: ports.floatingReferenceCoordinator,
             historyPreviewCoordinator: ports.historyPreviewCoordinator,
             textRecognitionCoordinator: ports.textRecognitionCoordinator),

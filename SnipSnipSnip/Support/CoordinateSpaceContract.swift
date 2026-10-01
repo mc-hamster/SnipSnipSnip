@@ -104,6 +104,14 @@ nonisolated struct AppKitOverlayTransform: Equatable {
     func globalPoint(fromLocalPoint point: CGPoint) -> CGPoint {
         CGPoint(x: overlayFrame.minX + point.x, y: overlayFrame.maxY - point.y)
     }
+
+    func localRect(fromGlobalRect rect: CGRect) -> CGRect {
+        let normalized = rect.standardized
+        return CGRect(
+            origin: localPoint(fromGlobalPoint: CGPoint(x: normalized.minX, y: normalized.maxY)),
+            size: normalized.size
+        )
+    }
 }
 
 /// Maps Quartz/ScreenCaptureKit global points into top-left display-local points.
@@ -291,13 +299,13 @@ nonisolated struct CapturePreviewTransform: Equatable {
     func previewTopLeftPixelRect(fromCaptureGlobalRect rect: CGRect) -> CGRect {
         captureLocalToPreviewTransform.targetRect(
             fromSourceRect: displayTransform.captureLocalRect(fromCaptureGlobalRect: rect)
-        )
+        ).gscIntegralStandardized
     }
 
     func previewTopLeftPixelRect(fromOverlayLocalRect rect: CGRect) -> CGRect {
         captureLocalToPreviewTransform.targetRect(
             fromSourceRect: displayTransform.captureLocalRect(fromOverlayLocalRect: rect)
-        )
+        ).gscIntegralStandardized
     }
 
     func appKitSourceRect(fromCaptureGlobalRect rect: CGRect) -> CGRect {

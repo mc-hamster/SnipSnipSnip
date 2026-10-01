@@ -29,8 +29,8 @@ final class AnnotationMutationTests: XCTestCase {
             )),
             .redaction(RedactionShape(rect: rect, mode: .solid))
         ]
-        let originalBounds = CGRect(x: 0, y: 0, width: 256, height: 256)
-        let scaledBounds = CGRect(x: 0, y: 0, width: 512, height: 512)
+        let originalBounds = CGRect(x: 0, y: 0, width: 200, height: 200)
+        let scaledBounds = CGRect(x: 0, y: 0, width: 400, height: 400)
 
         for kind in kinds {
             let annotation = makeAnnotation(kind)
@@ -113,6 +113,29 @@ final class AnnotationMutationTests: XCTestCase {
             leaderPoint: CGPoint(x: 12, y: 14), automaticallySizesToText: false
         ))
         XCTAssertEqual(updated.updatingCalloutStyle(.filled), expected)
+    }
+
+    func testTypingPreservesManuallySizedFractionalTextAndCalloutGeometry() {
+        let rect = CGRect(x: 20.25, y: 30.5, width: 214.75, height: 80.5)
+        let kinds: [AnnotationKind] = [
+            .text(TextShape(rect: rect, text: "Original", automaticallySizesToText: false)),
+            .callout(CalloutShape(rect: rect, number: 7, text: "Original", automaticallySizesToText: false))
+        ]
+        for kind in kinds {
+            let annotation = makeAnnotation(kind)
+            for refitting in [false, true] {
+                let updated = annotation.updatingText("Replacement", refittingBounds: refitting)
+                let updatedRect: CGRect
+                switch updated.kind {
+                case .text(let shape): updatedRect = shape.rect
+                case .callout(let shape): updatedRect = shape.rect
+                default: return XCTFail("Expected a text annotation")
+                }
+                XCTAssertEqual(updatedRect.origin, rect.origin)
+                XCTAssertEqual(updatedRect.width, rect.width)
+                XCTAssertGreaterThanOrEqual(updatedRect.height, rect.height)
+            }
+        }
     }
 
     private var decoratedArrow: ArrowShape {
