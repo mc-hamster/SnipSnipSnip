@@ -112,6 +112,7 @@ extension EditorController {
         afterItemID: UUID? = nil,
         replacingItemID: UUID? = nil
     ) throws -> UUID? {
+        try SSSDocumentPackage.validateIdentityIntegrity(of: document.session)
         let initialAssetIDs = Set(compositionAssetRepository.assetIDs)
         let importsPrivatePixels = document.isPrivate
             || document.compositionStoredAssets.contains {
@@ -398,7 +399,8 @@ extension EditorController {
             return
         }
         let originalFraming = Dictionary(
-            uniqueKeysWithValues: composition.items.map { ($0.id, $0.framing) }
+            composition.items.map { ($0.id, $0.framing) },
+            uniquingKeysWith: { first, _ in first }
         )
         for index in composition.items.indices where selectedIDs.contains(composition.items[index].id) {
             mutation(&composition.items[index])

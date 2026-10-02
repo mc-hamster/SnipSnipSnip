@@ -5,6 +5,50 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class SSSDocumentCompositionTests: XCTestCase {
+    func testSaveRejectsConflictingIdentitiesInEveryScopeAndHistoryBeforeReplacingPackage() throws {
+        let url = temporaryPackageURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let document = makeEditableDocument()
+        try SSSDocumentPackage.save(document: document, previewImage: document.capture.image, to: url)
+        let manifestURL = url.appendingPathComponent(SSSDocumentPackage.manifestFilename)
+        let original = try Data(contentsOf: manifestURL)
+        let arrow = Annotation.makeNumberedArrow(from: .zero, to: CGPoint(x: 20, y: 12), number: 1)
+        let item = CompositionItem(assetID: UUID())
+        var annotations = document.session.currentSnapshot
+        annotations.annotations = [arrow, arrow]
+        var items = document.session.currentSnapshot
+        items.composition = CompositionSnapshot(items: [item, item])
+        var itemAnnotations = document.session.currentSnapshot
+        var annotatedItem = item
+        annotatedItem.editState.annotations = [arrow, arrow]
+        itemAnnotations.composition = CompositionSnapshot(items: [annotatedItem])
+        var canvasAnnotations = document.session.currentSnapshot
+        canvasAnnotations.composition = CompositionSnapshot(
+            items: [item], canvas: CompositionCanvasState(annotations: [arrow, arrow])
+        )
+        for invalid in [annotations, items, itemAnnotations, canvasAnnotations] {
+            for location in 0..<4 {
+                var malformed = document
+                switch location {
+                case 0: malformed.session.initialSnapshot = invalid
+                case 1: malformed.session.currentSnapshot = invalid
+                case 2: malformed.session.undoStack = [invalid]
+                default: malformed.session.redoStack = [invalid]
+                }
+                XCTAssertThrowsError(try SSSDocumentPackage.save(
+                    document: malformed, previewImage: document.capture.image, to: url
+                )) { error in
+                    guard case SSSDocumentError.invalidComposition(let reason) = error else {
+                        return XCTFail("Unexpected error: \(error)")
+                    }
+                    XCTAssertTrue(reason.hasPrefix("duplicate"))
+                }
+                XCTAssertEqual(try Data(contentsOf: manifestURL), original)
+            }
+        }
+        XCTAssertEqual(try SSSDocumentPackage.load(from: url).capture.image.width, document.capture.image.width)
+    }
+
     func testV7ManifestPersistsPermanentPrivateStateAndOmitsSearchMetadata() throws {
         let packageURL = temporaryPackageURL()
         defer { try? FileManager.default.removeItem(at: packageURL) }

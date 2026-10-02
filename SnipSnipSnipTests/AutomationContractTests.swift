@@ -34,6 +34,53 @@ final class AutomationContractTests: XCTestCase {
         XCTAssertNotNil(pasteboard.data(forType: .png))
     }
 
+    @MainActor
+    func testConflictingCompositionCopyReturnsOutputFailureWithoutChangingClipboard() async throws {
+        let name = "AutomationContractTests.conflictingComposition.\(UUID())"
+        let defaults = makeDefaults(named: name)
+        defer { defaults.removePersistentDomain(forName: name) }
+        let pasteboard = TestPasteboardService()
+        pasteboard.setString("Existing clipboard", forType: .string)
+        let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        let app = retainForTestLifetime(AppModel(
+            defaults: defaults,
+            environment: makePasteboardTestEnvironment(defaults: defaults, pasteboard: pasteboard),
+            recoveryStore: DocumentRecoveryStore(baseURL: rootURL),
+            shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false
+        ))
+        try app.capture.completeCapture(makeCapturedScreenshot(), request: .fullscreen,
+                                        isPrivateCapture: false, shouldAttemptUIMapCapture: false,
+                                        allowsCapturePreview: false)
+        let controller = try XCTUnwrap(app.documents.editorController)
+        var composition = try XCTUnwrap(controller.composition)
+        composition.items.append(try XCTUnwrap(composition.items.first))
+        composition.isActivated = true
+        // Inject an invalid incoming session to exercise the final output
+        // boundary independently of command admission and package validation.
+        var snapshot = controller.snapshot
+        snapshot.composition = composition
+        let invalidController = retainForTestLifetime(EditorController(
+            capture: controller.capture,
+            session: makeEditorDocumentSession(initialSnapshot: snapshot),
+            defaults: defaults, capabilities: testCapabilities,
+            compositionStoredAssets: controller.compositionAssetRepository.storedAssets()
+        ))
+        app.documents.editorController = invalidController
+        let changeCount = pasteboard.changeCount
+        let service = AutomationOutputService(port: app.automation, pasteboard: pasteboard)
+
+        do {
+            _ = try await service.write(.copyRenderedImage)
+            XCTFail("Conflicting image entries must fail automation output")
+        } catch {
+            XCTAssertEqual((error as? AutomationExecutionError)?.code, .outputFailed)
+        }
+        XCTAssertEqual(invalidController.snapshot, snapshot)
+        XCTAssertEqual(pasteboard.changeCount, changeCount)
+        XCTAssertEqual(pasteboard.string(forType: .string), "Existing clipboard")
+    }
+
     func testAutomationValueParserParsesSharedRectangleFormat() {
         XCTAssertEqual(
             AutomationValueParser.rect(" 10, 20, 300, 200 "),

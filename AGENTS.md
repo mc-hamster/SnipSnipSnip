@@ -48,6 +48,7 @@ description: "Workspace instructions for implementing SnipSnipSnip as a local-fi
 - Keep shell samples syntax-checkable with `bash -n`, and update automation contract tests when parser, route, result, permission, privacy, or output behavior changes.
 
 ## Quality
+- Keep production Swift free of duplicate-key trapping dictionary constructors. Use an explicit duplicate policy for derived lookups and reject conflicting document identities through `EditorIdentityIntegrity`; never discard ambiguous screenshot content. Run `python3 Tools/check-identity-safety.py` before submitting changes.
 - Prefer small, testable value types for geometry and editor state.
 - Add or update tests when changing geometry, command, or rendering logic.
 - Prefer helper extraction over repeating shape-switch logic across annotation operations.

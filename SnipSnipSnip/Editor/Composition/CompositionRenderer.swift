@@ -234,7 +234,8 @@ nonisolated enum CompositionRenderer {
         let renderScale = previewRenderScale(for: layout, options: options)
         try validate(layout: layout, renderScale: renderScale, options: options)
         let itemsByID = Dictionary(
-            uniqueKeysWithValues: composition.items.map { ($0.id, $0) }
+            composition.items.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
         )
         var renderedItemImages: [UUID: CGImage] = [:]
 
@@ -327,7 +328,7 @@ nonisolated enum CompositionRenderer {
             canvasHeight: layout.canvasSize.height
         )
 
-        let itemsByID = Dictionary(uniqueKeysWithValues: composition.items.map { ($0.id, $0) })
+        let itemsByID = Dictionary(composition.items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let registrationOutcome: CompositionRegistrationOutcome?
         if let comparison = layout.comparison,
            comparison.mode != .sideBySide {

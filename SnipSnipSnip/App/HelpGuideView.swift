@@ -754,7 +754,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                     sections: [
                         HelpArticleSection(
                             title: "Recover from capture and output errors",
-                            body: "Capture recovery explains that open work is unchanged and offers source-specific next actions. Copy, Export, and Share failures keep the editable screenshot intact and offer a retry; Export Again reopens the destination chooser, and transparent Polish can offer Export PNG."
+                            body: "Capture recovery explains that open work is unchanged and offers source-specific next actions. Copy, Export, and Share failures keep the editable screenshot intact and offer a retry; Export Again reopens the destination chooser, and transparent Polish can offer Export PNG. If a change would create conflicting entries, SnipSnipSnip rejects it and keeps the previous screenshot and undo history. The message says that the change could not be applied safely. Try the action again; if it repeats, save your work and include the action in a bug report. If an existing image arrangement contains conflicting entries, rendering stops with an error. Try Undo or reopen a saved version before retrying."
                         ),
                         HelpArticleSection(
                             title: "Choose a tool",

@@ -22,7 +22,7 @@ final class LiveDesktopPreviewSource {
         initialFocusPoint: CGPoint? = nil,
         capturePlatform: any ScreenCapturePlatform = LiveScreenCapturePlatform()
     ) {
-        self.displaysByID = Dictionary(uniqueKeysWithValues: displays.map { ($0.displayID, $0) })
+        self.displaysByID = Dictionary(displays.map { ($0.displayID, $0) }, uniquingKeysWith: { first, _ in first })
         self.capturePlatform = capturePlatform
         if let initialFocusPoint,
            let display = displays.first(where: { $0.frame.contains(initialFocusPoint) }),

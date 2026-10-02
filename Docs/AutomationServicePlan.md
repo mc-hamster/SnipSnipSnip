@@ -43,6 +43,11 @@ Implemented v1 coverage:
   recovery. Treat a rejected pasteboard clear/write as an output failure through
   existing error handling, without adding an output mode or result field.
 
+- Reject conflicting composition item identities before rendering, including
+  excluded items. Automated Copy uses the existing `outputFailed` error and
+  preserves the clipboard and editable document; no adapter or sample-script
+  procedure changes are required.
+
 - Provide a stable, product-level automation contract for capture, composition,
   presets, export, clipboard, document opening, and permission preflight.
 - Keep automation requests separate from internal UI implementation details.

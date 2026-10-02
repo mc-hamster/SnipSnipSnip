@@ -277,6 +277,8 @@ Use short, literal stage labels beneath the progress bar:
 
 Use **Interactive HTML export cancelled.** for the non-error completion notice after cancellation.
 
+For a rejected editor change, use **The change could not be applied safely. Your screenshot is unchanged.** Keep the existing screenshot and undo history, and describe retrying the action or saving the current work before reporting the repeated failure. Do not expose internal identifiers in this message.
+
 ## Library and History Terms
 
 Library terms identify distinct scopes. Do not shorten them to generic **Library** or **History** when the scope would become ambiguous.

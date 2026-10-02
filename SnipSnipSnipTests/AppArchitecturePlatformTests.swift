@@ -323,6 +323,31 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertEqual(AppPreferenceStores(storage: defaults).capture.loadCapturePresets(), presets)
     }
 
+    func testCapturePresetLoadingRepairsDuplicateIDsAndPreservesEveryPreset() throws {
+        let defaults = makeIsolatedDefaults()
+        let store = CapturePreferenceStore(storage: defaults)
+        let first = CapturePreset(name: "First", target: .fullscreen, options: CaptureRunOptions(), hotKey: .one)
+        var second = first
+        second.name = "Second"
+        second.hotKey = .two
+        let third = CapturePreset(name: "Third", target: .fullscreen, options: CaptureRunOptions())
+        // Seed storage directly to represent older or malformed preferences.
+        defaults.set(try JSONEncoder().encode([first, second, third, second]), forKey: AppModelPreferenceKey.capturePresets)
+
+        let loaded = store.loadCapturePresets()
+        XCTAssertEqual(loaded.count, 4)
+        XCTAssertEqual(Set(loaded.map(\.id)).count, 4)
+        XCTAssertEqual(loaded[0], first)
+        XCTAssertEqual(loaded[2], third)
+        for index in [1, 3] {
+            var preserved = loaded[index]
+            preserved.id = second.id
+            XCTAssertEqual(preserved, second)
+        }
+        XCTAssertEqual(store.loadCapturePresets(), loaded)
+        XCTAssertEqual(CapturePreferenceStore(storage: defaults).loadCapturePresets(), loaded)
+    }
+
     func testAutomationPresetResolverFindsByIDAndCaseInsensitiveName() {
         let preset = CapturePreset(
             name: "Design Review",

@@ -104,8 +104,8 @@ nonisolated struct CaptureAutomationPreferences: Codable, Equatable {
     }
 
     var actionKeys: [GlobalHotKeyAction: GlobalHotKeyKey] {
-        Dictionary(uniqueKeysWithValues: GlobalHotKeyAction.allCases.map { action in
+        Dictionary(GlobalHotKeyAction.allCases.map { action in
             (action, key(for: action))
-        })
+        }, uniquingKeysWith: { first, _ in first })
     }
 }

@@ -91,6 +91,8 @@ done
 
 [[ -d "$project" ]] || fail "Xcode project not found: $project"
 
+python3 "$SCRIPT_DIRECTORY/check-identity-safety.py"
+
 if pgrep -x "$app_name" >/dev/null 2>&1; then
   fail "$app_name is already running. Quit the user-owned copy before running app-hosted tests."
 fi

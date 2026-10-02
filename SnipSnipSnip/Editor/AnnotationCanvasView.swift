@@ -2235,7 +2235,7 @@ private final class AnnotationCanvasOverlayView: NSView {
             allElements: allElements,
             showAllElements: showAllElements,
             hitTestElements: hitTestElements,
-            elementsByID: Dictionary(uniqueKeysWithValues: allElements.map { ($0.id, $0) })
+            elementsByID: Dictionary(allElements.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         )
         uiMapOverlayElementCache = cache
         return cache

@@ -297,9 +297,10 @@ nonisolated enum PresentationCompositionOverlayOrdering {
         layout: CompositionRenderLayout
     ) -> [PresentationCompositionOverlayOrderEntry] {
         let modelIndices = Dictionary(
-            uniqueKeysWithValues: composition.items.enumerated().map {
+            composition.items.enumerated().map {
                 ($0.element.id, $0.offset)
-            }
+            },
+            uniquingKeysWith: { first, _ in first }
         )
         let orderedLayouts: [CompositionItemRenderLayout]
         if composition.layout.mode == .freeform {

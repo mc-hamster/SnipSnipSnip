@@ -85,12 +85,13 @@ final class DocumentRecoveryStoreTests: XCTestCase {
 
         // Exercise both dictionaries in the summary, including its preferred
         // previous snapshot from undo history rather than the initial state.
-        for location in ["initial", "current", "undo"] {
+        for location in ["initial", "current", "undo", "redo"] {
             var malformed = document
             switch location {
             case "initial": malformed.session.initialSnapshot = duplicated
             case "current": malformed.session.currentSnapshot = duplicated
-            default: malformed.session.undoStack = [duplicated]
+            case "undo": malformed.session.undoStack = [duplicated]
+            default: malformed.session.redoStack = [duplicated]
             }
 
             XCTAssertThrowsError(try save(malformed), location) { error in

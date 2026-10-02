@@ -222,9 +222,10 @@ extension EditorController {
         }
         itemIDs.swapAt(sourceIndex, destinationIndex)
         let zIndices = Dictionary(
-            uniqueKeysWithValues: itemIDs.enumerated().map {
+            itemIDs.enumerated().map {
                 ($0.element, $0.offset + 1)
-            }
+            },
+            uniquingKeysWith: { first, _ in first }
         )
         for index in composition.items.indices {
             if let zIndex = zIndices[composition.items[index].id] {

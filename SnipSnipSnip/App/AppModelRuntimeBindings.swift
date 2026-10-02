@@ -91,8 +91,8 @@ final class AppModelRuntimeBindings {
     }
 
     private func configurePresetHotKeys(from presets: [CapturePreset]) {
-        globalHotKeyCoordinator.setPresetKeys(Dictionary(uniqueKeysWithValues: presets.compactMap { preset in
+        globalHotKeyCoordinator.setPresetKeys(Dictionary(presets.compactMap { preset in
             preset.hotKey.map { (preset.id, $0) }
-        }))
+        }, uniquingKeysWith: { first, _ in first }))
     }
 }

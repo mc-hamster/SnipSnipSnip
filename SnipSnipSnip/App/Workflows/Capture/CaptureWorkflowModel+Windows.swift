@@ -147,7 +147,7 @@ extension CaptureWorkflowModel {
     }
 
     func mergedWindowSummaries(_ windows: [CaptureWindowSummary]) -> [CaptureWindowSummary] {
-        let existingWindows = Dictionary(uniqueKeysWithValues: availableWindows.map { ($0.id, $0) })
+        let existingWindows = Dictionary(availableWindows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
         return windows.map { window in
             CaptureWindowSummary(

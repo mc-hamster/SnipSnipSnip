@@ -417,7 +417,7 @@ final class EditorController: ObservableObject {
             currentSnapshot: initialDocumentSnapshot,
             undoStack: [],
             redoStack: [],
-            toolStyles: Dictionary(uniqueKeysWithValues: EditorTool.allCases.map { ($0, AnnotationStyle.default(for: $0)) }),
+            toolStyles: Dictionary(EditorTool.allCases.map { ($0, AnnotationStyle.default(for: $0)) }, uniquingKeysWith: { first, _ in first }),
             savedPresentations: []
         )
         self.initialSnapshot = session.initialSnapshot
@@ -1065,6 +1065,9 @@ final class EditorController: ObservableObject {
         let updatedSnapshot = canonicalCompositionEditingSnapshot(command.apply(to: snapshot))
 
         guard updatedSnapshot != previousSnapshot else {
+            return
+        }
+        guard acceptsIdentityIntegrity(updatedSnapshot, context: String(reflecting: type(of: command))) else {
             return
         }
 
@@ -1922,7 +1925,9 @@ final class EditorController: ObservableObject {
         let priorPurpose = documentPurpose
         let priorStage = workflowStage
 
-        if let previous = undoStack.popLast() {
+        if let previous = undoStack.last {
+            guard acceptsIdentityIntegrity(previous, context: "Undo") else { return }
+            undoStack.removeLast()
             let shouldPruneCompositionAssets =
                 appendRedoSnapshot(canonicalCompositionEditingSnapshot(snapshot))
             applySnapshot(
@@ -1945,6 +1950,7 @@ final class EditorController: ObservableObject {
         guard !hasTruncatedUndoHistory, snapshot != initialSnapshot else {
             return
         }
+        guard acceptsIdentityIntegrity(initialSnapshot, context: "Undo initial state") else { return }
 
         let shouldPruneCompositionAssets =
             appendRedoSnapshot(canonicalCompositionEditingSnapshot(snapshot))
@@ -1969,9 +1975,11 @@ final class EditorController: ObservableObject {
         let priorPurpose = documentPurpose
         let priorStage = workflowStage
 
-        guard let next = redoStack.popLast() else {
+        guard let next = redoStack.last,
+              acceptsIdentityIntegrity(next, context: "Redo") else {
             return
         }
+        redoStack.removeLast()
 
         let shouldPruneCompositionAssets =
             appendUndoSnapshot(canonicalCompositionEditingSnapshot(snapshot))
@@ -3173,9 +3181,9 @@ final class EditorController: ObservableObject {
     }
 
     private func persistToolStyles() {
-        let records = Dictionary(uniqueKeysWithValues: toolStyles.map { key, value in
+        let records = Dictionary(toolStyles.map { key, value in
             (key.rawValue, PersistedEditorToolStyleRecord(value))
-        })
+        }, uniquingKeysWith: { first, _ in first })
 
         guard let data = try? JSONEncoder().encode(records) else {
             return
@@ -3991,6 +3999,7 @@ final class EditorController: ObservableObject {
         let canonical = canonicalizesCompositionEditingChanges
             ? canonicalCompositionEditingSnapshot(updatedSnapshot)
             : updatedSnapshot
+        guard acceptsIdentityIntegrity(canonical, context: "Apply snapshot") else { return }
         let projected = projectedCompositionEditingSnapshot(canonical)
         snapshot = projected
         workflowResumeState = workflowResumeState.normalized(
@@ -4014,6 +4023,13 @@ final class EditorController: ObservableObject {
 
             return updatedViewport.focused(on: projected.cropRect)
         }
+    }
+
+    private func acceptsIdentityIntegrity(_ candidate: EditorSnapshot, context: String) -> Bool {
+        guard let violation = EditorIdentityIntegrity.violation(in: candidate) else { return true }
+        EditorIdentityIntegrity.report(violation, context: context)
+        errorMessage = String(localized: "The change could not be applied safely. Your screenshot is unchanged.")
+        return false
     }
 
     private func updateViewport(

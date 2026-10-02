@@ -33,6 +33,20 @@ SnipSnipSnip permits only one app process at a time, including one app-hosted XC
 
 See [AGENTS.md](AGENTS.md) for the complete workspace guidance.
 
+Editor commands pass through a shared identity check before changing the
+document or undo history. Annotation IDs are unique within each editing scope;
+separate captures and history snapshots may reuse them. Document saves,
+imports, and recovery also validate identities. Keep new mutations inside
+these boundaries, and test that rejected changes preserve the previous state.
+
+For derived dictionaries, specify a duplicate-key policy. Reject ambiguous
+document or pixel identities rather than dropping content. The release test
+gate and CI check production Swift for trapping dictionary constructors:
+
+```sh
+python3 Tools/check-identity-safety.py
+```
+
 ## Pull Requests
 
 Keep pull requests focused and explain:

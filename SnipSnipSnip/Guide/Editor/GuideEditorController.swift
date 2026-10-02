@@ -44,7 +44,7 @@ final class GuideEditorController: ObservableObject {
         mediaSegmentURLs = document.mediaSegmentURLs
         advancedEdits = document.advancedEdits
         selection = Set(document.project.steps.first.map { [$0.id] } ?? [])
-        imageRevisions = Dictionary(uniqueKeysWithValues: document.project.steps.map { ($0.id, 0) })
+        imageRevisions = Dictionary(document.project.steps.map { ($0.id, 0) }, uniquingKeysWith: { first, _ in first })
         if let firstID = document.project.steps.first?.id {
             requestThumbnail(for: firstID, priority: .userInitiated)
             prefetchThumbnails(after: firstID)

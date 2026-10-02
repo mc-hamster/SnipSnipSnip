@@ -52,6 +52,9 @@ xcodebuild_*.txt
 build_output.txt
 test_output.txt
 
+# Python developer-tool tests
+__pycache__/
+
 # Profiling and coverage artifacts
 *.profraw
 *.profdata

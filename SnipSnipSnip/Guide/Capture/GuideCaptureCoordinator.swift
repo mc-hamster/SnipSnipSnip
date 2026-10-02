@@ -350,7 +350,7 @@ final class GuideCaptureCoordinator: ObservableObject {
         )
         project.timeline.segments = segments.map(\.0)
         project.timeline.cursorSamples = cursorSamples
-        let mediaURLs = Dictionary(uniqueKeysWithValues: segments.map { ($0.0.id, $0.1) })
+        let mediaURLs = Dictionary(segments.map { ($0.0.id, $0.1) }, uniquingKeysWith: { first, _ in first })
         finalizationProgress = GuideFinalizationProgress(
             phase: .renderingPreview,
             detail: "Rendering the Guide preview…",
@@ -1112,7 +1112,7 @@ final class GuideCaptureCoordinator: ObservableObject {
     private func scheduleRecoveryWrite(urgent: Bool = false) {
         guard let project, !project.isPrivate, !project.steps.isEmpty else { return }
         let completedSegments = retainedSegments + (mediaSession?.completedSegments ?? [])
-        let mediaURLs = Dictionary(uniqueKeysWithValues: completedSegments.map { ($0.0.id, $0.1) })
+        let mediaURLs = Dictionary(completedSegments.map { ($0.0.id, $0.1) }, uniquingKeysWith: { first, _ in first })
         let document = EditableGuideDocument(
             project: project,
             stepImages: stepImages,

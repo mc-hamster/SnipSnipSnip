@@ -33,6 +33,10 @@ directly. Interactive region/window selection and other workflows that require
 continued user input are the only commands that may return
 `acceptedInteractiveWorkflow` before pixels are produced.
 
+Composition rendering rejects conflicting image item identities, including
+excluded items, without terminating the app. Copy reports `outputFailed` through
+the existing contract and leaves the clipboard and editable document unchanged.
+
 Capture Preview is an interactive screenshot preference, not an automation output mode.
 Automated captures retain their existing editor/output routing, including interactive
 region and window requests. Clipboard output checks the actual pasteboard write;

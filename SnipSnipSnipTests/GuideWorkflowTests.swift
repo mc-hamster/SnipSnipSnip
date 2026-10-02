@@ -7,6 +7,47 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class GuideWorkflowTests: XCTestCase {
+    func testConflictingGuideIdentitiesCannotOverwriteSavedOrRecoveryWork() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("GuideIdentityTests-\(UUID().uuidString).sssguide")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let step = GuideStep(sequence: 1, eventKind: .manual, caption: "First", session: GuideStepSession(
+            sourceCoordinateRect: CGRect(x: 0, y: 0, width: 10, height: 10),
+            sourcePixelSize: CGSize(width: 10, height: 10)
+        ))
+        var project = GuideProject(source: .displays(.current))
+        project.steps = [step]
+        let document = EditableGuideDocument(project: project, stepImages: [step.id: try image(width: 10, height: 10)],
+                                             previewImage: nil, logoImage: nil, mediaSegmentURLs: [:])
+        try SSSGuideDocumentPackage.save(document: document, to: url)
+        let manifestURL = url.appendingPathComponent(SSSGuideDocumentPackage.manifestFilename)
+        let original = try Data(contentsOf: manifestURL)
+        for duplicatesSteps in [true, false] {
+            var invalid = document
+            if duplicatesSteps {
+                invalid.project.steps.append(step)
+            } else {
+                let segment = GuideTimelineSegment(asset: "missing.mp4", startedAt: Date(), duration: 1)
+                invalid.project.timeline.segments = [segment, segment]
+            }
+            XCTAssertThrowsError(try SSSGuideDocumentPackage.save(document: invalid, to: url)) {
+                XCTAssertEqual($0 as? SSSGuideDocumentError, .invalidManifest)
+            }
+            XCTAssertThrowsError(try SSSGuideDocumentPackage.saveRecoveryCheckpoint(document: invalid, to: url)) {
+                XCTAssertEqual($0 as? SSSGuideDocumentError, .invalidManifest)
+            }
+            XCTAssertEqual(try Data(contentsOf: manifestURL), original)
+        }
+        var manifest = try XCTUnwrap(JSONSerialization.jsonObject(with: original) as? [String: Any])
+        var savedProject = try XCTUnwrap(manifest["project"] as? [String: Any])
+        let steps = try XCTUnwrap(savedProject["steps"] as? [[String: Any]])
+        savedProject["steps"] = steps + steps
+        manifest["project"] = savedProject
+        try JSONSerialization.data(withJSONObject: manifest).write(to: manifestURL)
+        XCTAssertThrowsError(try SSSGuideDocumentPackage.load(from: url)) {
+            XCTAssertEqual($0 as? SSSGuideDocumentError, .invalidManifest)
+        }
+    }
+
     @MainActor
     func testGuideEditorDeleteMarksStepsAndSelectsNextActiveStep() throws {
         let steps = (1...3).map { sequence in

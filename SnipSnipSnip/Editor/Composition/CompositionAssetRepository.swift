@@ -119,13 +119,21 @@ nonisolated final class CompositionAssetRepository: @unchecked Sendable {
 
     private let lock = NSRecursiveLock()
     private var entries: [UUID: CompositionStoredAsset]
+    private var conflictingEntries: [UUID: [CompositionStoredAsset]]
     private let decodedImages = NSCache<NSUUID, ImageBox>()
     private let thumbnails = NSCache<NSString, ImageBox>()
     private let renderedPreviews = NSCache<NSString, PreviewImageBox>()
     private var diagnosticState = CompositionAssetRepositoryDiagnostics()
 
     init(storedAssets: [CompositionStoredAsset] = []) {
-        entries = Dictionary(uniqueKeysWithValues: storedAssets.map { ($0.descriptor.id, $0) })
+        let grouped = Dictionary(grouping: storedAssets, by: { $0.descriptor.id })
+        entries = grouped.compactMapValues { $0.first }
+        // Identical copies are harmless. Conflicting pixels or provenance must
+        // remain available for validation, never silently choose one to render.
+        conflictingEntries = grouped.filter { _, assets in
+            guard let first = assets.first else { return false }
+            return assets.dropFirst().contains { $0 != first }
+        }
         decodedImages.totalCostLimit = 256 * 1024 * 1024
         thumbnails.totalCostLimit = 64 * 1024 * 1024
         renderedPreviews.totalCostLimit = 128 * 1024 * 1024
@@ -185,6 +193,7 @@ nonisolated final class CompositionAssetRepository: @unchecked Sendable {
 
         lock.withLock {
             entries[assetID] = stored
+            conflictingEntries.removeValue(forKey: assetID)
             decodedImages.setObject(
                 ImageBox(capture.image),
                 forKey: assetID as NSUUID,
@@ -200,6 +209,7 @@ nonisolated final class CompositionAssetRepository: @unchecked Sendable {
         try Self.validateEncodedDimensions(storedAsset)
         lock.withLock {
             entries[storedAsset.descriptor.id] = storedAsset
+            conflictingEntries.removeValue(forKey: storedAsset.descriptor.id)
             decodedImages.removeObject(forKey: storedAsset.descriptor.id as NSUUID)
             thumbnails.removeAllObjects()
             renderedPreviews.removeAllObjects()
@@ -208,9 +218,7 @@ nonisolated final class CompositionAssetRepository: @unchecked Sendable {
 
     func replaceUIMap(for assetID: UUID, with uiMap: UIMapSnapshot?) throws {
         try lock.withLock {
-            guard let entry = entries[assetID] else {
-                throw CompositionAssetRepositoryError.missingAsset(assetID)
-            }
+            let entry = try requiredStoredAsset(for: assetID)
             entries[assetID] = CompositionStoredAsset(
                 descriptor: entry.descriptor,
                 encodedPNG: entry.encodedPNG,
@@ -222,16 +230,17 @@ nonisolated final class CompositionAssetRepository: @unchecked Sendable {
     }
 
     func storedAsset(for assetID: UUID) -> CompositionStoredAsset? {
-        lock.withLock { entries[assetID] }
+        lock.withLock { conflictingEntries[assetID] == nil ? entries[assetID] : nil }
     }
 
     func availability(for assetID: UUID) -> CompositionAssetAvailability? {
-        lock.withLock { entries[assetID]?.availability }
+        lock.withLock { conflictingEntries[assetID] == nil ? entries[assetID]?.availability : .corrupt }
     }
 
     func storedAssets(referencedBy assetIDs: Set<UUID>? = nil) -> [CompositionStoredAsset] {
         lock.withLock {
-            entries.values
+            (entries.values.filter { conflictingEntries[$0.descriptor.id] == nil }
+                + conflictingEntries.values.flatMap { $0 })
                 .filter { assetIDs?.contains($0.descriptor.id) ?? true }
                 .sorted { $0.descriptor.id.uuidString < $1.descriptor.id.uuidString }
         }
@@ -246,6 +255,7 @@ nonisolated final class CompositionAssetRepository: @unchecked Sendable {
         lock.withLock {
             for assetID in assetIDs {
                 entries.removeValue(forKey: assetID)
+                conflictingEntries.removeValue(forKey: assetID)
                 decodedImages.removeObject(forKey: assetID as NSUUID)
             }
             // Thumbnail keys include both the asset ID and requested size.
@@ -257,12 +267,7 @@ nonisolated final class CompositionAssetRepository: @unchecked Sendable {
     }
 
     func asset(for assetID: UUID) throws -> CompositionAsset {
-        let entry = try lock.withLock { () throws -> CompositionStoredAsset in
-            guard let entry = entries[assetID] else {
-                throw CompositionAssetRepositoryError.missingAsset(assetID)
-            }
-            return entry
-        }
+        let entry = try requiredStoredAsset(for: assetID)
 
         if let cached = decodedImages.object(forKey: assetID as NSUUID) {
             guard let asset = CompositionAsset(
@@ -295,9 +300,9 @@ nonisolated final class CompositionAssetRepository: @unchecked Sendable {
     }
 
     func assets(for assetIDs: Set<UUID>) throws -> [UUID: CompositionAsset] {
-        try Dictionary(uniqueKeysWithValues: assetIDs.map { id in
+        try Dictionary(assetIDs.map { id in
             (id, try asset(for: id))
-        })
+        }, uniquingKeysWith: { first, _ in first })
     }
 
     func thumbnail(for assetID: UUID, maxPixelDimension: Int = 320) throws -> CGImage {
@@ -453,12 +458,7 @@ nonisolated final class CompositionAssetRepository: @unchecked Sendable {
     }
 
     func capturedScreenshot(for assetID: UUID) throws -> CapturedScreenshot {
-        let stored = try lock.withLock { () throws -> CompositionStoredAsset in
-            guard let entry = entries[assetID] else {
-                throw CompositionAssetRepositoryError.missingAsset(assetID)
-            }
-            return entry
-        }
+        let stored = try requiredStoredAsset(for: assetID)
         let descriptor = stored.descriptor
         guard let kind = descriptor.captureKind.flatMap(CaptureKind.init(rawValue:)) else {
             throw CompositionAssetRepositoryError.invalidImage(assetID)
@@ -483,6 +483,9 @@ nonisolated final class CompositionAssetRepository: @unchecked Sendable {
 
     private func requiredStoredAsset(for assetID: UUID) throws -> CompositionStoredAsset {
         try lock.withLock {
+            guard conflictingEntries[assetID] == nil else {
+                throw EditorIdentityViolation(scope: .compositionAssets, ownerID: nil, duplicateID: assetID)
+            }
             guard let entry = entries[assetID] else {
                 throw CompositionAssetRepositoryError.missingAsset(assetID)
             }

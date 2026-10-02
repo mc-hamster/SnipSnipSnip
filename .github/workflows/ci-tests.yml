@@ -18,6 +18,9 @@ jobs:
       - name: Select latest Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
 
+      - name: Check identity safety guard
+        run: python3 -m unittest discover -s Tools/tests -p 'test_identity_safety.py'
+
       - name: Run test suite
         env:
           SSS_RUN_EXTERNAL_HTML_BROWSER_TESTS: "1"

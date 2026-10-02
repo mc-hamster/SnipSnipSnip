@@ -32,6 +32,12 @@ nonisolated enum CompositionLayoutEngine {
         composition: CompositionSnapshot,
         renderedItemSizes: [UUID: CGSize]
     ) throws -> CompositionRenderLayout {
+        // Validate every item, including excluded ones: rendering also builds
+        // an identity lookup from the complete composition after layout.
+        if let id = IdentityIntegrity.firstDuplicate(in: composition.items.lazy.map(\.id)) {
+            throw CompositionLayoutError.duplicateItemID(itemID: id)
+        }
+
         let included = try composition.items.compactMap { item -> ResolvedItem? in
             guard item.isIncluded else { return nil }
             guard let size = renderedItemSizes[item.id] else {
@@ -319,7 +325,7 @@ nonisolated enum CompositionLayoutEngine {
             targetSize.width / max(layout.canvasSize.width, 1),
             targetSize.height / max(layout.canvasSize.height, 1)
         )
-        let sourceSizes = Dictionary(uniqueKeysWithValues: items.map { ($0.item.id, $0.sourceSize) })
+        let sourceSizes = Dictionary(items.map { ($0.item.id, $0.sourceSize) }, uniquingKeysWith: { first, _ in first })
         let visibleScales = layout.items.compactMap { placement -> CGFloat? in
             guard let source = sourceSizes[placement.itemID],
                   source.width > 0,

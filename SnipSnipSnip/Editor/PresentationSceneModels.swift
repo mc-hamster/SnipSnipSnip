@@ -414,9 +414,9 @@ nonisolated struct AppliedPresentationScene: Equatable, Codable, Sendable {
             name: definition.metadata.name,
             version: definition.metadata.version,
             sanitizedSVGText: definition.sanitizedSVGText,
-            textSlotValues: Dictionary(uniqueKeysWithValues: definition.metadata.textSlots.map { slot in
+            textSlotValues: Dictionary(definition.metadata.textSlots.map { slot in
                 (slot.id, slot.defaultValue ?? "")
-            }),
+            }, uniquingKeysWith: { first, _ in first }),
             screenshotSlotSettings: PresentationSceneScreenshotSlotSettings(framingPreset: defaultFraming)
         )
     }

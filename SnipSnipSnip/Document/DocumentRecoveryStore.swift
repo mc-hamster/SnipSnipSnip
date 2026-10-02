@@ -292,6 +292,8 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
             return
         }
 
+        try SSSDocumentPackage.validateIdentityIntegrity(of: document.session)
+
         try withLockedAccess {
             try ensureRootDirectories()
             retryPendingPrivacyExclusionPersistence()
@@ -1612,13 +1614,13 @@ nonisolated private enum RecoveryCheckpointSummary {
     private static func annotationSummary(from previousSnapshot: EditorSnapshot, to currentSnapshot: EditorSnapshot) -> String? {
         // Summary generation precedes package validation. Malformed snapshots
         // must reach that throwing validator rather than trap in Dictionary.
-        guard Set(previousSnapshot.annotations.map(\.id)).count == previousSnapshot.annotations.count,
-              Set(currentSnapshot.annotations.map(\.id)).count == currentSnapshot.annotations.count else {
+        guard IdentityIntegrity.firstDuplicate(in: previousSnapshot.annotations.lazy.map(\.id)) == nil,
+              IdentityIntegrity.firstDuplicate(in: currentSnapshot.annotations.lazy.map(\.id)) == nil else {
             return nil
         }
 
-        let previousByID = Dictionary(uniqueKeysWithValues: previousSnapshot.annotations.map { ($0.id, $0) })
-        let currentByID = Dictionary(uniqueKeysWithValues: currentSnapshot.annotations.map { ($0.id, $0) })
+        let previousByID = Dictionary(previousSnapshot.annotations.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let currentByID = Dictionary(currentSnapshot.annotations.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
         let added = currentSnapshot.annotations.filter { previousByID[$0.id] == nil }
         let removed = previousSnapshot.annotations.filter { currentByID[$0.id] == nil }

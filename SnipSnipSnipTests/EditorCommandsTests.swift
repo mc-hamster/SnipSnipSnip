@@ -54,6 +54,30 @@ final class EditorCommandsTests: XCTestCase {
         XCTAssertEqual(cropped.cropRect, CGRect(x: 150, y: 125, width: 50, height: 25))
     }
 
+    func testBulkAnnotationUpdatesApplyLastEditForRepeatedIdentity() {
+        let first = Annotation.makeNumberedArrow(from: .zero, to: CGPoint(x: 60, y: 20), number: 1)
+        let second = Annotation.makeRectangle(in: CGRect(x: 80, y: 0, width: 40, height: 40))
+        let snapshot = makeEditorSnapshot(annotations: [first, second], selectedAnnotationIDs: [first.id])
+        let moved = first.translated(by: CGSize(width: 10, height: 10))
+        let final = moved.updatingNumberedArrowNumber(2)
+
+        let result = UpdateAnnotationsCommand(annotations: [moved, final]).apply(to: snapshot)
+
+        XCTAssertEqual(result.annotations, [final, second])
+        XCTAssertEqual(result.selectedAnnotationIDs, [first.id])
+    }
+
+    func testLayerOrderingRejectsDuplicateAnnotationIdentitiesWithoutMutation() {
+        let first = Annotation.makeRectangle(in: CGRect(x: 0, y: 0, width: 40, height: 40))
+        let second = Annotation.makeEllipse(in: CGRect(x: 50, y: 0, width: 40, height: 40))
+        let snapshot = makeEditorSnapshot(annotations: [first, first, second], selectedAnnotationIDs: [second.id])
+
+        let result = SetAnnotationOrderCommand(annotationIDsBackToFront: [second.id, first.id, first.id])
+            .apply(to: snapshot)
+
+        XCTAssertEqual(result, snapshot)
+    }
+
     func testSelectionCommandSetsSelectedAnnotationID() {
         let annotation = Annotation.makeBlur(in: CGRect(x: 10, y: 10, width: 80, height: 40))
         let added = AddAnnotationCommand(annotation: annotation).apply(to: emptySnapshot)
@@ -113,6 +137,16 @@ final class EditorCommandsTests: XCTestCase {
             return shape.sequenceNumber
         }
         XCTAssertEqual(numbers, [2, 1])
+    }
+
+    func testRepeatedResequenceIdentityKeepsOriginalContiguousSequence() {
+        let first = Annotation.makeNumberedArrow(from: .zero, to: CGPoint(x: 40, y: 20), number: 1)
+        let second = Annotation.makeNumberedArrow(from: CGPoint(x: 0, y: 30), to: CGPoint(x: 40, y: 50), number: 2)
+        let snapshot = makeEditorSnapshot(annotations: [first, second])
+
+        XCTAssertEqual(ResequenceNumberedArrowsCommand(
+            annotationIDs: [second.id, second.id, first.id]
+        ).apply(to: snapshot), snapshot)
     }
 
     func testDeletingNumberedArrowClosesSequenceGapInSemanticOrder() {

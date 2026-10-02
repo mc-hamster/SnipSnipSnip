@@ -5,6 +5,33 @@ import XCTest
 
 final class CompositionEditingScopeTests: XCTestCase {
     @MainActor
+    func testIdentityAdmissionRejectsProjectedItemAndCanvasChangesWithoutChangingRootOrHistory() throws {
+        let annotation = Annotation.makeNumberedArrow(from: .zero, to: CGPoint(x: 30, y: 20), number: 1)
+        for editsItem in [true, false] {
+            let fixture = try makeController(
+                rootAnnotations: [annotation], itemAnnotationSets: [[annotation], []],
+                canvasAnnotations: [annotation]
+            )
+            if editsItem {
+                fixture.controller.enterCompositionItemEditing(fixture.itemIDs[0])
+            } else {
+                fixture.controller.enterCompositionEditing()
+            }
+            let before = fixture.controller.documentSession
+            let projected = fixture.controller.snapshot
+            let revision = fixture.controller.persistenceRevision
+
+            fixture.controller.execute(ConflictingAnnotationTestCommand())
+
+            XCTAssertEqual(fixture.controller.documentSession, before)
+            XCTAssertEqual(fixture.controller.snapshot, projected)
+            XCTAssertEqual(fixture.controller.persistenceRevision, revision)
+            XCTAssertNotNil(fixture.controller.errorMessage)
+            XCTAssertNoThrow(try EditorIdentityIntegrity.validate(fixture.controller.documentSession))
+        }
+    }
+
+    @MainActor
     func testEnteringItemEditingProjectsItemWithoutOverwritingItWithRootEdits() throws {
         let rootAnnotation = Annotation.makeRectangle(
             in: CGRect(x: 2, y: 3, width: 12, height: 10)

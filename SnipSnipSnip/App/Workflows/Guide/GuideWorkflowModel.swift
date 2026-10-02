@@ -544,7 +544,7 @@ final class GuideWorkflowModel: ObservableObject {
     }
 
     private func mergedTargetWindows(_ windows: [CaptureWindowSummary]) -> [CaptureWindowSummary] {
-        var cachedWindows = Dictionary(uniqueKeysWithValues: availableWindows.map { ($0.id, $0) })
+        var cachedWindows = Dictionary(availableWindows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         targetWindows.forEach { cachedWindows[$0.id] = $0 }
         return windows.map { window in
             CaptureWindowSummary(

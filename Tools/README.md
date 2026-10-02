@@ -78,6 +78,19 @@ missing browser into a failing gate instead of a skip.
 
 ## Release test gate
 
+`check-identity-safety.py` rejects duplicate-key trapping dictionary
+constructors in the app, CLI, and Share Extension Swift sources. It checks
+tokens conservatively, including generic and inferred initializers. Derived
+lookups must specify a duplicate-key policy; conflicting document identities
+must be rejected at the shared validation boundary without discarding content.
+Tests may deliberately construct invalid fixtures and are outside this scan.
+The release gate runs this check before building, and CI tests the checker.
+
+```sh
+python3 Tools/check-identity-safety.py
+python3 -m unittest discover -s Tools/tests -p 'test_identity_safety.py'
+```
+
 `run-release-test-gate.sh` builds every app-hosted XCTest product and runs the
 unit and UI targets serially in one host at a time. It uses an installed Apple
 Development identity when one is available. On certificate-free CI runners it
