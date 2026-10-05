@@ -292,6 +292,7 @@ private final class RegionSelectionCoordinator {
     private let snapshot: DesktopCompositeSnapshot
     private let windows: [CaptureWindowSummary]
     let preferences: RegionCapturePreferences
+    let windowHoverAnimationStartTime = CACurrentMediaTime()
     private let onCaptureCursorHiddenChange: (Bool) -> Void
     private let onComplete: (RegionCaptureSelection?) -> Void
     private let constraint: RegionSelectionConstraint
@@ -375,6 +376,15 @@ private final class RegionSelectionCoordinator {
         dragMode != nil
     }
 
+    var hoveredWindow: RegionSelectionWindowHover? {
+        RegionSelectionWindowHover.resolve(
+            at: cursorGlobalPoint,
+            in: windows,
+            selectionRect: selectionRect,
+            isInteracting: mouseDownGlobalPoint != nil || isActivelyDraggingSelection
+        )
+    }
+
     var showsCaptureAimingUI: Bool {
         !isAdjustingPrecisionSelection
     }
@@ -387,7 +397,8 @@ private final class RegionSelectionCoordinator {
         let base = preferences.showsRegionConfirmationControls
             ? "Drag to select a region. Click Capture or press Return when ready. Esc cancels."
             : "Drag to select a region. Release captures. Esc cancels."
-        return constraint == .singleDisplay ? "\(base) Guide regions stay on one display." : base
+        let instructions = constraint == .singleDisplay ? "\(base) Guide regions stay on one display." : base
+        return windows.isEmpty ? instructions : instructions + "\n" + String(localized: "Click an outlined window to select it.")
     }
 
     private var isAdjustingPrecisionSelection: Bool {
@@ -728,6 +739,7 @@ private final class RegionSelectionView: NSView, NSTextFieldDelegate {
     private let displayPreview: DisplayPreview
     private let coordinator: RegionSelectionCoordinator
     private let canvasView: RegionSelectionCanvasView
+    private let windowHoverView: RegionSelectionWindowHoverView
     private let crosshairOverlayView: RegionSelectionCrosshairOverlayView?
     private let cursorOverlayView: RegionSelectionCursorOverlayView
     private var trackingAreaRef: NSTrackingArea?
@@ -748,6 +760,10 @@ private final class RegionSelectionView: NSView, NSTextFieldDelegate {
         self.canvasView = RegionSelectionCanvasView(
             displayPreview: displayPreview,
             instructionText: coordinator.instructionText
+        )
+        self.windowHoverView = RegionSelectionWindowHoverView(
+            display: displayPreview.snapshot,
+            animationStartTime: coordinator.windowHoverAnimationStartTime
         )
         self.crosshairOverlayView = coordinator.preferences.overlayMode.showsCrosshair
             ? RegionSelectionCrosshairOverlayView(displayPreview: displayPreview)
@@ -849,6 +865,7 @@ private final class RegionSelectionView: NSView, NSTextFieldDelegate {
         }
         let showsActionControls = coordinator.shouldShowActionControls(on: displayPreview.snapshot.displayID)
         let isActivelyDraggingSelection = coordinator.isActivelyDraggingSelection
+        windowHoverView.refresh(hover: coordinator.hoveredWindow)
 
         if selectionRect != lastSelectionRect ||
             showsActionControls != lastShowsActionControls ||
@@ -935,6 +952,10 @@ private final class RegionSelectionView: NSView, NSTextFieldDelegate {
         canvasView.frame = bounds
         canvasView.autoresizingMask = [.width, .height]
         addSubview(canvasView)
+
+        windowHoverView.frame = bounds
+        windowHoverView.autoresizingMask = [.width, .height]
+        addSubview(windowHoverView)
 
         if let crosshairOverlayView {
             crosshairOverlayView.frame = bounds
@@ -1182,7 +1203,7 @@ private final class RegionSelectionCanvasView: RegionSelectionPassThroughView {
             NSColor.black.withAlphaComponent(0.42).setFill()
             dimPath.fill()
             let info = NSString(string: instructionText)
-            let infoRect = CGRect(x: 24, y: 24, width: 520, height: 22)
+            let infoRect = CGRect(x: 24, y: 24, width: min(720, max(0, bounds.width - 48)), height: 64)
             info.draw(in: infoRect, withAttributes: [
                 .foregroundColor: NSColor.white,
                 .font: NSFont.systemFont(ofSize: 15, weight: .semibold)
@@ -1283,9 +1304,96 @@ private final class RegionSelectionCanvasView: RegionSelectionPassThroughView {
     }
 
     private func instructionsDirtyRect() -> CGRect {
-        CGRect(x: 16, y: 16, width: 560, height: 36)
+        CGRect(x: 16, y: 16, width: min(736, max(0, bounds.width - 32)), height: 80)
     }
 
+}
+
+private final class RegionSelectionWindowHoverView: RegionSelectionPassThroughView {
+    private let display: DisplaySnapshot
+    private let animationStartTime: CFTimeInterval
+    private let renderer = RegionSelectionWindowOutlineRenderer()
+    private let crawlLayer = CAShapeLayer()
+    private var outlineRect: CGRect?
+    private var accessibilityDisplayObserver: NSObjectProtocol?
+
+    init(display: DisplaySnapshot, animationStartTime: CFTimeInterval) {
+        self.display = display
+        self.animationStartTime = animationStartTime
+        super.init(frame: CGRect(origin: .zero, size: display.overlayFrame.size))
+        wantsLayer = true
+        layer?.masksToBounds = true
+        crawlLayer.frame = bounds
+        crawlLayer.contentsScale = display.scale
+        layer?.addSublayer(crawlLayer)
+        accessibilityDisplayObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.updateAnimation()
+                self?.needsDisplay = true
+            }
+        }
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    isolated deinit {
+        if let accessibilityDisplayObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(accessibilityDisplayObserver)
+        }
+    }
+
+    override var isFlipped: Bool { true }
+
+    override func layout() {
+        super.layout()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        crawlLayer.frame = bounds
+        CATransaction.commit()
+    }
+
+    func refresh(hover: RegionSelectionWindowHover?) {
+        let newRect = hover?.localOutlineRect(on: display)
+        guard outlineRect != newRect else { return }
+        let oldRect = outlineRect
+        outlineRect = newRect
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        crawlLayer.path = newRect.map { CGPath(rect: $0, transform: nil) }
+        CATransaction.commit()
+        updateAnimation()
+        for rect in [oldRect, newRect].compactMap({ $0 }) {
+            let dirtyRect = rect.insetBy(dx: -4, dy: -4).intersection(bounds)
+            if !dirtyRect.isNull, !dirtyRect.isEmpty {
+                setNeedsDisplay(dirtyRect)
+            }
+        }
+    }
+
+    private func updateAnimation() {
+        RegionSelectionWindowOutlineAnimation.update(
+            on: crawlLayer,
+            isVisible: outlineRect != nil,
+            reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+            increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast,
+            beginTime: animationStartTime
+        )
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        NSGraphicsContext.current?.cgContext.clear(dirtyRect)
+        guard let outlineRect else { return }
+        NSBezierPath(rect: bounds).addClip()
+        renderer.draw(
+            in: outlineRect,
+            increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        )
+    }
 }
 
 private final class RegionSelectionCrosshairOverlayView: RegionSelectionPassThroughView {

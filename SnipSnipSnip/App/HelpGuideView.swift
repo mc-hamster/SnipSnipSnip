@@ -584,7 +584,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                             steps: [
                                 "Choose Region from the main window, menu bar icon, Capture menu, or global shortcut.",
                                 "Drag the area you want to capture over the live desktop. The loupe refreshes while you aim without including capture overlay graphics.",
-                                "Single-click a visible window instead of dragging to capture that window.",
+                                "Move the pointer over a visible window to see its outline with gently crawling highlights. With Reduce Motion enabled, the outline stays steady. Single-click the outlined window to capture it, or drag to select a custom region. The window outline disappears while you draw or adjust a region.",
                                 "A screenshot region may span connected displays.",
                                 "By default, releasing the mouse captures immediately. If Always Capture on Mouse Up is off, click Capture in the floating controls."
                             ]
@@ -687,7 +687,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                             title: "Start and control a recording",
                             steps: [
                                 "Choose Record Region, Record Window, or Record Screen.",
-                                "Record Region and Pick On Screen recording start from the live desktop selection overlay, with the live loupe available while you aim. Drag to choose a custom region, or click a window to record the whole window.",
+                                "Record Region and Pick On Screen recording start from the live desktop selection overlay, with the live loupe available while you aim. Move the pointer over a visible window to see its outline with gently crawling highlights, then click to record the whole window. With Reduce Motion enabled, the outline stays steady. Drag to choose a custom region; the window outline disappears while you draw or adjust the region.",
                                 "Use the floating recording control to Pause, Resume, or Stop. The System and Mic meters show live signal when those sources are enabled.",
                                 "When the recording finishes, choose Play beneath the video to watch it. Trim and Polish are optional; you can export without making any edits."
                             ]
