@@ -8,7 +8,7 @@ protocol GuideCaptureWorkflowPort: AnyObject {
     var isConnectedDeviceSessionActive: Bool { get }
     var privateCaptureEnabled: Bool { get }
     var guideHotKeyCode: UInt16 { get }
-    func videoWindowSelectionSnapshot(fallbackWindows: [CaptureWindowSummary]) async throws -> (windows: [CaptureWindowSummary], snapshot: DesktopCompositeSnapshot)
+    func videoWindowSelectionSnapshot() async throws -> (windows: [CaptureWindowSummary], snapshot: DesktopCompositeSnapshot)
 }
 
 @MainActor

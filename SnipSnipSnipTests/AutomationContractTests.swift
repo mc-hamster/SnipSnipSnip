@@ -5,6 +5,22 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class AutomationContractTests: XCTestCase {
+    func testInteractiveRegionAndWindowAutomationShareTheSamePointerTarget() throws {
+        let display = DisplaySnapshot(displayID: 1, name: "Above", frame: CGRect(x: 0, y: -900, width: 1600, height: 900), overlayFrame: CGRect(x: 0, y: 1080, width: 1600, height: 900), scale: 2)
+        let foreground = makeCaptureWindow(id: 2, focusRank: 0, frame: CGRect(x: 100, y: -800, width: 400, height: 300))
+        let background = makeCaptureWindow(id: 1, focusRank: 5, frame: display.frame)
+        let windows = [background, foreground]
+        let point = foreground.frame.center
+        for kind in ["region", "window"] {
+            let request = try XCTUnwrap(AutomationCLIParser.parse(["capture", kind, "--interactive", "--copy"]).request)
+            XCTAssertEqual(request.interactionPolicy, .requireUserSelection)
+        }
+        let regionTarget = try XCTUnwrap(RegionSelectionWindowHover.resolve(at: point, in: windows, selectionRect: nil, isInteracting: false))
+        let windowTarget = try XCTUnwrap(CaptureWindowTargetResolver.resolve(atOverlayScreenPoint: display.captureDisplayTransform.overlayGlobalPoint(fromCaptureGlobalPoint: point), in: windows, displayTransform: display.captureDisplayTransform))
+        XCTAssertEqual(regionTarget.window.id, windowTarget.id)
+        XCTAssertEqual(windowTarget.id, foreground.id)
+    }
+
     func testExplicitWindowAutomationCanResolveDialogWhileFrontmostKeepsNormalWindow() async throws {
         let document = makeScreenWindowSnapshot(id: 900_001, title: "Document")
         let dialog = makeScreenWindowSnapshot(id: 900_002, title: "Reminders", layer: Int(CGWindowLevelForKey(.modalPanelWindow)))

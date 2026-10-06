@@ -223,8 +223,8 @@ extension CaptureWorkflowModel {
         try await captureService.captureDesktopOverlaySnapshot()
     }
 
-    func videoWindowSelectionSnapshot(fallbackWindows: [CaptureWindowSummary]) async throws -> (windows: [CaptureWindowSummary], snapshot: DesktopCompositeSnapshot) {
-        let windowOptions = fallbackWindows.isEmpty ? try await captureService.listWindows(includeThumbnails: false) : fallbackWindows
+    func videoWindowSelectionSnapshot() async throws -> (windows: [CaptureWindowSummary], snapshot: DesktopCompositeSnapshot) {
+        let windowOptions = try await captureService.listWindows(includeThumbnails: false)
         let snapshot = try await captureService.captureDesktopOverlaySnapshot()
         return (windowOptions, snapshot)
     }

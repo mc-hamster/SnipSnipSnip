@@ -1032,7 +1032,7 @@ nonisolated func gscWindowBounds(
     for window: CaptureWindowSummary,
     using visibleBoundsByID: [CGWindowID: CGRect]
 ) -> CGRect {
-    visibleBoundsByID[window.id] ?? window.frame.gscIntegralStandardized
+    visibleBoundsByID[window.id] ?? window.frame.standardized
 }
 
 nonisolated func gscPreferredHighlightRect(primary: CGRect, alternate: CGRect) -> CGRect {

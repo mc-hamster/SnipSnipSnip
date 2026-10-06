@@ -70,65 +70,233 @@ final class RegionSelectionWindowHoverTests: XCTestCase {
         }
     }
 
-    func testCrawlLoopsSeamlesslyWithoutChangingBoundaryOrRestarting() throws {
-        let layer = CAShapeLayer()
-        let path = CGPath(rect: CGRect(x: 20, y: 20, width: 60, height: 60), transform: nil)
-        layer.path = path
-        RegionSelectionWindowOutlineAnimation.update(on: layer, isVisible: true, reduceMotion: false, increaseContrast: false, beginTime: 42)
-        let crawl = try XCTUnwrap(layer.animation(forKey: RegionSelectionWindowOutlineAnimation.key) as? CABasicAnimation)
-        XCTAssertEqual(crawl.keyPath, "lineDashPhase")
-        XCTAssertEqual((crawl.fromValue as? NSNumber)?.doubleValue, 0)
-        XCTAssertEqual((crawl.toValue as? NSNumber)?.doubleValue, -16)
-        XCTAssertEqual(layer.lineDashPattern, [6, 10])
-        XCTAssertEqual(crawl.duration, 2.8)
-        XCTAssertFalse(crawl.autoreverses)
-        XCTAssertEqual(crawl.repeatCount, .infinity)
-        XCTAssertEqual(crawl.beginTime, 42)
-        XCTAssertEqual(layer.opacity, 1)
-        XCTAssertEqual(layer.path, path)
-        XCTAssertFalse(layer.isHidden)
-        XCTAssertNil(layer.fillColor)
-
-        RegionSelectionWindowOutlineAnimation.update(on: layer, isVisible: true, reduceMotion: false, increaseContrast: false, beginTime: 100)
-        XCTAssertEqual(layer.animation(forKey: RegionSelectionWindowOutlineAnimation.key)?.beginTime, 42)
+    func testEntryAnimationFinishesWithoutLoopingOrChangingBoundary() throws {
+        let layer = CALayer()
+        let frame = CGRect(x: 20, y: 20, width: 60, height: 60)
+        layer.frame = frame
+        let start = CACurrentMediaTime() + 60
+        CaptureSelectionOutlineAnimation.update(on: layer, isVisible: true, animatesEntry: true, allowsAnimation: true, beginTime: start)
+        let appear = try XCTUnwrap(layer.animation(forKey: CaptureSelectionOutlineAnimation.key) as? CABasicAnimation)
+        XCTAssertEqual(appear.keyPath, "opacity")
+        XCTAssertEqual((appear.fromValue as? NSNumber)?.floatValue, 0.7)
+        XCTAssertEqual((appear.toValue as? NSNumber)?.floatValue, 1)
+        XCTAssertEqual(appear.duration, 0.18)
+        XCTAssertFalse(appear.autoreverses)
+        XCTAssertEqual(appear.repeatCount, 0)
+        XCTAssertTrue(appear.isRemovedOnCompletion)
+        XCTAssertEqual(appear.beginTime, start)
+        XCTAssertEqual(layer.opacity, 1, "The final outline remains fully visible after the animation is removed.")
+        XCTAssertEqual(layer.frame, frame)
     }
 
-    func testCrawlStopsImmediatelyForReduceMotionOrHiddenOutline() {
-        let layer = CAShapeLayer()
-        for (isVisible, reduceMotion) in [(true, true), (false, false)] {
-            RegionSelectionWindowOutlineAnimation.update(on: layer, isVisible: true, reduceMotion: false, increaseContrast: false, beginTime: 42)
-            XCTAssertNotNil(layer.animation(forKey: RegionSelectionWindowOutlineAnimation.key))
-            RegionSelectionWindowOutlineAnimation.update(on: layer, isVisible: isVisible, reduceMotion: reduceMotion, increaseContrast: false, beginTime: 42)
-            XCTAssertNil(layer.animation(forKey: RegionSelectionWindowOutlineAnimation.key))
-            XCTAssertTrue(layer.isHidden, "Hide only the crawling highlights; the base outline stays visible.")
+    func testPointerMovementKeepsEntryTimingAndNewTargetRestartsIt() throws {
+        let layer = CALayer()
+        let start = CACurrentMediaTime() + 60
+        CaptureSelectionOutlineAnimation.update(on: layer, isVisible: true, animatesEntry: true, allowsAnimation: true, beginTime: start)
+        CaptureSelectionOutlineAnimation.update(on: layer, isVisible: true, animatesEntry: false, allowsAnimation: true, beginTime: start + 1)
+        XCTAssertEqual(layer.animation(forKey: CaptureSelectionOutlineAnimation.key)?.beginTime, start)
+        CaptureSelectionOutlineAnimation.update(on: layer, isVisible: true, animatesEntry: true, allowsAnimation: true, beginTime: start + 2)
+        XCTAssertEqual(layer.animation(forKey: CaptureSelectionOutlineAnimation.key)?.beginTime, start + 2)
+    }
+
+    func testAccessibilityFallbackAndHiddenOutlineRemoveEntryAnimationImmediately() {
+        let layer = CALayer()
+        for (isVisible, allowsAnimation) in [(true, false), (false, true)] {
+            CaptureSelectionOutlineAnimation.update(on: layer, isVisible: true, animatesEntry: true, allowsAnimation: true, beginTime: CACurrentMediaTime() + 60)
+            XCTAssertNotNil(layer.animation(forKey: CaptureSelectionOutlineAnimation.key))
+            CaptureSelectionOutlineAnimation.update(on: layer, isVisible: isVisible, animatesEntry: false, allowsAnimation: allowsAnimation, beginTime: 0)
+            XCTAssertNil(layer.animation(forKey: CaptureSelectionOutlineAnimation.key))
+            XCTAssertEqual(layer.opacity, 1)
         }
-        RegionSelectionWindowOutlineAnimation.update(on: layer, isVisible: true, reduceMotion: false, increaseContrast: false, beginTime: 42)
-        XCTAssertNotNil(layer.animation(forKey: RegionSelectionWindowOutlineAnimation.key))
-        XCTAssertFalse(layer.isHidden)
     }
 
-    func testIncreaseContrastStrengthensCrawlWithoutChangingPhaseAcrossDisplays() throws {
-        let layers = [CAShapeLayer(), CAShapeLayer()]
+    func testSpanningWindowEntryUsesSameClockOnEachDisplay() throws {
+        let start = CACurrentMediaTime() + 60
+        for layer in [CALayer(), CALayer()] {
+            CaptureSelectionOutlineAnimation.update(on: layer, isVisible: true, animatesEntry: true, allowsAnimation: true, beginTime: start)
+            XCTAssertEqual(layer.animation(forKey: CaptureSelectionOutlineAnimation.key)?.beginTime, start)
+        }
+    }
+
+    func testOutlineStaysNeutralWithoutAccentColoredPixels() throws {
+        let pixels = try renderedOutlinePixels(scale: 2, increaseContrast: false)
+        for offset in stride(from: 0, to: pixels.count, by: 4) where pixels[offset + 3] > 0 {
+            XCTAssertLessThanOrEqual(abs(Int(pixels[offset]) - Int(pixels[offset + 1])), 1)
+            XCTAssertLessThanOrEqual(abs(Int(pixels[offset]) - Int(pixels[offset + 2])), 1)
+        }
+    }
+
+    func testCrawlIsOneTaperedHighlightWithASeamlessFullPerimeterLoop() throws {
+        let layers = (0..<CaptureSelectionBorderCrawl.layerCount).map { _ in CAShapeLayer() }
+        let rect = CGRect(x: 20, y: 20, width: 300, height: 200)
+        let start = CACurrentMediaTime() + 60
+        CaptureSelectionBorderCrawl.update(on: layers, rect: rect, allowsAnimation: true, restarts: true, beginTime: start)
+        var previousLength = CGFloat.infinity
+        var previousOpacity: Float = 0
         for layer in layers {
-            RegionSelectionWindowOutlineAnimation.update(on: layer, isVisible: true, reduceMotion: false, increaseContrast: false, beginTime: 42)
-            XCTAssertEqual(layer.lineWidth, 1)
-            RegionSelectionWindowOutlineAnimation.update(on: layer, isVisible: true, reduceMotion: false, increaseContrast: true, beginTime: 100)
-            let crawl = try XCTUnwrap(layer.animation(forKey: RegionSelectionWindowOutlineAnimation.key) as? CABasicAnimation)
-            XCTAssertEqual(layer.lineWidth, 3)
-            XCTAssertEqual(crawl.beginTime, 42)
+            let pattern = try XCTUnwrap(layer.lineDashPattern)
+            XCTAssertEqual(pattern.count, 2)
+            let length = CGFloat(pattern[0].doubleValue)
+            XCTAssertLessThan(length, previousLength)
+            XCTAssertGreaterThan(layer.opacity, previousOpacity)
+            XCTAssertEqual(pattern[0].doubleValue + pattern[1].doubleValue, 1000, accuracy: 0.001)
+            XCTAssertEqual(layer.path?.boundingBoxOfPath, rect)
+            XCTAssertFalse(layer.isHidden)
+            XCTAssertNil(layer.fillColor)
+            let crawl = try XCTUnwrap(layer.animation(forKey: CaptureSelectionBorderCrawl.key) as? CABasicAnimation)
+            let from = try XCTUnwrap(crawl.fromValue as? NSNumber).doubleValue
+            let to = try XCTUnwrap(crawl.toValue as? NSNumber).doubleValue
+            XCTAssertEqual(from - to, 1000, accuracy: 0.001)
+            XCTAssertEqual(crawl.duration, 4.8)
+            XCTAssertEqual(crawl.repeatCount, .infinity)
+            XCTAssertFalse(crawl.autoreverses)
+            previousLength = length
+            previousOpacity = layer.opacity
+        }
+    }
+
+    func testReduceTransparencyKeepsCrawlWhileOnlyReduceMotionStopsIt() {
+        for reduceMotion in [false, true] {
+            for reduceTransparency in [false, true] {
+                for increaseContrast in [false, true] {
+                    let motion = CaptureSelectionMotionPolicy(reduceMotion: reduceMotion, reduceTransparency: reduceTransparency, increaseContrast: increaseContrast)
+                    XCTAssertEqual(motion.allowsCrawl, !reduceMotion)
+                    XCTAssertEqual(motion.allowsEntryFade, !reduceMotion && !reduceTransparency && !increaseContrast)
+                    let layers = (0..<CaptureSelectionBorderCrawl.layerCount).map { _ in CAShapeLayer() }
+                    CaptureSelectionBorderCrawl.update(on: layers, rect: CGRect(x: 20, y: 20, width: 300, height: 200), allowsAnimation: motion.allowsCrawl, increaseContrast: increaseContrast, restarts: true, beginTime: CACurrentMediaTime() + 60)
+                    XCTAssertEqual(layers[0].animation(forKey: CaptureSelectionBorderCrawl.key) != nil, !reduceMotion)
+                    if !reduceMotion {
+                        XCTAssertEqual(layers[0].lineWidth, increaseContrast ? 3 : 1.5)
+                        XCTAssertEqual(layers[0].strokeColor, (increaseContrast ? NSColor.black : NSColor(calibratedWhite: 0.12, alpha: 1)).cgColor)
+                        XCTAssertEqual(layers.last?.strokeColor, NSColor.white.cgColor)
+                    }
+                }
+            }
+        }
+    }
+
+    func testCrawlKeepsItsClockDuringPointerMovementAndStopsForAccessibilityOrHiddenTarget() {
+        let layers = (0..<CaptureSelectionBorderCrawl.layerCount).map { _ in CAShapeLayer() }
+        let rect = CGRect(x: 20, y: 20, width: 300, height: 200)
+        let start = CACurrentMediaTime() + 60
+        CaptureSelectionBorderCrawl.update(on: layers, rect: rect, allowsAnimation: true, restarts: true, beginTime: start)
+        CaptureSelectionBorderCrawl.update(on: layers, rect: rect, allowsAnimation: true, restarts: false, beginTime: start + 1)
+        XCTAssertTrue(layers.allSatisfy { $0.animation(forKey: CaptureSelectionBorderCrawl.key)?.beginTime == start })
+        for (target, allowsAnimation) in [(rect as CGRect?, false), (nil, true)] {
+            CaptureSelectionBorderCrawl.update(on: layers, rect: target, allowsAnimation: allowsAnimation, restarts: false, beginTime: start)
+            XCTAssertTrue(layers.allSatisfy { $0.isHidden && $0.animation(forKey: CaptureSelectionBorderCrawl.key) == nil })
+        }
+    }
+
+    func testCrawlUsesMatchingNormalizedProgressAcrossDisplayScales() throws {
+        let start = CACurrentMediaTime() + 60
+        for scale in [CGFloat(1), 0.5] {
+            let layers = (0..<CaptureSelectionBorderCrawl.layerCount).map { _ in CAShapeLayer() }
+            let rect = CGRect(x: 20, y: 20, width: 300 * scale, height: 200 * scale)
+            CaptureSelectionBorderCrawl.update(on: layers, rect: rect, allowsAnimation: true, restarts: true, beginTime: start)
+            let crawl = try XCTUnwrap(layers[0].animation(forKey: CaptureSelectionBorderCrawl.key) as? CABasicAnimation)
+            XCTAssertEqual(crawl.beginTime, start)
+            XCTAssertEqual(crawl.duration, CaptureSelectionBorderCrawl.duration)
+            let to = try XCTUnwrap(crawl.toValue as? NSNumber).doubleValue
+            XCTAssertEqual(to / Double(1000 * scale), -1, accuracy: 0.001)
+            XCTAssertEqual(try XCTUnwrap(layers[0].lineDashPattern)[0].doubleValue / Double(1000 * scale), 0.10, accuracy: 0.001)
+        }
+    }
+
+    func testSharedHighlightIsClickThroughAndKeepsItsViewBounds() {
+        let frame = CGRect(x: 0, y: 0, width: 320, height: 240)
+        let view = CaptureSelectionWindowHighlightView(frame: frame)
+        view.refresh(windowID: 1, rect: CGRect(x: 20, y: 100, width: 120, height: 80), label: "App — Document", transitionStartTime: CACurrentMediaTime())
+        XCTAssertNil(view.hitTest(CGPoint(x: 20, y: 100)))
+        XCTAssertNil(view.hitTest(CGPoint(x: 40, y: 80)))
+        XCTAssertEqual(view.frame, frame)
+        view.refresh(windowID: nil, rect: nil, label: nil, transitionStartTime: 0)
+        XCTAssertNil(view.layer?.animation(forKey: CaptureSelectionOutlineAnimation.key))
+        let strokes = view.layer?.sublayers?.compactMap { $0 as? CAShapeLayer } ?? []
+        XCTAssertTrue(strokes.allSatisfy { $0.isHidden && $0.animation(forKey: CaptureSelectionBorderCrawl.key) == nil })
+    }
+
+    func testHostedCrawlProducesClearlyDifferentBorderPixelsAtDifferentPositions() throws {
+        let size = CGSize(width: 640, height: 480)
+        let panel = NSPanel(contentRect: CGRect(x: -10000, y: -10000, width: size.width, height: size.height), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        panel.sharingType = .none
+        defer { panel.orderOut(nil) }
+        let parent = NSView(frame: CGRect(origin: .zero, size: size))
+        parent.wantsLayer = true
+        let view = CaptureSelectionWindowHighlightView(frame: parent.bounds)
+        parent.addSubview(view)
+        panel.contentView = parent
+        panel.orderFrontRegardless()
+        let target = CGRect(x: 60, y: 100, width: 400, height: 250)
+        view.refresh(windowID: 1, rect: target, label: nil, transitionStartTime: CACurrentMediaTime())
+        panel.displayIfNeeded()
+        parent.layoutSubtreeIfNeeded()
+        let layer = try XCTUnwrap(view.layer)
+        let strokes = layer.sublayers?.compactMap { $0 as? CAShapeLayer } ?? []
+        XCTAssertEqual(strokes.count, CaptureSelectionBorderCrawl.layerCount)
+        var captures: [[UInt8]] = []
+        for progress in [CGFloat(0), 0.5] {
+            CaptureSelectionBorderCrawl.update(on: strokes, rect: target, allowsAnimation: true, restarts: true, beginTime: CACurrentMediaTime() + 60)
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            for stroke in strokes {
+                let animation = try XCTUnwrap(stroke.animation(forKey: CaptureSelectionBorderCrawl.key) as? CABasicAnimation)
+                let from = try XCTUnwrap(animation.fromValue as? NSNumber).doubleValue
+                let to = try XCTUnwrap(animation.toValue as? NSNumber).doubleValue
+                stroke.removeAllAnimations()
+                stroke.lineDashPhase = CGFloat(from + (to - from) * Double(progress))
+            }
+            CATransaction.commit()
+            captures.append(try renderedPixels(scale: 1, size: size) {
+                layer.render(in: NSGraphicsContext.current!.cgContext)
+            })
+        }
+        // Installed animations alone did not verify visibility. Compare actual
+        // hosted-view RGB pixels; alpha remains unchanged over the opaque rail.
+        let peakChange = captures[0].indices.filter { $0 % 4 != 3 }.map { abs(Int(captures[0][$0]) - Int(captures[1][$0])) }.max() ?? 0
+        XCTAssertGreaterThanOrEqual(peakChange, 60)
+    }
+
+    func testSharedTargetLabelFitsDisplayAndAvoidsInstructionsWhenSpaceAllows() throws {
+        for bounds in [CGRect(x: 0, y: 0, width: 800, height: 600), CGRect(x: -1920, y: 100, width: 1920, height: 1080)] {
+            for target in [CGRect(x: bounds.minX - 100, y: bounds.minY, width: 300, height: 200), CGRect(x: bounds.maxX - 80, y: bounds.maxY - 60, width: 300, height: 200)] {
+                let rect = try XCTUnwrap(CaptureSelectionAppearance.labelRect(for: CGSize(width: 900, height: 16), targetRect: target, in: bounds))
+                XCTAssertTrue(bounds.contains(rect))
+                XCTAssertLessThanOrEqual(rect.width, 384)
+                XCTAssertGreaterThanOrEqual(rect.minY, bounds.minY + 96)
+            }
+        }
+    }
+
+    func testSharedDimmingKeepsTargetClearIncludingAcrossDisplaySeam() throws {
+        for target in [CGRect(x: 20, y: 20, width: 60, height: 60), CGRect(x: -100, y: 20, width: 160, height: 60)] {
+            let pixels = try renderedPixels(scale: 1) {
+                CaptureSelectionAppearance.drawDimming(in: CGRect(x: 0, y: 0, width: 100, height: 100), excluding: target)
+            }
+            XCTAssertEqual(pixels[(50 * 100 + 30) * 4 + 3], 0)
+            XCTAssertGreaterThan(pixels[(50 * 100 + 90) * 4 + 3], 0)
+            if target.minX < 0 {
+                XCTAssertEqual(pixels[(50 * 100) * 4 + 3], 0, "A spanning window must stay clear at the display seam.")
+            }
         }
     }
 
     private func renderedOutlinePixels(scale: CGFloat, increaseContrast: Bool) throws -> [UInt8] {
+        try renderedPixels(scale: scale) {
+            CaptureSelectionOutlineRenderer().draw(in: CGRect(x: 20, y: 20, width: 60, height: 60), increaseContrast: increaseContrast)
+        }
+    }
+
+    private func renderedPixels(scale: CGFloat, size: CGSize = CGSize(width: 100, height: 100), draw: () -> Void) throws -> [UInt8] {
         let context = try XCTUnwrap(CGContext(
-            data: nil, width: Int(100 * scale), height: Int(100 * scale), bitsPerComponent: 8,
+            data: nil, width: Int(size.width * scale), height: Int(size.height * scale), bitsPerComponent: 8,
             bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ))
         context.scaleBy(x: scale, y: scale)
         NSGraphicsContext.saveGraphicsState()
         defer { NSGraphicsContext.restoreGraphicsState() }
         NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
-        RegionSelectionWindowOutlineRenderer().draw(in: CGRect(x: 20, y: 20, width: 60, height: 60), increaseContrast: increaseContrast)
+        draw()
         return try XCTUnwrap(normalizedRGBAPixels(try XCTUnwrap(context.makeImage())))
     }
 }

@@ -463,7 +463,7 @@ final class GuideWorkflowModel: ObservableObject {
     }
 
     private func targetSelectionResult(for sourceKind: String) async throws -> GuideTargetSelectionResult {
-        let selection = try await dependencies.capture.videoWindowSelectionSnapshot(fallbackWindows: [])
+        let selection = try await dependencies.capture.videoWindowSelectionSnapshot()
         targetWindows = mergedTargetWindows(selection.windows)
 
         switch sourceKind {
@@ -490,9 +490,6 @@ final class GuideWorkflowModel: ObservableObject {
             let session = WindowSelectionSession(
                 snapshot: selection.snapshot,
                 windows: targetWindows,
-                capabilities: dependencies.capabilities,
-                accessibility: dependencies.systemServices.accessibility,
-                screens: dependencies.systemServices.screens,
                 prompt: windowSelectionPrompt(for: kind)
             )
             switch await session.beginOutcome() {

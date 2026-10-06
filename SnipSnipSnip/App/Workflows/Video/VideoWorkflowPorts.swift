@@ -11,7 +11,7 @@ protocol VideoCaptureWorkflowPort: AnyObject {
     func beginCapturePrivacyLock() -> Bool
     func endCapturePrivacyLock()
     func desktopSnapshotForVideoSelection() async throws -> DesktopCompositeSnapshot
-    func videoWindowSelectionSnapshot(fallbackWindows: [CaptureWindowSummary]) async throws -> (windows: [CaptureWindowSummary], snapshot: DesktopCompositeSnapshot)
+    func videoWindowSelectionSnapshot() async throws -> (windows: [CaptureWindowSummary], snapshot: DesktopCompositeSnapshot)
     func performVideoWork<Result>(
         message: String,
         _ operation: () async throws -> Result

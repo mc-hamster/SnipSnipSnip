@@ -2906,7 +2906,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
             "func beginVideoWindowSelection()",
             "func dismissWindowPicker()",
             "func desktopSnapshotForVideoSelection() async throws -> DesktopCompositeSnapshot",
-            "func videoWindowSelectionSnapshot(fallbackWindows: [CaptureWindowSummary]) async throws -> (windows: [CaptureWindowSummary], snapshot: DesktopCompositeSnapshot)",
+            "func videoWindowSelectionSnapshot() async throws -> (windows: [CaptureWindowSummary], snapshot: DesktopCompositeSnapshot)",
             "func performVideoWork<Result>(",
         ] {
             XCTAssertTrue(

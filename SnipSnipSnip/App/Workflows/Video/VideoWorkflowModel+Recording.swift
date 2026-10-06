@@ -151,15 +151,10 @@ extension VideoWorkflowModel {
             let selectedWindow = try await dependencies.capture
                 .performVideoWork(message: "Pick Window") {
                     let selection = try await dependencies.capture
-                        .videoWindowSelectionSnapshot(
-                            fallbackWindows: windows
-                        )
+                        .videoWindowSelectionSnapshot()
                     let session = WindowSelectionSession(
                         snapshot: selection.snapshot,
                         windows: selection.windows,
-                        capabilities: dependencies.capabilities,
-                        accessibility: dependencies.systemServices.accessibility,
-                        screens: dependencies.systemServices.screens,
                         prompt: .video
                     )
                     return await session.begin()
@@ -418,7 +413,7 @@ extension VideoWorkflowModel {
 
         do {
             let result: (ScreenRecordingSession, String)? = try await dependencies.capture.performVideoWork(message: "Record Region") {
-                let selectionSnapshot = try await dependencies.capture.videoWindowSelectionSnapshot(fallbackWindows: [])
+                let selectionSnapshot = try await dependencies.capture.videoWindowSelectionSnapshot()
                 let selectionSession = RegionSelectionSession(
                     snapshot: selectionSnapshot.snapshot,
                     windows: selectionSnapshot.windows,

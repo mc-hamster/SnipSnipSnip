@@ -122,16 +122,11 @@ extension CaptureWorkflowModel {
             defer { isWorking = false }
 
             do {
-                let windowOptions = windows.isEmpty
-                    ? try await captureService.listWindows(includeThumbnails: false)
-                    : windows
+                let windowOptions = try await captureService.listWindows(includeThumbnails: false)
                 let snapshot = try await captureService.captureDesktopOverlaySnapshot()
                 let session = WindowSelectionSession(
                     snapshot: snapshot,
-                    windows: windowOptions,
-                    capabilities: dependencies.capabilities,
-                    accessibility: dependencies.systemServices.accessibility,
-                    screens: dependencies.systemServices.screens
+                    windows: windowOptions
                 )
 
                 guard let selectedWindow = await session.begin() else {
