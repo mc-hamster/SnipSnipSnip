@@ -266,6 +266,8 @@ enum CaptureAutomationTarget: Codable, Sendable {
 `interactiveRegion` and `interactiveWindow` require
 `interactionPolicy == .requireUserSelection` or `promptIfNeeded`.
 
+Interactive Window selection and the click-to-select shortcut in interactive Region selection include visible app-owned normal windows, floating panels, modal dialogs, utility windows, and custom levels below Dock. Desktop surfaces, system UI owners, and higher menu/overlay levels remain excluded; Window candidates retain the existing 60 × 40 point minimum; Screen Recording permission remains required, with no Accessibility requirement. Saved-window presets and Repeat Last Capture can resolve those explicitly selected panels. Automatic frontmost-window capture remains restricted to normal-level windows. Command names, routes, result fields, and output formats are unchanged.
+
 Unsupported first-version targets should return `unsupportedFeature` instead of
 silently falling back:
 

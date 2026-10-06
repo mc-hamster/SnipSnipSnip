@@ -32,6 +32,8 @@ dedicated v1 current-export route is represented because it has explicit
 destination validation. App Intents expose native Shortcuts actions and are not
 part of this filename parity matrix.
 
+Procedures 11 and 12 can select eligible app dialogs, floating panels, and utility windows, including untitled panels. Procedure 13 can repeat a selected panel, and saved-window presets can retain it. Menus, desktop surfaces, and system overlays remain excluded. Frontmost-window procedures 08 and 27 continue selecting ordinary windows. The existing command and result contracts are unchanged.
+
 Current procedure matrix:
 
 | Basename | CLI | AppleScript | URL |

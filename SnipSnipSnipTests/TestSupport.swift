@@ -191,6 +191,22 @@ nonisolated struct TestClock: ClockProviding {
     }
 }
 
+nonisolated func makeScreenWindowSnapshot(
+    id: CGWindowID = 900_001,
+    ownerPID: pid_t = 900_001,
+    ownerName: String = "App",
+    bundleIdentifier: String? = "com.example.app",
+    title: String = "Window",
+    frame: CGRect = CGRect(x: 20, y: 20, width: 240, height: 180),
+    layer: Int = 0,
+    isOnScreen: Bool = true
+) -> ScreenWindowSnapshot {
+    ScreenWindowSnapshot(
+        id: id, ownerName: ownerName, ownerPID: ownerPID, bundleIdentifier: bundleIdentifier,
+        title: title, frame: frame, layer: layer, isOnScreen: isOnScreen
+    )
+}
+
 nonisolated struct TestScreenCapturePlatform: ScreenCapturePlatform {
     var content = ScreenContentSnapshot(displays: [], windows: [], applications: [])
     var imageProvider: @Sendable (ScreenCaptureRequest) throws -> CGImage = { request in
@@ -313,11 +329,15 @@ extension ScreenCaptureService {
         self.init(permissions: TestCapturePermissionService())
     }
 
-    nonisolated init(permissions: any CapturePermissionServicing) {
+    nonisolated init(
+        permissions: any CapturePermissionServicing,
+        windows: [ScreenWindowSnapshot] = [],
+        frontmostApplicationProcessIdentifier: pid_t? = nil
+    ) {
         self.init(
             permissions: permissions,
-            platform: TestScreenCapturePlatform(),
-            workspace: TestWorkspaceService(),
+            platform: TestScreenCapturePlatform(content: ScreenContentSnapshot(displays: [], windows: windows, applications: [])),
+            workspace: TestWorkspaceService(frontmostApplicationProcessIdentifier: frontmostApplicationProcessIdentifier),
             screens: TestScreenTopologyService(),
             mouse: TestMouseLocationService(),
             windowFocus: TestApplicationWindowFocusService(),

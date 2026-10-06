@@ -130,6 +130,14 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
     }
 
     func listWindows(excluding processID: pid_t = ProcessInfo.processInfo.processIdentifier, includeThumbnails: Bool = true) async throws -> [CaptureWindowSummary] {
+        try await listWindows(excluding: processID, includeThumbnails: includeThumbnails, eligibility: .explicitWindow)
+    }
+
+    private func listWindows(
+        excluding processID: pid_t,
+        includeThumbnails: Bool,
+        eligibility: WindowCaptureEligibility
+    ) async throws -> [CaptureWindowSummary] {
         guard permissions.currentStatus().hasScreenRecording else {
             throw ScreenCaptureError.permissionDenied
         }
@@ -145,11 +153,7 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
                 fallbackScale: 2
             )
 
-            guard window.ownerPID != processID else {
-                return nil
-            }
-
-            guard window.layer == 0, window.frame.width >= 60, window.frame.height >= 40, window.isOnScreen else {
+            guard eligibility.allows(window, excluding: processID) else {
                 return nil
             }
 
@@ -223,7 +227,7 @@ struct ScreenCaptureService: ScreenCaptureServiceType {
     }
 
     func frontmostWindow(excluding processID: pid_t = ProcessInfo.processInfo.processIdentifier) async throws -> CaptureWindowSummary {
-        let windows = try await listWindows(excluding: processID, includeThumbnails: false)
+        let windows = try await listWindows(excluding: processID, includeThumbnails: false, eligibility: .automaticFrontmost)
         let frontmostOwnerPID = workspace.frontmostApplicationProcessIdentifier
 
         if let frontmostOwnerPID,

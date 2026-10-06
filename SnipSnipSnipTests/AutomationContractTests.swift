@@ -5,6 +5,25 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class AutomationContractTests: XCTestCase {
+    func testExplicitWindowAutomationCanResolveDialogWhileFrontmostKeepsNormalWindow() async throws {
+        let document = makeScreenWindowSnapshot(id: 900_001, title: "Document")
+        let dialog = makeScreenWindowSnapshot(id: 900_002, title: "Reminders", layer: Int(CGWindowLevelForKey(.modalPanelWindow)))
+        let service = ScreenCaptureService(
+            permissions: TestCapturePermissionService(status: CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false)),
+            windows: [document, dialog],
+            frontmostApplicationProcessIdentifier: document.ownerPID
+        )
+        let request = try XCTUnwrap(AutomationCLIParser.parse(["capture", "window", "--interactive", "--copy"]).request)
+        XCTAssertEqual(request.interactionPolicy, .requireUserSelection)
+        let windows = try await service.listWindows(includeThumbnails: false)
+        let selected = try XCTUnwrap(windows.first { $0.id == dialog.id })
+        // Saved-window presets and repeat resolve through the same service.
+        let resolved = try await service.resolveWindowTarget(selected)
+        XCTAssertEqual(resolved.id, dialog.id)
+        let frontmost = try await service.frontmostWindow()
+        XCTAssertEqual(frontmost.id, document.id)
+    }
+
     @MainActor
     func testExplicitAutomationCopyPreservesContractWithoutGlobalAutoCopy() async throws {
         let name = "AutomationContractTests.explicitCopy.\(UUID())"

@@ -577,14 +577,14 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                     sections: [
                         HelpArticleSection(
                             title: "Find a window",
-                            body: "The Choose Window list can search application names and window titles. No Matching Windows means the search hides available windows; clear the search to see them. No Available Windows means there are no eligible windows to choose. Pick On Screen remains available, with instructions for Screenshot or Video as appropriate."
+                            body: "The Choose Window list can search application names and window titles. No Matching Windows means the search hides available windows; clear the search to see them. No Available Windows means there are no eligible windows to choose. Pick On Screen remains available, with instructions for Screenshot or Video as appropriate. Window choices include visible app dialogs, floating panels, and utility windows, including untitled panels. Very small popups, menus, desktop surfaces, the Dock, and system overlays are not offered. Capture Frontmost Window selects an ordinary application window. These exclusions apply to Window choices; drawn regions and Screen capture can still include those surfaces in the visible result."
                         ),
                         HelpArticleSection(
                             title: "Capture a region",
                             steps: [
                                 "Choose Region from the main window, menu bar icon, Capture menu, or global shortcut.",
                                 "Drag the area you want to capture over the live desktop. The loupe refreshes while you aim without including capture overlay graphics.",
-                                "Move the pointer over a visible window to see its outline with gently crawling highlights. With Reduce Motion enabled, the outline stays steady. Single-click the outlined window to capture it, or drag to select a custom region. The window outline disappears while you draw or adjust a region.",
+                                "Move the pointer over a visible window to see its outline with gently crawling highlights. With Reduce Motion enabled, the outline stays steady. Single-click the outlined window, app dialog, or utility panel to capture it, or drag to select a custom region. The window outline disappears while you draw or adjust a region.",
                                 "A screenshot region may span connected displays.",
                                 "By default, releasing the mouse captures immediately. If Always Capture on Mouse Up is off, click Capture in the floating controls."
                             ]

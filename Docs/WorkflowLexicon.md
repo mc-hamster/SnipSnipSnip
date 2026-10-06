@@ -84,7 +84,7 @@ Source nouns describe where content comes from. They are not action labels by th
 | Canonical source | Meaning | Notes |
 | --- | --- | --- |
 | **Region** | A selected rectangular area of the screen. | Pair with **Capture** for an action. |
-| **Window** | A selected app window. | Pair with **Capture** for an action. |
+| **Window** | A selected app window, including eligible dialogs, floating panels, and utility windows. | Pair with **Capture** for an action. |
 | **Screen** | The full visible contents of a screen. | Use instead of Full, Full Screen, or Fullscreen in product copy. |
 | **App** | The application observed while recording a Guide. | Use for Guide recording scope. |
 | **Display** | A physical monitor selected from available hardware. | Reserve this term for hardware selection. |
@@ -95,7 +95,7 @@ Source nouns describe where content comes from. They are not action labels by th
 
 Use **More Ways to Capture** as the umbrella for less common capture sources.
 
-**Capture Region** and **Record Region** share two selection gestures: drag for a custom Region, or click a visible Window. Before drawing begins, outline the eligible Window beneath the pointer to make the click gesture discoverable. The outline is a temporary selection hint with gently crawling highlights and disappears while drawing or adjusting a Region. With Reduce Motion enabled, it stays steady.
+**Capture Region** and **Record Region** share two selection gestures: drag for a custom Region, or click a visible Window. Before drawing begins, outline the eligible Window beneath the pointer to make the click gesture discoverable. The outline is a temporary selection hint with gently crawling highlights and disappears while drawing or adjusting a Region. With Reduce Motion enabled, it stays steady. Explicit Window choices include visible app-owned dialogs and utility panels; Capture Frontmost Window selects an ordinary application window. Menus, desktop surfaces, and system overlays are excluded from Window choices.
 
 **Quick Capture** names the main-window group of one-action Screenshot sources and actions: Region, Window, Screen, Scroll when available, Repeat Last, and Presets. **Scroll** is the compact header label for Capture Scrolling Content, **Repeat Last** is the compact header label for Repeat Last Capture, and **Presets** remains a menu because it contains a variable set of named targets. **Create** names the adjacent guided area with direct Comparison, Steps, and Combined Image entries; each opens setup with that result selected so the user only chooses its source and options. Direct Screenshot setup is omitted because Quick Capture already provides the primary one-click Screenshot paths. **Record** names the adjacent activity area with direct Region, Window, Screen, Guide when available, and connected-device entries. **Screen Tools** names the utility group containing Screen Ruler and Screen Inspector; direct Clipboard History access sits beside these utilities but keeps its established product name. These are navigation group labels, not new workflow or output nouns.
 
