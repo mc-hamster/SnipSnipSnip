@@ -60,12 +60,13 @@ enum CaptureSelectionOutlineAnimation {
     }
 }
 
-/// One tapered graphite marker with a bright leading tip travels around an
-/// unbroken silver rail. Contrast makes movement readable without a dash train.
+/// Two tapered graphite markers travel in lockstep, half a perimeter apart,
+/// around an unbroken silver rail. Each marker retains its bright leading tip.
 @MainActor
 enum CaptureSelectionBorderCrawl {
     static let key = "capture.windowHover.sheen"
     static let duration: CFTimeInterval = 4.8
+    static let crawlerCount = 2
     static let layerCount = 8
     private static let lengthFactors: [CGFloat] = [1, 0.86, 0.72, 0.58, 0.44, 0.30, 0.16, 0.12]
     private static let opacities: [Float] = [0.10, 0.14, 0.19, 0.25, 0.33, 0.44, 0.60, 0.95]
@@ -94,6 +95,7 @@ enum CaptureSelectionBorderCrawl {
             return
         }
         let fullLength = perimeter * 0.10
+        let spacing = perimeter / CGFloat(crawlerCount)
         let path = CGPath(rect: rect, transform: nil)
         for (index, layer) in layers.enumerated() {
             guard index < layerCount else { continue }
@@ -108,10 +110,10 @@ enum CaptureSelectionBorderCrawl {
             layer.lineWidth = increaseContrast ? 3 : 1.5
             layer.lineCap = .round
             layer.opacity = opacities[index]
-            layer.lineDashPattern = [NSNumber(value: Double(length)), NSNumber(value: Double(perimeter - length))]
+            layer.lineDashPattern = [NSNumber(value: Double(length)), NSNumber(value: Double(spacing - length))]
             layer.lineDashPhase = -offset
-            // A complete perimeter is one dash cycle: a single highlight with
-            // no visible jump at the loop or phase mismatch across display scales.
+            // Two identical dash cycles fit the perimeter, keeping the crawlers
+            // opposite each other with no loop jump or display-scale phase drift.
             if let existing = layer.animation(forKey: key) as? CABasicAnimation,
                !restarts,
                (existing.toValue as? NSNumber)?.doubleValue == Double(-offset - perimeter) {
