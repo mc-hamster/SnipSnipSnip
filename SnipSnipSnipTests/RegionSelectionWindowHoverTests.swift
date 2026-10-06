@@ -126,7 +126,7 @@ final class RegionSelectionWindowHoverTests: XCTestCase {
         }
     }
 
-    func testTwinCrawlersAreHalfAPerimeterApartWithASeamlessFullLap() throws {
+    func testThreeCrawlersAreAThirdOfAPerimeterApartWithASeamlessFullLap() throws {
         let layers = (0..<CaptureSelectionBorderCrawl.layerCount).map { _ in CAShapeLayer() }
         let rect = CGRect(x: 20, y: 20, width: 300, height: 200)
         let start = CACurrentMediaTime() + 60
@@ -139,8 +139,8 @@ final class RegionSelectionWindowHoverTests: XCTestCase {
             let length = CGFloat(pattern[0].doubleValue)
             XCTAssertLessThan(length, previousLength)
             XCTAssertGreaterThan(layer.opacity, previousOpacity)
-            XCTAssertEqual(CaptureSelectionBorderCrawl.crawlerCount, 2)
-            XCTAssertEqual(pattern[0].doubleValue + pattern[1].doubleValue, 500, accuracy: 0.001)
+            XCTAssertEqual(CaptureSelectionBorderCrawl.crawlerCount, 3)
+            XCTAssertEqual(pattern[0].doubleValue + pattern[1].doubleValue, 1000.0 / 3.0, accuracy: 0.001)
             XCTAssertEqual(layer.path?.boundingBoxOfPath, rect)
             XCTAssertFalse(layer.isHidden)
             XCTAssertNil(layer.fillColor)

@@ -60,13 +60,13 @@ enum CaptureSelectionOutlineAnimation {
     }
 }
 
-/// Two tapered graphite markers travel in lockstep, half a perimeter apart,
+/// Three tapered graphite markers travel in lockstep, a third of a perimeter apart,
 /// around an unbroken silver rail. Each marker retains its bright leading tip.
 @MainActor
 enum CaptureSelectionBorderCrawl {
     static let key = "capture.windowHover.sheen"
     static let duration: CFTimeInterval = 4.8
-    static let crawlerCount = 2
+    static let crawlerCount = 3
     static let layerCount = 8
     private static let lengthFactors: [CGFloat] = [1, 0.86, 0.72, 0.58, 0.44, 0.30, 0.16, 0.12]
     private static let opacities: [Float] = [0.10, 0.14, 0.19, 0.25, 0.33, 0.44, 0.60, 0.95]
@@ -112,8 +112,8 @@ enum CaptureSelectionBorderCrawl {
             layer.opacity = opacities[index]
             layer.lineDashPattern = [NSNumber(value: Double(length)), NSNumber(value: Double(spacing - length))]
             layer.lineDashPhase = -offset
-            // Two identical dash cycles fit the perimeter, keeping the crawlers
-            // opposite each other with no loop jump or display-scale phase drift.
+            // Three identical dash cycles fit the perimeter, keeping the crawlers
+            // 120 degrees apart in phase with no loop jump or display-scale drift.
             if let existing = layer.animation(forKey: key) as? CABasicAnimation,
                !restarts,
                (existing.toValue as? NSNumber)?.doubleValue == Double(-offset - perimeter) {
