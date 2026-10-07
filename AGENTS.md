@@ -48,6 +48,9 @@ description: "Workspace instructions for implementing SnipSnipSnip as a local-fi
 - Keep shell samples syntax-checkable with `bash -n`, and update automation contract tests when parser, route, result, permission, privacy, or output behavior changes.
 
 ## Quality
+- Keep generated dependencies, build products, submission archives, render intermediates, and accidental duplicate copies out of Git. Retain original artwork, intentional app resources, source, and dependency manifests/lockfiles.
+- Before adding a file, verify its purpose in the app, tests, developer tooling, documentation, or retained artwork. Put generated output under an ignored directory and add an ignore rule when introducing a new generator.
+- Run `python3 Tools/check-repository-hygiene.py` before submitting changes; use `--staged` to verify the exact pending commit after staging. CI and release gates enforce repository hygiene.
 - Keep production Swift free of duplicate-key trapping dictionary constructors. Use an explicit duplicate policy for derived lookups and reject conflicting document identities through `EditorIdentityIntegrity`; never discard ambiguous screenshot content. Run `python3 Tools/check-identity-safety.py` before submitting changes.
 - Prefer small, testable value types for geometry and editor state.
 - Add or update tests when changing geometry, command, or rendering logic.

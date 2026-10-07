@@ -23,6 +23,20 @@ DerivedData/
 *.ipa
 *.dSYM.zip
 *.dSYM
+*.app/
+*.pkg
+*.dmg
+
+# Compiler and installed Python environment output
+*.o
+*.a
+*.dylib
+*.so
+*.dll
+*.exe
+*.pyc
+.venv/
+venv/
 
 ## Playgrounds
 timeline.xctimeline
@@ -95,3 +109,13 @@ fastlane/AuthKey_*.p8
 
 # macOS Finder metadata
 .DS_Store
+
+# Installed developer dependencies
+node_modules/
+
+# Generated App Store packaging and render intermediates
+/assets/App Store/**/*-AppStore.zip
+/assets/App Store/**/package-sha256.txt
+/assets/App Store/**/review/preview-render/
+/assets/App Store/**/filming/bin/
+/assets/App Store/SnipSnipSnip v1.1.7/previews/captions/* 2.png

@@ -776,12 +776,6 @@ nonisolated struct CompositionConnectorRenderLayout: Equatable, Codable, Sendabl
     let style: CompositionStepConnectorStyle
 }
 
-nonisolated enum CompositionComparisonClip: Equatable, Codable, Sendable {
-    case none
-    case leading(fraction: CGFloat, axis: CompositionAxis)
-    case trailing(fraction: CGFloat, axis: CompositionAxis)
-}
-
 nonisolated struct CompositionComparisonRenderLayout: Equatable, Codable, Sendable {
     let mode: CompositionComparisonMode
     let axis: CompositionAxis

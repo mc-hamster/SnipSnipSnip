@@ -78,6 +78,26 @@ missing browser into a failing gate instead of a skip.
 
 ## Release test gate
 
+`check-repository-hygiene.py` rejects tracked installed dependencies, build and
+packaging output, files matching repository ignore rules, compiled executables,
+and identical sibling copies with copy-style names. It checks Git-controlled
+files rather than scanning local output folders, and it does not apply personal
+or global ignore settings as repository policy. Original artwork, reviewed
+submission media, source scripts, and required resource variants remain allowed.
+
+```sh
+python3 Tools/check-repository-hygiene.py
+python3 Tools/check-repository-hygiene.py --staged
+python3 -m unittest discover -s Tools/tests -p 'test_repository_hygiene.py'
+```
+
+The default check uses current tracked working-tree files, allowing pending
+cleanup deletions. `--staged` checks index contents so a local deletion cannot
+hide an artifact that would still be committed. The standalone Repository Hygiene
+workflow runs on every branch push and pull request. The macOS CI suite and the
+release gate also run the guard before building; force-adding an ignored file
+does not bypass it.
+
 `check-identity-safety.py` rejects duplicate-key trapping dictionary
 constructors in the app, CLI, and Share Extension Swift sources. It checks
 tokens conservatively, including generic and inferred initializers. Derived

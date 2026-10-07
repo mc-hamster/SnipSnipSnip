@@ -47,6 +47,22 @@ gate and CI check production Swift for trapping dictionary constructors:
 python3 Tools/check-identity-safety.py
 ```
 
+Keep generated dependencies, build products, render intermediates, and submission
+archives out of Git. Track source, original artwork, intentional app resources,
+and dependency manifests/lockfiles. Check repository hygiene before submitting:
+
+```sh
+python3 Tools/check-repository-hygiene.py
+```
+
+After staging, use `python3 Tools/check-repository-hygiene.py --staged` to check
+the exact pending commit. The working-tree check allows pending cleanup deletions;
+the staged check catches artifacts still in the index, even if deleted locally.
+CI checks every pushed branch and pull request, and the release test gate runs the
+guard before building. Ignore rules also apply to force-added files. Original
+artwork and required icon variants are allowed; identical sibling copies with
+copy-style filenames are rejected.
+
 ## Pull Requests
 
 Keep pull requests focused and explain:

@@ -1,11 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
 import {execFileSync} from 'node:child_process';
+import sharp from 'sharp';
 
 const root=path.dirname(fileURLToPath(import.meta.url));
-const sharp=createRequire(import.meta.url)('../SnipSnipSnip v1.1.7/previews/node_modules/sharp');
 const work=path.join(root,'review/preview-render');
 await fs.mkdir(work,{recursive:true});
 const headlines=['Compare two versions.','Explain it in Steps.','Bring every view together.'];

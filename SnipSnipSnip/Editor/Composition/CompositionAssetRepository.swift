@@ -2,9 +2,6 @@ import CoreGraphics
 import Foundation
 import ImageIO
 
-/// Product terminology alias retained at the document boundary.
-typealias CaptureAssetDescriptor = CompositionAssetDescriptor
-
 nonisolated enum CompositionAssetRepositoryError: LocalizedError, Equatable {
     case missingAsset(UUID)
     case invalidImage(UUID)

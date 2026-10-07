@@ -55,16 +55,20 @@ apply these files. This package is not a signed app build or a release-test gate
 From the repository root:
 
 ```sh
+npm ci --prefix 'assets/App Store'
 node 'assets/App Store/SnipSnipSnip v1.2.0/render.mjs'
 node 'assets/App Store/SnipSnipSnip v1.2.0/render-preview.mjs'
 python3 'assets/App Store/SnipSnipSnip v1.2.0/validate.py'
 python3 Tools/check-identity-safety.py
 ```
 
-The renderers reuse the existing pinned `sharp` installation under the 1.1.7
-preview directory. The preview renderer also requires `ffmpeg`; validation uses
-`ffprobe`. No node_modules copy is included in this campaign. `validation.json`
-records dimensions, encoding, metadata counts, and upload-file SHA-256 hashes.
+The renderers use the pinned `sharp` dependency and shared lockfile in
+`assets/App Store`. Installed `node_modules` stay local and are ignored by Git.
+The preview renderer also requires `ffmpeg`; validation uses `ffprobe`.
+`validation.json` records dimensions, encoding, metadata counts, and upload-file
+SHA-256 hashes. Preview render intermediates are regenerated locally. Create
+submission ZIPs and their checksum files under the ignored `build/` directory;
+the individual submission assets remain the tracked source of truth.
 
 For fresh captures, first coordinate an exclusive app window with other
 automations and verify that SnipSnipSnip has exited. Never terminate a user-owned

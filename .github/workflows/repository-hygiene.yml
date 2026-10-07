@@ -1,0 +1,21 @@
+name: Repository Hygiene
+
+on:
+  pull_request:
+  push:
+    branches:
+      - "**"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Test repository hygiene guard
+        run: python3 -m unittest discover -s Tools/tests -p 'test_repository_hygiene.py'
+
+      - name: Check committed repository files
+        run: python3 Tools/check-repository-hygiene.py --staged

@@ -15,6 +15,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check repository hygiene
+        run: python3 Tools/check-repository-hygiene.py --staged
+
       - name: Select latest Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
 

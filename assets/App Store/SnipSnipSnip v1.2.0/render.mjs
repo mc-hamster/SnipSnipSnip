@@ -1,12 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
+import sharp from 'sharp';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const require = createRequire(import.meta.url);
-// Reuse the repository's pinned sharp runtime; do not vendor another node_modules.
-const sharp = require('../SnipSnipSnip v1.1.7/previews/node_modules/sharp');
 const slides = JSON.parse(await fs.readFile(path.join(root, 'slides.json'), 'utf8'));
 const output = path.join(root, 'screenshots/en-US');
 await fs.mkdir(output, {recursive:true});
