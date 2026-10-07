@@ -118,3 +118,34 @@ Tools/run-release-test-gate.sh \
 For a focused local diagnosis, repeat `--only-testing` with XCTest identifiers.
 The generated runner is a developer-only build product; its certificate-free
 CI signing change never affects the shipped application or release archives.
+
+## Automation sample matrix
+
+`validate-automation-samples.py` executes the existing CLI, AppleScript, or URL sample
+procedures against the disposable Debug automation fixture. It refuses to run
+unless exactly one app process has both test launch arguments below. It never
+launches or quits the app itself. Follow the single-instance rules first.
+
+Launch a Debug build normally with `open -a /path/to/SnipSnipSnip.app --args
+--snipsnipsnip-composition-ui-testing --snipsnipsnip-automation-audit`, then run:
+
+```sh
+python3 Tools/validate-automation-samples.py \
+  --cli /path/to/SnipSnipSnip.app/Contents/Library/Helpers/snipsnipsnipctl \
+  --output '/tmp/SnipSnipSnip Automation/CLI' --surface cli --matrix
+
+python3 Tools/validate-automation-samples.py \
+  --cli /path/to/SnipSnipSnip.app/Contents/Library/Helpers/snipsnipsnipctl \
+  --output '/tmp/SnipSnipSnip Automation/AppleScript' --surface applescript
+```
+
+Use `--surface url` for URL samples; their results are verified through observable
+document, clipboard, and file effects because URL routes return no JSON.
+
+The optional matrix covers all layouts, comparison modes, built-in templates,
+eight export formats, output files, quoting, Unicode, privacy, overwrite,
+missing targets, invalid numeric values, and Pro capability errors. JSON reports
+record each outcome. Samples 11–12 remain separate interactive picker checks;
+the runner reports them explicitly rather than counting acceptance as completed
+capture. `AutomationSampleScriptTests` also runs all 49 shell samples through
+transport spies into the production CLI/URL parsers without capturing a desktop.

@@ -62,6 +62,7 @@ nonisolated struct AutomationFileDestinationPolicy {
 
 @MainActor
 protocol AutomationCommandHandler: AnyObject {
+    var hasPendingInteractiveAutomationCapture: Bool { get }
     var automationPermissionPreflight: AutomationPermissionPreflight { get }
     var automationCapturePresets: [AutomationPresetSummary] { get }
 
@@ -74,9 +75,14 @@ protocol AutomationCommandHandler: AnyObject {
     func guideAutomation(_ command: GuideAutomationCommand, request: AutomationRequest) async -> AutomationResultEnvelope
 }
 
+extension AutomationCommandHandler {
+    var hasPendingInteractiveAutomationCapture: Bool { false }
+}
+
 @MainActor
 final class AutomationExecutor {
     private weak var handler: AutomationCommandHandler?
+    private var isPerformingMutation = false
 
     init(handler: AutomationCommandHandler) {
         self.handler = handler
@@ -90,6 +96,19 @@ final class AutomationExecutor {
         guard let handler else {
             return .failure(requestID: request.id, code: .internalError, message: "Automation host is not available.")
         }
+
+        let isMutation: Bool
+        switch request.command {
+        case .status, .listPresets: isMutation = false
+        default: isMutation = true
+        }
+        if isMutation {
+            guard !isPerformingMutation, !handler.hasPendingInteractiveAutomationCapture else {
+                return .failure(requestID: request.id, code: .busy, message: "Another automation operation is still in progress.")
+            }
+            isPerformingMutation = true
+        }
+        defer { if isMutation { isPerformingMutation = false } }
 
         switch request.command {
         case .status:
@@ -209,7 +228,7 @@ final class AutomationOutputService {
             }
             let url = try outputURL(file)
             ShortcutsAutomationLog.logger.info(
-                "output.write saveFile resolved url=\(url.path, privacy: .public) format=\(file.format.rawValue, privacy: .public) overwrite=\(file.overwrite, privacy: .public)"
+                "output.write saveFile resolved url=\(url.path, privacy: .private) format=\(file.format.rawValue, privacy: .public) overwrite=\(file.overwrite, privacy: .public)"
             )
             guard let controller = port.automationCurrentEditorController else {
                 ShortcutsAutomationLog.logger.error("output.write saveFile failed current editor unavailable")
@@ -226,7 +245,7 @@ final class AutomationOutputService {
             do {
                 try await writeFile(to: url, overwrite: file.overwrite) {
                     ShortcutsAutomationLog.logger.info(
-                        "output.write saveFile invoking composition output url=\(url.path, privacy: .public)"
+                        "output.write saveFile invoking composition output url=\(url.path, privacy: .private)"
                     )
                     _ = try await controller.exportComposition(
                         format: compositionFormat,
@@ -253,7 +272,7 @@ final class AutomationOutputService {
                 )
             }
             ShortcutsAutomationLog.logger.info(
-                "output.write saveFile finished url=\(url.path, privacy: .public) exists=\(self.files.fileExists(atPath: url.path), privacy: .public)"
+                "output.write saveFile finished url=\(url.path, privacy: .private) exists=\(self.files.fileExists(atPath: url.path), privacy: .public)"
             )
             revealIfNeeded(url, reveal: file.revealInFinder)
             return [.init(kind: .savedFile, url: url, format: file.format)]
@@ -275,18 +294,18 @@ final class AutomationOutputService {
             }
             let url = try outputURL(file)
             ShortcutsAutomationLog.logger.info(
-                "output.write saveEditable resolved url=\(url.path, privacy: .public) overwrite=\(file.overwrite, privacy: .public)"
+                "output.write saveEditable resolved url=\(url.path, privacy: .private) overwrite=\(file.overwrite, privacy: .public)"
             )
             try await writeFile(to: url, overwrite: file.overwrite) {
                 ShortcutsAutomationLog.logger.info(
-                    "output.write saveEditable invoking document save url=\(url.path, privacy: .public)"
+                    "output.write saveEditable invoking document save url=\(url.path, privacy: .private)"
                 )
                 guard await port.saveAutomationDocument(controller, to: url) else {
                     throw AutomationExecutionError(code: .outputFailed, message: "The editable document could not be saved.")
                 }
             }
             ShortcutsAutomationLog.logger.info(
-                "output.write saveEditable finished url=\(url.path, privacy: .public) exists=\(self.files.fileExists(atPath: url.path), privacy: .public)"
+                "output.write saveEditable finished url=\(url.path, privacy: .private) exists=\(self.files.fileExists(atPath: url.path), privacy: .public)"
             )
             revealIfNeeded(url, reveal: file.revealInFinder)
             return [.init(kind: .savedEditableDocument, url: url, format: .sss)]
@@ -311,21 +330,21 @@ final class AutomationOutputService {
     private func writeFile(to url: URL, overwrite: Bool, operation: () async throws -> Void) async throws {
         let existedBefore = files.fileExists(atPath: url.path)
         ShortcutsAutomationLog.logger.info(
-            "output.writeFile preflight url=\(url.path, privacy: .public) existedBefore=\(existedBefore, privacy: .public) overwrite=\(overwrite, privacy: .public)"
+            "output.writeFile preflight url=\(url.path, privacy: .private) existedBefore=\(existedBefore, privacy: .public) overwrite=\(overwrite, privacy: .public)"
         )
         if existedBefore, !overwrite {
             ShortcutsAutomationLog.logger.error(
-                "output.writeFile refusing existing file url=\(url.path, privacy: .public)"
+                "output.writeFile refusing existing file url=\(url.path, privacy: .private)"
             )
             throw AutomationExecutionError(code: .outputFailed, message: "Output file already exists. Pass overwrite to replace it.")
         }
         ShortcutsAutomationLog.logger.info(
-            "output.writeFile creating directory url=\(url.deletingLastPathComponent().path, privacy: .public)"
+            "output.writeFile creating directory url=\(url.deletingLastPathComponent().path, privacy: .private)"
         )
         try files.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try await operation()
         ShortcutsAutomationLog.logger.info(
-            "output.writeFile postflight url=\(url.path, privacy: .public) existsAfter=\(self.files.fileExists(atPath: url.path), privacy: .public)"
+            "output.writeFile postflight url=\(url.path, privacy: .private) existsAfter=\(self.files.fileExists(atPath: url.path), privacy: .public)"
         )
     }
 

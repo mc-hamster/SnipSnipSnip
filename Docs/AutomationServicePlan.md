@@ -1,5 +1,49 @@
 # Automation Service Plan
 
+## Automation reliability checks
+
+The bundled CLI sends its original JSON argument array through the dedicated
+`execute command line` Apple Event (`SSSaCLIR`, `argumentsJSON`/`SSja`) to the
+shared `AutomationCLIParser`. This event uses the existing narrow scripting
+access group and the same validation/execution service. It preserves the
+command-line source and unattended interaction policy; the helper no longer
+maintains a second parser or generates per-command AppleScript. Use the helper
+from the same app version. Malformed transport responses fail with exit 70;
+Apple Events denial uses exit 77. Busy/unavailable Guide states use exit 69 and Guide finalization failure uses exit 74. Status reports the actual microphone authorization without prompting. The helper waits up to five minutes for output.
+
+AppleScript samples use the dictionary's spaced command names, such as
+`automation status` and `export current screenshot`. Camel-case Swift method
+names are not scripting terms. Sample variables must not shadow dictionary
+parameter names. CLI argument values retain spaces, quotes, Unicode, and
+backslashes. Unknown, duplicate, inapplicable, missing-value, and conflicting
+output options fail with `invalidRequest` (exit 64). Export format identifiers
+are case-insensitive. Rectangle input must contain exactly four finite numbers.
+Duplicate or valueless URL query parameters and malformed preset UUIDs are
+rejected before execution.
+
+Overlapping mutating automation requests return `busy` (CLI exit 69), including
+while an interactive capture is pending. Status and preset listing remain
+available. This prevents one caller from exporting another caller's capture.
+
+Opening a document waits for successful loading and any permitted unsaved-work
+decision before producing output. Unattended opening returns
+`confirmationRequired` when the current document is unsaved; cancellation returns
+`userCancelled`. A failed or cancelled open never exports the previous document.
+Interactive region/window capture retains its requested output, appearance, and
+Private Capture choice until selection completes. Cancellation clears that
+operation; a later capture cannot inherit its output. Interactive-only repeats
+return `confirmationRequired` to unattended callers.
+Capture failures return specific permission/target errors without opening a
+recovery sheet, and unattended capture does not start permission remediation. Saved-window
+presets and repeat commands check Screen Recording before resolving their targets.
+Diagnostic summaries omit document paths, source titles, and preset names;
+explicit JSON results still include the output URLs required by callers.
+
+Sample 26 uses `app-default` appearance, so a valid Comparison or Steps document
+can export HTML without first configuring Polish. Its URL sample percent-encodes
+the output path and supports `OUTPUT_DIR`, including spaces and ampersands.
+
+
 Screenshot capture and editor changes preserve the clipboard. Clipboard delivery requires an explicit copy output or a Capture Preset with Copy to Clipboard as its outcome. The retired global Auto Copy preference is ignored, including during automated captures. Existing copy commands, result fields, and sample-script procedures remain unchanged.
 
 ## Status
@@ -496,18 +540,18 @@ Initial command vocabulary:
 
 ```applescript
 tell application "SnipSnipSnip"
-    automationStatus
-    listCapturePresets
-    runCapturePreset given name:"Docs Header", output:"clipboard"
-    captureFullscreen given display:"current", outputPath:"/Users/me/Downloads/fullscreen.png", format:"png", overwrite:true
-    captureFrontmostWindow given output:"editor"
-    captureRegion given rect:"100,100,640,480", outputPath:"/Users/me/Downloads/region.png", format:"png", overwrite:true
-    captureWindow given interactive:true, output:"clipboard"
-    captureFullscreen given destination:"append", afterItemID:"…", appearance:"plain", output:"editor"
-    setCompositionLayout given layout:"steps", axis:"vertical"
-    setCompositionCompareMode given mode:"wipe", firstItemID:"…", secondItemID:"…", wipePosition:0.4
-    repeatLastCapture given output:"editor"
-    exportCurrentScreenshot given outputPath:"/Users/me/Downloads/current.png", format:"png", overwrite:true
+    automation status
+    list capture presets
+    run capture preset given name:"Docs Header", output:"clipboard"
+    capture fullscreen given display:"current", outputPath:"/Users/me/Downloads/fullscreen.png", format:"png", overwrite:true
+    capture frontmost window given output:"editor"
+    capture region given rect:"100,100,640,480", outputPath:"/Users/me/Downloads/region.png", format:"png", overwrite:true
+    capture window given interactive:true, output:"clipboard"
+    capture fullscreen given destination:"append", afterItemID:"…", appearance:"plain", output:"editor"
+    set composition layout given layout:"steps", axis:"vertical"
+    set composition compare mode given mode:"wipe", firstItemID:"…", secondItemID:"…", wipePosition:0.4
+    repeat last capture given output:"editor"
+    export current screenshot given outputPath:"/Users/me/Downloads/current.png", format:"png", overwrite:true
 end tell
 ```
 
@@ -827,7 +871,7 @@ output behavior is added.
 The first usable automation release should include:
 
 - `status`
-- `listCapturePresets`
+- `list capture presets`
 - `runPreset`
 - `capture fullscreen`
 - `capture frontmost window`

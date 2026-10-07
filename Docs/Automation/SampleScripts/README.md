@@ -81,3 +81,36 @@ export SECOND_ITEM_ID="00000000-0000-0000-0000-000000000002"
 export ITEM_ID="00000000-0000-0000-0000-000000000001"
 export TEMPLATE_ID="builtin.numbered-steps"
 ```
+
+## Repeatable validation
+
+Run `python3 Tools/validate-automation-samples.py --help` from the repository root.
+The live runner refuses to use ordinary user state: first start exactly one
+Debug app normally with `--snipsnipsnip-composition-ui-testing
+--snipsnipsnip-automation-audit`. That existing fixture isolates preferences and
+storage, provides synthetic pixels and a disposable Daily Clip preset, and uses
+the App Store capability set. Pass its bundled helper with `--cli`, a disposable
+folder with `--output`, and `--surface cli`, `--surface applescript`, or `--surface url`.
+AppleScript fixture copies change only input IDs and output locations.
+
+The CLI/AppleScript runner verifies authoritative results and existence of returned files.
+URL validation compares document snapshots, clipboard changes, and exported files;
+status and rejected Guide routes verify dispatch and an unchanged document, with
+their error contract checked through the other adapters. `--matrix` additionally
+exercises layouts, comparison settings, templates, all eight formats, and failure
+boundaries.
+Guide samples exercise `proFeatureRequired`; frontmost-window requests use a
+synthetic disposable window. Missing-window and denied-permission paths are
+covered separately by hosted tests. Samples 11–12 require separate picker completion
+and are explicitly reported as manual. Hosted tests also execute all 49 shell
+samples through transport spies into the production CLI/URL parsers, including
+paths and names containing spaces, ampersands, and Unicode.
+
+AppleScript uses spaced dictionary commands, and variables in samples 23 and 25
+avoid colliding with scripting parameter names. Sample 26 exports the current
+Comparison or Steps using `app-default` appearance and does not require Polish.
+Samples 11–12 retain the requested output and Private Capture choice through
+selection; output occurs only after successful completion.
+CLI callers must select one output destination; invalid or ambiguous options
+fail rather than being silently ignored. Save unsaved work before unattended
+sample 16; a cancelled or failed open does not export the previous document.

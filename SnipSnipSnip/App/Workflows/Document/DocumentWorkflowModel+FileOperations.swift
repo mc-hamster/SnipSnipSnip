@@ -275,7 +275,7 @@ extension DocumentWorkflowModel {
     /// A complete replacement is prepared before the current document can be
     /// discarded. Keeping the controller alive also avoids reopening the file
     /// after the person approves the switch.
-    private enum PreparedDocument {
+    enum PreparedDocument {
         case screenshot(EditorController)
         case video(VideoEditorController)
         case guide(GuideEditorController)
@@ -287,42 +287,43 @@ extension DocumentWorkflowModel {
     }
 
     private func prepareDocument(from url: URL) -> PreparedDocument? {
-        do {
-            return try withSecurityScopedAccess(to: url) {
-                if url.pathExtension.lowercased() == "sssguide" {
-                    let document = try SSSGuideDocumentPackage.load(from: url, files: systemServices.files)
-                    return .guide(GuideEditorController(document: document))
-                } else if url.pathExtension.lowercased() == "sssvideo" {
-                    let document = try SSSVideoDocumentPackage.load(from: url, files: systemServices.files)
-                    let posterImage = try? SSSVideoDocumentPackage.loadPosterImage(from: url, files: systemServices.files)
-                    return .video(VideoEditorController(
-                        recording: document.recording,
-                        session: document.session,
-                        posterImage: posterImage
-                    ))
-                } else {
-                    let document = try SSSDocumentPackage.load(from: url, files: systemServices.files)
-                    let controller = EditorController(
-                        capture: document.capture,
-                        session: document.session,
-                        capabilities: capabilities,
-                        uiMapOverlayOptions: uiMapPinnedOverlayDefaults,
-                        isPrivateDocument: document.isPrivate,
-                        workflowResumeState: document.workflowResumeState,
-                        sourceDocumentFormatVersion: document.sourceFormatVersion,
-                        compositionStoredAssets: document.compositionStoredAssets
-                    )
-                    controller.restoreWorkflowWorkspace()
-                    return .screenshot(controller)
-                }
+        do { return try readPreparedDocument(from: url) }
+        catch { present(error); return nil }
+    }
+
+    func readPreparedDocument(from url: URL) throws -> PreparedDocument {
+        return try withSecurityScopedAccess(to: url) {
+            if url.pathExtension.lowercased() == "sssguide" {
+                let document = try SSSGuideDocumentPackage.load(from: url, files: systemServices.files)
+                return .guide(GuideEditorController(document: document))
+            } else if url.pathExtension.lowercased() == "sssvideo" {
+                let document = try SSSVideoDocumentPackage.load(from: url, files: systemServices.files)
+                let posterImage = try? SSSVideoDocumentPackage.loadPosterImage(from: url, files: systemServices.files)
+                return .video(VideoEditorController(
+                    recording: document.recording,
+                    session: document.session,
+                    posterImage: posterImage
+                ))
+            } else {
+                let document = try SSSDocumentPackage.load(from: url, files: systemServices.files)
+                let controller = EditorController(
+                    capture: document.capture,
+                    session: document.session,
+                    capabilities: capabilities,
+                    uiMapOverlayOptions: uiMapPinnedOverlayDefaults,
+                    isPrivateDocument: document.isPrivate,
+                    workflowResumeState: document.workflowResumeState,
+                    sourceDocumentFormatVersion: document.sourceFormatVersion,
+                    compositionStoredAssets: document.compositionStoredAssets
+                )
+                controller.restoreWorkflowWorkspace()
+                return .screenshot(controller)
             }
-        } catch {
-            present(error)
-            return nil
         }
     }
 
-    private func installPreparedDocument(_ candidate: PreparedDocument, documentURL: URL?) {
+
+    func installPreparedDocument(_ candidate: PreparedDocument, documentURL: URL?) {
         switch candidate {
         case .screenshot(let controller):
             installEditorController(controller, documentURL: documentURL,

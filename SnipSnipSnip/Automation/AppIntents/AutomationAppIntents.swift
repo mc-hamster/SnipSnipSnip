@@ -41,7 +41,7 @@ extension AutomationPerformingIntent {
         )
         if let error = result.error {
             ShortcutsAutomationLog.logger.error(
-                "intent.perform silent throwing requestID=\(request.id.uuidString, privacy: .public) code=\(error.code.rawValue, privacy: .public) message=\(error.message, privacy: .public)"
+                "intent.perform silent throwing requestID=\(request.id.uuidString, privacy: .public) code=\(error.code.rawValue, privacy: .public) message=\(error.message, privacy: .private)"
             )
             throw AutomationIntentFailure(message: error.message)
         }
@@ -93,7 +93,7 @@ extension AutomationPerformingIntent {
         )
         if let error = result.error {
             ShortcutsAutomationLog.logger.error(
-                "intent.perform dialog throwing requestID=\(request.id.uuidString, privacy: .public) code=\(error.code.rawValue, privacy: .public) message=\(error.message, privacy: .public)"
+                "intent.perform dialog throwing requestID=\(request.id.uuidString, privacy: .public) code=\(error.code.rawValue, privacy: .public) message=\(error.message, privacy: .private)"
             )
             throw AutomationIntentFailure(message: error.message)
         }

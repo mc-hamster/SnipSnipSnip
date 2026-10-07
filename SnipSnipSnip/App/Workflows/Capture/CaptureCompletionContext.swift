@@ -49,6 +49,8 @@ nonisolated struct CaptureCompletionContext: Equatable, Sendable {
     var oneShotOptions: CaptureOneShotOptions?
     var presentationContext: WorkflowPresentationContext
     var allowsCapturePreview = true
+    /// Deferred output belongs to this exact interactive acquisition, not the next capture.
+    var automationRequest: AutomationRequest?
     /// Identifies a persistent acquisition surface whose later captures must
     /// continue the same user goal. Derived append contexts retain this token,
     /// allowing the surface's close handler to clear only its own state.

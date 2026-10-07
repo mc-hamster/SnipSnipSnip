@@ -88,6 +88,7 @@ protocol CoordinatorDocumentPort: AnyObject {
     func syncMainWindowDocumentState()
     func resizeMainWindowForEditorContentIfNeeded(animated: Bool)
     func openDocument(at url: URL)
+    func loadAutomationDocument(from url: URL, interactionPolicy: AutomationInteractionPolicy) async throws
     func saveDocument(_ controller: EditorController, to url: URL) async -> Bool
     func floatCurrentEditorReference()
     func handleIncompatibleRecoveryEntriesOnLaunch()

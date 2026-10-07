@@ -1,3 +1,3 @@
 tell application id "com.oontz.SnipSnipSnip"
-    runCapturePreset given name:"Daily Clip", output:"clipboard"
+    run capture preset given name:"Daily Clip", output:"clipboard"
 end tell

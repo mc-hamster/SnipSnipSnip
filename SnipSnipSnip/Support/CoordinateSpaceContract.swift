@@ -263,15 +263,14 @@ nonisolated struct CaptureDisplayTransform: Equatable {
     }
 
     func overlayGlobalRect(fromCaptureGlobalRect rect: CGRect) -> CGRect {
-        let normalized = rect.standardized
-        let minPoint = overlayGlobalPoint(fromCaptureGlobalPoint: CGPoint(x: normalized.minX, y: normalized.maxY))
-        let maxPoint = overlayGlobalPoint(fromCaptureGlobalPoint: CGPoint(x: normalized.maxX, y: normalized.minY))
+        // Use the same capture-space rounding as the Region outline. Rounding
+        // again after scaling to AppKit points expands the Window outline on
+        // scaled displays and makes the two selectors disagree.
+        let local = overlayLocalRect(fromCaptureGlobalRect: rect)
         return CGRect(
-            x: min(minPoint.x, maxPoint.x),
-            y: min(minPoint.y, maxPoint.y),
-            width: abs(maxPoint.x - minPoint.x),
-            height: abs(maxPoint.y - minPoint.y)
-        ).gscIntegralStandardized
+            origin: overlayGlobalPoint(fromOverlayLocalPoint: CGPoint(x: local.minX, y: local.maxY)),
+            size: local.size
+        )
     }
 }
 

@@ -1116,29 +1116,9 @@ final class AutomationContractTests: XCTestCase {
             encoding: .utf8
         )
 
-        for fragment in [
-            "case \"guide\":",
-            "\"start\"",
-            "\"pause\"",
-            "\"resume\"",
-            "\"add-step\"",
-            "\"stop\"",
-            "\"export\"",
-            "appleScriptCommand(\"guide\"",
-            "case \"composition\":",
-            "\"layout\"",
-            "\"compare\"",
-            "\"template\"",
-            "setCompositionLayout",
-            "setCompositionCompareMode",
-            "applyCompositionTemplate",
-            "--destination",
-            "--after-item-id",
-            "--replace-item-id",
-            "--appearance",
-        ] {
-            XCTAssertTrue(text.contains(fragment), "Bundled CLI is missing automation support for \(fragment).")
-        }
+        XCTAssertTrue(text.contains("execute command line argumentsJSON"))
+        XCTAssertTrue(text.contains("JSONSerialization.data(withJSONObject: arguments)"))
+        XCTAssertFalse(text.contains("struct ArgumentCursor"))
 
         let bridge = try String(
             contentsOf: repoRoot().appendingPathComponent(
@@ -1207,7 +1187,7 @@ final class AutomationContractTests: XCTestCase {
 
         XCTAssertEqual(
             scriptingDefinition.components(separatedBy: "com.oontz.SnipSnipSnip.automation").count - 1,
-            14,
+            15,
             "Every exposed command must belong to the CLI's narrow scripting access group."
         )
         XCTAssertTrue(entitlements.contains("com.apple.security.scripting-targets"))

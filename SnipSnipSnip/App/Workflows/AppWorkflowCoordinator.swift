@@ -99,8 +99,15 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
                 }
                 return
             }
-            let workflowOutcome = result.workflowPreset?.outcome ?? .openInEditor
-            let willBeCopied = workflowOutcome == .copyToClipboard
+            let workflowOutcome = result.automationRequest == nil ? (result.workflowPreset?.outcome ?? .openInEditor) : .openInEditor
+            let willBeCopied = workflowOutcome == .copyToClipboard || result.automationRequest?.output == .copyRenderedImage
+            if let request = result.automationRequest {
+                Task { @MainActor [weak self, weak controller] in
+                    guard let self, let controller, documents.editorController === controller else { return }
+                    let output = await self.automationResultAfterCurrentEditorOutput(request, result.capture.kind.rawValue, nil)
+                    if let error = output.error { self.lifecycle?.presentError(error.message) }
+                }
+            }
 
             if !result.isPrivateCapture, installation.disposition == .newDocument {
                 clipboard?.scheduleClipboardSnipRecording(
@@ -141,7 +148,7 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
                 )
             }
 
-            if workflowOutcome == .openInEditor {
+            if workflowOutcome == .openInEditor, result.automationRequest == nil {
                 let showedPreview = documents.presentCapturePreview(for: result, installation: installation)
                 capture?.finishCapturePresentation(showingPreview: showedPreview)
                 if !showedPreview {
@@ -398,6 +405,16 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
         }
     }
 
+    func openAutomationDocument(_ url: URL, interactionPolicy: AutomationInteractionPolicy) async throws {
+        guard guide?.isActive != true, video?.blocksNewCapture != true else {
+            throw AutomationExecutionError(code: .busy, message: "Stop the active recording before opening a document.")
+        }
+        guard let documents else {
+            throw AutomationExecutionError(code: .internalError, message: "Document workflow is not available.")
+        }
+        try await documents.loadAutomationDocument(from: url, interactionPolicy: interactionPolicy)
+    }
+
     func saveDocument(_ controller: EditorController, to url: URL) async -> Bool {
         await documents?.saveDocument(controller, to: url) ?? false
     }
@@ -437,6 +454,7 @@ struct CaptureWorkflowResult {
     let intent: CaptureIntent
     let completionRole: CaptureCompletionRole
     let allowsCapturePreview: Bool
+    let automationRequest: AutomationRequest?
 
     init(
         capture: CapturedScreenshot,
@@ -451,7 +469,8 @@ struct CaptureWorkflowResult {
         workflowPreset: CapturePreset?,
         intent: CaptureIntent,
         completionRole: CaptureCompletionRole = .standalone,
-        allowsCapturePreview: Bool = false
+        allowsCapturePreview: Bool = false,
+        automationRequest: AutomationRequest? = nil
     ) {
         self.capture = capture
         self.uiMapSourceCapture = uiMapSourceCapture
@@ -466,6 +485,7 @@ struct CaptureWorkflowResult {
         self.intent = intent
         self.completionRole = completionRole
         self.allowsCapturePreview = allowsCapturePreview
+        self.automationRequest = automationRequest
     }
 }
 

@@ -3,5 +3,5 @@ set outputPath to ((path to downloads folder as text) & "opened-document.png")
 set outputPOSIXPath to POSIX path of outputPath
 
 tell application id "com.oontz.SnipSnipSnip"
-    openSnipDocument given path:documentPath, outputPath:outputPOSIXPath, format:"png", overwrite:true
+    open snip document given path:documentPath, outputPath:outputPOSIXPath, format:"png", overwrite:true
 end tell

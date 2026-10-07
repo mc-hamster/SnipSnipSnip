@@ -1,3 +1,3 @@
 tell application id "com.oontz.SnipSnipSnip"
-    automationStatus
+    automation status
 end tell

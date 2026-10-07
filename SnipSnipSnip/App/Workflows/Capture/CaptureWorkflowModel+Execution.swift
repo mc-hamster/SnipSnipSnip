@@ -10,6 +10,7 @@ extension CaptureWorkflowModel {
         runOptions: CaptureRunOptions? = nil,
         completionContext: CaptureCompletionContext? = nil,
         allowsCapturePreview: Bool = true,
+        failureHandler: ((Error) -> Void)? = nil,
         _ action: () async throws -> CapturedScreenshot
     ) async -> Bool {
         let captureContext =
@@ -60,11 +61,11 @@ extension CaptureWorkflowModel {
             )
             return true
         } catch {
-            present(
-                error,
-                recovering: request,
-                captureContext: captureContext
-            )
+            if let failureHandler {
+                failureHandler(error)
+            } else {
+                present(error, recovering: request, captureContext: captureContext)
+            }
             return false
         }
     }

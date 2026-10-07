@@ -2,6 +2,12 @@
 <!DOCTYPE dictionary SYSTEM "file://localhost/System/Library/DTDs/sdef.dtd">
 <dictionary title="SnipSnipSnip Automation">
   <suite name="SnipSnipSnip Automation" code="SSSa" description="Automation commands for SnipSnipSnip screenshots and exports. Commands return JSON text.">
+    <command name="execute command line" code="SSSaCLIR" description="Run the bundled command-line helper's JSON argument array through the shared automation parser.">
+      <cocoa class="SSSExecuteCommandLineCommand"/>
+      <access-group identifier="com.oontz.SnipSnipSnip.automation"/>
+      <parameter name="argumentsJSON" code="SSja" type="text" description="JSON array of command-line argument strings."/>
+      <result type="text" description="JSON automation result."/>
+    </command>
     <command name="automation status" code="SSSaSTAT" description="Return automation capabilities and permission status as JSON.">
       <cocoa class="SSSAutomationStatusCommand"/>
       <access-group identifier="com.oontz.SnipSnipSnip.automation"/>

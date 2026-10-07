@@ -1,3 +1,3 @@
 tell application id "com.oontz.SnipSnipSnip"
-    captureFrontmostWindow given output:"editor"
+    capture frontmost window given output:"editor"
 end tell

@@ -89,6 +89,7 @@ enum CompositionUITestLaunchSupport {
         let permissions = CompositionUITestPermissionService()
         let environment = AppEnvironment(
             defaults: defaults,
+            buildTarget: ProcessInfo.processInfo.arguments.contains("--snipsnipsnip-automation-audit") ? .release : .current,
             permissions: permissions
         )
         let rootURL = FileManager.default.temporaryDirectory
@@ -121,8 +122,9 @@ enum CompositionUITestLaunchSupport {
             recoveryStore: DocumentRecoveryStore(
                 baseURL: rootURL.appendingPathComponent("Recovery", isDirectory: true)
             ),
+            videoRecoveryStore: VideoRecoveryStore(rootURL: rootURL.appendingPathComponent("VideoRecovery", isDirectory: true)),
             clipboardHistoryStore: clipboardHistoryStore,
-            captureService: CompositionUITestCaptureService(),
+            captureService: CompositionUITestCaptureService(includesWindow: ProcessInfo.processInfo.arguments.contains("--snipsnipsnip-automation-audit")),
             screenInspectorCapturePlatform: CompositionUITestScreenCapturePlatform()
         )
         let model = AppModel(
@@ -133,6 +135,9 @@ enum CompositionUITestLaunchSupport {
             shouldStartArchiveMaintenance: false
         )
         model.lifecycle.confirmsBeforeQuitting = false
+        if ProcessInfo.processInfo.arguments.contains("--snipsnipsnip-automation-audit") {
+            model.capture.capturePresets = [CapturePreset(name: "Daily Clip", target: .fullscreen, options: CaptureRunOptions())]
+        }
         return model
     }
 
@@ -934,17 +939,25 @@ nonisolated private struct CompositionUITestScreenCapturePlatform:
 }
 
 nonisolated struct CompositionUITestCaptureService: ScreenCaptureServiceType {
+    var includesWindow = false
+
+    private var fixtureWindow: CaptureWindowSummary {
+        CaptureWindowSummary(id: 999_001, ownerName: "Automation Fixture", ownerPID: 999_001,
+            title: "Disposable Capture", frame: CGRect(x: 100, y: 100, width: 900, height: 700),
+            layer: 0, focusRank: 0, thumbnail: CompositionUITestFixture.capture(ordinal: 1).image)
+    }
     nonisolated func listWindows(
         excluding _: pid_t,
         includeThumbnails _: Bool
     ) async throws -> [CaptureWindowSummary] {
-        []
+        includesWindow ? [fixtureWindow] : []
     }
 
     nonisolated func frontmostWindow(
         excluding _: pid_t
     ) async throws -> CaptureWindowSummary {
-        throw ScreenCaptureError.noWindowsAvailable
+        guard includesWindow else { throw ScreenCaptureError.noWindowsAvailable }
+        return fixtureWindow
     }
 
     nonisolated func resolveWindowTarget(
@@ -966,7 +979,12 @@ nonisolated struct CompositionUITestCaptureService: ScreenCaptureServiceType {
     }
 
     nonisolated func captureDesktopOverlaySnapshot() async throws -> DesktopCompositeSnapshot {
-        throw ScreenCaptureError.noDisplays
+        guard includesWindow else { throw ScreenCaptureError.noDisplays }
+        let displayID = CGMainDisplayID()
+        let frame = CGDisplayBounds(displayID)
+        let display = DisplaySnapshot(displayID: displayID, name: "Automation Fixture", frame: frame, scale: 1)
+        let preview = DisplayPreview(snapshot: display, image: CompositionUITestFixture.capture(ordinal: 1).image)
+        return DesktopCompositeSnapshot(previewImage: nil, globalFrame: frame, displays: [display], displayPreviews: [preview])
     }
 
     nonisolated func captureRegion(

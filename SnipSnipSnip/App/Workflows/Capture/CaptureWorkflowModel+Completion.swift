@@ -86,7 +86,8 @@ extension CaptureWorkflowModel {
             workflowPreset: activeWorkflowPreset,
             intent: captureContext.intent,
             completionRole: captureContext.role,
-            allowsCapturePreview: allowsCapturePreview && captureContext.allowsCapturePreview
+            allowsCapturePreview: allowsCapturePreview && captureContext.allowsCapturePreview,
+            automationRequest: captureContext.automationRequest
         )))
         activeWorkflowPresetID = nil
         AppAccessibility.announce("Capture complete. \(Int(capture.pixelSize.width)) by \(Int(capture.pixelSize.height)) pixels.")

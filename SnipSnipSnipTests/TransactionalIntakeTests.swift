@@ -493,3 +493,77 @@ private struct TransactionalIntakeFixture {
         try? FileManager.default.removeItem(at: root)
     }
 }
+
+extension TransactionalIntakeTests {
+    func testAutomationOpenFailureNeverExportsPreviousDocument() async throws {
+        let fixture = try TransactionalIntakeFixture()
+        defer { fixture.cleanUp() }
+        let original = fixture.installScreenshot()
+        fixture.model.documents.installEditorController(original, documentURL: nil, savedSession: nil, shouldCreateRecoverySession: false)
+        let corrupt = fixture.root.appendingPathComponent("Corrupt.sss")
+        try Data("invalid package".utf8).write(to: corrupt)
+        let output = fixture.root.appendingPathComponent("must-not-exist.png")
+        let request = AutomationRequest(source: .init(kind: .commandLine),
+            command: .openDocument(.init(url: corrupt)), interactionPolicy: .never,
+            output: .saveFile(.init(url: output, format: .png)))
+        let result = await AppAutomationService(host: fixture.model.automation).perform(request)
+        XCTAssertEqual(result.status, .failed)
+        XCTAssertTrue(fixture.model.documents.editorController === original)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: output.path))
+        XCTAssertFalse(fixture.model.documents.isShowingUnsavedChangesPrompt)
+    }
+
+    func testAutomationOpenUnattendedPreservesUnsavedDocument() async throws {
+        let fixture = try TransactionalIntakeFixture()
+        defer { fixture.cleanUp() }
+        let original = fixture.installScreenshot()
+        fixture.model.documents.installEditorController(original, documentURL: nil, savedSession: nil, shouldCreateRecoverySession: false)
+        let target = fixture.root.appendingPathComponent("Target.sss")
+        try SSSDocumentPackage.save(document: original.editableDocument, previewImage: original.capture.image, to: target)
+        let request = AutomationRequest(source: .init(kind: .commandLine), command: .openDocument(.init(url: target)), interactionPolicy: .never)
+        let result = await AppAutomationService(host: fixture.model.automation).perform(request)
+        XCTAssertEqual(result.error?.code, .confirmationRequired)
+        XCTAssertTrue(fixture.model.documents.editorController === original)
+        XCTAssertFalse(fixture.model.documents.isShowingUnsavedChangesPrompt)
+    }
+
+    func testAutomationOpenWaitsForConfirmationAndExportsOnlyRequestedDocument() async throws {
+        let fixture = try TransactionalIntakeFixture()
+        defer { fixture.cleanUp() }
+        let original = fixture.installScreenshot()
+        fixture.model.documents.installEditorController(original, documentURL: nil, savedSession: nil, shouldCreateRecoverySession: false)
+        let replacement = retainForTestLifetime(EditorController(capture: makeCapturedScreenshot(sourceName: "Automation replacement"), capabilities: testCapabilities))
+        let target = fixture.root.appendingPathComponent("Target.sss")
+        try SSSDocumentPackage.save(document: replacement.editableDocument, previewImage: replacement.capture.image, to: target)
+        let output = fixture.root.appendingPathComponent("requested.png")
+        let request = AutomationRequest(source: .init(kind: .appleScript), command: .openDocument(.init(url: target)), interactionPolicy: .promptIfNeeded, output: .saveFile(.init(url: output, format: .png)))
+        let task = Task { await AppAutomationService(host: fixture.model.automation).perform(request) }
+        await waitUntil { fixture.model.documents.isShowingUnsavedChangesPrompt }
+        XCTAssertTrue(fixture.model.documents.editorController === original)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: output.path))
+        fixture.model.documents.discardChangesAndContinue()
+        let result = await task.value
+        XCTAssertEqual(result.status, .succeeded)
+        XCTAssertEqual(fixture.model.documents.currentDocumentURL, target)
+        XCTAssertEqual(fixture.model.documents.editorController?.capture.sourceName, "Automation replacement")
+        XCTAssertNotNil(CGImageSourceCreateWithURL(output as CFURL, nil))
+    }
+
+    func testAutomationOpenCancellationDoesNotExport() async throws {
+        let fixture = try TransactionalIntakeFixture()
+        defer { fixture.cleanUp() }
+        let original = fixture.installScreenshot()
+        fixture.model.documents.installEditorController(original, documentURL: nil, savedSession: nil, shouldCreateRecoverySession: false)
+        let target = fixture.root.appendingPathComponent("Target.sss")
+        try SSSDocumentPackage.save(document: original.editableDocument, previewImage: original.capture.image, to: target)
+        let output = fixture.root.appendingPathComponent("cancelled.png")
+        let request = AutomationRequest(source: .init(kind: .appleScript), command: .openDocument(.init(url: target)), interactionPolicy: .promptIfNeeded, output: .saveFile(.init(url: output, format: .png)))
+        let task = Task { await AppAutomationService(host: fixture.model.automation).perform(request) }
+        await waitUntil { fixture.model.documents.isShowingUnsavedChangesPrompt }
+        fixture.model.documents.cancelPendingEditorAction()
+        let result = await task.value
+        XCTAssertEqual(result.error?.code, .userCancelled)
+        XCTAssertTrue(fixture.model.documents.editorController === original)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: output.path))
+    }
+}

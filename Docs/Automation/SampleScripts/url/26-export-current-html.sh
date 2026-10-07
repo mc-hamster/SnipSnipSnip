@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-open "snipsnipsnip://v1/export/current?format=html&output=file&outputPath=$HOME/Downloads/comparison.html&appearance=styled&overwrite=true"
+OUTPUT_DIR="${OUTPUT_DIR:-$HOME/Downloads}"
+encoded_path="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$OUTPUT_DIR/comparison.html")"
+
+open "snipsnipsnip://v1/export/current?format=html&output=file&outputPath=$encoded_path&appearance=app-default&overwrite=true"

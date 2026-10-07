@@ -49,7 +49,7 @@ protocol DocumentPasteboardImporting {
 
 @MainActor
 protocol DocumentAutomationCoordinatorPort: AnyObject {
-    func openDocument(_ url: URL)
+    func openAutomationDocument(_ url: URL, interactionPolicy: AutomationInteractionPolicy) async throws
     func automationResultAfterCurrentEditorOutput(
         _ request: AutomationRequest,
         _ kind: String,

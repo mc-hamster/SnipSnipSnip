@@ -104,3 +104,11 @@ pixel scale implicitly.
   parameter. Different coordinate meanings require different APIs.
 - Do not add compatibility aliases such as `capture.bounds` for screenshot
   geometry. Use the canonical property name for the canonical space.
+
+### Window-selection outline parity
+
+`CaptureDisplayTransform.overlayGlobalRect` derives its rectangle from the same
+capture-to-overlay-local transform used by Region selection. It must not round
+again in AppKit point space after scaling: that expands fractional Window
+outlines relative to Region outlines. Pointer hit testing continues to use
+unexpanded capture-space bounds.

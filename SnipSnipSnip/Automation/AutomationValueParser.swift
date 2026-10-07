@@ -3,10 +3,9 @@ import Foundation
 
 nonisolated enum AutomationValueParser {
     static func rect(_ value: String) -> CGRect? {
-        let parts = value
-            .split(separator: ",")
-            .compactMap { Double($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
-        guard parts.count == 4 else {
+        let fields = value.split(separator: ",", omittingEmptySubsequences: false)
+        let parts = fields.compactMap { Double($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        guard fields.count == 4, parts.count == 4, parts.allSatisfy(\.isFinite) else {
             return nil
         }
 
