@@ -1,0 +1,69 @@
+[
+  {
+    "number": "01",
+    "eyebrow": "CAPTURE \u2022 CREATE \u2022 RECORD",
+    "headline": "More than a screenshot.",
+    "subhead": "Capture, explain, and share. All on your Mac.",
+    "source": "07-capture-home.png"
+  },
+  {
+    "number": "02",
+    "eyebrow": "EDITABLE ANNOTATIONS",
+    "headline": "Make your point clear.",
+    "subhead": "Arrows, text, highlights, and redaction. Keep every edit within reach.",
+    "source": "01-screenshot-edit.png"
+  },
+  {
+    "number": "03",
+    "eyebrow": "POLISH",
+    "headline": "Ready for the spotlight.",
+    "subhead": "Add backgrounds, spacing, shadows, and framing before you share.",
+    "source": "06-polish.png"
+  },
+  {
+    "number": "04",
+    "eyebrow": "VIDEO \u2022 REVIEW \u2022 REFINE",
+    "headline": "Show it in motion.",
+    "subhead": "Review, trim, add zooms, and polish. Your source footage stays editable.",
+    "source": "12-video-trim.png"
+  },
+  {
+    "number": "05",
+    "eyebrow": "COMPARISON",
+    "headline": "Show what changed.",
+    "subhead": "Bring Before and After together in one clear Comparison.",
+    "source": "03-comparison.png"
+  },
+  {
+    "number": "06",
+    "eyebrow": "STEPS",
+    "headline": "One step at a time.",
+    "subhead": "Order and caption screenshots to make a process easy to follow.",
+    "source": "04-steps.png"
+  },
+  {
+    "number": "07",
+    "eyebrow": "COMBINED IMAGE",
+    "headline": "Bring every view together.",
+    "subhead": "Arrange multiple screenshots into one polished Combined Image.",
+    "source": "05-combined-image.png"
+  },
+  {
+    "number": "08",
+    "eyebrow": "CLIPBOARD HISTORY",
+    "headline": "Find it. Reuse it.",
+    "subhead": "Your everyday clipboard,\nwith a memory.",
+    "source": "08-clipboard-history.png",
+    "layout": "palette",
+    "detail": "Search, preview, and pin.\nCopy and Return to your work."
+  },
+  {
+    "number": "09",
+    "eyebrow": "SCREEN RULER \u2022 SCREEN INSPECTOR",
+    "headline": "Get the details right.",
+    "subhead": "Check dimensions, colors, pixels, and spacing right on your screen.",
+    "source": "10-screen-inspector.png",
+    "layout": "tools",
+    "secondary": "09-screen-ruler.png"
+  }
+]

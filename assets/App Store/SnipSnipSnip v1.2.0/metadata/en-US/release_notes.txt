@@ -1,0 +1,12 @@
+SnipSnipSnip 1.2.0 makes it easier to capture, explain, and share your work.
+
+• Review Video first, then trim, remove sections, add zooms, refine cursor and click effects, and apply presentation styling. Source footage stays editable.
+• Browse the redesigned floating Clipboard History palette, preview items in place, and use Copy and Return to resume work in your previous app.
+• Use Capture Text to copy locally recognized words from your screen without opening a screenshot. Highlighter can fit strokes to recognized text.
+• Use Capture Preview for quick post-capture actions and Output Size to choose the dimensions of delivered still images.
+• Print screenshots, Comparisons, Steps, Combined Images, and existing Guides with File > Print.
+• Find individual controls with Search Settings and jump directly to them.
+• See which window will be selected before you click. Region and Window selection now share consistent targeting and support eligible dialogs and utility panels.
+• Enjoy steadier annotation snapping and zoom, clearer output progress, safer document opening, and improved recovery reliability.
+
+Clipboard behavior has changed: Auto Copy has been removed. Capturing and editing now leave the clipboard unchanged until you choose Copy. For quick capture-and-paste, use a Capture Preset with the Copy to Clipboard outcome. Explicit automation copy outputs still work.

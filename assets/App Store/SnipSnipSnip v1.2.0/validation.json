@@ -1,0 +1,116 @@
+{
+  "version": "1.2.0",
+  "locale": "en-US",
+  "metadata": {
+    "name": {
+      "characters": 12,
+      "limit": 30
+    },
+    "subtitle": {
+      "characters": 29,
+      "limit": 30
+    },
+    "promotional_text": {
+      "characters": 163,
+      "limit": 170
+    },
+    "description": {
+      "characters": 3659,
+      "limit": 4000
+    },
+    "release_notes": {
+      "characters": 1383,
+      "limit": 4000
+    },
+    "keywords": {
+      "bytes": 93,
+      "limit": 100
+    }
+  },
+  "screenshots": [
+    {
+      "file": "screenshots/en-US/SnipSnipSnip-1.2.0-01.png",
+      "width": 1440,
+      "height": 900,
+      "mode": "RGB, no alpha",
+      "bytes": 189016,
+      "sha256": "655d6c7dffce27fc2f37d2403527a2d0523b42774690363bcfac3a65dca1dfaf"
+    },
+    {
+      "file": "screenshots/en-US/SnipSnipSnip-1.2.0-02.png",
+      "width": 1440,
+      "height": 900,
+      "mode": "RGB, no alpha",
+      "bytes": 401461,
+      "sha256": "8a7b7bbd60fbc4a792dae81354521bfd8a10b87a0e7d08dcb6ba61eb012a29e4"
+    },
+    {
+      "file": "screenshots/en-US/SnipSnipSnip-1.2.0-03.png",
+      "width": 1440,
+      "height": 900,
+      "mode": "RGB, no alpha",
+      "bytes": 406652,
+      "sha256": "9368d8f21b2f223b82686959ee01cc827ccceae5ded0ab8b30acd492c3573b17"
+    },
+    {
+      "file": "screenshots/en-US/SnipSnipSnip-1.2.0-04.png",
+      "width": 1440,
+      "height": 900,
+      "mode": "RGB, no alpha",
+      "bytes": 242366,
+      "sha256": "3eed8ea269acea42c5ddb4dea7dcfce3680e56b0e09ee193294a785d5c57a6fe"
+    },
+    {
+      "file": "screenshots/en-US/SnipSnipSnip-1.2.0-05.png",
+      "width": 1440,
+      "height": 900,
+      "mode": "RGB, no alpha",
+      "bytes": 365686,
+      "sha256": "b1e843434f558b7e1f89992d4e100b796780d485debc88ca5ea61625a89fb904"
+    },
+    {
+      "file": "screenshots/en-US/SnipSnipSnip-1.2.0-06.png",
+      "width": 1440,
+      "height": 900,
+      "mode": "RGB, no alpha",
+      "bytes": 400538,
+      "sha256": "8304063630940c5c9c9ab21daf32ad2320010e7bb7c9a7927538596b11b51daa"
+    },
+    {
+      "file": "screenshots/en-US/SnipSnipSnip-1.2.0-07.png",
+      "width": 1440,
+      "height": 900,
+      "mode": "RGB, no alpha",
+      "bytes": 389671,
+      "sha256": "46c8edb025bfc8f0619f0c048d361f566605b81ae2b21350f35277cc5d7ab256"
+    },
+    {
+      "file": "screenshots/en-US/SnipSnipSnip-1.2.0-08.png",
+      "width": 1440,
+      "height": 900,
+      "mode": "RGB, no alpha",
+      "bytes": 180747,
+      "sha256": "97746de9bfd567c95d73f0b0425e690bf76e710d1a842767233f90395896cacc"
+    },
+    {
+      "file": "screenshots/en-US/SnipSnipSnip-1.2.0-09.png",
+      "width": 1440,
+      "height": 900,
+      "mode": "RGB, no alpha",
+      "bytes": 277301,
+      "sha256": "b25e822c6f27fcdc67f67f65d98b6db577e3fda5165927b089a6cdf3a5c7407d"
+    }
+  ],
+  "previews": [
+    {
+      "file": "previews/en-US/SnipSnipSnip-1.2.0-Create.mp4",
+      "width": 1920,
+      "height": 1080,
+      "duration": 25.5,
+      "fps": 30.0,
+      "codec": "h264",
+      "bytes": 31663889,
+      "sha256": "6e4b1f98c2a27ba1c14dab202f7ce38229389612428b92c639d24a4e6cbdb13f"
+    }
+  ]
+}
