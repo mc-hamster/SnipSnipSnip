@@ -94,7 +94,10 @@ final class AppStoreScreenshotAssetUITests: XCTestCase {
         clipboard.click()
         let clipboardWindow = app.windows.matching(identifier: "clipboard-history").firstMatch
         XCTAssertTrue(clipboardWindow.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Release comparison – 1.1.3"].waitForExistence(timeout: 5))
+        let releaseComparison = clipboardWindow.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'clipboard.item.' AND label CONTAINS %@", "Release comparison – 1.1.3")
+        ).firstMatch
+        XCTAssertTrue(releaseComparison.waitForExistence(timeout: 5))
         try capture(clipboardWindow, named: "08-clipboard-history")
         let closeClipboard = clipboardWindow.buttons[XCUIIdentifierCloseWindow]
         XCTAssertTrue(closeClipboard.waitForExistence(timeout: 5))
