@@ -1051,13 +1051,16 @@ nonisolated struct Annotation: Identifiable, Equatable {
         case let .line(shape):
             return gscDistanceFromPoint(point, toSegmentFrom: shape.start, to: shape.end) <= max(style.lineWidth * 1.5, 8)
         case let .arrow(shape):
-            let lineHit = gscDistanceFromPoint(point, toSegmentFrom: shape.start, to: shape.end) <= max(style.lineWidth * 1.5, 10)
+            let lineHit = AnnotationGeometry.arrowBodyPath(for: shape)
+                .copy(strokingWithWidth: max(style.lineWidth * 3, 20), lineCap: .round, lineJoin: .round, miterLimit: 10)
+                .contains(point)
             let labelHit = !shape.label.isEmpty && AnnotationGeometry.arrowLabelRect(for: shape).insetBy(dx: -6, dy: -6).contains(point)
             let badgeHit = shape.sequenceNumber != nil
                 && AnnotationGeometry.numberedArrowBadgeRect(for: shape).insetBy(dx: -6, dy: -6).contains(point)
             return lineHit || labelHit || badgeHit
         case let .measurement(shape):
             return gscDistanceFromPoint(point, toSegmentFrom: shape.start, to: shape.end) <= max(style.lineWidth * 1.5, 8)
+                || MeasurementAnnotationGeometry.label(for: shape, style: style).rect.contains(point)
         case let .freehand(shape):
             return gscDistanceFromPoint(point, toPolyline: shape.points) <= max(style.lineWidth * 1.5, 8)
         case let .highlighter(shape):

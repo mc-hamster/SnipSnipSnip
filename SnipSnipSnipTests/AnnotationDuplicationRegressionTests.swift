@@ -17,6 +17,7 @@ final class AnnotationDuplicationRegressionTests: XCTestCase {
             annotations: [first, second, third], selectedAnnotationIDs: [third.id, first.id, second.id])
         let controller = EditorController(capture: makeCapturedScreenshot(),
             session: makeEditorDocumentSession(initialSnapshot: original), defaults: defaults)
+        let before = controller.snapshot
         let offset = CGSize(width: 3, height: 5)
 
         controller.duplicateSelectedAnnotations(offset: offset)
@@ -39,7 +40,7 @@ final class AnnotationDuplicationRegressionTests: XCTestCase {
         XCTAssertEqual(controller.documentSession.undoStack.count, 1)
 
         controller.undo()
-        XCTAssertEqual(controller.snapshot, original)
+        XCTAssertEqual(controller.snapshot, before)
         controller.redo()
         XCTAssertEqual(controller.snapshot, duplicated)
     }

@@ -2,6 +2,17 @@ import CoreGraphics
 import Foundation
 
 nonisolated enum AnnotationGeometry {
+    static func arrowBodyPath(for shape: ArrowShape) -> CGPath {
+        let path = CGMutablePath()
+        path.move(to: shape.start)
+        if abs(shape.curvature) > 0.5 {
+            path.addQuadCurve(to: shape.end, control: arrowControlPoint(for: shape))
+        } else {
+            path.addLine(to: shape.end)
+        }
+        return path
+    }
+
     static func transforming(
         _ kind: AnnotationKind,
         rect transformRect: (CGRect) -> CGRect,
@@ -72,7 +83,7 @@ nonisolated enum AnnotationGeometry {
         case let .statusMark(shape):
             return standardizedRect(shape.rect)
         case let .measurement(shape):
-            return lineBounds(from: shape.start, to: shape.end, padding: 10)
+            return MeasurementAnnotationGeometry.bounds(for: shape, style: style)
         case let .freehand(shape):
             return polylineBounds(for: shape.points, style: style)
         case let .highlighter(shape):

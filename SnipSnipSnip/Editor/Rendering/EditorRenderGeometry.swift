@@ -3,27 +3,20 @@ import Foundation
 
 nonisolated enum EditorRenderGeometry {
     static func arrowBodyPath(for shape: ArrowShape) -> CGPath {
-        let path = CGMutablePath()
-        path.move(to: shape.start)
-        if abs(shape.curvature) > 0.5 {
-            let control = AnnotationGeometry.arrowControlPoint(for: shape)
-            path.addCurve(to: shape.end, control1: control, control2: control)
-        } else {
-            path.addLine(to: shape.end)
-        }
-        return path
+        AnnotationGeometry.arrowBodyPath(for: shape)
     }
 
     static func arrowLabelGeometry(
         for shape: ArrowShape,
-        yAxisPointsDown: Bool
+        yAxisPointsDown: Bool,
+        scale: CGFloat = 1
     ) -> (rect: CGRect, rotationDegrees: CGFloat) {
-        let fontSize = max(shape.labelFontSize, 8)
-        let height = max(fontSize + 14, 28)
-        let width = max(CGFloat(shape.label.count) * fontSize * 0.58 + 24, 64)
+        let fontSize = max(shape.labelFontSize, 8 * scale)
+        let height = max(fontSize + 14 * scale, 28 * scale)
+        let width = max(CGFloat(shape.label.count) * fontSize * 0.58 + 24 * scale, 64 * scale)
         let midpoint = AnnotationGeometry.arrowPoint(on: shape, at: 0.5)
         let angle = atan2(shape.end.y - shape.start.y, shape.end.x - shape.start.x)
-        let offset = height / 2 + 8
+        let offset = height / 2 + 8 * scale
         let center: CGPoint
         let rotationDegrees: CGFloat
 

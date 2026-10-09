@@ -33,12 +33,15 @@ final class EditorLayerReorderRegressionTests: XCTestCase {
             let snapshot = fixtureSnapshot()
             let controller = EditorController(capture: makeCapturedScreenshot(),
                 session: makeEditorDocumentSession(initialSnapshot: snapshot), defaults: defaults)
+            // Opening a legacy single-image snapshot seeds its inactive
+            // composition; Undo must restore the complete opened state.
+            let before = controller.snapshot
             if direction == .forward { controller.sendToFront() } else { controller.sendToBack() }
             let reordered = controller.snapshot
             XCTAssertNotEqual(reordered.annotations, snapshot.annotations)
             XCTAssertEqual(controller.documentSession.undoStack.count, 1)
             controller.undo()
-            XCTAssertEqual(controller.snapshot, snapshot)
+            XCTAssertEqual(controller.snapshot, before)
             controller.redo()
             XCTAssertEqual(controller.snapshot, reordered)
         }

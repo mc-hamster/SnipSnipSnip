@@ -29,8 +29,10 @@ nonisolated private struct ArrowHeadGeometry {
 nonisolated private struct RenderedAnnotation {
     let kind: AnnotationKind
     let style: AnnotationStyle
-    let localRect: CGRect
     let displayRect: CGRect
+    let samplingLocalRect: CGRect
+    let samplingDisplayRect: CGRect
+    let measurementLabel: MeasurementLabelPlan?
 }
 
 private extension NSBezierPath {
@@ -200,12 +202,26 @@ enum EditorRenderer {
 
         let renderScale = displayScale(for: projection)
 
-        for annotation in snapshot.annotations {
-            draw(annotation: annotation, sourceImage: baseImage, projection: projection, renderScale: renderScale)
+        let annotations = snapshot.annotations + draftAnnotations
+        let lastProcessedRedaction = annotations.lastIndex {
+            $0.redactionMode == .blur || $0.redactionMode == .pixelate
         }
-
-        for annotation in draftAnnotations {
-            draw(annotation: annotation, sourceImage: baseImage, projection: projection, renderScale: renderScale)
+        // Filters must see the same lower layers as export. Build their source
+        // incrementally only when a filter has preceding annotations; retain
+        // native vector drawing for the visible preview itself.
+        let sourceContext = lastProcessedRedaction.map { $0 > 0 } == true
+            ? SRGBBitmapContext.make(width: baseImage.width, height: baseImage.height)
+            : nil
+        let sourceProjection = renderProjection(for: projection.sourceDocumentRect)
+        sourceContext?.interpolationQuality = .high
+        sourceContext?.draw(baseImage, in: sourceProjection.destinationBounds)
+        for (index, annotation) in annotations.enumerated() {
+            let samplesLowerLayers = annotation.redactionMode == .blur || annotation.redactionMode == .pixelate
+            let source = samplesLowerLayers ? (sourceContext?.makeImage() ?? baseImage) : baseImage
+            draw(annotation: annotation, sourceImage: source, projection: projection, renderScale: renderScale)
+            if let sourceContext, let lastProcessedRedaction, index < lastProcessedRedaction {
+                drawExport(annotation: annotation, croppedBase: baseImage, projection: sourceProjection, context: sourceContext)
+            }
         }
 
         drawPinnedUIMapElementsPreview(
@@ -221,9 +237,16 @@ enum EditorRenderer {
             annotation,
             projection: projection,
             renderScale: renderScale,
+            yAxisPointsDown: true,
             mapRect: { mapRect($0, using: projection) },
             mapPoint: { mapPoint($0, using: projection) }
         )
+
+        if case let .redaction(shape) = rendered.kind {
+            drawRedaction(shape.mode, geometry: rendered, sourceImage: sourceImage,
+                rotationDegrees: annotation.rotationDegrees, scale: renderScale)
+            return
+        }
 
         if case let .spotlight(shape) = rendered.kind {
             drawSpotlight(
@@ -281,19 +304,15 @@ enum EditorRenderer {
                 scale: renderScale
             )
         case let .measurement(shape):
-            drawMeasurement(
-                shape,
-                from: shape.start,
-                to: shape.end,
-                style: rendered.style,
-                scale: renderScale
-            )
+            if let label = rendered.measurementLabel {
+                drawMeasurement(label, from: shape.start, to: shape.end, style: rendered.style, scale: renderScale)
+            }
         case .spotlight:
             assertionFailure("Spotlight annotations should return before generic rotation rendering")
         case let .imageOverlay(shape):
             drawImageOverlay(shape, in: shape.rect)
-        case let .redaction(shape):
-            drawRedaction(shape.mode, in: rendered.localRect, displayRect: rendered.displayRect, croppedBase: sourceImage, style: rendered.style, scale: renderScale)
+        case .redaction:
+            assertionFailure("Redactions should return before generic rotation rendering")
         }
     }
 
@@ -303,9 +322,17 @@ enum EditorRenderer {
             annotation,
             projection: projection,
             renderScale: renderScale,
+            yAxisPointsDown: false,
             mapRect: { exportRect(for: $0, using: projection) },
             mapPoint: { exportPoint(for: $0, using: projection) }
         )
+
+        if case let .redaction(shape) = rendered.kind {
+            let sourceImage = shape.mode == .solid ? croppedBase : (context.makeImage() ?? croppedBase)
+            drawRedactionExport(shape.mode, geometry: rendered, sourceImage: sourceImage,
+                rotationDegrees: -annotation.rotationDegrees, scale: renderScale, context: context)
+            return
+        }
 
         if case let .spotlight(shape) = rendered.kind {
             drawSpotlightExport(
@@ -314,7 +341,7 @@ enum EditorRenderer {
                 canvasRect: projection.destinationBounds,
                 style: rendered.style,
                 scale: renderScale,
-                rotationDegrees: annotation.rotationDegrees,
+                rotationDegrees: -annotation.rotationDegrees,
                 rotationCenter: rendered.displayRect.center,
                 context: context
             )
@@ -322,7 +349,7 @@ enum EditorRenderer {
         }
 
         context.saveGState()
-        rotateExportIfNeeded(degrees: annotation.rotationDegrees, around: rendered.displayRect.center, context: context)
+        rotateExportIfNeeded(degrees: -annotation.rotationDegrees, around: rendered.displayRect.center, context: context)
         defer {
             context.restoreGState()
         }
@@ -393,14 +420,10 @@ enum EditorRenderer {
                 context: context
             )
         case let .measurement(shape):
-            drawMeasurementExport(
-                shape,
-                from: shape.start,
-                to: shape.end,
-                style: rendered.style,
-                scale: renderScale,
-                context: context
-            )
+            if let label = rendered.measurementLabel {
+                drawMeasurementExport(label, from: shape.start, to: shape.end,
+                    style: rendered.style, scale: renderScale, context: context)
+            }
         case .spotlight:
             assertionFailure("Spotlight annotations should return before generic rotation export rendering")
         case let .imageOverlay(shape):
@@ -409,25 +432,8 @@ enum EditorRenderer {
                 in: shape.rect,
                 context: context
             )
-        case let .redaction(shape):
-            let compositedImage: CGImage
-
-            switch shape.mode {
-            case .blur, .pixelate:
-                compositedImage = context.makeImage() ?? croppedBase
-            case .solid:
-                compositedImage = croppedBase
-            }
-
-            drawRedactionExport(
-                shape.mode,
-                in: rendered.localRect,
-                displayRect: rendered.displayRect,
-                croppedBase: compositedImage,
-                style: rendered.style,
-                scale: renderScale,
-                context: context
-            )
+        case .redaction:
+            assertionFailure("Redactions should return before generic rotation export rendering")
         }
     }
 
@@ -435,6 +441,7 @@ enum EditorRenderer {
         _ annotation: Annotation,
         projection: DocumentProjection,
         renderScale: CGFloat,
+        yAxisPointsDown: Bool,
         mapRect: (CGRect) -> CGRect,
         mapPoint: (CGPoint) -> CGPoint
     ) -> RenderedAnnotation {
@@ -450,7 +457,7 @@ enum EditorRenderer {
             scaledKind = .arrow(ArrowShape(
                 start: shape.start,
                 end: shape.end,
-                curvature: shape.curvature * renderScale,
+                curvature: shape.curvature * renderScale * (yAxisPointsDown ? 1 : -1),
                 headStyle: shape.headStyle,
                 label: shape.label,
                 labelBoxColor: shape.labelBoxColor,
@@ -465,11 +472,25 @@ enum EditorRenderer {
             scaledKind = kind
         }
 
+        let unrotatedRect = annotation.kind.unrotatedBoundingRect(style: annotation.style)
+        let samplingLocalRect = projection.sourceLocalRect(fromDocumentRect: annotation.boundingRect)
+            .intersection(CGRect(origin: .zero, size: projection.sourceDocumentRect.size)).integral
+        let samplingDocumentRect = samplingLocalRect.offsetBy(
+            dx: projection.sourceDocumentRect.minX, dy: projection.sourceDocumentRect.minY)
+        let measurementLabel: MeasurementLabelPlan?
+        if case .measurement(let shape) = annotation.kind {
+            measurementLabel = MeasurementAnnotationGeometry.label(for: shape, style: annotation.style)
+                .projected(rect: mapRect, scale: renderScale)
+        } else {
+            measurementLabel = nil
+        }
         return RenderedAnnotation(
             kind: scaledKind,
             style: style,
-            localRect: projection.sourceLocalRect(fromDocumentRect: annotation.boundingRect),
-            displayRect: mapRect(annotation.boundingRect)
+            displayRect: mapRect(unrotatedRect),
+            samplingLocalRect: samplingLocalRect,
+            samplingDisplayRect: mapRect(samplingDocumentRect),
+            measurementLabel: measurementLabel
         )
     }
 
@@ -883,7 +904,7 @@ enum EditorRenderer {
     }
 
     private static func drawArrowLabel(_ shape: ArrowShape, style: AnnotationStyle, scale: CGFloat) {
-        let labelGeometry = arrowLabelGeometry(for: shape)
+        let labelGeometry = EditorRenderGeometry.arrowLabelGeometry(for: shape, yAxisPointsDown: true, scale: scale)
         NSGraphicsContext.saveGraphicsState()
         rotatePreviewIfNeeded(degrees: labelGeometry.rotationDegrees, around: labelGeometry.rect.center)
         defer { NSGraphicsContext.restoreGraphicsState() }
@@ -1484,52 +1505,34 @@ enum EditorRenderer {
         )
     }
 
-    private static func drawMeasurement(_ shape: MeasurementShape, from start: CGPoint, to end: CGPoint, style: AnnotationStyle, scale: CGFloat) {
+    private static func drawMeasurement(_ label: MeasurementLabelPlan, from start: CGPoint, to end: CGPoint, style: AnnotationStyle, scale: CGFloat) {
         drawLine(from: start, to: end, style: style)
 
         let tickLength = scaled(8, by: scale)
         drawMeasurementTick(at: start, toward: end, length: tickLength, style: style)
         drawMeasurementTick(at: end, toward: start, length: tickLength, style: style)
 
-        let label = "\(Int(shape.length.rounded())) px"
-        let text = previewAttributedText(
-            label,
-            font: NSFont.monospacedDigitSystemFont(ofSize: max(style.fontSize, scaled(12, by: scale)), weight: .semibold),
-            color: style.strokeColor
-        )
-        let size = text.size()
-        let labelRect = CGRect(
-            x: (start.x + end.x) / 2 - size.width / 2 - scaled(8, by: scale),
-            y: (start.y + end.y) / 2 - size.height / 2 - scaled(5, by: scale),
-            width: size.width + scaled(16, by: scale),
-            height: size.height + scaled(10, by: scale)
-        )
+        let labelRect = label.rect
         let background = NSBezierPath(roundedRect: labelRect, xRadius: scaled(8, by: scale), yRadius: scaled(8, by: scale))
         style.fillColor.nsColor.setFill()
         background.fill()
-        text.draw(at: CGPoint(x: labelRect.minX + scaled(8, by: scale), y: labelRect.minY + scaled(5, by: scale)))
+        drawCenteredText(label.text, in: labelRect, font: label.font, color: style.strokeColor)
     }
 
-    nonisolated private static func drawMeasurementExport(_ shape: MeasurementShape, from start: CGPoint, to end: CGPoint, style: AnnotationStyle, scale: CGFloat, context: CGContext) {
+    nonisolated private static func drawMeasurementExport(_ label: MeasurementLabelPlan, from start: CGPoint, to end: CGPoint, style: AnnotationStyle, scale: CGFloat, context: CGContext) {
         drawLineExport(from: start, to: end, style: style, context: context)
 
         let tickLength = scaled(8, by: scale)
         drawMeasurementTickExport(at: start, toward: end, length: tickLength, style: style, context: context)
         drawMeasurementTickExport(at: end, toward: start, length: tickLength, style: style, context: context)
 
-        let label = "\(Int(shape.length.rounded())) px"
-        let labelRect = CGRect(
-            x: (start.x + end.x) / 2 - 46,
-            y: (start.y + end.y) / 2 - 13,
-            width: 92,
-            height: 26
-        )
+        let labelRect = label.rect
         context.saveGState()
         context.setFillColor(style.fillColor.cgColor)
         context.addPath(CGPath(roundedRect: labelRect, cornerWidth: 8, cornerHeight: 8, transform: nil))
         context.fillPath()
         context.restoreGState()
-        drawCenteredTextExport(label, in: labelRect, font: exportFont(size: max(style.fontSize, 12), bold: true), color: style.strokeColor.cgColor, context: context)
+        drawCenteredTextExport(label.text, in: labelRect, font: label.font as CTFont, color: style.strokeColor.cgColor, context: context)
     }
 
     private static func drawMeasurementTick(at point: CGPoint, toward other: CGPoint, length: CGFloat, style: AnnotationStyle) {
@@ -1689,46 +1692,70 @@ enum EditorRenderer {
     nonisolated private static func drawImageOverlayExport(_ shape: ImageOverlayShape, in rect: CGRect, context: CGContext) {
         context.saveGState()
         context.setAlpha(shape.opacity)
-        context.translateBy(x: 0, y: rect.minY * 2 + rect.height)
-        context.scaleBy(x: 1, y: -1)
         context.draw(shape.image, in: rect)
         context.restoreGState()
     }
 
-    private static func drawRedaction(_ mode: RedactionMode, in localRect: CGRect, displayRect: CGRect, croppedBase: CGImage, style: AnnotationStyle, scale: CGFloat) {
-        switch mode {
-        case .blur, .pixelate:
-            drawProcessedRedactionPreview(mode, in: localRect, displayRect: displayRect, croppedBase: croppedBase, style: style, scale: scale)
-        case .solid:
-            drawSolidRedaction(in: displayRect, style: style, scale: scale)
+    private static func drawRedaction(
+        _ mode: RedactionMode,
+        geometry: RenderedAnnotation,
+        sourceImage: CGImage,
+        rotationDegrees: CGFloat,
+        scale: CGFloat
+    ) {
+        if mode != .solid {
+            guard let focused = processedRedactionImage(for: mode, in: geometry.samplingLocalRect,
+                sourceImage: sourceImage, effectRadius: geometry.style.effectRadius) else { return }
+            NSGraphicsContext.saveGraphicsState()
+            NSBezierPath(cgPath: redactionClipPath(in: geometry.displayRect, rotationDegrees: rotationDegrees)).addClip()
+            drawRedactionPreviewImage(focused, sourceSize: geometry.samplingLocalRect.size,
+                in: geometry.samplingDisplayRect, mode: mode)
+            NSGraphicsContext.restoreGraphicsState()
         }
+        NSGraphicsContext.saveGraphicsState()
+        rotatePreviewIfNeeded(degrees: rotationDegrees, around: geometry.displayRect.center)
+        if mode == .solid {
+            drawSolidRedaction(in: geometry.displayRect, style: geometry.style, scale: scale)
+        } else {
+            drawRedactionPreviewOutline(for: mode, in: geometry.displayRect, style: geometry.style, scale: scale)
+        }
+        NSGraphicsContext.restoreGraphicsState()
     }
 
-    nonisolated private static func drawRedactionExport(_ mode: RedactionMode, in localRect: CGRect, displayRect: CGRect, croppedBase: CGImage, style: AnnotationStyle, scale: CGFloat, context: CGContext) {
-        switch mode {
-        case .blur, .pixelate:
-            drawProcessedRedactionExport(mode, in: localRect, displayRect: displayRect, croppedBase: croppedBase, style: style, scale: scale, context: context)
-        case .solid:
-            drawSolidRedactionExport(in: displayRect, style: style, scale: scale, context: context)
+    nonisolated private static func drawRedactionExport(
+        _ mode: RedactionMode,
+        geometry: RenderedAnnotation,
+        sourceImage: CGImage,
+        rotationDegrees: CGFloat,
+        scale: CGFloat,
+        context: CGContext
+    ) {
+        if mode != .solid {
+            guard let focused = processedRedactionImage(for: mode, in: geometry.samplingLocalRect,
+                sourceImage: sourceImage, effectRadius: geometry.style.effectRadius) else { return }
+            context.saveGState()
+            context.addPath(redactionClipPath(in: geometry.displayRect, rotationDegrees: rotationDegrees))
+            context.clip()
+            // Rotate only the mask. The filtered pixels retain their original
+            // canvas orientation and position beneath that mask.
+            drawRedactionExportImage(focused, in: geometry.samplingDisplayRect, mode: mode, context: context)
+            context.restoreGState()
         }
+        context.saveGState()
+        rotateExportIfNeeded(degrees: rotationDegrees, around: geometry.displayRect.center, context: context)
+        if mode == .solid {
+            drawSolidRedactionExport(in: geometry.displayRect, style: geometry.style, scale: scale, context: context)
+        } else {
+            drawRedactionExportOutline(for: mode, in: geometry.displayRect, style: geometry.style, scale: scale, context: context)
+        }
+        context.restoreGState()
     }
 
-    private static func drawProcessedRedactionPreview(_ mode: RedactionMode, in localRect: CGRect, displayRect: CGRect, croppedBase: CGImage, style: AnnotationStyle, scale: CGFloat) {
-        guard let focused = processedRedactionImage(for: mode, in: localRect, sourceImage: croppedBase, effectRadius: style.effectRadius) else {
-            return
-        }
-
-        drawRedactionPreviewImage(focused, sourceSize: localRect.size, in: displayRect, mode: mode)
-        drawRedactionPreviewOutline(for: mode, in: displayRect, style: style, scale: scale)
-    }
-
-    nonisolated private static func drawProcessedRedactionExport(_ mode: RedactionMode, in localRect: CGRect, displayRect: CGRect, croppedBase: CGImage, style: AnnotationStyle, scale: CGFloat, context: CGContext) {
-        guard let focused = processedRedactionImage(for: mode, in: localRect, sourceImage: croppedBase, effectRadius: style.effectRadius) else {
-            return
-        }
-
-        drawRedactionExportImage(focused, in: displayRect, mode: mode, context: context)
-        drawRedactionExportOutline(for: mode, in: displayRect, style: style, scale: scale, context: context)
+    nonisolated private static func redactionClipPath(in rect: CGRect, rotationDegrees: CGFloat) -> CGPath {
+        var transform = CGAffineTransform(translationX: rect.midX, y: rect.midY)
+            .rotated(by: rotationDegrees * .pi / 180)
+            .translatedBy(x: -rect.midX, y: -rect.midY)
+        return CGPath(rect: rect, transform: &transform)
     }
 
     private static func drawSolidRedaction(in displayRect: CGRect, style: AnnotationStyle, scale: CGFloat) {
@@ -1765,7 +1792,7 @@ enum EditorRenderer {
         }
 
         if let image {
-            processedRedactionCache.setImage(image, forKey: key, cost: cacheCost(for: image))
+            processedRedactionCache.setImage(image, forKey: key, cost: cacheCost(for: image), sourceImage: sourceImage)
         }
 
         return image
@@ -1798,8 +1825,6 @@ enum EditorRenderer {
         if mode == .pixelate {
             context.interpolationQuality = .none
         }
-        context.translateBy(x: 0, y: displayRect.minY * 2 + displayRect.height)
-        context.scaleBy(x: 1, y: -1)
         context.draw(image, in: displayRect)
         context.restoreGState()
     }
@@ -1907,7 +1932,7 @@ enum EditorRenderer {
             return nil
         }
 
-        croppedImageCache.setImage(image, forKey: key, cost: cacheCost(for: image))
+        croppedImageCache.setImage(image, forKey: key, cost: cacheCost(for: image), sourceImage: baseImage)
         return image
     }
 
@@ -2145,9 +2170,11 @@ enum EditorRenderer {
 
 nonisolated private final class CachedCGImage {
     let image: CGImage
+    let sourceImage: CGImage
 
-    init(_ image: CGImage) {
+    init(_ image: CGImage, sourceImage: CGImage) {
         self.image = image
+        self.sourceImage = sourceImage
     }
 }
 
@@ -2170,8 +2197,11 @@ nonisolated private final class RenderImageCache: @unchecked Sendable {
         cache.object(forKey: key)?.image
     }
 
-    func setImage(_ image: CGImage, forKey key: NSString, cost: Int) {
-        cache.setObject(CachedCGImage(image), forKey: key, cost: cost)
+    func setImage(_ image: CGImage, forKey key: NSString, cost: Int, sourceImage: CGImage) {
+        // Keys include the source object's identity. Keep that source alive
+        // while cached so a later image cannot reuse its address and pixels.
+        let sourceCost = sourceImage.bytesPerRow * sourceImage.height
+        cache.setObject(CachedCGImage(image, sourceImage: sourceImage), forKey: key, cost: cost + sourceCost)
     }
 }
 
