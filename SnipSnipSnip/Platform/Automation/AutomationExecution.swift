@@ -217,7 +217,7 @@ final class AutomationOutputService {
                     "output.write copy image width=\(image.width, privacy: .public) height=\(image.height, privacy: .public)"
                 )
             }
-            try ImageExporter.copyToClipboard(image, pasteboard: pasteboard)
+            try ImageExporter.copyToClipboard(image, isPrivate: controller.isPrivateDocument, pasteboard: pasteboard)
             port.markAutomationPasteboardChangeAsHandled()
             ShortcutsAutomationLog.logger.info("output.write copy finished")
             return [.init(kind: .copiedClipboard)]

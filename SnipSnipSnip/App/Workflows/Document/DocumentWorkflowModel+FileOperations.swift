@@ -250,14 +250,15 @@ extension DocumentWorkflowModel {
                 }
             }
             guard videoEditorController === controller else { return !wasCurrentController }
-            let persistedController = VideoEditorController(
-                recording: controller.recording.updatingSourceURL(
-                    url.appendingPathComponent(SSSVideoDocumentPackage.mediaFilename)
-                ),
-                session: controller.documentSession,
-                posterImage: controller.posterImage
-            )
-            installVideoController(persistedController, documentURL: url, savedSession: payload.document.session)
+            let mediaURL = url.appendingPathComponent(SSSVideoDocumentPackage.mediaFilename)
+            let previousTemporarySource = currentOwnedTemporaryVideoSourceURL(replacingWith: mediaURL)
+            controller.rebaseSourceURL(mediaURL)
+            currentDocumentURL = url
+            savedVideoSession = payload.document.session
+            updateDocumentChangeTracking()
+            // An already-running export may still be consuming the old media.
+            // Otherwise the durable package now owns the source pixels.
+            if !controller.isExporting { cleanupTemporaryVideoSourceIfNeeded(previousTemporarySource) }
             completeVideoRecoveryAfterSave(wasRecoveryCheckpointVideo)
             return true
         } catch {
@@ -371,13 +372,14 @@ extension DocumentWorkflowModel {
 
     func importImageFromPasteboard(named pasteboardName: String, sourceName: String?) {
         do {
+            let isPrivate = dependencies.pasteboardImporter.isConcealed(fromPasteboardNamed: pasteboardName)
             guard let imageData = dependencies.pasteboardImporter.imageData(fromPasteboardNamed: pasteboardName),
                   let imageSource = CGImageSourceCreateWithData(imageData as CFData, nil),
                   let image = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
                 throw ImportedImageLoadError()
             }
 
-            importImage(image, sourceName: sourceName ?? "Shared Photo") { [weak self] in
+            importImage(image, sourceName: sourceName ?? "Shared Photo", isPrivate: isPrivate) { [weak self] in
                 self?.dependencies.pasteboardImporter.clearPasteboard(named: pasteboardName)
             }
         } catch {
@@ -385,8 +387,8 @@ extension DocumentWorkflowModel {
         }
     }
 
-    private func importImage(_ image: CGImage, sourceName: String?, onCommit: @escaping () -> Void) {
-        let controller = importedImageController(image, sourceName: sourceName)
+    private func importImage(_ image: CGImage, sourceName: String?, isPrivate: Bool = false, onCommit: @escaping () -> Void) {
+        let controller = importedImageController(image, sourceName: sourceName, isPrivate: isPrivate)
         performAfterHandlingUnsavedChanges { [weak self] in
             guard let self else { return }
             self.installPreparedDocument(.screenshot(controller), documentURL: nil)
@@ -394,7 +396,7 @@ extension DocumentWorkflowModel {
         }
     }
 
-    private func importedImageController(_ image: CGImage, sourceName: String?) -> EditorController {
+    private func importedImageController(_ image: CGImage, sourceName: String?, isPrivate: Bool = false) -> EditorController {
         let resolvedSourceName: String
 
         if let sourceName, !sourceName.isEmpty {
@@ -413,7 +415,8 @@ extension DocumentWorkflowModel {
         return EditorController(
             capture: capture,
             capabilities: capabilities,
-            uiMapOverlayOptions: uiMapPinnedOverlayDefaults
+            uiMapOverlayOptions: uiMapPinnedOverlayDefaults,
+            isPrivateDocument: isPrivate
         )
     }
 

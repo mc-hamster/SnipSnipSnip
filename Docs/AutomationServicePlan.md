@@ -893,3 +893,8 @@ The first usable automation release should include:
 
 This gives users useful automation while keeping the service small enough to
 test and keep aligned with the existing app model.
+
+Private image Copy outputs retain the existing PNG and `copiedClipboard` result
+contract and publish `org.nspasteboard.ConcealedType` with the image. Explicitly
+pasting that image back into SnipSnipSnip retains Private document handling. No
+command, option, URL route, or sample procedure changes.

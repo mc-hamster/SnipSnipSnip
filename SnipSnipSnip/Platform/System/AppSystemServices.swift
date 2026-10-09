@@ -453,13 +453,13 @@ struct SystemPasteboardService: PasteboardServicing {
     func writeItemSnapshots(_ items: [PasteboardItemSnapshot]) -> Bool {
         guard !items.isEmpty else { return false }
         let pasteboardItems = items.compactMap { snapshot -> NSPasteboardItem? in
+            guard !snapshot.representations.isEmpty else { return nil }
             let item = NSPasteboardItem()
-            var wroteRepresentation = false
             for representation in snapshot.representations {
                 let type = NSPasteboard.PasteboardType(representation.typeIdentifier)
-                wroteRepresentation = item.setData(representation.data, forType: type) || wroteRepresentation
+                guard item.setData(representation.data, forType: type) else { return nil }
             }
-            return wroteRepresentation ? item : nil
+            return item
         }
         guard pasteboardItems.count == items.count else { return false }
         return NSPasteboard.general.writeObjects(pasteboardItems)

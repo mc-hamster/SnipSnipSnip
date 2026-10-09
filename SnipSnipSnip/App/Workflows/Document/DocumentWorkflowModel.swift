@@ -137,6 +137,7 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     var pendingGuideAutosaveTask: Task<Void, Never>?
     var guideDocumentWriter: any GuideDocumentWriting = GuideDocumentWriter()
     var guideSaveGeneration: UUID?
+    var guideSaveCompletionWaiters: [UUID: [CheckedContinuation<Void, Never>]] = [:]
     var savedGuideContentVersion: GuideContentVersion?
     var pendingGuideExportTask: Task<Void, Never>?
     var pendingGuideExportWorkerTask: Task<GuideExportResult, Never>?

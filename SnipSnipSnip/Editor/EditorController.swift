@@ -2419,11 +2419,13 @@ final class EditorController: ObservableObject {
         ocrReviewText = nil
     }
 
-    func addImageOverlayFromPasteboard() -> Bool {
-        guard let image = imageFromPasteboard() else {
+    func addImageOverlayFromPasteboard(pasteboard: NSPasteboard = .general) -> Bool {
+        let isPrivatePaste = ClipboardPasteboardReader.containsConcealedType(pasteboard.types?.map(\.rawValue) ?? [])
+        guard let image = imageFromPasteboard(pasteboard) else {
             return false
         }
 
+        if isPrivatePaste { markDocumentPrivate() }
         addImageOverlay(image)
         return true
     }
@@ -2495,14 +2497,16 @@ final class EditorController: ObservableObject {
         do {
             let input = try exportRenderInput(for: appearance)
             let hasRedactions = containsRedactions
+            let isPrivateCopy = isPrivateDocument
             outputActivity.copy(
                 key: ScreenshotCopyRequestKey(
                     contentRevision: presentationContentRevision,
                     appearance: appearance,
-                    outputSize: input.outputSize
+                    outputSize: input.outputSize,
+                    isPrivate: isPrivateCopy
                 ),
                 render: { try await EditorExportRenderer.renderPNGData(from: input) },
-                deliver: { try ImageExporter.copyPNGDataToClipboard($0, pasteboard: pasteboard) },
+                deliver: { try ImageExporter.copyPNGDataToClipboard($0, isPrivate: isPrivateCopy, pasteboard: pasteboard) },
                 didSucceed: { [weak self] in
                     self?.showNotice(EditorNotice(
                         message: hasRedactions
@@ -2905,9 +2909,7 @@ final class EditorController: ObservableObject {
         addAnnotation(Annotation.makeImageOverlay(image: image, in: rect))
     }
 
-    private func imageFromPasteboard() -> CGImage? {
-        let pasteboard = NSPasteboard.general
-
+    private func imageFromPasteboard(_ pasteboard: NSPasteboard) -> CGImage? {
         for type in [NSPasteboard.PasteboardType.png, .tiff] {
             guard let data = pasteboard.data(forType: type),
                   let source = CGImageSourceCreateWithData(data as CFData, nil),

@@ -189,6 +189,9 @@ extension DocumentWorkflowModel {
                     return
                 }
 
+                if controller.isPrivateDocument, self.currentRecoverySessionID != nil {
+                    self.excludeCurrentPrivateDocumentFromRecoveryAndHistory()
+                }
                 self.updateDocumentChangeTracking()
                 self.scheduleAutosave(for: controller)
             }

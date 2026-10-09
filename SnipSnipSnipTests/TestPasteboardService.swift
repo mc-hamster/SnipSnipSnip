@@ -81,6 +81,7 @@ final class TestPasteboardService: PasteboardServicing, @unchecked Sendable {
 
     @discardableResult
     func writeItemSnapshots(_ items: [PasteboardItemSnapshot]) -> Bool {
+        guard !rejectsDataWrites else { return false }
         if snapshotWriteFailuresRemaining > 0 {
             snapshotWriteFailuresRemaining -= 1
             return false

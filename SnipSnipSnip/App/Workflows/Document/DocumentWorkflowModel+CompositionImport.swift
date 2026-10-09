@@ -490,13 +490,15 @@ extension DocumentWorkflowModel {
     }
 
     func pasteImageIntoCurrentComposition(
-        completionRole: CaptureCompletionRole = .standalone
+        completionRole: CaptureCompletionRole = .standalone,
+        pasteboard: NSPasteboard = .general
     ) {
         guard editorController != nil else {
             presentError("Open or capture a screenshot before pasting into a composition.")
             return
         }
-        guard let image = NSImage(pasteboard: .general),
+        let isPrivate = ClipboardPasteboardReader.containsConcealedType(pasteboard.types?.map(\.rawValue) ?? [])
+        guard let image = NSImage(pasteboard: pasteboard),
               let cgImage = image.cgImage(
                 forProposedRect: nil,
                 context: nil,
@@ -508,7 +510,8 @@ extension DocumentWorkflowModel {
 
         pasteImageIntoCurrentComposition(
             cgImage,
-            completionRole: completionRole
+            completionRole: completionRole,
+            isPrivate: isPrivate
         )
     }
 
@@ -517,7 +520,8 @@ extension DocumentWorkflowModel {
     /// process-wide pasteboard.
     func pasteImageIntoCurrentComposition(
         _ cgImage: CGImage,
-        completionRole: CaptureCompletionRole = .standalone
+        completionRole: CaptureCompletionRole = .standalone,
+        isPrivate: Bool = false
     ) {
         guard let controller = editorController else {
             presentError(
@@ -540,8 +544,9 @@ extension DocumentWorkflowModel {
             controller.beginCoalescedEditorGesture()
             _ = try controller.appendCaptureToComposition(
                 capture,
-                isPrivate: false
+                isPrivate: isPrivate
             )
+            if controller.isPrivateDocument { excludeCurrentPrivateDocumentFromRecoveryAndHistory() }
             applyCaptureCompletionRole(
                 completionRole,
                 afterAppendingTo: controller

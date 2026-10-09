@@ -583,3 +583,8 @@ not replace signed TestFlight permission QA, physical-device testing, or live
 Pro Guide recording. Guide model/export tests and App Intents contracts run in the hosted test suite;
 user-authored Shortcuts and OS permission-reset flows were not exercised.
 Use the scripts and test commands above to repeat the audit on a new candidate.
+
+Private image Copy outputs retain the existing PNG and `copiedClipboard` result
+contract and publish `org.nspasteboard.ConcealedType` with the image. Explicitly
+pasting that image back into SnipSnipSnip retains Private document handling. No
+command, option, URL route, or sample procedure changes.

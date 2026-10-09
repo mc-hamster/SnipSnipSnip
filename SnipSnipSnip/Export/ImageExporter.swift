@@ -160,16 +160,29 @@ enum ImageExporter {
     @MainActor
     static func copyToClipboard(
         _ image: CGImage,
+        isPrivate: Bool = false,
         pasteboard: any PasteboardServicing = SystemPasteboardService()
     ) throws {
-        try copyPNGDataToClipboard(pngData(for: image), pasteboard: pasteboard)
+        try copyPNGDataToClipboard(pngData(for: image), isPrivate: isPrivate, pasteboard: pasteboard)
     }
 
     @MainActor
     static func copyPNGDataToClipboard(
         _ data: Data,
+        isPrivate: Bool = false,
         pasteboard: any PasteboardServicing = SystemPasteboardService()
     ) throws {
+        if isPrivate {
+            let item = PasteboardItemSnapshot(representations: [
+                PasteboardRepresentationSnapshot(typeIdentifier: NSPasteboard.PasteboardType.png.rawValue, data: data),
+                PasteboardRepresentationSnapshot(typeIdentifier: ClipboardPasteboardReader.concealedTypeName, data: Data()),
+            ])
+            // Publish the image and its privacy marker as one prepared item.
+            guard pasteboard.clearContents(), pasteboard.writeItemSnapshots([item]) else {
+                throw ImageExportError.clipboardUnavailable
+            }
+            return
+        }
         guard pasteboard.clearContents(), pasteboard.setData(data, forType: .png) else {
             throw ImageExportError.clipboardUnavailable
         }

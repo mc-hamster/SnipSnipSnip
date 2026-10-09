@@ -5,6 +5,7 @@ nonisolated struct ScreenshotCopyRequestKey: Equatable {
     let contentRevision: Int
     let appearance: ScreenshotOutputAppearance
     let outputSize: ScreenshotOutputSize
+    var isPrivate = false
 }
 
 /// Owns transient output jobs independently of document edits and Undo.

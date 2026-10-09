@@ -1,6 +1,17 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "The screenshot changed while it was being kept in Recent Snips. Try again to keep your latest edits." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The screenshot changed while it was being kept in Recent Snips. Try again to keep your latest edits."
+          }
+        }
+      }
+    },
     "This Mockup uses CSS transforms or a nested SVG viewport. Use the inspector controls to adjust framing." : {
       "extractionState" : "manual",
       "localizations" : {

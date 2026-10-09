@@ -251,6 +251,7 @@ extension DocumentWorkflowModel {
     }
 
     func createRecoverySessionIfNeeded(for controller: EditorController, documentURL: URL?) -> UUID? {
+        guard !controller.isPrivateDocument else { return nil }
         do {
             return try recoveryStore.createSession(
                 title: recoverySessionTitle(for: controller, documentURL: documentURL),
@@ -398,18 +399,13 @@ extension DocumentWorkflowModel {
     }
 
     func prepareForApplicationExit() async -> Bool {
+        guard await prepareGuideEditorForApplicationExit() else { return false }
         updateDocumentChangeTracking()
+        guard guideEditorController == nil || !hasUnsavedChanges else { return false }
         if editorController?.isPrivateDocument == true, hasUnsavedChanges {
             // Private work has no automatic recovery. Reuse the same explicit
             // Save/Discard/Cancel decision as other destructive navigation.
-            guard !isShowingUnsavedChangesPrompt else { return false }
-            let mayExit = await withCheckedContinuation { continuation in
-                pendingEditorAction = { continuation.resume(returning: true) }
-                pendingEditorCancellation = { continuation.resume(returning: false) }
-                isShowingUnsavedChangesPrompt = true
-                requestMainWindowPresentation()
-            }
-            guard mayExit else { return false }
+            guard await confirmUnsavedDocumentForApplicationExit() else { return false }
         }
         guard await writeVideoRecoveryCheckpointIfNeeded() else {
             return false
@@ -445,7 +441,21 @@ extension DocumentWorkflowModel {
                 allWritesSucceeded = false
             }
         }
-        return allWritesSucceeded
+        updateDocumentChangeTracking()
+        return allWritesSucceeded && (guideEditorController == nil || !hasUnsavedChanges)
+    }
+
+    func confirmUnsavedDocumentForApplicationExit() async -> Bool {
+        guard !isShowingUnsavedChangesPrompt else { return false }
+        let mayExit = await withCheckedContinuation { continuation in
+            pendingEditorAction = { continuation.resume(returning: true) }
+            pendingEditorCancellation = { continuation.resume(returning: false) }
+            isShowingUnsavedChangesPrompt = true
+            requestMainWindowPresentation()
+        }
+        guard mayExit, !Task.isCancelled else { return false }
+        updateDocumentChangeTracking()
+        return !hasUnsavedChanges
     }
 
     func rebindRecoveryStore(_ store: DocumentRecoveryStore) {

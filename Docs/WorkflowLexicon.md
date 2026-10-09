@@ -501,3 +501,10 @@ For any workflow-language change, verify:
 - **Drag-Out Format** replaces **Screenshot Format** in Editor & Output > Export & Sharing. It controls promised-file drag delivery, not explicitly chosen Export formats. JPEG Quality retains its current meaning.
 - **No Available Windows** means discovery returned no eligible windows. **No Matching Windows** means a search hides available windows. **Search Apps and Windows** matches application names and window titles. Window-selection instructions use Capture for a Screenshot and Record for Video.
 - **Cancel** in Open, Import Image, Guide setup, and Guide export-options/destination selection preserves the current editing context and prior settings. Starting an operation commits its chosen settings; cancelling an already started operation stops that job.
+
+Private Screenshot copies carry the standard concealed clipboard marker, including
+Capture Presets, automation, and Connected Device preview. Explicit Paste of a
+concealed image permanently marks the destination Screenshot/composition Private,
+including image overlays. Cancellation or failed decoding does not change the
+current document. Transient and auto-generated clipboard markers alone do not
+mean Private.

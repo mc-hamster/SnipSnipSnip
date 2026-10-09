@@ -58,6 +58,7 @@ extension EditorController {
         )
 
         if snapshot.composition != nil {
+            if isPrivate, taintsDocument { markDocumentPrivate() }
             execute(AddCompositionItemCommand(item: addedItem, afterItemID: afterItemID))
         } else {
             let rootAssetID = try compositionAssetRepository.add(
@@ -83,11 +84,8 @@ extension EditorController {
                 canvas: CompositionCanvasState(appearance: CompositionCanvasAppearance())
             )
             composition.repairComparisonSelection()
+            if isPrivate, taintsDocument { markDocumentPrivate() }
             execute(SetCompositionCommand(composition: composition))
-        }
-
-        if isPrivate, taintsDocument {
-            markDocumentPrivate()
         }
         presentationInspectorTab = .layout
         setWorkspaceMode(.presentation)
@@ -296,6 +294,7 @@ extension EditorController {
             isPrivate: isPrivate
         )
         let replacementState = Self.editState(for: replacementCapture)
+        if isPrivate, taintsDocument { markDocumentPrivate() }
         execute(
             ReplaceCompositionItemCommand(
                 itemID: itemID,
@@ -304,9 +303,6 @@ extension EditorController {
                 title: replacementCapture.sourceName
             )
         )
-        if isPrivate, taintsDocument {
-            markDocumentPrivate()
-        }
         showNotice("Replaced the selected composition item.")
 
         return CompositionInsertionResult(

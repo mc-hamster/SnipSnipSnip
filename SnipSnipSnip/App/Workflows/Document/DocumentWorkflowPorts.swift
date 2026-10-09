@@ -44,7 +44,12 @@ protocol DocumentWindowPresenting {
 @MainActor
 protocol DocumentPasteboardImporting {
     func imageData(fromPasteboardNamed pasteboardName: String) -> Data?
+    func isConcealed(fromPasteboardNamed pasteboardName: String) -> Bool
     func clearPasteboard(named pasteboardName: String)
+}
+
+extension DocumentPasteboardImporting {
+    func isConcealed(fromPasteboardNamed pasteboardName: String) -> Bool { false }
 }
 
 @MainActor

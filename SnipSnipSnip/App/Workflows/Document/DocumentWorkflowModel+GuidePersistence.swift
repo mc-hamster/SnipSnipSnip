@@ -82,6 +82,38 @@ extension DocumentWorkflowModel {
         }
     }
 
+    /// A completed/manual Guide is no longer owned by the live capture exit
+    /// path. Keep its current editing revision before allowing app shutdown.
+    func prepareGuideEditorForApplicationExit() async -> Bool {
+        guard let controller = guideEditorController else { return true }
+        controller.finishMarkerDrag()
+        let requestedVersion = controller.contentVersion
+        if controller.isSaving, let generation = guideSaveGeneration {
+            await withCheckedContinuation { continuation in
+                guideSaveCompletionWaiters[generation, default: []].append(continuation)
+            }
+            guard guideEditorController === controller,
+                  controller.contentVersion == requestedVersion,
+                  controller.saveFailure == nil, !Task.isCancelled else { return false }
+        }
+        pendingGuideAutosaveTask?.cancel()
+        pendingGuideAutosaveTask = nil
+        updateDocumentChangeTracking()
+        guard hasUnsavedChanges else { return true }
+
+        // No destination means there is no durable home for later manual
+        // edits. Private work always retains an explicit Save/Discard choice.
+        if currentDocumentURL == nil || controller.project.isPrivate {
+            return await confirmUnsavedDocumentForApplicationExit()
+        }
+        guard let url = currentDocumentURL else { return false }
+        let saved = await persistGuide(controller, to: url)
+        guard saved, guideEditorController === controller,
+              controller.contentVersion == requestedVersion, !Task.isCancelled else { return false }
+        updateDocumentChangeTracking()
+        return !hasUnsavedChanges
+    }
+
     /// Shared by autosave, Retry, Save, and Save As. Publication is guarded by
     /// both session and write generation, including while switching documents.
     @discardableResult
@@ -94,6 +126,8 @@ extension DocumentWorkflowModel {
         controller.isSaving = true
         defer {
             if guideSaveGeneration == generation { controller.isSaving = false }
+            let waiters = guideSaveCompletionWaiters.removeValue(forKey: generation) ?? []
+            waiters.forEach { $0.resume() }
         }
         do {
             let persisted = try await withSecurityScopedAccess(to: url) {

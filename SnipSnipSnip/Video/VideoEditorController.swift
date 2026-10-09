@@ -59,7 +59,7 @@ final class VideoEditorController: ObservableObject {
         }
     }
 
-    let recording: CapturedVideoRecording
+    @Published private(set) var recording: CapturedVideoRecording
     let player: AVPlayer
 
     @Published private(set) var posterImage: CGImage?
@@ -127,6 +127,24 @@ final class VideoEditorController: ObservableObject {
 
     var documentSession: VideoEditorSession {
         session
+    }
+
+    /// Saving changes the backing media location, not the editing session.
+    /// Keep Undo, selection, inspectors, and the playhead on this controller.
+    func rebaseSourceURL(_ sourceURL: URL) {
+        guard recording.sourceURL.standardizedFileURL != sourceURL.standardizedFileURL else { return }
+        let time = currentTimeSeconds
+        recording = recording.updatingSourceURL(sourceURL)
+        previewTask?.cancel()
+        posterRefreshTask?.cancel()
+        timelineThumbnailTask?.cancel()
+        isPreparingPreview = true
+        pause()
+        preparedPipeline = nil
+        player.replaceCurrentItem(with: AVPlayerItem(url: sourceURL))
+        seek(to: time)
+        refreshTimelineThumbnails()
+        refreshPreview()
     }
 
     var previewPixelSize: CGSize {
