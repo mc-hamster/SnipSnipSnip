@@ -414,6 +414,9 @@ struct OnboardingView: View {
                 Label(clipboardChoiceStatus, systemImage: clipboardChoiceStatusSymbol)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                if clipboard.needsClipboardAccess {
+                    ClipboardAccessNotice(clipboard: clipboard)
+                }
             }
             .padding(.vertical, 2)
         } label: {

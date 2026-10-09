@@ -13,14 +13,13 @@ nonisolated enum ClipboardAccessPolicy: Equatable {
         }
     }
 
-    var allowsBackgroundRead: Bool { self == .systemDefault || self == .allowed }
+    var allowsBackgroundRead: Bool { self == .allowed }
     var title: String {
         switch self {
-        case .systemDefault: String(localized: "System Managed")
+        case .systemDefault: String(localized: "Not Requested")
         case .ask: String(localized: "Asks for Access")
         case .allowed: String(localized: "Allowed")
         case .denied: String(localized: "Not Allowed")
         }
     }
 }
-

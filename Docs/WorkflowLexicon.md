@@ -216,9 +216,9 @@ Clipboard history observes new clipboard content; it does not record the screen.
 
 **Screen Recording** remains the short permission label in the app. When giving the System Settings path, use its full pane title, **Privacy & Security > Screen & System Audio Recording**.
 
-**Needs Setup**, **Waiting for Access**, **Allowed**, and **Restart Required** distinguish missing access, an outstanding setup request, usable access, and a grant that requires relaunch. Never use Restart Required for denial alone. **Manage** navigates to an already-allowed permission without changing readiness. **Continue** opens the native consent prompt during first-run setup and, after setup, explicitly resumes a waiting action. **Cancel Setup** abandons the waiting action without revoking system access. **Troubleshooting** contains exact-app paths, Reveal App, and Copy Path. **Capture Without UI Map** changes only the waiting Window screenshot, preserving the saved UI Map preference. Resuming **Capture Frontmost Window** after permission setup opens **Choose Window** to reconfirm the target; uninterrupted Frontmost capture stays a direct action.
+**Needs Setup**, **Waiting for Access**, **Allowed**, and **Restart Required** distinguish missing access, an outstanding setup request, usable access, and a grant that requires relaunch. Never use Restart Required for denial alone or an unrelated verification failure. A retryable check failure uses Access could not be checked right now; it does not revoke a known grant. Allowed/Ready must agree with the passive OS access gate used by capture services. **Manage** navigates to an already-allowed permission without changing readiness. **Continue** opens the native consent prompt during first-run setup and, after setup, explicitly resumes a waiting action. **Cancel Setup** abandons the waiting action without revoking system access. **Troubleshooting** contains exact-app paths, Reveal App, and Copy Path. **Capture Without UI Map** changes only the waiting Window screenshot, preserving the saved UI Map preference. Resuming **Capture Frontmost Window** after permission setup opens **Choose Window** to reconfirm the target; uninterrupted Frontmost capture stays a direct action.
 
-Optional Microphone and Camera use **Not Requested**, **Not Allowed**, **Restricted**, and **Allowed**. Use **Open Microphone Settings**, **Open Camera Settings**, and **Record Without Microphone** for permission recovery. The latter changes only the current recording attempt. Copying saved items and Capture Text must not request access to existing clipboard content for an optional rollback backup. **Clipboard Access** is separate from the Clipboard History preference; **Monitoring Blocked** and **Monitoring Needs Access** mean macOS currently prevents unattended reads. **Open Privacy Settings** opens its recovery destination.
+Optional Microphone and Camera use **Not Requested**, **Not Allowed**, **Restricted**, and **Allowed**. Use **Open Microphone Settings**, **Open Camera Settings**, and **Record Without Microphone** for permission recovery. The latter changes only the current recording attempt. Copying saved items and Capture Text must not request access to existing clipboard content for an optional rollback backup. **Clipboard Access** is separate from the Clipboard History preference; **Monitoring Blocked** and **Monitoring Needs Access** mean macOS currently prevents unattended reads. **Open Privacy Settings** opens its recovery destination. **Read Clipboard Once** requests one foreground read and retains an approved item without implying permission to monitor future copies. An unrequested default is not a grant. Background monitoring follows the access policy reported by macOS and resumes only when it reports **Allowed**.
 
 ## Lifecycle Verbs
 
@@ -305,6 +305,8 @@ Library terms identify distinct scopes. Do not shorten them to generic **Library
 **Archive** may remain an internal storage or implementation term. It should not name the general user-facing history experience.
 
 ## Editor Annotation Terms
+
+A single selected **Line**, **Arrow**, or **Numbered Arrow** uses two endpoint handles: one at its start and one at its end. Dragging an endpoint handle changes only that endpoint; dragging the annotation moves it. Multiple selected annotations use shared bounding-box resize handles.
 
 **Auto Crop** tightens the current crop around screenshot content and visible annotations as an immediate, undoable action. It is directly available beside Crop in the first Edit command row without changing the selected annotation tool. **Padded** is the same action with a small margin. The Crop Image inspector places Auto Crop, Padded, and **Reset Crop** above the detailed controls; Reset Crop restores the full captured image.
 
@@ -510,3 +512,8 @@ concealed image permanently marks the destination Screenshot/composition Private
 including image overlays. Cancellation or failed decoding does not change the
 current document. Transient and auto-generated clipboard markers alone do not
 mean Private.
+
+
+### Snip History folder access
+
+**Snip History Folder Needs Access** identifies an unavailable saved custom folder. **Choose Location…** reauthorizes a folder; **Use Default Location** clears that saved custom choice. The warning names the active default storage and states that existing history was not moved or deleted. Folder selection changes the visible history source, not the contents of either folder.

@@ -927,6 +927,13 @@ struct CaptureAutomationSettingsView: View {
                     Section(WorkflowVocabulary.Library.historyStorage) {
                     SettingsHelpText("Snip History stays local to this Mac. It stores editable .sss checkpoints, previews, searchable annotation text, and background OCR text unless Private Capture is enabled.")
 
+                    if let issue = archive.folderAccessError {
+                        Label("Snip History Folder Needs Access", systemImage: "folder.badge.questionmark")
+                            .font(.headline)
+                        Text(issue.localizedDescription)
+                        SettingsHelpText("New snips are kept in the default location until folder access is restored. Existing history has not been moved or deleted.")
+                    }
+
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Location")
                             .font(.caption.weight(.semibold))
@@ -1189,6 +1196,9 @@ struct CaptureAutomationSettingsView: View {
                 }
 
                 Section("Permissions") {
+                    if let message = permissions.screenRecordingVerificationMessage {
+                        Label(message, systemImage: "exclamationmark.circle")
+                    }
                     PermissionStatusRow(requirement: .screenRecording, permissions: permissions)
                         .settingsSearchTarget("privacy.screenRecording")
                     ForEach(permissions.availableMediaPermissions) { kind in

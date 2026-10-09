@@ -26,6 +26,9 @@ final class ArchiveWorkflowModel: ObservableObject {
     var archiveMaintenanceRunCount = 0
     var configuredArchiveLocationURL: URL?
     var archiveSecurityScopedURL: URL?
+    var folderAccess: ArchiveFolderAccess?
+    var requestedArchiveLocationURL: URL?
+    @Published var folderAccessError: ArchiveFolderAccessError?
     @Published var maximumSizeMB: Int {
         didSet {
             preferenceStore.saveMaximumSizeMB(maximumSizeMB)
@@ -55,14 +58,22 @@ final class ArchiveWorkflowModel: ObservableObject {
         dependencies: ArchiveWorkflowDependencies,
         recoveryStore: DocumentRecoveryStore,
         configuredArchiveLocationURL: URL?,
-        preferenceStore: ArchivePreferenceStore
+        preferenceStore: ArchivePreferenceStore,
+        preparedLocation: PreparedArchiveLocation? = nil
     ) {
         self.dependencies = dependencies
         self.recoveryStore = recoveryStore
         self.preferenceStore = preferenceStore
         self.configuredArchiveLocationURL = configuredArchiveLocationURL
+        folderAccess = preparedLocation?.access
+        archiveSecurityScopedURL = folderAccess?.didStartAccess == true ? folderAccess?.url : nil
+        requestedArchiveLocationURL = preparedLocation?.requestedURL ?? configuredArchiveLocationURL
+        folderAccessError = preparedLocation?.error
         self.maximumSizeMB = preferenceStore.loadMaximumSizeMB()
         self.recycleBinRetentionDays = preferenceStore.loadRecycleBinRetentionDays()
         self.directoryURL = recoveryStore.archiveURL
+        if folderAccessError != nil {
+            dependencies.lifecycle.presentError(String(localized: "The saved Snip History folder could not be accessed. New snips are kept in the default location. Choose Location in Snip Library settings to restore access. Existing history has not been moved or deleted."))
+        }
     }
 }

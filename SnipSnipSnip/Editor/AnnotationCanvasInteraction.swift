@@ -9,6 +9,48 @@ final class FreehandDraftBuffer {
     }
 }
 
+nonisolated enum AnnotationEndpoint: CaseIterable {
+    case start
+    case end
+
+    func position(in annotation: Annotation) -> CGPoint? {
+        let point: CGPoint
+        switch annotation.kind {
+        case let .line(shape): point = self == .start ? shape.start : shape.end
+        case let .arrow(shape): point = self == .start ? shape.start : shape.end
+        default: return nil
+        }
+        return gscPoint(point, rotatedByDegrees: annotation.rotationDegrees, around: annotation.kind.unrotatedBoundingRect(style: annotation.style).center)
+    }
+
+    func replacingPosition(in annotation: Annotation, with point: CGPoint) -> Annotation {
+        let opposite: AnnotationEndpoint = self == .start ? .end : .start
+        guard let fixedPoint = opposite.position(in: annotation) else { return annotation }
+        // Store the visible endpoints directly when editing a rotated segment.
+        // This avoids shifting the fixed endpoint as its rotation pivot changes.
+        var result = annotation
+        result.rotationDegrees = 0
+        switch result.kind {
+        case var .line(shape):
+            shape.start = self == .start ? point : fixedPoint
+            shape.end = self == .end ? point : fixedPoint
+            result.kind = .line(shape)
+        case var .arrow(shape):
+            shape.start = self == .start ? point : fixedPoint
+            shape.end = self == .end ? point : fixedPoint
+            result.kind = .arrow(shape)
+        default: break
+        }
+        return result
+    }
+
+    static func editableAnnotation(in annotations: [Annotation]) -> Annotation? {
+        guard annotations.count == 1, let annotation = annotations.first,
+              AnnotationEndpoint.start.position(in: annotation) != nil else { return nil }
+        return annotation
+    }
+}
+
 struct AnnotationCanvasInteractionState {
     enum DragMode {
         case drawingRect(tool: EditorTool, anchor: CGPoint)
@@ -17,6 +59,7 @@ struct AnnotationCanvasInteractionState {
         case moving(annotations: [Annotation], anchor: CGPoint, originalBounds: CGRect)
         case movingCrop(anchor: CGPoint, originalBounds: CGRect)
         case resizing(annotations: [Annotation], originalBounds: CGRect, handle: ResizeHandle)
+        case editingEndpoint(annotation: Annotation, endpoint: AnnotationEndpoint)
         case resizingCrop(originalBounds: CGRect, handle: ResizeHandle)
         case cropping(anchor: CGPoint)
         case recognizingText(anchor: CGPoint)
@@ -85,6 +128,12 @@ struct AnnotationCanvasInteractionState {
         dragMode = .resizing(annotations: annotations, originalBounds: originalBounds, handle: handle)
     }
 
+    mutating func beginEndpointEdit(annotation: Annotation, endpoint: AnnotationEndpoint) {
+        clearSnapCandidateCache()
+        dragMode = .editingEndpoint(annotation: annotation, endpoint: endpoint)
+        draftAnnotations = [annotation]
+    }
+
     mutating func beginCropResize(originalBounds: CGRect, handle: ResizeHandle) {
         clearSnapCandidateCache()
         dragMode = .resizingCrop(originalBounds: originalBounds, handle: handle)
@@ -146,6 +195,21 @@ struct AnnotationCanvasInteractionState {
             updateMovedCrop(anchor: anchor, originalBounds: originalBounds, imageBounds: imageBounds, point: point)
         case let .resizing(annotations, originalBounds, handle):
             updateResizedAnnotations(annotations, originalBounds: originalBounds, handle: handle, snapshot: snapshot, point: point, displayScale: displayScale, bypassesSnapping: bypassesSnapping)
+        case let .editingEndpoint(annotation, endpoint):
+            let candidates = snapCandidates(excluding: [annotation.id], snapshot: snapshot)
+            let clampedPoint = CGPoint(
+                x: min(max(point.x, snapshot.cropRect.minX), snapshot.cropRect.maxX),
+                y: min(max(point.y, snapshot.cropRect.minY), snapshot.cropRect.maxY)
+            )
+            let resolution: PointSnapResolution
+            if bypassesSnapping {
+                snapSession.reset()
+                resolution = PointSnapResolution(point: clampedPoint, guides: [])
+            } else {
+                resolution = snapSession.snapPoint(clampedPoint, candidates: candidates, displayScale: displayScale)
+            }
+            snapGuides = resolution.guides
+            draftAnnotations = [endpoint.replacingPosition(in: annotation, with: resolution.point)]
         case let .resizingCrop(originalBounds, handle):
             updateResizedCrop(originalBounds: originalBounds, handle: handle, imageBounds: imageBounds, point: point, aspectRatio: cropAspectRatio)
         case let .cropping(anchor):
@@ -163,7 +227,7 @@ struct AnnotationCanvasInteractionState {
         switch dragMode {
         case .drawingRect, .drawingLine, .drawingFreehand:
             return commitDraftAnnotation()
-        case .moving, .resizing:
+        case .moving, .resizing, .editingEndpoint:
             return .update(draftAnnotations)
         case .movingCrop, .resizingCrop:
             return commitDraftCrop()

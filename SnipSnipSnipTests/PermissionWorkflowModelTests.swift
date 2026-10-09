@@ -69,7 +69,7 @@ final class PermissionWorkflowModelTests: XCTestCase {
         }
     }
 
-    func testScreenRecordingProbeReconcilesMissingStatusWithoutActiveRequest() async {
+    func testSuccessfulProbeCannotOverrideTheServicesPassiveGate() async {
         let permissions = MutablePermissionService(
             status: CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: true),
             screenRecordingVerifier: { true }
@@ -80,10 +80,21 @@ final class PermissionWorkflowModelTests: XCTestCase {
 
         XCTAssertNil(workflow.activePermissionRequest)
         XCTAssertNil(workflow.permissionSetupGuide)
-        XCTAssertEqual(workflow.permissionStatus, CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true))
+        XCTAssertEqual(workflow.permissionStatus, CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: true))
+        do {
+            _ = try await ScreenCaptureService(permissions: permissions).listWindows(includeThumbnails: false)
+            XCTFail("Capture must use the same denied gate as the workflow")
+        } catch ScreenCaptureError.permissionDenied {
+        } catch { XCTFail("Unexpected capture error: \(error)") }
+        do {
+            _ = try await ScreenRecordingService(permissions: permissions).startFullscreenRecording(preferences: VideoRecordingPreferences())
+            XCTFail("Recording must use the same denied gate as the workflow")
+        } catch ScreenRecordingError.permissionDenied {
+        } catch { XCTFail("Unexpected recording error: \(error)") }
+
     }
 
-    func testVerifiedScreenRecordingGrantSurvivesStalePassiveRefresh() async {
+    func testSuccessfulProbeWithMissingPassiveAccessStaysUnavailableOnRefresh() async {
         let permissions = MutablePermissionService(
             status: CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: true),
             screenRecordingVerifier: { true }
@@ -93,7 +104,7 @@ final class PermissionWorkflowModelTests: XCTestCase {
         await workflow.refreshPermissionsIncludingScreenRecordingProbe()
         workflow.refreshPermissions()
 
-        XCTAssertEqual(workflow.permissionStatus, CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true))
+        XCTAssertEqual(workflow.permissionStatus, CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: true))
     }
 
     func testPassiveRefreshDoesNotProbeMissingScreenRecordingPermission() async {
@@ -111,7 +122,7 @@ final class PermissionWorkflowModelTests: XCTestCase {
         XCTAssertEqual(workflow.permissionStatus, CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: true))
     }
 
-    func testScreenRecordingProbeDoesNotPublishStaleMissingBeforeVerifierCompletes() async {
+    func testPassiveDenialIsPublishedWhileVerificationIsInFlight() async {
         let verifier = DeferredBoolVerifier()
         let permissions = MutablePermissionService(
             status: CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: true),
@@ -132,12 +143,12 @@ final class PermissionWorkflowModelTests: XCTestCase {
         }
 
         await verifier.waitForRequest()
-        XCTAssertEqual(workflow.permissionStatus, CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true))
+        XCTAssertEqual(workflow.permissionStatus, CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: true))
 
         await verifier.resume(returning: true)
         await refreshTask.value
 
-        XCTAssertEqual(workflow.permissionStatus, CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true))
+        XCTAssertEqual(workflow.permissionStatus, CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: true))
     }
 
     func testContextualSetupRequirementsSkipAccessibilityWhenScreenRecordingNeedsRestart() async {
@@ -886,6 +897,35 @@ final class PermissionWorkflowModelTests: XCTestCase {
                 XCTAssertNil(model.documents.editorController)
             }
         }
+    }
+
+    func testTransientProbeFailureDoesNotRevokeAllowedAccessOrDemandRestart() async {
+        let service = TestCapturePermissionService()
+        var injected = service
+        injected.screenRecordingProbe = { .unavailable(domain: "TransientScreenCaptureKit", code: -999) }
+        let workflow = PermissionWorkflowModel(dependencies: PermissionWorkflowDependencies(
+            capabilities: testCapabilities, permissions: injected,
+            scheduler: ImmediateScheduler(), lifecycle: TestWorkflowLifecyclePresenter()))
+        await workflow.refreshPermissionsIncludingScreenRecordingProbe()
+        XCTAssertTrue(workflow.permissionStatus.hasScreenRecording)
+        XCTAssertFalse(workflow.screenRecordingSetupNeedsAttention)
+        XCTAssertNotNil(workflow.screenRecordingVerificationMessage)
+        workflow.refreshPermissions()
+        XCTAssertTrue(workflow.permissionStatus.hasScreenRecording)
+    }
+
+    func testTransientProbeFailureWhileWaitingDoesNotClaimAccessOrRestart() async {
+        var service = TestCapturePermissionService(status: CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: true))
+        service.screenRecordingProbe = { .unavailable(domain: "TransientScreenCaptureKit", code: -999) }
+        let workflow = PermissionWorkflowModel(dependencies: PermissionWorkflowDependencies(
+            capabilities: testCapabilities, permissions: service,
+            scheduler: ImmediateScheduler(), lifecycle: TestWorkflowLifecyclePresenter()))
+        workflow.requestPermission(.screenRecording)
+        await workflow.refreshPermissionsIncludingScreenRecordingProbe()
+        XCTAssertFalse(workflow.permissionStatus.hasScreenRecording)
+        XCTAssertFalse(workflow.screenRecordingSetupNeedsAttention)
+        XCTAssertNotNil(workflow.screenRecordingVerificationMessage)
+        XCTAssertNotNil(workflow.permissionSetupGuide)
     }
 
     private func makeWorkflow(

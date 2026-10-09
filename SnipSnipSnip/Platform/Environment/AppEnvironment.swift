@@ -13,12 +13,13 @@ struct AppEnvironment {
         buildTarget: BuildTarget = .current,
         capabilityProvider: any AppCapabilityProvider = BuildTargetCapabilityProvider(),
         permissions: (any CapturePermissionServicing)? = nil,
-        systemServices: AppSystemServices? = nil
+        systemServices: AppSystemServices? = nil,
+        preferenceStores: AppPreferenceStores? = nil
     ) {
         self.defaults = defaults
         let capabilities = capabilityProvider.snapshot(for: buildTarget)
         self.capabilities = capabilities
-        self.preferenceStores = AppPreferenceStores(storage: defaults)
+        self.preferenceStores = preferenceStores ?? AppPreferenceStores(storage: defaults)
         let resolvedPermissions = permissions ?? SystemCapturePermissionService(capabilities: capabilities)
         self.systemServices = systemServices ?? AppSystemServices.live(permissions: resolvedPermissions)
     }

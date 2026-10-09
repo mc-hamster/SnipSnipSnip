@@ -173,6 +173,24 @@ transport spies into the production CLI/URL parsers without capturing a desktop.
 
 ## Permission release validation
 
+Apple guidance is the basis for permission behavior:
+
+| Apple reference | SSS behavior |
+| --- | --- |
+| [Privacy HIG](https://developer.apple.com/design/human-interface-guidelines/privacy/) | Request access for a selected feature or explicit setup action; use clear purpose strings and let macOS present consent. Recovery is separate from the system alert. Optional Microphone, Camera, and Accessibility remain tied to their features. |
+| [ScreenCaptureKit sample](https://developer.apple.com/documentation/screencapturekit/capturing-screen-content-in-macos) | First Screen Recording grant requires relaunch, as the sample documents. Managing an existing grant does not start that first-grant flow. A failed content query alone does not prove denial. |
+| [Pasteboard access behavior](https://developer.apple.com/documentation/appkit/nspasteboard/accessbehavior-swift.enum) | Follow the reported policy; default and ask do not authorize unattended reads. Read Clipboard Once is explicit. A one-time approval does not authorize later monitoring. |
+| [Security-scoped access](https://developer.apple.com/documentation/foundation/nsurl/startaccessingsecurityscopedresource()) and [release](https://developer.apple.com/documentation/foundation/nsurl/stopaccessingsecurityscopedresource()) | Acquire custom-folder access before I/O, retain it while the store uses the folder, and release every successfully acquired scope. A plain path cannot replace a failed capability. |
+| [Bookmark resolution](https://developer.apple.com/documentation/foundation/url/init(resolvingbookmarkdata:options:relativeto:bookmarkdataisstale:)-3ic6f) | Renew stale bookmarks using the resolved URL. Failed restoration preserves the saved choice and offers folder selection again. |
+
+The readiness cache, Check Again action, and visible default-storage fallback are
+SSS recovery policies. Apple does not prescribe those custom states. Keep passive
+checks at workflow entry and protected service boundaries, where selection or
+other asynchronous work may allow access to change. Reuse the refreshed result
+inside a synchronous permission request instead of stacking extra checks. Keep
+ScreenCaptureKit content queries tied to Check Again or actual capture work;
+do not use them as background permission polling.
+
 Permission status refresh, app foregrounding, and unattended automation must use
 non-prompting status APIs. Only explicit setup, Check Again, or a requested capture
 operation may call a consent-capable API. Never reset a developer's normal TCC
@@ -211,3 +229,15 @@ App Store builds must omit Camera and Accessibility setup, keep microphone optio
 and keep the camera usage key absent. OS consent dialogs, managed restrictions,
 and physical iPhone/iPad trust must be checked on real supported systems; mocked
 permission states and hosted UI renders do not certify those platform behaviors.
+
+
+The permission audit regression cases also cover `ArchiveFolderAccessTests`:
+failed bookmark persistence is atomic, stale bookmarks renew, custom scopes are
+acquired before recovery reads and held by the store, and unavailable custom
+folders produce an explicit safe-storage fallback without removing old history.
+Check clipboard behavior with and without the documented privacy preview on
+legacy systems and on macOS releases where that preview switch has been removed.
+Read Clipboard Once must retain an approved item while `.ask` still blocks later
+background reads. Check Again with a transient ScreenCaptureKit error must keep
+usable access and show a retry message, not Restart Required. Recovering a Video
+after an actual permission denial must retain permission setup and the saved Video.

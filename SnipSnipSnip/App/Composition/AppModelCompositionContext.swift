@@ -6,6 +6,7 @@ struct AppModelCompositionContext {
     let preferenceStores: AppPreferenceStores
     let overrides: AppModelCompositionOverrides
     let configuredArchiveLocationURL: URL?
+    let archiveLocation: PreparedArchiveLocation
     let recoveryStore: DocumentRecoveryStore
     let videoRecoveryStore: VideoRecoveryStore
     let clipboardHistoryStore: ClipboardHistoryStore
@@ -22,8 +23,10 @@ struct AppModelCompositionContext {
     ) {
         let environment = providedEnvironment ?? AppEnvironment(defaults: defaults)
         let preferenceStores = environment.preferenceStores
-        let configuredArchiveLocationURL = preferenceStores.archive.loadLocationURL()
-        let recoveryStore = overrides.recoveryStore ?? DocumentRecoveryStore(baseURL: configuredArchiveLocationURL)
+        let archiveLocation = PreparedArchiveLocation(preferences: preferenceStores.archive)
+        let configuredArchiveLocationURL = archiveLocation.usableURL
+        let recoveryStore = overrides.recoveryStore ?? DocumentRecoveryStore(
+            baseURL: configuredArchiveLocationURL, folderAccess: archiveLocation.access)
         let videoRecoveryStore = overrides.videoRecoveryStore ?? VideoRecoveryStore(files: environment.systemServices.files)
         let pendingRecoverySession = recoveryStore.latestPendingRecovery()
 
@@ -31,6 +34,7 @@ struct AppModelCompositionContext {
         self.preferenceStores = preferenceStores
         self.overrides = overrides
         self.configuredArchiveLocationURL = configuredArchiveLocationURL
+        self.archiveLocation = archiveLocation
         self.recoveryStore = recoveryStore
         self.videoRecoveryStore = videoRecoveryStore
         let clipboardPreferences = preferenceStores.clipboard.loadPreferences()
@@ -44,6 +48,7 @@ struct AppModelCompositionContext {
             || preferenceStores.lifecycle.loadOnboardingResumeCheckpoint() != nil
         self.shouldPresentMainWindowOnLaunch = pendingRecoverySession != nil || videoRecoveryStore.hasRecovery()
             || PermissionRestartStore(defaults: environment.defaults).load() != nil
+            || archiveLocation.error != nil
         self.floatingReferenceCoordinator = FloatingReferenceCoordinator()
         self.historyPreviewCoordinator = HistoryPreviewCoordinator(
             files: environment.systemServices.files

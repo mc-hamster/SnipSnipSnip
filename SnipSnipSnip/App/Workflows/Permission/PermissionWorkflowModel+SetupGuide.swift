@@ -28,6 +28,7 @@ extension PermissionWorkflowModel {
     }
 
     func dismissPermissionSetupGuide() {
+        screenRecordingVerificationMessage = nil
         dependencies.restartStore?.save(nil)
         permissionContinuation = nil
         permissionSetupGuide = nil
@@ -59,6 +60,7 @@ extension PermissionWorkflowModel {
 
     func checkPermissionSetupGuideStatus() {
         guard !isCheckingPermission else { return }
+        screenRecordingVerificationMessage = nil
         if permissionSetupGuide?.requirement != .accessibility {
             isCheckingPermission = true
             let checkID = UUID()

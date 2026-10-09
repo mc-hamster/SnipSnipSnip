@@ -16,6 +16,7 @@ nonisolated protocol CapturePermissionServicing: Sendable {
     func requestAccess(for requirement: CapturePermissionRequirement) -> Bool
 
     func verifyScreenRecordingAccess() async -> Bool
+    func probeScreenRecordingAccess() async -> ScreenRecordingAccessProbeResult
 
     @MainActor
     func openSystemSettings(for requirement: CapturePermissionRequirement)
@@ -27,6 +28,12 @@ nonisolated protocol CapturePermissionServicing: Sendable {
     func copyCurrentAppPathToPasteboard()
 
     func indicatesScreenRecordingPermissionFailure(_ error: Error) -> Bool
+}
+
+extension CapturePermissionServicing {
+    nonisolated func probeScreenRecordingAccess() async -> ScreenRecordingAccessProbeResult {
+        await verifyScreenRecordingAccess() ? .available : .permissionDenied
+    }
 }
 
 nonisolated struct CapturePermissionSystemClient: Sendable {
@@ -41,6 +48,7 @@ nonisolated struct CapturePermissionSystemClient: Sendable {
     var revealCurrentAppInFinder: @MainActor @Sendable () -> Void
     var copyCurrentAppPathToPasteboard: @MainActor @Sendable () -> Void
     var screenRecordingPermissionFailureDetector: @Sendable (Error) -> Bool
+    var screenRecordingAccessProbe: (@Sendable () async -> ScreenRecordingAccessProbeResult)? = nil
 
     static let live = CapturePermissionSystemClient(
         screenRecordingStatus: {
@@ -75,6 +83,9 @@ nonisolated struct CapturePermissionSystemClient: Sendable {
         },
         screenRecordingPermissionFailureDetector: { error in
             ScreenCapturePermissions.indicatesScreenRecordingPermissionFailure(error)
+        },
+        screenRecordingAccessProbe: {
+            await ScreenCapturePermissions.probeScreenRecordingAccess()
         }
     )
 }
@@ -142,6 +153,11 @@ nonisolated struct SystemCapturePermissionService: CapturePermissionServicing {
 
     func verifyScreenRecordingAccess() async -> Bool {
         await client.screenRecordingAccessVerifier()
+    }
+
+    func probeScreenRecordingAccess() async -> ScreenRecordingAccessProbeResult {
+        if let probe = client.screenRecordingAccessProbe { return await probe() }
+        return await client.screenRecordingAccessVerifier() ? .available : .permissionDenied
     }
 
     @MainActor

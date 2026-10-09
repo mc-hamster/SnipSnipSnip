@@ -592,3 +592,10 @@ Private image Copy outputs retain the existing PNG and `copiedClipboard` result
 contract and publish `org.nspasteboard.ConcealedType` with the image. Explicitly
 pasting that image back into SnipSnipSnip retains Private document handling. No
 command, option, URL route, or sample procedure changes.
+
+
+Permission readiness uses the same passive macOS Screen Recording gate as the
+capture and recording services. A successful content probe does not override a
+negative gate. Unrelated verification errors remain retryable instead of being
+reported as permission denial or a required restart. Unattended calls continue
+to return the existing permissionDenied error without opening setup UI.

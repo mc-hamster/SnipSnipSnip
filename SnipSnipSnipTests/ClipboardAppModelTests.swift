@@ -178,6 +178,51 @@ final class ClipboardAppModelTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(explicit).text, "Explicit paste remains available")
     }
 
+    func testConsentDefaultDoesNotPerformABackgroundRead() {
+        let name = "ClipboardAudit.default.\(UUID())"
+        let store = makeClipboardStore(named: name)
+        let pasteboard = TestPasteboardService()
+        pasteboard.programmaticAccessPolicy = .systemDefault
+        let monitor = ClipboardMonitor(store: store, pasteboard: pasteboard, workspace: TestWorkspaceService())
+        defer { monitor.stop(); removeClipboardStore(named: name) }
+        pasteboard.setString("No unsolicited consent request", forType: .string)
+        var preferences = ClipboardPreferences.default
+        preferences.isEnabled = true
+        monitor.start(preferences: preferences)
+        XCTAssertEqual(pasteboard.contentReadCount, 0)
+        XCTAssertTrue(store.items.isEmpty)
+    }
+
+    func testForegroundApprovalRetainsTheItemWhileAskBlocksFutureCopies() async {
+        let name = "ClipboardAudit.once.\(UUID())"
+        let store = makeClipboardStore(named: name)
+        let pasteboard = TestPasteboardService()
+        pasteboard.programmaticAccessPolicy = .systemDefault
+        let monitor = ClipboardMonitor(store: store, pasteboard: pasteboard, workspace: TestWorkspaceService())
+        defer { monitor.stop(); removeClipboardStore(named: name) }
+        pasteboard.setString("Approved once", forType: .string)
+        pasteboard.onContentRead = { [weak pasteboard] in pasteboard?.programmaticAccessPolicy = .ask }
+        var preferences = ClipboardPreferences.default
+        preferences.isEnabled = true
+        monitor.start(preferences: preferences)
+        let didRead = await monitor.readClipboardOnce(preferences: preferences)
+        XCTAssertTrue(didRead)
+        XCTAssertEqual(store.items.count, 1)
+        XCTAssertEqual(pasteboard.contentReadCount, 1)
+        XCTAssertEqual(monitor.accessPolicy, .ask)
+        pasteboard.setString("Next copy must wait", forType: .string)
+        monitor.update(preferences: preferences)
+        XCTAssertEqual(pasteboard.contentReadCount, 1)
+        XCTAssertEqual(store.items.count, 1)
+    }
+
+    func testOnlyAnExplicitAllowPolicyPermitsBackgroundReads() {
+        XCTAssertFalse(ClipboardAccessPolicy(.default).allowsBackgroundRead)
+        XCTAssertFalse(ClipboardAccessPolicy(.ask).allowsBackgroundRead)
+        XCTAssertFalse(ClipboardAccessPolicy(.alwaysDeny).allowsBackgroundRead)
+        XCTAssertTrue(ClipboardAccessPolicy(.alwaysAllow).allowsBackgroundRead)
+    }
+
     func testHistoryMutationsNotifyClipboardWindowModel() throws {
         let name = "ClipboardAppModelTests.historyObservation"
         let defaults = makeDefaults(named: name)

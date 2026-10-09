@@ -45,12 +45,14 @@ extension PermissionWorkflowModel {
 
     func effectivePermissionStatus(from status: CapturePermissionStatus) -> CapturePermissionStatus {
         let hasScreenRecording: Bool
-        if screenRecordingSetupRequiresRestart(for: status) {
+        // Capture and recording services enforce this same passive OS gate.
+        // A successful content query alone must never publish Ready.
+        if !status.hasScreenRecording || screenRecordingSetupRequiresRestart(for: status) {
             hasScreenRecording = false
         } else if requiresVerifiedScreenRecordingReadiness() {
             hasScreenRecording = hasVerifiedScreenRecordingAccess
         } else {
-            hasScreenRecording = status.hasScreenRecording || hasVerifiedScreenRecordingAccess
+            hasScreenRecording = status.hasScreenRecording
         }
 
         return CapturePermissionStatus(
@@ -87,7 +89,9 @@ extension PermissionWorkflowModel {
         guard missingRequirements.allSatisfy(dependencies.permissions.canRequest) else { return .unavailable }
         requestPermission(firstMissingRequirement)
         permissionSetupGuide?.featureName = featureName
-        refreshPermissions()
+        // requestPermission refreshes after the native request. Reuse that
+        // result within this synchronous workflow; services check again at the
+        // protected operation boundary, including after asynchronous selection.
 
         let stillMissingRequirements = requirements.filter { !permissionStatus.hasAccess(to: $0) }
 
@@ -95,10 +99,6 @@ extension PermissionWorkflowModel {
             dependencies.lifecycle.clearError()
             dependencies.lifecycle.requestMainWindowPresentation()
             return .blocked(missing: stillMissingRequirements)
-        }
-
-        if requirements.contains(.screenRecording) {
-            refreshPermissions()
         }
 
         return .granted(permissionStatus)

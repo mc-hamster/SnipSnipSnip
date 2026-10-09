@@ -61,13 +61,13 @@ nonisolated struct AppPreferenceStores {
     let lifecycle: LifecyclePreferenceStore
     let quickControls: QuickControlsPreferenceStore
 
-    init(storage: PreferenceStorage) {
+    init(storage: PreferenceStorage, archive: ArchivePreferenceStore? = nil) {
         self.storage = storage
         self.capture = CapturePreferenceStore(storage: storage)
         self.editor = EditorPreferenceStore(storage: storage)
         self.clipboard = ClipboardPreferenceStore(storage: storage)
         self.automation = AutomationPreferenceStore(storage: storage)
-        self.archive = ArchivePreferenceStore(storage: storage)
+        self.archive = archive ?? ArchivePreferenceStore(storage: storage)
         self.screenTools = ScreenToolPreferenceStore(storage: storage)
         self.video = VideoPreferenceStore(storage: storage)
         self.guide = GuidePreferenceStore(storage: storage)

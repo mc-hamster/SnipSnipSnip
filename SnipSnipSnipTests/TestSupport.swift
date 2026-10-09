@@ -60,6 +60,7 @@ nonisolated struct TestCapturePermissionService: CapturePermissionServicing {
         CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
     }
     var screenRecordingVerifier: @Sendable () async -> Bool = { true }
+    var screenRecordingProbe: (@Sendable () async -> ScreenRecordingAccessProbeResult)? = nil
     var requestHandler: @Sendable (CapturePermissionRequirement) -> Bool = { _ in true }
     var settingsHandler: @Sendable (CapturePermissionRequirement) -> Void = { _ in }
     var canRequestHandler: @Sendable (CapturePermissionRequirement) -> Bool = { _ in true }
@@ -119,6 +120,11 @@ nonisolated struct TestCapturePermissionService: CapturePermissionServicing {
 
     func verifyScreenRecordingAccess() async -> Bool {
         await screenRecordingVerifier()
+    }
+
+    func probeScreenRecordingAccess() async -> ScreenRecordingAccessProbeResult {
+        if let screenRecordingProbe { return await screenRecordingProbe() }
+        return await screenRecordingVerifier() ? .available : .permissionDenied
     }
 
     func openSystemSettings(for requirement: CapturePermissionRequirement) {

@@ -155,6 +155,53 @@ final class PermissionRecoveryTests: XCTestCase {
         XCTAssertEqual(checks, 2)
     }
 
+    func testRecoveredRecordingRetainsPermissionGuidanceAndBlocksReadiness() async throws {
+        let name = "PermissionAudit.recovered.\(UUID())"
+        let defaults = makeDefaults(named: name)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(name, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let media = try await VideoTestMedia.make(in: root, duration: 1)
+        let backend = TestScreenRecordingPlatformSession()
+        let frame = CGRect(x: 0, y: 0, width: 320, height: 240)
+        let display = DisplaySnapshot(displayID: 1, name: "Test Display", frame: frame, overlayFrame: frame, scale: 1)
+        let platform = TestScreenRecordingPlatform(
+            content: ScreenContentSnapshot(displays: [display], windows: [], applications: []),
+            makeSessionHandler: { _, _ in backend })
+        let permissionService = TestCapturePermissionService()
+        let recordingService = ScreenRecordingService(permissions: permissionService, platform: platform)
+        let model = AppModel(defaults: defaults,
+            environment: AppEnvironment(defaults: defaults, permissions: permissionService),
+            recoveryStore: DocumentRecoveryStore(baseURL: root.appendingPathComponent("History")),
+            screenRecordingService: recordingService,
+            shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false)
+        var temporarySegments: [URL] = []
+        defer {
+            model.permissions.dismissPermissionSetupGuide()
+            defaults.removePersistentDomain(forName: name)
+            for url in temporarySegments { try? FileManager.default.removeItem(at: url) }
+            if let url = model.documents.videoEditorController?.recording.sourceURL { try? FileManager.default.removeItem(at: url) }
+            try? FileManager.default.removeItem(at: root)
+        }
+        model.video.recordCurrentDisplay()
+        for _ in 0..<500 where model.video.activeVideoRecording == nil { try await Task.sleep(for: .milliseconds(20)) }
+        XCTAssertNotNil(model.video.activeVideoRecording)
+        temporarySegments = Array(backend.segmentOutputURLs.values)
+        for url in temporarySegments {
+            try? FileManager.default.removeItem(at: url)
+            try FileManager.default.copyItem(at: media.sourceURL, to: url)
+        }
+        backend.stopWithError(ScreenRecordingError.permissionDenied)
+        XCTAssertFalse(model.permissions.permissionStatus.hasScreenRecording, "Reconcile the original failure before asynchronous finalization")
+        for _ in 0..<500 where model.video.activeVideoRecording != nil { try await Task.sleep(for: .milliseconds(20)) }
+        let controller = try XCTUnwrap(model.documents.videoEditorController)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: controller.recording.sourceURL.path))
+        XCTAssertEqual(model.permissions.permissionSetupGuide?.requirement, .screenRecording)
+        XCTAssertFalse(model.permissions.permissionStatus.hasScreenRecording)
+        XCTAssertTrue(model.permissions.screenRecordingSetupNeedsAttention)
+        XCTAssertNil(model.capture.captureRecovery, "Recovered Video must not offer a screenshot retry")
+        XCTAssertNotNil(controller.statusNotice)
+    }
+
     private func makeVideo(defaults: UserDefaults, platform: TestScreenRecordingPlatform, capture: PermissionTestVideoCapturePort) -> VideoWorkflowModel {
         VideoWorkflowModel(
             dependencies: VideoWorkflowDependencies(capabilities: testCapabilities,

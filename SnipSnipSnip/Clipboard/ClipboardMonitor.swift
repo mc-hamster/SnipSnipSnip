@@ -460,6 +460,48 @@ final class ClipboardMonitor: ObservableObject {
         if !current.allowsBackgroundRead { cancelPendingIngestion() }
     }
 
+    /// One foreground request reads one advertised representation. The native
+    /// result may be approved for this item while subsequent background reads
+    /// remain blocked (.ask); retain that approved item instead of discarding it.
+    func readClipboardOnce(preferences: ClipboardPreferences) async -> Bool {
+        guard preferences.isEnabled, pasteboard.programmaticAccessPolicy != .denied else { return false }
+        let types = pasteboard.typeNames
+        guard !ClipboardPasteboardReader.containsSensitiveOrTransientType(types) else { return false }
+        let fallbackSource = Self.currentSourceApp(workspace: workspace)
+        guard !preferences.ignores(fallbackSource) else { return false }
+        let supported = [NSPasteboard.PasteboardType.png.rawValue, NSPasteboard.PasteboardType.tiff.rawValue,
+                         NSPasteboard.PasteboardType.string.rawValue, NSPasteboard.PasteboardType.fileURL.rawValue,
+                         NSPasteboard.PasteboardType.URL.rawValue] + ClipboardPasteboardReader.previewableBinaryTypeIdentifiers
+        guard let typeName = supported.first(where: types.contains) else { return false }
+        let type = NSPasteboard.PasteboardType(typeName)
+        let content: ClipboardCapturedPasteboardContent
+        if type == .string {
+            guard let text = pasteboard.string(forType: type), !text.isEmpty else { refreshAccessPolicy(); return false }
+            content = ClipboardCapturedPasteboardContent(urls: [], pngData: nil, tiffData: nil, text: text,
+                urlTitle: nil, previewableBinaryRepresentations: [])
+        } else if type == .fileURL || type == .URL {
+            let urls = pasteboard.fileAndWebURLs()
+            guard !urls.isEmpty else { refreshAccessPolicy(); return false }
+            content = ClipboardCapturedPasteboardContent(urls: urls, pngData: nil, tiffData: nil, text: nil,
+                urlTitle: nil, previewableBinaryRepresentations: [])
+        } else {
+            guard let data = pasteboard.data(forType: type), !data.isEmpty else { refreshAccessPolicy(); return false }
+            content = ClipboardCapturedPasteboardContent(urls: [], pngData: type == .png ? data : nil,
+                tiffData: type == .tiff ? data : nil, text: nil, urlTitle: nil,
+                previewableBinaryRepresentations: type == .png || type == .tiff ? []
+                    : [ClipboardCapturedBinaryRepresentation(typeIdentifier: typeName, data: data)])
+        }
+        let readAt = Date()
+        observedChangeCount = pasteboard.changeCount
+        refreshAccessPolicy()
+        guard accessPolicy != .denied else { return false }
+        let snapshot = await snapshotResolver(content)
+        guard !Task.isCancelled, currentPreferences?.isEnabled == true,
+              pasteboard.programmaticAccessPolicy != .denied, let snapshot else { return false }
+        record(snapshot, sourceApp: nil, preferences: currentPreferences ?? preferences, pasteboardItems: [], copiedAt: readAt)
+        return true
+    }
+
     private func pollCurrentPasteboard() {
         guard let currentPreferences else {
             return

@@ -574,36 +574,49 @@ extension VideoWorkflowModel {
 
     private func handleUnexpectedRecordingFailure(_ error: Error, active: ActiveVideoRecording) {
         guard recordingLifecycle.transition(to: .finishing, generation: active.generation) else { return }
+        let permissionWasLost = dependencies.permissions.reconcileScreenRecordingPermissionFailureIfNeeded(after: error)
         stopVideoStorageMonitor()
         active.overlay.updatePhase(.finishing, commandInFlight: true)
         let previous = recordingCommandTail
         let task = Task { @MainActor [weak self] in
             _ = await previous?.value
-            _ = await self?.finishRecording(active, unexpectedError: error)
+            _ = await self?.finishRecording(active, unexpectedError: error, permissionWasLost: permissionWasLost)
         }
         recordingCommandTail = task
     }
 
     private func finishRecording(
         _ active: ActiveVideoRecording,
-        unexpectedError: Error?
+        unexpectedError: Error?,
+        permissionWasLost knownPermissionLoss: Bool = false
     ) async -> Bool {
         guard activeVideoRecording?.session === active.session else {
             return completedRecordingGeneration == active.generation && completedRecordingSucceeded
         }
+        let permissionWasLost = knownPermissionLoss || (unexpectedError.map {
+            dependencies.permissions.reconcileScreenRecordingPermissionFailureIfNeeded(after: $0)
+        } ?? false)
         do {
             let recording = try await dependencies.capture.performVideoWork(message: WorkflowVocabulary.Status.videoFinishing) {
                 try await active.session.stop()
             }
             recordFinalizationResult(true, generation: active.generation)
             completeRecordingCleanup(active)
+            let controller = VideoEditorController(recording: recording)
             documents?.installVideoController(
-                VideoEditorController(recording: recording),
+                controller,
                 documentURL: nil,
                 savedSession: nil
             )
             requestMainWindowPresentation()
-            if unexpectedError != nil || active.session.recoveredFromSegmentFailure {
+            if permissionWasLost {
+                dependencies.permissions.presentPermissionSetupGuide(for: .screenRecording)
+                controller.showStatus(EditorNotice(
+                    message: String(localized: "Recording stopped because Screen Recording access changed. The captured Video was recovered."),
+                    dismissalDelaySeconds: nil
+                ))
+            }
+            if !permissionWasLost && (unexpectedError != nil || active.session.recoveredFromSegmentFailure) {
                 present(ScreenRecordingError.recordingFailed(
                     "Recording stopped unexpectedly. The captured Video was recovered."
                 ))
@@ -613,6 +626,9 @@ extension VideoWorkflowModel {
             recordFinalizationResult(false, generation: active.generation)
             completeRecordingCleanup(active)
             present(unexpectedError ?? error)
+            if permissionWasLost {
+                dependencies.permissions.presentPermissionSetupGuide(for: .screenRecording)
+            }
             return false
         }
     }

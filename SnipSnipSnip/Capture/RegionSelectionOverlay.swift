@@ -745,7 +745,7 @@ private final class RegionSelectionView: NSView, NSTextFieldDelegate {
     private let displayPreview: DisplayPreview
     private let coordinator: RegionSelectionCoordinator
     private let canvasView: RegionSelectionCanvasView
-    private let windowHoverView: CaptureSelectionWindowHighlightView
+    private let selectionHighlightView: CaptureSelectionWindowHighlightView
     private let crosshairOverlayView: RegionSelectionCrosshairOverlayView?
     private let cursorOverlayView: RegionSelectionCursorOverlayView
     private var trackingAreaRef: NSTrackingArea?
@@ -768,7 +768,7 @@ private final class RegionSelectionView: NSView, NSTextFieldDelegate {
             displayPreview: displayPreview,
             instructionText: coordinator.instructionText
         )
-        self.windowHoverView = CaptureSelectionWindowHighlightView(frame: CGRect(origin: .zero, size: displayPreview.snapshot.overlayFrame.size))
+        self.selectionHighlightView = CaptureSelectionWindowHighlightView(frame: CGRect(origin: .zero, size: displayPreview.snapshot.overlayFrame.size))
         self.crosshairOverlayView = coordinator.preferences.overlayMode.showsCrosshair
             ? RegionSelectionCrosshairOverlayView(displayPreview: displayPreview)
             : nil
@@ -870,12 +870,20 @@ private final class RegionSelectionView: NSView, NSTextFieldDelegate {
         let showsActionControls = coordinator.shouldShowActionControls(on: displayPreview.snapshot.displayID)
         let isActivelyDraggingSelection = coordinator.isActivelyDraggingSelection
         let hoveredWindow = coordinator.hoveredWindow
-        windowHoverView.refresh(
-            windowID: hoveredWindow?.window.id,
-            rect: hoveredWindow?.localOutlineRect(on: displayPreview.snapshot),
-            label: hoveredWindow?.window.displayTitle,
-            transitionStartTime: coordinator.windowHoverAnimationStartTime
-        )
+        if let selectionRect {
+            selectionHighlightView.refreshRegion(
+                selectionRect,
+                on: displayPreview.snapshot,
+                transitionStartTime: coordinator.windowHoverAnimationStartTime
+            )
+        } else {
+            selectionHighlightView.refresh(
+                windowID: hoveredWindow?.window.id,
+                rect: hoveredWindow?.localOutlineRect(on: displayPreview.snapshot),
+                label: hoveredWindow?.window.displayTitle,
+                transitionStartTime: coordinator.windowHoverAnimationStartTime
+            )
+        }
 
         let hoveredWindowRect = hoveredWindow?.window.frame
         if selectionRect != lastSelectionRect ||
@@ -967,9 +975,9 @@ private final class RegionSelectionView: NSView, NSTextFieldDelegate {
         canvasView.autoresizingMask = [.width, .height]
         addSubview(canvasView)
 
-        windowHoverView.frame = bounds
-        windowHoverView.autoresizingMask = [.width, .height]
-        addSubview(windowHoverView)
+        selectionHighlightView.frame = bounds
+        selectionHighlightView.autoresizingMask = [.width, .height]
+        addSubview(selectionHighlightView)
 
         if let crosshairOverlayView {
             crosshairOverlayView.frame = bounds
@@ -1189,10 +1197,6 @@ private final class RegionSelectionCanvasView: RegionSelectionPassThroughView {
             if visibleSelection.width > 0, visibleSelection.height > 0 {
                 let localSelection = overlayLocalRect(fromCaptureGlobalRect: visibleSelection, display: displayPreview.snapshot)
                 CaptureSelectionAppearance.drawDimming(in: bounds, excluding: localSelection)
-                CaptureSelectionOutlineRenderer().draw(
-                    in: localSelection,
-                    increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
-                )
 
                 if isActivelyDraggingSelection {
                     drawActiveSelectionDimensions(selectionRect, localSelection: localSelection)

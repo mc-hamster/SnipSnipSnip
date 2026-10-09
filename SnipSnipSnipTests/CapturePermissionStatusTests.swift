@@ -11,6 +11,16 @@ final class CapturePermissionStatusTests: XCTestCase {
         XCTAssertFalse(ScreenCapturePermissions.indicatesScreenRecordingPermissionFailure(unrelated))
     }
 
+    func testProbePreservesNonPermissionErrorsEvenWhenTheirTextMentionsPermission() {
+        let error = NSError(domain: SCStreamErrorDomain, code: -999,
+            userInfo: [NSLocalizedDescriptionKey: "Screen recording permission query failed while TCC was unavailable"])
+        XCTAssertEqual(ScreenCapturePermissions.classifyScreenRecordingProbe(hasContent: false, error: error),
+            .unavailable(domain: SCStreamErrorDomain, code: -999))
+        XCTAssertFalse(ScreenCapturePermissions.indicatesScreenRecordingPermissionFailure(error))
+        XCTAssertEqual(ScreenCapturePermissions.classifyScreenRecordingProbe(hasContent: false,
+            error: NSError(domain: SCStreamErrorDomain, code: SCStreamError.Code.userDeclined.rawValue)), .permissionDenied)
+    }
+
     func testAppBrandingDisplayNameReflectsBuildTarget() {
         XCTAssertEqual(AppBranding.displayName(for: .release), "SnipSnipSnip")
         XCTAssertEqual(AppBranding.displayName(for: .selfRelease), "SnipSnipSnip Pro")

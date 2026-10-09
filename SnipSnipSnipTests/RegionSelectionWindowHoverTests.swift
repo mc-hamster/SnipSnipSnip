@@ -217,6 +217,42 @@ final class RegionSelectionWindowHoverTests: XCTestCase {
         XCTAssertTrue(strokes.allSatisfy { $0.isHidden && $0.animation(forKey: CaptureSelectionBorderCrawl.key) == nil })
     }
 
+    func testDrawnRegionUsesFullPerimeterAcrossDisplaysAndClearsOnCancellation() throws {
+        let start = CACurrentMediaTime() + 60
+        let region = CGRect(x: -100, y: 40, width: 300, height: 180)
+        let displays = [
+            DisplaySnapshot(displayID: 1, name: "Left", frame: CGRect(x: -800, y: 0, width: 800, height: 600), scale: 1),
+            DisplaySnapshot(displayID: 2, name: "Right", frame: CGRect(x: 0, y: 0, width: 1000, height: 800), scale: 2),
+            DisplaySnapshot(displayID: 3, name: "Scaled", frame: CGRect(x: -800, y: 0, width: 800, height: 600), overlayFrame: CGRect(x: -400, y: 0, width: 400, height: 300), scale: 2)
+        ]
+        for display in displays {
+            let view = CaptureSelectionWindowHighlightView(frame: CGRect(origin: .zero, size: display.overlayFrame.size))
+            view.refresh(windowID: 1, rect: CGRect(x: 20, y: 20, width: 80, height: 80), label: "Window", transitionStartTime: start)
+            view.refreshRegion(region, on: display, transitionStartTime: start)
+            XCTAssertNil(view.layer?.animation(forKey: CaptureSelectionOutlineAnimation.key), "Drawing must immediately replace the hover fade.")
+            let strokes = try XCTUnwrap(view.layer?.sublayers?.compactMap { $0 as? CAShapeLayer })
+            let expected = display.captureDisplayTransform.overlayLocalRect(fromCaptureGlobalRect: region)
+            if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+                XCTAssertEqual(strokes.count, CaptureSelectionBorderCrawl.layerCount)
+                for stroke in strokes {
+                    assertRectsEqual(try XCTUnwrap(stroke.path).boundingBoxOfPath, expected)
+                    XCTAssertEqual(stroke.animation(forKey: CaptureSelectionBorderCrawl.key)?.beginTime, start)
+                }
+                // Moving and resizing retain the shared animation clock.
+                let adjusted = region.insetBy(dx: -20, dy: -10).offsetBy(dx: 10, dy: 0)
+                view.refreshRegion(adjusted, on: display, transitionStartTime: start)
+                for stroke in strokes {
+                    assertRectsEqual(try XCTUnwrap(stroke.path).boundingBoxOfPath, display.captureDisplayTransform.overlayLocalRect(fromCaptureGlobalRect: adjusted))
+                    XCTAssertEqual(stroke.animation(forKey: CaptureSelectionBorderCrawl.key)?.beginTime, start)
+                }
+            }
+            for target in [nil, CGRect(x: 2000, y: 2000, width: 100, height: 100)] {
+                view.refreshRegion(target, on: display, transitionStartTime: start)
+                XCTAssertTrue(strokes.allSatisfy { $0.isHidden && $0.animation(forKey: CaptureSelectionBorderCrawl.key) == nil })
+            }
+        }
+    }
+
     func testHostedCrawlProducesClearlyDifferentBorderPixelsAtDifferentPositions() throws {
         let size = CGSize(width: 640, height: 480)
         let panel = NSPanel(contentRect: CGRect(x: -10000, y: -10000, width: size.width, height: size.height), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)

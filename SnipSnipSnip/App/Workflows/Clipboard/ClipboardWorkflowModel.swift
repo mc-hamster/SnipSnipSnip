@@ -42,6 +42,8 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
     private var historyObservation: AnyCancellable?
     private var permissionObservation: AnyCancellable?
     var monitoringResumeTask: Task<Void, Never>?
+    var foregroundReadTask: Task<Void, Never>?
+    @Published var isReadingClipboardOnce = false
     let preferenceStore: ClipboardPreferenceStore
     @Published var preferences: ClipboardPreferences {
         didSet {
@@ -53,6 +55,11 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
 
             preferenceStore.savePreferences(preferences)
             monitor.update(preferences: preferences)
+            if !preferences.isEnabled {
+                foregroundReadTask?.cancel()
+                foregroundReadTask = nil
+                isReadingClipboardOnce = false
+            }
             if preferences.isEnabled {
                 historyStore.prune(using: preferences)
             }
@@ -95,7 +102,7 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
         if !historyStore.isStorageAvailable { return "Monitoring Unavailable" }
         if isClipboardMonitoringPaused { return "Monitoring Paused" }
         if monitor.accessPolicy == .denied { return String(localized: "Monitoring Blocked") }
-        if monitor.accessPolicy == .ask { return String(localized: "Monitoring Needs Access") }
+        if !monitor.accessPolicy.allowsBackgroundRead { return String(localized: "Monitoring Needs Access") }
         return "Monitoring"
     }
 
@@ -106,6 +113,21 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
     func openClipboardPrivacySettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy") {
             dependencies.systemServices.workspace.open(url)
+        }
+    }
+
+    func readClipboardOnce() {
+        guard preferences.isEnabled, !isReadingClipboardOnce else { return }
+        isReadingClipboardOnce = true
+        foregroundReadTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let didRead = await monitor.readClipboardOnce(preferences: preferences)
+            guard !Task.isCancelled else { return }
+            isReadingClipboardOnce = false
+            foregroundReadTask = nil
+            actionMessage = didRead
+                ? String(localized: "Clipboard item added. Background monitoring follows your macOS access setting.")
+                : String(localized: "No clipboard item was read. Copy an item and try again, or review Clipboard access in Privacy & Security.")
         }
     }
 

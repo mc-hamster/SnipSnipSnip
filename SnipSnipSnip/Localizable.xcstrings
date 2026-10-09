@@ -1,325 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "The screenshot changed while it was being kept in Recent Snips. Try again to keep your latest edits." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The screenshot changed while it was being kept in Recent Snips. Try again to keep your latest edits."
-          }
-        }
-      }
-    },
-    "Stop & Open Guide" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Stop & Open Guide"
-          }
-        }
-      }
-    },
-    "This Mockup uses CSS transforms or a nested SVG viewport. Use the inspector controls to adjust framing." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This Mockup uses CSS transforms or a nested SVG viewport. Use the inspector controls to adjust framing."
-          }
-        }
-      }
-    },
-    "This item could not be copied. Try again." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This item could not be copied. Try again."
-          }
-        }
-      }
-    },
-    "Capture Without UI Map" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Capture Without UI Map"
-          }
-        }
-      }
-    },
-    "Screen Recording access is ready." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Screen Recording access is ready."
-          }
-        }
-      }
-    },
-    "Screen Recording access needs attention." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Screen Recording access needs attention."
-          }
-        }
-      }
-    },
-    "Accessibility access is ready." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Accessibility access is ready."
-          }
-        }
-      }
-    },
-    "Accessibility access needs attention." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Accessibility access needs attention."
-          }
-        }
-      }
-    },
-    "Restart required to apply Screen Recording access." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Restart required to apply Screen Recording access."
-          }
-        }
-      }
-    },
-    "Waiting for Access" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Waiting for Access"
-          }
-        }
-      }
-    },
-    "Needs Setup" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Needs Setup"
-          }
-        }
-      }
-    },
-    "Restart Required" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Restart Required"
-          }
-        }
-      }
-    },
-    "Not Requested" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not Requested"
-          }
-        }
-      }
-    },
-    "Not Allowed" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not Allowed"
-          }
-        }
-      }
-    },
-    "Restricted" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Restricted"
-          }
-        }
-      }
-    },
-    "System Managed" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "System Managed"
-          }
-        }
-      }
-    },
-    "Asks for Access" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Asks for Access"
-          }
-        }
-      }
-    },
-    "Monitoring Blocked" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Monitoring Blocked"
-          }
-        }
-      }
-    },
-    "Monitoring Needs Access" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Monitoring Needs Access"
-          }
-        }
-      }
-    },
-    "Cancel Setup" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cancel Setup"
-          }
-        }
-      }
-    },
-    "Troubleshooting" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Troubleshooting"
-          }
-        }
-      }
-    },
-    "Clipboard Access" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clipboard Access"
-          }
-        }
-      }
-    },
-    "Open Privacy Settings" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open Privacy Settings"
-          }
-        }
-      }
-    },
-    "Open Microphone Settings" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open Microphone Settings"
-          }
-        }
-      }
-    },
-    "Open Camera Settings" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open Camera Settings"
-          }
-        }
-      }
-    },
-    "Record Without Microphone" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Record Without Microphone"
-          }
-        }
-      }
-    },
-    "Checking…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Checking…"
-          }
-        }
-      }
-    },
-    "Permissions" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Permissions"
-          }
-        }
-      }
-    },
     "" : {
 
     },
@@ -720,6 +401,23 @@
     "Accent" : {
 
     },
+    "Access could not be checked right now. Try Check Again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Access could not be checked right now. Try Check Again."
+          }
+        }
+      }
+    },
+    "Access has changed. Restart to finish applying it to this running copy." : {
+
+    },
+    "Access is ready. Choose Continue to resume %@." : {
+
+    },
     "Accessibility" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -727,6 +425,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Accessibility"
+          }
+        }
+      }
+    },
+    "Accessibility access is ready." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accessibility access is ready."
+          }
+        }
+      }
+    },
+    "Accessibility access needs attention." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accessibility access needs attention."
           }
         }
       }
@@ -1041,9 +761,6 @@
     "All Types" : {
 
     },
-    "Allow %@" : {
-
-    },
     "Allowed" : {
 
     },
@@ -1238,6 +955,17 @@
     "Arrowhead" : {
 
     },
+    "Asks for Access" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Asks for Access"
+          }
+        }
+      }
+    },
     "Aspect" : {
 
     },
@@ -1395,11 +1123,25 @@
     "Callout Style" : {
 
     },
+    "Camera" : {
+
+    },
     "Cancel" : {
 
     },
     "Cancel Export" : {
 
+    },
+    "Cancel Setup" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel Setup"
+          }
+        }
+      }
     },
     "Cancelling an Add, Replace, or Change Goal operation leaves the document unchanged." : {
 
@@ -1588,6 +1330,17 @@
     "Capture Window" : {
 
     },
+    "Capture Without UI Map" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture Without UI Map"
+          }
+        }
+      }
+    },
     "Capture your actions and turn them into editable instructions." : {
 
     },
@@ -1629,6 +1382,17 @@
     },
     "Checking for Pro Updates..." : {
 
+    },
+    "Checking…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking…"
+          }
+        }
+      }
     },
     "Choose %@ Folder…" : {
 
@@ -1979,6 +1743,17 @@
     "Clipboard" : {
 
     },
+    "Clipboard Access" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipboard Access"
+          }
+        }
+      }
+    },
     "Clipboard Actions" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2028,6 +1803,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Clipboard Image Preview"
+          }
+        }
+      }
+    },
+    "Clipboard item added. Background monitoring follows your macOS access setting." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipboard item added. Background monitoring follows your macOS access setting."
           }
         }
       }
@@ -2244,6 +2030,9 @@
           }
         }
       }
+    },
+    "Continue" : {
+
     },
     "Continue in SnipSnipSnip to finish this automation." : {
 
@@ -2507,9 +2296,6 @@
 
     },
     "Crosshair" : {
-
-    },
-    "Current app" : {
 
     },
     "Current color" : {
@@ -3880,6 +3666,9 @@
     "Icon: %@" : {
 
     },
+    "If the app is missing from the list, add this copy using the + button in System Settings." : {
+
+    },
     "Ignore" : {
 
     },
@@ -3953,6 +3742,16 @@
     },
     "Important" : {
 
+    },
+    "In System Settings, open Privacy & Security > %@ and turn on %@. Access updates automatically when macOS makes it available." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "In System Settings, open Privacy & Security > %1$@ and turn on %2$@. Access updates automatically when macOS makes it available."
+          }
+        }
+      }
     },
     "Include" : {
 
@@ -4264,7 +4063,10 @@
     "lowercase" : {
 
     },
-    "macOS groups screenshot access under Screen Recording. SnipSnipSnip captures only when you choose a capture or recording action." : {
+    "macOS groups screenshot access under Screen Recording. Continue opens the macOS permission prompt. SnipSnipSnip captures only when you choose a capture or recording action." : {
+
+    },
+    "macOS is limiting background clipboard access. Review clipboard access for %@ in Privacy & Security to resume monitoring. Your saved items remain available." : {
 
     },
     "Magnify pixels, sample colors, and measure spacing without taking a screenshot." : {
@@ -4389,11 +4191,14 @@
     "Method" : {
 
     },
+    "Microphone" : {
+
+    },
+    "Microphone Access Is Needed" : {
+
+    },
     "Microphone and system audio remain optional. macOS asks for the matching privacy permission the first time those sources are used." : {
       "extractionState" : "manual"
-    },
-    "Missing" : {
-
     },
     "Missing source" : {
 
@@ -4418,6 +4223,28 @@
     },
     "Monitoring" : {
 
+    },
+    "Monitoring Blocked" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monitoring Blocked"
+          }
+        }
+      }
+    },
+    "Monitoring Needs Access" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monitoring Needs Access"
+          }
+        }
+      }
     },
     "Monitoring Paused" : {
 
@@ -4566,6 +4393,17 @@
     "Needs alignment" : {
 
     },
+    "Needs Setup" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Needs Setup"
+          }
+        }
+      }
+    },
     "Never" : {
 
     },
@@ -4603,6 +4441,17 @@
     },
     "No Capturable %@" : {
 
+    },
+    "No clipboard item was read. Copy an item and try again, or review Clipboard access in Privacy & Security." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No clipboard item was read. Copy an item and try again, or review Clipboard access in Privacy & Security."
+          }
+        }
+      }
     },
     "No clipboard items have been saved yet. Resume monitoring to save new copies." : {
 
@@ -4691,8 +4540,30 @@
     "None" : {
 
     },
+    "Not Allowed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not Allowed"
+          }
+        }
+      }
+    },
     "Not Now" : {
 
+    },
+    "Not Requested" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not Requested"
+          }
+        }
+      }
     },
     "Not selected" : {
       "comment" : "Accessibility value for an unselected item."
@@ -4819,6 +4690,17 @@
     "Open an editable SnipSnipSnip .sss document." : {
 
     },
+    "Open Camera Settings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Camera Settings"
+          }
+        }
+      }
+    },
     "Open Capture Access Help" : {
 
     },
@@ -4857,6 +4739,20 @@
     "Open Login Items in System Settings" : {
 
     },
+    "Open Microphone Settings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Microphone Settings"
+          }
+        }
+      }
+    },
+    "Open Microphone settings to enable narration, or choose No audio or App audio to continue without it." : {
+
+    },
     "Open optional settings for video smoothness, pointer visibility, desktop cleanup, instructions, and privacy." : {
 
     },
@@ -4867,6 +4763,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open or import without losing your place"
+          }
+        }
+      }
+    },
+    "Open Privacy Settings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Privacy Settings"
           }
         }
       }
@@ -5154,8 +5061,16 @@
         }
       }
     },
-    "Permission Diagnostics" : {
-
+    "Permissions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permissions"
+          }
+        }
+      }
     },
     "Pick On Screen" : {
 
@@ -5586,6 +5501,17 @@
     "Quit %@" : {
 
     },
+    "Read Clipboard Once" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read Clipboard Once"
+          }
+        }
+      }
+    },
     "Ready" : {
 
     },
@@ -5697,11 +5623,33 @@
     "Record Window" : {
 
     },
+    "Record Without Microphone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record Without Microphone"
+          }
+        }
+      }
+    },
     "Recording" : {
 
     },
     "Recording Sources" : {
 
+    },
+    "Recording stopped because Screen Recording access changed. The captured Video was recovered." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording stopped because Screen Recording access changed. The captured Video was recovered."
+          }
+        }
+      }
     },
     "Recover Interrupted Guide" : {
 
@@ -5960,8 +5908,33 @@
     "Restart" : {
 
     },
+    "Restart %@" : {
+
+    },
     "Restart %@ without the normal quit confirmation so macOS applies Screen Recording access." : {
 
+    },
+    "Restart Required" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restart Required"
+          }
+        }
+      }
+    },
+    "Restart required to apply Screen Recording access." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restart required to apply Screen Recording access."
+          }
+        }
+      }
     },
     "Restart SnipSnipSnip to finish applying access." : {
 
@@ -6001,6 +5974,17 @@
     },
     "Restore this draft to the original clipboard text." : {
 
+    },
+    "Restricted" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restricted"
+          }
+        }
+      }
     },
     "Resume" : {
 
@@ -6213,8 +6197,30 @@
     "Screen Recording" : {
 
     },
+    "Screen Recording access is ready." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen Recording access is ready."
+          }
+        }
+      }
+    },
     "Screen Recording access is required before window thumbnails can be shown." : {
 
+    },
+    "Screen Recording access needs attention." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen Recording access needs attention."
+          }
+        }
+      }
     },
     "Screen Recording and Accessibility access are required." : {
 
@@ -6414,13 +6420,13 @@
     "Select numbered arrows on the canvas in their new order." : {
 
     },
-    "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. Use the trash button in Layers and Arrangement, press Delete, or right-click an annotation and choose Delete. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing rectangle-shaped annotations and moving or resizing selections. Their magnetic distance stays consistent at every zoom level, and an acquired guide remains stable until you move away. Hold Option while moving or resizing to temporarily bypass snapping; release it to resume alignment. Press Escape before releasing the pointer to cancel a drawing, move, resize, or crop drag without changing the screenshot." : {
+    "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. A single selected Line, Arrow, or Numbered Arrow has two handles, one at its start and one at its end. Drag either handle to adjust that endpoint while keeping the other fixed. Drag the annotation itself to move it. Use the trash button in Layers and Arrangement, press Delete, or right-click an annotation and choose Delete. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing rectangle-shaped annotations and moving or resizing selections. Their magnetic distance stays consistent at every zoom level, and an acquired guide remains stable until you move away. Hold Option while moving or resizing to temporarily bypass snapping; release it to resume alignment. Press Escape before releasing the pointer to cancel a drawing, move, resize, or crop drag without changing the screenshot." : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. Use the trash button in Layers and Arrangement, press Delete, or right-click an annotation and choose Delete. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing rectangle-shaped annotations and moving or resizing selections. Their magnetic distance stays consistent at every zoom level, and an acquired guide remains stable until you move away. Hold Option while moving or resizing to temporarily bypass snapping; release it to resume alignment. Press Escape before releasing the pointer to cancel a drawing, move, resize, or crop drag without changing the screenshot."
+            "value" : "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. A single selected Line, Arrow, or Numbered Arrow has two handles, one at its start and one at its end. Drag either handle to adjust that endpoint while keeping the other fixed. Drag the annotation itself to move it. Use the trash button in Layers and Arrangement, press Delete, or right-click an annotation and choose Delete. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing rectangle-shaped annotations and moving or resizing selections. Their magnetic distance stays consistent at every zoom level, and an acquired guide remains stable until you move away. Hold Option while moving or resizing to temporarily bypass snapping; release it to resume alignment. Press Escape before releasing the pointer to cancel a drawing, move, resize, or crop drag without changing the screenshot."
           }
         }
       }
@@ -6553,6 +6559,9 @@
     },
     "Set Up" : {
       "comment" : "Action that starts setup for a missing macOS permission."
+    },
+    "Set Up %@" : {
+
     },
     "Set up Accessibility to record shortcuts." : {
       "extractionState" : "manual"
@@ -6860,6 +6869,17 @@
     "Snip History" : {
 
     },
+    "Snip History Folder Needs Access" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snip History Folder Needs Access"
+          }
+        }
+      }
+    },
     "Snip History stays local to this Mac. It stores editable .sss checkpoints, previews, searchable annotation text, and background OCR text unless Private Capture is enabled." : {
       "extractionState" : "manual"
     },
@@ -7052,6 +7072,17 @@
     "Stop" : {
 
     },
+    "Stop & Open Guide" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop & Open Guide"
+          }
+        }
+      }
+    },
     "Stop and save the recording." : {
 
     },
@@ -7177,6 +7208,28 @@
         }
       }
     },
+    "The saved Snip History folder could not be accessed. New snips are kept in the default location. Choose Location in Snip Library settings to restore access. Existing history has not been moved or deleted." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The saved Snip History folder could not be accessed. New snips are kept in the default location. Choose Location in Snip Library settings to restore access. Existing history has not been moved or deleted."
+          }
+        }
+      }
+    },
+    "The screenshot changed while it was being kept in Recent Snips. Try again to keep your latest edits." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The screenshot changed while it was being kept in Recent Snips. Try again to keep your latest edits."
+          }
+        }
+      }
+    },
     "The screenshot could not be copied to the clipboard. Try Copy again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7214,8 +7267,30 @@
         }
       }
     },
+    "This item could not be copied. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This item could not be copied. Try again."
+          }
+        }
+      }
+    },
     "This keeps your current documents, Snip History, and Recycle Bin contents, but it restores settings values to their shipped defaults." : {
 
+    },
+    "This Mockup uses CSS transforms or a nested SVG viewport. Use the inspector controls to adjust framing." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Mockup uses CSS transforms or a nested SVG viewport. Use the inspector controls to adjust framing."
+          }
+        }
+      }
     },
     "This permanently removes every saved screenshot version and deleted screenshot from this Mac. This cannot be undone." : {
 
@@ -7225,6 +7300,9 @@
     },
     "This profile is copied into every new Guide and travels with the saved .sssguide document. Existing Guides keep their own branding. Use the Guide editor's Use as Default button to replace this profile from a finished design." : {
       "extractionState" : "manual"
+    },
+    "This reads the current item. To monitor future copies without prompts, allow clipboard access in System Settings." : {
+
     },
     "This restores Capture Region, Capture Window, Capture Screen, Repeat Last Capture, Capture Presets, Record Region, and Timer in Expanded presentation on the right edge." : {
 
@@ -7317,6 +7395,17 @@
     },
     "Trim, polish, then export." : {
       "extractionState" : "manual"
+    },
+    "Troubleshooting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Troubleshooting"
+          }
+        }
+      }
     },
     "Try Again" : {
 
@@ -7530,6 +7619,9 @@
         }
       }
     },
+    "Video Could Not Start" : {
+
+    },
     "Video Error" : {
 
     },
@@ -7597,6 +7689,17 @@
     },
     "Wait before capture so you can prepare menus or pointer position." : {
 
+    },
+    "Waiting for Access" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for Access"
+          }
+        }
+      }
     },
     "Warm" : {
       "extractionState" : "manual"
@@ -7722,6 +7825,9 @@
     },
     "Your original video is kept. Undo any change with ⌘Z." : {
       "extractionState" : "manual"
+    },
+    "Your recording preferences are unchanged. Try Again returns to the selected recording source." : {
+
     },
     "Your trims and effects are included. The original stays editable." : {
       "extractionState" : "manual"

@@ -100,6 +100,14 @@ nonisolated struct CapturePermissionStatus: Equatable {
     }
 }
 
+nonisolated enum ScreenRecordingAccessProbeResult: Equatable, Sendable {
+    case available
+    case permissionDenied
+    case unavailable(domain: String, code: Int)
+
+    var isAvailable: Bool { self == .available }
+}
+
 enum ScreenCapturePermissions {
     nonisolated(unsafe) static var screenRecordingStatusProvider: @Sendable () -> Bool = {
         CGPreflightScreenCaptureAccess()
@@ -113,8 +121,20 @@ enum ScreenCapturePermissions {
 #endif
     }
 
-    nonisolated(unsafe) static var screenRecordingAccessVerifier: @Sendable () async -> Bool = {
+    nonisolated(unsafe) static var screenRecordingAccessProbe: @Sendable () async -> ScreenRecordingAccessProbeResult = {
         await verifyScreenRecordingAccessWithShareableContentProbe()
+    }
+
+    // Boolean compatibility for existing clients. The workflow uses the typed
+    // probe so a transport failure cannot masquerade as a permission denial.
+    nonisolated static var screenRecordingAccessVerifier: @Sendable () async -> Bool {
+        get {
+            let probe = screenRecordingAccessProbe
+            return { await probe().isAvailable }
+        }
+        set {
+            screenRecordingAccessProbe = { await newValue() ? .available : .permissionDenied }
+        }
     }
 
     nonisolated(unsafe) static var screenRecordingAccessRequester: @Sendable () -> Bool = {
@@ -150,6 +170,10 @@ enum ScreenCapturePermissions {
 
     nonisolated static func verifyScreenRecordingAccess() async -> Bool {
         await screenRecordingAccessVerifier()
+    }
+
+    nonisolated static func probeScreenRecordingAccess() async -> ScreenRecordingAccessProbeResult {
+        await screenRecordingAccessProbe()
     }
 
     @discardableResult
@@ -197,8 +221,9 @@ enum ScreenCapturePermissions {
         }
 
         let nsError = error as NSError
-        if nsError.domain == SCStreamErrorDomain && nsError.code == SCStreamError.Code.userDeclined.rawValue {
-            return true
+        if nsError.domain == SCStreamErrorDomain {
+            // Known framework codes take precedence over translated prose.
+            return nsError.code == SCStreamError.Code.userDeclined.rawValue
         }
         let description = nsError.localizedDescription.lowercased()
 
@@ -217,15 +242,21 @@ enum ScreenCapturePermissions {
         return false
     }
 
-    private static func verifyScreenRecordingAccessWithShareableContentProbe() async -> Bool {
+    nonisolated static func classifyScreenRecordingProbe(hasContent: Bool, error: Error?) -> ScreenRecordingAccessProbeResult {
+        if let error {
+            let nativeError = error as NSError
+            if nativeError.domain == SCStreamErrorDomain && nativeError.code == SCStreamError.Code.userDeclined.rawValue {
+                return .permissionDenied
+            }
+            return .unavailable(domain: nativeError.domain, code: nativeError.code)
+        }
+        return hasContent ? .available : .unavailable(domain: "ScreenCaptureKit", code: 0)
+    }
+
+    private static func verifyScreenRecordingAccessWithShareableContentProbe() async -> ScreenRecordingAccessProbeResult {
         await withCheckedContinuation { continuation in
             SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: true) { content, error in
-                if error != nil {
-                    continuation.resume(returning: false)
-                    return
-                }
-
-                continuation.resume(returning: content != nil)
+                continuation.resume(returning: classifyScreenRecordingProbe(hasContent: content != nil, error: error))
             }
         }
     }

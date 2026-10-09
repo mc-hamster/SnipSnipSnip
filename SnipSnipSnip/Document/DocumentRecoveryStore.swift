@@ -110,6 +110,7 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
     private let exclusionLock = NSLock()
     private let fileManager: FileManager
     private let files: any FileSystemServicing
+    private let folderAccess: ArchiveFolderAccess?
     private let rootURL: URL
     private let sessionsURL: URL
     private let searchIndexURL: URL
@@ -134,10 +135,12 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
     init(
         fileManager: FileManager = .default,
         baseURL: URL? = nil,
+        folderAccess: ArchiveFolderAccess? = nil,
         checkpointPackageDidWrite: (@Sendable (UUID) -> Void)? = nil,
         checkpointSessionDidCommit: (@Sendable (UUID) -> Void)? = nil
     ) {
         self.fileManager = fileManager
+        self.folderAccess = folderAccess
         self.files = SystemFileService(fileManager: fileManager)
         self.checkpointPackageDidWrite = checkpointPackageDidWrite
         self.checkpointSessionDidCommit = checkpointSessionDidCommit
@@ -971,7 +974,7 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
     private func withLockedAccess<T>(_ operation: () throws -> T) rethrows -> T {
         accessLock.lock()
         defer { accessLock.unlock() }
-        return try operation()
+        return try withExtendedLifetime(folderAccess) { try operation() }
     }
 
     private static func page(

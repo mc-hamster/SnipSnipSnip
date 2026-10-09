@@ -1449,6 +1449,12 @@ private final class AnnotationCanvasOverlayView: NSView {
                     addCursorRect(rect, cursor: .pointingHand)
                 }
             }
+        } else if let annotation = AnnotationEndpoint.editableAnnotation(in: controller.selectedAnnotations) {
+            for endpoint in AnnotationEndpoint.allCases {
+                if let position = endpoint.position(in: annotation) {
+                    addCursorRect(endpointHandleRect(at: position), cursor: .crosshair)
+                }
+            }
         } else if let selectionBounds = controller.selectionBoundingRect {
             let selectionRect = viewRect(for: selectionBounds, in: controller.viewport.imageRect)
 
@@ -1718,6 +1724,13 @@ private final class AnnotationCanvasOverlayView: NSView {
 
         if controller.activeTool != .crop,
            controller.activeTool != .uiMapInspect,
+           beginEndpointEdit(at: viewPoint) {
+            needsDisplay = true
+            return
+        }
+
+        if controller.activeTool != .crop,
+           controller.activeTool != .uiMapInspect,
            let selectionBounds = controller.selectionBoundingRect,
            let handle = selectionHandle(at: viewPoint) {
             interactionState.beginResize(annotations: controller.selectedAnnotations, originalBounds: selectionBounds, handle: handle)
@@ -1823,7 +1836,7 @@ private final class AnnotationCanvasOverlayView: NSView {
         }
 
         switch interactionState.dragMode {
-        case .moving, .resizing:
+        case .moving, .resizing, .editingEndpoint:
             updatePointerInteraction(at: lastDragViewPoint, modifierFlags: event.modifierFlags)
         default:
             super.flagsChanged(with: event)
@@ -2145,6 +2158,8 @@ private final class AnnotationCanvasOverlayView: NSView {
         let additive = modifiers.contains(.shift)
         let toggle = modifiers.contains(.command)
 
+        if beginEndpointEdit(at: viewPoint) { return }
+
         if let selectionBounds = controller.selectionBoundingRect,
            let handle = selectionHandle(at: viewPoint) {
             interactionState.beginResize(annotations: controller.selectedAnnotations, originalBounds: selectionBounds, handle: handle)
@@ -2275,13 +2290,35 @@ private final class AnnotationCanvasOverlayView: NSView {
         max(rect.width, 0) * max(rect.height, 0)
     }
 
+    private func endpointHandleRect(at documentPoint: CGPoint) -> CGRect {
+        let point = viewPoint(for: documentPoint, in: controller.viewport.imageRect)
+        return CGRect(x: point.x - 8, y: point.y - 8, width: 16, height: 16)
+    }
+
+    private func beginEndpointEdit(at viewPoint: CGPoint) -> Bool {
+        guard let annotation = AnnotationEndpoint.editableAnnotation(in: controller.selectedAnnotations) else { return false }
+        // Nearest wins when a short line's endpoint targets overlap.
+        let targets = AnnotationEndpoint.allCases.compactMap { endpoint -> (endpoint: AnnotationEndpoint, rect: CGRect)? in
+            guard let position = endpoint.position(in: annotation) else { return nil }
+            let rect = endpointHandleRect(at: position)
+            return rect.contains(viewPoint) ? (endpoint, rect) : nil
+        }
+        guard let target = targets.min(by: {
+            hypot($0.rect.midX - viewPoint.x, $0.rect.midY - viewPoint.y) < hypot($1.rect.midX - viewPoint.x, $1.rect.midY - viewPoint.y)
+        }) else { return false }
+        let endpoint = target.endpoint
+        interactionState.beginEndpointEdit(annotation: annotation, endpoint: endpoint)
+        return true
+    }
+
     private func selectionHandleRect(for handle: ResizeHandle, bounds: CGRect) -> CGRect {
         let position = handle.position(in: bounds)
         return CGRect(x: position.x - 8, y: position.y - 8, width: 16, height: 16)
     }
 
     private func selectionHandle(at viewPoint: CGPoint) -> ResizeHandle? {
-        guard let selectionBounds = controller.selectionBoundingRect else {
+        guard AnnotationEndpoint.editableAnnotation(in: controller.selectedAnnotations) == nil,
+              let selectionBounds = controller.selectionBoundingRect else {
             return nil
         }
 
@@ -2319,6 +2356,16 @@ private final class AnnotationCanvasOverlayView: NSView {
     }
 
     private func drawSelection(for annotations: [Annotation], in canvasRect: CGRect) {
+        if let annotation = AnnotationEndpoint.editableAnnotation(in: annotations) {
+            NSColor.selectedControlColor.setFill()
+            for endpoint in AnnotationEndpoint.allCases {
+                guard let position = endpoint.position(in: annotation) else { continue }
+                let point = viewPoint(for: position, in: canvasRect)
+                CGRect(x: point.x - 4, y: point.y - 4, width: 8, height: 8).fill()
+            }
+            return
+        }
+
         for annotation in annotations {
             let individualRect = viewRect(for: annotation.boundingRect, in: canvasRect)
             let outline = NSBezierPath(rect: individualRect)

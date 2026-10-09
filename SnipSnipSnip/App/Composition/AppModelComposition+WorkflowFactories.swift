@@ -135,7 +135,8 @@ extension AppModelComposition {
             ),
             recoveryStore: context.recoveryStore,
             configuredArchiveLocationURL: context.configuredArchiveLocationURL,
-            preferenceStore: context.preferenceStores.archive
+            preferenceStore: context.preferenceStores.archive,
+            preparedLocation: context.archiveLocation
         )
         archiveWorkflow.shouldStartMaintenance = shouldStartArchiveMaintenance
         return archiveWorkflow

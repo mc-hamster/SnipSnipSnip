@@ -41,6 +41,7 @@ final class PermissionWorkflowModel: ObservableObject, PermissionGatekeeping {
         }
     }
     @Published var isCheckingPermission = false
+    @Published var screenRecordingVerificationMessage: String?
     @Published var activePermissionRequest: CapturePermissionRequirement? {
         didSet {
             guard oldValue != activePermissionRequest else {

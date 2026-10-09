@@ -1786,7 +1786,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
             "ArchiveWorkflowModel should use ArchiveLocationPresenting instead of creating open panels directly."
         )
         XCTAssertTrue(
-            archiveWorkflow.contains("dependencies.locationPresenter.selectArchiveLocation(initialDirectory: directoryURL)"),
+            archiveWorkflow.contains("dependencies.locationPresenter.selectArchiveLocation(initialDirectory: requestedArchiveLocationURL ?? directoryURL)"),
             "Archive location selection should route through ArchiveLocationPresenting."
         )
         XCTAssertTrue(

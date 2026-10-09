@@ -28,6 +28,12 @@ struct PermissionSetupView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
+            if let message = permissions.screenRecordingVerificationMessage, guide.requirement == .screenRecording {
+                Label(message, systemImage: "exclamationmark.circle")
+                    .font(.callout)
+                    .accessibilityIdentifier("permissions.verificationUnavailable")
+            }
+
             Text(permissions.canContinueOperation
                  ? "Access is ready. Choose Continue to resume \(permissions.permissionContinuation?.featureName ?? "capture")."
                  : requiresRestart

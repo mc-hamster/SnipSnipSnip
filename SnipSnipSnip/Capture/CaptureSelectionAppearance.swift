@@ -188,7 +188,7 @@ enum CaptureSelectionAppearance {
     }
 }
 
-/// Decorative, click-through target feedback shared by Region and Window picking.
+/// Decorative, click-through feedback for hovered windows and drawn regions.
 @MainActor
 final class CaptureSelectionWindowHighlightView: NSView {
     private let renderer = CaptureSelectionOutlineRenderer()
@@ -259,14 +259,26 @@ final class CaptureSelectionWindowHighlightView: NSView {
 
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
-    func refresh(windowID: CGWindowID?, rect: CGRect?, label: String?, transitionStartTime: CFTimeInterval) {
+    func refreshRegion(_ rect: CGRect?, on display: DisplaySnapshot, transitionStartTime: CFTimeInterval) {
+        // Transform the full perimeter before clipping, so spanning regions keep
+        // their markers in phase and do not acquire a border at display seams.
+        let localRect = rect.flatMap { region in
+            region.intersects(display.frame)
+                ? display.captureDisplayTransform.overlayLocalRect(fromCaptureGlobalRect: region)
+                : nil
+        }
+        refresh(windowID: nil, rect: localRect, label: nil, transitionStartTime: transitionStartTime, allowsEntryAnimation: false)
+        layer?.removeAnimation(forKey: CaptureSelectionOutlineAnimation.key)
+    }
+
+    func refresh(windowID: CGWindowID?, rect: CGRect?, label: String?, transitionStartTime: CFTimeInterval, allowsEntryAnimation: Bool = true) {
         let targetChanged = self.windowID != windowID
         guard outlineRect != rect || targetChanged || self.label != label else { return }
         outlineRect = rect
         self.windowID = windowID
         self.label = label
         self.transitionStartTime = transitionStartTime
-        updateAnimation(animatesEntry: targetChanged)
+        updateAnimation(animatesEntry: targetChanged && allowsEntryAnimation)
         needsDisplay = true
     }
 

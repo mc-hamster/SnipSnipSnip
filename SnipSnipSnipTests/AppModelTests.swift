@@ -1786,16 +1786,16 @@ final class AppModelTests: XCTestCase {
 
         let originalScreenRecordingStatusProvider = ScreenCapturePermissions.screenRecordingStatusProvider
         let originalAccessibilityStatusProvider = ScreenCapturePermissions.accessibilityStatusProvider
-        let originalScreenRecordingAccessVerifier = ScreenCapturePermissions.screenRecordingAccessVerifier
+        let originalScreenRecordingAccessVerifier = ScreenCapturePermissions.screenRecordingAccessProbe
         defer {
             ScreenCapturePermissions.screenRecordingStatusProvider = originalScreenRecordingStatusProvider
             ScreenCapturePermissions.accessibilityStatusProvider = originalAccessibilityStatusProvider
-            ScreenCapturePermissions.screenRecordingAccessVerifier = originalScreenRecordingAccessVerifier
+            ScreenCapturePermissions.screenRecordingAccessProbe = originalScreenRecordingAccessVerifier
         }
 
         ScreenCapturePermissions.screenRecordingStatusProvider = { true }
         ScreenCapturePermissions.accessibilityStatusProvider = { false }
-        ScreenCapturePermissions.screenRecordingAccessVerifier = { false }
+        ScreenCapturePermissions.screenRecordingAccessProbe = { .permissionDenied }
 
         let model = retainForTestLifetime(
             AppModel(
@@ -1927,12 +1927,12 @@ final class AppModelTests: XCTestCase {
         let originalScreenRecordingStatusProvider = ScreenCapturePermissions.screenRecordingStatusProvider
         let originalAccessibilityStatusProvider = ScreenCapturePermissions.accessibilityStatusProvider
         let originalScreenRecordingAccessRequester = ScreenCapturePermissions.screenRecordingAccessRequester
-        let originalScreenRecordingAccessVerifier = ScreenCapturePermissions.screenRecordingAccessVerifier
+        let originalScreenRecordingAccessVerifier = ScreenCapturePermissions.screenRecordingAccessProbe
         defer {
             ScreenCapturePermissions.screenRecordingStatusProvider = originalScreenRecordingStatusProvider
             ScreenCapturePermissions.accessibilityStatusProvider = originalAccessibilityStatusProvider
             ScreenCapturePermissions.screenRecordingAccessRequester = originalScreenRecordingAccessRequester
-            ScreenCapturePermissions.screenRecordingAccessVerifier = originalScreenRecordingAccessVerifier
+            ScreenCapturePermissions.screenRecordingAccessProbe = originalScreenRecordingAccessVerifier
         }
 
         let recorder = PermissionRequestRecorder()
@@ -1942,7 +1942,7 @@ final class AppModelTests: XCTestCase {
             recorder.recordScreenRecordingRequest()
             return true
         }
-        ScreenCapturePermissions.screenRecordingAccessVerifier = { true }
+        ScreenCapturePermissions.screenRecordingAccessProbe = { .available }
 
         let captureService = WindowRefreshCaptureService()
         let model = retainForTestLifetime(
