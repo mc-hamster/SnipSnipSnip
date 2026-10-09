@@ -32,6 +32,21 @@ struct GuideInsertStepCommand: GuideCommand {
 }
 
 @MainActor
+struct GuideDuplicateStepsCommand: GuideCommand {
+    let name = "Duplicate Steps"
+    let insertions: [GuideInsertStepCommand]
+
+    func apply(to controller: GuideEditorController) {
+        insertions.forEach { $0.apply(to: controller) }
+        controller.selection = Set(insertions.map { $0.step.id })
+    }
+
+    func undo(on controller: GuideEditorController) {
+        insertions.reversed().forEach { $0.undo(on: controller) }
+    }
+}
+
+@MainActor
 struct GuideAdvancedEditCommand: GuideCommand {
     let name = "Advanced Edit"
     let stepID: UUID

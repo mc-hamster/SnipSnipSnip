@@ -12,6 +12,17 @@
         }
       }
     },
+    "Stop & Open Guide" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop & Open Guide"
+          }
+        }
+      }
+    },
     "This Mockup uses CSS transforms or a nested SVG viewport. Use the inspector controls to adjust framing." : {
       "extractionState" : "manual",
       "localizations" : {

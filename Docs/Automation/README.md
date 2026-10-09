@@ -293,6 +293,10 @@ compatible:
 
 In Pro, Guide start requires Screen Recording and Accessibility. Unattended (`never`) requests return `permissionDenied` without opening permission UI if required access is missing; this also covers Microphone when narration is enabled. Set up access in the app first, or explicitly use `--interactive` for permission remediation. Guide Region requires an interactive policy and returns `invalidRequest` with `never`. Region start is interactive and the selected Guide region is constrained to the display where the drag begins; cross-display Guide regions are rejected, while ordinary screenshot-region capture is unchanged. Window and app Guide targets follow source geometry changes automatically. URL exports are trigger-oriented and use the default Downloads destination. Explicit errors include `noActiveGuide`, `guideAlreadyActive`, `guideHasNoSteps`, `guideSourceMediaUnavailable`, and `guideFinalizationFailed`.
 
+An interactive Guide Region request retains `--private` through setup and source selection without changing the global Private Capture setting. Cancelling setup or starting another request clears that request's privacy choice; current global Private Capture still applies. Private setup requests never create a permission-restart checkpoint.
+
+Window and App Guide starts discover current targets after permission preflight instead of reusing the capture carousel's cached list. Guide status results report the active project's source (`window`, `app`, `region`, or `display`); an idle Guide has no active source.
+
 In the App Store edition, every dedicated Guide start/control/export request
 returns `proFeatureRequired` before permission or capture work. Generic document
 opening still accepts `.sssguide`, and an opened Guide can be edited, saved, and

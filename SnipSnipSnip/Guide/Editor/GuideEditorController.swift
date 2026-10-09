@@ -187,18 +187,18 @@ final class GuideEditorController: ObservableObject {
     func duplicateSelected() {
         let selected = project.steps.filter { selection.contains($0.id) }
         guard !selected.isEmpty else { return }
-        var newSelection: Set<UUID> = []
+        var insertions: [GuideInsertStepCommand] = []
         for original in selected {
             guard let image = stepImages[original.id] else { continue }
             var copy = original
             copy.id = UUID()
             copy.caption += " (Copy)"
             copy.capturedAt = Date()
-            addStep(copy, image: image, at: (project.steps.firstIndex(where: { $0.id == original.id }) ?? project.steps.count) + 1,
-                advancedEdit: advancedEdits[original.id])
-            newSelection.insert(copy.id)
+            let index = (project.steps.firstIndex(where: { $0.id == original.id }) ?? project.steps.count) + 1 + insertions.count
+            insertions.append(GuideInsertStepCommand(step: copy, image: image, index: index, advancedEdit: advancedEdits[original.id]))
         }
-        selection = newSelection
+        guard !insertions.isEmpty else { return }
+        execute(GuideDuplicateStepsCommand(insertions: insertions))
     }
 
     func moveSelection(by offset: Int) {

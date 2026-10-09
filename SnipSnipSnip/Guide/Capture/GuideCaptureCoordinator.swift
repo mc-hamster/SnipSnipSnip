@@ -63,6 +63,7 @@ final class GuideCaptureCoordinator: ObservableObject {
     private let captionGenerator: GuideCaptionGenerator
     private let textEntryObserver: GuideTextEntryObserver
     private var mediaSession: GuideMediaCaptureSession?
+    private var startupGeneration: UUID?
     private var logoImage: CGImage?
     private var preferences = GuideCapturePreferences()
     private var pendingScrollTask: Task<Void, Never>?
@@ -121,10 +122,12 @@ final class GuideCaptureCoordinator: ObservableObject {
         privateCapture: Bool,
         guideShortcutKeyCode: UInt16
     ) async throws {
-        guard state == .idle else { return }
+        guard state == .idle, !isDiscarding else { return }
         guard systemServices.accessibility.isProcessTrusted() else {
             throw GuideEventMonitorError.accessibilityRequired
         }
+        let generation = UUID()
+        startupGeneration = generation
         state = .starting
         self.preferences = preferences
         self.guideShortcutKeyCode = guideShortcutKeyCode
@@ -161,36 +164,56 @@ final class GuideCaptureCoordinator: ObservableObject {
         pendingTextEntry = nil
         stopTextEntryObservation()
 
+        var startingMedia: GuideMediaCaptureSession?
         do {
             let media = try await GuideMediaCaptureSession.make(source: source, preferences: preferences, systemServices: systemServices)
-            media.audioLevelHandler = { [weak self] levels in
-                self?.audioLevels = levels
+            startingMedia = media
+            guard startupGeneration == generation, state == .starting, !Task.isCancelled else {
+                throw CancellationError()
             }
-            media.interruptionHandler = { [weak self] error in
-                self?.handleMediaInterruption(error)
+            media.audioLevelHandler = { [weak self, weak media] levels in
+                guard let self, let media, self.mediaSession === media else { return }
+                self.audioLevels = levels
+            }
+            media.interruptionHandler = { [weak self, weak media] error in
+                guard let self, let media, self.mediaSession === media else { return }
+                self.handleMediaInterruption(error)
             }
             mediaSession = media
             self.project?.timeline.sourceCoordinateRect = media.capturedDisplayFrame
             try await media.start()
+            guard startupGeneration == generation, state == .starting,
+                  mediaSession === media, !Task.isCancelled else {
+                throw CancellationError()
+            }
             try eventMonitor.start { [weak self] event, timestamp in
                 self?.receive(event, timestamp: timestamp)
             }
             startedAt = Date()
             startedUptime = ProcessInfo.processInfo.systemUptime
+            startupGeneration = nil
             state = .recording
             startTextEntryObservation()
             startGuardrailMonitor()
             startSourceTracking()
         } catch {
-            stopGuardrailMonitor()
-            stopSourceTracking()
-            eventMonitor.stop()
-            mediaSession = nil
-            self.project = nil
-            self.logoImage = nil
-            audioLevels = ScreenRecordingAudioLevels()
-            state = .idle
-            throw error
+            let ownsAttempt = startupGeneration == generation
+            if ownsAttempt {
+                startupGeneration = nil
+                stopGuardrailMonitor()
+                stopSourceTracking()
+                eventMonitor.stop()
+                mediaSession = nil
+                self.project = nil
+                self.logoImage = nil
+                audioLevels = ScreenRecordingAudioLevels()
+                state = .idle
+            }
+            // Creation/start may finish after Discard or a replacement attempt.
+            // Clean up the local session; never reset the newer run's state.
+            await startingMedia?.discard()
+            if ownsAttempt { throw error }
+            throw CancellationError()
         }
     }
 
@@ -304,6 +327,10 @@ final class GuideCaptureCoordinator: ObservableObject {
     }
 
     func stop() async throws -> EditableGuideDocument? {
+        if state == .starting {
+            await discard()
+            return nil
+        }
         guard state == .recording || state == .paused else { return nil }
         // Give an interaction-triggered app-window switch its bounded frame wait
         // before closing capture. If it cannot complete, omit the queued action
@@ -402,6 +429,7 @@ final class GuideCaptureCoordinator: ObservableObject {
     func discard() async {
         guard !isDiscarding else { return }
         isDiscarding = true
+        startupGeneration = nil
 
         let projectID = project?.id
         eventMonitor.stop()

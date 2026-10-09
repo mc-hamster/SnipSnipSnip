@@ -298,6 +298,10 @@ incompatible item counts before committing one undoable change.
 
 Guide v1 keeps start (window, app, interactive region, or display), pause, resume, manual step, stop, open `.sssguide`, and export identifiers stable on every surface. Guide creation and dedicated control/export are Pro-only. The App Store edition decodes those requests and returns `proFeatureRequired` before permission or capture work; generic `.sssguide` opening remains shared. In Pro, interactive Guide regions are constrained to the display where selection begins and cross-display rectangles are rejected; normal screenshot-region automation remains unchanged. Window and app Guides resolve and follow the current source geometry without changing the persisted automation command.
 
+Interactive Guide Region setup retains the request's Private Capture choice until that setup starts or is cancelled. A replacement request receives a fresh setup generation, and the effective choice is the request's privacy OR current global Private Capture. Private setup requests are excluded from permission-restart persistence.
+
+Window and App starts enumerate live targets only after permission preflight; unattended missing-access requests must return before discovery. Guide result `source` values derive from the active project's source rather than the setup UI selection, and remain absent when no Guide is active.
+
 Initial capture targets:
 
 ```swift

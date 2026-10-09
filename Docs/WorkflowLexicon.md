@@ -240,6 +240,8 @@ Lifecycle verbs have consistent consequences across workflows.
 
 Do not use **Clear** as a synonym for irreversible deletion. Do not use **Done** to end an ongoing recording when **Stop** states the consequence more clearly.
 
+**Stop & Open Guide** finishes an active Private Guide and opens its completed work for Save or Export before a conflicting action can continue. It never promises a recovery checkpoint. **Stop & Continue** remains the corresponding action for a recoverable Guide; a failed checkpoint keeps the Guide open.
+
 ## Output Verbs
 
 | Canonical verb | Meaning |

@@ -8,6 +8,7 @@ protocol GuideCaptureWorkflowPort: AnyObject {
     var isConnectedDeviceSessionActive: Bool { get }
     var privateCaptureEnabled: Bool { get }
     var guideHotKeyCode: UInt16 { get }
+    func availableGuideTargetWindows() async throws -> [CaptureWindowSummary]
     func videoWindowSelectionSnapshot() async throws -> (windows: [CaptureWindowSummary], snapshot: DesktopCompositeSnapshot)
 }
 
@@ -34,6 +35,9 @@ protocol GuideAutomationPort: AnyObject {
 @MainActor
 extension CaptureWorkflowModel: GuideCaptureWorkflowPort {
     var guideHotKeyCode: UInt16 { UInt16(automationPreferences.guideHotkey.keyCode) }
+    func availableGuideTargetWindows() async throws -> [CaptureWindowSummary] {
+        try await captureService.listWindows(includeThumbnails: false)
+    }
 }
 
 @MainActor
