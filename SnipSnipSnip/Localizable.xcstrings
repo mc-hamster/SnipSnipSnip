@@ -1,6 +1,28 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "This Mockup uses CSS transforms or a nested SVG viewport. Use the inspector controls to adjust framing." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Mockup uses CSS transforms or a nested SVG viewport. Use the inspector controls to adjust framing."
+          }
+        }
+      }
+    },
+    "This item could not be copied. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This item could not be copied. Try again."
+          }
+        }
+      }
+    },
     "Capture Without UI Map" : {
       "extractionState" : "manual",
       "localizations" : {

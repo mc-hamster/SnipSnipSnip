@@ -79,8 +79,7 @@ enum PermissionRestartCoordinator {
                     switch command {
                     case .currentDisplay: capture.captureCurrentDisplay(intent: .newDocument, oneShotOptions: options)
                     case .region: capture.captureRegion(intent: .newDocument, oneShotOptions: options)
-                    case .frontmostWindow: capture.captureFrontmostWindow(intent: .newDocument, oneShotOptions: options)
-                    case .windowPicker: capture.presentWindowPicker(intent: .newDocument, oneShotOptions: options)
+                    case .frontmostWindow, .windowPicker: capture.presentWindowPicker(intent: .newDocument, oneShotOptions: options)
                     case .scrollingCapture: capture.captureScrollingArea(intent: .newDocument, oneShotOptions: options)
                     case .textCapture: capture.captureText()
                     }
@@ -91,6 +90,18 @@ enum PermissionRestartCoordinator {
                 }
             }
         )
+        if case .screenshot(let command, let options) = action,
+           options.windowUIMapEnabled,
+           command == .frontmostWindow || command == .windowPicker {
+            permissions.offerPermissionAlternative(title: String(localized: "Capture Without UI Map")) { [weak permissions, weak capture] in
+                guard let permissions, let capture else { return }
+                var visualOnlyOptions = options
+                visualOnlyOptions.windowUIMapEnabled = false
+                visualOnlyOptions.privateCapture = options.privateCapture || capture.privateCaptureEnabled
+                permissions.dismissPermissionSetupGuide()
+                capture.presentWindowPicker(intent: .newDocument, oneShotOptions: visualOnlyOptions)
+            }
+        }
         permissions.updateContinuationGuide()
     }
 }

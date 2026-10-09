@@ -43,6 +43,28 @@ final class PresentationSceneTests: XCTestCase {
         XCTAssertEqual(slot.maxAutoEnlargement, 1.2)
     }
 
+    func testSceneValidatorRejectsExternalCSSAndRelativeResources() {
+        for href in ["//example.com/image.png", "../image.png", "/tmp/image.png"] {
+            assertInvalid(sceneSVG(imageHref: href), contains: "external")
+        }
+        for css in [#"image { filter: url(//example.com/filter.svg#filter); }"#,
+                    #"image { filter: url('../filter.svg#filter'); }"#,
+                    #"@import 'theme.css';"#,
+                    #"image { filter: u\72l(\2f\2f example.com/filter); }"#,
+                    #"@im\70ort 'theme.css';"#] {
+            assertInvalid(sceneSVG(extraElements: "<style>\(css)</style>"), contains: "external")
+        }
+        assertInvalid(sceneSVG(extraElements: #"<rect style="fill: url('../fill.svg#fill')"/>"#), contains: "external")
+        assertInvalid(sceneSVG(extraElements: #"<use href="../objects.svg#object"/>"#), contains: "external")
+        assertInvalid(sceneSVG().replacingOccurrences(of: "<svg ", with: #"<svg xml:base="//example.com/" "#), contains: "external")
+        assertInvalid("<?xml-stylesheet href=\"theme.css\"?>\n" + sceneSVG(), contains: "external")
+    }
+
+    func testSceneValidatorKeepsLocalCSSReferencesAndSlotResources() throws {
+        let svg = sceneSVG(extraElements: ##"<defs><linearGradient id="local-fill"><stop stop-color="#fff"/></linearGradient></defs><style>rect { fill: url('#local-fill'); }</style><use href="#primary-screenshot"/>"##)
+        XCTAssertNoThrow(try PresentationSceneValidator.validate(svgText: svg, source: .bundled))
+    }
+
     func testFitOnlyAppliedSceneSettingsMigrateToFramingPresets() throws {
         let contain = try JSONDecoder().decode(
             PresentationSceneScreenshotSlotSettings.self,
@@ -339,6 +361,144 @@ final class PresentationSceneTests: XCTestCase {
         XCTAssertEqual(loaded.session.currentSnapshot.presentation.style, presentation.style)
         XCTAssertEqual(loaded.session.currentSnapshot.presentation.scene, presentation.scene)
         try? FileManager.default.removeItem(at: packageURL)
+    }
+
+    func testCappedScenePreviewKeepsLogicalFramingForEveryPreset() throws {
+        let validated = try PresentationSceneValidator.validate(
+            svgText: sceneSVG(width: 240, height: 135), source: .bundled)
+        var scene = AppliedPresentationScene(definition: PresentationSceneDefinition(
+            metadata: validated.metadata, sanitizedSVGText: validated.sanitizedSVGText,
+            source: .bundled, fileURL: URL(fileURLWithPath: "/tmp/logical-framing.svg"), isUserModifiedBundled: false))
+        let logicalSize = CGSize(width: 400, height: 160)
+        let thumbnail = makeCoordinateImage(width: 40, height: 16)
+        for preset in PresentationSceneFramingPreset.allCases {
+            scene.screenshotSlotSettings = PresentationSceneScreenshotSlotSettings(framingPreset: preset)
+            let analysis = try XCTUnwrap(PresentationSceneRenderer.framingAnalysis(contentSize: logicalSize, scene: scene))
+            let preview = try XCTUnwrap(PresentationSceneRenderer.renderWithLayout(contentImage: thumbnail,
+                scene: scene, maxPixelDimension: 120, logicalContentSize: logicalSize))
+            XCTAssertEqual(preview.pixelScale, 0.5)
+            XCTAssertEqual(preview.image.width, 120)
+            XCTAssertEqual(preview.layout.screenRect, analysis.slotRect.applying(CGAffineTransform(scaleX: 0.5, y: 0.5)))
+            XCTAssertEqual(preview.layout.contentRect, analysis.contentRect.applying(CGAffineTransform(scaleX: 0.5, y: 0.5)), preset.rawValue)
+            XCTAssertEqual(preview.layout.subjectScale, analysis.enlargement * 0.5, accuracy: 0.0001)
+        }
+    }
+
+    func testAutoFramingDoesNotExceedMaximumEnlargementWhenFillNeedsMoreScaling() throws {
+        let validated = try PresentationSceneValidator.validate(svgText: sceneSVG(width: 240, metadataSlots: [
+            #"{"id":"primaryScreenshot","type":"image","required":true,"label":"Screenshot","maxAutoEnlargement":1.45}"#,
+            #"{"id":"title","type":"text","label":"Title"}"#,
+        ]), source: .bundled)
+        let scene = AppliedPresentationScene(definition: PresentationSceneDefinition(
+            metadata: validated.metadata, sanitizedSVGText: validated.sanitizedSVGText, source: .bundled,
+            fileURL: URL(fileURLWithPath: "/tmp/auto-enlargement.svg"), isUserModifiedBundled: false))
+        let analysis = try XCTUnwrap(PresentationSceneRenderer.framingAnalysis(contentSize: CGSize(width: 140, height: 54), scene: scene))
+        XCTAssertEqual(analysis.fit, .contain)
+        XCTAssertLessThanOrEqual(analysis.enlargement, 1.45)
+        XCTAssertEqual(analysis.cropPercentage, 0)
+    }
+
+    func testActualSizeWarnsWhenManualOffsetExposesEmptySlotSpace() throws {
+        let validated = try PresentationSceneValidator.validate(svgText: sceneSVG(width: 240), source: .bundled)
+        var scene = AppliedPresentationScene(definition: PresentationSceneDefinition(
+            metadata: validated.metadata, sanitizedSVGText: validated.sanitizedSVGText, source: .bundled,
+            fileURL: URL(fileURLWithPath: "/tmp/offset-letterbox.svg"), isUserModifiedBundled: false))
+        scene.screenshotSlotSettings = PresentationSceneScreenshotSlotSettings(framingPreset: .actualSize)
+        scene.screenshotSlotSettings.applyManualAdjustment(offset: CGSize(width: 10, height: 0))
+        let analysis = try XCTUnwrap(PresentationSceneRenderer.framingAnalysis(contentSize: CGSize(width: 200, height: 80), scene: scene))
+        XCTAssertTrue(analysis.hasLetterbox)
+        XCTAssertTrue(analysis.warningMessages.contains { $0.contains("empty space") })
+    }
+
+    func testSceneAffineMappingMatchesTranslatedScaledAndRotatedPixels() throws {
+        let base = sceneSVG(width: 200, height: 180)
+            .replacingOccurrences(of: #"width="160" height="80""#, with: #"width="40" height="20""#)
+        let variants: [(String, String, CGRect)] = [
+            ("translate(40 10)", "scale(2)", CGRect(x: 80, y: 70, width: 80, height: 40)),
+            ("", "rotate(90 40 40)", CGRect(x: 30, y: 20, width: 20, height: 40)),
+        ]
+        let content = makeSolidImage(width: 40, height: 20, color: PixelSample(red: 200, green: 20, blue: 30, alpha: 255))
+        for (parentTransform, imageTransform, expected) in variants {
+            let svg = base.replacingOccurrences(of: "<image id=", with: "<g transform=\"\(parentTransform)\"><image transform=\"\(imageTransform)\" id=")
+                .replacingOccurrences(of: #"preserveAspectRatio="xMidYMid slice"/>"#, with: #"preserveAspectRatio="xMidYMid slice"/></g>"#)
+            let scene = try appliedScene(svg)
+            let result = try XCTUnwrap(PresentationSceneRenderer.renderWithLayout(contentImage: content, scene: scene))
+            let geometry = try XCTUnwrap(result.sceneGeometry)
+            XCTAssertFalse(result.sceneMappingUnavailable)
+            XCTAssertEqual(geometry.localSlotRect, CGRect(x: 20, y: 30, width: 40, height: 20))
+            XCTAssertEqual(result.layout.screenRect.minX, expected.minX, accuracy: 0.0001)
+            XCTAssertEqual(result.layout.screenRect.minY, expected.minY, accuracy: 0.0001)
+            XCTAssertEqual(result.layout.screenRect.width, expected.width, accuracy: 0.0001)
+            XCTAssertEqual(result.layout.screenRect.height, expected.height, accuracy: 0.0001)
+            let center = CGPoint(x: geometry.localSlotRect.midX, y: geometry.localSlotRect.midY).applying(geometry.localToLogicalCanvas)
+            let pixel = samplePixel(in: result.image, topLeftX: Int(center.x), topLeftY: Int(center.y))
+            XCTAssertGreaterThan(pixel.red, 150)
+            XCTAssertLessThan(pixel.green, 60)
+            let local = center.applying(geometry.localToLogicalCanvas.inverted())
+            XCTAssertEqual(local.x, geometry.localSlotRect.midX, accuracy: 0.0001)
+            XCTAssertEqual(local.y, geometry.localSlotRect.midY, accuracy: 0.0001)
+        }
+    }
+
+    func testSceneTransformParserHandlesEveryStandardAffineOperation() throws {
+        let point = CGPoint(x: 10, y: 20)
+        let cases: [(String, CGPoint)] = [
+            ("matrix(1 0 0 1 4 5)", CGPoint(x: 14, y: 25)),
+            ("translate(4 5) scale(2 3)", CGPoint(x: 24, y: 65)),
+            ("rotate(90)", CGPoint(x: -20, y: 10)),
+            ("rotate(90 10 10)", CGPoint(x: 0, y: 10)),
+            ("skewX(45)", CGPoint(x: 30, y: 20)),
+            ("skewY(45)", CGPoint(x: 10, y: 30)),
+            ("translate(1e1,-2e1)", CGPoint(x: 20, y: 0)),
+        ]
+        for (source, expected) in cases {
+            let transform = try XCTUnwrap(PresentationSceneGeometryResolver.transform(source))
+            let actual = point.applying(transform)
+            XCTAssertEqual(actual.x, expected.x, accuracy: 0.0001, source)
+            XCTAssertEqual(actual.y, expected.y, accuracy: 0.0001, source)
+        }
+        for invalid in ["translate(no)", "scale(1 2 3)", "perspective(1)", "translate(2) trailing", "matrix(1e999 0 0 1 0 0)"] {
+            XCTAssertNil(PresentationSceneGeometryResolver.transform(invalid), invalid)
+        }
+    }
+
+    func testRootViewBoxMappingHonorsPreserveAspectRatio() throws {
+        let variants: [(String, CGRect)] = [
+            ("none", CGRect(x: 24, y: 13.5, width: 480, height: 108)),
+            ("xMidYMid meet", CGRect(x: 66, y: 13.5, width: 270, height: 108)),
+            ("xMinYMax meet", CGRect(x: 13.5, y: 13.5, width: 270, height: 108)),
+            ("xMaxYMin slice", CGRect(x: 24, y: 24, width: 480, height: 192)),
+        ]
+        for (preserve, expected) in variants {
+            let svg = sceneSVG(width: 240, height: 135)
+                .replacingOccurrences(of: #"viewBox="0 0 240 135""#, with: "viewBox=\"10 20 100 100\" preserveAspectRatio=\"\(preserve)\"")
+            let document = try XMLDocument(xmlString: svg, options: [.nodeLoadExternalEntitiesNever])
+            let geometry = try XCTUnwrap(PresentationSceneGeometryResolver.geometry(in: document, canvasSize: CGSize(width: 240, height: 135)))
+            XCTAssertEqual(geometry.logicalSlotBounds.minX, expected.minX, accuracy: 0.0001)
+            XCTAssertEqual(geometry.logicalSlotBounds.minY, expected.minY, accuracy: 0.0001)
+            XCTAssertEqual(geometry.logicalSlotBounds.width, expected.width, accuracy: 0.0001)
+            XCTAssertEqual(geometry.logicalSlotBounds.height, expected.height, accuracy: 0.0001)
+        }
+    }
+
+    func testUnsupportedSceneCoordinateSystemsKeepRenderingButDisablePreciseMapping() throws {
+        let nested = sceneSVG().replacingOccurrences(of: "<image id=", with: "<svg width=\"200\" height=\"120\"><image id=")
+            .replacingOccurrences(of: #"preserveAspectRatio="xMidYMid slice"/>"#, with: #"preserveAspectRatio="xMidYMid slice"/></svg>"#)
+        let css = sceneSVG(extraElements: "<style>image { transform: translate(10px, 20px); }</style>")
+        let content = makeCoordinateImage(width: 40, height: 20)
+        for svg in [nested, css] {
+            let result = try XCTUnwrap(PresentationSceneRenderer.renderWithLayout(contentImage: content, scene: try appliedScene(svg)))
+            XCTAssertNil(result.sceneGeometry)
+            XCTAssertTrue(result.sceneMappingUnavailable)
+            XCTAssertEqual(result.layout.screenRect, CGRect(origin: .zero, size: result.layout.canvasSize))
+        }
+    }
+
+    private func appliedScene(_ svg: String) throws -> AppliedPresentationScene {
+        let validated = try PresentationSceneValidator.validate(svgText: svg, source: .bundled)
+        return AppliedPresentationScene(definition: PresentationSceneDefinition(metadata: validated.metadata,
+            sanitizedSVGText: validated.sanitizedSVGText, source: .bundled,
+            fileURL: URL(fileURLWithPath: "/tmp/affine-scene.svg"), isUserModifiedBundled: false))
     }
 
     private func assertInvalid(

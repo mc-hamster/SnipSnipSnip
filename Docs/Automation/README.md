@@ -246,6 +246,11 @@ Presentation style is configured, otherwise output is plain. `plain` and
 `styled` make the choice deterministic; `styled` fails when no Presentation
 style is configured.
 
+Static Blink outputs, including PDF and Print, use the configured poster frame.
+Interactive HTML starts baked Difference results at full visibility so the stored
+intensity is applied once. Composition exports use same-volume replacement staging
+without requiring permission to create siblings of the selected file.
+
 Composition export supports static PNG, JPEG, and PDF; animated GIF and APNG;
 MP4; editable `.sss`; and self-contained interactive HTML. HTML embeds the
 fully rendered, redacted pixels and comparison controls it needs and does not

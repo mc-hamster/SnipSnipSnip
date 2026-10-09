@@ -129,7 +129,6 @@ final class CaptureWorkflowModel: ObservableObject, AutomationStatusPort, Captur
     /// explicit retry to resume the exact operation.
     var pendingRecoveryCaptureContext: CaptureCompletionContext?
     var pendingScrollingPartialCapture: (result: ScrollingCaptureResult, isPrivateCapture: Bool)?
-    var activeWorkflowPresetID: CapturePreset.ID?
     var capturePrivacyLockDepth = 0
     var interactiveCaptureAutosaveSuspensionDepth = 0
     var connectedDevicePreviewController: ConnectedDevicePreviewWindowController?

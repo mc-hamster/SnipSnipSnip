@@ -80,6 +80,8 @@ protocol PasteboardServicing: Sendable {
     @MainActor func data(forType type: NSPasteboard.PasteboardType) -> Data?
     @MainActor func string(forType type: NSPasteboard.PasteboardType) -> String?
     @MainActor func itemSnapshots(acceptedTypeIdentifiers: Set<String>) -> [PasteboardItemSnapshot]
+    @MainActor func backgroundItemSnapshots(acceptedTypeIdentifiers: Set<String>) -> [PasteboardItemSnapshot]
+    @MainActor func rollbackItemSnapshots(acceptedTypeIdentifiers: Set<String>) -> [PasteboardItemSnapshot]
     @MainActor @discardableResult func setString(_ string: String, forType type: NSPasteboard.PasteboardType) -> Bool
     @MainActor @discardableResult func setData(_ data: Data, forType type: NSPasteboard.PasteboardType) -> Bool
     @MainActor @discardableResult func writeFileURLs(_ urls: [URL]) -> Bool
@@ -88,6 +90,45 @@ protocol PasteboardServicing: Sendable {
 
 extension PasteboardServicing {
     @MainActor var programmaticAccessPolicy: ClipboardAccessPolicy { .allowed }
+    @MainActor func backgroundItemSnapshots(acceptedTypeIdentifiers: Set<String>) -> [PasteboardItemSnapshot] {
+        guard programmaticAccessPolicy.allowsBackgroundRead else { return [] }
+        return itemSnapshots(acceptedTypeIdentifiers: acceptedTypeIdentifiers)
+    }
+    @MainActor func rollbackItemSnapshots(acceptedTypeIdentifiers: Set<String>) -> [PasteboardItemSnapshot] {
+        guard programmaticAccessPolicy == .allowed else { return [] }
+        let snapshots = itemSnapshots(acceptedTypeIdentifiers: acceptedTypeIdentifiers)
+        return programmaticAccessPolicy == .allowed ? snapshots : []
+    }
+}
+
+/// Recheck access between representations because a read can change macOS's policy.
+@MainActor
+enum PasteboardSnapshotReader {
+    static func read<Item>(
+        items: () -> [Item],
+        types: (Item) -> [String],
+        data: (Item, String) -> Data?,
+        acceptedTypeIdentifiers: Set<String>,
+        allowsRead: () -> Bool
+    ) -> [PasteboardItemSnapshot] {
+        guard allowsRead() else { return [] }
+        var snapshots: [PasteboardItemSnapshot] = []
+        for item in items() {
+            var representations: [PasteboardRepresentationSnapshot] = []
+            for type in types(item) where acceptedTypeIdentifiers.contains(type) {
+                guard allowsRead() else { return [] }
+                // Zero-byte representations include concealed/transient markers.
+                // A rollback must preserve them with the original content.
+                if let value = data(item, type) {
+                    representations.append(PasteboardRepresentationSnapshot(typeIdentifier: type, data: value))
+                }
+            }
+            if !representations.isEmpty {
+                snapshots.append(PasteboardItemSnapshot(representations: representations))
+            }
+        }
+        return allowsRead() ? snapshots : []
+    }
 }
 
 protocol ClockProviding: Sendable {
@@ -363,17 +404,30 @@ struct SystemPasteboardService: PasteboardServicing {
 
     @MainActor
     func itemSnapshots(acceptedTypeIdentifiers: Set<String>) -> [PasteboardItemSnapshot] {
-        (NSPasteboard.general.pasteboardItems ?? []).compactMap { item in
-            let representations = item.types.compactMap { type -> PasteboardRepresentationSnapshot? in
-                guard acceptedTypeIdentifiers.contains(type.rawValue),
-                      let data = item.data(forType: type),
-                      !data.isEmpty else {
-                    return nil
-                }
-                return PasteboardRepresentationSnapshot(typeIdentifier: type.rawValue, data: data)
-            }
-            return representations.isEmpty ? nil : PasteboardItemSnapshot(representations: representations)
-        }
+        readItemSnapshots(acceptedTypeIdentifiers: acceptedTypeIdentifiers, allowsRead: { true })
+    }
+
+    @MainActor
+    func backgroundItemSnapshots(acceptedTypeIdentifiers: Set<String>) -> [PasteboardItemSnapshot] {
+        readItemSnapshots(acceptedTypeIdentifiers: acceptedTypeIdentifiers) { programmaticAccessPolicy.allowsBackgroundRead }
+    }
+
+    @MainActor
+    func rollbackItemSnapshots(acceptedTypeIdentifiers: Set<String>) -> [PasteboardItemSnapshot] {
+        // Copy is a write, not a Paste action. An optional backup must never ask
+        // for access to unrelated content that happens to be on the clipboard.
+        readItemSnapshots(acceptedTypeIdentifiers: acceptedTypeIdentifiers) { programmaticAccessPolicy == .allowed }
+    }
+
+    @MainActor
+    private func readItemSnapshots(acceptedTypeIdentifiers: Set<String>, allowsRead: () -> Bool) -> [PasteboardItemSnapshot] {
+        PasteboardSnapshotReader.read(
+            items: { NSPasteboard.general.pasteboardItems ?? [] },
+            types: { $0.types.map(\.rawValue) },
+            data: { $0.data(forType: NSPasteboard.PasteboardType($1)) },
+            acceptedTypeIdentifiers: acceptedTypeIdentifiers,
+            allowsRead: allowsRead
+        )
     }
 
     @MainActor

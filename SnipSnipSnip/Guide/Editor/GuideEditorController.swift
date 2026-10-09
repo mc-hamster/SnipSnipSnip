@@ -166,8 +166,8 @@ final class GuideEditorController: ObservableObject {
     func restore(stepID: UUID) { update(name: "Restore Step") { project in if let i = project.steps.firstIndex(where: { $0.id == stepID }) { project.steps[i].isDeleted = false } } }
     func setIncluded(_ included: Bool, stepID: UUID) { update(name: included ? "Include Step" : "Exclude Step") { project in if let i = project.steps.firstIndex(where: { $0.id == stepID }) { project.steps[i].isIncluded = included } } }
 
-    func addStep(_ step: GuideStep, image: CGImage, at index: Int? = nil) {
-        execute(GuideInsertStepCommand(step: step, image: image, index: index ?? project.steps.count))
+    func addStep(_ step: GuideStep, image: CGImage, at index: Int? = nil, advancedEdit: EditableScreenshotDocument? = nil) {
+        execute(GuideInsertStepCommand(step: step, image: image, index: index ?? project.steps.count, advancedEdit: advancedEdit))
     }
 
     func addImportedImage(_ image: CGImage, caption: String = "Review this image.", advancedEdit: EditableScreenshotDocument? = nil) {
@@ -181,8 +181,7 @@ final class GuideEditorController: ObservableObject {
                 sourcePixelSize: size
             )
         )
-        addStep(step, image: image)
-        if let advancedEdit { replaceAdvancedEditWithoutCommand(advancedEdit, stepID: step.id) }
+        addStep(step, image: image, advancedEdit: advancedEdit)
     }
 
     func duplicateSelected() {
@@ -195,7 +194,8 @@ final class GuideEditorController: ObservableObject {
             copy.id = UUID()
             copy.caption += " (Copy)"
             copy.capturedAt = Date()
-            addStep(copy, image: image, at: (project.steps.firstIndex(where: { $0.id == original.id }) ?? project.steps.count) + 1)
+            addStep(copy, image: image, at: (project.steps.firstIndex(where: { $0.id == original.id }) ?? project.steps.count) + 1,
+                advancedEdit: advancedEdits[original.id])
             newSelection.insert(copy.id)
         }
         selection = newSelection
@@ -377,9 +377,12 @@ final class GuideEditorController: ObservableObject {
         contentRevision &+= 1
     }
 
-    func insertStepWithoutCommand(_ step: GuideStep, image: CGImage, at index: Int) {
+    func insertStepWithoutCommand(_ originalStep: GuideStep, image: CGImage, at index: Int, advancedEdit: EditableScreenshotDocument? = nil) {
+        var step = originalStep
+        step.session.annotationSessionAsset = advancedEdit == nil ? nil : "advanced.sss"
         project.steps.insert(step, at: min(max(index, 0), project.steps.count))
         stepImages[step.id] = image
+        advancedEdits[step.id] = advancedEdit
         imageRevisions[step.id, default: 0] += 1
         requestThumbnail(for: step.id, priority: .userInitiated)
         project.normalizeStepSequence()
@@ -394,6 +397,7 @@ final class GuideEditorController: ObservableObject {
         project.steps.removeAll { $0.id == id }
         stepImages[id] = nil
         stepThumbnails[id] = nil
+        advancedEdits[id] = nil
         project.normalizeStepSequence()
         selection.remove(id)
         contentRevision &+= 1

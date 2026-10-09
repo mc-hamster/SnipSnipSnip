@@ -1130,7 +1130,8 @@ private struct LivePresentationThumbnailView: View {
                         ScreenshotPresentationRenderer.renderWithLayout(
                             contentImage: input.contentImage,
                             presentation: input.presentation,
-                            maxPixelDimension: maxPixelDimension
+                            maxPixelDimension: maxPixelDimension,
+                            logicalContentSize: input.logicalContentSize
                         )?.image
                     }
                 }

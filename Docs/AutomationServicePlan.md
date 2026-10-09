@@ -385,6 +385,11 @@ enum AutomationExportFormat: String, Codable, Sendable {
 }
 ```
 
+Static Blink outputs, including PDF and Print, use the configured poster frame.
+Interactive HTML starts baked Difference results at full visibility so the stored
+intensity is applied once. Composition exports use same-volume replacement staging
+without requiring permission to create siblings of the selected file.
+
 GIF/APNG/MP4 are composition-aware Blink outputs with deterministic timing,
 crossfade, loop behavior, and a disclosed 4,096 px longest-side cap. HTML is a
 self-contained interactive Compare or Steps artifact built only from rendered,

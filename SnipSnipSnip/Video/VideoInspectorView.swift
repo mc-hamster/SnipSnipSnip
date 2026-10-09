@@ -121,7 +121,10 @@ struct VideoInspectorView: View {
                     }
                     adjustment("Space Around Video", value: scalarEffect(\.presentation.padding, name: "Change Spacing"), range: 0...160, format: "%.0f")
                     adjustment("Round Corners", value: scalarEffect(\.presentation.cornerRadius, name: "Change Corners"), range: 0...60, format: "%.0f")
-                    Picker("Shadow", selection: effect(\.presentation.shadow, name: "Change Shadow")) {
+                    Picker("Shadow", selection: Binding(
+                        get: { controller.session.effects.presentation.shadow },
+                        set: controller.updatePresentationShadow
+                    )) {
                         Text("None").tag(ScreenshotShadowStyle.off)
                         Text("Soft").tag(ScreenshotShadowStyle.drop)
                         Text("Strong").tag(ScreenshotShadowStyle.strong)

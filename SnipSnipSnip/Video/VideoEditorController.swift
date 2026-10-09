@@ -188,15 +188,21 @@ final class VideoEditorController: ObservableObject {
 
     func playTrimmedPreview() {
         guard !isPreparingPreview, previewError == nil else { return }
-        if currentTimeSeconds < session.trimStartSeconds || currentTimeSeconds >= session.trimEndSeconds {
-            seek(to: session.trimStartSeconds)
+        let requestedTime = currentTimeSeconds < session.trimStartSeconds || currentTimeSeconds >= session.trimEndSeconds
+            ? session.trimStartSeconds
+            : currentTimeSeconds
+        guard let playableTime = nextKeptPreviewTime(atOrAfter: requestedTime) else {
+            pause()
+            return
         }
-
-        if let cut = session.removedRanges.first(where: { $0.start <= currentTimeSeconds && currentTimeSeconds < $0.end }) {
-            seek(to: cut.end)
-        }
+        if playableTime != currentTimeSeconds { seek(to: playableTime) }
         player.play()
         isPlaying = true
+    }
+
+    func nextKeptPreviewTime(atOrAfter time: TimeInterval) -> TimeInterval? {
+        VideoEditTimeline(session: session, duration: recording.duration)
+            .nextKeptSourceTime(atOrAfter: time)
     }
 
     func pause() {
@@ -503,11 +509,13 @@ final class VideoEditorController: ObservableObject {
                 guard !self.isPreparingPreview else { return }
                 self.currentTimeSeconds = seconds
 
-                if self.isPlaying && seconds >= self.session.trimEndSeconds {
-                    self.pause()
-                    self.seek(to: self.session.trimEndSeconds)
-                } else if self.isPlaying, let cut = self.session.removedRanges.first(where: { $0.start <= seconds && seconds < $0.end }) {
-                    self.seek(to: min(cut.end, self.session.trimEndSeconds))
+                if self.isPlaying {
+                    if let playableTime = self.nextKeptPreviewTime(atOrAfter: seconds) {
+                        if playableTime != seconds { self.seek(to: playableTime) }
+                    } else {
+                        self.pause()
+                        self.seek(to: self.session.trimEndSeconds)
+                    }
                 }
             }
         }
@@ -557,6 +565,16 @@ final class VideoEditorController: ObservableObject {
             effects.zooms = VideoSmartZooms.suggest(track: interactions, duration: recording.duration)
         }
         perform(.effects(effects, name: "Polish Video"))
+    }
+
+    func updatePresentationShadow(_ shadow: ScreenshotShadowStyle) {
+        var effects = session.effects
+        effects.presentation.shadow = shadow
+        effects.presentation.shadowBlurRadius = shadow.blurRadius
+        effects.presentation.shadowOffsetX = shadow.offsetX
+        effects.presentation.shadowOffsetY = shadow.offsetY
+        effects.presentation.shadowOpacity = shadow.opacity
+        perform(.effects(effects, name: "Change Shadow"))
     }
 
     func addZoom() {

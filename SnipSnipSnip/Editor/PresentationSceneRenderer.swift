@@ -6,7 +6,8 @@ nonisolated enum PresentationSceneRenderer {
     static func renderWithLayout(
         contentImage: CGImage,
         scene: AppliedPresentationScene,
-        maxPixelDimension: CGFloat? = nil
+        maxPixelDimension: CGFloat? = nil,
+        logicalContentSize: CGSize? = nil
     ) -> ScreenshotPresentationRenderResult? {
         PresentationPerformanceMetrics.measure(
             "scene.render.total",
@@ -14,13 +15,15 @@ nonisolated enum PresentationSceneRenderer {
             warnAfterMS: 55
         ) {
             let originalCanvasSize = outputSize(for: scene) ?? CGSize(width: 1600, height: 900)
-            let renderScale = maxPixelDimension.map {
-                min($0 / max(max(originalCanvasSize.width, originalCanvasSize.height), 1), 1)
+            let renderScale = maxPixelDimension.flatMap { limit -> CGFloat? in
+                guard limit.isFinite, limit > 0 else { return nil }
+                return min(limit / max(max(originalCanvasSize.width, originalCanvasSize.height), 1), 1)
             } ?? 1
             guard let prepared = preparedSVG(
                 contentImage: contentImage,
                 scene: scene,
-                renderScale: renderScale
+                renderScale: renderScale,
+                logicalContentSize: logicalContentSize
             ),
                   let image = rasterize(svgText: prepared.svgText, canvasSize: prepared.metadata.canvas.size, scale: renderScale) else {
                 return nil
@@ -30,24 +33,18 @@ nonisolated enum PresentationSceneRenderer {
                 width: prepared.metadata.canvas.size.width * renderScale,
                 height: prepared.metadata.canvas.size.height * renderScale
             )
-            let screenshotRect = CGRect(
-                x: prepared.primaryScreenshotRect.minX * renderScale,
-                y: prepared.primaryScreenshotRect.minY * renderScale,
-                width: prepared.primaryScreenshotRect.width * renderScale,
-                height: prepared.primaryScreenshotRect.height * renderScale
-            ).integral
-            let contentRect = CGRect(
-                x: prepared.framingAnalysis.contentRect.minX * renderScale,
-                y: prepared.framingAnalysis.contentRect.minY * renderScale,
-                width: prepared.framingAnalysis.contentRect.width * renderScale,
-                height: prepared.framingAnalysis.contentRect.height * renderScale
-            ).integral
+            let rasterTransform = CGAffineTransform(scaleX: renderScale, y: renderScale)
+            let screenshotRect = prepared.geometry?.logicalSlotBounds.applying(rasterTransform)
+                ?? CGRect(origin: .zero, size: canvasSize)
+            let contentRect = prepared.geometry.map {
+                prepared.framingAnalysis.contentRect.applying($0.localToLogicalCanvas).applying(rasterTransform)
+            } ?? CGRect(origin: .zero, size: canvasSize)
             let layout = ScreenshotPresentationRenderLayout(
                 canvasSize: canvasSize,
                 subjectRect: screenshotRect,
                 screenRect: screenshotRect,
                 contentRect: contentRect,
-                subjectScale: contentRect.width / max(CGFloat(contentImage.width), 1),
+                subjectScale: contentRect.width / max(logicalContentSize?.width ?? CGFloat(contentImage.width), 1),
                 frame: .none
             )
 
@@ -56,7 +53,8 @@ nonisolated enum PresentationSceneRenderer {
                 context: "scene=\(scene.sceneID) image=\(image.width)x\(image.height) slot=\(PresentationPerformanceMetrics.size(screenshotRect.size))"
             )
 
-            return ScreenshotPresentationRenderResult(image: image, layout: layout)
+            return ScreenshotPresentationRenderResult(image: image, layout: layout, pixelScale: renderScale,
+                sceneGeometry: prepared.geometry, sceneMappingUnavailable: prepared.geometry == nil)
         }
     }
 
@@ -92,6 +90,7 @@ nonisolated enum PresentationSceneRenderer {
         var svgText: String
         var primaryScreenshotRect: CGRect
         var framingAnalysis: PresentationSceneFramingAnalysis
+        var geometry: PresentationSceneGeometry?
     }
 
     private struct SceneMetrics {
@@ -102,7 +101,8 @@ nonisolated enum PresentationSceneRenderer {
     private static func preparedSVG(
         contentImage: CGImage,
         scene: AppliedPresentationScene,
-        renderScale: CGFloat
+        renderScale: CGFloat,
+        logicalContentSize: CGSize?
     ) -> PreparedSVG? {
         PresentationPerformanceMetrics.measure(
             "scene.prepare",
@@ -129,6 +129,7 @@ nonisolated enum PresentationSceneRenderer {
                 contentImage: contentImage,
                 primarySlot: primarySlot,
                 renderScale: renderScale,
+                logicalContentSize: logicalContentSize,
                 primaryScreenshotRect: &primaryScreenshotRect,
                 framingAnalysis: &framingAnalysis
             )
@@ -142,7 +143,8 @@ nonisolated enum PresentationSceneRenderer {
                 metadata: validated.metadata,
                 svgText: document.xmlString(options: []),
                 primaryScreenshotRect: primaryScreenshotRect,
-                framingAnalysis: framingAnalysis
+                framingAnalysis: framingAnalysis,
+                geometry: PresentationSceneGeometryResolver.geometry(in: document, canvasSize: validated.metadata.canvas.size)
             )
         }
     }
@@ -153,6 +155,7 @@ nonisolated enum PresentationSceneRenderer {
         contentImage: CGImage,
         primarySlot: PresentationSceneSlot,
         renderScale: CGFloat,
+        logicalContentSize: CGSize?,
         primaryScreenshotRect: inout CGRect?,
         framingAnalysis: inout PresentationSceneFramingAnalysis?
     ) {
@@ -165,7 +168,7 @@ nonisolated enum PresentationSceneRenderer {
                (element.name ?? "").lowercased() == "image" {
                 let slotRect = rect(from: element)
                 let analysis = resolvedFraming(
-                    contentSize: CGSize(width: contentImage.width, height: contentImage.height),
+                    contentSize: logicalContentSize ?? CGSize(width: contentImage.width, height: contentImage.height),
                     slotRect: slotRect,
                     slot: primarySlot,
                     settings: scene.screenshotSlotSettings
@@ -196,6 +199,7 @@ nonisolated enum PresentationSceneRenderer {
                 contentImage: contentImage,
                 primarySlot: primarySlot,
                 renderScale: renderScale,
+                logicalContentSize: logicalContentSize,
                 primaryScreenshotRect: &primaryScreenshotRect,
                 framingAnalysis: &framingAnalysis
             )
@@ -211,11 +215,14 @@ nonisolated enum PresentationSceneRenderer {
     }
 
     private static func rect(from element: XMLElement) -> CGRect {
-        CGRect(
-            x: CGFloat(Double(element.attribute(forName: "x")?.stringValue ?? "") ?? 0),
-            y: CGFloat(Double(element.attribute(forName: "y")?.stringValue ?? "") ?? 0),
-            width: max(CGFloat(Double(element.attribute(forName: "width")?.stringValue ?? "") ?? 1), 1),
-            height: max(CGFloat(Double(element.attribute(forName: "height")?.stringValue ?? "") ?? 1), 1)
+        func length(_ name: String, fallback: CGFloat) -> CGFloat {
+            PresentationSceneGeometryResolver.length(element.attribute(forName: name)?.stringValue, default: fallback) ?? fallback
+        }
+        return CGRect(
+            x: length("x", fallback: 0),
+            y: length("y", fallback: 0),
+            width: max(length("width", fallback: 1), 0.000001),
+            height: max(length("height", fallback: 1), 0.000001)
         )
     }
 
@@ -317,8 +324,9 @@ nonisolated enum PresentationSceneRenderer {
         let contentArea = max(contentRect.width * contentRect.height, 1)
         let visibleArea = overlap.isNull ? 0 : max(overlap.width, 0) * max(overlap.height, 0)
         let cropPercentage = min(max(1 - visibleArea / contentArea, 0), 1)
-        let hasLetterbox = contentDrawSize.width < safeSlotRect.width - 0.5
-            || contentDrawSize.height < safeSlotRect.height - 0.5
+        let hasLetterbox = overlap.isNull
+            || overlap.width < safeSlotRect.width - 0.5
+            || overlap.height < safeSlotRect.height - 0.5
 
         return PresentationSceneFramingAnalysis(
             slotRect: safeSlotRect,
@@ -356,7 +364,7 @@ nonisolated enum PresentationSceneRenderer {
         let scaledArea = max(contentSize.width * coverScale * contentSize.height * coverScale, 1)
         let cropPercentage = min(max(1 - (slotSize.width * slotSize.height / scaledArea), 0), 1)
 
-        if aspectMismatch <= 1.12 && cropPercentage <= 0.12 {
+        if aspectMismatch <= 1.12 && cropPercentage <= 0.12 && coverScale <= maxAutoEnlargement {
             return .cover
         }
 

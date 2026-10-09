@@ -18,7 +18,7 @@ final class ClipboardPresentationTests: XCTestCase {
         unavailable.storedPayload = nil
         XCTAssertFalse(fixture.model.copyItem(unavailable))
         XCTAssertEqual(fixture.pasteboard.string(forType: .string), "Edited draft")
-        XCTAssertTrue(fixture.model.actionMessage?.contains("preserved") == true)
+        XCTAssertEqual(fixture.model.actionMessage, "This item could not be copied. Try again.")
         XCTAssertEqual(fixture.store.items.first?.plainTextValue, item.plainTextValue)
     }
 

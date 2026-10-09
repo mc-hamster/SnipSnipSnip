@@ -866,6 +866,9 @@ nonisolated struct PresentationStyle: Equatable, Codable, Sendable {
     }
 
     var shadowInsets: NSEdgeInsets {
+        guard shadow != .off, shadowBlurRadius > 0, shadowOpacity > 0 else {
+            return NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+        }
         let blur = max(shadowBlurRadius, 0)
         let offsetX = shadowOffsetX
         let offsetY = shadowOffsetY

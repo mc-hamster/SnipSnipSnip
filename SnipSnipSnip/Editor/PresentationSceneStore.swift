@@ -27,6 +27,7 @@ nonisolated enum PresentationSceneValidator {
         if document.dtd != nil {
             throw PresentationSceneValidationError(message: "Scene SVG must not declare a DTD.")
         }
+        try rejectStylesheetInstructions(in: document)
 
         guard let metadataElement = findMetadataElement(in: document.rootElement()) else {
             throw PresentationSceneValidationError(message: "Scene SVG is missing metadata id=\"snipsnipsnip-scene\".")
@@ -108,6 +109,9 @@ nonisolated enum PresentationSceneValidator {
             if elementName == "script" || elementName == "foreignobject" || animationElementNames.contains(elementName) {
                 throw PresentationSceneValidationError(message: "Scene SVG contains unsupported <\(element.name ?? elementName)> content.")
             }
+            if elementName == "style" {
+                try validateCSSReferences(element.stringValue ?? "")
+            }
 
             for attribute in element.attributes ?? [] {
                 let attributeName = attribute.name?.lowercased() ?? ""
@@ -128,6 +132,21 @@ nonisolated enum PresentationSceneValidator {
                     || lowerValue.contains("data:") {
                     throw PresentationSceneValidationError(message: "Scene SVG must not reference remote, file, or embedded data URLs.")
                 }
+                if attributeName == "href" || attributeName.hasSuffix(":href") {
+                    let reference = attributeValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if reference.hasPrefix("snipsnipsnip:"),
+                       !allowedSlotIDs.contains(String(reference.dropFirst("snipsnipsnip:".count))) {
+                        throw PresentationSceneValidationError(message: "Scene SVG references unknown slot \(reference).")
+                    }
+                    guard reference.hasPrefix("#")
+                        || (reference.hasPrefix("snipsnipsnip:") && allowedSlotIDs.contains(String(reference.dropFirst("snipsnipsnip:".count)))) else {
+                        throw PresentationSceneValidationError(message: "Scene SVG must not reference external resources.")
+                    }
+                }
+                if attributeName == "xml:base", !attributeValue.isEmpty {
+                    throw PresentationSceneValidationError(message: "Scene SVG must not reference external resources through xml:base.")
+                }
+                try validateCSSReferences(attributeValue)
 
                 for slotID in snipSlotReferences(in: attributeValue) where !allowedSlotIDs.contains(slotID) {
                     throw PresentationSceneValidationError(message: "Scene SVG references unknown slot \(slotID).")
@@ -151,6 +170,49 @@ nonisolated enum PresentationSceneValidator {
         "animatetransform",
         "set",
     ]
+
+    private static func rejectStylesheetInstructions(in node: XMLNode) throws {
+        if node.kind == .processingInstruction, node.name?.lowercased() == "xml-stylesheet" {
+            throw PresentationSceneValidationError(message: "Scene SVG must not reference external stylesheets.")
+        }
+        for child in node.children ?? [] { try rejectStylesheetInstructions(in: child) }
+    }
+
+    private static func validateCSSReferences(_ value: String) throws {
+        // CSS escapes and comments cannot be allowed to conceal resource syntax.
+        let withoutComments = value.replacingOccurrences(of: #"/\*[\s\S]*?\*/"#, with: "", options: .regularExpression)
+        let decoded = NSMutableString(string: withoutComments)
+        for match in cssEscapePattern.matches(in: withoutComments, range: NSRange(location: 0, length: decoded.length)).reversed() {
+            let replacement: String
+            if match.range(at: 1).location != NSNotFound,
+               let scalarValue = UInt32((withoutComments as NSString).substring(with: match.range(at: 1)), radix: 16),
+               let scalar = UnicodeScalar(scalarValue) {
+                replacement = String(scalar)
+            } else if match.range(at: 2).location != NSNotFound {
+                let character = (withoutComments as NSString).substring(with: match.range(at: 2))
+                replacement = character == "\n" || character == "\r" ? "" : character
+            } else {
+                replacement = ""
+            }
+            decoded.replaceCharacters(in: match.range, with: replacement)
+        }
+        let css = decoded as String
+        if css.range(of: "@import", options: .caseInsensitive) != nil {
+            throw PresentationSceneValidationError(message: "Scene SVG must not reference external stylesheets.")
+        }
+        for match in cssURLPattern.matches(in: css, range: NSRange(location: 0, length: (css as NSString).length)) {
+            let reference = (css as NSString).substring(with: match.range(at: 1))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard reference.hasPrefix("#") else {
+                throw PresentationSceneValidationError(message: "Scene SVG must not reference external resources in CSS.")
+            }
+        }
+    }
+
+    private static let cssEscapePattern = try! NSRegularExpression(pattern: #"\\(?:([0-9a-fA-F]{1,6})[ \t\r\n\f]?|([\s\S]))"#)
+    private static let cssURLPattern = try! NSRegularExpression(pattern: #"url\s*\(([^)]*)\)"#, options: [.caseInsensitive])
 
     private static func findMetadataElement(in element: XMLElement?) -> XMLElement? {
         guard let element else {

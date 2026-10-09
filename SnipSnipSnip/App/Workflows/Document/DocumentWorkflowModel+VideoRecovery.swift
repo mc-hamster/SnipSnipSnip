@@ -57,6 +57,8 @@ extension DocumentWorkflowModel {
                     hasRecoverableVideo = false
                     return
                 }
+                guard !Task.isCancelled, editorController == nil,
+                      videoEditorController == nil, guideEditorController == nil else { return }
                 let controller = VideoEditorController(
                     recording: document.recording,
                     session: document.session,

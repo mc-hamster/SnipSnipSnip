@@ -76,6 +76,17 @@ enum VideoExporter {
         progressHandler: (@MainActor (VideoExportProgress) -> Void)?,
         to url: URL
     ) async throws {
+        try await ImageExportFileWriter.write(to: url) { stagedURL in
+            try await exportToStagedFile(document, using: request, progressHandler: progressHandler, to: stagedURL)
+        }
+    }
+
+    private static func exportToStagedFile(
+        _ document: EditableVideoDocument,
+        using request: VideoExportRequest,
+        progressHandler: (@MainActor (VideoExportProgress) -> Void)?,
+        to url: URL
+    ) async throws {
         let capability = VideoExportSupport.capability(for: request.format, target: request.target)
         guard capability.isSupported else {
             throw VideoExportError.unsupportedExportCapability(capability.unsupportedReason ?? "This export is unsupported.")
@@ -101,13 +112,25 @@ enum VideoExporter {
 
         switch request.target {
         case .quality(let preset):
-            try await export(document, as: request.format, preset: preset, progressHandler: progressHandler, to: url)
+            try await exportQuality(document, as: request.format, preset: preset, progressHandler: progressHandler, to: url)
         case .sizeLimit(let sizeLimit):
             try await export(document, as: request.format, sizeLimit: sizeLimit, progressHandler: progressHandler, to: url)
         }
     }
 
     static func export(
+        _ document: EditableVideoDocument,
+        as format: VideoExportFormat,
+        preset: VideoExportQualityPreset,
+        progressHandler: (@MainActor (VideoExportProgress) -> Void)?,
+        to url: URL
+    ) async throws {
+        try await export(document,
+            using: VideoExportRequest(format: format, target: .quality(preset), updatesDefaults: false),
+            progressHandler: progressHandler, to: url)
+    }
+
+    private static func exportQuality(
         _ document: EditableVideoDocument,
         as format: VideoExportFormat,
         preset: VideoExportQualityPreset,

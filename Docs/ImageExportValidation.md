@@ -19,6 +19,12 @@ security-scoped access remains active throughout. Encoding failure or cancellati
 before installation preserves an existing destination and removes staging.
 No new permissions, output formats, or automation contracts are introduced.
 
+Composition PNG/JPEG/PDF, GIF/APNG, MP4, and Interactive HTML now use the same
+replacement-directory writer, including its async encoding path. Their former
+sibling-file staging had retained the same save-panel permission failure.
+Cancellation is checked again before installing every format, including
+synchronous PDF and animated-image encoding.
+
 Apple references:
 
 - [Accessing files from the macOS App Sandbox](https://developer.apple.com/documentation/security/accessing-files-from-the-macos-app-sandbox)
@@ -30,6 +36,15 @@ Apple references:
 JPEG, and PDF files, PDF page bounds matching the image size, staging outside
 the destination folder, preservation after encoding failure and cancellation,
 and cleanup after installation failure.
+The async writer also covers replacement-directory staging, installation, and
+cancellation cleanup. `CompositionOutputExporterTests` verifies that PDF and
+Print use the selected Blink poster and that Interactive HTML displays an
+already rendered Difference result without applying its intensity twice.
+Blink encoders consume a lazy frame collection: only the two endpoint images
+and the current crossfade raster are retained by the frame plan. Timing, frame
+count, and pixels remain unchanged; large animations no longer retain every
+4,096-pixel crossfade image simultaneously. Encoder-internal buffering remains
+under ImageIO or AVFoundation control.
 
 An isolated exporter probe also reproduced the original failures with writes
 denied under a fixture destination directory except for the three exact output
@@ -57,6 +72,8 @@ and staged file writers.
    remain and no encoding alert appears.
 5. Repeat with iCloud Drive, an external volume, and a network share when
    available. Record any skipped destination.
+   Repeat composition PNG/JPEG/PDF and Blink GIF/APNG/MP4 exports plus Steps
+   and Comparison Interactive HTML using a fresh save-panel destination.
 6. Check Copy and Drag separately; their in-memory/direct-write paths are
    unchanged. Run `ImageExportFileWriterTests`, `DragOutSharingTests`, and
    `EditorRendererTests` in one non-parallel app host.
@@ -65,3 +82,9 @@ For the original report, request the exact macOS version/build, app distribution
 (App Store or Pro), destination type, whether Downloads works, and whether Copy
 works. A sanitized Settings > Privacy > Export Diagnostics report is useful;
 the user's screenshot content is not needed to investigate this permission bug.
+
+The same replacement staging now covers Video MP4, GIF, and APNG, including
+size-constrained MP4 retries. The selected destination is replaced only after
+encoding succeeds; an invalid source or cancellation preserves the previous file.
+`VideoExportTransactionTests` covers failure/cancellation, and `VideoEditingTests`
+opens completed MP4/APNG outputs to verify their rendered edits.

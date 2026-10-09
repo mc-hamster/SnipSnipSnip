@@ -2,6 +2,7 @@ import AVFoundation
 import CoreGraphics
 import Foundation
 import ImageIO
+import Synchronization
 import XCTest
 @testable import SnipSnipSnip
 
@@ -110,6 +111,34 @@ final class CompositionOutputExporterTests: XCTestCase {
             samplePixel(in: image, topLeftX: image.width / 2, topLeftY: image.height / 2),
             PixelSample(red: 0, green: 0, blue: 255, alpha: 255)
         )
+    }
+
+    func testBlinkPDFAndPrintUseTheSelectedStaticPoster() async throws {
+        let fixture = makeComparisonFixture(mode: .blink)
+        for poster in [CompositionPosterFrame.primary, .secondary] {
+            var composition = try XCTUnwrap(fixture.input.snapshot.composition)
+            composition.comparison.posterFrame = poster
+            let input = outputInput(composition: composition, assets: Array(fixture.input.compositionAssets.values))
+            let expected = try CompositionOutputExporter.staticImage(input)
+            let url = temporaryURL(extension: "pdf")
+            defer { try? FileManager.default.removeItem(at: url) }
+            _ = try await CompositionOutputExporter.export(input, format: .pdf, to: url)
+            let printData = try await CompositionOutputExporter.printPDFData(input)
+
+            for data in [try Data(contentsOf: url), printData] {
+                let provider = try XCTUnwrap(CGDataProvider(data: data as CFData))
+                let pdf = try XCTUnwrap(CGPDFDocument(provider))
+                let page = try XCTUnwrap(pdf.page(at: 1))
+                let context = try XCTUnwrap(SRGBBitmapContext.make(width: expected.width, height: expected.height))
+                context.drawPDFPage(page)
+                let rendered = try XCTUnwrap(context.makeImage())
+                XCTAssertEqual(
+                    samplePixel(in: rendered, topLeftX: rendered.width / 2, topLeftY: rendered.height / 2),
+                    samplePixel(in: expected, topLeftX: expected.width / 2, topLeftY: expected.height / 2),
+                    "PDF and Print must agree with the selected Blink poster"
+                )
+            }
+        }
     }
 
     @MainActor
@@ -240,6 +269,38 @@ final class CompositionOutputExporterTests: XCTestCase {
             samplePixel(in: first[7].image, topLeftX: 4, topLeftY: 3),
             PixelSample(red: 0, green: 0, blue: 255, alpha: 255)
         )
+    }
+
+    func testAnimationFramesRenderCrossfadesOnlyWhenConsumed() throws {
+        let primary = makeSolidImage(width: 8, height: 6, color: PixelSample(red: 255, green: 0, blue: 0, alpha: 255))
+        let secondary = makeSolidImage(width: 8, height: 6, color: PixelSample(red: 0, green: 0, blue: 255, alpha: 255))
+        let renderedCount = Mutex(0)
+        let frames = CompositionOutputExporter.animationFrames(
+            primary: primary, secondary: secondary, interval: 0.75, crossfade: 0.2, loops: true,
+            blendRenderer: { first, _, _ in
+                renderedCount.withLock { $0 += 1 }
+                return first
+            }
+        )
+
+        XCTAssertEqual(frames.count, 14)
+        XCTAssertEqual(renderedCount.withLock { $0 }, 0)
+        XCTAssertTrue(try XCTUnwrap(frames.first).image === primary)
+        XCTAssertTrue(frames[7].image === secondary)
+        XCTAssertEqual(renderedCount.withLock { $0 }, 0, "Endpoint access needs no crossfade raster")
+        _ = frames[1]
+        XCTAssertEqual(renderedCount.withLock { $0 }, 1)
+        _ = frames[1]
+        XCTAssertEqual(renderedCount.withLock { $0 }, 2, "Consumed rasters are not retained by the frame plan")
+
+        let actual = CompositionOutputExporter.animationFrames(
+            primary: primary, secondary: secondary, interval: 0.75, crossfade: 0.2, loops: true
+        )
+        let sample = samplePixel(in: actual[1].image, topLeftX: 4, topLeftY: 3)
+        XCTAssertEqual(Double(sample.red), 219, accuracy: 1)
+        XCTAssertEqual(Double(sample.blue), 36, accuracy: 1)
+        XCTAssertEqual(sample.alpha, 255)
+        XCTAssertEqual(actual.plan.map(\.duration), frames.plan.map(\.duration))
     }
 
     func testAnimatedOutputRejectsNonBlinkComparisonWithStructuredError() async throws {
@@ -711,6 +772,26 @@ final class CompositionOutputExporterTests: XCTestCase {
                 )
             )
         }
+    }
+
+    func testDifferenceHTMLDoesNotApplyRenderedIntensityTwice() async throws {
+        let fixture = makeComparisonFixture(mode: .difference)
+        var composition = try XCTUnwrap(fixture.input.snapshot.composition)
+        composition.comparison.differenceIntensity = 0.25
+        let input = outputInput(composition: composition, assets: Array(fixture.input.compositionAssets.values))
+        let expected = try CompositionOutputExporter.staticImage(input)
+        let url = temporaryURL(extension: "html")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        _ = try await CompositionOutputExporter.export(input, format: .html, to: url)
+
+        let html = try String(contentsOf: url, encoding: .utf8)
+        let images = try embeddedImages(in: html)
+        XCTAssertEqual(images.count, 4)
+        let difference = try XCTUnwrap(images.dropFirst(2).first)
+        XCTAssertTrue(html.contains("data-comparison-mode=\"difference\""))
+        XCTAssertTrue(html.contains("data-difference-visibility=\"100\""), "The interactive viewer must show the baked result at full opacity")
+        XCTAssertEqual(normalizedRGBAPixels(difference), normalizedRGBAPixels(expected))
     }
 
     func testHTMLExportReportsMonotonicProgressThroughInstallation() async throws {

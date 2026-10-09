@@ -64,15 +64,18 @@ nonisolated struct CompositionRenderOptions: Equatable, Codable, Sendable {
 nonisolated struct CompositionRenderResult: @unchecked Sendable {
     let image: CGImage
     let layout: CompositionRenderLayout
+    let logicalCanvasSize: CGSize
     let registrationOutcome: CompositionRegistrationOutcome?
 
     init(
         image: CGImage,
         layout: CompositionRenderLayout,
+        logicalCanvasSize: CGSize? = nil,
         registrationOutcome: CompositionRegistrationOutcome? = nil
     ) {
         self.image = image
         self.layout = layout
+        self.logicalCanvasSize = logicalCanvasSize ?? layout.canvasSize
         self.registrationOutcome = registrationOutcome
     }
 }
@@ -411,6 +414,7 @@ nonisolated enum CompositionRenderer {
         return CompositionRenderResult(
             image: finalImage,
             layout: renderScale == 1 ? layout : scaledLayout(layout, by: renderScale),
+            logicalCanvasSize: layout.canvasSize,
             registrationOutcome: registrationOutcome
         )
     }
@@ -660,12 +664,14 @@ nonisolated enum CompositionRenderer {
             item.caption,
             placement: placement,
             appearance: appearance,
-            in: context
+            in: context,
+            canvasHeight: canvasHeight
         )
         drawStepBadge(
             placement,
             appearance: appearance,
-            in: context
+            in: context,
+            canvasHeight: canvasHeight
         )
         drawCardBorder(placement, appearance: appearance, in: context, canvasHeight: canvasHeight)
     }
@@ -739,6 +745,7 @@ nonisolated enum CompositionRenderer {
         placement: CompositionItemRenderLayout,
         opacity: CGFloat,
         clipOverride: CGRect? = nil,
+        drawRectOverride: CGRect? = nil,
         blendMode: CGBlendMode = .normal,
         cornerRadius: CGFloat = 0,
         in context: CGContext,
@@ -766,7 +773,7 @@ nonisolated enum CompositionRenderer {
         context.clip(to: clipRect)
         context.setAlpha(opacity.clampedCompositionUnit)
         context.setBlendMode(blendMode)
-        context.draw(image, in: quartzRect(placement.imageDrawRect, canvasHeight: canvasHeight))
+        context.draw(image, in: quartzRect(drawRectOverride ?? placement.imageDrawRect, canvasHeight: canvasHeight))
         context.restoreGState()
     }
 
@@ -774,7 +781,8 @@ nonisolated enum CompositionRenderer {
         _ caption: String?,
         placement: CompositionItemRenderLayout,
         appearance: CompositionCanvasAppearance,
-        in context: CGContext
+        in context: CGContext,
+        canvasHeight: CGFloat
     ) {
         guard let caption,
               !caption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -787,7 +795,7 @@ nonisolated enum CompositionRenderer {
             context.fill(
                 quartzRect(
                     captionRect,
-                    canvasHeight: CGFloat(context.height)
+                    canvasHeight: canvasHeight
                 )
             )
             context.restoreGState()
@@ -817,14 +825,13 @@ nonisolated enum CompositionRenderer {
             .paragraphStyle: paragraph,
         ]
 
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
-        (caption as NSString).draw(
-            with: textRect,
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: attributes
-        )
-        NSGraphicsContext.restoreGraphicsState()
+        withTopLeftGraphicsContext(in: context, canvasHeight: canvasHeight) {
+            (caption as NSString).draw(
+                with: textRect,
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: attributes
+            )
+        }
     }
 
     private static func drawTitle(
@@ -868,14 +875,13 @@ nonisolated enum CompositionRenderer {
             .foregroundColor: appearance.titleColor.nsColor,
             .paragraphStyle: paragraph,
         ]
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
-        (title as NSString).draw(
-            with: textRect,
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: attributes
-        )
-        NSGraphicsContext.restoreGraphicsState()
+        withTopLeftGraphicsContext(in: context, canvasHeight: canvasHeight) {
+            (title as NSString).draw(
+                with: textRect,
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: attributes
+            )
+        }
     }
 
     private static func compositionFont(
@@ -894,19 +900,14 @@ nonisolated enum CompositionRenderer {
     private static func drawStepBadge(
         _ placement: CompositionItemRenderLayout,
         appearance: CompositionCanvasAppearance,
-        in context: CGContext
+        in context: CGContext,
+        canvasHeight: CGFloat
     ) {
         guard case .step(_, let label) = placement.role,
               let label,
               let badgeRect = placement.badgeRect else {
             return
         }
-
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
-        let badgePath = NSBezierPath(ovalIn: badgeRect)
-        appearance.stepBadgeFill.nsColor.setFill()
-        badgePath.fill()
 
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .center
@@ -917,8 +918,12 @@ nonisolated enum CompositionRenderer {
             .paragraphStyle: paragraph,
         ]
         let textRect = badgeRect.offsetBy(dx: 0, dy: (badgeRect.height - fontSize * 1.25) / 2)
-        (label as NSString).draw(in: textRect, withAttributes: attributes)
-        NSGraphicsContext.restoreGraphicsState()
+        withTopLeftGraphicsContext(in: context, canvasHeight: canvasHeight) {
+            let badgePath = NSBezierPath(ovalIn: badgeRect)
+            appearance.stepBadgeFill.nsColor.setFill()
+            badgePath.fill()
+            (label as NSString).draw(in: textRect, withAttributes: attributes)
+        }
     }
 
     // MARK: - Comparison
@@ -1065,46 +1070,30 @@ nonisolated enum CompositionRenderer {
                     : nil,
                 threshold: composition.comparison.changeThreshold,
                 cueStyle: composition.comparison.differenceCueStyle,
+                intensity: composition.comparison.differenceIntensity,
                 renderScale: renderScale
             ) else {
                 throw CompositionRenderError.failedToCreateCanvas
             }
-            if comparison.mode == .changeHighlight {
-                drawImage(
-                    primaryImage,
-                    placement: primaryPlacement,
-                    opacity: primaryPlacement.opacity
-                        * composition.comparison.unchangedContentOpacity.clampedCompositionUnit,
-                    cornerRadius: appearance.itemCornerRadius,
-                    in: context,
-                    canvasHeight: canvasHeight
-                )
-                context.saveGState()
-                context.setBlendMode(.screen)
-                context.setAlpha(composition.comparison.differenceIntensity.clampedCompositionUnit)
-                context.draw(
-                    differenceImage,
-                    in: quartzRect(primaryPlacement.imageClipRect, canvasHeight: canvasHeight)
-                )
-                context.restoreGState()
-            } else {
-                drawImage(
-                    primaryImage,
-                    placement: primaryPlacement,
-                    opacity: primaryPlacement.opacity
-                        * composition.comparison.unchangedContentOpacity.clampedCompositionUnit,
-                    cornerRadius: appearance.itemCornerRadius,
-                    in: context,
-                    canvasHeight: canvasHeight
-                )
-                context.saveGState()
-                context.setAlpha(composition.comparison.differenceIntensity.clampedCompositionUnit)
-                context.draw(
-                    differenceImage,
-                    in: quartzRect(primaryPlacement.imageClipRect, canvasHeight: canvasHeight)
-                )
-                context.restoreGState()
-            }
+            drawImage(
+                primaryImage,
+                placement: primaryPlacement,
+                opacity: primaryPlacement.opacity
+                    * composition.comparison.unchangedContentOpacity.clampedCompositionUnit,
+                cornerRadius: appearance.itemCornerRadius,
+                in: context,
+                canvasHeight: canvasHeight
+            )
+            drawImage(
+                differenceImage,
+                placement: primaryPlacement,
+                opacity: composition.comparison.differenceIntensity.clampedCompositionUnit,
+                drawRectOverride: primaryPlacement.imageClipRect,
+                blendMode: .screen,
+                cornerRadius: appearance.itemCornerRadius,
+                in: context,
+                canvasHeight: canvasHeight
+            )
         }
 
         let caption = primaryItem.caption ?? secondaryItem.caption
@@ -1112,7 +1101,8 @@ nonisolated enum CompositionRenderer {
             caption,
             placement: primaryPlacement,
             appearance: appearance,
-            in: context
+            in: context,
+            canvasHeight: canvasHeight
         )
         drawCardBorder(primaryPlacement, appearance: appearance, in: context, canvasHeight: canvasHeight)
         drawComparisonLabels(
@@ -1133,6 +1123,7 @@ nonisolated enum CompositionRenderer {
         highlightColor: RGBAColor?,
         threshold: CGFloat,
         cueStyle: CompositionDifferenceCueStyle,
+        intensity: CGFloat,
         renderScale: CGFloat
     ) -> CGImage? {
         let clip = primaryPlacement.imageClipRect
@@ -1191,16 +1182,15 @@ nonisolated enum CompositionRenderer {
 
         guard let rawDifference = context.makeImage() else { return nil }
         let clampedThreshold = threshold.clampedCompositionUnit
-        guard clampedThreshold > 0 else { return rawDifference }
-
-        let adjusted = CIImage(cgImage: rawDifference).applyingFilter(
+        let rawImage = CIImage(cgImage: rawDifference)
+        let adjusted = clampedThreshold > 0 ? rawImage.applyingFilter(
             "CIColorControls",
             parameters: [
                 kCIInputContrastKey: 1 + clampedThreshold * 8,
                 kCIInputBrightnessKey: -clampedThreshold * 0.5,
                 kCIInputSaturationKey: highlightColor == nil ? 1 : 1.2,
             ]
-        )
+        ) : rawImage
         let cued: CIImage
         switch cueStyle {
         case .luminance:
@@ -1236,12 +1226,29 @@ nonisolated enum CompositionRenderer {
                     "CIEdges",
                     parameters: [kCIInputIntensityKey: 3]
                 )
-                cued = edges.composited(over: patterned)
+                cued = edges.applyingFilter(
+                    "CIScreenBlendMode",
+                    parameters: [kCIInputBackgroundImageKey: patterned]
+                )
             } else {
                 cued = patterned
             }
         }
-        return ciContext.createCGImage(cued, from: adjusted.extent)
+        let amplified: CIImage
+        if intensity.isFinite, intensity > 1 {
+            let gain = min(intensity, 2)
+            amplified = cued.applyingFilter(
+                "CIColorMatrix",
+                parameters: [
+                    "inputRVector": CIVector(x: gain, y: 0, z: 0, w: 0),
+                    "inputGVector": CIVector(x: 0, y: gain, z: 0, w: 0),
+                    "inputBVector": CIVector(x: 0, y: 0, z: gain, w: 0),
+                ]
+            )
+        } else {
+            amplified = cued
+        }
+        return ciContext.createCGImage(amplified, from: adjusted.extent)
     }
 
     private struct AutomaticRegistrationResult {
@@ -1495,13 +1502,12 @@ nonisolated enum CompositionRenderer {
             .foregroundColor: NSColor.white,
             .paragraphStyle: paragraph,
         ]
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
-        (text as NSString).draw(
-            in: rect.offsetBy(dx: 0, dy: (rect.height - font.pointSize * 1.25) / 2),
-            withAttributes: attributes
-        )
-        NSGraphicsContext.restoreGraphicsState()
+        withTopLeftGraphicsContext(in: context, canvasHeight: canvasHeight) {
+            (text as NSString).draw(
+                in: rect.offsetBy(dx: 0, dy: (rect.height - font.pointSize * 1.25) / 2),
+                withAttributes: attributes
+            )
+        }
     }
 
     // MARK: - Canvas decoration
@@ -1563,6 +1569,23 @@ nonisolated enum CompositionRenderer {
     }
 
     // MARK: - Quartz helpers
+
+    private static func withTopLeftGraphicsContext(
+        in context: CGContext,
+        canvasHeight: CGFloat,
+        _ draw: () -> Void
+    ) {
+        context.saveGState()
+        context.translateBy(x: 0, y: canvasHeight)
+        context.scaleBy(x: 1, y: -1)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
+        defer {
+            NSGraphicsContext.restoreGraphicsState()
+            context.restoreGState()
+        }
+        draw()
+    }
 
     private static func makeContext(width: Int, height: Int) -> CGContext? {
         guard width > 0,

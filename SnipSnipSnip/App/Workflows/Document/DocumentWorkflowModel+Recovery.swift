@@ -6,6 +6,7 @@ struct LibrarySwitchSnapshot {
     let controller: EditorController
     let documentURL: URL?
     let savedSession: EditorDocumentSession?
+    let savedAutosaveState: AutosaveState?
     let recoverySessionID: UUID?
 }
 
@@ -66,26 +67,26 @@ extension DocumentWorkflowModel {
         _ entry: DocumentHistoryEntry,
         clearPendingRecovery: Bool = true
     ) {
+        let restoredController: EditorController
+        do { restoredController = try preparedHistoryController(for: entry) }
+        catch { present(error); return }
+
         if let controller = editorController, !controller.isPrivateDocument {
-            rememberCurrentEditorForLibrarySwitch(controller)
-            shelveCurrentDocumentForRecents()
-            if restoreHistoryEntryImmediately(
-                entry,
-                clearPendingRecovery: clearPendingRecovery
-            ) {
-                showLibrarySwitchNotice()
-            } else {
-                previousLibrarySwitchSnapshot = nil
+            Task { @MainActor [weak self] in
+                guard let self,
+                      let state = await self.keepScreenshotInRecents(controller),
+                      self.editorController === controller,
+                      state == AutosaveState(controller: controller, documentURL: self.currentDocumentURL) else { return }
+                self.rememberCurrentEditorForLibrarySwitch(controller)
+                self.installHistoryController(restoredController, entry: entry, clearPendingRecovery: clearPendingRecovery)
+                self.showLibrarySwitchNotice()
             }
             return
         }
 
         previousLibrarySwitchSnapshot = nil
         performAfterHandlingUnsavedChanges { [weak self] in
-            _ = self?.restoreHistoryEntryImmediately(
-                entry,
-                clearPendingRecovery: clearPendingRecovery
-            )
+            self?.installHistoryController(restoredController, entry: entry, clearPendingRecovery: clearPendingRecovery)
         }
     }
 
@@ -94,6 +95,7 @@ extension DocumentWorkflowModel {
             controller: controller,
             documentURL: currentDocumentURL,
             savedSession: savedDocumentSession,
+            savedAutosaveState: savedEditorAutosaveState,
             recoverySessionID: currentRecoverySessionID
         )
     }
@@ -112,21 +114,26 @@ extension DocumentWorkflowModel {
         guard let snapshot = previousLibrarySwitchSnapshot else {
             return
         }
-        previousLibrarySwitchSnapshot = nil
-
-        if let controller = editorController, !controller.isPrivateDocument {
-            shelveCurrentDocumentForRecents()
+        guard let controller = editorController, !controller.isPrivateDocument else { return }
+        Task { @MainActor [weak self] in
+            guard let self,
+                  let state = await self.keepScreenshotInRecents(controller),
+                  self.editorController === controller,
+                  self.previousLibrarySwitchSnapshot?.controller === snapshot.controller,
+                  state == AutosaveState(controller: controller, documentURL: self.currentDocumentURL) else { return }
+            self.previousLibrarySwitchSnapshot = nil
+            self.installEditorController(
+                snapshot.controller,
+                documentURL: snapshot.documentURL,
+                savedSession: snapshot.savedSession,
+                savedAutosaveState: snapshot.savedAutosaveState,
+                recoverySessionID: snapshot.recoverySessionID
+            )
+            self.editorController?.showNotice(
+                "Returned to the previous Screenshot. The other Screenshot is in Recent Snips."
+            )
+            self.requestMainWindowPresentation()
         }
-        installEditorController(
-            snapshot.controller,
-            documentURL: snapshot.documentURL,
-            savedSession: snapshot.savedSession,
-            recoverySessionID: snapshot.recoverySessionID
-        )
-        editorController?.showNotice(
-            "Returned to the previous Screenshot. The other Screenshot is in Recent Snips."
-        )
-        requestMainWindowPresentation()
     }
 
     func deleteHistoryEntry(_ entry: DocumentHistoryEntry) {
@@ -213,35 +220,34 @@ extension DocumentWorkflowModel {
         clearPendingRecovery: Bool = true
     ) -> Bool {
         do {
-            let document = try recoveryStore.restoreDocument(from: entry)
-            let controller = EditorController(
-                capture: document.capture,
-                session: document.session,
-                capabilities: capabilities,
-                uiMapOverlayOptions: uiMapPinnedOverlayDefaults,
-                isPrivateDocument: document.isPrivate,
-                workflowResumeState: document.workflowResumeState,
-                sourceDocumentFormatVersion: document.sourceFormatVersion,
-                compositionStoredAssets: document.compositionStoredAssets
-            )
-            controller.restoreWorkflowWorkspace()
-            installEditorController(
-                controller,
-                documentURL: entry.sourceDocumentURL,
-                savedSession: nil,
-                recoverySessionID: entry.sessionID
-            )
-            if clearPendingRecovery {
-                clearRecoveryPendingState(for: entry.sessionID)
-            }
-            historyPreviewCoordinator.close()
-            snipLibraryCoordinator.close()
-            requestMainWindowPresentation()
+            let controller = try preparedHistoryController(for: entry)
+            installHistoryController(controller, entry: entry, clearPendingRecovery: clearPendingRecovery)
             return true
         } catch {
             present(error)
             return false
         }
+    }
+
+    private func preparedHistoryController(for entry: DocumentHistoryEntry) throws -> EditorController {
+        let document = try recoveryStore.restoreDocument(from: entry)
+        let controller = EditorController(
+            capture: document.capture, session: document.session, capabilities: capabilities,
+            uiMapOverlayOptions: uiMapPinnedOverlayDefaults, isPrivateDocument: document.isPrivate,
+            workflowResumeState: document.workflowResumeState,
+            sourceDocumentFormatVersion: document.sourceFormatVersion,
+            compositionStoredAssets: document.compositionStoredAssets
+        )
+        controller.restoreWorkflowWorkspace()
+        return controller
+    }
+
+    private func installHistoryController(_ controller: EditorController, entry: DocumentHistoryEntry, clearPendingRecovery: Bool) {
+        installEditorController(controller, documentURL: entry.sourceDocumentURL, savedSession: nil, recoverySessionID: entry.sessionID)
+        if clearPendingRecovery { clearRecoveryPendingState(for: entry.sessionID) }
+        historyPreviewCoordinator.close()
+        snipLibraryCoordinator.close()
+        requestMainWindowPresentation()
     }
 
     func createRecoverySessionIfNeeded(for controller: EditorController, documentURL: URL?) -> UUID? {
@@ -392,6 +398,19 @@ extension DocumentWorkflowModel {
     }
 
     func prepareForApplicationExit() async -> Bool {
+        updateDocumentChangeTracking()
+        if editorController?.isPrivateDocument == true, hasUnsavedChanges {
+            // Private work has no automatic recovery. Reuse the same explicit
+            // Save/Discard/Cancel decision as other destructive navigation.
+            guard !isShowingUnsavedChangesPrompt else { return false }
+            let mayExit = await withCheckedContinuation { continuation in
+                pendingEditorAction = { continuation.resume(returning: true) }
+                pendingEditorCancellation = { continuation.resume(returning: false) }
+                isShowingUnsavedChangesPrompt = true
+                requestMainWindowPresentation()
+            }
+            guard mayExit else { return false }
+        }
         guard await writeVideoRecoveryCheckpointIfNeeded() else {
             return false
         }
@@ -400,10 +419,14 @@ extension DocumentWorkflowModel {
         pendingAutosaveTask = nil
 
         if let controller = editorController,
-           currentRecoverySessionID != nil,
            shouldAutosave(for: controller) {
             controller.commitPendingTextEdits()
             updateDocumentChangeTracking()
+
+            if currentRecoverySessionID == nil {
+                currentRecoverySessionID = createRecoverySessionIfNeeded(for: controller, documentURL: currentDocumentURL)
+            }
+            guard currentRecoverySessionID != nil else { return false }
 
             let state = AutosaveState(controller: controller, documentURL: currentDocumentURL)
             if state != lastAutosavedState, state != lastEnqueuedRecoveryState {

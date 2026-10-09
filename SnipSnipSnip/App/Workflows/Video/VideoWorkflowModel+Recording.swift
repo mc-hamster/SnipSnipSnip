@@ -152,16 +152,7 @@ extension VideoWorkflowModel {
             return
         }
 
-        guard dependencies.permissions.preflight(
-            [.screenRecording],
-            featureName: "Video"
-        ).isGranted else {
-            failPreparingRecording(
-                generation: generation,
-                hiddenWindow: hiddenWindow
-            )
-            return
-        }
+        guard verifyPreparedRecordingAccess(generation: generation, hiddenWindow: hiddenWindow) else { return }
 
         do {
             let selectedWindow = try await dependencies.capture
@@ -389,7 +380,7 @@ extension VideoWorkflowModel {
                 failPreparingRecording(generation: generation, error: error)
                 return
             }
-            guard isCurrentPreparingGeneration(generation), !Task.isCancelled else { return }
+            guard verifyPreparedRecordingAccess(generation: generation) else { return }
             let canContinue = await documents?.prepareForNewVideoRecording() ?? true
             guard canContinue, isCurrentPreparingGeneration(generation), !Task.isCancelled else {
                 recordingLifecycle.reset(generation: generation)
@@ -403,11 +394,7 @@ extension VideoWorkflowModel {
         generation: UUID,
         presentationContext: WorkflowPresentationContext
     ) async {
-        guard dependencies.permissions.preflight([.screenRecording], featureName: "Video").isGranted,
-              isCurrentPreparingGeneration(generation) else {
-            recordingLifecycle.reset(generation: generation)
-            return
-        }
+        guard verifyPreparedRecordingAccess(generation: generation) else { return }
 
         _ = dependencies.capture.beginCapturePrivacyLock()
         defer { dependencies.capture.endCapturePrivacyLock() }
@@ -442,11 +429,7 @@ extension VideoWorkflowModel {
         generation: UUID,
         presentationContext: WorkflowPresentationContext
     ) async {
-        guard dependencies.permissions.preflight([.screenRecording], featureName: "Video").isGranted,
-              isCurrentPreparingGeneration(generation) else {
-            recordingLifecycle.reset(generation: generation)
-            return
-        }
+        guard verifyPreparedRecordingAccess(generation: generation) else { return }
 
         _ = dependencies.capture.beginCapturePrivacyLock()
         defer { dependencies.capture.endCapturePrivacyLock() }
@@ -505,11 +488,7 @@ extension VideoWorkflowModel {
     }
 
     private func beginWindowVideoRecording(_ window: CaptureWindowSummary, generation: UUID) async {
-        guard dependencies.permissions.preflight([.screenRecording], featureName: "Video").isGranted,
-              isCurrentPreparingGeneration(generation) else {
-            recordingLifecycle.reset(generation: generation)
-            return
-        }
+        guard verifyPreparedRecordingAccess(generation: generation) else { return }
 
         _ = dependencies.capture.beginCapturePrivacyLock()
         defer { dependencies.capture.endCapturePrivacyLock() }
@@ -674,6 +653,19 @@ extension VideoWorkflowModel {
         desiredVideoAudioOptions = nil
         recordingCommandTail = nil
         recordingLifecycle.reset(generation: active.generation)
+    }
+
+    private func verifyPreparedRecordingAccess(generation: UUID, hiddenWindow: AppWindowVisibilityToken? = nil) -> Bool {
+        guard isCurrentPreparingGeneration(generation), !Task.isCancelled else {
+            restoreAppWindowIfNeeded(hiddenWindow)
+            return false
+        }
+        dependencies.permissions.refreshPermissions()
+        guard dependencies.permissions.permissionStatus.hasScreenRecording else {
+            failPreparingRecording(generation: generation, hiddenWindow: hiddenWindow, error: ScreenRecordingError.permissionDenied)
+            return false
+        }
+        return true
     }
 
     private func failPreparingRecording(

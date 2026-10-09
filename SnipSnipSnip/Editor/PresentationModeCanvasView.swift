@@ -338,14 +338,13 @@ nonisolated enum PresentationCompositionOverlayOrdering {
 struct PresentationModeCanvasView: View {
     private enum PreviewState {
         case rendered(ScreenshotPresentationRenderResult)
-        case liveTransparent(contentImage: CGImage)
+        case liveTransparent(contentImage: CGImage, logicalContentSize: CGSize)
 
         var layout: ScreenshotPresentationRenderLayout {
             switch self {
             case let .rendered(result):
                 return result.layout
-            case let .liveTransparent(contentImage):
-                let size = CGSize(width: contentImage.width, height: contentImage.height)
+            case let .liveTransparent(_, size):
                 let rect = CGRect(origin: .zero, size: size)
                 return ScreenshotPresentationRenderLayout(
                     canvasSize: size,
@@ -360,6 +359,23 @@ struct PresentationModeCanvasView: View {
 
         var canvasSize: CGSize {
             layout.canvasSize
+        }
+
+        var sceneGeometry: PresentationSceneGeometry? {
+            if case .rendered(let result) = self { return result.sceneGeometry }
+            return nil
+        }
+
+        var sceneMappingUnavailable: Bool {
+            if case .rendered(let result) = self { return result.sceneMappingUnavailable }
+            return false
+        }
+
+        var pixelScale: CGFloat {
+            switch self {
+            case .rendered(let result): result.pixelScale
+            case .liveTransparent: 1
+            }
         }
     }
 
@@ -460,6 +476,9 @@ struct PresentationModeCanvasView: View {
                 PresentationViewportEventLayer(
                     controller: controller,
                     contentSize: contentSize,
+                    pixelScale: previewState?.pixelScale ?? 1,
+                    sceneGeometry: previewState?.sceneGeometry,
+                    sceneMappingUnavailable: previewState?.sceneMappingUnavailable ?? false,
                     presentationLayout: layout,
                     compositionLayout: compositionLayout,
                     sceneSlotRect: sceneSlotRect,
@@ -470,6 +489,9 @@ struct PresentationModeCanvasView: View {
                     }
                 )
                 .allowsHitTesting(true)
+                .help(previewState?.sceneMappingUnavailable == true
+                    ? String(localized: "This Mockup uses CSS transforms or a nested SVG viewport. Use the inspector controls to adjust framing.")
+                    : "")
             }
             .overlay {
                 if let layout, let compositionLayout,
@@ -745,12 +767,12 @@ struct PresentationModeCanvasView: View {
 
             if input.presentation.canUseLiveTransparentPresentationPreview {
                 let layout = ScreenshotPresentationRenderer.layout(
-                    contentSize: CGSize(width: input.contentImage.width, height: input.contentImage.height),
+                    contentSize: input.logicalContentSize,
                     presentation: input.presentation
                 )
                 controller.updatePresentationViewportContentSize(layout.canvasSize)
                 installPreviewState(
-                    .liveTransparent(contentImage: input.contentImage),
+                    .liveTransparent(contentImage: input.contentImage, logicalContentSize: input.logicalContentSize),
                     phase: requestedComparisonPhase,
                     sequence: sequence
                 )
@@ -782,7 +804,8 @@ struct PresentationModeCanvasView: View {
                         ScreenshotPresentationRenderer.renderWithLayout(
                             contentImage: input.contentImage,
                             presentation: input.presentation,
-                            maxPixelDimension: maxPixelDimension
+                            maxPixelDimension: maxPixelDimension,
+                            logicalContentSize: input.logicalContentSize
                         )
                     }
                 }
@@ -932,9 +955,9 @@ struct PresentationModeCanvasView: View {
         case let .rendered(result):
             return result.layout
 
-        case let .liveTransparent(contentImage):
+        case let .liveTransparent(_, logicalContentSize):
             return ScreenshotPresentationRenderer.layout(
-                contentSize: CGSize(width: contentImage.width, height: contentImage.height),
+                contentSize: logicalContentSize,
                 presentation: effectivePresentation
             )
         }
@@ -951,7 +974,7 @@ struct PresentationModeCanvasView: View {
                     height: max(state.canvasSize.height * displayScale, 1)
                 )
 
-        case let .liveTransparent(contentImage):
+        case let .liveTransparent(contentImage, _):
             let layout = activeLayout(for: state)
             ZStack(alignment: .topLeading) {
                 Color.clear
@@ -1342,6 +1365,9 @@ private struct CompositionCanvasAnnotationAccessibilityModifier: ViewModifier {
 private struct PresentationViewportEventLayer: NSViewRepresentable {
     @ObservedObject var controller: EditorController
     let contentSize: CGSize
+    let pixelScale: CGFloat
+    let sceneGeometry: PresentationSceneGeometry?
+    let sceneMappingUnavailable: Bool
     let presentationLayout: ScreenshotPresentationRenderLayout?
     let compositionLayout: CompositionRenderLayout?
     let sceneSlotRect: CGRect?
@@ -1352,6 +1378,9 @@ private struct PresentationViewportEventLayer: NSViewRepresentable {
         let view = PresentationViewportEventHostView(
             controller: controller,
             contentSize: contentSize,
+            pixelScale: pixelScale,
+            sceneGeometry: sceneGeometry,
+            sceneMappingUnavailable: sceneMappingUnavailable,
             presentationLayout: presentationLayout,
             compositionLayout: compositionLayout,
             sceneSlotRect: sceneSlotRect,
@@ -1364,6 +1393,9 @@ private struct PresentationViewportEventLayer: NSViewRepresentable {
     func updateNSView(_ nsView: PresentationViewportEventHostView, context: Context) {
         nsView.controller = controller
         nsView.contentSize = contentSize
+        nsView.pixelScale = pixelScale
+        nsView.sceneGeometry = sceneGeometry
+        nsView.sceneMappingUnavailable = sceneMappingUnavailable
         nsView.presentationLayout = presentationLayout
         nsView.compositionLayout = compositionLayout
         nsView.sceneSlotRect = sceneSlotRect
@@ -1372,7 +1404,7 @@ private struct PresentationViewportEventLayer: NSViewRepresentable {
     }
 }
 
-private final class PresentationViewportEventHostView: NSView {
+final class PresentationViewportEventHostView: NSView {
     private enum DragMode {
         case pan
         case subjectPlacement
@@ -1404,6 +1436,9 @@ private final class PresentationViewportEventHostView: NSView {
             synchronizeViewport()
         }
     }
+    var pixelScale: CGFloat
+    var sceneGeometry: PresentationSceneGeometry?
+    var sceneMappingUnavailable: Bool
     var presentationLayout: ScreenshotPresentationRenderLayout?
     var compositionLayout: CompositionRenderLayout?
     var sceneSlotRect: CGRect?
@@ -1420,6 +1455,9 @@ private final class PresentationViewportEventHostView: NSView {
     init(
         controller: EditorController,
         contentSize: CGSize,
+        pixelScale: CGFloat = 1,
+        sceneGeometry: PresentationSceneGeometry? = nil,
+        sceneMappingUnavailable: Bool = false,
         presentationLayout: ScreenshotPresentationRenderLayout?,
         compositionLayout: CompositionRenderLayout?,
         sceneSlotRect: CGRect?,
@@ -1427,6 +1465,9 @@ private final class PresentationViewportEventHostView: NSView {
     ) {
         self.controller = controller
         self.contentSize = contentSize
+        self.pixelScale = pixelScale
+        self.sceneGeometry = sceneGeometry
+        self.sceneMappingUnavailable = sceneMappingUnavailable
         self.presentationLayout = presentationLayout
         self.compositionLayout = compositionLayout
         self.sceneSlotRect = sceneSlotRect
@@ -1632,7 +1673,7 @@ private final class PresentationViewportEventHostView: NSView {
         }
         switch dragMode {
         case .subjectPlacement:
-            let scale = displayScale
+            let scale = displayScale * pixelScale
             guard scale > 0 else {
                 return
             }
@@ -1642,14 +1683,15 @@ private final class PresentationViewportEventHostView: NSView {
             controller.updatePresentationSubjectOffset(offset)
 
         case .sceneFraming:
-            let scale = displayScale
+            let scale = displayScale * pixelScale
             guard scale > 0 else {
                 return
             }
-            controller.adjustAppliedPresentationSceneFramingOffset(by: CGSize(
-                width: delta.width / scale,
-                height: delta.height / scale
-            ))
+            var localDelta = CGSize(width: delta.width / scale, height: delta.height / scale)
+            if let sceneGeometry {
+                localDelta = localDelta.applying(sceneGeometry.localToLogicalCanvas.inverted())
+            }
+            controller.adjustAppliedPresentationSceneFramingOffset(by: localDelta)
 
         case .compositionItem:
             guard controller.composition?.layout.mode == .freeform,
@@ -1770,6 +1812,10 @@ private final class PresentationViewportEventHostView: NSView {
 
     override func keyDown(with event: NSEvent) {
         onCanvasInteraction()
+        if event.keyCode == 53 {
+            cancelOperation(nil)
+            return
+        }
         guard controller.presentationInspectorTab == .layout,
               controller.hasComposition else {
             super.keyDown(with: event)
@@ -1791,8 +1837,6 @@ private final class PresentationViewportEventHostView: NSView {
             }
         case 51, 117:
             controller.removeSelectedCompositionItems()
-        case 53:
-            controller.finishCompositionItemFraming()
         case 123:
             handleCompositionArrowKey(dx: -1, dy: 0, modifiers: modifiers)
         case 124:
@@ -1915,7 +1959,7 @@ private final class PresentationViewportEventHostView: NSView {
     }
 
     private func isInsideSceneSlot(_ viewPoint: CGPoint) -> Bool {
-        guard let sceneSlotRect,
+        guard !sceneMappingUnavailable, let sceneSlotRect,
               controller.presentation.scene != nil else {
             return false
         }
@@ -1930,6 +1974,11 @@ private final class PresentationViewportEventHostView: NSView {
             x: (viewPoint.x - viewportRect.minX) / scale,
             y: (viewPoint.y - viewportRect.minY) / scale
         )
+        if let sceneGeometry, pixelScale > 0 {
+            let logicalPoint = CGPoint(x: scenePoint.x / pixelScale, y: scenePoint.y / pixelScale)
+            let localPoint = logicalPoint.applying(sceneGeometry.localToLogicalCanvas.inverted())
+            return sceneGeometry.localSlotRect.insetBy(dx: -8, dy: -8).contains(localPoint)
+        }
         return sceneSlotRect.insetBy(dx: -8, dy: -8).contains(scenePoint)
     }
 

@@ -91,11 +91,12 @@ nonisolated enum CompositionDocumentPreviewRenderer {
                     pinnedUIMapElements: input.pinnedUIMapElements,
                     uiMapOverlayOptions: input.uiMapOverlayOptions,
                     compositionOptions: options
-                )?.image,
+                ),
                 let presented = ScreenshotPresentationRenderer.renderWithLayout(
-                    contentImage: content,
+                    contentImage: content.image,
                     presentation: input.snapshot.presentation,
-                    maxPixelDimension: CGFloat(maximumPixelDimension)
+                    maxPixelDimension: CGFloat(maximumPixelDimension),
+                    logicalContentSize: content.logicalCanvasSize
                 )?.image else {
                     throw CompositionDocumentRenderError.failedToApplyPresentation
                 }

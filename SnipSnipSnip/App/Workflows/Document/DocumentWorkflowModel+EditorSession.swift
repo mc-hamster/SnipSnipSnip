@@ -92,12 +92,19 @@ extension DocumentWorkflowModel {
     func confirmSaveBeforeContinuing() {
         let continuation = pendingEditorAction
         let cancellation = pendingEditorCancellation
+        let expectedEditor = editorController
+        let expectedVideo = videoEditorController
+        let expectedGuide = guideEditorController
         pendingEditorAction = nil
         pendingEditorCancellation = nil
         isShowingUnsavedChangesPrompt = false
 
         Task { @MainActor [weak self] in
-            guard let self, await self.saveCurrentDocument() else {
+            guard let self,
+                  self.editorController === expectedEditor,
+                  self.videoEditorController === expectedVideo,
+                  self.guideEditorController === expectedGuide,
+                  await self.saveCurrentDocument(), !self.hasUnsavedChanges else {
                 cancellation?()
                 return
             }
@@ -243,6 +250,7 @@ extension DocumentWorkflowModel {
         _ controller: EditorController,
         documentURL: URL?,
         savedSession: EditorDocumentSession?,
+        savedAutosaveState: AutosaveState? = nil,
         recoverySessionID: UUID? = nil,
         shouldCreateRecoverySession: Bool = true,
         initialCheckpointLabel: String? = nil
@@ -257,7 +265,7 @@ extension DocumentWorkflowModel {
         pendingCompositionImportRecovery = nil
         currentDocumentURL = documentURL
         savedDocumentSession = savedSession
-        savedEditorAutosaveState = savedSession.map { _ in
+        savedEditorAutosaveState = savedAutosaveState ?? savedSession.map { _ in
             AutosaveState(controller: controller, documentURL: documentURL)
         }
         lastAutosavedState = nil

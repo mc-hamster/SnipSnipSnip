@@ -42,6 +42,19 @@ nonisolated enum GuideExitResult: Equatable, Sendable {
     case stayedOpen
 }
 
+nonisolated struct GuideConflictingActionPrompt {
+    let action: String
+    let isPrivate: Bool
+
+    var detail: String {
+        isPrivate
+            ? "The Private Guide will open so you can save or export it before \(action). Private Guides are not written to recovery."
+            : "Guide must stop before \(action). Completed steps and source media will be finalized and kept for recovery."
+    }
+
+    var confirmationTitle: String { isPrivate ? "Stop & Open Guide" : "Stop & Continue" }
+}
+
 @MainActor
 final class GuideWorkflowModel: ObservableObject {
     static let onboardingVersion = 1
@@ -55,6 +68,8 @@ final class GuideWorkflowModel: ObservableObject {
     private var activeFinishTask: Task<EditableGuideDocument, Error>?
     private var captureStateObservation: AnyCancellable?
     private var captureDiscardObservation: AnyCancellable?
+    private var captureSetupGeneration = UUID()
+    private var privateSetupGeneration: UUID?
 
     @Published var isShowingQuickStart = false
     @Published private(set) var captureSetupDraft: GuideCaptureSetupDraft?
@@ -101,6 +116,9 @@ final class GuideWorkflowModel: ObservableObject {
     var isDiscarding: Bool { captureCoordinator.isDiscarding }
     var availableWindows: [CaptureWindowSummary] { dependencies.capture.availableWindows }
     var stepCount: Int { captureCoordinator.project?.steps.count ?? 0 }
+    var captureSetupIsPrivate: Bool {
+        dependencies.capture.privateCaptureEnabled || privateSetupGeneration == captureSetupGeneration
+    }
     var exitContext: GuideExitContext? {
         guard isActive, let project = captureCoordinator.project else { return nil }
         return GuideExitContext(isPrivate: project.isPrivate, hasSteps: !project.steps.isEmpty)
@@ -121,6 +139,7 @@ final class GuideWorkflowModel: ObservableObject {
         // not hide those choices.
         targetPickerKind = nil
         if !isShowingQuickStart {
+            resetCaptureSetupPrivacy()
             restoreLastSourceSelection()
             captureSetupDraft = GuideCaptureSetupDraft(
                 preferences: capturePreferences, sourceKind: selectedSourceKind
@@ -131,6 +150,7 @@ final class GuideWorkflowModel: ObservableObject {
 
     func resumeSetupAfterPermissionRestart(_ draft: GuideCaptureSetupDraft) {
         guard dependencies.capabilities.isEnabled(.guideCapture) else { return }
+        resetCaptureSetupPrivacy()
         captureSetupDraft = draft
         selectedSourceKind = draft.sourceKind
         isShowingQuickStart = true
@@ -138,6 +158,7 @@ final class GuideWorkflowModel: ObservableObject {
 
     func cancelQuickStart() {
         dependencies.permissions.cancelDeferredOperation(ifFeature: "Guide")
+        resetCaptureSetupPrivacy()
         captureSetupDraft = nil
         targetPickerKind = nil
         isShowingQuickStart = false
@@ -186,15 +207,17 @@ final class GuideWorkflowModel: ObservableObject {
         let draft = setup ?? captureSetupDraft ?? GuideCaptureSetupDraft(
             preferences: capturePreferences, sourceKind: selectedSourceKind
         )
+        let setupGeneration = captureSetupGeneration
         captureSetupDraft = draft
         guard dependencies.permissions.preflight(
             [.screenRecording, .accessibility],
             featureName: "Guide"
         ).isGranted else {
             dependencies.permissions.deferOperation(requiring: [.screenRecording, .accessibility], featureName: "Guide") { [weak self] in
-                self?.beginSelectedSourceSelection(setup: draft)
+                guard let self, self.captureSetupGeneration == setupGeneration else { return }
+                self.beginSelectedSourceSelection(setup: draft)
             }
-            if !dependencies.capture.privateCaptureEnabled {
+            if !captureSetupIsPrivate {
                 dependencies.permissions.rememberPermissionRestartAction(.guide(draft))
             }
             return
@@ -205,7 +228,7 @@ final class GuideWorkflowModel: ObservableObject {
         isShowingQuickStart = false
         let sourceKind = draft.sourceKind
         Task { @MainActor [weak self] in
-            await self?.selectTargetOnScreen(sourceKind: sourceKind)
+            await self?.selectTargetOnScreen(sourceKind: sourceKind, generation: setupGeneration)
         }
     }
 
@@ -226,10 +249,11 @@ final class GuideWorkflowModel: ObservableObject {
         }
 
         targetPickerKind = nil
+        let setupGeneration = captureSetupGeneration
         Task { @MainActor [weak self] in
             guard let self else { return }
             try? await dependencies.systemServices.scheduler.sleep(nanoseconds: 180_000_000)
-            await selectTargetOnScreen(sourceKind: kind.rawValue)
+            await selectTargetOnScreen(sourceKind: kind.rawValue, generation: setupGeneration)
         }
     }
 
@@ -249,13 +273,16 @@ final class GuideWorkflowModel: ObservableObject {
         }
         isShowingQuickStart = false
         targetPickerKind = nil
+        let setupGeneration = captureSetupGeneration
+        let isPrivate = captureSetupIsPrivate
+        let setup = captureSetupDraft
         Task { @MainActor [weak self] in
-            guard let self else { return }
+            guard let self, captureSetupGeneration == setupGeneration else { return }
             do {
                 try await startImmediately(
                     source: source,
-                    privateCapture: dependencies.capture.privateCaptureEnabled,
-                    setup: captureSetupDraft
+                    privateCapture: isPrivate,
+                    setup: setup
                 )
             } catch {
                 returnToQuickStart()
@@ -407,20 +434,14 @@ final class GuideWorkflowModel: ObservableObject {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "Stop the active Guide?"
-        alert.informativeText = "Guide must stop before \(action). Completed steps and source media will be finalized and kept for recovery."
-        alert.addButton(withTitle: "Stop & Continue")
+        let prompt = GuideConflictingActionPrompt(action: action, isPrivate: captureCoordinator.project?.isPrivate == true)
+        alert.informativeText = prompt.detail
+        alert.addButton(withTitle: prompt.confirmationTitle)
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return false }
-        if stepCount == 0 { await captureCoordinator.discard() }
-        else {
-            do {
-                _ = try await captureCoordinator.stop()
-            } catch {
-                outputSink?.handle(GuideWorkflowOutput.presentError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription))
-                return false
-            }
-        }
-        return true
+        // Reuse the exit retention policy: private work and failed checkpoints
+        // must remain open instead of discarding the finalized document.
+        return await prepareForApplicationExit(.finalizeForRecovery) == .readyToExit
     }
 
     func recoverLatestGuide() {
@@ -453,22 +474,30 @@ final class GuideWorkflowModel: ObservableObject {
         }
     }
 
-    private func selectTargetOnScreen(sourceKind: String) async {
+    private func selectTargetOnScreen(sourceKind: String, generation: UUID) async {
+        guard captureSetupGeneration == generation else { return }
         let hiddenWindow = dependencies.appWindowPresenter.hideAppWindowIfNeeded()
+        var restoredWindow = false
+        defer {
+            if !restoredWindow { dependencies.appWindowPresenter.restoreAppWindowIfNeeded(hiddenWindow) }
+        }
         try? await dependencies.systemServices.scheduler.sleep(nanoseconds: 200_000_000)
+        guard captureSetupGeneration == generation else { return }
 
         let result: GuideTargetSelectionResult
         do {
-            result = try await targetSelectionResult(for: sourceKind)
+            result = try await targetSelectionResult(for: sourceKind, generation: generation)
         } catch {
-            dependencies.appWindowPresenter.restoreAppWindowIfNeeded(hiddenWindow)
+            guard captureSetupGeneration == generation else { return }
             returnToQuickStart()
             outputSink?.handle(GuideWorkflowOutput.presentError(error.localizedDescription))
             return
         }
 
         dependencies.appWindowPresenter.restoreAppWindowIfNeeded(hiddenWindow)
+        restoredWindow = true
         await Task.yield()
+        guard captureSetupGeneration == generation else { return }
 
         switch result {
         case .source(let source):
@@ -480,8 +509,9 @@ final class GuideWorkflowModel: ObservableObject {
         }
     }
 
-    private func targetSelectionResult(for sourceKind: String) async throws -> GuideTargetSelectionResult {
+    private func targetSelectionResult(for sourceKind: String, generation: UUID) async throws -> GuideTargetSelectionResult {
         let selection = try await dependencies.capture.videoWindowSelectionSnapshot()
+        guard captureSetupGeneration == generation else { return .cancelled }
         targetWindows = mergedTargetWindows(selection.windows)
 
         switch sourceKind {
@@ -580,6 +610,11 @@ final class GuideWorkflowModel: ObservableObject {
         isShowingQuickStart = true
     }
 
+    private func resetCaptureSetupPrivacy() {
+        captureSetupGeneration = UUID()
+        privateSetupGeneration = nil
+    }
+
     private func startImmediately(
         source: GuideCaptureSource,
         privateCapture: Bool,
@@ -605,6 +640,7 @@ final class GuideWorkflowModel: ObservableObject {
             capturePreferences = setup.preferences
             completeFirstUseSetup()
             captureSetupDraft = nil
+            resetCaptureSetupPrivacy()
             switch source {
             case .window(let id, _, _, _):
                 selectedSourceKind = "window"
@@ -680,6 +716,7 @@ extension GuideWorkflowModel: GuideAutomationPort {
                 guard !dependencies.capture.isWorking, !dependencies.video.blocksNewCapture, !dependencies.capture.isConnectedDeviceSessionActive else {
                     return .failure(requestID: request.id, code: .busy, message: "Finish the active capture or recording before starting Guide.")
                 }
+                cancelQuickStart()
                 if request.interactionPolicy == .never {
                     if case .region = target {
                         return .failure(requestID: request.id, code: .invalidRequest, message: "Guide Region capture requires an interactive automation policy.")
@@ -708,6 +745,7 @@ extension GuideWorkflowModel: GuideAutomationPort {
                 case .display:
                     source = .displays(.current)
                 case .region:
+                    if request.privacy.privateCapture { privateSetupGeneration = captureSetupGeneration }
                     selectedSourceKind = "region"
                     captureSetupDraft = GuideCaptureSetupDraft(
                         preferences: capturePreferences, sourceKind: "region"

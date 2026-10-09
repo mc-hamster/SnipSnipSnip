@@ -124,7 +124,7 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
             actionMessage = plainTextOnly ? "Copied as plain text." : "Copied."
             return true
         } else {
-            actionMessage = "This clipboard item is no longer available. Your current clipboard was preserved."
+            actionMessage = String(localized: "This item could not be copied. Try again.")
             return false
         }
     }
@@ -220,7 +220,7 @@ enum ClipboardPasteboardTransaction {
         preparedItems: [PasteboardItemSnapshot]?,
         fallbackWrite: () -> Bool
     ) -> Bool {
-        let previousItems = pasteboard.itemSnapshots(acceptedTypeIdentifiers: Set(pasteboard.typeNames))
+        let previousItems = pasteboard.rollbackItemSnapshots(acceptedTypeIdentifiers: Set(pasteboard.typeNames))
         _ = pasteboard.clearContents()
         let succeeded = preparedItems.map(pasteboard.writeItemSnapshots) ?? fallbackWrite()
         guard !succeeded else { return true }

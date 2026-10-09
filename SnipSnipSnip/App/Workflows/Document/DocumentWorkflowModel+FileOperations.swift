@@ -101,6 +101,7 @@ extension DocumentWorkflowModel {
             targetURL = selectedURL
         }
 
+        guard editorController === controller else { return false }
         return await saveDocument(controller, to: targetURL)
     }
 
@@ -128,6 +129,7 @@ extension DocumentWorkflowModel {
             return false
         }
 
+        guard editorController === controller else { return false }
         return await saveDocument(controller, to: selectedURL)
     }
 
@@ -158,7 +160,9 @@ extension DocumentWorkflowModel {
     func saveDocument(_ controller: EditorController, to url: URL) async -> Bool {
         controller.commitPendingTextEdits()
 
+        let wasCurrentController = editorController === controller
         let document = controller.editableDocument
+        let savedState = AutosaveState(controller: controller, documentURL: url)
         let payload = ScreenshotDocumentWritePayload(
             document: document,
             renderInput: controller.compositionDocumentPreviewInput(),
@@ -173,12 +177,18 @@ extension DocumentWorkflowModel {
                     try await DocumentPackageWriter.saveScreenshot(payload)
                 }
             }
+            guard editorController === controller else {
+                // A background save may finish after another document opens.
+                // Its file is valid, but it must not relabel that editor or
+                // allow an old Save-and-Continue action to replace it.
+                return !wasCurrentController
+            }
             currentDocumentURL = url
-            savedDocumentSession = controller.documentSession
+            savedDocumentSession = document.session
             controller.markDocumentSavedInCurrentFormat()
-            savedEditorAutosaveState = AutosaveState(controller: controller, documentURL: url)
+            savedEditorAutosaveState = savedState
             updateDocumentChangeTracking()
-            recordRecoveryCheckpoint(for: controller, label: "Saved", pendingRecovery: false)
+            recordRecoveryCheckpoint(for: controller, label: hasUnsavedChanges ? "Autosave" : "Saved", pendingRecovery: hasUnsavedChanges)
             return true
         } catch {
             present(error)
@@ -203,6 +213,7 @@ extension DocumentWorkflowModel {
             targetURL = selectedURL
         }
 
+        guard videoEditorController === controller else { return false }
         return await saveVideoDocument(controller, to: targetURL)
     }
 
@@ -217,11 +228,13 @@ extension DocumentWorkflowModel {
             return false
         }
 
+        guard videoEditorController === controller else { return false }
         return await saveVideoDocument(controller, to: selectedURL)
     }
 
     @discardableResult
     func saveVideoDocument(_ controller: VideoEditorController, to url: URL) async -> Bool {
+        let wasCurrentController = videoEditorController === controller
         let wasRecoveryCheckpointVideo = currentVideoUsesRecoveryCheckpoint
         let payload = VideoDocumentWritePayload(
             document: EditableVideoDocument(recording: controller.recording, session: controller.documentSession),
@@ -236,6 +249,7 @@ extension DocumentWorkflowModel {
                     try await DocumentPackageWriter.saveVideo(payload)
                 }
             }
+            guard videoEditorController === controller else { return !wasCurrentController }
             let persistedController = VideoEditorController(
                 recording: controller.recording.updatingSourceURL(
                     url.appendingPathComponent(SSSVideoDocumentPackage.mediaFilename)
@@ -243,7 +257,7 @@ extension DocumentWorkflowModel {
                 session: controller.documentSession,
                 posterImage: controller.posterImage
             )
-            installVideoController(persistedController, documentURL: url, savedSession: persistedController.documentSession)
+            installVideoController(persistedController, documentURL: url, savedSession: payload.document.session)
             completeVideoRecoveryAfterSave(wasRecoveryCheckpointVideo)
             return true
         } catch {

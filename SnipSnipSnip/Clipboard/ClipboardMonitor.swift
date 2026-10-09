@@ -141,7 +141,8 @@ enum ClipboardPasteboardReader {
     static func capturePasteboardContent(
         _ pasteboard: any PasteboardServicing,
         sourceApp: ClipboardSourceApp?,
-        preferences: ClipboardPreferences
+        preferences: ClipboardPreferences,
+        background: Bool = false
     ) -> ClipboardCapturedPasteboardContent? {
         let typeNames = pasteboard.typeNames
         guard !containsSensitiveOrTransientType(typeNames),
@@ -149,14 +150,19 @@ enum ClipboardPasteboardReader {
             return nil
         }
 
+        func read<Value>(_ body: () -> Value?) -> Value? {
+            guard !background || pasteboard.programmaticAccessPolicy.allowsBackgroundRead else { return nil }
+            return body()
+        }
+
         return ClipboardCapturedPasteboardContent(
-            urls: pasteboard.fileAndWebURLs(),
-            pngData: pasteboard.data(forType: .png),
-            tiffData: pasteboard.data(forType: .tiff),
-            text: pasteboard.string(forType: .string),
-            urlTitle: urlTitle(from: pasteboard),
+            urls: read { pasteboard.fileAndWebURLs() } ?? [],
+            pngData: read { pasteboard.data(forType: .png) },
+            tiffData: read { pasteboard.data(forType: .tiff) },
+            text: read { pasteboard.string(forType: .string) },
+            urlTitle: urlTitle(from: pasteboard, background: background),
             previewableBinaryRepresentations: previewableBinaryTypeIdentifiers.compactMap { typeIdentifier in
-                guard let data = pasteboard.data(forType: NSPasteboard.PasteboardType(typeIdentifier)),
+                guard let data = read({ pasteboard.data(forType: NSPasteboard.PasteboardType(typeIdentifier)) }),
                       !data.isEmpty else { return nil }
                 return ClipboardCapturedBinaryRepresentation(typeIdentifier: typeIdentifier, data: data)
             }
@@ -299,13 +305,16 @@ enum ClipboardPasteboardReader {
     }
 
     @MainActor
-    private static func urlTitle(from pasteboard: any PasteboardServicing) -> String? {
+    private static func urlTitle(from pasteboard: any PasteboardServicing, background: Bool = false) -> String? {
         [
             "public.url-name",
             "Apple URL name pasteboard type"
         ]
         .lazy
-        .compactMap { pasteboard.string(forType: NSPasteboard.PasteboardType($0)) }
+        .compactMap { type -> String? in
+            guard !background || pasteboard.programmaticAccessPolicy.allowsBackgroundRead else { return nil }
+            return pasteboard.string(forType: NSPasteboard.PasteboardType(type))
+        }
         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         .first { !$0.isEmpty }
     }
@@ -443,6 +452,7 @@ final class ClipboardMonitor: ObservableObject {
     func refreshAccessPolicy() {
         let current = pasteboard.programmaticAccessPolicy
         if accessPolicy != current { accessPolicy = current }
+        if !current.allowsBackgroundRead { cancelPendingIngestion() }
     }
 
     private func pollCurrentPasteboard() {
@@ -474,6 +484,7 @@ final class ClipboardMonitor: ObservableObject {
 
         observedChangeCount = pasteboard.changeCount
         let typeNames = pasteboard.typeNames
+        guard !ClipboardPasteboardReader.containsSensitiveOrTransientType(typeNames) else { return }
         let hasExplicitSource = typeNames.contains(ClipboardPasteboardReader.sourceTypeName)
         let explicitSourceIdentifier = hasExplicitSource
             ? (pasteboard.string(forType: NSPasteboard.PasteboardType(ClipboardPasteboardReader.sourceTypeName)) ?? "")
@@ -485,16 +496,18 @@ final class ClipboardMonitor: ObservableObject {
             workspace: workspace
         )
         let sanitizedPreferences = preferences.sanitized()
-        let pasteboardItems = pasteboard.itemSnapshots(
+        refreshAccessPolicy()
+        guard accessPolicy.allowsBackgroundRead, !sanitizedPreferences.ignores(sourceApp) else { return }
+        let pasteboardItems = pasteboard.backgroundItemSnapshots(
             acceptedTypeIdentifiers: ClipboardPasteboardReader.preservedTypeIdentifiers
         )
-        guard let content = ClipboardPasteboardReader.capturePasteboardContent(
-            pasteboard,
-            sourceApp: sourceApp,
-            preferences: sanitizedPreferences
-        ) else {
-            return
-        }
+        refreshAccessPolicy()
+        guard accessPolicy.allowsBackgroundRead else { return }
+        let content = ClipboardPasteboardReader.capturePasteboardContent(
+            pasteboard, sourceApp: sourceApp, preferences: sanitizedPreferences, background: true
+        )
+        refreshAccessPolicy()
+        guard accessPolicy.allowsBackgroundRead, let content else { return }
 
         enqueue(PendingChange(
             content: content,
@@ -538,6 +551,7 @@ final class ClipboardMonitor: ObservableObject {
         change: PendingChange,
         snapshot: ClipboardPasteboardSnapshot?
     ) {
+        refreshAccessPolicy()
         guard activeIngestionID == id else {
             return
         }

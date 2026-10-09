@@ -240,6 +240,7 @@ final class EditorController: ObservableObject {
         revision: Int,
         targetMaximumPixelDimension: Int?,
         comparisonPhase: CompositionComparisonPhase,
+        logicalContentSize: CGSize,
         image: CGImage
     )?
 
@@ -1230,10 +1231,7 @@ final class EditorController: ObservableObject {
             }
             return duplicate
         }
-        for duplicate in duplicates {
-            execute(AddAnnotationCommand(annotation: duplicate))
-        }
-        execute(SetSelectionCommand(annotationIDs: duplicates.map(\.id)), undoable: false)
+        execute(AddAnnotationsCommand(annotations: duplicates))
     }
 
     func select(_ annotationID: UUID?, additive: Bool = false, toggle: Bool = false) {
@@ -4007,6 +4005,10 @@ final class EditorController: ObservableObject {
             composition: projected.composition
         )
         invalidateCanvas(invalidationReason)
+        // The presentation preview owns its rendered canvas dimensions. Resetting
+        // to source pixels here makes zoom and drag coordinates jump between
+        // successive events while the next preview is still rendering.
+        guard workspaceMode != .presentation else { return }
         updateViewport(
             publishChange: fitViewportToCrop,
             invalidationReason: fitViewportToCrop ? .full : invalidationReason

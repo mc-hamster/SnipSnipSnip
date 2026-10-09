@@ -61,6 +61,123 @@ final class ClipboardAppModelTests: XCTestCase {
         XCTAssertGreaterThan(pasteboard.contentReadCount, reads)
     }
 
+    func testConcealedAndTransientCopiesDoNotReadClipboardSourceOrContent() {
+        for typeName in ClipboardPasteboardReader.concealedAndTransientTypeNames.sorted() {
+            let name = "ClipboardAppModelTests.excludedType.\(UUID())"
+            let store = makeClipboardStore(named: name)
+            let pasteboard = TestPasteboardService()
+            pasteboard.programmaticAccessPolicy = .systemDefault
+            let monitor = ClipboardMonitor(store: store, pasteboard: pasteboard, workspace: TestWorkspaceService())
+            defer { monitor.stop(); removeClipboardStore(named: name) }
+            pasteboard.setString("Excluded clipboard content", forType: .string)
+            pasteboard.setString("com.apple.Notes", forType: .init(ClipboardPasteboardReader.sourceTypeName))
+            pasteboard.addType(typeName)
+            var preferences = ClipboardPreferences.default
+            preferences.isEnabled = true
+
+            monitor.start(preferences: preferences)
+
+            XCTAssertEqual(pasteboard.contentReadCount, 0, "\(typeName) must be excluded before source or payload reads can prompt")
+            XCTAssertTrue(store.items.isEmpty)
+        }
+    }
+
+    func testIgnoredFrontmostAppCopyDoesNotReadClipboardContent() {
+        let name = "ClipboardAppModelTests.ignoredFrontmostApp.\(UUID())"
+        let store = makeClipboardStore(named: name)
+        let pasteboard = TestPasteboardService()
+        pasteboard.programmaticAccessPolicy = .systemDefault
+        let workspace = TestWorkspaceService(frontmostApplication: WorkspaceRunningApplicationSnapshot(
+            processIdentifier: 101, activationPolicy: .regular,
+            bundleIdentifier: "com.bitwarden.desktop", localizedName: "Bitwarden", bundleURL: nil
+        ))
+        let monitor = ClipboardMonitor(store: store, pasteboard: pasteboard, workspace: workspace)
+        defer { monitor.stop(); removeClipboardStore(named: name) }
+        pasteboard.setString("Ignored clipboard content", forType: .string)
+        var preferences = ClipboardPreferences.default
+        preferences.isEnabled = true
+
+        monitor.start(preferences: preferences)
+
+        XCTAssertEqual(pasteboard.contentReadCount, 0, "Ignored sources must be excluded before payload reads can prompt")
+        XCTAssertTrue(store.items.isEmpty)
+    }
+
+    func testIgnoredExplicitSourceCopyReadsOnlySourceMetadata() {
+        let name = "ClipboardAppModelTests.ignoredExplicitSource.\(UUID())"
+        let store = makeClipboardStore(named: name)
+        let pasteboard = TestPasteboardService()
+        let workspace = TestWorkspaceService(frontmostApplication: WorkspaceRunningApplicationSnapshot(
+            processIdentifier: 101, activationPolicy: .regular,
+            bundleIdentifier: "com.apple.Notes", localizedName: "Notes", bundleURL: nil
+        ))
+        let monitor = ClipboardMonitor(store: store, pasteboard: pasteboard, workspace: workspace)
+        defer { monitor.stop(); removeClipboardStore(named: name) }
+        pasteboard.setString("Ignored clipboard content", forType: .string)
+        pasteboard.setString("com.bitwarden.desktop", forType: .init(ClipboardPasteboardReader.sourceTypeName))
+        var preferences = ClipboardPreferences.default
+        preferences.isEnabled = true
+
+        monitor.start(preferences: preferences)
+
+        XCTAssertEqual(pasteboard.contentReadCount, 1, "Only the source metadata is needed to exclude an explicit ignored source")
+        XCTAssertTrue(store.items.isEmpty)
+    }
+
+    func testPermissionDeniedDuringClipboardReadStopsFurtherReadsImmediately() {
+        let name = "ClipboardSecondPass.deniedDuringRead.\(UUID())"
+        let store = makeClipboardStore(named: name)
+        let pasteboard = TestPasteboardService()
+        let monitor = ClipboardMonitor(store: store, pasteboard: pasteboard, workspace: TestWorkspaceService())
+        defer { monitor.stop(); removeClipboardStore(named: name) }
+        pasteboard.setString("Must not be captured after denial", forType: .string)
+        pasteboard.onContentRead = { [weak pasteboard] in pasteboard?.programmaticAccessPolicy = .denied }
+        var preferences = ClipboardPreferences.default
+        preferences.isEnabled = true
+        monitor.start(preferences: preferences)
+        XCTAssertEqual(pasteboard.contentReadCount, 1, "A denial during the first read must stop subsequent protected reads")
+        XCTAssertEqual(monitor.accessPolicy, .denied)
+        XCTAssertTrue(store.items.isEmpty)
+    }
+
+    func testRevokingClipboardAccessDiscardsInFlightIngestion() async {
+        for refreshBeforeCompletion in [true, false] {
+            let name = "ClipboardSecondPass.deniedDuringIngestion.\(UUID())"
+            let store = makeClipboardStore(named: name)
+            let pasteboard = TestPasteboardService()
+            let barrier = DeferredBoolVerifier()
+            let monitor = ClipboardMonitor(store: store, pasteboard: pasteboard, workspace: TestWorkspaceService(), snapshotResolver: { captured in
+                _ = await barrier.value()
+                return .text(captured.text ?? "")
+            })
+            defer { monitor.stop(); removeClipboardStore(named: name) }
+            pasteboard.setString("Pending clipboard content", forType: .string)
+            var preferences = ClipboardPreferences.default
+            preferences.isEnabled = true
+            monitor.start(preferences: preferences)
+            await barrier.waitForRequest()
+            pasteboard.programmaticAccessPolicy = .denied
+            if refreshBeforeCompletion { monitor.refreshAccessPolicy() }
+            await barrier.resume(returning: true)
+            for _ in 0..<100 { await Task.yield() }
+            XCTAssertTrue(store.items.isEmpty, "Revocation must invalidate pending ingestion even before the next timer tick")
+            XCTAssertEqual(monitor.accessPolicy, .denied)
+        }
+    }
+
+    func testBackgroundReaderStopsMidBatchWithoutBlockingExplicitPaste() throws {
+        let pasteboard = TestPasteboardService()
+        pasteboard.setString("Explicit paste remains available", forType: .string)
+        pasteboard.onContentRead = { [weak pasteboard] in pasteboard?.programmaticAccessPolicy = .denied }
+        let captured = ClipboardPasteboardReader.capturePasteboardContent(pasteboard,
+            sourceApp: nil, preferences: .default, background: true)
+        XCTAssertEqual(pasteboard.contentReadCount, 1)
+        XCTAssertNil(captured?.text)
+        pasteboard.onContentRead = nil
+        let explicit = ClipboardPasteboardReader.capturePasteboardContent(pasteboard, sourceApp: nil, preferences: .default)
+        XCTAssertEqual(try XCTUnwrap(explicit).text, "Explicit paste remains available")
+    }
+
     func testHistoryMutationsNotifyClipboardWindowModel() throws {
         let name = "ClipboardAppModelTests.historyObservation"
         let defaults = makeDefaults(named: name)
@@ -220,9 +337,12 @@ final class ClipboardAppModelTests: XCTestCase {
         let preset = CapturePreset(name: "Copy preset", target: .fullscreen,
                                    options: CaptureRunOptions(), outcome: .copyToClipboard)
         model.capture.capturePresets = [preset]
-        model.capture.activeWorkflowPresetID = preset.id
+        var context = CaptureCompletionContext.standalone
+        context.workflowPreset = preset
+        context.workflowPresetRunID = UUID()
         try model.capture.completeCapture(makeCapturedScreenshot(), request: .fullscreen,
-                                        isPrivateCapture: false, shouldAttemptUIMapCapture: false)
+                                        isPrivateCapture: false, shouldAttemptUIMapCapture: false,
+                                        completionContext: context)
         await waitUntil { store.items.count == 1 && pasteboard.data(forType: .png) != nil }
         XCTAssertEqual(store.items.count, 1)
         XCTAssertNotNil(pasteboard.data(forType: .png))

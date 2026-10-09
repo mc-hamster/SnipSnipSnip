@@ -198,7 +198,12 @@ Before submitting 1.2, check these native OS flows in the shipping build:
 | Microphone denial | Open Microphone Settings, Try Again, and Record Without Microphone are available; retry stays in Video and saved preferences remain unchanged. |
 | Camera denial with a connected device (Pro) | Camera recovery opens the appropriate settings pane; retry keeps screenshot versus recording intent. |
 | Clipboard access denied or set to ask, where macOS enforces it | Monitoring reports Blocked or Needs Access and stops background reads; saved items remain available. |
-| Revocation while the app is running | A newly negative system status clears cached readiness; no background permission prompt or capture is triggered. |
+| Revocation while the app is running | A newly negative system status clears cached readiness, including during a pending verification; no background permission prompt or capture is triggered. |
+| Cancel or fail while loading Video windows | Preparation releases its busy state immediately; a late discovery result cannot reopen or overwrite a newer picker. |
+| Copy a saved item or Capture Text with clipboard access set to ask | Copy succeeds without requesting access to the old clipboard; a write failure reports failure. |
+| Concealed or ignored-source clipboard content | Monitoring discards it before reading its payload. |
+| Clipboard denial during a read or pending processing | Further background reads stop immediately and pending content is discarded; explicit Paste remains available. |
+| Resume Capture Frontmost Window after setup | Choose Window reconfirms the target so System Settings is not captured as the new frontmost app. |
 | Unattended Guide (Pro) | Missing access returns permissionDenied without UI; Region returns invalidRequest because target selection requires interaction. |
 | Cancel or restart with private/document-specific work | Existing work and normal recovery safeguards are preserved; no private acquisition or stale editor destination is persisted for replay. |
 

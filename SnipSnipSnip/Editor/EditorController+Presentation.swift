@@ -4,6 +4,7 @@ import Foundation
 
 nonisolated struct PresentationPreviewRenderInput: @unchecked Sendable {
     let contentImage: CGImage
+    let logicalContentSize: CGSize
     let presentation: ScreenshotPresentation
     let contentRevision: Int
     let suppressesContentDiagnostics: Bool
@@ -50,7 +51,8 @@ extension EditorController {
                 ScreenshotPresentationRenderer.renderWithLayout(
                     contentImage: input.contentImage,
                     presentation: input.presentation,
-                    maxPixelDimension: maxPixelDimension
+                    maxPixelDimension: maxPixelDimension,
+                    logicalContentSize: input.logicalContentSize
                 )
             }
         }
@@ -86,6 +88,8 @@ extension EditorController {
 
             return PresentationPreviewRenderInput(
                 contentImage: contentImage,
+                logicalContentSize: presentationContentCache?.logicalContentSize
+                    ?? CGSize(width: contentImage.width, height: contentImage.height),
                 presentation: effectivePresentation,
                 contentRevision: presentationContentRevision,
                 suppressesContentDiagnostics: isPrivateDocument
@@ -256,10 +260,7 @@ extension EditorController {
         }
 
         return PresentationSceneRenderer.framingAnalysis(
-            contentSize: CGSize(
-                width: presentationContentCache.image.width,
-                height: presentationContentCache.image.height
-            ),
+            contentSize: presentationContentCache.logicalContentSize,
             scene: scene
         )
     }
@@ -886,6 +887,7 @@ extension EditorController {
         }
 
         let image: CGImage?
+        var logicalContentSize = CGSize.zero
         do {
             // Capped live previews use the repository's descriptor-first,
             // cell-size-aware path. Only uncapped output resolves full sources.
@@ -912,6 +914,7 @@ extension EditorController {
             }
             setCompositionRegistrationOutcome(renderResult?.registrationOutcome)
             image = renderResult?.image
+            logicalContentSize = renderResult?.logicalCanvasSize ?? .zero
         } catch {
             errorMessage = (error as? LocalizedError)?.errorDescription
                 ?? error.localizedDescription
@@ -928,6 +931,7 @@ extension EditorController {
             presentationContentRevision,
             targetMaximumPixelDimension,
             comparisonPhase,
+            logicalContentSize,
             image
         )
         PresentationPerformanceMetrics.logEvent(

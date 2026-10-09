@@ -17,9 +17,9 @@ nonisolated enum PendingCapturePermissionCommand: String, Codable, Sendable {
             capture.beginFullscreenCapture()
         case .region:
             capture.beginRegionCapture()
-        case .frontmostWindow:
-            capture.beginFrontmostWindowCapture()
-        case .windowPicker:
+        case .frontmostWindow, .windowPicker:
+            // Permission setup can make System Settings the frontmost app.
+            // Reconfirm a Window target instead of capturing the new foreground.
             capture.windowPickerMode = .screenshot
             capture.beginWindowPickerPresentation()
         case .scrollingCapture:
@@ -243,25 +243,23 @@ extension CaptureWorkflowModel {
         case .refreshWindows:
             refreshAvailableWindows(includeThumbnails: true, allowsCancellingPendingThumbnailRefresh: true)
         case .pickAnotherWindow:
-            presentWindowPicker(
-                intent: captureContext.intent,
-                completionRole: captureContext.role,
-                oneShotOptions: captureContext.oneShotOptions
-            )
+            activeCaptureContext = captureContext
+            presentPreparedWindowPicker()
         case .captureFrontmostWindow:
-            captureFrontmostWindow(
-                intent: captureContext.intent,
-                completionRole: captureContext.role,
-                oneShotOptions: captureContext.oneShotOptions
-            )
+            activeCaptureContext = captureContext
+            runScreenshotCaptureWhenPermissionsReady(for: .frontmostWindow, pendingCommand: .frontmostWindow) { [weak self] in
+                self?.beginFrontmostWindowCapture()
+            }
         case .useCurrentDisplay:
             screenshotFullscreenDisplayMode = .currentDisplay
             selectedScreenshotFullscreenDisplayID = nil
-            captureCurrentDisplay(
-                intent: captureContext.intent,
-                completionRole: captureContext.role,
-                oneShotOptions: captureContext.oneShotOptions
-            )
+            var context = captureContext
+            context.workflowPreset?.options.fullscreenDisplayMode = .currentDisplay
+            context.workflowPreset?.options.selectedFullscreenDisplayID = nil
+            activeCaptureContext = context
+            runScreenshotCaptureWhenPermissionsReady { [weak self] in
+                self?.beginFullscreenCapture()
+            }
         case .chooseDisplay:
             dependencies.lifecycle.presentSettings(tab: .capture)
         case .captureVisibleArea:
@@ -324,6 +322,10 @@ extension CaptureWorkflowModel {
         let connectedDeviceIntent = pendingConnectedDevicePreviewIntent
         pendingConnectedDevicePreviewIntent = nil
         activeCaptureContext = captureContext
+        if let preset = captureContext.workflowPreset {
+            capturePreset(preset, captureContext: captureContext)
+            return
+        }
         switch pendingRecoveryRequest {
         case .region(let region):
             repeatRegionCapture(region)

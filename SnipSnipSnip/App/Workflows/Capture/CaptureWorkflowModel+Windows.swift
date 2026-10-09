@@ -46,11 +46,13 @@ extension CaptureWorkflowModel {
     ) async -> Result<Void, Error> {
         if Task.isCancelled { return .failure(CancellationError()) }
         if isLoadingWindowChoices {
-            if presentPicker {
-                isShowingWindowPicker = true
-            }
-
-            return .success(())
+            guard presentPicker else { return .success(()) }
+            // An explicit picker must own its discovery result, including errors.
+            // Fence the previous load before preflight so even a denied replacement
+            // cannot leave its predecessor's loading or busy state behind.
+            windowChoiceLoadID = nil
+            isLoadingWindowChoices = false
+            isWorking = false
         }
 
         dependencies.permissions.refreshPermissions()

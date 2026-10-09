@@ -10,6 +10,7 @@ extension CaptureWorkflowModel {
         captureContext: CaptureCompletionContext
     ) {
         Task {
+            defer { resetPreparedCaptureContext(ifMatching: captureContext) }
             guard ensureScreenshotCaptureAccess(for: .region(savedRegion.rect), runOptions: options) else {
                 return
             }

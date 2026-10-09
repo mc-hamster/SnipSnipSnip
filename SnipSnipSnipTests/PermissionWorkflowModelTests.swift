@@ -540,7 +540,8 @@ final class PermissionWorkflowModelTests: XCTestCase {
         XCTAssertNil(model.capture.captureRecovery, "Video must not route discovery failures into screenshot retry")
     }
 
-    func testVideoWindowSelectionHandlesPermissionRevokedAfterAudioPreflight() async {
+    func testVideoSourcesHandlePermissionRevokedAfterAudioPreflight() async {
+        for source in [PermissionRestartVideoSource.window, .screen, .region] {
         let name = "PermissionSecondPassTests.revokedBeforeWindowPicker.\(UUID())"
         let defaults = makeDefaults(named: name)
         let permissions = MutablePermissionService(status: CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true))
@@ -561,13 +562,18 @@ final class PermissionWorkflowModelTests: XCTestCase {
             defaults.removePersistentDomain(forName: name)
         }
         model.video.recordingPreferences.recordsMicrophone = true
-        model.video.presentVideoWindowPicker()
+        switch source {
+        case .window: model.video.presentVideoWindowPicker()
+        case .screen: model.video.recordCurrentDisplay()
+        case .region: model.video.recordRegion()
+        }
         await waitUntil { !model.permissions.permissionStatus.hasScreenRecording }
         await Task.yield()
         XCTAssertFalse(model.video.blocksNewCapture)
         XCTAssertNotNil(model.video.recordingStartRecovery)
         XCTAssertEqual(captureService.windowListCount, 0)
         XCTAssertTrue(permissions.requestedRequirements().isEmpty, "Discovery should report the loss, not trigger another prompt")
+        }
     }
 
     func testCancelledVideoWindowDiscoveryCannotReopenPicker() async {
@@ -636,6 +642,250 @@ final class PermissionWorkflowModelTests: XCTestCase {
         XCTAssertEqual(model.capture.availableWindows.map(\.id), [newWindow.id])
         XCTAssertEqual(model.video.recordingLifecycle.generation, newGeneration)
         XCTAssertNil(model.video.recordingStartRecovery)
+    }
+
+    func testVideoPickerOwnsDiscoveryFailureWhileBackgroundRefreshFailsLate() async {
+        let name = "PermissionSecondPassTests.backgroundAndVideoDiscoveryFailure.\(UUID())"
+        let defaults = makeDefaults(named: name)
+        let backgroundBarrier = DeferredBoolVerifier()
+        let videoBarrier = DeferredBoolVerifier()
+        let service = PermissionRetryCaptureService(windowListHandler: { request in
+            if request == 1 {
+                _ = await backgroundBarrier.value()
+                throw ScreenCaptureError.noWindowsAvailable
+            }
+            _ = await videoBarrier.value()
+            throw ScreenCaptureError.permissionDenied
+        })
+        let model = AppModel(defaults: defaults,
+            environment: AppEnvironment(defaults: defaults, permissions: TestCapturePermissionService()),
+            recoveryStore: DocumentRecoveryStore(baseURL: FileManager.default.temporaryDirectory.appendingPathComponent(name)),
+            captureService: service, screenRecordingService: ScreenRecordingService(),
+            shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false)
+        defer {
+            model.video.cancelPendingVideoRecording()
+            model.video.dismissVideoStartRecovery()
+            model.capture.dismissCaptureRecovery()
+            defaults.removePersistentDomain(forName: name)
+        }
+        let backgroundTask = Task {
+            await model.capture.loadAvailableWindows(requestAccessIfNeeded: false, presentPicker: false,
+                showErrors: false, includeThumbnails: false)
+        }
+        await backgroundBarrier.waitForRequest()
+        model.video.presentVideoWindowPicker()
+        await waitUntil { service.windowListCount == 2 }
+        guard service.windowListCount == 2 else {
+            XCTFail("Video must start its own discovery while a background refresh is pending")
+            await backgroundBarrier.resume(returning: true)
+            _ = await backgroundTask.value
+            return
+        }
+        await videoBarrier.waitForRequest()
+        let videoTask = model.video.recordingStartTask
+        let videoLoadID = model.capture.windowChoiceLoadID
+
+        await backgroundBarrier.resume(returning: true)
+        _ = await backgroundTask.value
+        XCTAssertEqual(model.capture.windowChoiceLoadID, videoLoadID)
+        XCTAssertTrue(model.capture.isLoadingWindowChoices)
+        XCTAssertTrue(model.capture.isWorking)
+        XCTAssertTrue(model.video.blocksNewCapture)
+        XCTAssertNil(model.video.recordingStartRecovery)
+
+        await videoBarrier.resume(returning: true)
+        await videoTask?.value
+        XCTAssertFalse(model.capture.isLoadingWindowChoices)
+        XCTAssertFalse(model.capture.isWorking)
+        XCTAssertFalse(model.capture.isShowingWindowPicker)
+        XCTAssertFalse(model.video.blocksNewCapture)
+        XCTAssertNil(model.video.pendingWindowPickerGeneration)
+        XCTAssertNotNil(model.video.recordingStartRecovery)
+        XCTAssertNil(model.capture.captureRecovery)
+    }
+
+    func testLateBackgroundDiscoveryCannotOverwriteVideoPickerWindows() async {
+        let name = "PermissionSecondPassTests.backgroundDiscoveryReplacedByVideo.\(UUID())"
+        let defaults = makeDefaults(named: name)
+        let barrier = DeferredBoolVerifier()
+        let oldWindow = makeCaptureWindow(id: 501)
+        let newWindow = makeCaptureWindow(id: 502)
+        let service = PermissionRetryCaptureService(windowListHandler: { request in
+            if request == 1 {
+                _ = await barrier.value()
+                return [oldWindow]
+            }
+            return [newWindow]
+        })
+        let model = AppModel(defaults: defaults,
+            environment: AppEnvironment(defaults: defaults, permissions: TestCapturePermissionService()),
+            recoveryStore: DocumentRecoveryStore(baseURL: FileManager.default.temporaryDirectory.appendingPathComponent(name)),
+            captureService: service, screenRecordingService: ScreenRecordingService(),
+            shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false)
+        defer {
+            model.video.cancelPendingVideoRecording()
+            defaults.removePersistentDomain(forName: name)
+        }
+        let backgroundTask = Task {
+            await model.capture.loadAvailableWindows(requestAccessIfNeeded: false, presentPicker: false,
+                showErrors: false, includeThumbnails: false)
+        }
+        await barrier.waitForRequest()
+        model.video.presentVideoWindowPicker()
+        await waitUntil { model.capture.isShowingWindowPicker }
+        XCTAssertEqual(model.capture.availableWindows.map(\.id), [newWindow.id])
+        let generation = model.video.recordingLifecycle.generation
+
+        await barrier.resume(returning: true)
+        _ = await backgroundTask.value
+        XCTAssertEqual(model.capture.availableWindows.map(\.id), [newWindow.id])
+        XCTAssertEqual(model.video.recordingLifecycle.generation, generation)
+        XCTAssertTrue(model.capture.isShowingWindowPicker)
+        XCTAssertFalse(model.capture.isLoadingWindowChoices)
+        XCTAssertFalse(model.capture.isWorking)
+        XCTAssertNil(model.video.recordingStartRecovery)
+        XCTAssertNil(model.capture.captureRecovery)
+    }
+
+    func testRepeatedExplicitPickerLoadKeepsLatestLoadingStateUntilCompletion() async {
+        let name = "PermissionSecondPassTests.repeatedExplicitPicker.\(UUID())"
+        let defaults = makeDefaults(named: name)
+        let firstBarrier = DeferredBoolVerifier()
+        let secondBarrier = DeferredBoolVerifier()
+        let newWindow = makeCaptureWindow(id: 602)
+        let service = PermissionRetryCaptureService(windowListHandler: { request in
+            if request == 1 {
+                _ = await firstBarrier.value()
+                return []
+            }
+            _ = await secondBarrier.value()
+            return [newWindow]
+        })
+        let model = AppModel(defaults: defaults,
+            environment: AppEnvironment(defaults: defaults, permissions: TestCapturePermissionService()),
+            recoveryStore: DocumentRecoveryStore(baseURL: FileManager.default.temporaryDirectory.appendingPathComponent(name)),
+            captureService: service,
+            shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false)
+        defer {
+            model.capture.cancelScreenshotWindowPicker()
+            defaults.removePersistentDomain(forName: name)
+        }
+        let firstTask = Task {
+            await model.capture.loadAvailableWindows(requestAccessIfNeeded: false, presentPicker: true,
+                showErrors: true, includeThumbnails: false)
+        }
+        await firstBarrier.waitForRequest()
+        let secondTask = Task {
+            await model.capture.loadAvailableWindows(requestAccessIfNeeded: false, presentPicker: true,
+                showErrors: true, includeThumbnails: false)
+        }
+        await waitUntil { service.windowListCount == 2 }
+        guard service.windowListCount == 2 else {
+            XCTFail("The new explicit picker must start its own discovery")
+            await firstBarrier.resume(returning: true)
+            _ = await firstTask.value
+            _ = await secondTask.value
+            return
+        }
+        await secondBarrier.waitForRequest()
+        let newestLoadID = model.capture.windowChoiceLoadID
+
+        await firstBarrier.resume(returning: true)
+        _ = await firstTask.value
+        XCTAssertEqual(model.capture.windowChoiceLoadID, newestLoadID)
+        XCTAssertTrue(model.capture.isLoadingWindowChoices)
+        XCTAssertTrue(model.capture.isWorking)
+        XCTAssertFalse(model.capture.isShowingWindowPicker)
+
+        await secondBarrier.resume(returning: true)
+        _ = await secondTask.value
+        XCTAssertNil(model.capture.windowChoiceLoadID)
+        XCTAssertFalse(model.capture.isLoadingWindowChoices)
+        XCTAssertFalse(model.capture.isWorking)
+        XCTAssertTrue(model.capture.isShowingWindowPicker)
+        XCTAssertEqual(model.capture.availableWindows.map(\.id), [newWindow.id])
+        XCTAssertNil(model.capture.captureRecovery)
+    }
+
+    func testDeferredFrontmostCaptureRequiresChoosingAWindowAfterPermissionSetup() async {
+        for afterRestart in [false, true] {
+            let name = "PermissionSecondPassTests.frontmostTarget.\(UUID())"
+            let defaults = makeDefaults(named: name)
+            let options = CaptureOneShotOptions(captureDelay: .immediate, includesCursor: false, privateCapture: false, windowUIMapEnabled: false)
+            if afterRestart { PermissionRestartStore(defaults: defaults).save(.screenshot(.frontmostWindow, options)) }
+            let service = PermissionRetryCaptureService()
+            let model = AppModel(defaults: defaults,
+                environment: AppEnvironment(defaults: defaults, permissions: TestCapturePermissionService()),
+                recoveryStore: DocumentRecoveryStore(baseURL: FileManager.default.temporaryDirectory.appendingPathComponent(name)),
+                captureService: service, shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false)
+            defer {
+                model.capture.cancelScreenshotWindowPicker()
+                model.capture.dismissCaptureRecovery()
+                defaults.removePersistentDomain(forName: name)
+            }
+            if !afterRestart {
+                model.capture.pendingPermissionCommand = PendingCapturePermissionRequest(requirements: [.screenRecording],
+                    command: .frontmostWindow, captureIntent: .newDocument, oneShotOptions: options)
+                model.permissions.deferOperation(requiring: [.screenRecording], featureName: "Window Capture") { [weak model] in
+                    guard let model else { return }
+                    model.capture.retryPendingPermissionCommandIfSatisfied(model.permissions.permissionStatus)
+                }
+            }
+            model.permissions.continueOperation()
+            await waitUntil { model.capture.isShowingWindowPicker || model.capture.captureRecovery != nil }
+            XCTAssertEqual(service.frontmostLookupCount, 0, "Setup may have brought System Settings to the front")
+            XCTAssertTrue(model.capture.isShowingWindowPicker)
+            XCTAssertNil(model.documents.editorController)
+        }
+    }
+
+    func testRestoredUIMapWindowCaptureKeepsVisualOnlyAlternativeAndCurrentPrivacy() async throws {
+        for command in [PendingCapturePermissionCommand.frontmostWindow, .windowPicker] {
+            for hasScreenRecording in [false, true] {
+                let name = "PermissionSecondPassTests.restoredUIMapFallback.\(UUID())"
+                let defaults = makeDefaults(named: name)
+                let options = CaptureOneShotOptions(captureDelay: .immediate, includesCursor: true, privateCapture: false, windowUIMapEnabled: true)
+                PermissionRestartStore(defaults: defaults).save(.screenshot(command, options))
+                let permissions = MutablePermissionService(status: CapturePermissionStatus(hasScreenRecording: hasScreenRecording, hasAccessibility: false))
+                let service = PermissionRetryCaptureService()
+                let model = AppModel(defaults: defaults,
+                    environment: AppEnvironment(defaults: defaults, buildTarget: .dev, permissions: permissions),
+                    recoveryStore: DocumentRecoveryStore(baseURL: FileManager.default.temporaryDirectory.appendingPathComponent(name)),
+                    captureService: service, shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false)
+                defer {
+                    model.permissions.dismissPermissionSetupGuide()
+                    model.capture.cancelScreenshotWindowPicker()
+                    model.capture.dismissCaptureRecovery()
+                    defaults.removePersistentDomain(forName: name)
+                }
+                model.capture.updateUIMapEnabled(true, requestAccessIfNeeded: false)
+                model.capture.updatePrivateCaptureEnabled(true)
+
+                let alternative = try XCTUnwrap(model.permissions.permissionContinuation?.alternative)
+                alternative()
+
+                let continuedOptions: CaptureOneShotOptions?
+                if hasScreenRecording {
+                    await waitUntil { model.capture.isShowingWindowPicker || model.capture.captureRecovery != nil }
+                    XCTAssertTrue(model.capture.isShowingWindowPicker)
+                    XCTAssertNil(model.permissions.permissionContinuation)
+                    continuedOptions = model.capture.activeCaptureContext.oneShotOptions
+                } else {
+                    XCTAssertEqual(model.capture.pendingPermissionCommand?.requirements, [.screenRecording])
+                    XCTAssertFalse(model.capture.isShowingWindowPicker)
+                    continuedOptions = model.capture.pendingPermissionCommand?.oneShotOptions
+                }
+                var expectedOptions = options
+                expectedOptions.windowUIMapEnabled = false
+                expectedOptions.privateCapture = true
+                XCTAssertEqual(continuedOptions, expectedOptions)
+                XCTAssertTrue(model.capture.uiMapEnabled)
+                XCTAssertFalse(permissions.requestedRequirements().contains(.accessibility))
+                XCTAssertEqual(service.frontmostLookupCount, 0)
+                XCTAssertNil(PermissionRestartStore(defaults: defaults).load(), "Private continuation must not retain a restart checkpoint")
+                XCTAssertNil(model.documents.editorController)
+            }
+        }
     }
 
     private func makeWorkflow(
@@ -812,6 +1062,8 @@ private final class PermissionRetryCaptureService: ScreenCaptureServiceType, @un
     private let lock = NSLock()
     private var fullscreenCaptures = 0
     private var windowLists = 0
+    private var frontmostLookups = 0
+    var frontmostLookupCount: Int { lock.withLock { frontmostLookups } }
     private let windowListHandler: @Sendable (Int) async throws -> [CaptureWindowSummary]
 
     init(windowListHandler: @escaping @Sendable (Int) async throws -> [CaptureWindowSummary] = { _ in [] }) {
@@ -830,6 +1082,7 @@ private final class PermissionRetryCaptureService: ScreenCaptureServiceType, @un
     }
 
     func frontmostWindow(excluding processID: pid_t) async throws -> CaptureWindowSummary {
+        lock.withLock { frontmostLookups += 1 }
         throw ScreenCaptureError.noWindowsAvailable
     }
 

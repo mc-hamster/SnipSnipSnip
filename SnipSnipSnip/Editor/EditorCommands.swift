@@ -64,6 +64,25 @@ nonisolated struct AddAnnotationCommand: DocumentCommand {
     }
 }
 
+nonisolated struct AddAnnotationsCommand: DocumentCommand {
+    let annotations: [Annotation]
+
+    var label: String { "Add Annotation" }
+
+    func apply(to snapshot: EditorSnapshot) -> EditorSnapshot {
+        let addedIDs = annotations.map(\.id)
+        guard !annotations.isEmpty,
+              IdentityIntegrity.firstDuplicate(in: addedIDs) == nil,
+              Set(snapshot.annotations.map(\.id)).isDisjoint(with: addedIDs) else {
+            return snapshot
+        }
+        let updated = annotations.reduce(snapshot) { result, annotation in
+            AddAnnotationCommand(annotation: annotation).apply(to: result)
+        }
+        return SetSelectionCommand(annotationIDs: addedIDs).apply(to: updated)
+    }
+}
+
 nonisolated struct UpdateAnnotationsCommand: DocumentCommand {
     let annotations: [Annotation]
 
@@ -318,16 +337,10 @@ nonisolated struct ReorderAnnotationsCommand: DocumentCommand {
             annotations.insert(contentsOf: selectedAnnotations, at: minIndex - 1)
 
         case (.forward, .extreme):
-            guard maxIndex < annotations.count - 1 else {
-                return snapshot
-            }
             annotations.remove(at: selectedIndices)
             annotations.append(contentsOf: selectedAnnotations)
 
         case (.backward, .extreme):
-            guard minIndex > 0 else {
-                return snapshot
-            }
             annotations.remove(at: selectedIndices)
             annotations.insert(contentsOf: selectedAnnotations, at: 0)
         }

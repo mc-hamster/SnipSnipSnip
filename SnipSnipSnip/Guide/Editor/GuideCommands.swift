@@ -25,8 +25,9 @@ struct GuideInsertStepCommand: GuideCommand {
     let step: GuideStep
     let image: CGImage
     let index: Int
+    var advancedEdit: EditableScreenshotDocument? = nil
 
-    func apply(to controller: GuideEditorController) { controller.insertStepWithoutCommand(step, image: image, at: index) }
+    func apply(to controller: GuideEditorController) { controller.insertStepWithoutCommand(step, image: image, at: index, advancedEdit: advancedEdit) }
     func undo(on controller: GuideEditorController) { controller.removeStepWithoutCommand(id: step.id) }
 }
 

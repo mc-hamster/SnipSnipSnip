@@ -10,7 +10,7 @@ extension CaptureWorkflowModel {
         )
     }
 
-    private func capturePreset(
+    func capturePreset(
         _ preset: CapturePreset,
         captureContext: CaptureCompletionContext
     ) {
@@ -18,7 +18,10 @@ extension CaptureWorkflowModel {
             return
         }
 
-        activeWorkflowPresetID = preset.id
+        var captureContext = captureContext
+        captureContext.workflowPreset = preset
+        captureContext.workflowPresetRunID = UUID()
+        activeCaptureContext = captureContext
         markCapturePresetRan(id: preset.id)
 
         switch preset.target {
@@ -159,6 +162,7 @@ extension CaptureWorkflowModel {
         captureContext: CaptureCompletionContext
     ) {
         Task {
+            defer { resetPreparedCaptureContext(ifMatching: captureContext) }
             guard ensureScreenshotCaptureAccess(for: .frontmostWindow, runOptions: options) else {
                 return
             }

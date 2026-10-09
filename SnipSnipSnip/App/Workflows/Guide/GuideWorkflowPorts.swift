@@ -42,6 +42,7 @@ extension VideoWorkflowModel: GuideVideoWorkflowPort {}
 @MainActor
 extension GuideWorkflowModel: CoordinatorGuidePort {
     func resetGuidePreferencesToDefaults() {
+        cancelQuickStart()
         capturePreferences = GuideCapturePreferences()
         exportSettings = GuideExportSettings()
         theme = GuideTheme()

@@ -31,7 +31,13 @@ nonisolated struct VideoInteractionTrack: Codable, Equatable, Sendable {
         let previous = samples[max(lower - 1, 0)]
         if next.time <= time && !next.visible { return nil }
         // Do not interpolate across pauses, missing data, or entry/exit from the source.
-        guard previous.visible, time - previous.time < 0.25 else { return nil }
+        guard previous.visible, time - previous.time < 0.25 else {
+            // A visible sample at the playhead ends a pause or hidden interval.
+            // Do not keep hiding it merely because its predecessor was absent.
+            return next.visible && next.time <= time && time - next.time < 0.25
+                ? next.position
+                : nil
+        }
         guard next.visible, next.time - previous.time < 0.25 else { return previous.position }
         let fraction = bounded((time - previous.time) / max(next.time - previous.time, 0.0001), 0...1)
         if !smooth { return previous.position.interpolated(to: next.position, fraction: fraction) }
@@ -221,6 +227,14 @@ nonisolated struct VideoEditTimeline: Sendable {
             remaining -= range.duration
         }
         return ranges.last?.end ?? 0
+    }
+
+    func nextKeptSourceTime(atOrAfter time: Double) -> Double? {
+        guard time.isFinite else { return nil }
+        for range in ranges where time < range.end {
+            return max(time, range.start)
+        }
+        return nil
     }
 }
 

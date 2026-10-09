@@ -10,6 +10,7 @@ final class TestPasteboardService: PasteboardServicing, @unchecked Sendable {
     var rejectsDataWrites = false
     var programmaticAccessPolicy: ClipboardAccessPolicy = .allowed
     private(set) var contentReadCount = 0
+    var onContentRead: (() -> Void)?
 
     private(set) var changeCount = 0
 
@@ -28,21 +29,25 @@ final class TestPasteboardService: PasteboardServicing, @unchecked Sendable {
 
     func fileAndWebURLs() -> [URL] {
         contentReadCount += 1
+        onContentRead?()
         return urls
     }
 
     func data(forType type: NSPasteboard.PasteboardType) -> Data? {
         contentReadCount += 1
+        onContentRead?()
         return dataByType[type]
     }
 
     func string(forType type: NSPasteboard.PasteboardType) -> String? {
         contentReadCount += 1
+        onContentRead?()
         return strings[type]
     }
 
     func itemSnapshots(acceptedTypeIdentifiers: Set<String>) -> [PasteboardItemSnapshot] {
         contentReadCount += 1
+        onContentRead?()
         let representations = dataByType.compactMap { type, data in
             acceptedTypeIdentifiers.contains(type.rawValue)
                 ? PasteboardRepresentationSnapshot(typeIdentifier: type.rawValue, data: data)

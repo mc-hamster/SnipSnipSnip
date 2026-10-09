@@ -100,19 +100,21 @@ extension CaptureWorkflowModel {
         Task {
             var sessionCaptureContext = captureContext
             guard dependencies.capabilities.isEnabled(.connectedDeviceCapture) else {
-                present(
+                presentConnectedDeviceFailure(
                     ConnectedDeviceCaptureError
                         .publicScreenCaptureUnavailable,
-                    recovering: .connectedDevice(device),
+                    device: device,
+                    intent: intent,
                     captureContext: captureContext
                 )
                 return
             }
 
             guard video?.blocksNewCapture != true, guide?.isActive != true, connectedDevicePreviewController == nil else {
-                present(
+                presentConnectedDeviceFailure(
                     ConnectedDeviceCaptureError.sessionAlreadyActive,
-                    recovering: .connectedDevice(device),
+                    device: device,
+                    intent: intent,
                     captureContext: captureContext
                 )
                 return
