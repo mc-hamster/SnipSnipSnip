@@ -190,7 +190,7 @@ private final class PermissionTestVideoCapturePort: VideoCaptureWorkflowPort {
     var availableWindows: [CaptureWindowSummary] = []
     var regionCapturePreferences = RegionCapturePreferences()
     var presentedErrors = 0
-    func beginVideoWindowSelection() {}
+    func beginVideoWindowSelection() async throws {}
     func dismissWindowPicker() {}
     func beginWindowPickerPresentation() {}
     func beginCapturePrivacyLock() -> Bool { false }

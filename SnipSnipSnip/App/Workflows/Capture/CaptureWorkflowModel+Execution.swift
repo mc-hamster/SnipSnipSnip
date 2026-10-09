@@ -211,13 +211,28 @@ extension CaptureWorkflowModel {
         return try await operation()
     }
 
-    func beginVideoWindowSelection() {
+    func beginVideoWindowSelection() async throws {
         windowPickerMode = .videoRecording
-        beginWindowPickerPresentation()
+        dependencies.lifecycle.requestMainWindowPresentation()
+        try await loadAvailableWindows(requestAccessIfNeeded: false, presentPicker: true,
+            showErrors: false, includeThumbnails: true).get()
     }
 
     func dismissWindowPicker() {
         isShowingWindowPicker = false
+        if case .videoRecording = windowPickerMode {
+            // Invalidate discovery before releasing the shared busy state. A
+            // late, non-cancellable platform response must not reopen this picker
+            // or overwrite a newer capture's windows and state.
+            if windowChoiceLoadID != nil {
+                windowChoiceLoadID = nil
+                isLoadingWindowChoices = false
+                isWorking = false
+            }
+            pendingWindowThumbnailTask?.cancel()
+            pendingWindowThumbnailTask = nil
+            windowPickerMode = .screenshot
+        }
     }
 
     func desktopSnapshotForVideoSelection() async throws -> DesktopCompositeSnapshot {

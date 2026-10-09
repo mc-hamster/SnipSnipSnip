@@ -499,6 +499,145 @@ final class PermissionWorkflowModelTests: XCTestCase {
         XCTAssertEqual(service.screenRecordingVerifierCallCount(), 0)
     }
 
+    func testRevocationDuringExplicitProbeCannotPublishAStaleGrant() async {
+        let barrier = DeferredBoolVerifier()
+        let service = MutablePermissionService(
+            status: CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true),
+            screenRecordingVerifier: { await barrier.value() }
+        )
+        let workflow = makeWorkflow(permissions: service)
+        let check = Task { await workflow.refreshPermissionsIncludingScreenRecordingProbe() }
+        await barrier.waitForRequest()
+        service.updateStatus(CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: true))
+        await barrier.resume(returning: true)
+        await check.value
+        XCTAssertFalse(workflow.permissionStatus.hasScreenRecording)
+        XCTAssertFalse(workflow.hasVerifiedScreenRecordingAccess)
+        XCTAssertFalse(workflow.screenRecordingSetupNeedsAttention)
+        XCTAssertTrue(service.requestedRequirements().isEmpty)
+    }
+
+    func testVideoWindowDiscoveryFailureReleasesPreparationAndKeepsVideoRecovery() async throws {
+        let name = "PermissionSecondPassTests.windowDiscovery.\(UUID())"
+        let defaults = makeDefaults(named: name)
+        let service = PermissionRetryCaptureService(windowListHandler: { _ in throw ScreenCaptureError.permissionDenied })
+        let model = AppModel(defaults: defaults,
+            environment: AppEnvironment(defaults: defaults, permissions: TestCapturePermissionService()),
+            recoveryStore: DocumentRecoveryStore(baseURL: FileManager.default.temporaryDirectory.appendingPathComponent(name)),
+            captureService: service, screenRecordingService: ScreenRecordingService(),
+            shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false)
+        defer {
+            model.video.cancelPendingVideoRecording()
+            model.video.dismissVideoStartRecovery()
+            model.capture.dismissCaptureRecovery()
+            defaults.removePersistentDomain(forName: name)
+        }
+        model.video.presentVideoWindowPicker()
+        await waitUntil { service.windowListCount > 0 && !model.capture.isLoadingWindowChoices }
+        XCTAssertFalse(model.video.blocksNewCapture)
+        XCTAssertNil(model.video.pendingWindowPickerGeneration)
+        XCTAssertNotNil(model.video.recordingStartRecovery)
+        XCTAssertNil(model.capture.captureRecovery, "Video must not route discovery failures into screenshot retry")
+    }
+
+    func testVideoWindowSelectionHandlesPermissionRevokedAfterAudioPreflight() async {
+        let name = "PermissionSecondPassTests.revokedBeforeWindowPicker.\(UUID())"
+        let defaults = makeDefaults(named: name)
+        let permissions = MutablePermissionService(status: CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true))
+        let captureService = PermissionRetryCaptureService()
+        let platform = TestScreenRecordingPlatform(microphoneAccess: {
+            permissions.updateStatus(CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: true))
+        })
+        let model = AppModel(defaults: defaults,
+            environment: AppEnvironment(defaults: defaults, permissions: permissions),
+            recoveryStore: DocumentRecoveryStore(baseURL: FileManager.default.temporaryDirectory.appendingPathComponent(name)),
+            captureService: captureService,
+            screenRecordingService: ScreenRecordingService(permissions: permissions, platform: platform),
+            shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false)
+        defer {
+            model.video.cancelPendingVideoRecording()
+            model.video.dismissVideoStartRecovery()
+            model.permissions.dismissPermissionSetupGuide()
+            defaults.removePersistentDomain(forName: name)
+        }
+        model.video.recordingPreferences.recordsMicrophone = true
+        model.video.presentVideoWindowPicker()
+        await waitUntil { !model.permissions.permissionStatus.hasScreenRecording }
+        await Task.yield()
+        XCTAssertFalse(model.video.blocksNewCapture)
+        XCTAssertNotNil(model.video.recordingStartRecovery)
+        XCTAssertEqual(captureService.windowListCount, 0)
+        XCTAssertTrue(permissions.requestedRequirements().isEmpty, "Discovery should report the loss, not trigger another prompt")
+    }
+
+    func testCancelledVideoWindowDiscoveryCannotReopenPicker() async {
+        let name = "PermissionSecondPassTests.cancelWindowDiscovery.\(UUID())"
+        let defaults = makeDefaults(named: name)
+        let barrier = DeferredBoolVerifier()
+        let service = PermissionRetryCaptureService(windowListHandler: { _ in
+            _ = await barrier.value()
+            return []
+        })
+        let model = AppModel(defaults: defaults,
+            environment: AppEnvironment(defaults: defaults, permissions: TestCapturePermissionService()),
+            recoveryStore: DocumentRecoveryStore(baseURL: FileManager.default.temporaryDirectory.appendingPathComponent(name)),
+            captureService: service, screenRecordingService: ScreenRecordingService(),
+            shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false)
+        defer {
+            model.capture.cancelScreenshotWindowPicker()
+            defaults.removePersistentDomain(forName: name)
+        }
+        model.video.presentVideoWindowPicker()
+        await barrier.waitForRequest()
+        let originalTask = model.video.recordingStartTask
+        model.video.cancelPendingVideoRecording()
+        XCTAssertFalse(model.capture.isWorking)
+        XCTAssertFalse(model.capture.isLoadingWindowChoices)
+        await barrier.resume(returning: true)
+        await originalTask?.value
+        XCTAssertFalse(model.capture.isShowingWindowPicker)
+        XCTAssertFalse(model.video.blocksNewCapture)
+        XCTAssertNil(model.video.recordingStartRecovery)
+    }
+
+    func testLateCancelledDiscoveryCannotOverwriteANewerVideoPicker() async {
+        let name = "PermissionSecondPassTests.replacedWindowDiscovery.\(UUID())"
+        let defaults = makeDefaults(named: name)
+        let barrier = DeferredBoolVerifier()
+        let oldWindow = makeCaptureWindow(id: 401)
+        let newWindow = makeCaptureWindow(id: 402)
+        let service = PermissionRetryCaptureService(windowListHandler: { request in
+            if request == 1 {
+                _ = await barrier.value()
+                return [oldWindow]
+            }
+            return [newWindow]
+        })
+        let model = AppModel(defaults: defaults,
+            environment: AppEnvironment(defaults: defaults, permissions: TestCapturePermissionService()),
+            recoveryStore: DocumentRecoveryStore(baseURL: FileManager.default.temporaryDirectory.appendingPathComponent(name)),
+            captureService: service, screenRecordingService: ScreenRecordingService(),
+            shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false)
+        defer {
+            model.video.cancelPendingVideoRecording()
+            defaults.removePersistentDomain(forName: name)
+        }
+        model.video.presentVideoWindowPicker()
+        await barrier.waitForRequest()
+        let oldTask = model.video.recordingStartTask
+        model.video.cancelPendingVideoRecording()
+        model.video.presentVideoWindowPicker()
+        await waitUntil { model.capture.isShowingWindowPicker }
+        XCTAssertEqual(model.capture.availableWindows.map(\.id), [newWindow.id])
+        let newGeneration = model.video.recordingLifecycle.generation
+        await barrier.resume(returning: true)
+        await oldTask?.value
+        XCTAssertTrue(model.capture.isShowingWindowPicker)
+        XCTAssertEqual(model.capture.availableWindows.map(\.id), [newWindow.id])
+        XCTAssertEqual(model.video.recordingLifecycle.generation, newGeneration)
+        XCTAssertNil(model.video.recordingStartRecovery)
+    }
+
     private func makeWorkflow(
         permissions: MutablePermissionService,
         scheduler: Scheduling = ImmediateScheduler()
@@ -672,13 +811,22 @@ private final class MutablePermissionService: CapturePermissionServicing, @unche
 private final class PermissionRetryCaptureService: ScreenCaptureServiceType, @unchecked Sendable {
     private let lock = NSLock()
     private var fullscreenCaptures = 0
+    private var windowLists = 0
+    private let windowListHandler: @Sendable (Int) async throws -> [CaptureWindowSummary]
+
+    init(windowListHandler: @escaping @Sendable (Int) async throws -> [CaptureWindowSummary] = { _ in [] }) {
+        self.windowListHandler = windowListHandler
+    }
+
+    var windowListCount: Int { lock.withLock { windowLists } }
 
     var fullscreenCaptureCount: Int {
         lock.withLock { fullscreenCaptures }
     }
 
     func listWindows(excluding processID: pid_t, includeThumbnails: Bool) async throws -> [CaptureWindowSummary] {
-        []
+        let request = lock.withLock { windowLists += 1; return windowLists }
+        return try await windowListHandler(request)
     }
 
     func frontmostWindow(excluding processID: pid_t) async throws -> CaptureWindowSummary {

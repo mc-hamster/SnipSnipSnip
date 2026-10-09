@@ -6,7 +6,7 @@ protocol VideoCaptureWorkflowPort: AnyObject {
     var availableWindows: [CaptureWindowSummary] { get }
     var regionCapturePreferences: RegionCapturePreferences { get }
 
-    func beginVideoWindowSelection()
+    func beginVideoWindowSelection() async throws
     func dismissWindowPicker()
     func beginWindowPickerPresentation()
     func beginCapturePrivacyLock() -> Bool

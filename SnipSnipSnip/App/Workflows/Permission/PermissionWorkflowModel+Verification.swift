@@ -163,10 +163,17 @@ extension PermissionWorkflowModel {
             return
         }
 
+        let preflightAtProbeStart = currentStatus.hasScreenRecording
         let hasVerifiedAccess = await dependencies.permissions.verifyScreenRecordingAccess()
 
         guard !Task.isCancelled, generation == screenRecordingPermissionVerificationGeneration else { return }
         currentStatus = dependencies.permissions.currentStatus()
+        guard currentStatus.hasScreenRecording == preflightAtProbeStart else {
+            // The OS state changed while the content query was in flight. Its
+            // earlier result cannot override a newer revocation or grant.
+            refreshPermissions()
+            return
+        }
         if screenRecordingSetupRequiresRestart(for: currentStatus, verifiedAccess: hasVerifiedAccess) {
             hasVerifiedScreenRecordingAccess = false
             let reconciledStatus = CapturePermissionStatus(

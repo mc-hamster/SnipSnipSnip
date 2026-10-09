@@ -177,7 +177,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                         ),
                         HelpArticleSection(
                             title: "Audio permissions",
-                            body: "Microphone and system audio are optional and are not part of onboarding setup. macOS asks for Microphone when narration is used, or when you explicitly choose Set Up in Settings > Privacy > Permissions. After denial, Open Microphone Settings lets you review access. Record Without Microphone retries that Video without narration and leaves your saved preferences unchanged. Guide setup also offers narration-free audio choices. System audio is captured only when enabled for the recording."
+                            body: "Microphone and system audio are optional and are not part of onboarding setup. macOS asks for Microphone when narration is used, or when you explicitly choose Set Up in Settings > Privacy > Permissions. After denial, Open Microphone Settings lets you review access. If the window list cannot load, Video offers Try Again. Cancel stops the pending selection without reopening it later. Record Without Microphone retries that Video without narration and leaves your saved preferences unchanged. Guide setup also offers narration-free audio choices. System audio is captured only when enabled for the recording."
                         )
                     ] + (connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(

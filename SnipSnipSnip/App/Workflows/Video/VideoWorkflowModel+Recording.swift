@@ -72,9 +72,19 @@ extension VideoWorkflowModel {
 
     func presentVideoWindowPicker() {
         reserveAndPrepareRecording(source: .window) { [weak self] generation in
-            guard let self, recordingLifecycle.generation == generation else { return }
-            pendingWindowPickerGeneration = generation
-            dependencies.capture.beginVideoWindowSelection()
+            await self?.beginVideoWindowPicker(generation: generation)
+        }
+    }
+
+    private func beginVideoWindowPicker(generation: UUID) async {
+        guard isCurrentPreparingGeneration(generation), !Task.isCancelled else { return }
+        pendingWindowPickerGeneration = generation
+        do {
+            try await dependencies.capture.beginVideoWindowSelection()
+        } catch {
+            guard isCurrentPreparingGeneration(generation) else { return }
+            dependencies.capture.dismissWindowPicker()
+            failPreparingRecording(generation: generation, error: error)
         }
     }
 
@@ -98,6 +108,7 @@ extension VideoWorkflowModel {
               let generation = recordingLifecycle.generation else { return }
         recordingStartTask?.cancel()
         recordingStartTask = nil
+        if pendingWindowPickerGeneration != nil { dependencies.capture.dismissWindowPicker() }
         pendingWindowPickerGeneration = nil
         pendingRecordingOperation = nil
         preparedRecordingPreferences = nil
@@ -195,8 +206,7 @@ extension VideoWorkflowModel {
             case .screen: await beginFullscreenVideoRecording(generation: generation, presentationContext: .application)
             case .region: await beginRegionVideoRecording(generation: generation, presentationContext: .application)
             case .window:
-                pendingWindowPickerGeneration = generation
-                dependencies.capture.beginVideoWindowSelection()
+                await beginVideoWindowPicker(generation: generation)
             }
         }
     }
