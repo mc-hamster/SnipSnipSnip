@@ -439,28 +439,39 @@ final class ScreenInspectorWindowModel: ObservableObject {
         guard !isFrozen, pendingSampleTask == nil else {
             return
         }
+        guard hasScreenRecordingAccess else {
+            sample = nil
+            return
+        }
 
         let location = NSEvent.mouseLocation
         let zoomLevel = preferences.zoomLevel
         let lensDisplaySize = lensDisplaySize
         pendingSampleTask = Task { @MainActor [weak self] in
-            let sample = try? await self?.sampler.sample(
-                around: location,
-                zoomLevel: zoomLevel,
-                lensDisplaySize: lensDisplaySize
-            )
-            guard let self, !Task.isCancelled else {
-                return
-            }
-
-            self.pendingSampleTask = nil
-            guard !self.isFrozen else {
-                return
-            }
-
-            if let sample {
-                self.sample = sample
-                self.updateMeasurement(with: sample.cursorLocation)
+            do {
+                let sample = try await self?.sampler.sample(
+                    around: location,
+                    zoomLevel: zoomLevel,
+                    lensDisplaySize: lensDisplaySize
+                )
+                guard let self, !Task.isCancelled else { return }
+                self.pendingSampleTask = nil
+                guard self.hasScreenRecordingAccess else {
+                    self.sample = nil
+                    return
+                }
+                guard !self.isFrozen else { return }
+                if let sample {
+                    self.sample = sample
+                    self.updateMeasurement(with: sample.cursorLocation)
+                }
+            } catch {
+                guard let self, !Task.isCancelled else { return }
+                self.pendingSampleTask = nil
+                if self.permissions.indicatesScreenRecordingPermissionFailure(error) {
+                    self.permissionWorkflow?.reconcileScreenRecordingPermissionDenied(after: error)
+                    self.sample = nil
+                }
             }
         }
     }

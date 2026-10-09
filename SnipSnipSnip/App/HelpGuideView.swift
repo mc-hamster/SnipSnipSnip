@@ -417,7 +417,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                                 "Choose Screen Inspector under Screen Tools in the main window.",
                                 "Choose Screen Inspector from the menu bar icon or the Capture menu.",
                                 "Use Command-Shift-8 by default, or change the shortcut in Settings > Shortcuts.",
-                                "The inspector floats above other apps so you can keep working while it follows the cursor."
+                                "The inspector floats above other apps so you can keep working while it follows the cursor. Sampling pauses while Screen Recording access needs setup; a permission failure clears the live sample so the setup guidance remains visible."
                             ]
                         ),
                         HelpArticleSection(

@@ -80,9 +80,13 @@ extension CaptureWorkflowModel {
         id: CapturePreset.ID,
         captureContext: CaptureCompletionContext
     ) {
-        guard let preset = capturePresets.first(where: { $0.id == id }) else {
+        guard let currentPreset = capturePresets.first(where: { $0.id == id }) else {
             return
         }
+        var preset = captureContext.workflowPreset ?? currentPreset
+        // Target replacement updates the saved target, but an in-progress
+        // attempt retains the output/options the user originally chose.
+        preset.target = currentPreset.target
         capturePreset(preset, captureContext: captureContext)
     }
 
@@ -114,7 +118,8 @@ extension CaptureWorkflowModel {
             guard ensureScreenshotCaptureAccess(
                 for: .frontmostWindow,
                 runOptions:
-                    capturePresets.first(where: { $0.id == presetID })?.options
+                    captureContext.workflowPreset?.options
+                    ?? capturePresets.first(where: { $0.id == presetID })?.options
                     ?? currentCaptureRunOptions()
             ) else {
                 return
