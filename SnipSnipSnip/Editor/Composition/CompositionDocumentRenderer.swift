@@ -216,11 +216,13 @@ nonisolated enum CompositionDocumentRenderer {
             pinnedUIMapElements: pinnedUIMapElements,
             uiMapOverlayOptions: uiMapOverlayOptions,
             compositionOptions: resolvedCompositionOptions
-        )?.image,
-        let presented = ScreenshotPresentationRenderer.render(
-            contentImage: content,
-            presentation: snapshot.presentation
-        ) else {
+        ),
+        let presented = ScreenshotPresentationRenderer.renderWithLayout(
+            contentImage: content.image,
+            presentation: snapshot.presentation,
+            maxPixelDimension: resolvedCompositionOptions?.targetMaximumPixelDimension.map(CGFloat.init),
+            logicalContentSize: content.logicalCanvasSize
+        )?.image else {
             throw CompositionDocumentRenderError.failedToApplyPresentation
         }
         return presented

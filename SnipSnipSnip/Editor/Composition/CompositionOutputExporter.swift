@@ -662,7 +662,7 @@ nonisolated enum CompositionOutputExporter {
             targetMaximumPixelDimension: repositoryRenderTarget,
             uiMapOverlayOptions: input.uiMapOverlayOptions
         )
-        let content: CGImage
+        let content: CompositionRenderResult
         do {
             guard let renderedContent = try CompositionDocumentRenderer.renderContent(
                 baseImage: input.baseImage,
@@ -673,7 +673,7 @@ nonisolated enum CompositionOutputExporter {
                 pinnedUIMapElements: input.pinnedUIMapElements,
                 uiMapOverlayOptions: input.uiMapOverlayOptions,
                 compositionOptions: compositionOptions
-            )?.image else {
+            ) else {
                 throw CompositionOutputError.failedToRender
             }
             content = renderedContent
@@ -682,7 +682,7 @@ nonisolated enum CompositionOutputExporter {
         }
 
         let expectedSize = ScreenshotPresentationRenderer.outputSize(
-            for: CGSize(width: content.width, height: content.height),
+            for: content.logicalCanvasSize,
             presentation: snapshot.presentation
         )
         if maximumOutputDimension == nil {
@@ -690,9 +690,10 @@ nonisolated enum CompositionOutputExporter {
         }
         let requestedCap = maximumOutputDimension.map(CGFloat.init)
         guard let rendered = ScreenshotPresentationRenderer.renderWithLayout(
-            contentImage: content,
+            contentImage: content.image,
             presentation: snapshot.presentation,
-            maxPixelDimension: requestedCap
+            maxPixelDimension: requestedCap,
+            logicalContentSize: content.logicalCanvasSize
         )?.image else {
             throw CompositionOutputError.failedToRender
         }

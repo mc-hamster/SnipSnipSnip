@@ -356,11 +356,13 @@ nonisolated struct PresentationSceneFramingAnalysis: Equatable, Sendable {
 
     var warningMessages: [String] {
         var messages: [String] = []
-        if cropPercentage >= 0.05 {
-            messages.append("Fill crops about \(Int((cropPercentage * 100).rounded()))% of the screenshot.")
+        if cropPercentage.isFinite, cropPercentage >= 0.05 {
+            let percentage = String(format: "%.0f", Double((min(cropPercentage, 1) * 100).rounded()))
+            messages.append("Fill crops about \(percentage)% of the screenshot.")
         }
-        if enlargement > 1.5 {
-            messages.append("This framing enlarges the screenshot above \(Int((enlargement * 100).rounded()))%.")
+        if enlargement.isFinite, enlargement > 1.5, (enlargement * 100).isFinite {
+            let percentage = String(format: "%.0f", Double((enlargement * 100).rounded()))
+            messages.append("This framing enlarges the screenshot above \(percentage)%.")
         }
         if fit == .actualSize && hasLetterbox {
             messages.append("Actual Size leaves empty space around the screenshot.")

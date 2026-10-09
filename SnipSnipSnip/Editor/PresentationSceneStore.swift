@@ -8,11 +8,22 @@ nonisolated struct PresentationSceneValidationError: LocalizedError, Equatable {
 }
 
 nonisolated enum PresentationSceneValidator {
+    static let maximumSceneBytes = 4 * 1_024 * 1_024
+    static let maximumCanvasDimension = 16_384
+    static let maximumCanvasPixels = 134_217_728
+    static let maximumGeometryMagnitude: CGFloat = 1_000_000
+
     static func validate(
         svgText: String,
         source: PresentationSceneSource,
         fileURL: URL? = nil
     ) throws -> (metadata: PresentationSceneMetadata, sanitizedSVGText: String) {
+        guard svgText.utf8.count <= maximumSceneBytes else {
+            throw PresentationSceneValidationError(message: "Scene SVG exceeds safe resource bounds.")
+        }
+        if svgText.range(of: "<!DOCTYPE", options: .caseInsensitive) != nil {
+            throw PresentationSceneValidationError(message: "Scene SVG must not declare a DTD.")
+        }
         guard let data = svgText.data(using: .utf8) else {
             throw PresentationSceneValidationError(message: "Scene is not valid UTF-8.")
         }
@@ -75,6 +86,10 @@ nonisolated enum PresentationSceneValidator {
         guard metadata.canvas.width > 0, metadata.canvas.height > 0 else {
             throw PresentationSceneValidationError(message: "Scene metadata canvas must have positive width and height.")
         }
+        guard metadata.canvas.width <= maximumCanvasDimension, metadata.canvas.height <= maximumCanvasDimension,
+              metadata.canvas.width * metadata.canvas.height <= maximumCanvasPixels else {
+            throw PresentationSceneValidationError(message: "Scene canvas exceeds safe resource bounds.")
+        }
 
         if source == .bundled {
             guard metadata.id.hasPrefix("builtin.") else {
@@ -92,6 +107,11 @@ nonisolated enum PresentationSceneValidator {
             guard seenSlotIDs.insert(slot.id).inserted else {
                 throw PresentationSceneValidationError(message: "Scene metadata contains duplicate slot id \(slot.id).")
             }
+            let scales = [slot.minScale, slot.maxScale, slot.maxAutoEnlargement].compactMap { $0 }
+            guard scales.allSatisfy({ $0.isFinite && $0 > 0 && $0 <= maximumGeometryMagnitude }),
+                  slot.minScale == nil || slot.maxScale == nil || slot.minScale! <= slot.maxScale! else {
+                throw PresentationSceneValidationError(message: "Scene slot scale limits exceed safe resource bounds.")
+            }
         }
 
         let screenshotSlots = metadata.slots.filter { $0.id == PresentationSceneStore.primaryScreenshotSlotID && $0.type == .image }
@@ -105,7 +125,7 @@ nonisolated enum PresentationSceneValidator {
         var primaryScreenshotElementCount = 0
 
         try visitElements(in: document.rootElement()) { element in
-            let elementName = element.name?.lowercased() ?? ""
+            let elementName = (element.localName ?? element.name)?.lowercased() ?? ""
             if elementName == "script" || elementName == "foreignobject" || animationElementNames.contains(elementName) {
                 throw PresentationSceneValidationError(message: "Scene SVG contains unsupported <\(element.name ?? elementName)> content.")
             }
@@ -155,6 +175,20 @@ nonisolated enum PresentationSceneValidator {
 
             if elementName == "image",
                element.attribute(forName: "data-sss-slot")?.stringValue == PresentationSceneStore.primaryScreenshotSlotID {
+                for name in ["x", "y", "width", "height"] {
+                    if let raw = element.attribute(forName: name)?.stringValue,
+                       let number = PresentationSceneGeometryResolver.length(raw, default: 0) {
+                        guard abs(number) <= maximumGeometryMagnitude,
+                              (name == "x" || name == "y" || number > 0) else {
+                            throw PresentationSceneValidationError(message: "Scene screenshot slot exceeds safe resource bounds.")
+                        }
+                    } else if let raw = element.attribute(forName: name)?.stringValue {
+                        let numeric = raw.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "px", with: "")
+                        if let number = Double(numeric), !number.isFinite {
+                            throw PresentationSceneValidationError(message: "Scene screenshot slot exceeds safe resource bounds.")
+                        }
+                    }
+                }
                 primaryScreenshotElementCount += 1
             }
         }

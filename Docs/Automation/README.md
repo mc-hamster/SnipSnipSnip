@@ -251,6 +251,10 @@ Interactive HTML starts baked Difference results at full visibility so the store
 intensity is applied once. Composition exports use same-volume replacement staging
 without requiring permission to create siblings of the selected file.
 
+Capped and animated Styled outputs retain the original content dimensions for
+Look spacing, native frames, and Mockup framing; only the delivered raster is
+scaled. Actual Size therefore keeps the same visible crop at every output cap.
+
 Composition export supports static PNG, JPEG, and PDF; animated GIF and APNG;
 MP4; editable `.sss`; and self-contained interactive HTML. HTML embeds the
 fully rendered, redacted pixels and comparison controls it needs and does not

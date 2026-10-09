@@ -1239,6 +1239,7 @@ private struct PresentationTemplateTileView: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .help("Apply the \(template.name) Look.")
     }
 }
@@ -1305,6 +1306,7 @@ private struct PresentationSceneTileView: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .help("Apply the \(scene.name) Mockup.")
     }
 }
@@ -1352,6 +1354,7 @@ private struct SavedPresentationTileView: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .help("Apply the saved \(savedPresentation.name) Polish variant from this document.")
     }
 }
@@ -1455,6 +1458,7 @@ private struct SubjectAlignmentPicker: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityAddTraits(alignment == selection ? .isSelected : [])
                 .accessibilityLabel("\(alignment.label) alignment")
                 .help("\(alignment.label) alignment")
             }

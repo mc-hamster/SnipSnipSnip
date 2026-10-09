@@ -1045,7 +1045,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                         ),
                         HelpArticleSection(
                             title: "Export screenshots",
-                            body: "Choose Polish when you want optional finishing treatment. Look handles transparent, solid, gradient, spotlight, or blurred-screenshot backgrounds, spacing, corners, and shadows. Mockup applies browser, window, phone, tablet, and other designed SVG wrappers. Entering Polish does not apply a treatment automatically. Copy, Export, Share, Float, and Drag use the visible Polish preview; Back to Content restores unwrapped output. Transparent Polish output uses PNG without disabling JPEG or PDF in content stages."
+                            body: "Choose Polish when you want optional finishing treatment. Look handles transparent, solid, gradient, spotlight, or blurred-screenshot backgrounds, spacing, corners, and shadows. Mockup applies browser, window, phone, tablet, and other designed SVG wrappers. Entering Polish does not apply a treatment automatically. VoiceOver identifies selected Looks, Mockups, saved variants, and alignment choices. Copy, Export, Share, Float, and Drag use the visible Polish preview; Back to Content restores unwrapped output. Transparent Polish output uses PNG without disabling JPEG or PDF in content stages."
                         ),
                         HelpArticleSection(
                             title: "If screenshot export fails",
@@ -1073,7 +1073,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                         ),
                         HelpArticleSection(
                             title: "Manage Mockup files",
-                            body: "Mockup → Manage includes controls for revealing the User Mockups folder and reloading files. Settings > Editor & Output lets you choose, reveal, reset, or reload the root Mockup folder. The default folder contains Bundled and User subfolders. Add custom SVG files to User. For file-format compatibility, Mockups use the presentation-scene metadata schema and data-sss-slot markers; remote URLs, file URLs, scripts, foreignObject, animation, and event handlers are rejected. Diagnostics appear only when there is something to review."
+                            body: "Mockup → Manage includes controls for revealing the User Mockups folder and reloading files. Settings > Editor & Output lets you choose, reveal, reset, or reload the root Mockup folder. The default folder contains Bundled and User subfolders. Add custom SVG files to User. For file-format compatibility, Mockups use the presentation-scene metadata schema and data-sss-slot markers; external images and stylesheets, remote URLs, file URLs, scripts, foreignObject, animation, and event handlers are rejected. Invalid or excessively large canvas, screenshot-slot, and framing values are rejected before rendering. Diagnostics appear only when there is something to review."
                         ),
                         HelpArticleSection(
                             title: "Import from Finder or Photos",

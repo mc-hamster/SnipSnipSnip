@@ -390,6 +390,10 @@ Interactive HTML starts baked Difference results at full visibility so the store
 intensity is applied once. Composition exports use same-volume replacement staging
 without requiring permission to create siblings of the selected file.
 
+Capped and animated Styled outputs carry logical composition dimensions into
+the presentation renderer independently of the decoded preview pixels. Look
+geometry and Mockup Actual Size framing stay consistent with uncapped output.
+
 GIF/APNG/MP4 are composition-aware Blink outputs with deterministic timing,
 crossfade, loop behavior, and a disclosed 4,096 px longest-side cap. HTML is a
 self-contained interactive Compare or Steps artifact built only from rendered,

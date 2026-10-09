@@ -12,7 +12,7 @@ nonisolated struct PresentationSceneGeometry: Equatable {
 
 nonisolated enum PresentationSceneGeometryResolver {
     static func geometry(in document: XMLDocument, canvasSize: CGSize) -> PresentationSceneGeometry? {
-        guard let root = document.rootElement(), root.name?.lowercased() == "svg",
+        guard let root = document.rootElement(), (root.localName ?? root.name)?.lowercased() == "svg",
               !containsCSSTransform(root),
               let path = pathToPrimarySlot(in: root),
               let slot = path.last,
@@ -27,13 +27,19 @@ nonisolated enum PresentationSceneGeometryResolver {
         for element in path.dropFirst().reversed() {
             // A nested viewport or CSS transform needs SVG layout, which this
             // coordinate resolver intentionally does not pretend to reproduce.
-            guard element.name?.lowercased() != "svg",
+            guard (element.localName ?? element.name)?.lowercased() != "svg",
                   let transform = transform(element.attribute(forName: "transform")?.stringValue) else { return nil }
             mapping = mapping.concatenating(transform)
         }
         mapping = mapping.concatenating(rootMapping)
-        guard isFinite(mapping), abs(mapping.a * mapping.d - mapping.b * mapping.c) > 0.000000001 else { return nil }
-        return PresentationSceneGeometry(localSlotRect: CGRect(x: x, y: y, width: width, height: height),
+        let determinant = mapping.a * mapping.d - mapping.b * mapping.c
+        guard isFinite(mapping), determinant.isFinite, abs(determinant) > 0.000000001 else { return nil }
+        let localRect = CGRect(x: x, y: y, width: width, height: height)
+        let bounds = localRect.applying(mapping)
+        let safeCoordinateLimit = CGFloat(Int.max / 16)
+        guard [bounds.minX, bounds.minY, bounds.maxX, bounds.maxY, bounds.width, bounds.height]
+            .allSatisfy({ $0.isFinite && abs($0) <= safeCoordinateLimit }) else { return nil }
+        return PresentationSceneGeometry(localSlotRect: localRect,
             localToLogicalCanvas: mapping)
     }
 
@@ -112,7 +118,7 @@ nonisolated enum PresentationSceneGeometryResolver {
     }
 
     private static func pathToPrimarySlot(in element: XMLElement) -> [XMLElement]? {
-        if element.name?.lowercased() == "image",
+        if (element.localName ?? element.name)?.lowercased() == "image",
            element.attribute(forName: "data-sss-slot")?.stringValue == PresentationSceneStore.primaryScreenshotSlotID {
             return [element]
         }
@@ -123,7 +129,7 @@ nonisolated enum PresentationSceneGeometryResolver {
     }
 
     private static func containsCSSTransform(_ element: XMLElement) -> Bool {
-        let css = element.name?.lowercased() == "style" ? element.stringValue : element.attribute(forName: "style")?.stringValue
+        let css = (element.localName ?? element.name)?.lowercased() == "style" ? element.stringValue : element.attribute(forName: "style")?.stringValue
         if let css, css.lowercased().contains("transform") || css.contains("\\") { return true }
         return (element.children ?? []).contains { ($0 as? XMLElement).map(containsCSSTransform) ?? false }
     }

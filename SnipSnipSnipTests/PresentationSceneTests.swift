@@ -494,6 +494,62 @@ final class PresentationSceneTests: XCTestCase {
         }
     }
 
+    func testSceneValidationRejectsUnsafeNumericAndTextResourcesBeforeRendering() {
+        for raw in ["1e308", "1e309", "NaN", "Infinity", "-1"] {
+            assertInvalid(sceneSVG().replacingOccurrences(of: #"width="160" height="80""#,
+                with: "width=\"\(raw)\" height=\"80\""), contains: "safe resource")
+        }
+        assertInvalid(sceneSVG(width: 16_385), contains: "safe resource")
+        assertInvalid(sceneSVG(width: 16_384, height: 16_384), contains: "safe resource")
+        assertInvalid(String(repeating: " ", count: PresentationSceneValidator.maximumSceneBytes + 1), contains: "safe resource")
+        assertInvalid(sceneSVG(metadataSlots: [
+            #"{"id":"primaryScreenshot","type":"image","required":true,"label":"Screenshot","maxScale":1e308}"#,
+            #"{"id":"title","type":"text","label":"Title"}"#,
+        ]), contains: "safe resource")
+        assertInvalid(sceneSVG(extraElements: #"<s:script xmlns:s="http://www.w3.org/2000/svg">bad()</s:script>"#), contains: "unsupported")
+    }
+
+    func testLargeLocalSlotRendersAtTransformedResolutionWithinPreviewBudget() throws {
+        let svg = sceneSVG(width: 240, height: 135)
+            .replacingOccurrences(of: #"x="20" y="30" width="200" height="80""#,
+                with: #"x="0" y="0" width="200000" height="80000" transform="scale(0.001)""#)
+        var scene = try appliedScene(svg)
+        scene.screenshotSlotSettings.applyPreset(.fillFrame)
+        let image = makeSolidImage(width: 40, height: 16, color: PixelSample(red: 200, green: 20, blue: 30, alpha: 255))
+        let result = try XCTUnwrap(PresentationSceneRenderer.renderWithLayout(contentImage: image, scene: scene, maxPixelDimension: 120))
+        XCTAssertEqual(result.image.width, 120)
+        assertRectsEqual(result.layout.screenRect, CGRect(x: 0, y: 0, width: 100, height: 40), accuracy: 0.001)
+        let sample = samplePixel(in: result.image, topLeftX: 50, topLeftY: 25)
+        XCTAssertGreaterThan(sample.red, 150)
+        XCTAssertLessThan(sample.green, 60)
+    }
+
+    func testHugeOffCanvasSlotStillUsesBoundedPreviewAllocation() throws {
+        let svg = sceneSVG(width: 240, height: 135)
+            .replacingOccurrences(of: #"width="200" height="80""#, with: #"width="1000000" height="1000000""#)
+        var scene = try appliedScene(svg)
+        scene.screenshotSlotSettings.applyPreset(.fillFrame)
+        let result = try XCTUnwrap(PresentationSceneRenderer.renderWithLayout(contentImage: makeCoordinateImage(width: 40, height: 16), scene: scene, maxPixelDimension: 32))
+        XCTAssertEqual(result.image.width, 32)
+        XCTAssertLessThanOrEqual(result.image.height, 32)
+    }
+
+    func testInvalidRuntimeFramingAndNonfiniteWarningsDoNotTrap() throws {
+        var scene = try appliedScene(sceneSVG())
+        let image = makeCoordinateImage(width: 40, height: 16)
+        for scale in [CGFloat.nan, .infinity, 1e308] {
+            scene.screenshotSlotSettings.scale = scale
+            XCTAssertNil(PresentationSceneRenderer.renderWithLayout(contentImage: image, scene: scene, maxPixelDimension: 32))
+            XCTAssertNil(PresentationSceneRenderer.framingAnalysis(contentSize: CGSize(width: 40, height: 16), scene: scene))
+        }
+        scene.screenshotSlotSettings = .default
+        XCTAssertNil(PresentationSceneRenderer.renderWithLayout(contentImage: image, scene: scene,
+            maxPixelDimension: 32, logicalContentSize: CGSize(width: CGFloat.nan, height: 16)))
+        let analysis = PresentationSceneFramingAnalysis(slotRect: .zero, contentRect: .zero, fit: .contain,
+            alignment: .center, cropPercentage: .nan, enlargement: .infinity, hasLetterbox: false, hasManualAdjustment: true)
+        XCTAssertTrue(analysis.warningMessages.isEmpty)
+    }
+
     private func appliedScene(_ svg: String) throws -> AppliedPresentationScene {
         let validated = try PresentationSceneValidator.validate(svgText: svg, source: .bundled)
         return AppliedPresentationScene(definition: PresentationSceneDefinition(metadata: validated.metadata,

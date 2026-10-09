@@ -9,7 +9,12 @@ nonisolated enum PresentationSceneRenderer {
         maxPixelDimension: CGFloat? = nil,
         logicalContentSize: CGSize? = nil
     ) -> ScreenshotPresentationRenderResult? {
-        PresentationPerformanceMetrics.measure(
+        guard validSettings(scene.screenshotSlotSettings) else { return nil }
+        if let logicalContentSize,
+           !logicalContentSize.width.isFinite || !logicalContentSize.height.isFinite
+            || logicalContentSize.width <= 0 || logicalContentSize.height <= 0 { return nil }
+        let maxPixelDimension = maxPixelDimension.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
+        return PresentationPerformanceMetrics.measure(
             "scene.render.total",
             context: "scene=\(scene.sceneID) version=\(scene.version) content=\(contentImage.width)x\(contentImage.height) cap=\(maxPixelDimension.map { String(Int($0.rounded())) } ?? "none")",
             warnAfterMS: 55
@@ -62,17 +67,20 @@ nonisolated enum PresentationSceneRenderer {
         contentSize: CGSize,
         scene: AppliedPresentationScene
     ) -> PresentationSceneFramingAnalysis? {
-        guard let metrics = sceneMetrics(for: scene),
+        guard validSettings(scene.screenshotSlotSettings), contentSize.width.isFinite, contentSize.height.isFinite,
+              contentSize.width > 0, contentSize.height > 0,
+              let metrics = sceneMetrics(for: scene),
               let slot = metrics.metadata.primaryScreenshotSlot else {
             return nil
         }
 
-        return resolvedFraming(
+        let analysis = resolvedFraming(
             contentSize: contentSize,
             slotRect: metrics.primaryScreenshotRect,
             slot: slot,
             settings: scene.screenshotSlotSettings
         )
+        return finiteAnalysis(analysis) ? analysis : nil
     }
 
     static func outputSize(for scene: AppliedPresentationScene) -> CGSize? {
@@ -123,6 +131,7 @@ nonisolated enum PresentationSceneRenderer {
 
             var primaryScreenshotRect: CGRect?
             var framingAnalysis: PresentationSceneFramingAnalysis?
+            let geometry = PresentationSceneGeometryResolver.geometry(in: document, canvasSize: validated.metadata.canvas.size)
             replaceSlots(
                 in: document.rootElement(),
                 scene: scene,
@@ -130,6 +139,8 @@ nonisolated enum PresentationSceneRenderer {
                 primarySlot: primarySlot,
                 renderScale: renderScale,
                 logicalContentSize: logicalContentSize,
+                canvasSize: validated.metadata.canvas.size,
+                geometry: geometry,
                 primaryScreenshotRect: &primaryScreenshotRect,
                 framingAnalysis: &framingAnalysis
             )
@@ -144,7 +155,7 @@ nonisolated enum PresentationSceneRenderer {
                 svgText: document.xmlString(options: []),
                 primaryScreenshotRect: primaryScreenshotRect,
                 framingAnalysis: framingAnalysis,
-                geometry: PresentationSceneGeometryResolver.geometry(in: document, canvasSize: validated.metadata.canvas.size)
+                geometry: geometry
             )
         }
     }
@@ -156,6 +167,8 @@ nonisolated enum PresentationSceneRenderer {
         primarySlot: PresentationSceneSlot,
         renderScale: CGFloat,
         logicalContentSize: CGSize?,
+        canvasSize: CGSize,
+        geometry: PresentationSceneGeometry?,
         primaryScreenshotRect: inout CGRect?,
         framingAnalysis: inout PresentationSceneFramingAnalysis?
     ) {
@@ -165,7 +178,7 @@ nonisolated enum PresentationSceneRenderer {
 
         if let slotID = element.attribute(forName: "data-sss-slot")?.stringValue {
             if slotID == PresentationSceneStore.primaryScreenshotSlotID,
-               (element.name ?? "").lowercased() == "image" {
+               (element.localName ?? element.name ?? "").lowercased() == "image" {
                 let slotRect = rect(from: element)
                 let analysis = resolvedFraming(
                     contentSize: logicalContentSize ?? CGSize(width: contentImage.width, height: contentImage.height),
@@ -173,10 +186,13 @@ nonisolated enum PresentationSceneRenderer {
                     slot: primarySlot,
                     settings: scene.screenshotSlotSettings
                 )
+                guard finiteAnalysis(analysis) else { return }
                 guard let slotImage = slotImage(
                     contentImage: contentImage,
                     analysis: analysis,
-                    renderScale: renderScale
+                    renderScale: renderScale,
+                    canvasSize: canvasSize,
+                    geometry: geometry
                 ),
                     let pngData = try? ImageExporter.pngData(for: slotImage) else {
                     return
@@ -187,7 +203,7 @@ nonisolated enum PresentationSceneRenderer {
                 primaryScreenshotRect = slotRect
                 framingAnalysis = analysis
             } else if let textValue = scene.textSlotValues[slotID],
-                      (element.name ?? "").lowercased() == "text" {
+                      (element.localName ?? element.name ?? "").lowercased() == "text" {
                 element.stringValue = textValue
             }
         }
@@ -200,6 +216,8 @@ nonisolated enum PresentationSceneRenderer {
                 primarySlot: primarySlot,
                 renderScale: renderScale,
                 logicalContentSize: logicalContentSize,
+                canvasSize: canvasSize,
+                geometry: geometry,
                 primaryScreenshotRect: &primaryScreenshotRect,
                 framingAnalysis: &framingAnalysis
             )
@@ -251,7 +269,7 @@ nonisolated enum PresentationSceneRenderer {
         }
 
         if element.attribute(forName: "data-sss-slot")?.stringValue == PresentationSceneStore.primaryScreenshotSlotID,
-           (element.name ?? "").lowercased() == "image" {
+           (element.localName ?? element.name ?? "").lowercased() == "image" {
             return rect(from: element)
         }
 
@@ -395,10 +413,21 @@ nonisolated enum PresentationSceneRenderer {
     private static func slotImage(
         contentImage: CGImage,
         analysis: PresentationSceneFramingAnalysis,
-        renderScale: CGFloat
+        renderScale: CGFloat,
+        canvasSize: CGSize,
+        geometry: PresentationSceneGeometry?
     ) -> CGImage? {
-        let width = max(Int((analysis.slotRect.width * renderScale).rounded()), 1)
-        let height = max(Int((analysis.slotRect.height * renderScale).rounded()), 1)
+        let transform = geometry?.localToLogicalCanvas ?? .identity
+        let desiredWidth = analysis.slotRect.width * hypot(transform.a, transform.b) * renderScale
+        let desiredHeight = analysis.slotRect.height * hypot(transform.c, transform.d) * renderScale
+        guard desiredWidth.isFinite, desiredHeight.isFinite, desiredWidth > 0, desiredHeight > 0 else { return nil }
+        // A large local slot can be small after its SVG transform. Size its
+        // bitmap for those transformed pixels and bound off-canvas oversampling.
+        let maximumDimension = min(CGFloat(PresentationSceneValidator.maximumCanvasDimension), max(canvasSize.width, canvasSize.height) * renderScale * 2)
+        let maximumPixels = min(CGFloat(PresentationSceneValidator.maximumCanvasPixels), canvasSize.width * canvasSize.height * renderScale * renderScale * 4)
+        let rasterScale = min(1, maximumDimension / max(desiredWidth, desiredHeight), sqrt(maximumPixels / desiredWidth / desiredHeight))
+        let width = max(Int((desiredWidth * rasterScale).rounded()), 1)
+        let height = max(Int((desiredHeight * rasterScale).rounded()), 1)
 
         guard let context = SRGBBitmapContext.make(
             width: width,
@@ -408,10 +437,10 @@ nonisolated enum PresentationSceneRenderer {
         }
 
         let localContentRect = CGRect(
-            x: (analysis.contentRect.minX - analysis.slotRect.minX) * renderScale,
-            y: (analysis.contentRect.minY - analysis.slotRect.minY) * renderScale,
-            width: analysis.contentRect.width * renderScale,
-            height: analysis.contentRect.height * renderScale
+            x: (analysis.contentRect.minX - analysis.slotRect.minX) * CGFloat(width) / analysis.slotRect.width,
+            y: (analysis.contentRect.minY - analysis.slotRect.minY) * CGFloat(height) / analysis.slotRect.height,
+            width: analysis.contentRect.width * CGFloat(width) / analysis.slotRect.width,
+            height: analysis.contentRect.height * CGFloat(height) / analysis.slotRect.height
         )
         let drawRect = CGRect(
             x: localContentRect.minX,
@@ -475,6 +504,18 @@ nonisolated enum PresentationSceneRenderer {
 
     private static func validationSource(for scene: AppliedPresentationScene) -> PresentationSceneSource {
         scene.sceneID.hasPrefix("builtin.") ? .bundled : .user
+    }
+
+    private static func validSettings(_ settings: PresentationSceneScreenshotSlotSettings) -> Bool {
+        settings.scale.isFinite && settings.scale > 0 && settings.scale <= PresentationSceneValidator.maximumGeometryMagnitude
+            && settings.offset.width.isFinite && settings.offset.height.isFinite
+            && abs(settings.offset.width) <= PresentationSceneValidator.maximumGeometryMagnitude
+            && abs(settings.offset.height) <= PresentationSceneValidator.maximumGeometryMagnitude
+    }
+
+    private static func finiteAnalysis(_ analysis: PresentationSceneFramingAnalysis) -> Bool {
+        [analysis.contentRect.minX, analysis.contentRect.minY, analysis.contentRect.width,
+         analysis.contentRect.height, analysis.cropPercentage, analysis.enlargement].allSatisfy(\.isFinite)
     }
 
 }
