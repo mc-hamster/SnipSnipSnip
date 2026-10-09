@@ -13,6 +13,10 @@ Thanks for helping improve SnipSnipSnip. Bug reports, focused feature proposals,
 
 SnipSnipSnip requires macOS 26 or later and a current Xcode installation. Clone the repository, open `SnipSnipSnip.xcodeproj`, and select the `SnipSnipSnip` scheme.
 
+For Codex-assisted development, see [Development Skills](Docs/DevelopmentSkills.md)
+for the repository's SSS Validation skill and pinned installation commands for
+Swift Concurrency, SwiftUI Expert, and GitHub CI troubleshooting.
+
 Run the test suite with:
 
 ```sh
