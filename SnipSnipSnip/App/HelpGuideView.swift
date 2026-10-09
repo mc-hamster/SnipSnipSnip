@@ -1292,7 +1292,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                         ),
                         HelpArticleSection(
                             title: "Export diagnostics for support",
-                            body: "Use Settings > Privacy > Export Diagnostics to save a local JSON report with sanitized app, permission, display, storage, connected-device, and status details. Diagnostics do not include screenshots, clipboard contents, OCR text, annotation text, document data, window titles, or raw file paths."
+                            body: "Use Settings > Privacy > Export Diagnostics to save a local JSON report with sanitized app, permission, display, storage, connected-device, and status details. Diagnostics use safe status and error categories instead of detailed error messages. They do not include screenshots, clipboard contents, OCR text, annotation text, document data, window titles, or raw file paths."
                         )
                     ] + (scrollingCaptureEnabled
                         ? [

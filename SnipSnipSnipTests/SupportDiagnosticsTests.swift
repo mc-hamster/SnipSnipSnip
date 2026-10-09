@@ -49,7 +49,7 @@ final class SupportDiagnosticsTests: XCTestCase {
         XCTAssertEqual(diagnostics.storage.recycleBinItemCount, 1)
         XCTAssertEqual(diagnostics.connectedDevice.listedDeviceCount, 1)
         XCTAssertEqual(diagnostics.connectedDevice.previewSessionActive, false)
-        XCTAssertEqual(diagnostics.connectedDevice.emptyStateMessage, "Unlock [path].")
+        XCTAssertEqual(diagnostics.connectedDevice.emptyStateMessage, "Connected device needs attention.")
         XCTAssertEqual(diagnostics.recentStatus.launchAtLoginStatus, model.lifecycle.launchAtLoginStatus.stateLabel)
     }
 
@@ -73,7 +73,40 @@ final class SupportDiagnosticsTests: XCTestCase {
         XCTAssertFalse(json.contains("/Volumes/External"))
         XCTAssertFalse(json.contains("/private/tmp"))
         XCTAssertFalse(json.contains("Do not include this annotation text"))
-        XCTAssertTrue(json.contains("[path]"))
+        XCTAssertEqual(diagnostics.recentStatus.appError, "Input failed.")
+        XCTAssertEqual(diagnostics.recentStatus.editorError, "Input failed.")
+        XCTAssertEqual(diagnostics.recentStatus.workingMessage, "Operation in progress.")
+    }
+
+    func testDiagnosticsNeverIncludeFilenamesOrArbitraryErrorProse() throws {
+        let model = makeModel()
+        let cases: [(String, String)] = [
+            ("Could not read /Users/example/Client.Secret.sss", "Input failed."),
+            ("Could not open /Volumes/Client Files/秘密 Project.final.sss", "Input failed."),
+            (#"Failed loading "/tmp/Client.Project/Quarterly Report.sss"."#, "Input failed."),
+            ("The file “Client Secret.sss” couldn’t be opened because you don’t have permission to view it.", "Access denied."),
+            ("The document ‘顧客の秘密.final.sss’ could not be saved.", "Output failed."),
+            ("Private title, copied password, arbitrary user-authored text", "Status details omitted."),
+        ]
+        for (message, expected) in cases {
+            model.errorMessage = message
+            let diagnostics = SupportDiagnosticsBuilder.make(snapshot: supportDiagnosticsSnapshot(from: model))
+            XCTAssertEqual(diagnostics.recentStatus.appError, expected)
+            let json = try diagnostics.jsonData()
+            let report = try XCTUnwrap(JSONSerialization.jsonObject(with: json) as? [String: Any])
+            let status = try XCTUnwrap(report["recentStatus"] as? [String: Any])
+            XCTAssertEqual(status["appError"] as? String, expected, "Only a fixed category is serialized")
+        }
+
+        model.isWorking = true
+        for message in ["Saving", "Capturing"] {
+            model.workingMessage = message
+            let diagnostics = SupportDiagnosticsBuilder.make(snapshot: supportDiagnosticsSnapshot(from: model))
+            XCTAssertEqual(diagnostics.recentStatus.workingMessage, message)
+        }
+        model.workingMessage = "Capturing Customer Private Window"
+        let diagnostics = SupportDiagnosticsBuilder.make(snapshot: supportDiagnosticsSnapshot(from: model))
+        XCTAssertEqual(diagnostics.recentStatus.workingMessage, "Operation in progress.")
     }
 
     private func makeModel() -> AppModel {

@@ -22,10 +22,11 @@ nonisolated struct PromisedFilePayload: @unchecked Sendable {
 
     func write(to destinationURL: URL) async throws {
         do {
-            try await writer(destinationURL)
+            try await ImageExportFileWriter.write(to: destinationURL) { stagedURL in
+                try await writer(stagedURL)
+            }
             await completion?(.success(destinationURL))
         } catch {
-            try? FileManager.default.removeItem(at: destinationURL)
             await completion?(.failure(error))
             throw error
         }

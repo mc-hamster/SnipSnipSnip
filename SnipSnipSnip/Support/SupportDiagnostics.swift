@@ -369,7 +369,7 @@ enum SupportDiagnosticsBuilder {
             editorError: sanitizedStatus(snapshot.editorError),
             videoError: sanitizedStatus(snapshot.videoError),
             launchAtLoginStatus: snapshot.launchAtLoginStatus,
-            workingMessage: sanitizedStatus(snapshot.workingMessage)
+            workingMessage: sanitizedWorkingStatus(snapshot.workingMessage)
         )
     }
 
@@ -383,17 +383,33 @@ enum SupportDiagnosticsBuilder {
             return nil
         }
 
-        let withoutPaths = trimmed.replacingOccurrences(
-            of: #"(/Users|/Volumes|/private|/tmp)/[^,.;\n\r]+"#,
-            with: "[path]",
-            options: .regularExpression
-        )
+        // Localized errors can contain arbitrary filenames, captured titles,
+        // and user text without an absolute path. Never export their prose.
+        // Classify only into fixed summaries; unknown details stay omitted.
+        let lower = trimmed.lowercased()
+        let categories: [(keywords: [String], summary: String)] = [
+            (["permission", "access denied", "not permitted", "not allowed"], "Access denied."),
+            (["no space", "not enough space", "disk full", "storage"], "Storage unavailable."),
+            (["cancel"], "Cancelled."),
+            (["missing", "not found", "no such file", "doesn't exist", "doesn’t exist", "no longer available"], "Resource unavailable."),
+            (["corrupt", "invalid", "unsupported", "decode"], "Invalid or unsupported data."),
+            (["network", "connection", "offline", "timed out"], "Connection failed."),
+            (["unlock", "trust", "device"], "Connected device needs attention."),
+            (["write", "writing", "save", "saving", "export"], "Output failed."),
+            (["read", "load", "open"], "Input failed."),
+        ]
+        return categories.first { category in
+            category.keywords.contains { lower.contains($0) }
+        }?.summary ?? "Status details omitted."
+    }
 
-        if withoutPaths.count <= 240 {
-            return withoutPaths
-        }
-
-        let endIndex = withoutPaths.index(withoutPaths.startIndex, offsetBy: 240)
-        return String(withoutPaths[..<endIndex]) + "..."
+    private static func sanitizedWorkingStatus(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+        let knownStatuses: Set<String> = [
+            "Capturing", "Capture Region", "Capture Text", "Recognizing Text", "Saving", "Saving Guide",
+            "Keeping screenshot in Recent Snips", "Scrolling Capture", "Pick Window", "Finding Window",
+            "Capture Preset", "Reposition Preset", "Connected Device", "Recording", "Paused",
+        ]
+        return knownStatuses.contains(trimmed) ? trimmed : "Operation in progress."
     }
 }

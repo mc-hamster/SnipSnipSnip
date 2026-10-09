@@ -88,3 +88,7 @@ size-constrained MP4 retries. The selected destination is replaced only after
 encoding succeeds; an invalid source or cancellation preserves the previous file.
 `VideoExportTransactionTests` covers failure/cancellation, and `VideoEditingTests`
 opens completed MP4/APNG outputs to verify their rendered edits.
+
+Promised-file drag delivery uses the same staging boundary. A failed writer never
+removes an existing destination, even if it failed before writing any output;
+success callbacks receive the final destination only after installation.
