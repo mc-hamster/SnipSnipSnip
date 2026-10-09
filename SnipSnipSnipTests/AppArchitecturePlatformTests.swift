@@ -1679,13 +1679,20 @@ final class AppArchitecturePlatformTests: XCTestCase {
         )
         XCTAssertTrue(
             coordinatorPorts.contains("func refreshPermissions()")
-                && coordinatorPorts.contains("func checkPermissionSetupGuideStatus()"),
+                && coordinatorPorts.contains("func cancelDeferredOperation(ifFeature: String?)"),
             "Coordinator permission routing should command the PermissionWorkflowModel instead of capture-owned permission helpers."
         )
         XCTAssertTrue(
-            coordinator.contains("case .requirementsMayNowBeSatisfied(let status):")
-                && coordinator.contains("capture?.retryPendingPermissionCommandIfSatisfied(status)"),
-            "Permission changes should route through typed permission output and typed capture retry commands."
+            coordinator.contains("case .permissionsChanged:") && coordinator.contains("capture?.notifyPermissionsChanged()"),
+            "Permission changes should notify the capture workflow through typed output."
+        )
+        XCTAssertFalse(
+            coordinator.contains("capture?.retryPendingPermissionCommandIfSatisfied("),
+            "A permission status notification must not automatically resume capture in the background."
+        )
+        XCTAssertFalse(
+            coordinator.contains("permissions?.checkPermissionSetupGuideStatus()"),
+            "Foregrounding must use passive status reads, not a consent-capable content probe."
         )
         XCTAssertTrue(
             coordinatorPorts.contains("func setConnectedDeviceSessionActive(_ isActive: Bool)"),
@@ -2555,6 +2562,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
             "SCStream",
             in: files,
             isOnlyUsedIn: [
+                "SnipSnipSnip/Capture/ScreenCapturePermissions.swift",
                 "SnipSnipSnip/Platform/System/LiveDesktopPreviewSource.swift",
                 "SnipSnipSnip/Platform/System/ScreenRecordingPlatform.swift",
             ]
@@ -2592,6 +2600,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
             "AVAudioApplication.requestRecordPermission",
             in: files,
             isOnlyUsedIn: [
+                "SnipSnipSnip/Platform/Environment/MediaPermissionService.swift",
                 "SnipSnipSnip/Platform/System/ScreenRecordingPlatform.swift",
             ]
         )
@@ -2599,6 +2608,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
             "AVCaptureDevice",
             in: files,
             isOnlyUsedIn: [
+                "SnipSnipSnip/Platform/Environment/MediaPermissionService.swift",
                 "SnipSnipSnip/Platform/System/ConnectedDevicePlatform.swift",
             ]
         )

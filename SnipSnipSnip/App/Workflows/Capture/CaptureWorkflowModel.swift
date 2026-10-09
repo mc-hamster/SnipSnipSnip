@@ -113,6 +113,7 @@ final class CaptureWorkflowModel: ObservableObject, AutomationStatusPort, Captur
     @Published var isShowingCapturePresetNamingSheet = false
     @Published var capturePresetNameDraft = ""
     @Published var captureRecovery: CaptureRecovery?
+    var pendingConnectedDevicePreviewIntent: ConnectedDevicePreviewIntent?
     var pendingWindowThumbnailTask: Task<Void, Never>?
     var pendingPermissionCommand: PendingCapturePermissionRequest?
     /// Captured when an operation starts and consumed only by a successful

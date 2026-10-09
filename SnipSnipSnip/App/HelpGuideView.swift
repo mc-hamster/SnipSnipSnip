@@ -166,19 +166,23 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                             title: "Screen Recording",
                             body: "Required for screenshot pixels, live window thumbnails, and screen recording. The main capture screen shows the full setup card. While a screenshot, video, or Guide is open, a compact “Screenshot capture unavailable — Set Up” strip remains visible and expands to the full diagnostics when selected or when a capture is attempted.",
                             steps: [
-                                "Click Set Up beside Screen Recording in SnipSnipSnip. If macOS does not show a prompt, SnipSnipSnip opens the Screen Recording settings pane.",
-                                "Allow SnipSnipSnip in System Settings > Privacy & Security > Screen Recording.",
-                                "If SnipSnipSnip shows Restart Required, finish any remaining onboarding permission first if you want it ready too, then use Restart SnipSnipSnip so macOS applies Screen Recording access without the normal quit confirmation."
+                                "Choose Continue during first-run setup, or Set Up beside Screen Recording in Settings > Privacy > Permissions. macOS presents its own consent prompt. If access is still unavailable, choose Open Settings in the setup guidance.",
+                                "Allow SnipSnipSnip in System Settings > Privacy & Security > Screen & System Audio Recording.",
+                                "Access updates automatically. Use Check Again if macOS still shows a different state. Restart Required appears after a new grant or when a granted permission cannot be used by the running copy. Restart preserves work through the normal recovery safeguards. Denying access does not require a restart."
                             ]
                         ),
                         HelpArticleSection(
+                            title: "Continue after setup",
+                            body: "When an action waits for access, choose Continue after access becomes available. Granting access in System Settings does not automatically start capture. Cancel Setup abandons the waiting action without changing macOS permissions. Fresh non-private Screenshot, Video, and Guide requests can offer Continue after a restart for up to 30 minutes; only source and setup choices are retained, never captured content or window titles. Window and Region targets are selected again. Private captures and document-specific Add or Replace actions must be started again from the appropriate document after restart."
+                        ),
+                        HelpArticleSection(
                             title: "Audio permissions",
-                            body: "Microphone and system audio permissions are optional and are not part of onboarding setup. macOS asks for Microphone only when microphone narration is enabled for a recording or Guide, and asks for system audio only when system audio capture is enabled."
+                            body: "Microphone and system audio are optional and are not part of onboarding setup. macOS asks for Microphone when narration is used, or when you explicitly choose Set Up in Settings > Privacy > Permissions. After denial, Open Microphone Settings lets you review access. Record Without Microphone retries that Video without narration and leaves your saved preferences unchanged. Guide setup also offers narration-free audio choices. System audio is captured only when enabled for the recording."
                         )
                     ] + (connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(
                             title: "Camera",
-                            body: "Required only when you start a connected iPhone or iPad preview, screenshot, or recording, and it is not part of onboarding setup. macOS exposes trusted iPhone and iPad screens as video sources, so the system permission is named Camera even though SnipSnipSnip is using it for the connected-device screen stream."
+                            body: "Used for connected iPhone or iPad preview, screenshots, and recording, and omitted from onboarding setup. Choose Continue in the explanation to open the macOS Camera prompt. After denial, use Open Camera Settings and then choose the device again. Settings > Privacy > Permissions also offers an explicit Camera setup action. macOS exposes trusted iPhone and iPad screens as video sources, so the system permission is named Camera even though SnipSnipSnip is using it for the connected-device screen stream."
                         )
                     ] : []) + (guideEnabled || scrollingCaptureEnabled || uiMapEnabled
                         ? [
@@ -188,7 +192,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                                 steps: [
                                     "Click Set Up beside Accessibility in SnipSnipSnip.",
                                     "Allow SnipSnipSnip in System Settings > Privacy & Security > Accessibility.",
-                                    "If SnipSnipSnip is not listed, open the setup guide, choose Reveal App, and add that exact app with the + button."
+                                    "Setup guidance remains visible even when Screen Recording is already allowed. Capture Without UI Map continues the waiting Window screenshot without changing your saved UI Map preference. If the app is missing, expand Troubleshooting, choose Reveal App, and add that copy with the + button."
                                 ]
                             )
                         ]
@@ -335,7 +339,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                     sections: [
                         HelpArticleSection(
                             title: "Open clipboard history",
-                            body: "Clipboard History is optional and off by default. Make an explicit choice during onboarding or enable it in Settings > Snip Library > Clipboard, then choose Clipboard History from the menu bar icon or use Command-Shift-V. Search is focused when the floating window opens; Command-F returns to it. Choose All, Text, Links, Images, Files, Snips, or Pinned in the pill row above the cards; scroll the row horizontally in a narrow window. Filters opens When, Source, and Collection choices, which apply immediately. Active filters appear below the scopes and can be removed individually. Reset Filters in the popover preserves the search and content type; Clear Filters resets the complete view. No Matching Clipboard Items means search or filters are hiding results; Clear Filters shows the full history again. Separate messages explain an empty history, disabled monitoring, paused monitoring, or unavailable storage. Storage warnings appear in the window with Try Again. Keep the app open when recent changes could not be saved, resolve storage access or disk space, then retry. Press Command-W to close the window."
+                            body: "Clipboard History is optional and off by default. If macOS limits background clipboard access, Monitoring Blocked or Monitoring Needs Access appears with Open Privacy Settings. Monitoring stops reading new content until access is available, while saved items remain usable. Make an explicit choice during onboarding or enable it in Settings > Snip Library > Clipboard, then choose Clipboard History from the menu bar icon or use Command-Shift-V. Search is focused when the floating window opens; Command-F returns to it. Choose All, Text, Links, Images, Files, Snips, or Pinned in the pill row above the cards; scroll the row horizontally in a narrow window. Filters opens When, Source, and Collection choices, which apply immediately. Active filters appear below the scopes and can be removed individually. Reset Filters in the popover preserves the search and content type; Clear Filters resets the complete view. No Matching Clipboard Items means search or filters are hiding results; Clear Filters shows the full history again. Separate messages explain an empty history, disabled monitoring, paused monitoring, or unavailable storage. Storage warnings appear in the window with Try Again. Keep the app open when recent changes could not be saved, resolve storage access or disk space, then retry. Press Command-W to close the window."
                         ),
                         HelpArticleSection(
                             title: "What appears",
@@ -1267,7 +1271,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                     sections: [
                         HelpArticleSection(
                             title: "Blank captures or missing thumbnails",
-                            body: "Click Set Up for Screen Recording, use the macOS prompt or the Screen Recording settings pane that SnipSnipSnip opens, then return and click Check Again. If System Settings shows SnipSnipSnip enabled but the app still cannot capture, SnipSnipSnip shows Restart Required. During onboarding, finish any remaining permission first if you want it ready too, then use Restart SnipSnipSnip so macOS applies the new Screen Recording access."
+                            body: "Choose Set Up for Screen Recording, then use the macOS prompt or Open Settings to review Screen & System Audio Recording access. Return to the app; status refreshes automatically. Check Again performs an explicit verification if needed. A new grant may require Restart SnipSnipSnip. If access was denied, enable it in System Settings or cancel setup; restarting alone does not grant permission."
                         ),
                         HelpArticleSection(
                             title: "A window is missing",

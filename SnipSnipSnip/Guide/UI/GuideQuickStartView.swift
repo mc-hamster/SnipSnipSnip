@@ -35,6 +35,13 @@ struct GuideQuickStartView: View {
             Divider()
 
             Form {
+                if let permissionGuide = permissions.permissionSetupGuide {
+                    Section {
+                        PermissionSetupView(permissions: permissions, guide: permissionGuide, onContinue: {
+                            guide.beginSelectedSourceSelection(setup: captureSetup)
+                        })
+                    }
+                }
                 if guide.isShowingFirstUseSetup {
                     firstUseCard
                 }
@@ -143,6 +150,14 @@ struct GuideQuickStartView: View {
             .pickerStyle(.radioGroup)
             .labelsHidden()
 
+            if audioIntent == .narration || audioIntent == .narrationAndAppAudio {
+                MediaPermissionStatusRow(kind: .microphone, permissions: permissions)
+                if permissions.mediaPermissionStatuses[.microphone] == .denied {
+                    Text("Open Microphone settings to enable narration, or choose No audio or App audio to continue without it.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
             Text(audioHelp(for: audioIntent))
                 .font(.caption)
                 .foregroundStyle(.secondary)

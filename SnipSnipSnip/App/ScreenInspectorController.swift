@@ -42,6 +42,7 @@ final class ScreenInspectorCoordinator: ObservableObject {
     private let capturePlatform: any ScreenCapturePlatform
     private let screens: any ScreenTopologyProviding
     private let permissions: any CapturePermissionServicing
+    private weak var permissionWorkflow: PermissionWorkflowModel?
     private var eventHandlerRef: EventHandlerRef?
     private var hotKeyRefs: [Shortcut: EventHotKeyRef] = [:]
 
@@ -61,6 +62,10 @@ final class ScreenInspectorCoordinator: ObservableObject {
         self.capturePlatform = capturePlatform
         self.screens = screens
         self.permissions = permissions
+    }
+
+    func setPermissionWorkflow(_ workflow: PermissionWorkflowModel) {
+        permissionWorkflow = workflow
     }
 
     func setPreferencesChangeHandler(_ handler: @escaping (ScreenInspectorPreferences) -> Void) {
@@ -110,6 +115,7 @@ final class ScreenInspectorCoordinator: ObservableObject {
             capturePlatform: capturePlatform,
             screens: screens,
             permissions: permissions,
+            permissionWorkflow: permissionWorkflow,
             onSnip: { [weak self] sample in
                 self?.onSnip(sample)
             }
@@ -267,6 +273,8 @@ final class ScreenInspectorWindowModel: ObservableObject {
 
     private let sampler: ScreenInspectorSampler
     private let permissions: any CapturePermissionServicing
+    private weak var permissionWorkflow: PermissionWorkflowModel?
+    private var permissionObservation: AnyCancellable?
     private let onSnip: (ScreenInspectorSample) -> Void
     private var timer: Timer?
     private var pendingSampleTask: Task<Void, Never>?
@@ -281,12 +289,17 @@ final class ScreenInspectorWindowModel: ObservableObject {
         permissions: any CapturePermissionServicing = SystemCapturePermissionService(
             capabilities: AppCapabilitySnapshot(buildTarget: .dev, enabledCapabilities: Set(AppCapability.allCases))
         ),
+        permissionWorkflow: PermissionWorkflowModel? = nil,
         onSnip: @escaping (ScreenInspectorSample) -> Void = { _ in }
     ) {
         self.preferences = preferences.sanitized()
         self.sampler = ScreenInspectorSampler(platform: capturePlatform, screens: screens)
         self.permissions = permissions
+        self.permissionWorkflow = permissionWorkflow
         self.onSnip = onSnip
+        permissionObservation = permissionWorkflow?.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
     }
 
     var cursorCoordinateDescription: String {
@@ -314,12 +327,15 @@ final class ScreenInspectorWindowModel: ObservableObject {
     }
 
     var hasScreenRecordingAccess: Bool {
-        permissions.currentStatus().hasScreenRecording
+        permissionWorkflow?.permissionStatus.hasScreenRecording ?? permissions.currentStatus().hasScreenRecording
     }
 
     func setUpScreenRecording() {
-        _ = permissions.requestAccess(for: .screenRecording)
-        permissions.openSystemSettings(for: .screenRecording)
+        if let permissionWorkflow {
+            _ = permissionWorkflow.preflight([.screenRecording], featureName: "Screen Inspector")
+        } else {
+            _ = permissions.requestAccess(for: .screenRecording)
+        }
     }
 
     func openPermissionHelp() {
@@ -327,6 +343,7 @@ final class ScreenInspectorWindowModel: ObservableObject {
     }
 
     func checkPermissionAgain() {
+        permissionWorkflow?.checkPermissionSetupGuideStatus()
         refresh()
     }
 

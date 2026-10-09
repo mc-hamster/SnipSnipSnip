@@ -329,7 +329,7 @@ extension CaptureWorkflowModel {
         }
 
         if uniqueRequirements == [.screenRecording] {
-            return "\(featureName) needs Screen Recording access so \(AppBranding.displayName) can read pixels from the screen. Click Set Up in the main window, then enable \(AppBranding.displayName) in System Settings > Privacy & Security > Screen Recording."
+            return "\(featureName) needs Screen Recording access so \(AppBranding.displayName) can read pixels from the screen. Click Set Up in the main window, then enable \(AppBranding.displayName) in System Settings > Privacy & Security > Screen & System Audio Recording."
         }
 
         return "\(featureName) needs Screen Recording access to capture pixels and Accessibility access to save visible interface element names, roles, identifiers, and locations from the selected window. Click Set Up in the main window, then enable \(AppBranding.displayName) in System Settings > Privacy & Security."

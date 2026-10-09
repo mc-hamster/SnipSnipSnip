@@ -84,7 +84,13 @@ struct CaptureAutomationSettingsView: View {
                 searchNavigation = nil
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            permissions.refreshPermissions()
+            clipboard.monitor.refreshAccessPolicy()
+        }
         .task {
+            permissions.refreshPermissions()
+            clipboard.monitor.refreshAccessPolicy()
             lifecycle.refreshLaunchAtLoginStatus()
         }
         .fileImporter(isPresented: $isImportingGuideLogo, allowedContentTypes: [.image]) { result in
@@ -754,7 +760,7 @@ struct CaptureAutomationSettingsView: View {
                         }
                     }
 
-                    SettingsHelpText("Microphone and system audio remain optional. macOS asks for the matching privacy permission the first time those sources are used.")
+                    SettingsHelpText("Microphone and system audio remain optional. macOS asks when a recording uses them. Review Microphone access in Settings > Privacy > Permissions; ordinary Video does not require Accessibility.")
                     SettingsHelpText("Choose Export in the video editor for MP4 quality or file-size limits, or short GIF/APNG loops. Trims and effects are included.")
                 }
             }
@@ -1182,9 +1188,22 @@ struct CaptureAutomationSettingsView: View {
                     SettingsHelpText("Private Capture keeps the current capture out of Snip History, Recent Snips, the Recycle Bin, Clipboard History, and background OCR indexing. You can still explicitly save or export the result. The setting is locked while a capture or recording is active so the in-progress capture uses the privacy choice it started with.")
                 }
 
-                Section("Permission Diagnostics") {
+                Section("Permissions") {
                     PermissionStatusRow(requirement: .screenRecording, permissions: permissions)
                         .settingsSearchTarget("privacy.screenRecording")
+                    ForEach(permissions.availableMediaPermissions) { kind in
+                        MediaPermissionStatusRow(kind: kind, permissions: permissions)
+                            .settingsSearchTarget("privacy.\(kind.rawValue)")
+                    }
+                    LabeledContent("Clipboard Access", value: clipboard.monitor.accessPolicy.title)
+                        .settingsSearchTarget("privacy.clipboard")
+                    if clipboard.needsClipboardAccess {
+                        ClipboardAccessNotice(clipboard: clipboard)
+                    }
+                    SettingsHelpText("Clipboard History is optional. macOS may ask separately before it can read copied content in the background.")
+                    if let guide = permissions.permissionSetupGuide {
+                        PermissionSetupView(permissions: permissions, guide: guide)
+                    }
                     if shouldShowAccessibilityPermissionDiagnostics {
                         PermissionStatusRow(requirement: .accessibility, permissions: permissions)
                             .settingsSearchTarget("privacy.accessibility")
@@ -1853,16 +1872,18 @@ private struct PermissionStatusRow: View {
         HStack {
             Label(requirement.title, systemImage: requirement.systemImage)
             Spacer()
-            Text(hasAccess ? "Allowed" : "Missing")
+            Text(permissions.statusTitle(for: requirement))
                 .foregroundStyle(hasAccess ? .green : .orange)
-            Button(hasAccess ? "Manage" : "Set Up") {
+            Button(hasAccess ? "Manage" : permissions.activePermissionRequest == requirement ? "Open Settings" : "Set Up") {
                 if hasAccess {
+                    permissions.openPermissionSettings(requirement)
+                } else if permissions.activePermissionRequest == requirement {
                     permissions.openPermissionSettings(requirement)
                 } else {
                     permissions.requestPermission(requirement)
                 }
             }
-            .disabled(!hasAccess && permissions.activePermissionRequest != nil)
+            .disabled(!hasAccess && permissions.activePermissionRequest != nil && permissions.activePermissionRequest != requirement)
 
             if !hasAccess {
                 Button("Help") {

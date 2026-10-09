@@ -5,6 +5,41 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class AutomationContractTests: XCTestCase {
+    func testGuideRegionKeepsDocumentedCommandGrammar() {
+        let request = AutomationRequest(source: AutomationSource(kind: .commandLine), command: .guide(.start(.region)), interactionPolicy: .never)
+        XCTAssertNil(request.validationError, "Interaction policy is enforced at execution after build-capability routing")
+        var interactive = request
+        interactive.interactionPolicy = .requireUserSelection
+        XCTAssertNil(interactive.validationError)
+    }
+
+    @MainActor
+    func testUnattendedGuideFailsWithoutTriggeringPermissionSetup() async {
+        let name = "AutomationContractTests.guidePermission.\(UUID())"
+        let defaults = makeDefaults(named: name)
+        defer { defaults.removePersistentDomain(forName: name) }
+        let permissionService = TestCapturePermissionService(
+            statusProvider: { CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: false) },
+            requestHandler: { _ in XCTFail("Unattended Guide requested access"); return false },
+            settingsHandler: { _ in XCTFail("Unattended Guide opened System Settings") }
+        )
+        let model = retainForTestLifetime(AppModel(
+            defaults: defaults,
+            environment: AppEnvironment(defaults: defaults, buildTarget: .selfRelease, permissions: permissionService),
+            recoveryStore: DocumentRecoveryStore(baseURL: FileManager.default.temporaryDirectory.appendingPathComponent(name)),
+            shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false
+        ))
+        let request = AutomationRequest(source: AutomationSource(kind: .commandLine), command: .guide(.start(.display)), interactionPolicy: .never)
+        let result = await model.guide.guideAutomation(.start(.display), request: request)
+        XCTAssertEqual(result.error?.code, .permissionDenied)
+        let regionRequest = AutomationRequest(source: AutomationSource(kind: .commandLine), command: .guide(.start(.region)), interactionPolicy: .never)
+        let regionResult = await model.guide.guideAutomation(.start(.region), request: regionRequest)
+        XCTAssertEqual(regionResult.error?.code, .invalidRequest)
+        XCTAssertFalse(model.guide.isShowingQuickStart)
+        XCTAssertNil(model.permissions.activePermissionRequest)
+        XCTAssertNil(model.permissions.permissionSetupGuide)
+    }
+
     func testInteractiveRegionAndWindowAutomationShareTheSamePointerTarget() throws {
         let display = DisplaySnapshot(displayID: 1, name: "Above", frame: CGRect(x: 0, y: -900, width: 1600, height: 900), overlayFrame: CGRect(x: 0, y: 1080, width: 1600, height: 900), scale: 2)
         let foreground = makeCaptureWindow(id: 2, focusRank: 0, frame: CGRect(x: 100, y: -800, width: 400, height: 300))

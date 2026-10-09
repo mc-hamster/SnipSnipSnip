@@ -353,7 +353,8 @@ typealias ClipboardSnapshotResolver = @Sendable (
 ) async -> ClipboardPasteboardSnapshot?
 
 @MainActor
-final class ClipboardMonitor {
+final class ClipboardMonitor: ObservableObject {
+    @Published private(set) var accessPolicy: ClipboardAccessPolicy
     private struct PendingChange {
         let content: ClipboardCapturedPasteboardContent
         let sourceApp: ClipboardSourceApp?
@@ -383,6 +384,7 @@ final class ClipboardMonitor {
         }
     ) {
         self.store = store
+        self.accessPolicy = pasteboard.programmaticAccessPolicy
         self.pasteboard = pasteboard
         self.workspace = workspace
         self.snapshotResolver = snapshotResolver
@@ -438,6 +440,11 @@ final class ClipboardMonitor {
         markCurrentPasteboardChangeAsHandled()
     }
 
+    func refreshAccessPolicy() {
+        let current = pasteboard.programmaticAccessPolicy
+        if accessPolicy != current { accessPolicy = current }
+    }
+
     private func pollCurrentPasteboard() {
         guard let currentPreferences else {
             return
@@ -447,6 +454,12 @@ final class ClipboardMonitor {
     }
 
     private func poll(preferences: ClipboardPreferences) {
+        refreshAccessPolicy()
+        guard accessPolicy.allowsBackgroundRead else {
+            observedChangeCount = pasteboard.changeCount
+            cancelPendingIngestion()
+            return
+        }
         if let pausedUntil {
             if pausedUntil > Date() {
                 observedChangeCount = pasteboard.changeCount

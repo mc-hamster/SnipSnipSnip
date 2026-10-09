@@ -214,7 +214,11 @@ Clipboard history observes new clipboard content; it does not record the screen.
 
 ### Permission terminology
 
-**Screen Recording** is the macOS permission name and must remain unchanged when referring to that system permission, even when the app feature is Capture, Guide, or Video.
+**Screen Recording** remains the short permission label in the app. When giving the System Settings path, use its full pane title, **Privacy & Security > Screen & System Audio Recording**.
+
+**Needs Setup**, **Waiting for Access**, **Allowed**, and **Restart Required** distinguish missing access, an outstanding setup request, usable access, and a grant that requires relaunch. Never use Restart Required for denial alone. **Manage** navigates to an already-allowed permission without changing readiness. **Continue** opens the native consent prompt during first-run setup and, after setup, explicitly resumes a waiting action. **Cancel Setup** abandons the waiting action without revoking system access. **Troubleshooting** contains exact-app paths, Reveal App, and Copy Path. **Capture Without UI Map** changes only the waiting Window screenshot, preserving the saved UI Map preference.
+
+Optional Microphone and Camera use **Not Requested**, **Not Allowed**, **Restricted**, and **Allowed**. Use **Open Microphone Settings**, **Open Camera Settings**, and **Record Without Microphone** for permission recovery. The latter changes only the current recording attempt. **Clipboard Access** is separate from the Clipboard History preference; **Monitoring Blocked** and **Monitoring Needs Access** mean macOS currently prevents unattended reads. **Open Privacy Settings** opens its recovery destination.
 
 ## Lifecycle Verbs
 

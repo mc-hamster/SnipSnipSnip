@@ -43,6 +43,7 @@ struct AppModelCompositionContext {
         ) < AppLifecycleConstants.currentOnboardingVersion
             || preferenceStores.lifecycle.loadOnboardingResumeCheckpoint() != nil
         self.shouldPresentMainWindowOnLaunch = pendingRecoverySession != nil || videoRecoveryStore.hasRecovery()
+            || PermissionRestartStore(defaults: environment.defaults).load() != nil
         self.floatingReferenceCoordinator = FloatingReferenceCoordinator()
         self.historyPreviewCoordinator = HistoryPreviewCoordinator(
             files: environment.systemServices.files

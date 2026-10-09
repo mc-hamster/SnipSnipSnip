@@ -33,7 +33,7 @@ nonisolated enum CapturePermissionRequirement: CaseIterable, Identifiable {
         case .screenRecording:
             return "display"
         case .accessibility:
-            return "arrow.up.and.down.and.arrow.left.and.right"
+            return "accessibility"
         }
     }
 
@@ -44,6 +44,10 @@ nonisolated enum CapturePermissionRequirement: CaseIterable, Identifiable {
         case .accessibility:
             return "Guide and other Accessibility-assisted workflows."
         }
+    }
+
+    var settingsPaneTitle: String {
+        self == .screenRecording ? "Screen & System Audio Recording" : "Accessibility"
     }
 
     var settingsURL: URL {
@@ -193,6 +197,9 @@ enum ScreenCapturePermissions {
         }
 
         let nsError = error as NSError
+        if nsError.domain == SCStreamErrorDomain && nsError.code == SCStreamError.Code.userDeclined.rawValue {
+            return true
+        }
         let description = nsError.localizedDescription.lowercased()
 
         if description.contains("tcc") && description.contains("capture") {

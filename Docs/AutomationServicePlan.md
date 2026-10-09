@@ -233,7 +233,10 @@ enum AutomationInteractionPolicy: String, Codable, Sendable {
 ```
 
 - `never`: fail if the action needs a picker, save panel, permission prompt, or
-  interactive region selection.
+  interactive region selection. This includes Guide: missing Screen Recording,
+  Accessibility, or enabled narration's Microphone access returns `permissionDenied`
+  without opening permission UI. Guide Region with `never` returns `invalidRequest`
+  before presenting setup. Permission status checks must not trigger consent prompts.
 - `promptIfNeeded`: allow permission remediation, missing-window replacement,
   save panels, or confirmation dialogs.
 - `requireUserSelection`: explicitly start an interactive region or window

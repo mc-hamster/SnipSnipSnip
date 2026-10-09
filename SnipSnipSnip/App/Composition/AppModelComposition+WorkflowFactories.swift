@@ -29,7 +29,8 @@ extension AppModelComposition {
                 capabilities: context.environment.capabilities,
                 permissions: context.environment.permissions,
                 scheduler: context.environment.systemServices.scheduler,
-                lifecycle: lifecycle
+                lifecycle: lifecycle,
+                restartStore: PermissionRestartStore(defaults: context.environment.defaults)
             )
         )
     }

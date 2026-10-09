@@ -16,6 +16,10 @@ final class VideoWorkflowModel: ObservableObject {
     let dependencies: VideoWorkflowDependencies
     let recordingService: ScreenRecordingService
     weak var documents: (any VideoDocumentWorkflowPort)?
+    @Published var recordingStartRecovery: VideoStartRecovery?
+    var pendingRecordingSource: PermissionRestartVideoSource = .screen
+    var preparedRecordingPreferences: VideoRecordingPreferences?
+    var pendingRecordingOperation: (@MainActor (UUID) async -> Void)?
     @Published var activeVideoRecording: ActiveVideoRecording?
     let recordingLifecycle = VideoRecordingLifecycleCoordinator()
     @Published var recordingPreferences: VideoRecordingPreferences {

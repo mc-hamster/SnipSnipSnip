@@ -250,6 +250,9 @@ struct ContentView: View {
             CapturePresetNamingSheetView(capture: capture)
                 .frame(width: 420)
         }
+        .sheet(item: $video.recordingStartRecovery) { recovery in
+            VideoPermissionRecoveryView(video: video, recovery: recovery)
+        }
         .sheet(item: $capture.captureRecovery) { recovery in
             CaptureRecoverySheetView(
                 recovery: recovery,
@@ -658,7 +661,12 @@ struct ContentView: View {
 
             captureHeaderActions
 
-            if !headerCaptureReady {
+            if let permissionGuide = permissions.permissionSetupGuide {
+                ScrollView {
+                    PermissionSetupView(permissions: permissions, guide: permissionGuide)
+                }
+                .frame(maxHeight: 230)
+            } else if !headerCaptureReady {
                 if hasOpenDocument {
                     compactPermissionStrip
                     if isPermissionDiagnosticExpanded {
@@ -1714,16 +1722,7 @@ struct ContentView: View {
                 missingPermissionRow(requirement)
             }
 
-            if let guide = permissions.permissionSetupGuide {
-                PermissionSetupGuideView(
-                    guide: guide,
-                    onOpenSettings: permissions.openPermissionSettingsFromGuide,
-                    onRevealApp: permissions.revealAppForPermissionSetup,
-                    onCopyPath: permissions.copyAppPathForPermissionSetup,
-                    onCheckAgain: permissions.checkPermissionSetupGuideStatus,
-                    onDone: permissions.dismissPermissionSetupGuide
-                )
-            }
+
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -2488,123 +2487,6 @@ private struct CaptureModeCard<Content: View>: View {
     }
 }
 
-private struct PermissionSetupGuideView: View {
-    let guide: PermissionSetupGuide
-    let onOpenSettings: () -> Void
-    let onRevealApp: () -> Void
-    let onCopyPath: () -> Void
-    let onCheckAgain: () -> Void
-    let onDone: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: guide.requirement.systemImage)
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(.orange)
-                    .frame(width: 44, height: 44)
-                    .background(Color.orange.opacity(0.12), in: .rect(cornerRadius: 12, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Allow \(guide.requirement.title)")
-                        .font(.title2.weight(.semibold))
-
-                    Text(permissionIntro)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 10) {
-                setupStep(firstSetupStep)
-                setupStep("If \(guide.appName) is listed, turn it on.")
-                setupStep("If it is still not listed, click the + button and choose the app shown below. Development builds may live inside Xcode DerivedData, so adding the exact running app matters.")
-                setupStep(finalSetupStep)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Current app")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-
-                Text(guide.appPath)
-                    .font(.caption.monospaced())
-                    .textSelection(.enabled)
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(nsColor: .textBackgroundColor), in: .rect(cornerRadius: 8, style: .continuous))
-            }
-
-            HStack(spacing: 10) {
-                Button("Open Settings", action: onOpenSettings)
-                    .buttonStyle(.glass)
-
-                Button("Reveal App", action: onRevealApp)
-                    .buttonStyle(.glass)
-
-                Button("Copy Path", action: onCopyPath)
-                    .buttonStyle(.glass)
-
-                Spacer(minLength: 12)
-
-                Button("Check Again", action: onCheckAgain)
-                    .buttonStyle(.glass)
-
-                Button("Done", action: onDone)
-                    .keyboardShortcut(.cancelAction)
-                    .buttonStyle(.glass)
-            }
-        }
-        .padding(12)
-        .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: 10, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.16), lineWidth: 1)
-        }
-    }
-
-    private var permissionIntro: String {
-        switch guide.requirement {
-        case .screenRecording:
-            return "macOS needs this before \(AppBranding.displayName) can read screen pixels for captures, recordings, and live window thumbnails."
-        case .accessibility:
-            return "macOS needs this for Accessibility workflows such as Scrolling Capture and Window UI Map."
-        }
-    }
-
-    private var firstSetupStep: String {
-        switch guide.requirement {
-        case .screenRecording:
-            return "Use the macOS prompt's Open System Settings button, or click Open Settings here to go to Privacy & Security > Screen Recording."
-        case .accessibility:
-            return "Use the macOS prompt's Open System Settings button, or click Open Settings here to go to Privacy & Security > Accessibility."
-        }
-    }
-
-    private var finalSetupStep: String {
-        switch guide.requirement {
-        case .screenRecording:
-            return "Return here and click Check Again. If macOS still cannot give this running copy access, restart \(AppBranding.displayName) when prompted."
-        case .accessibility:
-            return "Return here and click Check Again."
-        }
-    }
-
-    private func setupStep(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "checkmark.circle")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.orange)
-                .padding(.top, 2)
-
-            Text(text)
-                .font(.subheadline)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-}
-
 private struct CapturePresetNamingSheetView: View {
     @ObservedObject var capture: CaptureWorkflowModel
     @Environment(\.dismiss) private var dismiss
@@ -2797,6 +2679,7 @@ private struct CaptureRecoverySheetView: View {
         case .retryLastCapture: "Try Again"
         case .setUpScreenRecording: "Set Up Screen Recording"
         case .setUpAccessibility: "Set Up Accessibility"
+        case .openCameraSettings: "Open Camera Settings"
         case .refreshWindows: "Refresh Windows"
         case .pickAnotherWindow: "Pick Another Window"
         case .captureFrontmostWindow: "Capture Frontmost"

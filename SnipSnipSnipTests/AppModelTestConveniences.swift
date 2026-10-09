@@ -413,11 +413,6 @@ extension AppModel {
         set { capture.pendingWindowThumbnailTask = newValue }
     }
 
-    var pendingScreenRecordingPermissionVerificationTask: Task<Void, Never>? {
-        get { permissions.pendingScreenRecordingPermissionVerificationTask }
-        set { permissions.pendingScreenRecordingPermissionVerificationTask = newValue }
-    }
-
     var screenRecordingPermissionVerificationGeneration: Int {
         get { permissions.screenRecordingPermissionVerificationGeneration }
         set { permissions.screenRecordingPermissionVerificationGeneration = newValue }

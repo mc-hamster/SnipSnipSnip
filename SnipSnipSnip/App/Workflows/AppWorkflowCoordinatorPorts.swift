@@ -15,7 +15,7 @@ protocol CoordinatorPermissionPort: AnyObject {
     var permissionStatus: CapturePermissionStatus { get }
 
     func refreshPermissions()
-    func checkPermissionSetupGuideStatus()
+    func cancelDeferredOperation(ifFeature: String?)
 }
 
 @MainActor
@@ -32,7 +32,6 @@ protocol CoordinatorCapturePort: AnyObject {
     func resetCapturePreferencesToDefaults()
     func notifyPermissionsChanged()
     func cancelPendingPermissionCommand()
-    func retryPendingPermissionCommandIfSatisfied(_ status: CapturePermissionStatus)
     func recordCompletedCapture(request: LastCaptureRequest, runOptions: CaptureRunOptions)
     func scheduleUIMapCapture(
         for controller: EditorController,

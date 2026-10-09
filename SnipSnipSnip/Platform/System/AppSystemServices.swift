@@ -72,6 +72,7 @@ protocol BundleIdentityProviding: Sendable {
 }
 
 protocol PasteboardServicing: Sendable {
+    @MainActor var programmaticAccessPolicy: ClipboardAccessPolicy { get }
     @MainActor var changeCount: Int { get }
     @MainActor var typeNames: [String] { get }
     @MainActor @discardableResult func clearContents() -> Bool
@@ -83,6 +84,10 @@ protocol PasteboardServicing: Sendable {
     @MainActor @discardableResult func setData(_ data: Data, forType type: NSPasteboard.PasteboardType) -> Bool
     @MainActor @discardableResult func writeFileURLs(_ urls: [URL]) -> Bool
     @MainActor @discardableResult func writeItemSnapshots(_ items: [PasteboardItemSnapshot]) -> Bool
+}
+
+extension PasteboardServicing {
+    @MainActor var programmaticAccessPolicy: ClipboardAccessPolicy { .allowed }
 }
 
 protocol ClockProviding: Sendable {
@@ -321,6 +326,9 @@ struct SystemBundleIdentityService: BundleIdentityProviding {
 }
 
 struct SystemPasteboardService: PasteboardServicing {
+    @MainActor var programmaticAccessPolicy: ClipboardAccessPolicy {
+        ClipboardAccessPolicy(NSPasteboard.general.accessBehavior)
+    }
     @MainActor
     var changeCount: Int {
         NSPasteboard.general.changeCount

@@ -1779,7 +1779,7 @@ final class AppModelTests: XCTestCase {
         XCTAssertFalse(model.screenInspectorPreferences.showsCrosshair)
     }
 
-    func testRefreshPermissionsClearsReadyWhenShareableContentProbeFails() async {
+    func testExplicitPermissionCheckClearsReadyWhenShareableContentProbeFails() async {
         let suiteName = "AppModelTests.refreshPermissionsClearsReadyWhenShareableContentProbeFails"
         let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -1808,7 +1808,7 @@ final class AppModelTests: XCTestCase {
         )
         model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false)
 
-        model.permissions.refreshPermissions()
+        await model.permissions.refreshPermissionsIncludingScreenRecordingProbe()
 
         await waitUntil {
             model.permissionStatus == CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: false)
@@ -1819,7 +1819,7 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(model.permissionStatus.missingRequirements(for: releaseCapabilities), [.screenRecording])
     }
 
-    func testRequestScreenRecordingAccessOpensSettingsWhenPermissionStillMissing() async {
+    func testRequestScreenRecordingAccessWaitsForExplicitSettingsAction() async {
         let suiteName = "AppModelTests.requestScreenRecordingAccessOpensSettings"
         let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -1862,9 +1862,8 @@ final class AppModelTests: XCTestCase {
         XCTAssertTrue(recorder.didRequestScreenRecordingAccess())
         XCTAssertEqual(model.permissionSetupGuide?.requirement, .screenRecording)
 
-        await waitUntil {
-            recorder.openedSettingsRequirements() == [.screenRecording]
-        }
+        XCTAssertTrue(recorder.openedSettingsRequirements().isEmpty)
+        model.permissions.openPermissionSettings(.screenRecording)
 
         XCTAssertEqual(recorder.openedSettingsRequirements(), [.screenRecording])
         XCTAssertEqual(model.permissionSetupGuide?.requirement, .screenRecording)
@@ -1915,9 +1914,7 @@ final class AppModelTests: XCTestCase {
         let requests = await captureService.includeThumbnailRequests()
         XCTAssertEqual(requests, [])
 
-        await waitUntil {
-            recorder.openedSettingsRequirements() == [.screenRecording]
-        }
+        XCTAssertTrue(recorder.openedSettingsRequirements().isEmpty)
 
         XCTAssertEqual(model.permissionSetupGuide?.requirement, .screenRecording)
     }

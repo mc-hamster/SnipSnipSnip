@@ -135,6 +135,7 @@ struct PermissionSetupGuide: Identifiable {
     let requirement: CapturePermissionRequirement
     let appName: String
     let appPath: String
+    var featureName: String? = nil
 }
 
 struct InteractiveCaptureAutosaveSuspension {

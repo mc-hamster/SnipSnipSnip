@@ -2,6 +2,7 @@ import Foundation
 
 @MainActor
 protocol VideoCaptureWorkflowPort: AnyObject {
+    var privateCaptureEnabled: Bool { get }
     var availableWindows: [CaptureWindowSummary] { get }
     var regionCapturePreferences: RegionCapturePreferences { get }
 

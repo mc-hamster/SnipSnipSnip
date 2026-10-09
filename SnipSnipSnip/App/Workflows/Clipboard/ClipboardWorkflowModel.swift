@@ -40,6 +40,7 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
     weak var documents: (any ClipboardDocumentWorkflowPort)?
     private let pasteboard: any PasteboardServicing
     private var historyObservation: AnyCancellable?
+    private var permissionObservation: AnyCancellable?
     var monitoringResumeTask: Task<Void, Never>?
     let preferenceStore: ClipboardPreferenceStore
     @Published var preferences: ClipboardPreferences {
@@ -75,6 +76,9 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
         self.pasteboard = pasteboard
         self.preferenceStore = preferenceStore
         self.preferences = preferenceStore.loadPreferences()
+        permissionObservation = monitor.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
         historyObservation = historyStore.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
         }
@@ -90,7 +94,19 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
         if !preferences.isEnabled { return "Monitoring Off" }
         if !historyStore.isStorageAvailable { return "Monitoring Unavailable" }
         if isClipboardMonitoringPaused { return "Monitoring Paused" }
+        if monitor.accessPolicy == .denied { return String(localized: "Monitoring Blocked") }
+        if monitor.accessPolicy == .ask { return String(localized: "Monitoring Needs Access") }
         return "Monitoring"
+    }
+
+    var needsClipboardAccess: Bool {
+        preferences.isEnabled && !monitor.accessPolicy.allowsBackgroundRead
+    }
+
+    func openClipboardPrivacySettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy") {
+            dependencies.systemServices.workspace.open(url)
+        }
     }
 
     func retryClipboardStorage() { historyStore.retryStorage() }

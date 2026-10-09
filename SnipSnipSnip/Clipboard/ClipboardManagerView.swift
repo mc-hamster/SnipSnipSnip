@@ -52,6 +52,9 @@ struct ClipboardManagerView: View {
             let selected = snapshot.items.first { $0.id == selectedItemID } ?? snapshot.items.first
             VStack(spacing: 0) {
                 if showsPreview { previewHeader } else { header(count: snapshot.items.count) }
+                if clipboard.needsClipboardAccess {
+                    ClipboardAccessNotice(clipboard: clipboard)
+                }
                 if let problem = clipboard.storageProblem {
                     storageWarning(problem)
                 }
@@ -234,6 +237,10 @@ struct ClipboardManagerView: View {
 
     private var monitoringMenu: some View {
         Menu {
+            if clipboard.needsClipboardAccess {
+                Button("Open Privacy Settings", action: clipboard.openClipboardPrivacySettings)
+                Divider()
+            }
             if clipboard.isClipboardMonitoringPaused {
                 Button("Resume Monitoring", action: clipboard.resumeClipboardMonitoring)
             } else {

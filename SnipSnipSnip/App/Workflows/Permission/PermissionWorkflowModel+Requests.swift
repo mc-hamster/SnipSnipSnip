@@ -3,7 +3,9 @@ import Foundation
 @MainActor
 extension PermissionWorkflowModel {
     func refreshPermissions() {
+        refreshMediaPermissions()
         let currentStatus = dependencies.permissions.currentStatus()
+        reconcileScreenRecordingPreflightChange(currentStatus)
         let status = effectivePermissionStatus(from: currentStatus)
         let didChangeStatus = status != permissionStatus
         if didChangeStatus {
@@ -29,10 +31,16 @@ extension PermissionWorkflowModel {
         if let activePermissionRequest,
            hasVerifiedAccess(to: activePermissionRequest, in: status) {
             self.activePermissionRequest = nil
+            if permissionContinuation == nil { permissionSetupGuide = nil }
+        }
+        if permissionContinuation == nil, let guide = permissionSetupGuide,
+           status.hasAccess(to: guide.requirement) {
             permissionSetupGuide = nil
         }
+        updateContinuationGuide()
 
-        reconcileVerifiedScreenRecordingAccess(using: currentStatus)
+        // Status refresh never enumerates screen content. That operation can
+        // show a macOS consent alert; use the explicit Check Again action.
     }
 
     func effectivePermissionStatus(from status: CapturePermissionStatus) -> CapturePermissionStatus {
@@ -76,7 +84,9 @@ extension PermissionWorkflowModel {
             return .granted(permissionStatus)
         }
 
+        guard missingRequirements.allSatisfy(dependencies.permissions.canRequest) else { return .unavailable }
         requestPermission(firstMissingRequirement)
+        permissionSetupGuide?.featureName = featureName
         refreshPermissions()
 
         let stillMissingRequirements = requirements.filter { !permissionStatus.hasAccess(to: $0) }
@@ -95,7 +105,9 @@ extension PermissionWorkflowModel {
     }
 
     func requestPermission(_ requirement: CapturePermissionRequirement) {
-        guard activePermissionRequest == nil else {
+        refreshPermissions()
+        guard !permissionStatus.hasAccess(to: requirement) else { return }
+        guard activePermissionRequest == nil, activeMediaPermissionRequest == nil else {
             logPermissionState("requestPermissionIgnoredActiveRequest")
             return
         }
@@ -108,6 +120,10 @@ extension PermissionWorkflowModel {
         }
 
         if requirement == .screenRecording {
+            guard !screenRecordingSetupNeedsAttention else {
+                presentPermissionSetupGuide(for: requirement)
+                return
+            }
             noteScreenRecordingSetupStarted()
         }
 
@@ -123,14 +139,8 @@ extension PermissionWorkflowModel {
             return
         }
 
-        switch requirement {
-        case .accessibility:
-            openAccessibilitySettingsAfterPromptOpportunity()
-            presentPermissionSetupGuide(for: .accessibility)
-        case .screenRecording:
-            presentPermissionSetupGuide(for: .screenRecording)
-            openScreenRecordingSettingsAfterPromptOpportunity()
-        }
+        // macOS owns its consent alert. Settings opens only at the user's request.
+        presentPermissionSetupGuide(for: requirement)
     }
 
     func requestScreenRecordingAccess() {
@@ -173,20 +183,19 @@ extension PermissionWorkflowModel {
     }
 
     func openPermissionSettings(_ requirement: CapturePermissionRequirement) {
-        if requirement == .screenRecording {
-            noteScreenRecordingSetupStarted()
-        }
-
-        if requirement == .screenRecording,
-           !permissionStatus.hasScreenRecording {
-            if activePermissionRequest == nil {
-                activePermissionRequest = .screenRecording
+        guard dependencies.permissions.canRequest(requirement) else { return }
+        refreshPermissions()
+        // Manage is navigation, not a new grant. Never invalidate existing access.
+        if !permissionStatus.hasAccess(to: requirement),
+           !(requirement == .screenRecording && screenRecordingSetupNeedsAttention) {
+            if requirement == .screenRecording {
+                noteScreenRecordingSetupStarted()
             }
+            if activePermissionRequest == nil { activePermissionRequest = requirement }
+            presentPermissionSetupGuide(for: requirement)
         }
-
         dependencies.permissions.openSystemSettings(for: requirement)
         logPermissionState("openPermissionSettings.\(String(describing: requirement))")
-        refreshPermissions()
     }
 
     func updateActivePermissionPolling() {
@@ -208,7 +217,6 @@ extension PermissionWorkflowModel {
                 }
 
                 self.refreshPermissions()
-                await self.reconcileVerifiedActivePermissionRequest(requirement)
                 PermissionWorkflowDiagnostics.debugState(
                     "activePermissionPoll.\(String(describing: requirement))",
                     rawStatus: self.dependencies.permissions.currentStatus(),
@@ -227,90 +235,6 @@ extension PermissionWorkflowModel {
         }
     }
 
-    private func reconcileVerifiedActivePermissionRequest(_ requirement: CapturePermissionRequirement) async {
-        guard requirement == .screenRecording,
-              activePermissionRequest == .screenRecording,
-              !permissionStatus.hasScreenRecording else {
-            return
-        }
-
-        let hasVerifiedAccess = await dependencies.permissions.verifyScreenRecordingAccess()
-
-        guard activePermissionRequest == .screenRecording,
-              hasVerifiedAccess else {
-            return
-        }
-
-        let currentStatus = dependencies.permissions.currentStatus()
-        if screenRecordingSetupRequiresRestart(for: currentStatus, verifiedAccess: hasVerifiedAccess) {
-            markScreenRecordingRestartRequired()
-            logPermissionState(
-                "activePermissionPollRestartRequired.\(String(describing: requirement))",
-                rawStatus: currentStatus,
-                verifiedScreenRecordingAccess: hasVerifiedAccess
-            )
-            return
-        }
-
-        hasVerifiedScreenRecordingAccess = true
-        permissionStatus = CapturePermissionStatus(
-            hasScreenRecording: true,
-            hasAccessibility: currentStatus.hasAccessibility
-        )
-        clearScreenRecordingRestartRequired()
-        permissionSetupGuide = nil
-        activePermissionRequest = nil
-        logPermissionState(
-            "activePermissionPollVerified.\(String(describing: requirement))",
-            rawStatus: currentStatus,
-            verifiedScreenRecordingAccess: hasVerifiedAccess
-        )
-    }
-
-    private func openScreenRecordingSettingsAfterPromptOpportunity() {
-        Task { @MainActor [weak self] in
-            try? await self?.dependencies.scheduler.sleep(nanoseconds: 350_000_000)
-            guard let self else {
-                return
-            }
-
-            self.refreshPermissions()
-
-            guard self.activePermissionRequest == .screenRecording,
-                  !self.permissionStatus.hasScreenRecording else {
-                if self.permissionStatus.hasScreenRecording {
-                    self.permissionSetupGuide = nil
-                    if self.activePermissionRequest == .screenRecording {
-                        self.activePermissionRequest = nil
-                    }
-                }
-                return
-            }
-
-            self.dependencies.permissions.openSystemSettings(for: .screenRecording)
-        }
-    }
-
-    private func openAccessibilitySettingsAfterPromptOpportunity() {
-        guard dependencies.permissions.canRequest(.accessibility) else {
-            return
-        }
-
-        Task { @MainActor [weak self] in
-            try? await self?.dependencies.scheduler.sleep(nanoseconds: 350_000_000)
-            guard let self else {
-                return
-            }
-
-            self.refreshPermissions()
-
-            guard self.activePermissionRequest == .accessibility,
-                  !self.permissionStatus.hasAccessibility else {
-                self.permissionSetupGuide = nil
-                return
-            }
-
-            self.presentPermissionSetupGuide(for: .accessibility)
-        }
-    }
+    // Poll only non-prompting status APIs. Shareable-content probes can display
+    // system consent UI and therefore belong to an explicit Check Again action.
 }

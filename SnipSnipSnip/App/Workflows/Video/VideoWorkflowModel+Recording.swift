@@ -34,7 +34,7 @@ extension VideoWorkflowModel {
     func recordCurrentDisplay(
         presentationContext: WorkflowPresentationContext
     ) {
-        reserveAndPrepareRecording { [weak self] generation in
+        reserveAndPrepareRecording(source: .screen) { [weak self] generation in
             await self?.beginFullscreenVideoRecording(
                 generation: generation,
                 presentationContext: presentationContext
@@ -49,7 +49,7 @@ extension VideoWorkflowModel {
     func recordRegion(
         presentationContext: WorkflowPresentationContext
     ) {
-        reserveAndPrepareRecording { [weak self] generation in
+        reserveAndPrepareRecording(source: .region) { [weak self] generation in
             await self?.beginRegionVideoRecording(
                 generation: generation,
                 presentationContext: presentationContext
@@ -60,7 +60,7 @@ extension VideoWorkflowModel {
     func recordWindowOnScreen(
         presentationContext: WorkflowPresentationContext
     ) {
-        reserveAndPrepareRecording { [weak self] generation in
+        reserveAndPrepareRecording(source: .window) { [weak self] generation in
             guard let self else { return }
             await beginWindowOnScreenVideoRecording(
                 generation: generation,
@@ -71,7 +71,7 @@ extension VideoWorkflowModel {
     }
 
     func presentVideoWindowPicker() {
-        reserveAndPrepareRecording { [weak self] generation in
+        reserveAndPrepareRecording(source: .window) { [weak self] generation in
             guard let self, recordingLifecycle.generation == generation else { return }
             pendingWindowPickerGeneration = generation
             dependencies.capture.beginVideoWindowSelection()
@@ -85,6 +85,9 @@ extension VideoWorkflowModel {
             return
         }
         pendingWindowPickerGeneration = nil
+        pendingRecordingOperation = { [weak self] generation in
+            await self?.beginWindowVideoRecording(window, generation: generation)
+        }
         recordingStartTask = Task { @MainActor [weak self] in
             await self?.beginWindowVideoRecording(window, generation: generation)
         }
@@ -96,6 +99,8 @@ extension VideoWorkflowModel {
         recordingStartTask?.cancel()
         recordingStartTask = nil
         pendingWindowPickerGeneration = nil
+        pendingRecordingOperation = nil
+        preparedRecordingPreferences = nil
         recordingLifecycle.reset(generation: generation)
     }
 
@@ -180,6 +185,19 @@ extension VideoWorkflowModel {
                 hiddenWindow: hiddenWindow,
                 error: error
             )
+        }
+    }
+
+    func resumeRecordingAfterPermissionRestart(source: PermissionRestartVideoSource, preferences: VideoRecordingPreferences) {
+        reserveAndPrepareRecording(source: source, preferences: preferences) { [weak self] generation in
+            guard let self else { return }
+            switch source {
+            case .screen: await beginFullscreenVideoRecording(generation: generation, presentationContext: .application)
+            case .region: await beginRegionVideoRecording(generation: generation, presentationContext: .application)
+            case .window:
+                pendingWindowPickerGeneration = generation
+                dependencies.capture.beginVideoWindowSelection()
+            }
         }
     }
 
@@ -329,14 +347,39 @@ extension VideoWorkflowModel {
         documents?.videoEditorController?.promisedVideoPayload(using: defaultExportRequest)
     }
 
-    private func reserveAndPrepareRecording(
+    func reserveAndPrepareRecording(
+        source: PermissionRestartVideoSource = .screen,
+        preferences: VideoRecordingPreferences? = nil,
         _ operation: @escaping @MainActor (UUID) async -> Void
     ) {
+        guard !recordingLifecycle.blocksNewCapture else { return }
+        let preferences = preferences ?? recordingPreferences
+        guard dependencies.permissions.preflight([.screenRecording], featureName: "Video").isGranted else {
+            dependencies.permissions.deferOperation(requiring: [.screenRecording], featureName: "Video") { [weak self] in
+                self?.reserveAndPrepareRecording(source: source, preferences: preferences, operation)
+            }
+            if !dependencies.capture.privateCaptureEnabled {
+                dependencies.permissions.rememberPermissionRestartAction(.video(source, preferences))
+            }
+            return
+        }
+        dependencies.permissions.cancelDeferredOperation(ifFeature: nil)
         guard let generation = recordingLifecycle.reserveStart() else { return }
+        pendingRecordingSource = source
+        preparedRecordingPreferences = preferences
+        recordingStartRecovery = nil
+        pendingRecordingOperation = operation
         completedRecordingGeneration = nil
         completedRecordingSucceeded = false
         recordingStartTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            do {
+                if preferences.recordsMicrophone { try await recordingService.platform.requestMicrophoneAccess() }
+            } catch {
+                failPreparingRecording(generation: generation, error: error)
+                return
+            }
+            guard isCurrentPreparingGeneration(generation), !Task.isCancelled else { return }
             let canContinue = await documents?.prepareForNewVideoRecording() ?? true
             guard canContinue, isCurrentPreparingGeneration(generation), !Task.isCancelled else {
                 recordingLifecycle.reset(generation: generation)
@@ -373,7 +416,7 @@ extension VideoWorkflowModel {
         }
 
         do {
-            let session = try await recordingService.startFullscreenRecording(preferences: recordingPreferences)
+            let session = try await recordingService.startFullscreenRecording(preferences: currentRecordingPreferences)
             await activateRecording(
                 session: session,
                 sourceLabel: WorkflowVocabulary.Source.screen,
@@ -424,13 +467,13 @@ extension VideoWorkflowModel {
                 switch selection {
                 case let .region(region, _):
                     return (
-                        try await recordingService.startRegionRecording(in: region, preferences: recordingPreferences),
+                        try await recordingService.startRegionRecording(in: region, preferences: currentRecordingPreferences),
                         WorkflowVocabulary.Source.region
                     )
                 case .window(let window):
                     let resolved = try await recordingService.resolveWindowTarget(window)
                     return (
-                        try await recordingService.startWindowRecording(resolved, preferences: recordingPreferences),
+                        try await recordingService.startWindowRecording(resolved, preferences: currentRecordingPreferences),
                         WorkflowVocabulary.Source.window
                     )
                 }
@@ -464,7 +507,7 @@ extension VideoWorkflowModel {
             try prepareTemporaryVideoStorageForRecording()
             let session = try await dependencies.capture.performVideoWork(message: "Starting Recording") {
                 let resolvedWindow = try await recordingService.resolveWindowTarget(window)
-                return try await recordingService.startWindowRecording(resolvedWindow, preferences: recordingPreferences)
+                return try await recordingService.startWindowRecording(resolvedWindow, preferences: currentRecordingPreferences)
             }
             await activateRecording(
                 session: session,
@@ -492,7 +535,7 @@ extension VideoWorkflowModel {
         let overlay = RecordingControlOverlay(
             title: sourceLabel,
             sourceLabel: sourceLabel,
-            preferences: recordingPreferences,
+            preferences: currentRecordingPreferences,
             phase: .recording,
             presentationFrame: session.presentationFrame,
             pauseResumeAction: { [weak self] in self?.toggleVideoRecordingPauseResume() },
@@ -512,9 +555,11 @@ extension VideoWorkflowModel {
             hiddenWindow: hiddenWindow
         )
         activeVideoRecording = active
+        pendingRecordingOperation = nil
+        recordingStartRecovery = nil
         desiredVideoAudioOptions = VideoRecordingAudioOptions(
-            recordsSystemAudio: recordingPreferences.recordsSystemAudio,
-            recordsMicrophone: recordingPreferences.recordsMicrophone
+            recordsSystemAudio: currentRecordingPreferences.recordsSystemAudio,
+            recordsMicrophone: currentRecordingPreferences.recordsMicrophone
         )
         recordingStartTask = nil
         guard recordingLifecycle.transition(to: .recording, generation: generation) else {
@@ -627,10 +672,11 @@ extension VideoWorkflowModel {
         error: Error? = nil
     ) {
         restoreAppWindowIfNeeded(hiddenWindow)
+        guard isCurrentPreparingGeneration(generation) else { return }
         pendingWindowPickerGeneration = nil
         recordingStartTask = nil
         recordingLifecycle.reset(generation: generation)
-        if let error, !(error is CancellationError) { present(error) }
+        if let error, !(error is CancellationError) { presentVideoStartFailure(error) }
     }
 
     private func isCurrentPreparingGeneration(_ generation: UUID) -> Bool {

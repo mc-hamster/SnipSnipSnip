@@ -22,6 +22,45 @@ final class ClipboardAppModelTests: XCTestCase {
         try? FileManager.default.removeItem(at: url)
     }
 
+    func testClipboardDenialStopsBackgroundReadsAndUpdatesMonitoringStatus() async throws {
+        let name = "ClipboardAppModelTests.permission.\(UUID())"
+        let defaults = makeDefaults(named: name)
+        let store = makeClipboardStore(named: name + ".store")
+        let pasteboard = TestPasteboardService()
+        pasteboard.programmaticAccessPolicy = .denied
+        let model = retainForTestLifetime(AppModel(
+            defaults: defaults, environment: makePasteboardTestEnvironment(defaults: defaults, pasteboard: pasteboard),
+            recoveryStore: makeRecoveryStore(named: name + ".recovery"), clipboardHistoryStore: store,
+            shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false
+        ))
+        defer {
+            model.clipboard.monitor.stop()
+            defaults.removePersistentDomain(forName: name)
+            removeClipboardStore(named: name + ".store")
+            removeClipboardStore(named: name + ".recovery")
+        }
+        pasteboard.setString("Blocked clipboard value", forType: .string)
+        let reads = pasteboard.contentReadCount
+        model.clipboard.updateClipboardHistoryEnabled(true)
+        XCTAssertEqual(model.clipboard.monitoringStatus, "Monitoring Blocked")
+        XCTAssertTrue(model.clipboard.needsClipboardAccess)
+        XCTAssertEqual(pasteboard.contentReadCount, reads)
+        XCTAssertTrue(store.items.isEmpty)
+        pasteboard.programmaticAccessPolicy = .ask
+        model.clipboard.monitor.update(preferences: model.clipboard.preferences)
+        XCTAssertEqual(model.clipboard.monitoringStatus, "Monitoring Needs Access")
+        XCTAssertEqual(pasteboard.contentReadCount, reads)
+        pasteboard.programmaticAccessPolicy = .allowed
+        model.clipboard.monitor.update(preferences: model.clipboard.preferences)
+        XCTAssertEqual(model.clipboard.monitoringStatus, "Monitoring")
+        XCTAssertEqual(pasteboard.contentReadCount, reads, "Do not import content copied while access was blocked")
+        pasteboard.setString("New allowed copy", forType: .string)
+        model.clipboard.monitor.update(preferences: model.clipboard.preferences)
+        for _ in 0..<100 where store.items.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertFalse(store.items.isEmpty)
+        XCTAssertGreaterThan(pasteboard.contentReadCount, reads)
+    }
+
     func testHistoryMutationsNotifyClipboardWindowModel() throws {
         let name = "ClipboardAppModelTests.historyObservation"
         let defaults = makeDefaults(named: name)

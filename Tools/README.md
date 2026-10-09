@@ -169,3 +169,40 @@ record each outcome. Samples 11–12 remain separate interactive picker checks;
 the runner reports them explicitly rather than counting acceptance as completed
 capture. `AutomationSampleScriptTests` also runs all 49 shell samples through
 transport spies into the production CLI/URL parsers without capturing a desktop.
+
+
+## Permission release validation
+
+Permission status refresh, app foregrounding, and unattended automation must use
+non-prompting status APIs. Only explicit setup, Check Again, or a requested capture
+operation may call a consent-capable API. Never reset a developer's normal TCC
+state to run this checklist; use a clean macOS test account for first-grant cases.
+
+The regression coverage is in `PermissionWorkflowModelTests`,
+`PermissionRecoveryTests`, `CapturePermissionStatusTests`, `AppModelTests`,
+`AutomationContractTests`, `ClipboardAppModelTests`, and `TransactionalIntakeTests`.
+Run app-hosted tests serially with the shared scheme and only after the existing
+app copy exits. Keep the lifetime lock and `LSMultipleInstancesProhibited` intact.
+If source-reading tests block on Documents-folder access, build and test an exact
+source snapshot under `/private/tmp`, including current uncommitted files, instead
+of granting the test host broader folder access.
+
+Before submitting 1.2, check these native OS flows in the shipping build:
+
+| Flow | Expected result |
+| --- | --- |
+| First-run Screen Recording: deny, cancel setup, retry | No false Restart Required; settings opens only on request; optional permissions are not requested. |
+| Screen Recording: grant and relaunch | Onboarding resumes; a fresh non-private pending action can offer Continue; no capture begins automatically. |
+| Allowed Screen Recording: Manage | System Settings opens; capture remains ready and no restart is demanded. |
+| Accessibility missing with Screen Recording allowed (Pro) | Recovery stays visible; Continue resumes explicitly; Capture Without UI Map preserves the saved preference. |
+| Microphone denial | Open Microphone Settings, Try Again, and Record Without Microphone are available; retry stays in Video and saved preferences remain unchanged. |
+| Camera denial with a connected device (Pro) | Camera recovery opens the appropriate settings pane; retry keeps screenshot versus recording intent. |
+| Clipboard access denied or set to ask, where macOS enforces it | Monitoring reports Blocked or Needs Access and stops background reads; saved items remain available. |
+| Revocation while the app is running | A newly negative system status clears cached readiness; no background permission prompt or capture is triggered. |
+| Unattended Guide (Pro) | Missing access returns permissionDenied without UI; Region returns invalidRequest because target selection requires interaction. |
+| Cancel or restart with private/document-specific work | Existing work and normal recovery safeguards are preserved; no private acquisition or stale editor destination is persisted for replay. |
+
+App Store builds must omit Camera and Accessibility setup, keep microphone optional,
+and keep the camera usage key absent. OS consent dialogs, managed restrictions,
+and physical iPhone/iPad trust must be checked on real supported systems; mocked
+permission states and hosted UI renders do not certify those platform behaviors.

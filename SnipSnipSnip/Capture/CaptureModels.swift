@@ -481,6 +481,7 @@ nonisolated enum CaptureRecoveryAction: Hashable {
     case retryLastCapture
     case setUpScreenRecording
     case setUpAccessibility
+    case openCameraSettings
     case refreshWindows
     case pickAnotherWindow
     case captureFrontmostWindow

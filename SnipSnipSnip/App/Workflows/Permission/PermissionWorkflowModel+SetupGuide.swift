@@ -2,6 +2,13 @@ import Foundation
 
 @MainActor
 extension PermissionWorkflowModel {
+    func statusTitle(for requirement: CapturePermissionRequirement) -> String {
+        if permissionStatus.hasAccess(to: requirement) { return String(localized: "Allowed") }
+        if requirement == .screenRecording && screenRecordingSetupNeedsAttention { return String(localized: "Restart Required") }
+        if activePermissionRequest == requirement { return String(localized: "Waiting for Access") }
+        return String(localized: "Needs Setup")
+    }
+
     func presentPermissionSetupGuide(for requirement: CapturePermissionRequirement) {
         refreshPermissions()
 
@@ -21,29 +28,17 @@ extension PermissionWorkflowModel {
     }
 
     func dismissPermissionSetupGuide() {
+        dependencies.restartStore?.save(nil)
+        permissionContinuation = nil
         permissionSetupGuide = nil
+        activePermissionRequest = nil
+        invalidateScreenRecordingVerification()
+        permissionCheckTask?.cancel()
+        permissionCheckTask = nil
+        permissionCheckID = nil
+        isCheckingPermission = false
         outputSink?.handle(.permissionSetupDismissed)
-
-        guard activePermissionRequest == .screenRecording else {
-            activePermissionRequest = nil
-            refreshPermissions()
-            return
-        }
-
-        Task { @MainActor [weak self] in
-            guard let self else {
-                return
-            }
-
-            await self.refreshPermissionsIncludingScreenRecordingProbe()
-
-            guard self.activePermissionRequest == .screenRecording,
-                  !self.permissionStatus.hasScreenRecording else {
-                return
-            }
-
-            self.markScreenRecordingRestartRequired()
-        }
+        refreshPermissions()
     }
 
     func revealAppForPermissionSetup() {
@@ -63,25 +58,22 @@ extension PermissionWorkflowModel {
     }
 
     func checkPermissionSetupGuideStatus() {
-        if activePermissionRequest == .screenRecording || permissionSetupGuide?.requirement == .screenRecording {
-            Task { @MainActor [weak self] in
-                guard let self else {
-                    return
-                }
-
+        guard !isCheckingPermission else { return }
+        if permissionSetupGuide?.requirement != .accessibility {
+            isCheckingPermission = true
+            let checkID = UUID()
+            permissionCheckID = checkID
+            permissionCheckTask = Task { @MainActor [weak self] in
+                guard let self else { return }
                 await self.refreshPermissionsIncludingScreenRecordingProbe()
+                guard self.permissionCheckID == checkID else { return }
+                self.permissionCheckID = nil
+                self.permissionCheckTask = nil
+                self.isCheckingPermission = false
                 self.clearPermissionSetupGuideIfSatisfied()
-
-                guard self.activePermissionRequest == .screenRecording,
-                      !self.permissionStatus.hasScreenRecording else {
-                    return
-                }
-
-                self.markScreenRecordingRestartRequired()
             }
             return
         }
-
         refreshPermissions()
         clearPermissionSetupGuideIfSatisfied()
     }
@@ -92,7 +84,7 @@ extension PermissionWorkflowModel {
             return
         }
 
-        self.permissionSetupGuide = nil
+        if permissionContinuation == nil { self.permissionSetupGuide = nil }
         if activePermissionRequest == permissionSetupGuide.requirement {
             activePermissionRequest = nil
         }

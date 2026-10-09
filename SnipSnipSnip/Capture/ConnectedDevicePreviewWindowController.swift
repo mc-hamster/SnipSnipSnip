@@ -2,7 +2,7 @@ import AppKit
 import Combine
 import SwiftUI
 
-enum ConnectedDevicePreviewIntent {
+enum ConnectedDevicePreviewIntent: Equatable {
     case screenshot
     case recording
 }

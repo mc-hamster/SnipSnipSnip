@@ -129,7 +129,15 @@ final class GuideWorkflowModel: ObservableObject {
         isShowingQuickStart = true
     }
 
+    func resumeSetupAfterPermissionRestart(_ draft: GuideCaptureSetupDraft) {
+        guard dependencies.capabilities.isEnabled(.guideCapture) else { return }
+        captureSetupDraft = draft
+        selectedSourceKind = draft.sourceKind
+        isShowingQuickStart = true
+    }
+
     func cancelQuickStart() {
+        dependencies.permissions.cancelDeferredOperation(ifFeature: "Guide")
         captureSetupDraft = nil
         targetPickerKind = nil
         isShowingQuickStart = false
@@ -183,9 +191,16 @@ final class GuideWorkflowModel: ObservableObject {
             [.screenRecording, .accessibility],
             featureName: "Guide"
         ).isGranted else {
+            dependencies.permissions.deferOperation(requiring: [.screenRecording, .accessibility], featureName: "Guide") { [weak self] in
+                self?.beginSelectedSourceSelection(setup: draft)
+            }
+            if !dependencies.capture.privateCaptureEnabled {
+                dependencies.permissions.rememberPermissionRestartAction(.guide(draft))
+            }
             return
         }
 
+        dependencies.permissions.cancelDeferredOperation(ifFeature: nil)
         targetPickerKind = nil
         isShowingQuickStart = false
         let sourceKind = draft.sourceKind
@@ -244,7 +259,10 @@ final class GuideWorkflowModel: ObservableObject {
                 )
             } catch {
                 returnToQuickStart()
-                outputSink?.handle(GuideWorkflowOutput.presentError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription))
+                dependencies.permissions.refreshPermissions()
+                if !VideoWorkflowModel.isMicrophonePermissionError(error) {
+                    outputSink?.handle(GuideWorkflowOutput.presentError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription))
+                }
             }
         }
     }
@@ -661,6 +679,20 @@ extension GuideWorkflowModel: GuideAutomationPort {
                 }
                 guard !dependencies.capture.isWorking, !dependencies.video.blocksNewCapture, !dependencies.capture.isConnectedDeviceSessionActive else {
                     return .failure(requestID: request.id, code: .busy, message: "Finish the active capture or recording before starting Guide.")
+                }
+                if request.interactionPolicy == .never {
+                    if case .region = target {
+                        return .failure(requestID: request.id, code: .invalidRequest, message: "Guide Region capture requires an interactive automation policy.")
+                    }
+                    dependencies.permissions.refreshPermissions()
+                    guard dependencies.permissions.permissionStatus.hasScreenRecording,
+                          dependencies.permissions.permissionStatus.hasAccessibility else {
+                        return .failure(requestID: request.id, code: .permissionDenied, message: "Guide requires Screen Recording and Accessibility access. Set up access in the app before running unattended automation.")
+                    }
+                    if capturePreferences.sourceVideoEnabled && capturePreferences.capturesMicrophone,
+                       dependencies.permissions.mediaPermissionStatus(for: .microphone) != .allowed {
+                        return .failure(requestID: request.id, code: .permissionDenied, message: "Guide narration requires Microphone access. Set up access in the app before running unattended automation.")
+                    }
                 }
                 guard dependencies.permissions.preflight([.screenRecording, .accessibility], featureName: "Guide").isGranted else {
                     return .failure(requestID: request.id, code: .permissionDenied, message: "Guide requires Screen Recording and Accessibility access.")

@@ -1,7 +1,16 @@
 import XCTest
+import ScreenCaptureKit
 @testable import SnipSnipSnip
 
 final class CapturePermissionStatusTests: XCTestCase {
+    func testNativePermissionErrorDoesNotDependOnEnglishErrorText() {
+        let denied = NSError(domain: SCStreamErrorDomain, code: SCStreamError.Code.userDeclined.rawValue,
+                             userInfo: [NSLocalizedDescriptionKey: "Accès refusé"])
+        XCTAssertTrue(ScreenCapturePermissions.indicatesScreenRecordingPermissionFailure(denied))
+        let unrelated = NSError(domain: NSCocoaErrorDomain, code: 1, userInfo: [NSLocalizedDescriptionKey: "Operation failed"])
+        XCTAssertFalse(ScreenCapturePermissions.indicatesScreenRecordingPermissionFailure(unrelated))
+    }
+
     func testAppBrandingDisplayNameReflectsBuildTarget() {
         XCTAssertEqual(AppBranding.displayName(for: .release), "SnipSnipSnip")
         XCTAssertEqual(AppBranding.displayName(for: .selfRelease), "SnipSnipSnip Pro")

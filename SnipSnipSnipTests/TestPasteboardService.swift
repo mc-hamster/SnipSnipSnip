@@ -8,6 +8,8 @@ final class TestPasteboardService: PasteboardServicing, @unchecked Sendable {
     private var urls: [URL] = []
     private var snapshotWriteFailuresRemaining = 0
     var rejectsDataWrites = false
+    var programmaticAccessPolicy: ClipboardAccessPolicy = .allowed
+    private(set) var contentReadCount = 0
 
     private(set) var changeCount = 0
 
@@ -25,18 +27,22 @@ final class TestPasteboardService: PasteboardServicing, @unchecked Sendable {
     }
 
     func fileAndWebURLs() -> [URL] {
-        urls
+        contentReadCount += 1
+        return urls
     }
 
     func data(forType type: NSPasteboard.PasteboardType) -> Data? {
-        dataByType[type]
+        contentReadCount += 1
+        return dataByType[type]
     }
 
     func string(forType type: NSPasteboard.PasteboardType) -> String? {
-        strings[type]
+        contentReadCount += 1
+        return strings[type]
     }
 
     func itemSnapshots(acceptedTypeIdentifiers: Set<String>) -> [PasteboardItemSnapshot] {
+        contentReadCount += 1
         let representations = dataByType.compactMap { type, data in
             acceptedTypeIdentifiers.contains(type.rawValue)
                 ? PasteboardRepresentationSnapshot(typeIdentifier: type.rawValue, data: data)

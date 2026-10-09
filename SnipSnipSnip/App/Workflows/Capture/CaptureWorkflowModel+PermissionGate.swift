@@ -1,6 +1,6 @@
 import Foundation
 
-enum PendingCapturePermissionCommand {
+nonisolated enum PendingCapturePermissionCommand: String, Codable, Sendable {
     case textCapture
     case currentDisplay
     case region
@@ -8,6 +8,7 @@ enum PendingCapturePermissionCommand {
     case windowPicker
     case scrollingCapture
 
+    @MainActor
     func perform(on capture: CaptureWorkflowModel) {
         switch self {
         case .textCapture:
@@ -92,11 +93,52 @@ extension CaptureWorkflowModel {
             // one-shot context affect a different capture while access is
             // being granted or refused.
             resetPreparedCaptureContext(ifMatching: captureContext)
+            dependencies.permissions.deferOperation(requiring: requirements, featureName: featureName) { [weak self] in
+                guard let self else { return }
+                retryPendingPermissionCommandIfSatisfied(dependencies.permissions.permissionStatus)
+            }
+            if requirements.contains(.accessibility),
+               pendingCommand == .frontmostWindow || pendingCommand == .windowPicker {
+                dependencies.permissions.offerPermissionAlternative(title: String(localized: "Capture Without UI Map")) { [weak self] in
+                    self?.continuePendingCaptureWithoutUIMap()
+                }
+            }
+            if captureContext.intent == .newDocument, captureContext.role == .standalone,
+               captureContext.automationRequest == nil, !privateCaptureEnabled,
+               captureContext.oneShotOptions?.privateCapture != true {
+                let options = captureContext.oneShotOptions ?? CaptureOneShotOptions(
+                    captureDelay: captureDelay, includesCursor: screenshotIncludesCursor,
+                    privateCapture: false, windowUIMapEnabled: windowUIMapEnabled
+                )
+                dependencies.permissions.rememberPermissionRestartAction(.screenshot(pendingCommand, options))
+            }
             return
         }
 
+        let requestedContext = activeCaptureContext
+        dependencies.permissions.cancelDeferredOperation(ifFeature: nil)
+        activeCaptureContext = requestedContext
         pendingPermissionCommand = nil
         action()
+    }
+
+    func continuePendingCaptureWithoutUIMap() {
+        guard let pending = pendingPermissionCommand,
+              pending.command == .frontmostWindow || pending.command == .windowPicker else { return }
+        var context = pending.captureContext
+        let runOptions = captureRunOptions(for: context)
+        var options = context.oneShotOptions ?? CaptureOneShotOptions(
+            captureDelay: runOptions.captureDelay, includesCursor: runOptions.includesCursor,
+            privateCapture: privateCaptureEnabled, windowUIMapEnabled: false
+        )
+        options.windowUIMapEnabled = false
+        context.oneShotOptions = options
+        dependencies.permissions.dismissPermissionSetupGuide()
+        activeCaptureContext = context
+        runActionWhenPermissionsReady([.screenRecording], featureName: "Window Capture", pendingCommand: pending.command) { [weak self] in
+            guard let self else { return }
+            pending.command.perform(on: self)
+        }
     }
 
     func retryPendingPermissionCommandIfSatisfied(_ status: CapturePermissionStatus) {
@@ -147,6 +189,7 @@ extension CaptureWorkflowModel {
         recovering request: LastCaptureRequest?,
         captureContext: CaptureCompletionContext? = nil
     ) {
+        pendingConnectedDevicePreviewIntent = nil
         let failedCaptureContext =
             captureContext ?? activeCaptureContext
         resetPreparedCaptureContext(ifMatching: failedCaptureContext)
@@ -169,6 +212,7 @@ extension CaptureWorkflowModel {
     }
 
     func dismissCaptureRecovery() {
+        pendingConnectedDevicePreviewIntent = nil
         captureRecovery = nil
         pendingRecoveryRequest = nil
         pendingRecoveryCaptureContext = nil
@@ -194,6 +238,8 @@ extension CaptureWorkflowModel {
             dependencies.permissions.requestPermission(.screenRecording)
         case .setUpAccessibility:
             dependencies.permissions.requestPermission(.accessibility)
+        case .openCameraSettings:
+            dependencies.permissions.openMediaPermissionSettings(.camera)
         case .refreshWindows:
             refreshAvailableWindows(includeThumbnails: true, allowsCancellingPendingThumbnailRefresh: true)
         case .pickAnotherWindow:
@@ -275,6 +321,8 @@ extension CaptureWorkflowModel {
         }
 
         self.pendingRecoveryRequest = nil
+        let connectedDeviceIntent = pendingConnectedDevicePreviewIntent
+        pendingConnectedDevicePreviewIntent = nil
         activeCaptureContext = captureContext
         switch pendingRecoveryRequest {
         case .region(let region):
@@ -296,6 +344,10 @@ extension CaptureWorkflowModel {
                 oneShotOptions: captureContext.oneShotOptions
             )
         case .connectedDevice(let device):
+            if connectedDeviceIntent == .recording {
+                recordConnectedDevice(device)
+                return
+            }
             captureConnectedDevice(
                 device,
                 intent: captureContext.intent,
@@ -309,6 +361,12 @@ extension CaptureWorkflowModel {
         let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
 
         switch error {
+        case ConnectedDeviceCaptureError.cameraPermissionDenied:
+            return CaptureRecovery(
+                title: "Camera Access Is Needed",
+                message: "Connected Device uses Camera access for the iPhone or iPad screen stream. Open Camera settings, enable access, then choose the device again.",
+                actions: [.openCameraSettings, .retryLastCapture]
+            )
         case ScreenCaptureError.permissionDenied:
             return CaptureRecovery(
                 title: "Screen Recording Is Needed",

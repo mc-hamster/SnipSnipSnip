@@ -239,7 +239,7 @@ struct OnboardingView: View {
             screenRecordingGroup(showsSetupActions: false)
 
             Label(
-                "macOS groups screenshot access under Screen Recording. SnipSnipSnip captures only when you choose a capture or recording action.",
+                "macOS groups screenshot access under Screen Recording. Continue opens the macOS permission prompt. SnipSnipSnip captures only when you choose a capture or recording action.",
                 systemImage: "lock.shield"
             )
             .font(.footnote)
@@ -304,12 +304,16 @@ struct OnboardingView: View {
         }
     }
 
+    @ViewBuilder
     private func screenRecordingGroup(showsSetupActions: Bool) -> some View {
         let needsAttention = permissions.screenRecordingSetupNeedsAttention
         let hasAccess = !needsAttention && permissions.permissionStatus.hasScreenRecording
         let isWaiting = !needsAttention && permissions.activePermissionRequest == .screenRecording
 
-        return InsetGroupBox {
+        if let guide = permissions.permissionSetupGuide, guide.requirement == .screenRecording {
+            PermissionSetupView(permissions: permissions, guide: guide, showsPrimaryAction: showsSetupActions, onRestart: restartAfterPermissionSetup)
+        } else {
+        InsetGroupBox {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .center, spacing: 12) {
                     Image(systemName: "display")
@@ -377,6 +381,7 @@ struct OnboardingView: View {
             .padding(.vertical, 2)
         } label: {
             Label("Required capture access", systemImage: "checkmark.shield")
+        }
         }
     }
 
@@ -627,7 +632,7 @@ struct OnboardingView: View {
 
         if selectedStep == .captureAccess,
            permissions.activePermissionRequest == .screenRecording {
-            return "Waiting for Settings"
+            return "Open Settings"
         }
 
         if selectedStep == .captureAccess,
@@ -637,7 +642,7 @@ struct OnboardingView: View {
 
         if selectedStep == .captureAccess,
            !permissions.permissionStatus.hasScreenRecording {
-            return "Set Up Screen Recording"
+            return "Continue"
         }
 
         return selectedStep == .ready ? "Finish" : "Continue"
@@ -649,7 +654,8 @@ struct OnboardingView: View {
         }
 
         if selectedStep == .captureAccess {
-            return permissions.activePermissionRequest != nil
+            return permissions.isCheckingPermission || permissions.activeMediaPermissionRequest != nil
+                || (permissions.activePermissionRequest != nil && permissions.activePermissionRequest != .screenRecording)
         }
 
         if selectedStep == .clipboard {
@@ -673,7 +679,11 @@ struct OnboardingView: View {
 
         if selectedStep == .captureAccess,
            !permissions.permissionStatus.hasScreenRecording {
-            permissions.requestPermission(.screenRecording)
+            if permissions.activePermissionRequest == .screenRecording {
+                permissions.openPermissionSettings(.screenRecording)
+            } else {
+                permissions.requestPermission(.screenRecording)
+            }
             return
         }
 
@@ -764,16 +774,7 @@ struct OnboardingView: View {
     }
 
     private func permissionStatusLabel(hasAccess: Bool) -> String {
-        if hasAccess {
-            return "Allowed"
-        }
-        if permissions.activePermissionRequest == .screenRecording {
-            return "Waiting for Settings"
-        }
-        if permissions.screenRecordingSetupNeedsAttention {
-            return "Restart Required"
-        }
-        return "Needs Setup"
+        permissions.statusTitle(for: .screenRecording)
     }
 
     private func permissionStatusColor(hasAccess: Bool) -> Color {

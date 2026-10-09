@@ -16,7 +16,7 @@ nonisolated enum CaptureCompletionRole: String, Codable, Equatable, Sendable {
 
 /// Per-operation choices from Create > Fine-tune. They are latched alongside
 /// the destination and never write back to capture preferences.
-nonisolated struct CaptureOneShotOptions: Equatable, Sendable {
+nonisolated struct CaptureOneShotOptions: Codable, Equatable, Sendable {
     var captureDelay: CaptureDelay
     var includesCursor: Bool
     var privateCapture: Bool

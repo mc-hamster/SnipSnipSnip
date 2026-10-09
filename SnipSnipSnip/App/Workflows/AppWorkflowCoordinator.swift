@@ -65,16 +65,11 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
         switch output {
         case .presentError(let message):
             lifecycle?.presentError(message)
-        case .permissionsChanged(let status):
+        case .permissionsChanged:
+            // Passive status changes must not enumerate protected screen content
+            // or resume capture while System Settings is frontmost. The visible
+            // capture workspace owns thumbnail refresh; Continue owns resumption.
             capture?.notifyPermissionsChanged()
-            if status.hasScreenRecording {
-                capture?.refreshAvailableWindows(
-                    includeThumbnails: true,
-                    allowsCancellingPendingThumbnailRefresh: true
-                )
-            }
-        case .requirementsMayNowBeSatisfied(let status):
-            capture?.retryPendingPermissionCommandIfSatisfied(status)
         case .permissionSetupDismissed:
             capture?.cancelPendingPermissionCommand()
         case .requestMainWindowPresentation:
@@ -227,15 +222,11 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
     func handleApplicationDidBecomeActive() {
         permissions?.refreshPermissions()
         lifecycle?.refreshLaunchAtLoginStatus()
-        permissions?.checkPermissionSetupGuideStatus()
 
         if capture?.autoRefreshWindowsEnabled == false {
             refreshAvailableWindowsOnApplicationForegroundIfNeeded()
         }
 
-        if let permissionStatus = permissions?.permissionStatus {
-            capture?.retryPendingPermissionCommandIfSatisfied(permissionStatus)
-        }
     }
 
     func activateStartupServices(
@@ -372,6 +363,7 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
             return
         }
 
+        permissions?.cancelDeferredOperation(ifFeature: nil)
         clipboard?.resetClipboardPreferencesToDefaults()
         capture?.resetCapturePreferencesToDefaults()
         documents?.resetDocumentPreferencesToDefaults()
@@ -521,7 +513,6 @@ enum LifecycleWorkflowOutput {
 
 enum PermissionWorkflowOutput {
     case permissionsChanged(CapturePermissionStatus)
-    case requirementsMayNowBeSatisfied(CapturePermissionStatus)
     case permissionSetupDismissed
     case requestMainWindowPresentation
     case presentError(String)

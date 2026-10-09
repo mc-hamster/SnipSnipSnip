@@ -353,10 +353,10 @@ extension ScreenRecordingService {
     }
 
     @MainActor
-    init(permissions: any CapturePermissionServicing) {
+    init(permissions: any CapturePermissionServicing, platform: any ScreenRecordingPlatform = TestScreenRecordingPlatform()) {
         self.init(
             permissions: permissions,
-            platform: TestScreenRecordingPlatform(),
+            platform: platform,
             capturePlatform: TestScreenCapturePlatform(),
             workspace: TestWorkspaceService(),
             screens: TestScreenTopologyService(),

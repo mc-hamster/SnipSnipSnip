@@ -171,6 +171,7 @@ Use one product vocabulary across the main window, setup flows, menus, editors, 
 ### Status and permission UI
 
 - Pair every semantic color with a symbol and text.
+- Share the same compact permission-recovery view across Capture, onboarding, Settings, and Guide. Accessibility recovery must remain visible when Screen Recording is already allowed. Keep one primary next action, put exact-app diagnostics behind Troubleshooting, and retain Check Again and Cancel Setup after the system consent prompt. Use Continue before a native consent alert; never imitate the system Allow button. Returning from System Settings updates status without starting acquisition; the user chooses Continue. Fresh non-private requests may retain source/options for 30 minutes across restart, with transient targets selected again. Do not persist private or editor-generation-specific acquisition continuations.
 - Keep permission setup visible in a neutral adaptive banner or form section, not inside decorative chrome. Confine warning color to the symbol or short status label instead of tinting a large reading surface.
 - Use an opaque semantic fallback when Reduce Transparency is enabled.
 
