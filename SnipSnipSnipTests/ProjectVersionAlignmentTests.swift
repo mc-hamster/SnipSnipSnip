@@ -7,6 +7,16 @@ final class ProjectVersionAlignmentTests: XCTestCase {
             .deletingLastPathComponent()
     }
 
+    func testDebugIdentityIsIndependentAndShippingIdentityStaysStable() throws {
+        let project = try String(contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip.xcodeproj/project.pbxproj"), encoding: .utf8)
+        for (target, suffix) in [("SnipSnipSnip", ""), ("SnipSnipSnipShareExtension", ".ShareExtension"), ("snipsnipsnipctl", ".CLI")] {
+            XCTAssertEqual(Set(targetBuildSettingValues(named: "PRODUCT_BUNDLE_IDENTIFIER", targetName: target, in: project)),
+                           Set(["com.oontz.SnipSnipSnip.Dev" + suffix, "com.oontz.SnipSnipSnip" + suffix]))
+        }
+        XCTAssertEqual(targetBuildSettingValues(named: "SNIP_URL_SCHEME", targetName: "SnipSnipSnip", in: project),
+                       ["\"snipsnipsnip-dev\"", "snipsnipsnip"])
+    }
+
     func testExplicitBuildNumberDefinitionsStaySynchronized() throws {
         let projectURL = repositoryRoot
             .appendingPathComponent("SnipSnipSnip.xcodeproj")
@@ -299,7 +309,8 @@ final class ProjectVersionAlignmentTests: XCTestCase {
         XCTAssertTrue(releaseTestGate.contains("test-without-building"))
         XCTAssertTrue(releaseTestGate.contains("codesign --force --sign -"))
         XCTAssertTrue(releaseTestGate.contains("-parallel-testing-enabled NO"))
-        XCTAssertTrue(releaseTestGate.contains("pgrep -x"))
+        XCTAssertTrue(releaseTestGate.contains("runningApplicationsWithBundleIdentifier"))
+        XCTAssertTrue(releaseTestGate.contains("com.oontz.SnipSnipSnip.Dev"))
         for browserEnvironmentName in [
             "SSS_RUN_EXTERNAL_HTML_BROWSER_TESTS",
             "SSS_REQUIRE_EXTERNAL_HTML_BROWSERS",

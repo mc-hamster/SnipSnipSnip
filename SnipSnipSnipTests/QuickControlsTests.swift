@@ -5,6 +5,43 @@ import XCTest
 
 @MainActor
 final class QuickControlsTests: XCTestCase {
+    func testHeaderDragAcceptsInactiveClicksAndForwardsToItsOwnWindow() throws {
+        let panel = DragRecordingPanel(
+            contentRect: CGRect(x: 100, y: 100, width: 200, height: 80),
+            styleMask: [.nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.isReleasedWhenClosed = false
+        defer { panel.close() }
+        let target = QuickControlsWindowDragView(frame: CGRect(x: 0, y: 0, width: 140, height: 40))
+        panel.contentView = target
+        let event = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: CGPoint(x: 20, y: 20),
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: panel.windowNumber,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 1
+        ))
+
+        XCTAssertTrue(target.acceptsFirstMouse(for: event))
+        XCTAssertFalse(target.acceptsFirstResponder)
+        XCTAssertFalse(target.mouseDownCanMoveWindow)
+        XCTAssertTrue(target.hitTest(CGPoint(x: 20, y: 20)) === target)
+        target.mouseDown(with: event)
+        XCTAssertTrue(panel.dragEvent === event)
+
+        // A detached target must safely ignore a click rather than drag another window.
+        target.removeFromSuperview()
+        panel.dragEvent = nil
+        target.mouseDown(with: event)
+        XCTAssertNil(panel.dragEvent)
+    }
+
     func testQuickControlsPresentationContextPreservesDisplayAndCompactCancellation() {
         let context = WorkflowPresentationContext.quickControls(displayID: 42)
 
@@ -532,4 +569,13 @@ final class QuickControlsTests: XCTestCase {
         XCTAssertEqual(model.preferences.resolvedDockState, .compact)
     }
 
+}
+
+@MainActor
+private final class DragRecordingPanel: NSPanel {
+    var dragEvent: NSEvent?
+
+    override func performDrag(with event: NSEvent) {
+        dragEvent = event
+    }
 }

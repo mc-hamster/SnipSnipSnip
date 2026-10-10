@@ -330,6 +330,8 @@ struct CaptureAutomationSettingsView: View {
                                     .settingsSearchTarget("capture.uiMapEnabled")
                                 SettingsHelpText("Save available names, roles, identifiers, and locations of visible interface elements when capturing a window. Region, screen, scrolling, recording, and connected-device captures do not include UI Map metadata.")
 
+                                UIMapAccessView(permissions: permissions, capabilities: capabilities)
+
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("Pinned UI Map Overlay Defaults")
                                         .font(.subheadline.weight(.semibold))
@@ -1263,36 +1265,23 @@ struct CaptureAutomationSettingsView: View {
     }
 
     private var shouldShowAccessibilityPermissionDiagnostics: Bool {
-        capabilities.isEnabled(.scrollingCapture)
-            || capabilities.isEnabled(.guideCapture)
-            || video.recordingPreferences.recordsKeyboardShortcuts == true
-            || (capabilities.isEnabled(.uiMap) && capture.uiMapEnabled)
+        PermissionSettingsAvailability.showsAccessibility(
+            capabilities: capabilities,
+            uiMapEnabled: capture.uiMapEnabled,
+            recordsKeyboardShortcuts: video.recordingPreferences.recordsKeyboardShortcuts == true
+        )
     }
 
     private var accessibilityPermissionDiagnosticsDetail: String {
-        let requirementSummary: String
-        if capabilities.isEnabled(.scrollingCapture),
-           capabilities.isEnabled(.guideCapture),
-           capabilities.isEnabled(.uiMap),
-           capture.uiMapEnabled {
-            requirementSummary = "Accessibility is only required for Scrolling Capture, Guide capture, and Window UI Map."
-        } else if capabilities.isEnabled(.guideCapture),
-                  capabilities.isEnabled(.uiMap),
-                  capture.uiMapEnabled {
-            requirementSummary = "Accessibility is only required for Guide capture and Window UI Map."
-        } else if capabilities.isEnabled(.scrollingCapture),
-                  capabilities.isEnabled(.guideCapture) {
-            requirementSummary = "Accessibility is only required for Scrolling Capture and Guide capture."
-        } else if capabilities.isEnabled(.uiMap), capture.uiMapEnabled {
-            requirementSummary = "Accessibility is only required for Window UI Map."
-        } else if capabilities.isEnabled(.guideCapture) {
-            requirementSummary = "Accessibility is only required for Guide capture."
-        } else {
-            requirementSummary = "Accessibility is only required for Scrolling Capture."
-        }
-
-        let supportedFeatures = requirementSummary.replacingOccurrences(of: "only required", with: "required")
-        return "\(supportedFeatures) Optional keyboard-shortcut recording also uses Accessibility. Region and Screen capture, editor OCR, export, and annotation tools do not depend on Accessibility. Diagnostics export sanitized app, permission, display, storage, and status details without screenshots, clipboard contents, OCR text, annotations, or document data."
+        var workflows: [String] = []
+        if capabilities.isEnabled(.scrollingCapture) { workflows.append("Scrolling Capture") }
+        if capabilities.isEnabled(.guideCapture) { workflows.append("Guide capture") }
+        if capabilities.isEnabled(.uiMap), capture.uiMapEnabled { workflows.append("Window UI Map") }
+        let workflowDetail = workflows.isEmpty ? "" : "Accessibility is required for \(ListFormatter.localizedString(byJoining: workflows)). "
+        let shortcutDetail = capabilities.isEnabled(.videoShortcutCapture)
+            ? "Optional keyboard-shortcut recording uses Accessibility. " : ""
+        return workflowDetail + shortcutDetail
+            + "Region and Screen capture, editor OCR, export, and annotation tools do not depend on Accessibility. Diagnostics export sanitized app, permission, display, storage, and status details without screenshots, clipboard contents, OCR text, annotations, or document data."
     }
 
     private var canResetPreferencesToDefaults: Bool {
@@ -1870,7 +1859,7 @@ private struct SettingsHelpText: View {
     }
 }
 
-private struct PermissionStatusRow: View {
+struct PermissionStatusRow: View {
     let requirement: CapturePermissionRequirement
     @ObservedObject var permissions: PermissionWorkflowModel
 
@@ -1893,6 +1882,7 @@ private struct PermissionStatusRow: View {
                     permissions.requestPermission(requirement)
                 }
             }
+            .accessibilityIdentifier("permissions.\(requirement.id).action")
             .disabled(!hasAccess && permissions.activePermissionRequest != nil && permissions.activePermissionRequest != requirement)
 
             if !hasAccess {

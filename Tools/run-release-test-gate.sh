@@ -10,7 +10,6 @@ configuration="Debug"
 destination="platform=macOS,arch=arm64"
 derived_data="${TMPDIR:-/tmp}/SnipSnipSnipReleaseTestGate"
 result_bundle=""
-app_name="SnipSnipSnip"
 ui_test_runner_name="SnipSnipSnipUITests-Runner.app"
 only_testing=()
 
@@ -94,9 +93,20 @@ done
 python3 "$SCRIPT_DIRECTORY/check-repository-hygiene.py"
 python3 "$SCRIPT_DIRECTORY/check-identity-safety.py"
 
-if pgrep -x "$app_name" >/dev/null 2>&1; then
-  fail "$app_name is already running. Quit the user-owned copy before running app-hosted tests."
+# Read Launch Services identities without Apple Events or privacy prompts.
+# A shipping app may stay open while the distinct Debug host runs.
+app_identifier="com.oontz.SnipSnipSnip"
+if [[ "$configuration" == Debug ]]; then
+  app_identifier="com.oontz.SnipSnipSnip.Dev"
 fi
+require_idle_namespace() {
+  local running_pids
+  running_pids="$(/usr/bin/osascript -l JavaScript -e 'ObjC.import("AppKit"); function run(args) { return ObjC.unwrap($.NSRunningApplication.runningApplicationsWithBundleIdentifier(args[0])).map(a => Number(a.processIdentifier)).join(" "); }' "$app_identifier")"
+  if [[ -n "$running_pids" ]]; then
+    fail "$app_identifier is already running. Quit the user-owned copy in this namespace before running app-hosted tests."
+  fi
+}
+require_idle_namespace
 
 common_arguments=(
   -project "$project"
@@ -168,9 +178,7 @@ if [[ "$signing_mode" == "adhoc" ]]; then
 fi
 codesign --verify --deep --strict "$ui_test_runner"
 
-if pgrep -x "$app_name" >/dev/null 2>&1; then
-  fail "$app_name started outside XCTest. Quit it before continuing the release gate."
-fi
+require_idle_namespace
 
 test_arguments=(
   test-without-building

@@ -23,6 +23,8 @@ final class CapturePermissionStatusTests: XCTestCase {
 
     func testAppBrandingDisplayNameReflectsBuildTarget() {
         XCTAssertEqual(AppBranding.displayName(for: .release), "SnipSnipSnip")
+        XCTAssertEqual(AppBranding.displayName(for: .dev), "SnipSnipSnip Dev")
+        XCTAssertEqual(AppBranding.branded("Welcome to SnipSnipSnip Dev", for: .dev), "Welcome to SnipSnipSnip Dev")
         XCTAssertEqual(AppBranding.displayName(for: .selfRelease), "SnipSnipSnip Pro")
     }
 

@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-open "snipsnipsnip://v1/capture/fullscreen?display=current&output=clipboard"
+open "${SSS_URL_SCHEME:-snipsnipsnip}://v1/capture/fullscreen?display=current&output=clipboard"

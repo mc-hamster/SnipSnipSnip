@@ -23,7 +23,8 @@ struct QuickControlsView: View {
             edge: quickControls.preferences.resolvedDockEdge,
             status: quickControls.activeStatusLabel,
             statusSymbol: statusSymbol,
-            togglePresentation: quickControls.toggleDockState
+            togglePresentation: quickControls.toggleDockState,
+            allowsWindowDragging: true
         ) {
             if quickControls.preferences.items.isEmpty {
                 QuickControlsEmptyState(

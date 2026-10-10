@@ -138,7 +138,7 @@ final class ClipboardHistoryStore: ObservableObject {
         let applicationSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? fileManager.temporaryDirectory
         return applicationSupport
-            .appendingPathComponent("SnipSnipSnip", isDirectory: true)
+            .appendingPathComponent(AppNamespace.current.supportDirectoryName, isDirectory: true)
             .appendingPathComponent("Clipboard", isDirectory: true)
     }
 

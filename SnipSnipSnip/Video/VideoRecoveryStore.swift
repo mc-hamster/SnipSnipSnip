@@ -13,7 +13,7 @@ nonisolated final class VideoRecoveryStore: @unchecked Sendable {
             let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
                 ?? files.temporaryDirectory
             self.rootURL = support
-                .appendingPathComponent("SnipSnipSnip", isDirectory: true)
+                .appendingPathComponent(AppNamespace.current.supportDirectoryName, isDirectory: true)
                 .appendingPathComponent("Recovery/Videos", isDirectory: true)
         }
     }

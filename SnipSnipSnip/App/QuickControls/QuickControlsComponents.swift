@@ -7,6 +7,7 @@ struct QuickControlsDockShell<Content: View>: View {
     let status: String?
     let statusSymbol: String
     let togglePresentation: () -> Void
+    var allowsWindowDragging = false
     @ViewBuilder let content: Content
 
     init(
@@ -15,6 +16,7 @@ struct QuickControlsDockShell<Content: View>: View {
         status: String?,
         statusSymbol: String,
         togglePresentation: @escaping () -> Void,
+        allowsWindowDragging: Bool = false,
         @ViewBuilder content: () -> Content
     ) {
         self.presentation = presentation
@@ -22,6 +24,7 @@ struct QuickControlsDockShell<Content: View>: View {
         self.status = status
         self.statusSymbol = statusSymbol
         self.togglePresentation = togglePresentation
+        self.allowsWindowDragging = allowsWindowDragging
         self.content = content()
     }
 
@@ -32,7 +35,8 @@ struct QuickControlsDockShell<Content: View>: View {
                 edge: edge,
                 status: status,
                 statusSymbol: statusSymbol,
-                togglePresentation: togglePresentation
+                togglePresentation: togglePresentation,
+                allowsWindowDragging: allowsWindowDragging
             )
 
             Divider().opacity(0.65)
@@ -54,6 +58,7 @@ struct QuickControlsDockHeader: View {
     let status: String?
     let statusSymbol: String
     let togglePresentation: () -> Void
+    var allowsWindowDragging = false
 
     var body: some View {
         Group {
@@ -69,20 +74,24 @@ struct QuickControlsDockHeader: View {
 
     private var expandedHeader: some View {
         HStack(spacing: 7) {
-            brandMark(size: 28)
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Quick Controls")
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-                if let status {
-                    Label(status, systemImage: statusSymbol)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+            HStack(spacing: 7) {
+                brandMark(size: 28)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Quick Controls")
+                        .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                    if let status {
+                        Label(status, systemImage: statusSymbol)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                 }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
+            .frame(maxHeight: .infinity)
+            .overlay { windowDragTarget }
             Button(action: togglePresentation) {
                 Image(systemName: edge == .right ? "chevron.right" : "chevron.left")
                     .font(.caption.weight(.semibold))
@@ -104,11 +113,22 @@ struct QuickControlsDockHeader: View {
                 expandButton
             }
             brandMark(size: 23, showsStatus: true)
+                .frame(maxHeight: .infinity)
+                .overlay { windowDragTarget }
             if edge == .left {
                 expandButton
             }
         }
         .padding(.horizontal, 1)
+    }
+
+    @ViewBuilder
+    private var windowDragTarget: some View {
+        if allowsWindowDragging {
+            QuickControlsWindowDragTarget()
+                .help("Drag to Move Quick Controls")
+                .accessibilityHidden(true)
+        }
     }
 
     private var expandButton: some View {
@@ -139,6 +159,31 @@ struct QuickControlsDockHeader: View {
             }
             .accessibilityHidden(true)
             .help("Drag to Move Quick Controls")
+    }
+}
+
+// SwiftUI hosting content does not reliably participate in background window
+// dragging. Keep an AppKit target over only the non-button header content.
+private struct QuickControlsWindowDragTarget: NSViewRepresentable {
+    func makeNSView(context: Context) -> QuickControlsWindowDragView {
+        QuickControlsWindowDragView()
+    }
+
+    func updateNSView(_ nsView: QuickControlsWindowDragView, context: Context) {}
+}
+
+final class QuickControlsWindowDragView: NSView {
+    override var mouseDownCanMoveWindow: Bool { false }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func mouseDown(with event: NSEvent) {
+        guard event.type == .leftMouseDown else { return }
+        window?.performDrag(with: event)
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .openHand)
     }
 }
 

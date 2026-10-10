@@ -75,7 +75,7 @@
 
 /* Begin PBXFileReference section */
 		01A66FD1E041A8D31B3563EB /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
-		3EEB1E7A2F83676F00A95020 /* SnipSnipSnip.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnipSnipSnip.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3EEB1E7A2F83676F00A95020 /* SnipSnipSnip Dev.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "SnipSnipSnip Dev.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		4A0C01012F83700100A95020 /* SnipSnipSnipTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SnipSnipSnipTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9B1A5B3B2F8A000000A95020 /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
 		9F1398A41C2E4E8516FA5084 /* main.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
@@ -164,7 +164,7 @@
 		3EEB1E7B2F83676F00A95020 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				3EEB1E7A2F83676F00A95020 /* SnipSnipSnip.app */,
+				3EEB1E7A2F83676F00A95020 /* SnipSnipSnip Dev.app */,
 				A10000012F84000000A95020 /* SnipSnipSnipShareExtension.appex */,
 				4A0C01012F83700100A95020 /* SnipSnipSnipTests.xctest */,
 				C30000012F90000000A95020 /* SnipSnipSnipUITests.xctest */,
@@ -240,7 +240,7 @@
 			);
 			name = SnipSnipSnip;
 			productName = SnipSnipSnip;
-			productReference = 3EEB1E7A2F83676F00A95020 /* SnipSnipSnip.app */;
+			productReference = 3EEB1E7A2F83676F00A95020 /* SnipSnipSnip Dev.app */;
 			productType = "com.apple.product-type.application";
 		};
 		4A0C01062F83700100A95020 /* SnipSnipSnipTests */ = {
@@ -499,7 +499,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 184;
+				CURRENT_PROJECT_VERSION = 185;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 8RN882MNR5;
@@ -567,7 +567,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 184;
+				CURRENT_PROJECT_VERSION = 185;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 8RN882MNR5;
@@ -602,7 +602,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 184;
+				CURRENT_PROJECT_VERSION = 185;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = 8RN882MNR5;
 				ENABLE_APP_SANDBOX = NO;
@@ -621,11 +621,13 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.2.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.oontz.SnipSnipSnip;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.oontz.SnipSnipSnip.Dev;
+				PRODUCT_MODULE_NAME = SnipSnipSnip;
+				PRODUCT_NAME = "SnipSnipSnip Dev";
 				REGISTER_APP_GROUPS = YES;
-				SNIP_APP_DISPLAY_NAME = SnipSnipSnip;
+				SNIP_APP_DISPLAY_NAME = "SnipSnipSnip Dev";
 				SNIP_BUILD_TARGET = Dev;
+				SNIP_URL_SCHEME = "snipsnipsnip-dev";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -644,7 +646,7 @@
 				CODE_SIGN_ENTITLEMENTS = SnipSnipSnip/SnipSnipSnip.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 184;
+				CURRENT_PROJECT_VERSION = 185;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = 8RN882MNR5;
 				ENABLE_APP_SANDBOX = YES;
@@ -668,6 +670,7 @@
 				REGISTER_APP_GROUPS = YES;
 				SNIP_APP_DISPLAY_NAME = SnipSnipSnip;
 				SNIP_BUILD_TARGET = Release;
+				SNIP_URL_SCHEME = snipsnipsnip;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) APP_STORE_BUILD";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -700,7 +703,7 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 6.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SnipSnipSnip.app/Contents/MacOS/SnipSnipSnip";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SnipSnipSnip Dev.app/Contents/MacOS/SnipSnipSnip Dev";
 				TEST_TARGET_NAME = SnipSnipSnip;
 			};
 			name = Debug;
@@ -750,9 +753,10 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.oontz.SnipSnipSnip.ShareExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.oontz.SnipSnipSnip.Dev.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
+				SNIP_SHARE_DISPLAY_NAME = "SnipSnipSnip Dev";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -783,6 +787,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.oontz.SnipSnipSnip.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
+				SNIP_SHARE_DISPLAY_NAME = SnipSnipSnip;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) APP_STORE_BUILD";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -834,7 +839,7 @@
 		D3732FA2FA5BFD602CDC3FCF /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = SnipSnipSnipCLI/SnipSnipSnipCLI.entitlements;
+				CODE_SIGN_ENTITLEMENTS = SnipSnipSnipCLI/SnipSnipSnipCLIDev.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
@@ -843,7 +848,7 @@
 				DEVELOPMENT_TEAM = 8RN882MNR5;
 				INFOPLIST_FILE = SnipSnipSnipCLI/Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.oontz.SnipSnipSnip.CLI;
+				PRODUCT_BUNDLE_IDENTIFIER = com.oontz.SnipSnipSnip.Dev.CLI;
 				PRODUCT_NAME = snipsnipsnipctl;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;

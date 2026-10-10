@@ -1,9 +1,103 @@
 import AppKit
+import SwiftUI
 import XCTest
 @testable import SnipSnipSnip
 
 @MainActor
 final class PermissionWorkflowModelTests: XCTestCase {
+    func testUIMapSetupIsExplicitAndPreservesUsableScreenRecording() async throws {
+        let permissions = MutablePermissionService(status: CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false))
+        let workflow = makeWorkflow(permissions: permissions, scheduler: SlowScheduler())
+        let view = NSHostingView(rootView: UIMapAccessView(permissions: workflow, capabilities: testCapabilities)
+            .padding(18).frame(width: 430, height: 450, alignment: .topLeading)
+            .background(Color(nsColor: .windowBackgroundColor)))
+        view.sizingOptions = []
+        let window = HostedViewTestSupport.host(view, size: CGSize(width: 430, height: 450))
+        defer { workflow.dismissPermissionSetupGuide(); window.close() }
+        try await Task.sleep(for: .milliseconds(100))
+        view.layoutSubtreeIfNeeded()
+        XCTAssertTrue(permissions.requestedRequirements().isEmpty, "Showing setup must not request access")
+        let setup = try XCTUnwrap(HostedViewTestSupport.find("permissions.accessibility.action", in: view))
+        XCTAssertTrue(setup.accessibilityPerformPress())
+        XCTAssertEqual(permissions.requestedRequirements(), [.accessibility])
+        XCTAssertTrue(workflow.permissionStatus.hasScreenRecording)
+        XCTAssertFalse(workflow.screenRecordingSetupNeedsAttention)
+        XCTAssertEqual(permissions.screenRecordingVerifierCallCount(), 0)
+        try await Task.sleep(for: .milliseconds(100))
+        view.layoutSubtreeIfNeeded()
+        let settings = try XCTUnwrap(HostedViewTestSupport.find("permissions.setup.openSettings", in: view))
+        XCTAssertTrue(window.frame.contains(settings.accessibilityFrame()))
+        XCTAssertTrue(settings.accessibilityPerformPress())
+        XCTAssertEqual(permissions.openedSettingsRequirements(), [.accessibility])
+        permissions.updateStatus(CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true))
+        workflow.refreshPermissions()
+        XCTAssertNil(workflow.permissionSetupGuide)
+        XCTAssertTrue(workflow.permissionStatus.hasScreenRecording)
+        try await Task.sleep(for: .milliseconds(100))
+        view.layoutSubtreeIfNeeded()
+        let manage = try XCTUnwrap(HostedViewTestSupport.find("permissions.accessibility.action", in: view))
+        XCTAssertTrue(manage.accessibilityPerformPress())
+        XCTAssertEqual(permissions.openedSettingsRequirements(), [.accessibility, .accessibility])
+        XCTAssertEqual(permissions.requestedRequirements(), [.accessibility])
+        add(try HostedViewTestSupport.attachment(of: view, name: "UI Map access — Allowed"))
+    }
+
+    func testAppStoreUIMapSetupIsAbsentAndDoesNotRequestAccess() async throws {
+        let permissions = MutablePermissionService(status: CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false))
+        let workflow = makeWorkflow(permissions: permissions)
+        let view = NSHostingView(rootView: UIMapAccessView(permissions: workflow,
+            capabilities: BuildTargetCapabilityProvider().snapshot(for: .release)))
+        let window = HostedViewTestSupport.host(view, size: CGSize(width: 430, height: 200))
+        defer { window.close() }
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertNil(HostedViewTestSupport.find("permissions.uiMap", in: view))
+        XCTAssertNil(HostedViewTestSupport.find("permissions.accessibility.action", in: view))
+        XCTAssertTrue(permissions.requestedRequirements().isEmpty)
+    }
+
+    func testOnboardingUIMapChoiceEnablesCaptureOnlyAfterAnExplicitAction() async throws {
+        let name = "PermissionWorkflowModelTests.onboardingUIMap.\(UUID())"
+        let defaults = makeDefaults(named: name)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+        defer { defaults.removePersistentDomain(forName: name); try? FileManager.default.removeItem(at: root) }
+        let permissions = MutablePermissionService(status: CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false))
+        let model = AppModel(defaults: defaults,
+            environment: AppEnvironment(defaults: defaults, permissions: permissions),
+            recoveryStore: DocumentRecoveryStore(baseURL: root), captureService: PermissionRetryCaptureService(),
+            shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false)
+        model.lifecycle.saveOnboardingResumeCheckpoint(.clipboard)
+        model.lifecycle.acknowledgeOnboardingClipboardChoice()
+        let view = NSHostingView(rootView: OnboardingView(lifecycle: model.lifecycle, permissions: model.permissions,
+            clipboard: model.clipboard, quickControls: model.quickControls, capture: model.capture,
+            capabilities: model.capabilities, completeOnboarding: {})
+            .frame(width: 720, height: 460).background(Color(nsColor: .windowBackgroundColor)))
+        view.sizingOptions = []
+        let window = HostedViewTestSupport.host(view, size: CGSize(width: 720, height: 460))
+        defer { model.permissions.dismissPermissionSetupGuide(); window.close() }
+        try await Task.sleep(for: .milliseconds(100))
+        view.layoutSubtreeIfNeeded()
+        XCTAssertFalse(model.capture.uiMapEnabled)
+        XCTAssertTrue(permissions.requestedRequirements().isEmpty)
+        let next = try XCTUnwrap(HostedViewTestSupport.find("onboarding.primary", in: view))
+        XCTAssertTrue(next.accessibilityPerformPress())
+        try await Task.sleep(for: .milliseconds(100))
+        view.layoutSubtreeIfNeeded()
+        let toggle = try XCTUnwrap(HostedViewTestSupport.find("onboarding.uiMap.enabled", in: view))
+        XCTAssertTrue(window.frame.contains(toggle.accessibilityFrame()))
+        _ = toggle.accessibilityPerformPress()
+        XCTAssertTrue(model.capture.uiMapEnabled)
+        XCTAssertEqual(permissions.requestedRequirements(), [.accessibility])
+        XCTAssertTrue(model.permissions.permissionStatus.hasScreenRecording)
+        XCTAssertTrue(OnboardingCompletionPolicy.canComplete(mode: .firstRun,
+            hasScreenRecording: model.permissions.permissionStatus.hasScreenRecording, hasMadeClipboardChoice: true))
+        try await Task.sleep(for: .milliseconds(300))
+        view.layoutSubtreeIfNeeded()
+        XCTAssertTrue(model.capture.uiMapEnabled)
+        let currentToggle = try XCTUnwrap(HostedViewTestSupport.find("onboarding.uiMap.enabled", in: view))
+        XCTAssertEqual((currentToggle.accessibilityValue() as? NSNumber)?.boolValue, true)
+        add(try HostedViewTestSupport.attachment(of: view, name: "Onboarding UI Map — Needs Access"))
+    }
+
     func testRequestPermissionOwnsSetupGuideAndSettingsRouting() async {
         let permissions = MutablePermissionService(status: CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: false))
         let workflow = makeWorkflow(permissions: permissions)

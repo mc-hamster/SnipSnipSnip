@@ -13,7 +13,7 @@ nonisolated final class GuideRecoveryStore: @unchecked Sendable {
             let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
                 ?? files.temporaryDirectory
             self.rootURL = support
-                .appendingPathComponent("SnipSnipSnip", isDirectory: true)
+                .appendingPathComponent(AppNamespace.current.supportDirectoryName, isDirectory: true)
                 .appendingPathComponent("Recovery/Guides", isDirectory: true)
         }
     }

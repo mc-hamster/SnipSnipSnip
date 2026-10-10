@@ -1435,12 +1435,12 @@ final class GuideWorkflowTests: XCTestCase {
             ["guide", "add-step"], ["guide", "stop"], ["guide", "export", "--format", "pdf"]
         ]
         for command in commands { XCTAssertNotNil(AutomationCLIParser.parse(command).request) }
-        XCTAssertNotNil(AutomationURLRouter.request(from: try XCTUnwrap(URL(string: "snipsnipsnip://v1/guide/start?target=window"))))
-        XCTAssertNotNil(AutomationURLRouter.request(from: try XCTUnwrap(URL(string: "snipsnipsnip://v1/guide/pause"))))
-        XCTAssertNotNil(AutomationURLRouter.request(from: try XCTUnwrap(URL(string: "snipsnipsnip://v1/guide/resume"))))
-        XCTAssertNotNil(AutomationURLRouter.request(from: try XCTUnwrap(URL(string: "snipsnipsnip://v1/guide/add-step"))))
-        XCTAssertNotNil(AutomationURLRouter.request(from: try XCTUnwrap(URL(string: "snipsnipsnip://v1/guide/stop"))))
-        XCTAssertNotNil(AutomationURLRouter.request(from: try XCTUnwrap(URL(string: "snipsnipsnip://v1/guide/export?format=pdf"))))
+        XCTAssertNotNil(AutomationURLRouter.request(from: try XCTUnwrap(URL(string: "\(AppImportURL.scheme)://v1/guide/start?target=window"))))
+        XCTAssertNotNil(AutomationURLRouter.request(from: try XCTUnwrap(URL(string: "\(AppImportURL.scheme)://v1/guide/pause"))))
+        XCTAssertNotNil(AutomationURLRouter.request(from: try XCTUnwrap(URL(string: "\(AppImportURL.scheme)://v1/guide/resume"))))
+        XCTAssertNotNil(AutomationURLRouter.request(from: try XCTUnwrap(URL(string: "\(AppImportURL.scheme)://v1/guide/add-step"))))
+        XCTAssertNotNil(AutomationURLRouter.request(from: try XCTUnwrap(URL(string: "\(AppImportURL.scheme)://v1/guide/stop"))))
+        XCTAssertNotNil(AutomationURLRouter.request(from: try XCTUnwrap(URL(string: "\(AppImportURL.scheme)://v1/guide/export?format=pdf"))))
     }
 
     private func littleEndianData<T: FixedWidthInteger>(_ input: T) -> Data {

@@ -70,7 +70,7 @@ enum PendingAutomationRequests {
 }
 
 enum AppImportURL {
-    nonisolated static let scheme = "snipsnipsnip"
+    nonisolated static let scheme = AppNamespace.current.urlScheme
     static let pasteboardImportHost = "import-pasteboard"
     static let pasteboardNameQueryItem = "name"
     static let sourceNameQueryItem = "source"

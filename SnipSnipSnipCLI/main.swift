@@ -8,9 +8,14 @@ let data = try JSONSerialization.data(withJSONObject: arguments)
 let json = String(decoding: data, as: UTF8.self)
 let escaped = json.replacingOccurrences(of: "\\", with: "\\\\")
     .replacingOccurrences(of: "\"", with: "\\\"")
+#if DEBUG
+let appIdentifier = "com.oontz.SnipSnipSnip.Dev"
+#else
+let appIdentifier = "com.oontz.SnipSnipSnip"
+#endif
 let source = """
 with timeout of 300 seconds
-    tell application id "com.oontz.SnipSnipSnip"
+    tell application id "\(appIdentifier)"
         execute command line argumentsJSON "\(escaped)"
     end tell
 end timeout

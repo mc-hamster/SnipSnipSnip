@@ -289,7 +289,10 @@ compatible:
 - URL routes mirror these at `snipsnipsnip://v1/guide/start`, `/pause`, `/resume`, `/add-step`, `/stop`, and `/export`.
 - AppleScript uses `guide given action:"…"`, with optional `target`, `format`, and `privateCapture` parameters.
 - App Intents exposes the same actions through Control SnipSnipSnip Guide in
-  Pro. The App Store edition does not advertise that App Shortcut.
+  Pro and development builds. The App Store edition marks the Guide intent
+  non-discoverable and omits its App Shortcut, so Siri, Spotlight, and the
+  Shortcuts action catalog do not advertise it. The intent identifier and
+  dedicated request error remain unchanged.
 
 In Pro, Guide start requires Screen Recording and Accessibility. Unattended (`never`) requests return `permissionDenied` without opening permission UI if required access is missing; this also covers Microphone when narration is enabled. Set up access in the app first, or explicitly use `--interactive` for permission remediation. Guide Region requires an interactive policy and returns `invalidRequest` with `never`. Region start is interactive and the selected Guide region is constrained to the display where the drag begins; cross-display Guide regions are rejected, while ordinary screenshot-region capture is unchanged. Window and app Guide targets follow source geometry changes automatically. URL exports are trigger-oriented and use the default Downloads destination. Explicit errors include `noActiveGuide`, `guideAlreadyActive`, `guideHasNoSteps`, `guideSourceMediaUnavailable`, and `guideFinalizationFailed`.
 
@@ -599,3 +602,13 @@ capture and recording services. A successful content probe does not override a
 negative gate. Unrelated verification errors remain retryable instead of being
 reported as permission denial or a required restart. Unattended calls continue
 to return the existing permissionDenied error without opening setup UI.
+
+## Development and shipping namespaces
+
+Xcode Debug builds use `com.oontz.SnipSnipSnip.Dev` (**SnipSnipSnip Dev**), while TestFlight, App Store, and GitHub builds retain `com.oontz.SnipSnipSnip`. Each permits one process, and Dev can run alongside a distributed copy. Dev has independent permissions, preferences, keychain encryption keys, and default app-owned storage (`~/Library/Application Support/SnipSnipSnip Dev`). Shipping paths and existing data stay unchanged. Do not select the same custom history folder in both apps.
+
+The Debug bundle's CLI targets Dev; the shipping CLI targets the shipping app. Set `SSSCTL` to the Debug bundle's `Contents/Library/Helpers/snipsnipsnipctl` when running CLI samples against Dev. AppleScript addresses Dev with `tell application id "com.oontz.SnipSnipSnip.Dev"`. Dev registers `snipsnipsnip-dev://`; shipping retains `snipsnipsnip://`. URL samples accept `SSS_URL_SCHEME=snipsnipsnip-dev` with unchanged procedure basenames and parameters. The Share extension follows its containing app's namespace. Document formats remain compatible across builds.
+
+The disposable automation sample validator targets Dev and substitutes that identity into AppleScript fixtures. The serial XCTest gate checks the selected configuration's namespace, so a shipping copy may remain open during Debug tests. Grant Dev access once and keep Apple Development signing and team stable for subsequent rebuilds; macOS may ask again if the code-signing identity changes. No permission resets or shipping-data migration occur. The system clipboard and global shortcut registrations remain shared macOS resources; assign different shortcuts if both copies are active.
+
+The Debug product is **SnipSnipSnip Dev.app**, with executable **SnipSnipSnip Dev**, so Finder and macOS permission setup can distinguish it from the shipping **SnipSnipSnip.app**. The Swift module remains `SnipSnipSnip`. When adding Dev manually to a permission list, select the Dev product in Xcode’s DerivedData.

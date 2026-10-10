@@ -910,22 +910,22 @@ final class AutomationContractTests: XCTestCase {
     }
 
     func testURLRouterParsesEveryV1RouteAndPreservesPasteboardImportRoute() async throws {
-        assertRoute("snipsnipsnip://v1/status") { XCTAssertEqual($0.command, .status) }
-        assertRoute("snipsnipsnip://v1/presets/run?id=00000000-0000-0000-0000-000000000001&output=editor") {
+        assertRoute("\(AppImportURL.scheme)://v1/status") { XCTAssertEqual($0.command, .status) }
+        assertRoute("\(AppImportURL.scheme)://v1/presets/run?id=00000000-0000-0000-0000-000000000001&output=editor") {
             guard case .runPreset(let command) = $0.command else {
                 return XCTFail("Expected runPreset command.")
             }
             XCTAssertEqual(command.id?.uuidString, "00000000-0000-0000-0000-000000000001")
             XCTAssertEqual($0.output, .openEditor)
         }
-        assertRoute("snipsnipsnip://v1/presets/run?name=Daily%20Clip&output=clipboard") {
+        assertRoute("\(AppImportURL.scheme)://v1/presets/run?name=Daily%20Clip&output=clipboard") {
             guard case .runPreset(let command) = $0.command else {
                 return XCTFail("Expected runPreset command.")
             }
             XCTAssertEqual(command.name, "Daily Clip")
             XCTAssertEqual($0.output, .copyRenderedImage)
         }
-        assertRoute("snipsnipsnip://v1/capture/fullscreen?display=current&output=clipboard") {
+        assertRoute("\(AppImportURL.scheme)://v1/capture/fullscreen?display=current&output=clipboard") {
             guard case .capture(let command) = $0.command,
                   case .fullscreen(let target) = command.target else {
                 return XCTFail("Expected fullscreen capture command.")
@@ -934,7 +934,7 @@ final class AutomationContractTests: XCTestCase {
             XCTAssertEqual($0.output, .copyRenderedImage)
         }
         let appendAfterItemID = UUID()
-        assertRoute("snipsnipsnip://v1/capture/fullscreen?output=editor&destination=append&after=\(appendAfterItemID.uuidString)&appearance=plain") {
+        assertRoute("\(AppImportURL.scheme)://v1/capture/fullscreen?output=editor&destination=append&after=\(appendAfterItemID.uuidString)&appearance=plain") {
             XCTAssertEqual($0.captureDestination, .append)
             XCTAssertEqual(
                 $0.appendAfterCompositionItemID,
@@ -944,7 +944,7 @@ final class AutomationContractTests: XCTestCase {
             XCTAssertNil($0.validationError)
         }
         let replacementID = UUID()
-        assertRoute("snipsnipsnip://v1/capture/frontmost-window?output=editor&destination=replace&replaceItemID=\(replacementID.uuidString)&appearance=styled") {
+        assertRoute("\(AppImportURL.scheme)://v1/capture/frontmost-window?output=editor&destination=replace&replaceItemID=\(replacementID.uuidString)&appearance=styled") {
             guard case .capture(let command) = $0.command else {
                 return XCTFail("Expected capture command.")
             }
@@ -953,12 +953,12 @@ final class AutomationContractTests: XCTestCase {
             XCTAssertEqual($0.replaceCompositionItemID, replacementID)
             XCTAssertEqual($0.appearance, .styled)
         }
-        assertRoute("snipsnipsnip://v1/capture/frontmost-window?output=editor&destination=replace&item=\(replacementID.uuidString)") {
+        assertRoute("\(AppImportURL.scheme)://v1/capture/frontmost-window?output=editor&destination=replace&item=\(replacementID.uuidString)") {
             XCTAssertEqual($0.captureDestination, .replace)
             XCTAssertEqual($0.replaceCompositionItemID, replacementID)
             XCTAssertNil($0.validationError)
         }
-        assertRoute("snipsnipsnip://v1/capture/region?rect=10,20,300,200&output=editor") {
+        assertRoute("\(AppImportURL.scheme)://v1/capture/region?rect=10,20,300,200&output=editor") {
             guard case .capture(let command) = $0.command,
                   case .region(let selector) = command.target else {
                 return XCTFail("Expected region capture command.")
@@ -966,17 +966,17 @@ final class AutomationContractTests: XCTestCase {
             XCTAssertEqual(selector.rect, CGRect(x: 10, y: 20, width: 300, height: 200))
             XCTAssertEqual($0.output, .openEditor)
         }
-        assertRoute("snipsnipsnip://v1/capture/window?output=clipboard") {
+        assertRoute("\(AppImportURL.scheme)://v1/capture/window?output=clipboard") {
             guard case .capture(let command) = $0.command else {
                 return XCTFail("Expected capture command.")
             }
             XCTAssertEqual(command.target, .interactiveWindow)
             XCTAssertEqual($0.interactionPolicy, .requireUserSelection)
         }
-        assertRoute("snipsnipsnip://v1/repeat-last?output=editor") {
+        assertRoute("\(AppImportURL.scheme)://v1/repeat-last?output=editor") {
             XCTAssertEqual($0.command, .repeatLastCapture)
         }
-        assertRoute("snipsnipsnip://v1/composition/layout?layout=steps&axis=vertical&stepNumbering=uppercase-roman&stepStartIndex=3&stepCaptions=false&stepConnector=arrow") {
+        assertRoute("\(AppImportURL.scheme)://v1/composition/layout?layout=steps&axis=vertical&stepNumbering=uppercase-roman&stepStartIndex=3&stepCaptions=false&stepConnector=arrow") {
             XCTAssertEqual(
                 $0.command,
                 .composition(.setLayout(AutomationCompositionLayoutCommand(
@@ -989,7 +989,7 @@ final class AutomationContractTests: XCTestCase {
                 )))
             )
         }
-        assertRoute("snipsnipsnip://v1/composition/compare?mode=wipe&firstItemID=00000000-0000-0000-0000-000000000001&secondItemID=00000000-0000-0000-0000-000000000002&wipePosition=0.4") {
+        assertRoute("\(AppImportURL.scheme)://v1/composition/compare?mode=wipe&firstItemID=00000000-0000-0000-0000-000000000001&secondItemID=00000000-0000-0000-0000-000000000002&wipePosition=0.4") {
             XCTAssertEqual(
                 $0.command,
                 .composition(.setCompareMode(AutomationCompositionCompareCommand(
@@ -1000,7 +1000,7 @@ final class AutomationContractTests: XCTestCase {
                 )))
             )
         }
-        assertRoute("snipsnipsnip://v1/composition/template?id=builtin.numbered-steps") {
+        assertRoute("\(AppImportURL.scheme)://v1/composition/template?id=builtin.numbered-steps") {
             XCTAssertEqual(
                 $0.command,
                 .composition(.applyTemplate(
@@ -1010,7 +1010,7 @@ final class AutomationContractTests: XCTestCase {
                 ))
             )
         }
-        assertRoute("snipsnipsnip://v1/export/current?format=html&output=file&outputPath=/tmp/comparison.html&overwrite=true&appearance=styled") {
+        assertRoute("\(AppImportURL.scheme)://v1/export/current?format=html&output=file&outputPath=/tmp/comparison.html&overwrite=true&appearance=styled") {
             XCTAssertEqual($0.command, .exportCurrent(ExportCurrentAutomationCommand(format: .html)))
             XCTAssertEqual(
                 $0.output,
@@ -1023,9 +1023,9 @@ final class AutomationContractTests: XCTestCase {
             XCTAssertEqual($0.appearance, .styled)
         }
         for unsupportedFileOutputURL in [
-            "snipsnipsnip://v1/presets/run?name=Daily&output=file&outputPath=/tmp/preset.png&format=png",
-            "snipsnipsnip://v1/capture/fullscreen?output=file&outputPath=/tmp/fullscreen.png&format=png",
-            "snipsnipsnip://v1/repeat-last?output=file&outputPath=/tmp/repeat.png&format=png",
+            "\(AppImportURL.scheme)://v1/presets/run?name=Daily&output=file&outputPath=/tmp/preset.png&format=png",
+            "\(AppImportURL.scheme)://v1/capture/fullscreen?output=file&outputPath=/tmp/fullscreen.png&format=png",
+            "\(AppImportURL.scheme)://v1/repeat-last?output=file&outputPath=/tmp/repeat.png&format=png",
         ] {
             XCTAssertNil(
                 AutomationURLRouter.request(
@@ -1039,15 +1039,15 @@ final class AutomationContractTests: XCTestCase {
         XCTAssertNil(
             AutomationURLRouter.request(
                 from: try XCTUnwrap(URL(
-                    string: "snipsnipsnip://v1/capture/fullscreen?destination=append&after=not-a-uuid"
+                    string: "\(AppImportURL.scheme)://v1/capture/fullscreen?destination=append&after=not-a-uuid"
                 ))
             )
         )
         for malformedURL in [
-            "snipsnipsnip://v1/capture/fullscreen?display=bogus",
-            "snipsnipsnip://v1/capture/region?rect=10,20,bad,200",
-            "snipsnipsnip://v1/capture/fullscreen?output=bogus",
-            "snipsnipsnip://v1/composition/template",
+            "\(AppImportURL.scheme)://v1/capture/fullscreen?display=bogus",
+            "\(AppImportURL.scheme)://v1/capture/region?rect=10,20,bad,200",
+            "\(AppImportURL.scheme)://v1/capture/fullscreen?output=bogus",
+            "\(AppImportURL.scheme)://v1/composition/template",
         ] {
             XCTAssertNil(
                 AutomationURLRouter.request(
@@ -1059,7 +1059,7 @@ final class AutomationContractTests: XCTestCase {
         let invalidAfterDestination = try XCTUnwrap(
             AutomationURLRouter.request(
                 from: try XCTUnwrap(URL(
-                    string: "snipsnipsnip://v1/capture/fullscreen?destination=new&after=\(appendAfterItemID.uuidString)"
+                    string: "\(AppImportURL.scheme)://v1/capture/fullscreen?destination=new&after=\(appendAfterItemID.uuidString)"
                 ))
             )
         )
@@ -1068,7 +1068,7 @@ final class AutomationContractTests: XCTestCase {
             .invalidRequest
         )
 
-        let pasteboardURL = try XCTUnwrap(URL(string: "snipsnipsnip://import-pasteboard?name=com.apple.pasteboard.general&source=Share"))
+        let pasteboardURL = try XCTUnwrap(URL(string: "\(AppImportURL.scheme)://import-pasteboard?name=com.apple.pasteboard.general&source=Share"))
         let pasteboardName = await MainActor.run {
             AppImportURL.pasteboardImportRequest(from: pasteboardURL)?.pasteboardName
         }

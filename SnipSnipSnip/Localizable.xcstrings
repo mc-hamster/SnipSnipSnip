@@ -1,6 +1,50 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Build numbered Steps by capturing or importing each image.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Build numbered Steps by capturing or importing each image."
+          }
+        }
+      }
+    },
+    "UI Map Access": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "UI Map Access"
+          }
+        }
+      }
+    },
+    "UI Map uses Accessibility to read visible controls and their locations during Window captures. Ordinary Region and Screen screenshots work without this access.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "UI Map uses Accessibility to read visible controls and their locations during Window captures. Ordinary Region and Screen screenshots work without this access."
+          }
+        }
+      }
+    },
+    "Optional. Enabling UI Map starts macOS Accessibility setup if access is needed. You can finish setup with UI Map turned off.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optional. Enabling UI Map starts macOS Accessibility setup if access is needed. You can finish setup with UI Map turned off."
+          }
+        }
+      }
+    },
     "" : {
 
     },

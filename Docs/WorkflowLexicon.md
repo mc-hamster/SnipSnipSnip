@@ -214,6 +214,10 @@ Clipboard history observes new clipboard content; it does not record the screen.
 
 ### Permission terminology
 
+Feature-dependent setup, Create descriptions, Help instructions, and shortcut catalogs must follow the current build capabilities. A saved Pro preference does not make an unavailable permission setup or capture feature visible in another edition. Existing Guide document editing remains available separately from Guide capture.
+
+**UI Map Access** is the optional setup card on **You’re Ready** and **Setup Summary** in builds that support UI Map. **Enable UI Map for Window captures** saves the capture preference and starts Accessibility setup only when enabled without access. **Set Up**, **Open Settings**, and **Manage** beside **Accessibility** offer the same access actions in Settings > Capture > Advanced. Finishing onboarding does not require Accessibility.
+
 **Screen Recording** remains the short permission label in the app. When giving the System Settings path, use its full pane title, **Privacy & Security > Screen & System Audio Recording**.
 
 **Needs Setup**, **Waiting for Access**, **Allowed**, and **Restart Required** distinguish missing access, an outstanding setup request, usable access, and a grant that requires relaunch. Never use Restart Required for denial alone or an unrelated verification failure. A retryable check failure uses Access could not be checked right now; it does not revoke a known grant. Allowed/Ready must agree with the passive OS access gate used by capture services. **Manage** navigates to an already-allowed permission without changing readiness. **Continue** opens the native consent prompt during first-run setup and, after setup, explicitly resumes a waiting action. **Cancel Setup** abandons the waiting action without revoking system access. **Troubleshooting** contains exact-app paths, Reveal App, and Copy Path. **Capture Without UI Map** changes only the waiting Window screenshot, preserving the saved UI Map preference. Resuming **Capture Frontmost Window** after permission setup opens **Choose Window** to reconfirm the target; uninterrupted Frontmost capture stays a direct action.
@@ -517,3 +521,9 @@ mean Private.
 ### Snip History folder access
 
 **Snip History Folder Needs Access** identifies an unavailable saved custom folder. **Choose Location…** reauthorizes a folder; **Use Default Location** clears that saved custom choice. The warning names the active default storage and states that existing history was not moved or deleted. Folder selection changes the visible history source, not the contents of either folder.
+
+## Development app identity
+
+**SnipSnipSnip Dev** names the local Xcode Debug app. It has independent macOS permissions and app-owned state and may run alongside the distributed **SnipSnipSnip** or **SnipSnipSnip Pro** app. Each namespace still permits one process. “Dev” identifies the development app, not a user workflow or shipping edition.
+
+The development bundle filename is **SnipSnipSnip Dev.app** and its executable name is **SnipSnipSnip Dev**. Permission troubleshooting must name that exact copy when directing someone to Reveal App or System Settings.

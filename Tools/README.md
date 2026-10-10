@@ -115,8 +115,8 @@ python3 -m unittest discover -s Tools/tests -p 'test_identity_safety.py'
 unit and UI targets serially in one host at a time. It uses an installed Apple
 Development identity when one is available. On certificate-free CI runners it
 falls back to ad-hoc signing and prepares only the generated developer-only
-UI-test wrapper for launch. It refuses to start while a user-owned
-SnipSnipSnip copy is running.
+UI-test wrapper for launch. It refuses to start while a user-owned copy in the selected configuration’s
+namespace is running. Debug tests can run alongside a shipping copy.
 
 Run the complete gate:
 
@@ -143,19 +143,19 @@ CI signing change never affects the shipped application or release archives.
 
 `validate-automation-samples.py` executes the existing CLI, AppleScript, or URL sample
 procedures against the disposable Debug automation fixture. It refuses to run
-unless exactly one app process has both test launch arguments below. It never
+unless exactly one Dev app process has both test launch arguments below. It never
 launches or quits the app itself. Follow the single-instance rules first.
 
-Launch a Debug build normally with `open -a /path/to/SnipSnipSnip.app --args
+Launch a Debug build normally with `open -a "/path/to/SnipSnipSnip Dev.app" --args
 --snipsnipsnip-composition-ui-testing --snipsnipsnip-automation-audit`, then run:
 
 ```sh
 python3 Tools/validate-automation-samples.py \
-  --cli /path/to/SnipSnipSnip.app/Contents/Library/Helpers/snipsnipsnipctl \
+  --cli "/path/to/SnipSnipSnip Dev.app/Contents/Library/Helpers/snipsnipsnipctl" \
   --output '/tmp/SnipSnipSnip Automation/CLI' --surface cli --matrix
 
 python3 Tools/validate-automation-samples.py \
-  --cli /path/to/SnipSnipSnip.app/Contents/Library/Helpers/snipsnipsnipctl \
+  --cli "/path/to/SnipSnipSnip Dev.app/Contents/Library/Helpers/snipsnipsnipctl" \
   --output '/tmp/SnipSnipSnip Automation/AppleScript' --surface applescript
 ```
 
@@ -172,6 +172,8 @@ transport spies into the production CLI/URL parsers without capturing a desktop.
 
 
 ## Permission release validation
+
+`FeatureVisibilityTests` covers saved Pro preference visibility, capability-aware Help, Create method descriptions, and extracted Guide App Intent discoverability. Inspect both App Store and Self Release `Metadata.appintents/extract.actionsdata`: Guide stays registered, with `isDiscoverable` false in App Store builds and true in Pro. The App Store build must also omit the Guide shortcut tile.
 
 Apple guidance is the basis for permission behavior:
 
@@ -200,7 +202,7 @@ The regression coverage is in `PermissionWorkflowModelTests`,
 `PermissionRecoveryTests`, `CapturePermissionStatusTests`, `AppModelTests`,
 `AutomationContractTests`, `ClipboardAppModelTests`, and `TransactionalIntakeTests`.
 Run app-hosted tests serially with the shared scheme and only after the existing
-app copy exits. Keep the lifetime lock and `LSMultipleInstancesProhibited` intact.
+app copy in that namespace exits. Keep the lifetime lock and `LSMultipleInstancesProhibited` intact.
 If source-reading tests block on Documents-folder access, build and test an exact
 source snapshot under `/private/tmp`, including current uncommitted files, instead
 of granting the test host broader folder access.
@@ -241,3 +243,7 @@ Read Clipboard Once must retain an approved item while `.ask` still blocks later
 background reads. Check Again with a transient ScreenCaptureKit error must keep
 usable access and show a retry message, not Restart Required. Recovering a Video
 after an actual permission denial must retain permission setup and the saved Video.
+
+The disposable Debug automation fixture uses SnipSnipSnip Dev (`com.oontz.SnipSnipSnip.Dev` and `snipsnipsnip-dev://`). The validator checks only that identity and selects Dev for URL and AppleScript samples.
+
+Run `python3 -m unittest discover -s Tools/tests -p 'test_automation_namespace.py'` to verify that audit fixtures refuse a shipping CLI, a missing Dev app, or ambiguous Dev processes before dispatching commands.

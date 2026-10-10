@@ -62,7 +62,7 @@ final class AutomationInputBoundaryTests: XCTestCase {
             "capture/fullscreen?private",
             "capture/region?rect=1,bad,2,3,4"
         ] {
-            XCTAssertNil(AutomationURLRouter.request(from: try XCTUnwrap(URL(string: "snipsnipsnip://v1/" + suffix))), suffix)
+            XCTAssertNil(AutomationURLRouter.request(from: try XCTUnwrap(URL(string: "\(AppImportURL.scheme)://v1/" + suffix))), suffix)
         }
     }
 
@@ -183,7 +183,7 @@ extension AutomationInputBoundaryTests {
             let query = action == "layout" ? "layout=steps" : "mode=wipe"
             for value in values {
                 XCTAssertEqual(AutomationCLIParser.parse(["composition", action] + mode + [flag, value]).exitCode, 64, flag + " " + value)
-                let url = try XCTUnwrap(URL(string: "snipsnipsnip://v1/composition/\(action)?\(query)&\(key)=\(value)"))
+                let url = try XCTUnwrap(URL(string: "\(AppImportURL.scheme)://v1/composition/\(action)?\(query)&\(key)=\(value)"))
                 if let request = AutomationURLRouter.request(from: url) {
                     XCTAssertEqual(request.validationError?.code, .invalidRequest, key + " " + value)
                 }

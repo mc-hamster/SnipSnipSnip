@@ -285,6 +285,12 @@ final class QuickControlsCoordinator: NSObject, NSWindowDelegate {
 
     private func snapDock(_ panel: NSWindow) {
         guard !isRestoringFrame else { return }
+        // A pause in pointer movement is not the end of a window drag.
+        // Wait for release before snapping or publishing a new saved frame.
+        if NSEvent.pressedMouseButtons & 1 != 0 {
+            scheduleDockSnap(from: Notification(name: NSWindow.didMoveNotification, object: panel))
+            return
+        }
         let screen = panel.screen ?? screenContainingMeaningfulArea(of: panel.frame) ?? NSScreen.main
         guard let visibleFrame = screen?.visibleFrame else { return }
         paletteDisplayID = screen?.gscDisplayID

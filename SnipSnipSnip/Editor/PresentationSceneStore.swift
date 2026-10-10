@@ -342,7 +342,7 @@ nonisolated struct PresentationSceneStore {
         let applicationSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support", isDirectory: true)
         return applicationSupport
-            .appendingPathComponent("SnipSnipSnip", isDirectory: true)
+            .appendingPathComponent(AppNamespace.current.supportDirectoryName, isDirectory: true)
             .appendingPathComponent("Presentation Scenes", isDirectory: true)
     }
 

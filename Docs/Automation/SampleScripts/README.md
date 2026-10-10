@@ -114,3 +114,13 @@ selection; output occurs only after successful completion.
 CLI callers must select one output destination; invalid or ambiguous options
 fail rather than being silently ignored. Save unsaved work before unattended
 sample 16; a cancelled or failed open does not export the previous document.
+
+## Development and shipping namespaces
+
+Xcode Debug builds use `com.oontz.SnipSnipSnip.Dev` (**SnipSnipSnip Dev**), while TestFlight, App Store, and GitHub builds retain `com.oontz.SnipSnipSnip`. Each permits one process, and Dev can run alongside a distributed copy. Dev has independent permissions, preferences, keychain encryption keys, and default app-owned storage (`~/Library/Application Support/SnipSnipSnip Dev`). Shipping paths and existing data stay unchanged. Do not select the same custom history folder in both apps.
+
+The Debug bundle's CLI targets Dev; the shipping CLI targets the shipping app. Set `SSSCTL` to the Debug bundle's `Contents/Library/Helpers/snipsnipsnipctl` when running CLI samples against Dev. AppleScript addresses Dev with `tell application id "com.oontz.SnipSnipSnip.Dev"`. Dev registers `snipsnipsnip-dev://`; shipping retains `snipsnipsnip://`. URL samples accept `SSS_URL_SCHEME=snipsnipsnip-dev` with unchanged procedure basenames and parameters. The Share extension follows its containing app's namespace. Document formats remain compatible across builds.
+
+The disposable automation sample validator targets Dev and substitutes that identity into AppleScript fixtures. The serial XCTest gate checks the selected configuration's namespace, so a shipping copy may remain open during Debug tests. Grant Dev access once and keep Apple Development signing and team stable for subsequent rebuilds; macOS may ask again if the code-signing identity changes. No permission resets or shipping-data migration occur. The system clipboard and global shortcut registrations remain shared macOS resources; assign different shortcuts if both copies are active.
+
+The Debug product is **SnipSnipSnip Dev.app**, with executable **SnipSnipSnip Dev**, so Finder and macOS permission setup can distinguish it from the shipping **SnipSnipSnip.app**. The Swift module remains `SnipSnipSnip`. When adding Dev manually to a permission list, select the Dev product in Xcode’s DerivedData.

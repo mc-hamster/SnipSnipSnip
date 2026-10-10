@@ -5,4 +5,4 @@ set -euo pipefail
 
 # Select an app window, dialog, or utility panel; menus and system overlays are excluded.
 
-open "snipsnipsnip://v1/capture/window?output=clipboard"
+open "${SSS_URL_SCHEME:-snipsnipsnip}://v1/capture/window?output=clipboard"

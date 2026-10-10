@@ -907,6 +907,7 @@ struct SnipSnipSnipApp: App {
                 permissions: model.permissions,
                 clipboard: model.clipboard,
                 quickControls: model.quickControls,
+                capture: model.capture,
                 capabilities: model.capabilities,
                 completeOnboarding: {
                     model.lifecycle.completeOnboarding(

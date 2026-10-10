@@ -2,4 +2,4 @@
 # Readiness reflects the passive macOS gate used by capture services.
 set -euo pipefail
 
-open "snipsnipsnip://v1/status"
+open "${SSS_URL_SCHEME:-snipsnipsnip}://v1/status"

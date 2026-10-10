@@ -18,14 +18,20 @@ def main():
     parser.add_argument('--surface', choices=['cli', 'applescript', 'url'], default='cli')
     parser.add_argument('--matrix', action='store_true', help='Also exercise layouts, comparisons, templates, formats and failure boundaries.')
     args = parser.parse_args()
-    pids = run(['pgrep', '-x', 'SnipSnipSnip']).stdout.split()
-    if len(pids) != 1:
+    discovery = run(['osascript', '-l', 'JavaScript', '-e', 'ObjC.import("AppKit"); JSON.stringify(ObjC.unwrap($.NSRunningApplication.runningApplicationsWithBundleIdentifier("com.oontz.SnipSnipSnip.Dev")).map(a => ({pid: Number(a.processIdentifier), path: ObjC.unwrap(a.bundleURL.path)})))'])
+    if discovery.returncode != 0:
+        parser.error('Could not identify the development audit app: ' + discovery.stderr)
+    apps = json.loads(discovery.stdout)
+    if len(apps) != 1:
         parser.error('Exactly one isolated audit app must already be running.')
-    command = run(['ps', '-p', pids[0], '-o', 'command=']).stdout
+    expected_cli = pathlib.Path(apps[0]['path']) / 'Contents/Library/Helpers/snipsnipsnipctl'
+    if args.cli.resolve() != expected_cli.resolve():
+        parser.error('The CLI must belong to the running disposable Dev app, not a shipping copy.')
+    command = run(['ps', '-p', str(apps[0]['pid']), '-o', 'command=']).stdout
     if not all(flag in command for flag in ['--snipsnipsnip-composition-ui-testing', '--snipsnipsnip-automation-audit']):
         parser.error('Refusing to mutate an app outside the disposable automation fixture.')
     args.output.mkdir(parents=True, exist_ok=True)
-    env = dict(os.environ, SSSCTL=str(args.cli), OUTPUT_DIR=str(args.output))
+    env = dict(os.environ, SSSCTL=str(args.cli), OUTPUT_DIR=str(args.output), SSS_URL_SCHEME="snipsnipsnip-dev")
     results = []
     def cli(*values):
         result = run([str(args.cli), '--json', *values])
@@ -107,7 +113,7 @@ def main():
         if args.surface == 'cli':
             result = run(['bash', str(sample)], env=env)
         else:
-            source = sample.read_text()
+            source = sample.read_text().replace("com.oontz.SnipSnipSnip", "com.oontz.SnipSnipSnip.Dev")
             # Substitute fixture inputs only; execute the checked-in procedure.
             source = source.replace('path to downloads folder', 'POSIX file ' + json.dumps(str(args.output) + '/'))
             for variable in ['PRESET_ID', 'AFTER_ITEM_ID', 'FIRST_ITEM_ID', 'ITEM_ID']:

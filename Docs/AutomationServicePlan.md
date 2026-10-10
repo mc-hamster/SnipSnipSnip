@@ -700,8 +700,11 @@ Supporting types:
 - `AppShortcutsProvider` advertises common capture phrases and uses
   `AppIntents.AppShortcut` explicitly so it does not collide with the in-app
   keyboard shortcut catalog. The Guide App Shortcut is compiled only into Pro
-  and development builds; the intent identifier remains decodable in the App
-  Store edition for stable `proFeatureRequired` results.
+  and development builds. App Store builds explicitly set
+  `GuideActionIntent.isDiscoverable` to `false` in extracted App Intents
+  metadata; the intent identifier remains registered and dedicated requests
+  retain `proFeatureRequired` results. Hiding the shortcut tile alone is
+  insufficient to hide the action from the system catalog.
 - Opening `.sss` documents uses `IntentFile` with the SnipSnipSnip document
   package type.
 
@@ -909,3 +912,13 @@ capture and recording services. A successful content probe does not override a
 negative gate. Unrelated verification errors remain retryable instead of being
 reported as permission denial or a required restart. Unattended calls continue
 to return the existing permissionDenied error without opening setup UI.
+
+## Development and shipping namespaces
+
+Xcode Debug builds use `com.oontz.SnipSnipSnip.Dev` (**SnipSnipSnip Dev**), while TestFlight, App Store, and GitHub builds retain `com.oontz.SnipSnipSnip`. Each permits one process, and Dev can run alongside a distributed copy. Dev has independent permissions, preferences, keychain encryption keys, and default app-owned storage (`~/Library/Application Support/SnipSnipSnip Dev`). Shipping paths and existing data stay unchanged. Do not select the same custom history folder in both apps.
+
+The Debug bundle's CLI targets Dev; the shipping CLI targets the shipping app. Set `SSSCTL` to the Debug bundle's `Contents/Library/Helpers/snipsnipsnipctl` when running CLI samples against Dev. AppleScript addresses Dev with `tell application id "com.oontz.SnipSnipSnip.Dev"`. Dev registers `snipsnipsnip-dev://`; shipping retains `snipsnipsnip://`. URL samples accept `SSS_URL_SCHEME=snipsnipsnip-dev` with unchanged procedure basenames and parameters. The Share extension follows its containing app's namespace. Document formats remain compatible across builds.
+
+The disposable automation sample validator targets Dev and substitutes that identity into AppleScript fixtures. The serial XCTest gate checks the selected configuration's namespace, so a shipping copy may remain open during Debug tests. Grant Dev access once and keep Apple Development signing and team stable for subsequent rebuilds; macOS may ask again if the code-signing identity changes. No permission resets or shipping-data migration occur. The system clipboard and global shortcut registrations remain shared macOS resources; assign different shortcuts if both copies are active.
+
+The Debug product is **SnipSnipSnip Dev.app**, with executable **SnipSnipSnip Dev**, so Finder and macOS permission setup can distinguish it from the shipping **SnipSnipSnip.app**. The Swift module remains `SnipSnipSnip`. When adding Dev manually to a permission list, select the Dev product in Xcode’s DerivedData.

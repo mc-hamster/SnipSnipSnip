@@ -130,8 +130,12 @@ enum SingleInstanceCoordinator {
             appropriateFor: nil,
             create: true
         )
-        return applicationSupportURL
-            .appendingPathComponent("SnipSnipSnip", isDirectory: true)
+        return lockURL(in: applicationSupportURL, namespace: .current)
+    }
+
+    static func lockURL(in applicationSupportURL: URL, namespace: AppNamespace) -> URL {
+        applicationSupportURL
+            .appendingPathComponent(namespace.supportDirectoryName, isDirectory: true)
             .appendingPathComponent("Runtime", isDirectory: true)
             .appendingPathComponent("single-instance.lock")
     }

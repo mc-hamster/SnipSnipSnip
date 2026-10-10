@@ -121,7 +121,11 @@ final class ShareViewController: NSViewController {
 
     private func appImportURL(pasteboardName: String, sourceName: String?) -> URL? {
         var components = URLComponents()
+        #if DEBUG
+        components.scheme = "snipsnipsnip-dev"
+        #else
         components.scheme = "snipsnipsnip"
+        #endif
         components.host = "import-pasteboard"
         components.queryItems = [
             URLQueryItem(name: "name", value: pasteboardName),

@@ -28,14 +28,14 @@ nonisolated enum HelpSearchSelectionPolicy {
     }
 }
 
-private struct HelpCategory: Identifiable {
+struct HelpCategory: Identifiable {
     let title: String
     let articles: [HelpArticle]
 
     var id: String { title }
 }
 
-private struct HelpArticle: Identifiable {
+struct HelpArticle: Identifiable {
     let id: String
     let title: String
     let summary: String
@@ -44,7 +44,7 @@ private struct HelpArticle: Identifiable {
     let relatedIDs: [String]
 }
 
-private struct HelpArticleSection: Identifiable {
+struct HelpArticleSection: Identifiable {
     let title: String
     let body: String?
     let steps: [String]
@@ -68,7 +68,7 @@ private struct HelpArticleSection: Identifiable {
     }
 }
 
-private struct HelpArticleLink: Identifiable {
+struct HelpArticleLink: Identifiable {
     let title: String
     let url: URL
 
@@ -89,7 +89,7 @@ struct HelpGuideView: View {
         self.capture = capture
     }
 
-    private static func categories(
+    static func categories(
         for capabilities: AppCapabilitySnapshot,
         fullscreenDisplayMode: ScreenshotFullscreenDisplayMode
     ) -> [HelpCategory] {
@@ -98,6 +98,7 @@ struct HelpGuideView: View {
         let uiMapEnabled = capabilities.isEnabled(.uiMap)
         let proUpdateCheckEnabled = capabilities.isEnabled(.proUpdateCheck)
         let guideEnabled = capabilities.isEnabled(.guideCapture)
+        let shortcutRecordingEnabled = capabilities.isEnabled(.videoShortcutCapture)
         var accessibilityUses: [String] = []
         if guideEnabled {
             accessibilityUses.append("Guide uses it while active to observe actions and keyboard focus, group non-secure text entry, and mask secure fields.")
@@ -130,7 +131,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Take and finish a screenshot",
                             steps: [
-                                "Use Quick Capture to choose Region, Window, or Screen. Region, Window, Screen, Scroll, and Repeat Last are direct actions, and Presets stays in its own menu.",
+                                "Use Quick Capture to choose Region, Window, or Screen. Region, Window, Screen\(scrollingCaptureEnabled ? ", Scroll" : ""), and Repeat Last are direct actions, and Presets stays in its own menu.",
                                 "Use the editor to crop, annotate, redact, or copy text.",
                                 "Choose Copy, Export, Share, Float, or Drag for the result currently shown.",
                                 "Choose Save or Save As when you want to keep an editable .sss document."
@@ -190,7 +191,9 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                                 title: "Accessibility",
                                 body: accessibilityUses.joined(separator: " "),
                                 steps: [
-                                    "Click Set Up beside Accessibility in SnipSnipSnip.",
+                                    uiMapEnabled
+                                        ? "Use UI Map Access on the You’re Ready setup page or Setup Summary. Enable UI Map for Window captures starts Accessibility setup; Set Up beside Accessibility requests access directly. The same controls are available in Settings > Capture > Advanced."
+                                        : "Click Set Up beside Accessibility in Settings > Privacy > Permissions.",
                                     "Allow SnipSnipSnip in System Settings > Privacy & Security > Accessibility.",
                                     "Setup guidance remains visible even when Screen Recording is already allowed. Capture Without UI Map continues the waiting Window screenshot without changing your saved UI Map preference. If the app is missing, expand Troubleshooting, choose Reveal App, and add that copy with the + button."
                                 ]
@@ -203,7 +206,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                                 ? "Ordinary Region and Screen screenshot capture do not require Accessibility. Guide does require it while capturing a workflow."
                                 : "Region and Screen screenshot capture do not require Accessibility.",
                             "In Settings, Set Up starts a missing permission and Manage opens System Settings for a permission that is already allowed.",
-                            "Development builds launched from Xcode may need Accessibility permission for the exact app in DerivedData, not a copy in Applications."
+                            "Xcode Debug builds appear as SnipSnipSnip Dev and can run alongside the distributed app. Dev keeps its own permissions, settings, Clipboard History, Snip History, and recovery. If Dev is missing from a permission list, use Reveal App and add SnipSnipSnip Dev.app with the + button. Allow the Dev copy in System Settings once; the distributed app keeps its existing grants. Keep the development signing identity stable across rebuilds."
                         ]
                         : [],
                     relatedIDs: ["troubleshoot-capture", "privacy"]
@@ -219,7 +222,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                                 "Quick Controls appears at startup by default. During setup, keep Show Quick Controls when SnipSnipSnip starts on for the fastest access, or turn it off when you prefer to show the dock only as needed.",
                                 "Choose Quick Controls under Screen Tools in the main window, or choose Show Quick Controls in Settings, the Capture menu, or the menu bar icon.",
                                 "Open Settings > General > Quick Controls to change the startup choice, check whether the dock is visible, or choose Customize Quick Controls when you want to change its controls or presentation. Startup is also available under Dock Settings in the customization window.",
-                                "Drag the application icon or open space in the dock header to either side of a display. The dock snaps to the nearest screen edge and remembers its edge and vertical position.",
+                                "Drag the application icon, title, or open space in the dock header to either side of a display. In Compact, drag the application icon. Release to snap the dock to the nearest screen edge; it remembers its edge and vertical position.",
                                 "Choose the edge-pointing button to switch between Expanded labeled rows and the space-saving Compact icon rail. The same controls stay in the same order, and the dock always fits them automatically."
                             ]
                         ),
@@ -287,7 +290,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                     sections: uiMapEnabled ? [
                         HelpArticleSection(
                             title: "Enable UI Map for Window captures",
-                            body: "UI Map is a SnipSnipSnip Pro feature. Open Settings > Capture > Advanced and turn on Enable UI Map for Window captures. Window screenshots then try to save available metadata for visible interface elements in the selected window, including names, labels, identifiers, roles, positions, sizes, parent hierarchy, and owning app. This makes a Window screenshot searchable and inspectable as structured interface data, not just pixels. Settings also controls the default visible details for pinned UI Map overlays; only Show outline is enabled by default."
+                            body: "UI Map is available in Pro and development builds. UI Map Access on the You’re Ready setup page and Setup Summary offers Enable UI Map for Window captures and Accessibility setup. You can finish onboarding with UI Map turned off. Open Settings > Capture > Advanced to change the same preference or choose Set Up, Open Settings, or Manage beside Accessibility. Enable UI Map for Window captures starts macOS Accessibility setup only when you turn it on and access is needed. Window screenshots then try to save available metadata for visible interface elements in the selected window, including names, labels, identifiers, roles, positions, sizes, parent hierarchy, and owning app. This makes a Window screenshot searchable and inspectable as structured interface data, not just pixels. Settings also controls the default visible details for pinned UI Map overlays; only Show outline is enabled by default."
                         ),
                         HelpArticleSection(
                             title: "Capture behavior",
@@ -719,7 +722,9 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                         ),
                         HelpArticleSection(
                             title: "Cursor, sound, and shortcut privacy",
-                            body: "New screen Videos retain separate cursor and click data locally so they can be changed afterward. Older and connected-device Videos may have the cursor baked into the footage; the inspector explains when separate data is unavailable. Sound & Shortcuts adjusts recorded sound and any shortcut labels. To include shortcuts in your next recording, enable Record Keyboard Shortcuts in Settings > Video and use Set Up if Accessibility is missing. Only command/control shortcuts are recorded, never ordinary typed text; secure input is excluded. Shortcut recording is off by default. Normal recording and cursor data do not require Accessibility."
+                            body: "New screen Videos retain separate cursor and click data locally so they can be changed afterward. Older and connected-device Videos may have the cursor baked into the footage; the inspector explains when separate data is unavailable. Sound & Shortcuts adjusts recorded sound and any shortcut labels."
+                                + (shortcutRecordingEnabled ? " To include shortcuts in your next recording, enable Record Keyboard Shortcuts in Settings > Video and use Set Up if Accessibility is missing. Only command/control shortcuts are recorded, never ordinary typed text; secure input is excluded. Shortcut recording is off by default." : "")
+                                + " Normal recording and cursor data do not require Accessibility."
                         ),
                         HelpArticleSection(
                             title: "Find controls quickly",
@@ -1209,7 +1214,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                     id: "keyboard-shortcuts",
                     title: "Keyboard shortcuts",
                     summary: "Use centralized shortcuts for help, capture, save, editor tools, layers, and screen utilities.",
-                    sections: AppShortcut.catalogSections.map { section in
+                    sections: AppShortcut.catalogSections(includesGuideCapture: guideEnabled).map { section in
                         HelpArticleSection(
                             title: section.title,
                             bullets: section.entries.map { "\($0.keys): \($0.action)." }
@@ -1244,9 +1249,8 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                                 "Run a capture preset by choosing a saved preset.",
                                 "Capture a screen, frontmost window, region, or interactive window.",
                                 "Add a capture to a composition, replace an exact item, set its layout or comparison, apply a saved template, and export the completed composition.",
-                                "Start, pause, resume, add a step to, stop, or export a Guide.",
                                 "Repeat the last capture, open an editable .sss document, or export the current screenshot."
-                            ]
+                            ] + (guideEnabled ? ["Start, pause, resume, add a step to, stop, or export a Guide."] : [])
                         ),
                         HelpArticleSection(
                             title: "Foreground actions",

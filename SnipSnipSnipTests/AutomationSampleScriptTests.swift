@@ -35,6 +35,7 @@ final class AutomationSampleScriptTests: XCTestCase {
                 environment["PATH"] = temporary.path + ":" + (environment["PATH"] ?? "/usr/bin:/bin")
                 environment["SSSCTL"] = temporary.appendingPathComponent("snipsnipsnipctl").path
                 environment["SSS_SAMPLE_ARGUMENTS"] = argumentsURL.path
+                environment["SSS_URL_SCHEME"] = AppImportURL.scheme
                 environment["OUTPUT_DIR"] = temporary.appendingPathComponent("Space & Unicode é").path
                 environment["PRESET_NAME"] = "A & B / é"
                 process.environment = environment

@@ -23,7 +23,7 @@ Run the test suite with:
 xcodebuild test -project SnipSnipSnip.xcodeproj -scheme SnipSnipSnip -destination 'platform=macOS,arch=arm64,name=My Mac' -derivedDataPath /private/tmp/SnipSnipSnip-DerivedData
 ```
 
-SnipSnipSnip permits only one app process at a time, including one app-hosted XCTest process. The shared scheme therefore runs tests in a single host. Quit any running copy before launching from Xcode or running app-hosted tests. If the current copy must remain open, use `xcodebuild build` or `xcodebuild build-for-testing` for compile-only verification, then run the tests after that copy exits. Do not use `open -n` or invoke the app executable directly to bypass the guard.
+SnipSnipSnip permits only one app process at a time per namespace, including one app-hosted XCTest process. The shared scheme therefore runs tests in a single host. Quit any running copy in the namespace being launched before launching from Xcode or running app-hosted tests. If a copy in the same namespace must remain open, use `xcodebuild build` or `xcodebuild build-for-testing` for compile-only verification, then run the tests after that copy exits. Do not use `open -n` or invoke the app executable directly to bypass the guard.
 
 ## Project Expectations
 
@@ -82,3 +82,7 @@ Avoid mixing cleanup with behavior changes unless the cleanup is required for th
 ## Reporting Security Problems
 
 Do not open a public issue for a suspected security or privacy vulnerability. Follow [SECURITY.md](SECURITY.md) instead.
+
+Xcode Debug builds use the stable identity `com.oontz.SnipSnipSnip.Dev` and display name **SnipSnipSnip Dev**. They may run alongside the shipping app, with independent permissions, preferences, Clipboard History, Snip History, recovery, and presentation scenes. Keep Apple Development signing and the team stable across rebuilds. Xcode Release and all Fastlane distribution archives retain the shipping identity.
+
+The Debug product is **SnipSnipSnip Dev.app**, with executable **SnipSnipSnip Dev**, so Finder and macOS permission setup can distinguish it from the shipping **SnipSnipSnip.app**. The Swift module remains `SnipSnipSnip`. When adding Dev manually to a permission list, select the Dev product in Xcode’s DerivedData.
