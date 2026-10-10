@@ -1,5 +1,9 @@
 # Tools
 
+The complete CI test gate runs on pushes to `main` and `1.*` release branches,
+as well as pull requests. A release-branch push can validate the exact source
+commit even when a draft release PR has merge conflicts with `main`.
+
 Developer-only utilities that are not part of the SnipSnipSnip app target.
 
 ## Clean Sweep
