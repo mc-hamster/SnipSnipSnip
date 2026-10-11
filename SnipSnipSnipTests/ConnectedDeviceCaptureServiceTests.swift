@@ -15,7 +15,7 @@ final class ConnectedDeviceCaptureServiceTests: XCTestCase {
     func testConnectedDeviceCaptureErrorExplainsPublicAPIConstraint() {
         XCTAssertEqual(
             ConnectedDeviceCaptureError.publicScreenCaptureUnavailable.errorDescription,
-            "Connected iPhone and iPad screen capture is not available through public macOS APIs. SnipSnipSnip cannot use private device services or QuickTime automation in an App Store-safe build."
+            "Connected iPhone and iPad screen capture is not available through public macOS APIs. \(AppBranding.displayName) cannot use private device services or QuickTime automation in an App Store-safe build."
         )
     }
 

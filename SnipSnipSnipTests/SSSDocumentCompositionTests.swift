@@ -1331,6 +1331,14 @@ final class SSSDocumentCompositionTests: XCTestCase {
                 SSSDocumentPackage.maximumPersistedFixedOutputDimension + 1,
             height: 120
         )
+        XCTAssertThrowsError(
+            try PresentationSceneValidator.validate(svgText: oversizedSVG, source: .user)
+        ) {
+            XCTAssertEqual(
+                ($0 as? PresentationSceneValidationError)?.message,
+                "Scene canvas exceeds safe resource bounds."
+            )
+        }
         try updateManifest(at: packageURL) { manifest in
             var session = manifest["session"] as! [String: Any]
             var current = session["currentSnapshot"] as! [String: Any]
@@ -1352,7 +1360,7 @@ final class SSSDocumentCompositionTests: XCTestCase {
 
         XCTAssertThrowsError(try SSSDocumentPackage.load(from: packageURL)) {
             guard case SSSDocumentError.invalidComposition(let reason) = $0,
-                  reason.contains("Presentation output dimensions") else {
+                  reason == "Presentation Scene data is invalid" else {
                 return XCTFail(
                     "Expected Scene canvas rejection before decode, got \($0)"
                 )
