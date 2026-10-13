@@ -45,11 +45,9 @@ final class AppStoreScreenshotAssetUITests: XCTestCase {
 
         try capture(mainWindow, named: "01-screenshot-edit")
 
-        let create = element("creation.present")
-        XCTAssertTrue(create.waitForExistence(timeout: 5))
-        create.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
-        ).click()
+        // Use the native Create command while capturing assets. The dedicated
+        // front-door suite covers the visible header button separately.
+        app.typeKey("n", modifierFlags: .command)
         XCTAssertTrue(element("creation.quickStart").waitForExistence(timeout: 5))
         try capture(mainWindow, named: "02-create")
         app.buttons["Cancel"].firstMatch.click()
