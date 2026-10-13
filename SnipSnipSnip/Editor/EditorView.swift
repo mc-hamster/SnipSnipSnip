@@ -21,17 +21,18 @@ struct EditorView: View {
     var onUndoLibrarySwitch: () -> Void = {}
 
     var body: some View {
-        ZStack {
-            EditorCanvasScrollContainer(controller: controller)
-
+        EditorCanvasScrollContainer(controller: controller)
+        // Transient chrome must not contribute a minimum size to the canvas.
+        // A ZStack includes every sibling in sizing, even top-aligned notices.
+        .overlay {
             if let progress = compositionExportProgress {
                 CompositionExportProgressOverlay(
                     progress: progress,
                     onCancel: onCancelCompositionExport
                 )
-                .zIndex(2)
             }
-
+        }
+        .overlay {
             if let notice = controller.notice {
                 OutputNoticeView(
                     notice: notice,
@@ -39,12 +40,11 @@ struct EditorView: View {
                     onDismiss: controller.dismissNotice
                 )
                 .accessibilityIdentifier("editor.notice")
-                .zIndex(3)
             }
-
+        }
+        .overlay {
             if controller.numberedArrowResequencingOrder != nil {
                 NumberedArrowResequencingBar(controller: controller)
-                    .zIndex(4)
             }
         }
         .background(Color(nsColor: .underPageBackgroundColor))
@@ -243,6 +243,7 @@ private struct EditorCanvasScrollContainer: View {
                             thickness: scrollerThickness
                         )
                         .frame(width: scrollerThickness, height: canvasHeight)
+                        .accessibilityIdentifier("editor.scrollbar.vertical")
                     }
 
                     HStack(spacing: 0) {
@@ -252,6 +253,7 @@ private struct EditorCanvasScrollContainer: View {
                             thickness: scrollerThickness
                         )
                         .frame(width: canvasWidth, height: scrollerThickness)
+                        .accessibilityIdentifier("editor.scrollbar.horizontal")
 
                         Rectangle()
                             .fill(Color.black.opacity(0.40))
