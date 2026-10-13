@@ -2674,6 +2674,184 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testLiveTextEditingPreservesCoveringLayerOrder() throws {
+        var style = AnnotationStyle.default(for: .text)
+        style.fillColor = RGBAColor(red: 1, green: 1, blue: 1, alpha: 1)
+        let rect = CGRect(x: 40, y: 40, width: 240, height: 80)
+        for text in [
+            Annotation.makeText(at: rect.origin, style: style).resized(to: rect),
+            Annotation.makeCallout(at: rect.origin, number: 1, style: style).resized(to: rect)
+        ].map({ $0.updatingText("Covered layer text", refittingBounds: false) }) {
+            let cover = Annotation.makeSolidRedaction(in: CGRect(x: 120, y: 60, width: 80, height: 40))
+            let controller = makeController(snapshot: makeEditorSnapshot(
+                cropRect: CGRect(x: 0, y: 0, width: 320, height: 180), annotations: [text, cover]
+            ))
+            let (canvas, _, _) = makeCanvasHarness(
+                controller: controller, frame: CGRect(x: 0, y: 0, width: 320, height: 180)
+            )
+            let point = viewPoint(for: CGPoint(x: 160, y: 80), controller: controller)
+            let unselected = try XCTUnwrap(renderView(canvas))
+            let expected = samplePixel(in: unselected, topLeftX: Int(point.x), topLeftY: Int(point.y))
+
+            controller.select(text.id)
+            let selected = try XCTUnwrap(renderView(canvas))
+            XCTAssertEqual(samplePixel(in: selected, topLeftX: Int(point.x), topLeftY: Int(point.y)), expected,
+                           "Editing text must not lift it above a covering layer")
+            for x in stride(from: 128, through: 192, by: 8) {
+                for y in stride(from: 68, through: 92, by: 8) {
+                    let location = viewPoint(for: CGPoint(x: x, y: y), controller: controller)
+                    XCTAssertEqual(
+                        samplePixel(in: selected, topLeftX: Int(location.x), topLeftY: Int(location.y)),
+                        samplePixel(in: unselected, topLeftX: Int(location.x), topLeftY: Int(location.y)),
+                        "Covered text must stay behind the redaction"
+                    )
+                }
+            }
+
+            controller.sendToFront()
+            let front = try XCTUnwrap(renderView(canvas))
+            let frontPixel = samplePixel(in: front, topLeftX: Int(point.x), topLeftY: Int(point.y))
+            XCTAssertNotEqual(frontPixel, expected)
+            controller.undo()
+            let undone = try XCTUnwrap(renderView(canvas))
+            XCTAssertEqual(samplePixel(in: undone, topLeftX: Int(point.x), topLeftY: Int(point.y)), expected)
+            controller.redo()
+            let redone = try XCTUnwrap(renderView(canvas))
+            XCTAssertEqual(samplePixel(in: redone, topLeftX: Int(point.x), topLeftY: Int(point.y)), frontPixel)
+        }
+    }
+
+    @MainActor
+    func testSelectedCalloutDoesNotDoubleItsTranslucentBackground() throws {
+        var style = AnnotationStyle.default(for: .callout)
+        style.fillColor = RGBAColor(red: 0, green: 0, blue: 0, alpha: 0.5)
+        let callout = Annotation(
+            id: UUID(), groupID: nil,
+            kind: .callout(CalloutShape(
+                rect: CGRect(x: 40, y: 40, width: 240, height: 80),
+                number: 1, text: "Step", leaderPoint: CGPoint(x: 10, y: 80),
+                automaticallySizesToText: false
+            )), style: style
+        )
+        let controller = makeController(
+            snapshot: makeEditorSnapshot(
+                cropRect: CGRect(x: 0, y: 0, width: 320, height: 180), annotations: [callout]
+            ),
+            capture: makeCapturedScreenshot(image: makeSolidImage(
+                width: 320, height: 180,
+                color: PixelSample(red: 255, green: 255, blue: 255, alpha: 255)
+            ))
+        )
+        let (canvas, _, _) = makeCanvasHarness(
+            controller: controller, frame: CGRect(x: 0, y: 0, width: 320, height: 180)
+        )
+        let samplePoint = viewPoint(for: CGPoint(x: 240, y: 100), controller: controller)
+        let leaderPoint = viewPoint(for: CGPoint(x: 25, y: 80), controller: controller)
+        let unselected = try XCTUnwrap(renderView(canvas))
+        let background = samplePixel(in: unselected, topLeftX: Int(samplePoint.x), topLeftY: Int(samplePoint.y))
+        let leader = samplePixel(in: unselected, topLeftX: Int(leaderPoint.x), topLeftY: Int(leaderPoint.y))
+
+        controller.select(callout.id)
+        let selected = try XCTUnwrap(renderView(canvas))
+        XCTAssertEqual(samplePixel(in: selected, topLeftX: Int(samplePoint.x), topLeftY: Int(samplePoint.y)), background,
+                       "Selecting a callout must not paint its translucent body twice")
+        XCTAssertEqual(samplePixel(in: selected, topLeftX: Int(leaderPoint.x), topLeftY: Int(leaderPoint.y)), leader,
+                       "The callout leader must remain visible during editing")
+    }
+
+    @MainActor
+    func testSwitchingTextLayersReplacesTheNewLayersPlaceholder() throws {
+        for secondText in [
+            Annotation.makeText(at: CGPoint(x: 20, y: 90)),
+            Annotation.makeCallout(at: CGPoint(x: 20, y: 90), number: 2)
+        ] {
+            let firstText = Annotation.makeText(at: CGPoint(x: 20, y: 20)).updatingText("First step")
+            let controller = makeController(snapshot: makeEditorSnapshot(
+                annotations: [firstText, secondText], selectedAnnotationIDs: [firstText.id]
+            ))
+            let (canvas, _, window) = makeCanvasHarness(
+                controller: controller, frame: CGRect(x: 0, y: 0, width: 640, height: 480)
+            )
+            let liveEditor = try XCTUnwrap(canvas.subviews.flatMap(\.subviews).compactMap { $0 as? NSTextView }.first)
+            XCTAssertTrue(window.makeFirstResponder(liveEditor))
+            liveEditor.setSelectedRange(NSRange(location: ("First step" as NSString).length, length: 0))
+
+            // Layers can change selection without moving focus out of the live editor.
+            controller.select(secondText.id)
+            canvas.debugInsertTextIntoTextEditorOverlay("Second step")
+
+            XCTAssertEqual(try XCTUnwrap(canvas.debugTextEditorOverlayState).text, "Second step")
+            let selected = try XCTUnwrap(controller.selectedAnnotation)
+            XCTAssertEqual(selected.id, secondText.id)
+            switch selected.kind {
+            case let .text(shape):
+                XCTAssertEqual(shape.text, "Second step")
+            case let .callout(shape):
+                XCTAssertEqual(shape.text, "Second step")
+            default:
+                XCTFail("Expected a text or callout layer")
+            }
+
+            // Existing text starts at its own end rather than inheriting this layer's caret.
+            controller.select(firstText.id)
+            canvas.debugInsertTextIntoTextEditorOverlay("!")
+            XCTAssertEqual(try XCTUnwrap(canvas.debugTextEditorOverlayState).text, "First step!")
+        }
+    }
+
+    @MainActor
+    func testTextCanvasRedrawsWhenSwitchingBetweenNumberedArrowLabels() throws {
+        let firstArrow = Annotation.makeNumberedArrow(
+            from: CGPoint(x: 10, y: 10), to: CGPoint(x: 80, y: 20), number: 1
+        )
+        let firstText = Annotation.makeText(at: CGPoint(x: 90, y: 10)).updatingText("First step")
+        let secondArrow = Annotation.makeNumberedArrow(
+            from: CGPoint(x: 10, y: 90), to: CGPoint(x: 80, y: 100), number: 2
+        )
+        let secondText = Annotation.makeText(at: CGPoint(x: 90, y: 90)).updatingText("Second step")
+        let controller = makeController(
+            snapshot: makeEditorSnapshot(
+                annotations: [firstArrow, firstText, secondArrow, secondText],
+                selectedAnnotationIDs: [secondText.id]
+            )
+        )
+        let (canvas, _, _) = makeCanvasHarness(
+            controller: controller,
+            frame: CGRect(x: 0, y: 0, width: 640, height: 480)
+        )
+        let annotations = controller.snapshot.annotations
+        XCTAssertEqual(try XCTUnwrap(canvas.debugTextEditorOverlayState).text, "Second step")
+
+        var invalidations = canvas.debugStableContentInvalidationCount
+        controller.select(secondArrow.id)
+        XCTAssertNil(canvas.debugTextEditorOverlayState)
+        XCTAssertGreaterThan(canvas.debugStableContentInvalidationCount, invalidations,
+                             "The canvas must restore text when its live editor disappears")
+
+        invalidations = canvas.debugStableContentInvalidationCount
+        controller.select(firstText.id)
+        XCTAssertEqual(try XCTUnwrap(canvas.debugTextEditorOverlayState).text, "First step")
+        XCTAssertGreaterThan(canvas.debugStableContentInvalidationCount, invalidations)
+
+        invalidations = canvas.debugStableContentInvalidationCount
+        controller.select(secondText.id)
+        XCTAssertEqual(try XCTUnwrap(canvas.debugTextEditorOverlayState).text, "Second step")
+        XCTAssertGreaterThan(canvas.debugStableContentInvalidationCount, invalidations,
+                             "Switching editors must restore the previous text and suppress the new one")
+
+        invalidations = canvas.debugStableContentInvalidationCount
+        controller.select(annotationIDs: [firstText.id, secondText.id])
+        XCTAssertNil(canvas.debugTextEditorOverlayState)
+        XCTAssertGreaterThan(canvas.debugStableContentInvalidationCount, invalidations)
+
+        invalidations = canvas.debugStableContentInvalidationCount
+        controller.clearSelection()
+        XCTAssertEqual(canvas.debugStableContentInvalidationCount, invalidations,
+                       "Selection changes with no live text editor should reuse the canvas content")
+        XCTAssertEqual(controller.snapshot.annotations, annotations)
+    }
+
+    @MainActor
     func testViewportZoomInvalidatesStableCanvasContent() {
         let controller = makeController(
             snapshot: makeEditorSnapshot(),

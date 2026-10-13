@@ -107,6 +107,41 @@ final class AnnotationRenderingParityTests: XCTestCase {
         }
     }
 
+    func testProcessedRedactionsStillSampleLiveEditedTextAndCallouts() throws {
+        let base = makeSolidImage(width: 160, height: 160, color: white)
+        var textStyle = AnnotationStyle.default(for: .text)
+        textStyle.fillColor = RGBAColor(red: 0, green: 0, blue: 0, alpha: 1)
+        let rect = CGRect(x: 20, y: 20, width: 120, height: 120)
+        for text in [
+            Annotation.makeText(at: rect.origin, style: textStyle).resized(to: rect),
+            Annotation.makeCallout(at: rect.origin, number: 1, style: textStyle).resized(to: rect)
+        ] {
+            for mode in [RedactionMode.blur, .pixelate] {
+                var style = AnnotationStyle.default(for: mode.editorTool)
+                style.effectRadius = 8
+                style.lineWidth = 0
+                let redaction = Annotation.makeRedaction(
+                    in: CGRect(x: 80, y: 60, width: 40, height: 40), mode: mode, style: style
+                )
+                let snapshot = makeEditorSnapshot(
+                    cropRect: CGRect(x: 0, y: 0, width: 160, height: 160), annotations: [text, redaction]
+                )
+                let livePreview = try preview(base: base, snapshot: snapshot, liveTextAnnotationID: text.id)
+                let exported = try XCTUnwrap(EditorRenderer.render(baseImage: base, snapshot: snapshot))
+                let point = CGPoint(x: 100, y: 80)
+                let expected = pixel(exported, at: point)
+                let actual = pixel(livePreview, at: point)
+                XCTAssertLessThan(expected.red, 200, "The filter must include the dark text layer")
+                for (actualChannel, expectedChannel) in [
+                    (actual.red, expected.red), (actual.green, expected.green), (actual.blue, expected.blue)
+                ] {
+                    XCTAssertEqual(Double(actualChannel), Double(expectedChannel), accuracy: 2,
+                                   "Live editing must preserve filtered lower layers: \(mode), \(text.editorTool)")
+                }
+            }
+        }
+    }
+
     func testImageOverlayPreservesTopAndBottomPixelsInCroppedExport() throws {
         let base = makeSolidImage(width: 160, height: 160, color: white)
         let overlay = makeRGBAImage(width: 40, height: 40) { _, y in
@@ -242,7 +277,7 @@ final class AnnotationRenderingParityTests: XCTestCase {
         samplePixel(in: image, topLeftX: Int((point.x - crop.minX).rounded()), topLeftY: Int((point.y - crop.minY).rounded()))
     }
 
-    private func preview(base: CGImage, snapshot: EditorSnapshot) throws -> CGImage {
+    private func preview(base: CGImage, snapshot: EditorSnapshot, liveTextAnnotationID: UUID? = nil) throws -> CGImage {
         let context = try XCTUnwrap(SRGBBitmapContext.make(width: base.width, height: base.height))
         // Native annotation views are genuinely Y-down, unlike export's
         // unflipped Quartz context. Reproduce that transform explicitly.
@@ -251,8 +286,20 @@ final class AnnotationRenderingParityTests: XCTestCase {
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
         defer { NSGraphicsContext.restoreGraphicsState() }
-        EditorRenderer.draw(baseImage: base, snapshot: snapshot,
-            canvasRect: CGRect(x: 0, y: 0, width: base.width, height: base.height), draftAnnotations: [])
+        let canvasRect = CGRect(x: 0, y: 0, width: base.width, height: base.height)
+        if let liveTextAnnotationID {
+            var baseSnapshot = snapshot
+            baseSnapshot.annotations = []
+            EditorRenderer.draw(baseImage: base, snapshot: baseSnapshot, canvasRect: canvasRect, draftAnnotations: [])
+            for pass in [EditorRenderer.AnnotationPreviewPass.throughLiveText, .aboveLiveText] {
+                EditorRenderer.drawAnnotations(
+                    baseImage: base, snapshot: snapshot, canvasRect: canvasRect, draftAnnotations: [],
+                    liveTextAnnotationID: liveTextAnnotationID, previewPass: pass
+                )
+            }
+        } else {
+            EditorRenderer.draw(baseImage: base, snapshot: snapshot, canvasRect: canvasRect, draftAnnotations: [])
+        }
         return try XCTUnwrap(context.makeImage())
     }
 }

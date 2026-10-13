@@ -219,6 +219,7 @@ private final class AnnotationCanvasStableContentView: NSView {
     private struct Signature: Equatable {
         let baseImageID: ObjectIdentifier
         let annotations: [Annotation]
+        let liveTextAnnotationID: UUID?
         let pinnedUIMapElements: [UIMapElement]
         let uiMapOverlayOptions: UIMapOverlayOptions
         let outOfCapturePatternSettings: EditorOutOfCapturePatternSettings
@@ -229,9 +230,11 @@ private final class AnnotationCanvasStableContentView: NSView {
 
     private var lastSignature: Signature?
     fileprivate private(set) var debugInvalidationCount = 0
+    private let rendersAboveLiveText: Bool
 
-    init(controller: EditorController) {
+    init(controller: EditorController, rendersAboveLiveText: Bool = false) {
         self.controller = controller
+        self.rendersAboveLiveText = rendersAboveLiveText
         super.init(frame: .zero)
         wantsLayer = true
     }
@@ -264,20 +267,24 @@ private final class AnnotationCanvasStableContentView: NSView {
             return
         }
 
-        OutOfCapturePatternRenderer.draw(
-            bounds: bounds,
-            excluding: canvasRect,
-            settings: controller.outOfCapturePatternSettings,
-            appearance: effectiveAppearance
-        )
+        if !rendersAboveLiveText {
+            OutOfCapturePatternRenderer.draw(
+                bounds: bounds,
+                excluding: canvasRect,
+                settings: controller.outOfCapturePatternSettings,
+                appearance: effectiveAppearance
+            )
+        }
 
         EditorRenderer.drawAnnotations(
             baseImage: controller.capture.image,
-            snapshot: snapshotForStableRendering,
+            snapshot: controller.snapshot,
             canvasRect: canvasRect,
             draftAnnotations: [],
             pinnedUIMapElements: controller.pinnedUIMapElements,
-            uiMapOverlayOptions: controller.uiMapOverlayOptions
+            uiMapOverlayOptions: controller.uiMapOverlayOptions,
+            liveTextAnnotationID: liveTextAnnotationID,
+            previewPass: rendersAboveLiveText ? .aboveLiveText : .throughLiveText
         )
     }
 
@@ -305,6 +312,9 @@ private final class AnnotationCanvasStableContentView: NSView {
         return Signature(
             baseImageID: ObjectIdentifier(controller.capture.image as AnyObject),
             annotations: controller.snapshot.annotations,
+            // Selection hands text drawing to the live editor without changing
+            // annotation data, so the handoff is also part of the redraw key.
+            liveTextAnnotationID: liveTextAnnotationID,
             pinnedUIMapElements: controller.pinnedUIMapElements,
             uiMapOverlayOptions: controller.uiMapOverlayOptions,
             outOfCapturePatternSettings: controller.outOfCapturePatternSettings,
@@ -314,17 +324,15 @@ private final class AnnotationCanvasStableContentView: NSView {
         )
     }
 
-    private var snapshotForStableRendering: EditorSnapshot {
+    private var liveTextAnnotationID: UUID? {
         guard let annotation = controller.selectedAnnotation,
               controller.selectedAnnotations.count == 1,
               annotation.rotationDegrees == 0,
-              case .text = annotation.kind else {
-            return controller.snapshot
+              annotation.isTextEditable else {
+            return nil
         }
 
-        var snapshot = controller.snapshot
-        snapshot.annotations.removeAll { $0.id == annotation.id }
-        return snapshot
+        return annotation.id
     }
 }
 
@@ -476,8 +484,10 @@ private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate 
         case .text:
             annotation.style.fillColor.nsColor.setFill()
             NSBezierPath(roundedRect: bounds, xRadius: cornerRadius, yRadius: cornerRadius).fill()
-        case let .callout(shape):
-            drawCalloutBackground(shape, annotation: annotation)
+        case .callout:
+            // The canvas owns the callout body, badge, and leader. This overlay
+            // supplies only its live text, avoiding a second translucent fill.
+            break
         default:
             break
         }
@@ -501,8 +511,12 @@ private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate 
         fitFrameToText(context.text, context: context)
         needsDisplay = true
 
-        if didChangeAnnotation, window?.firstResponder !== textView {
-            window?.makeFirstResponder(textView)
+        if didChangeAnnotation {
+            if window?.firstResponder !== textView {
+                window?.makeFirstResponder(textView)
+            }
+            // Each layer owns its starting selection, even when the shared
+            // editor keeps keyboard focus while the selected layer changes.
             if context.text == context.placeholderText {
                 textView.setSelectedRange(NSRange(location: 0, length: (context.text as NSString).length))
             } else {
@@ -907,57 +921,6 @@ private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate 
         }
     }
 
-    private func drawCalloutBackground(_ shape: CalloutShape, annotation: Annotation) {
-        let bodyRect = calloutBodyRect(in: bounds)
-        let badgeRect = calloutBadgeRect(in: bounds)
-        let bodyPath = NSBezierPath(
-            roundedRect: bodyRect,
-            xRadius: calloutBodyCornerRadius,
-            yRadius: calloutBodyCornerRadius
-        )
-
-        if shape.style == .filled {
-            annotation.style.fillColor.nsColor.setFill()
-            bodyPath.fill()
-        } else {
-            annotation.style.fillColor.withAlpha(0.18).nsColor.setFill()
-            bodyPath.fill()
-            annotation.style.strokeColor.nsColor.setStroke()
-            bodyPath.lineWidth = max(annotation.style.lineWidth * displayScale, 2 * displayScale)
-            bodyPath.stroke()
-        }
-
-        let badgePath = NSBezierPath(ovalIn: badgeRect)
-        if shape.style == .filled {
-            annotation.style.fillColor.nsColor.setFill()
-            badgePath.fill()
-        } else {
-            annotation.style.strokeColor.nsColor.setStroke()
-            annotation.style.fillColor.withAlpha(0.12).nsColor.setFill()
-            badgePath.lineWidth = max(annotation.style.lineWidth * displayScale, 2 * displayScale)
-            badgePath.fill()
-            badgePath.stroke()
-        }
-
-        let numberText = NSAttributedString(
-            string: "\(shape.number)",
-            attributes: [
-                .font: NSFont.monospacedDigitSystemFont(
-                    ofSize: max(annotation.style.fontSize * displayScale - 2 * displayScale, 16 * displayScale),
-                    weight: .bold
-                ),
-                .foregroundColor: annotation.style.strokeColor.nsColor
-            ]
-        )
-        let numberSize = numberText.size()
-        numberText.draw(
-            at: CGPoint(
-                x: badgeRect.midX - numberSize.width / 2,
-                y: badgeRect.midY - numberSize.height / 2
-            )
-        )
-    }
-
     private func calloutBadgeRect(in localBounds: CGRect) -> CGRect {
         let alignedBounds = localBounds.integral
         let diameter = calloutBadgeDiameter(forHeight: alignedBounds.height)
@@ -1063,10 +1026,6 @@ private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate 
         12 * displayScale
     }
 
-    private var calloutBodyCornerRadius: CGFloat {
-        16 * displayScale
-    }
-
     private var liveTextMeasurementHeight: CGFloat {
         100_000
     }
@@ -1082,6 +1041,7 @@ final class AnnotationCanvasView: NSView {
             displayedBaseImageCrop = nil
             cropMaskView.controller = controller
             stableContentView.controller = controller
+            aboveTextContentView.controller = controller
             overlayView.controller = controller
             textEditorOverlayView.controller = controller
             bindController()
@@ -1091,6 +1051,7 @@ final class AnnotationCanvasView: NSView {
     private let baseImageView = AnnotationCanvasBaseImageView()
     private lazy var cropMaskView = AnnotationCanvasCropMaskView(controller: controller)
     private lazy var stableContentView = AnnotationCanvasStableContentView(controller: controller)
+    private lazy var aboveTextContentView = AnnotationCanvasStableContentView(controller: controller, rendersAboveLiveText: true)
     private lazy var overlayView = AnnotationCanvasOverlayView(controller: controller)
     private lazy var textEditorOverlayView = AnnotationTextEditorOverlayView(controller: controller)
     private var controllerChangeObserver: AnyCancellable?
@@ -1108,6 +1069,7 @@ final class AnnotationCanvasView: NSView {
         addSubview(stableContentView)
         addSubview(overlayView)
         addSubview(textEditorOverlayView)
+        addSubview(aboveTextContentView)
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
         setAccessibilityLabel("Screenshot annotation canvas")
@@ -1133,11 +1095,13 @@ final class AnnotationCanvasView: NSView {
         synchronizeViewportToBounds()
         cropMaskView.frame = bounds
         stableContentView.frame = bounds
+        aboveTextContentView.frame = bounds
         overlayView.frame = bounds
         textEditorOverlayView.synchronize()
         synchronizeBaseImagePresentation()
         cropMaskView.refreshAfterLayout()
         stableContentView.refreshAfterLayout()
+        aboveTextContentView.refreshAfterLayout()
         overlayView.refreshAfterLayout()
         refreshAccessibilityElements(postNotification: false)
     }
@@ -1146,6 +1110,7 @@ final class AnnotationCanvasView: NSView {
         synchronizeBaseImagePresentation()
         cropMaskView.controllerDidChange()
         stableContentView.controllerDidChange()
+        aboveTextContentView.controllerDidChange()
         overlayView.needsDisplay = true
         textEditorOverlayView.synchronize()
     }
@@ -1183,6 +1148,7 @@ final class AnnotationCanvasView: NSView {
             self.cropMaskView.controllerDidChange()
             if invalidationReason.invalidatesStableContent {
                 self.stableContentView.controllerDidChange()
+                self.aboveTextContentView.controllerDidChange()
             }
             self.overlayView.controllerDidChange()
             self.textEditorOverlayView.synchronize()
@@ -1192,6 +1158,7 @@ final class AnnotationCanvasView: NSView {
         synchronizeBaseImagePresentation()
         cropMaskView.controllerDidChange()
         stableContentView.controllerDidChange()
+        aboveTextContentView.controllerDidChange()
         overlayView.controllerDidChange()
         textEditorOverlayView.synchronize()
         refreshAccessibilityElements(postNotification: false)

@@ -144,7 +144,8 @@ enum EditorRenderer {
         canvasRect: CGRect,
         draftAnnotations: [Annotation],
         pinnedUIMapElements: [UIMapElement] = [],
-        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions()
+        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions(),
+        liveTextAnnotationID: UUID? = nil
     ) {
         drawContent(
             baseImage: baseImage,
@@ -153,8 +154,15 @@ enum EditorRenderer {
             draftAnnotations: draftAnnotations,
             pinnedUIMapElements: pinnedUIMapElements,
             uiMapOverlayOptions: uiMapOverlayOptions,
-            drawBaseImage: true
+            drawBaseImage: true,
+            liveTextAnnotationID: liveTextAnnotationID
         )
+    }
+
+    enum AnnotationPreviewPass {
+        case all
+        case throughLiveText
+        case aboveLiveText
     }
 
     static func drawAnnotations(
@@ -163,7 +171,9 @@ enum EditorRenderer {
         canvasRect: CGRect,
         draftAnnotations: [Annotation],
         pinnedUIMapElements: [UIMapElement] = [],
-        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions()
+        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions(),
+        liveTextAnnotationID: UUID? = nil,
+        previewPass: AnnotationPreviewPass = .all
     ) {
         drawContent(
             baseImage: baseImage,
@@ -172,7 +182,9 @@ enum EditorRenderer {
             draftAnnotations: draftAnnotations,
             pinnedUIMapElements: pinnedUIMapElements,
             uiMapOverlayOptions: uiMapOverlayOptions,
-            drawBaseImage: false
+            drawBaseImage: false,
+            liveTextAnnotationID: liveTextAnnotationID,
+            previewPass: previewPass
         )
     }
 
@@ -183,7 +195,9 @@ enum EditorRenderer {
         draftAnnotations: [Annotation],
         pinnedUIMapElements: [UIMapElement],
         uiMapOverlayOptions: UIMapOverlayOptions,
-        drawBaseImage: Bool
+        drawBaseImage: Bool,
+        liveTextAnnotationID: UUID? = nil,
+        previewPass: AnnotationPreviewPass = .all
     ) {
         guard let projection = previewProjection(for: baseImage, canvasRect: canvasRect) else {
             return
@@ -203,6 +217,10 @@ enum EditorRenderer {
         let renderScale = displayScale(for: projection)
 
         let annotations = snapshot.annotations + draftAnnotations
+        let liveTextIndex = annotations.firstIndex { $0.id == liveTextAnnotationID }
+        if previewPass == .aboveLiveText, liveTextIndex == nil {
+            return
+        }
         let lastProcessedRedaction = annotations.lastIndex {
             $0.redactionMode == .blur || $0.redactionMode == .pixelate
         }
@@ -218,18 +236,36 @@ enum EditorRenderer {
         for (index, annotation) in annotations.enumerated() {
             let samplesLowerLayers = annotation.redactionMode == .blur || annotation.redactionMode == .pixelate
             let source = samplesLowerLayers ? (sourceContext?.makeImage() ?? baseImage) : baseImage
-            draw(annotation: annotation, sourceImage: source, projection: projection, renderScale: renderScale)
+            let belongsToPass: Bool
+            switch previewPass {
+            case .all:
+                belongsToPass = true
+            case .throughLiveText:
+                belongsToPass = liveTextIndex.map { index <= $0 } ?? true
+            case .aboveLiveText:
+                belongsToPass = liveTextIndex.map { index > $0 } ?? false
+            }
+            let drawsLiveTextBox = annotation.id == liveTextAnnotationID && annotation.editorTool == .text
+            if belongsToPass && !drawsLiveTextBox {
+                let displayed = annotation.id == liveTextAnnotationID && annotation.editorTool == .callout
+                    ? annotation.updatingText("", refittingBounds: false)
+                    : annotation
+                draw(annotation: displayed, sourceImage: source, projection: projection, renderScale: renderScale)
+            }
             if let sourceContext, let lastProcessedRedaction, index < lastProcessedRedaction {
+                // Filters still sample the complete lower layer, including live text.
                 drawExport(annotation: annotation, croppedBase: baseImage, projection: sourceProjection, context: sourceContext)
             }
         }
 
-        drawPinnedUIMapElementsPreview(
-            pinnedUIMapElements,
-            options: uiMapOverlayOptions,
-            projection: projection,
-            renderScale: renderScale
-        )
+        if previewPass != .throughLiveText || liveTextIndex == nil {
+            drawPinnedUIMapElementsPreview(
+                pinnedUIMapElements,
+                options: uiMapOverlayOptions,
+                projection: projection,
+                renderScale: renderScale
+            )
+        }
     }
 
     private static func draw(annotation: Annotation, sourceImage: CGImage, projection: DocumentProjection, renderScale: CGFloat) {
