@@ -564,6 +564,13 @@ final class CaptureModelsTests: XCTestCase {
         XCTAssertEqual(result.capturedScreenshot.sourceRect, result.sourceViewportRect)
     }
 
+    func testScrollingCaptureRequestRejectsNonfiniteViewportGeometry() {
+        for rect in [CGRect(x: CGFloat.nan, y: 0, width: 100, height: 100),
+                     CGRect(x: 0, y: 0, width: CGFloat.infinity, height: 100)] {
+            XCTAssertEqual(ScrollingCaptureRequest(viewportRect: rect).viewportRect, .zero)
+        }
+    }
+
     func testBestWindowMatchPrefersSameProcessAndTitle() {
         let previous = makeCaptureWindow(id: 10, ownerPID: 42, ownerName: "Notes", title: "Sprint Plan", focusRank: 5)
         let candidates = [

@@ -658,18 +658,19 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                                 "Drag over a scrollable area within one display. The selector uses the same crosshair, live loupe, and precision-control preferences as Region Capture.",
                                 "Confirm the detected app and selected viewport, or choose another area before capture starts. Turn off Show this again if you want future scrolling captures to start immediately after selection.",
                                 "Wait while SnipSnipSnip scrolls and captures segments. The progress panel shows the captured length, capacity remaining, a stitched preview, and any quality warning.",
-                                "Press Esc to cancel, or press Return or click Done to stop early and use the segments already captured."
+                                "Press Esc to cancel, or press Return or click Done to stop early and use the segments already captured. On a very small display, the panel may show Use Return: Done · Esc: Cancel and disable its buttons so it does not block scrolling."
                             ]
                         ),
                         HelpArticleSection(
                             title: "Keep useful partial results",
-                            body: "If later frames cannot be stitched or capture is interrupted after useful content was collected, choose Keep Partial Result to open what was captured. SnipSnipSnip labels it as partial and recommends reviewing seams before sharing. You can also retry the same area or capture only the visible area."
+                            body: "If later frames cannot be stitched or capture is interrupted after useful content was collected, choose Keep Partial Result to open what was captured. Repeating content can also make stitching uncertain. SnipSnipSnip labels the kept result as partial and recommends reviewing seams before sharing. You can also retry the same area or capture only the visible area. Reaching the height or segment limit stops capture with a warning; check that the result includes all the content you need. Escape cancels capture without keeping a partial result."
                         ),
                         HelpArticleSection(
                             title: "Best results",
                             bullets: [
                                 "Start with the content positioned at the beginning of the area you need.",
                                 "Avoid changing the target window while capture is running.",
+                                "Let capture finish to include the final short scroll. Repeated frames at the end are omitted.",
                                 "If a page has heavy animation or sticky overlays, try a smaller selection."
                             ]
                         )

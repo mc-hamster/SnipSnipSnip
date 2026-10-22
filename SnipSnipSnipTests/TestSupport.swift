@@ -480,6 +480,33 @@ enum CoordinateImagePattern {
     case weighted(xMultiplier: Int, yMultiplier: Int, includeBlueSum: Bool)
 }
 
+func makeScrollingFrame(width: Int, height: Int, rowMapper: (Int) -> Int) -> CGImage {
+    makeRGBAImage(width: width, height: height) { x, y in
+        scrollingPixel(x: x, y: rowMapper(y))
+    }
+}
+
+func scrollingPixel(x: Int, y: Int) -> PixelSample {
+    PixelSample(
+        red: UInt8(truncatingIfNeeded: x),
+        green: UInt8(truncatingIfNeeded: y),
+        blue: UInt8(truncatingIfNeeded: x * 3 + y / 2),
+        alpha: 255
+    )
+}
+
+func assertScrollingRows(in image: CGImage, expectedHeight: Int, file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(image.height, expectedHeight, file: file, line: line)
+    for y in 0..<min(image.height, expectedHeight) {
+        for x in [0, image.width / 2, image.width - 1] {
+            XCTAssertEqual(
+                samplePixel(in: image, topLeftX: x, topLeftY: y), scrollingPixel(x: x, y: y),
+                "Pixel (\(x), \(y))", file: file, line: line
+            )
+        }
+    }
+}
+
 func makeRGBAImage(
     width: Int,
     height: Int,
@@ -779,4 +806,27 @@ func makePasteboardTestEnvironment(
         connectedDevicePlatform: live.connectedDevicePlatform
     )
     return AppEnvironment(defaults: defaults, systemServices: services)
+}
+
+@MainActor
+final class ScrollingTestDriver: ScrollDriver {
+    let sourceName = "Test scrolling content"
+    var reportedPosition: Double?
+    var advancesPosition = false
+    var restorationSucceeds = true
+    var hasMoreContent: Bool? = nil
+    private(set) var scrollDistances: [CGFloat] = []
+    private(set) var restoredPositions: [Double] = []
+
+    init(reportedPosition: Double?) { self.reportedPosition = reportedPosition }
+    func snapshotPosition() -> Double? { reportedPosition }
+    func restorePosition(_ position: Double) {
+        restoredPositions.append(position)
+        if restorationSucceeds { reportedPosition = position }
+    }
+    func scrollDown(logicalDistance: CGFloat) {
+        scrollDistances.append(logicalDistance)
+        if advancesPosition, let position = reportedPosition { reportedPosition = min(position + 1, 1) }
+    }
+    func isAtEnd(previousPosition: Double?) -> Bool { reportedPosition != nil }
 }

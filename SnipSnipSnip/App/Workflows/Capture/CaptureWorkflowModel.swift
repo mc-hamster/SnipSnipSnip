@@ -12,6 +12,9 @@ struct CaptureWorkflowDependencies {
     let makeScrollingCaptureService: (any ScreenCaptureServiceType) -> ScrollingCaptureService
     let preferenceStore: CapturePreferenceStore
     let automationPreferenceStore: AutomationPreferenceStore
+    var confirmScrollingTarget: (ScrollingCaptureTarget) -> ScrollingCaptureTargetConfirmation.Choice = {
+        ScrollingCaptureTargetConfirmation.present(target: $0)
+    }
 }
 
 @MainActor

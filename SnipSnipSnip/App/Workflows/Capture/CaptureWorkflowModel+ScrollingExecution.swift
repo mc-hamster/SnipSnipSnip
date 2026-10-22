@@ -28,7 +28,7 @@ extension CaptureWorkflowModel {
                 cancellation: cancellation,
                 progressHandler: { progress in
                     if !progressOverlayShown {
-                        progressOverlay.show(avoiding: region)
+                        progressOverlay.show(avoiding: region, scrollTargetPoint: progress.scrollTargetPoint)
                         progressOverlayShown = true
                     }
 

@@ -86,8 +86,8 @@ final class ScrollingCaptureProgressOverlay {
         AppAccessibility.announce("Scrolling capture started. Press Return to keep the captured result or Escape to cancel.")
     }
 
-    func show(avoiding rect: CGRect) {
-        position(avoiding: rect)
+    func show(avoiding rect: CGRect, scrollTargetPoint: CGPoint? = nil) {
+        position(avoiding: rect, scrollTargetPoint: scrollTargetPoint)
         show()
     }
 
@@ -158,14 +158,58 @@ final class ScrollingCaptureProgressOverlay {
         }
     }
 
-    private func position(avoiding rect: CGRect) {
-        guard let screen = NSScreen.screens.first(where: { $0.frame.intersects(rect) }) ?? NSScreen.main else {
+    private func position(avoiding rect: CGRect, scrollTargetPoint: CGPoint?) {
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        guard let screen = NSScreen.screens.first(where: {
+            guard let displayID = $0.gscDisplayID else { return false }
+            return CGDisplayBounds(displayID).contains(center)
+        }), let displayID = screen.gscDisplayID else {
             window.center()
             return
         }
 
+        let display = DisplaySnapshot(
+            displayID: displayID, name: screen.localizedName, frame: CGDisplayBounds(displayID),
+            overlayFrame: screen.frame, scale: screen.backingScaleFactor
+        )
+        window.setContentSize(CGSize(
+            width: min(window.frame.width, screen.visibleFrame.width),
+            height: min(window.frame.height, screen.visibleFrame.height)
+        ))
+        window.setFrameOrigin(Self.frameOrigin(
+            avoiding: rect, on: display, visibleFrame: screen.visibleFrame, panelSize: window.frame.size,
+            scrollTargetPoint: scrollTargetPoint
+        ))
+        // A very small display may have no placement that avoids the target.
+        // Keep scrolling functional and retain the global Return/Escape controls.
+        let keyboardOnly = Self.requiresKeyboardControls(
+            panelFrame: window.frame, scrollTargetPoint: scrollTargetPoint ?? center, on: display
+        )
+        window.ignoresMouseEvents = keyboardOnly
+        view.keyboardOnlyControls = keyboardOnly
+    }
+
+    nonisolated static func requiresKeyboardControls(
+        panelFrame: CGRect, scrollTargetPoint: CGPoint, on display: DisplaySnapshot
+    ) -> Bool {
+        panelFrame.contains(display.captureDisplayTransform.overlayGlobalPoint(fromCaptureGlobalPoint: scrollTargetPoint))
+    }
+
+    nonisolated static func frameOrigin(
+        avoiding captureViewport: CGRect, on display: DisplaySnapshot, visibleFrame: CGRect, panelSize size: CGSize,
+        scrollTargetPoint: CGPoint? = nil
+    ) -> CGPoint {
+        let rect = display.captureDisplayTransform.overlayGlobalRect(fromCaptureGlobalRect: captureViewport)
         let margin: CGFloat = 18
-        let size = window.frame.size
+        let insetX = min(margin, max((visibleFrame.width - size.width) / 2, 0))
+        let insetY = min(margin, max((visibleFrame.height - size.height) / 2, 0))
+        let minX = visibleFrame.minX + insetX
+        let maxX = max(minX, visibleFrame.maxX - size.width - insetX)
+        let minY = visibleFrame.minY + insetY
+        let maxY = max(minY, visibleFrame.maxY - size.height - insetY)
+        func clamped(_ point: CGPoint) -> CGPoint {
+            CGPoint(x: min(max(point.x, minX), maxX), y: min(max(point.y, minY), maxY))
+        }
         let candidates = [
             CGPoint(x: rect.maxX + margin, y: rect.maxY - size.height),
             CGPoint(x: rect.minX - size.width - margin, y: rect.maxY - size.height),
@@ -173,18 +217,19 @@ final class ScrollingCaptureProgressOverlay {
             CGPoint(x: rect.minX, y: rect.maxY + margin)
         ]
 
-        let visibleFrame = screen.visibleFrame
-        let selectedCandidate = candidates.first { candidate in
-            visibleFrame.contains(CGRect(origin: candidate, size: size))
-        } ?? CGPoint(
-            x: visibleFrame.maxX - size.width - margin,
-            y: visibleFrame.maxY - size.height - margin
+        let target = display.captureDisplayTransform.overlayGlobalPoint(
+            fromCaptureGlobalPoint: scrollTargetPoint ?? CGPoint(x: captureViewport.midX, y: captureViewport.midY)
         )
+        if let outside = candidates.map(clamped).first(where: {
+            let panel = CGRect(origin: $0, size: size)
+            return visibleFrame.contains(panel) && !panel.intersects(rect) && !panel.contains(target)
+        }) { return outside }
 
-        window.setFrameOrigin(CGPoint(
-            x: min(max(selectedCandidate.x, visibleFrame.minX + margin), visibleFrame.maxX - size.width - margin),
-            y: min(max(selectedCandidate.y, visibleFrame.minY + margin), visibleFrame.maxY - size.height - margin)
-        ))
+        // When the panel must overlap the viewport, keep the injected wheel
+        // event over the target app, rather than over this app's progress view.
+        let corners = [CGPoint(x: maxX, y: maxY), CGPoint(x: minX, y: maxY),
+                       CGPoint(x: maxX, y: minY), CGPoint(x: minX, y: minY)]
+        return corners.first { !CGRect(origin: $0, size: size).contains(target) } ?? corners[0]
     }
 }
 
@@ -194,6 +239,16 @@ private final class ScrollingCaptureProgressWindow: NSWindow {
 }
 
 private final class ScrollingCaptureProgressView: NSView {
+    var keyboardOnlyControls = false {
+        didSet {
+            doneButton.isEnabled = !keyboardOnlyControls
+            cancelButton.isEnabled = !keyboardOnlyControls
+            needsDisplay = true
+            setAccessibilityHelp(keyboardOnlyControls
+                ? "The progress panel overlaps the scroll target. Use Return to keep the captured result or Escape to cancel."
+                : "Press Return to keep the captured result or Escape to cancel.")
+        }
+    }
     var segmentCount = 1 {
         didSet { needsDisplay = true }
     }
@@ -275,7 +330,9 @@ private final class ScrollingCaptureProgressView: NSView {
         drawCapacityBar(at: CGRect(x: 18, y: 70, width: bounds.width - 36, height: 7))
 
         // Keyboard hint
-        NSString(string: "Scrolling…  Return: Done  ·  Esc: Cancel").draw(
+        NSString(string: keyboardOnlyControls
+            ? "Use Return: Done  ·  Esc: Cancel"
+            : "Scrolling…  Return: Done  ·  Esc: Cancel").draw(
             in: CGRect(x: 18, y: 85, width: bounds.width - 36, height: 18),
             withAttributes: [
                 .foregroundColor: NSColor.tertiaryLabelColor,
@@ -323,7 +380,7 @@ private final class ScrollingCaptureProgressView: NSView {
             width: drawSize.width,
             height: drawSize.height
         )
-        NSGraphicsContext.current?.cgContext.draw(previewImage, in: drawRect)
+        ScrollingCapturePreviewRenderer.draw(previewImage, in: drawRect)
     }
 
     private func drawCapacityBar(at rect: CGRect) {
@@ -409,5 +466,14 @@ private final class ScrollingCaptureProgressView: NSView {
 
     @objc private func done() {
         onDone()
+    }
+}
+
+@MainActor
+enum ScrollingCapturePreviewRenderer {
+    static func draw(_ image: CGImage, in rect: CGRect) {
+        NSImage(cgImage: image, size: CGSize(width: image.width, height: image.height)).draw(
+            in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil
+        )
     }
 }

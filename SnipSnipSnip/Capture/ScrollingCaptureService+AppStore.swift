@@ -28,7 +28,7 @@ enum ScrollingCaptureError: LocalizedError {
     }
 }
 
-final class ScrollingCaptureCancellation: @unchecked Sendable {
+nonisolated final class ScrollingCaptureCancellation: @unchecked Sendable {
     func cancel() {}
     func finish() {}
 }
@@ -39,6 +39,7 @@ struct ScrollingCaptureProgress: @unchecked Sendable {
     let maxOutputHeight: Int
     let warning: String?
     let previewImage: CGImage?
+    var scrollTargetPoint: CGPoint? = nil
 
     var capacityFraction: Double {
         guard maxOutputHeight > 0 else { return 0 }

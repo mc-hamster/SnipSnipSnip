@@ -865,7 +865,8 @@ nonisolated struct ScrollingCaptureRequest: Equatable {
         maxOutputHeight: Int = Self.defaultMaxOutputHeight,
         isPrivateCapture: Bool = false
     ) {
-        self.viewportRect = viewportRect.gscIntegralStandardized
+        let normalizedViewport = viewportRect.gscIntegralStandardized
+        self.viewportRect = normalizedViewport.gscIsFinite && !normalizedViewport.isNull ? normalizedViewport : .zero
         self.sourceName = sourceName
         self.maxSegmentCount = max(maxSegmentCount, 2)
         self.maxOutputHeight = max(maxOutputHeight, 1)

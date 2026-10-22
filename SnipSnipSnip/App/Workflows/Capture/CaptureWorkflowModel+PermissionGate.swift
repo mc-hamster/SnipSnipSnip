@@ -266,14 +266,16 @@ extension CaptureWorkflowModel {
             captureRegion(
                 intent: captureContext.intent,
                 completionRole: captureContext.role,
-                oneShotOptions: captureContext.oneShotOptions
+                oneShotOptions: captureContext.oneShotOptions,
+                presentationContext: captureContext.presentationContext
             )
         case .chooseAnotherArea:
             pendingScrollingPartialCapture = nil
             captureScrollingArea(
                 intent: captureContext.intent,
                 completionRole: captureContext.role,
-                oneShotOptions: captureContext.oneShotOptions
+                oneShotOptions: captureContext.oneShotOptions,
+                presentationContext: captureContext.presentationContext
             )
         case .keepPartialResult:
             keepPendingScrollingPartialResult(with: captureContext)

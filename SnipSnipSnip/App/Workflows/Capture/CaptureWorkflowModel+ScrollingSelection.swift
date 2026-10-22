@@ -6,6 +6,10 @@ extension CaptureWorkflowModel {
     func beginScrollingCapture() {
         let captureContext = activeCaptureContext
         let runOptions = currentCaptureRunOptions()
+        guard !isWorking, !isInteractiveCaptureActive else {
+            resetPreparedCaptureContext(ifMatching: captureContext)
+            return
+        }
         guard dependencies.capabilities.isEnabled(.scrollingCapture) else {
             resetPreparedCaptureContext(ifMatching: captureContext)
             return
@@ -14,6 +18,7 @@ extension CaptureWorkflowModel {
             defer {
                 resetPreparedCaptureContext(ifMatching: captureContext)
             }
+            guard !isWorking, !isInteractiveCaptureActive else { return }
             guard preflightPermissions([.screenRecording, .accessibility], for: "Scrolling Capture") else {
                 return
             }
@@ -36,16 +41,17 @@ extension CaptureWorkflowModel {
                 }
             }
 
-            try? await dependencies.systemServices.scheduler.sleep(nanoseconds: 200_000_000)
-
             isWorking = true
             dependencies.lifecycle.updateWorkingMessage("Scrolling Capture")
             defer { isWorking = false }
 
             do {
+                try await dependencies.systemServices.scheduler.sleep(nanoseconds: 200_000_000)
+                try Task.checkCancellation()
                 let service = dependencies.makeScrollingCaptureService(captureService)
                 var selectedRegion: CGRect?
                 while selectedRegion == nil {
+                    try Task.checkCancellation()
                     let snapshot = try await captureService.captureDesktopOverlaySnapshot()
                     let session = RegionSelectionSession(
                         snapshot: snapshot,
@@ -66,7 +72,7 @@ extension CaptureWorkflowModel {
                             isPrivateCapture: isPrivateCapture
                         )
                     )
-                    switch ScrollingCaptureTargetConfirmation.present(target: target) {
+                    switch dependencies.confirmScrollingTarget(target) {
                     case .start:
                         selectedRegion = region
                     case .chooseAnotherArea:
