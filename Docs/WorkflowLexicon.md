@@ -171,6 +171,10 @@ After a repeatable Before capture, the Comparison stage uses **Repeat Last Captu
 
 Guide Share, Copy Files, and Reveal in Finder refer to files exported from the current Guide and its current edits. After an edit or a document switch, require another export and explain that the Guide changed. Do not silently reuse an older export.
 
+## Pro updates
+
+**Check for Pro Updates** compares the installed marketing version and build number with the **latest stable GitHub release**. Show the installed version as `VERSION (BUILD)` so people can distinguish builds with the same version. **Download Update** opens the release page for a manual package download; users quit Pro before installing. Prereleases remain available manually on GitHub Releases and are not offered by this checker.
+
 ## Activity Statuses
 
 Statuses describe what the app is doing now. They must identify the activity when a generic status would be ambiguous.

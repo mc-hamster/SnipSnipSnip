@@ -241,7 +241,7 @@ struct CaptureAutomationSettingsView: View {
                     }
 
                     SettingsHelpText(capabilities.isEnabled(.proUpdateCheck)
-                        ? "Replay onboarding whenever you want a guided walkthrough. Support requests and feature requests start from the support page. Pro update checks read the latest GitHub release and send you there to download the newest package."
+                        ? "Replay onboarding whenever you want a guided walkthrough. Support requests and feature requests start from the support page. Pro update checks compare the latest stable GitHub version and build number and send you there to download the package."
                         : "Replay onboarding whenever you want a guided walkthrough. Support requests and feature requests start from the support page.")
                 }
 

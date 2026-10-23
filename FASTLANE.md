@@ -220,7 +220,7 @@ GITHUB_TOKEN=ghp_xxx \
 ./bin/fastlane mac self_release_beta
 ```
 
-The beta lane always creates or updates a GitHub pre-release and explicitly sets `latest=false`. Its default tag is `vVERSION-beta.BUILD`, and its default title ends in `Self Release Beta`. The prerelease setting cannot be disabled through lane arguments, although `tag:...` and `release_name:...` can still customize the labels.
+The beta lane always creates a fresh GitHub pre-release and explicitly sets `latest=false`. Its default tag is `vVERSION-beta.BUILD`, and its default title ends in `Self Release Beta`. The prerelease setting cannot be disabled through lane arguments, although `tag:...` and `release_name:...` can still customize the labels.
 
 Common variations:
 
@@ -244,22 +244,23 @@ GITHUB_TOKEN=ghp_xxx \
 
 Publishing details:
 
-1. Fastlane increments the local build number and builds with `SNIP_BUILD_TARGET=Self Release`.
-2. Fastlane notarizes and staples the `.pkg` by default.
-3. Fastlane discovers the newest `.pkg` in the build artifacts directory (or uses `asset_path:...` if provided).
-4. Fastlane creates or updates a GitHub release (default repo `mc-hamster/SnipSnipSnip`).
-5. Fastlane uploads the `.pkg` asset to that release.
+1. Commit source changes before publishing. Fastlane requires a clean checkout before its build-number bump.
+2. For publishing, Fastlane reads all remote Git tags and chooses a build above both the local build and every recognized `vVERSION-self.BUILD` or `vVERSION-beta.BUILD` tag, including tags reserved by an interrupted run. Authentication or lookup errors stop the build. Build-only runs increment the local build without requiring GitHub access.
+3. Fastlane builds with `SNIP_BUILD_TARGET=Self Release` and notarizes and staples the generated package by default.
+4. Fastlane atomically reserves a fresh tag at the exact source commit being built. An existing tag is an error; no published asset is overwritten, even with `draft:true`. Concurrent publishers may cause one run to fail safely; rerun to allocate a new build.
+5. Fastlane creates a new GitHub release (default repo `mc-hamster/SnipSnipSnip`) using that verified tag and uploads exactly this run's `SnipSnipSnip.pkg`. Arbitrary `asset_path` overrides are rejected. Release notes are passed through a temporary text file, preserving quotes and newlines.
 
-Self Release GitHub releases default to pre-release and explicitly avoid being marked as Latest. Promote known-good builds to Latest manually from GitHub.
+If publication is interrupted after tag reservation, rerun the lane for a fresh build/tag. Inspect or remove abandoned drafts/tags manually; the lane never replaces them. `draft:true` always creates a new unpublished release.
+
+Self Release GitHub releases default to pre-release and explicitly avoid being marked as Latest. Promote known-good builds to a stable release and Latest manually from GitHub. The in-app checker uses GitHub’s latest stable endpoint, so it never offers a prerelease. It compares marketing version first and build number second, including updates between builds of the same version. Alternatively, publish a reviewed stable candidate with `prerelease:false`.
 
 Optional publish parameters:
 
 - `repository:owner/name` to override the destination repo (default `mc-hamster/SnipSnipSnip`)
-- `tag:v1.0.18-self.123` to override the generated tag
+- `tag:vVERSION-self.BUILD` (or `vVERSION-beta.BUILD`) to select a channel label; VERSION and BUILD must match the allocated build, so normally omit this option
 - `release_name:"SnipSnipSnip Pro 1.0.18 Website"` to override the release title
 - `draft:true` for draft release state
 - `prerelease:false` only if you intentionally want to publish a Self Release as a normal release
-- `asset_path:/absolute/path/to/SnipSnipSnip.pkg` to upload a specific package
 
 ### Build target feature flags
 
@@ -383,7 +384,15 @@ Required repository secrets for the release workflow:
 - `APP_STORE_CONNECT_API_KEY_ISSUER_ID`
 - `APP_STORE_CONNECT_API_KEY_P8_BASE64`
 
-The website release workflow uses the built-in `GITHUB_TOKEN` with `contents: write` permissions and does not require App Store Connect secrets.
+The website release workflow uses the built-in `GITHUB_TOKEN` with `contents: write` permissions. Configure these repository secrets before running it:
+
+- `SELF_RELEASE_CERTIFICATES_P12_BASE64`: base64 of a password-protected PKCS#12 export containing both **Developer ID Application** and **Developer ID Installer** identities, including their private keys, for team `8RN882MNR5`.
+- `SELF_RELEASE_CERTIFICATES_PASSWORD`: the password for that PKCS#12 export.
+- `APP_STORE_CONNECT_API_KEY_KEY_ID`, `APP_STORE_CONNECT_API_KEY_ISSUER_ID`, and `APP_STORE_CONNECT_API_KEY_P8_BASE64`: the notarization API key identifiers and base64-encoded `.p8` file.
+
+The workflow fails early for missing secrets, imports signing identities into a temporary keychain, supplies the notarization key, and removes the temporary keychain and credential files in an always-run cleanup step. Changelog input is passed as one literal argument through an environment variable and Bash array.
+
+Offline Pro publishing regression checks run in CI and can be run locally with `ruby Tools/tests/test_self_release.rb`. They do not sign, notarize, upload, or modify GitHub.
 
 ## Encryption flag
 

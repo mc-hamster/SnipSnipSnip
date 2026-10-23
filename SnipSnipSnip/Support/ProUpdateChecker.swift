@@ -6,7 +6,10 @@ nonisolated protocol ProUpdateReleaseFetching {
 
 extension URLSession: ProUpdateReleaseFetching {
     func releaseData(from url: URL) async throws -> Data {
-        let (data, _) = try await data(from: url, delegate: nil)
+        let (data, response) = try await data(from: url, delegate: nil)
+        guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
         return data
     }
 }
@@ -34,6 +37,10 @@ nonisolated struct ProUpdateVersion: Comparable, Equatable {
         self.components = parsedComponents
     }
 
+    static func == (lhs: ProUpdateVersion, rhs: ProUpdateVersion) -> Bool {
+        !(lhs < rhs) && !(rhs < lhs)
+    }
+
     static func < (lhs: ProUpdateVersion, rhs: ProUpdateVersion) -> Bool {
         let componentCount = max(lhs.components.count, rhs.components.count)
 
@@ -52,6 +59,7 @@ nonisolated struct ProUpdateVersion: Comparable, Equatable {
 
 nonisolated struct ProUpdateRelease: Equatable {
     let version: ProUpdateVersion
+    let buildNumber: Int?
     let displayVersion: String
     let name: String
     let pageURL: URL
@@ -59,17 +67,25 @@ nonisolated struct ProUpdateRelease: Equatable {
 
 nonisolated struct ProUpdateCheckResult: Equatable {
     let currentVersion: ProUpdateVersion
+    let currentBuildNumber: Int?
     let currentDisplayVersion: String
     let latestRelease: ProUpdateRelease
 
     var updateIsAvailable: Bool {
-        currentVersion < latestRelease.version
+        if currentVersion != latestRelease.version {
+            return currentVersion < latestRelease.version
+        }
+        guard let currentBuildNumber, let latestBuildNumber = latestRelease.buildNumber else {
+            return false
+        }
+        return currentBuildNumber < latestBuildNumber
     }
 }
 
 nonisolated enum ProUpdateChecker {
     enum CheckError: Error, Equatable {
         case missingCurrentVersion
+        case missingCurrentBuildNumber
         case missingReleaseVersion
     }
 
@@ -91,8 +107,13 @@ nonisolated enum ProUpdateChecker {
         bundle: Bundle = .main
     ) async throws -> ProUpdateCheckResult {
         let currentVersionString = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        guard let buildString = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String,
+              let buildNumber = Int(buildString), buildNumber > 0 else {
+            throw CheckError.missingCurrentBuildNumber
+        }
         return try await check(
             currentVersionString: currentVersionString,
+            currentBuildNumber: buildNumber,
             fetcher: fetcher,
             endpoint: endpoint
         )
@@ -100,6 +121,7 @@ nonisolated enum ProUpdateChecker {
 
     static func check(
         currentVersionString: String,
+        currentBuildNumber: Int? = nil,
         fetcher: ProUpdateReleaseFetching,
         endpoint: URL = AppLinks.proLatestGitHubReleaseAPI
     ) async throws -> ProUpdateCheckResult {
@@ -118,6 +140,7 @@ nonisolated enum ProUpdateChecker {
 
         let latestRelease = ProUpdateRelease(
             version: releaseVersion,
+            buildNumber: releaseBuildNumber(tag: response.tagName, name: releaseName),
             displayVersion: response.tagName,
             name: releaseName?.isEmpty == false ? releaseName! : response.tagName,
             pageURL: response.htmlURL
@@ -125,8 +148,25 @@ nonisolated enum ProUpdateChecker {
 
         return ProUpdateCheckResult(
             currentVersion: currentVersion,
-            currentDisplayVersion: currentVersionString,
+            currentBuildNumber: currentBuildNumber,
+            currentDisplayVersion: currentBuildNumber.map { "\(currentVersionString) (\($0))" } ?? currentVersionString,
             latestRelease: latestRelease
         )
+    }
+
+    /// Published Pro tags carry the build separately from the marketing version.
+    /// Older releases may carry it only in the conventional title's parentheses.
+    private static func releaseBuildNumber(tag: String, name: String?) -> Int? {
+        for (source, pattern) in [
+            (tag, #"^v\d+\.\d+\.\d+-(?:self|beta)\.([1-9]\d*)$"#),
+            (name ?? "", #"\(([1-9]\d*)\)"#)
+        ] {
+            guard let expression = try? NSRegularExpression(pattern: pattern),
+                  let match = expression.firstMatch(in: source, range: NSRange(source.startIndex..., in: source)),
+                  let range = Range(match.range(at: 1), in: source),
+                  let build = Int(source[range]) else { continue }
+            return build
+        }
+        return nil
     }
 }

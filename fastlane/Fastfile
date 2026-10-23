@@ -2,6 +2,9 @@ require "json"
 require "open3"
 require "time"
 require "xcodeproj"
+require "shellwords"
+require "tempfile"
+require_relative "self_release_support"
 
 default_platform(:mac)
 
@@ -376,7 +379,17 @@ private_lane :prepare_local_version_and_build_number do |options|
   ensure_xcode_owned_marketing_version!(options)
 
   version = current_release_version
-  next_build = current_build_number + 1
+  remote_tags = []
+  if options[:publish]
+    required_env!("GITHUB_TOKEN")
+    repository = self_release_repository(options)
+    remote_tags = Actions.sh(
+      ["gh", "api", "--paginate", "repos/#{repository}/tags", "--jq", ".[].name"]
+        .map { |part| Shellwords.escape(part) }.join(" "),
+      log: false
+    ).lines.map(&:strip)
+  end
+  next_build = SelfReleaseSupport.next_build_number(current_build_number, remote_tags)
 
   set_shared_project_build_number!(next_build)
 
@@ -385,14 +398,6 @@ private_lane :prepare_local_version_and_build_number do |options|
     version: version,
     build_number: next_build
   }
-end
-
-private_lane :latest_pkg_path do
-  pkg_path = Dir.glob(File.join(BUILD_ARTIFACTS_DIRECTORY, "*.pkg"))
-    .max_by { |path| File.mtime(path) }
-
-  UI.user_error!("No .pkg artifact found in #{BUILD_ARTIFACTS_DIRECTORY}.") if pkg_path.nil?
-  pkg_path
 end
 
 def self_release_archive_app_path
@@ -478,21 +483,9 @@ private_lane :package_self_release_archive do
   pkg_path
 end
 
-private_lane :github_release_exists? do |options|
-  tag = options[:tag]
-  repo = options[:repo]
-
-  output = Actions.sh(
-    [
-      "cd", Shellwords.escape(REPOSITORY_ROOT), "&&",
-      "if gh release view", Shellwords.escape(tag),
-      "--repo", Shellwords.escape(repo), ">/dev/null 2>&1;",
-      "then echo exists; else echo missing; fi"
-    ].join(" "),
-    log: false
-  ).strip
-
-  output == "exists"
+def self_release_repository(options)
+  [options[:repository], ENV["GITHUB_RELEASE_REPOSITORY"], ENV["GITHUB_REPOSITORY"],
+   "mc-hamster/SnipSnipSnip"].map { |value| value.to_s.strip }.find { |value| !value.empty? }
 end
 
 private_lane :publish_self_release_package do |options|
@@ -507,15 +500,17 @@ private_lane :publish_self_release_package do |options|
     provided_changelog: options[:changelog],
     lane_name: lane_name
   )
-  repository = options[:repository].to_s.strip
-  repository = ENV["GITHUB_RELEASE_REPOSITORY"].to_s.strip if repository.empty?
-  repository = ENV["GITHUB_REPOSITORY"].to_s.strip if repository.empty?
-  repository = "mc-hamster/SnipSnipSnip" if repository.empty?
+  repository = self_release_repository(options)
 
   tag = options[:tag].to_s.strip
   if tag.empty?
     channel = beta ? "beta" : "self"
     tag = "v#{prepared[:version]}-#{channel}.#{prepared[:build_number]}"
+  end
+
+  expected_tag = /\Av#{Regexp.escape(prepared[:version])}-(?:self|beta)\.#{prepared[:build_number]}\z/
+  unless tag.match?(expected_tag)
+    UI.user_error!("Tag must identify this build: v#{prepared[:version]}-self.#{prepared[:build_number]} (or beta).")
   end
 
   release_name = options[:release_name].to_s.strip
@@ -524,50 +519,30 @@ private_lane :publish_self_release_package do |options|
     release_name = "SnipSnipSnip Pro #{prepared[:version]} (#{prepared[:build_number]}) #{channel_name}"
   end
 
-  asset_path = options[:asset_path].to_s.strip
-  asset_path = latest_pkg_path if asset_path.empty?
-  asset_path = resolve_repo_path(asset_path)
+  # Always publish the exact package built and notarized by this invocation.
+  asset_path = self_release_pkg_path
+  UI.user_error!("Self Release package missing: #{asset_path}") unless File.file?(asset_path)
 
   draft_value = options[:draft].nil? ? ENV["GITHUB_RELEASE_DRAFT"] : options[:draft]
   prerelease_value = options[:prerelease].nil? ? ENV["GITHUB_RELEASE_PRERELEASE"] : options[:prerelease]
   draft = boolean_option(draft_value, default_value: false)
   prerelease = boolean_option(prerelease_value, default_value: true)
 
-  release_exists = github_release_exists?(tag: tag, repo: repository)
-  if release_exists
-    Actions.sh(
-      [
-        "cd", Shellwords.escape(REPOSITORY_ROOT), "&&",
-        "gh", "release", "upload", Shellwords.escape(tag),
-        Shellwords.escape(asset_path),
-        "--repo", Shellwords.escape(repository),
-        "--clobber"
-      ].join(" ")
+  # Atomically reserve a fresh tag at the built source commit. Existing tags fail
+  # here, including tags for published releases: never replace a public package.
+  Actions.sh(
+    ["gh", "api", "--method", "POST", "repos/#{repository}/git/refs",
+     "-f", "ref=refs/tags/#{tag}", "-f", "sha=#{prepared.fetch(:source_commit)}"]
+      .map { |part| Shellwords.escape(part) }.join(" ")
+  )
+  Tempfile.create(["snipsnipsnip-release-notes", ".txt"]) do |notes|
+    notes.write(changelog_details[:text])
+    notes.flush
+    arguments = SelfReleaseSupport.release_arguments(
+      tag: tag, asset: asset_path, repository: repository, title: release_name,
+      notes_file: notes.path, draft: draft, prerelease: prerelease
     )
-
-    edit_command = [
-      "cd", Shellwords.escape(REPOSITORY_ROOT), "&&",
-      "gh", "release", "edit", Shellwords.escape(tag),
-      "--repo", Shellwords.escape(repository),
-      "--title", Shellwords.escape(release_name),
-      "--notes", Shellwords.escape(changelog_details[:text])
-    ]
-    edit_command << "--prerelease" if prerelease
-    edit_command << "--latest=false" if prerelease
-    Actions.sh(edit_command.join(" "))
-  else
-    create_command = [
-      "cd", Shellwords.escape(REPOSITORY_ROOT), "&&",
-      "gh", "release", "create", Shellwords.escape(tag),
-      Shellwords.escape(asset_path),
-      "--repo", Shellwords.escape(repository),
-      "--title", Shellwords.escape(release_name),
-      "--notes", Shellwords.escape(changelog_details[:text])
-    ]
-    create_command << "--draft" if draft
-    create_command << "--prerelease" if prerelease
-    create_command << "--latest=false" if prerelease
-    Actions.sh(create_command.join(" "))
+    Actions.sh(arguments.map { |part| Shellwords.escape(part) }.join(" "))
   end
 
   persist_upload_record(
@@ -675,7 +650,7 @@ private_lane :notarize_self_release_package do |options|
   UI.user_error!("App Store Connect API key file not found at `#{key_filepath}`.") unless File.exist?(key_filepath)
 
   pkg_path = options[:pkg_path].to_s.strip
-  pkg_path = latest_pkg_path if pkg_path.empty?
+  pkg_path = self_release_pkg_path if pkg_path.empty?
   pkg_path = resolve_repo_path(pkg_path)
   staple_retry_count = Integer(ENV.fetch("SELF_RELEASE_STAPLE_RETRIES", "6"), 10)
   staple_retry_delay_seconds = Integer(ENV.fetch("SELF_RELEASE_STAPLE_RETRY_DELAY_SECONDS", "15"), 10)
@@ -1018,12 +993,24 @@ platform :mac do
 
   desc "Test and build a website-distribution package with Self Release feature flags"
   lane :self_release do |options|
+    unless options[:asset_path].to_s.strip.empty?
+      UI.user_error!("asset_path is no longer supported: publish uses this run's built and notarized package.")
+    end
+    publish_enabled = boolean_option(
+      options[:publish] || ENV["SELF_RELEASE_PUBLISH"], default_value: false
+    )
+    if publish_enabled
+      status = Actions.sh("git -C #{Shellwords.escape(REPOSITORY_ROOT)} status --porcelain", log: false).strip
+      UI.user_error!("Commit source changes before publishing a Pro release.") unless status.empty?
+    end
+    source_commit = current_git_commit if publish_enabled
     run_release_test_gate(options)
     ensure_self_release_signing_ready
 
     prepared = prepare_local_version_and_build_number(
-      version: options[:version]
+      version: options[:version], publish: publish_enabled, repository: options[:repository]
     )
+    prepared[:source_commit] = source_commit if publish_enabled
 
     build_release_pkg(build_target: "Self Release")
 
@@ -1033,19 +1020,16 @@ platform :mac do
     )
     notarize_self_release_package if notarize_enabled
 
-    publish_enabled = boolean_option(
-      options[:publish] || ENV["SELF_RELEASE_PUBLISH"],
-      default_value: false
-    )
-
     if publish_enabled
+      unless current_git_commit == source_commit
+        UI.user_error!("Source commit changed during the build; rerun before publishing.")
+      end
       publish_self_release_package(
         prepared: prepared,
         changelog: options[:changelog],
         repository: options[:repository],
         tag: options[:tag],
         release_name: options[:release_name],
-        asset_path: options[:asset_path],
         prerelease: options[:prerelease],
         draft: options[:draft],
         beta: options[:beta]

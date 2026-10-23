@@ -261,13 +261,13 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                 HelpArticle(
                     id: "pro-updates",
                     title: "Update SnipSnipSnip Pro",
-                    summary: "Check GitHub Releases for the newest Pro package and download it manually.",
+                    summary: "Check the latest stable Pro version and build on GitHub Releases, then download the package manually.",
                     sections: [
                         HelpArticleSection(
                             title: "Check for updates",
                             steps: [
                                 "Choose Help > Check for Pro Updates, or open Settings > General > Help & Onboarding.",
-                                "SnipSnipSnip Pro reads the latest GitHub release and compares it with the version you are running.",
+                                "SnipSnipSnip Pro reads the latest stable GitHub release and compares its version and build number with the app you are running.",
                                 "If a newer version is available, choose Download Update to open the GitHub release page.",
                                 "Download the newest Pro package from GitHub Releases, quit SnipSnipSnip Pro, and install the package normally."
                             ]
@@ -278,7 +278,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                         )
                     ],
                     important: [
-                        "Only download SnipSnipSnip Pro packages from the official GitHub Releases page or another trusted Oontz link."
+                        "Only download SnipSnipSnip Pro packages from the official GitHub Releases page or another trusted Oontz link. Prereleases are available there manually and are not offered by the update checker."
                     ],
                     relatedIDs: ["get-started", "troubleshoot-capture"]
                 )

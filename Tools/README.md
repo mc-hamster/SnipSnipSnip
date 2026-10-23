@@ -80,6 +80,10 @@ a test machine with `SSS_GOOGLE_CHROME_BINARY` or `SSS_FIREFOX_BINARY`.
 Release CI also sets `SSS_REQUIRE_EXTERNAL_HTML_BROWSERS=1`, which turns a
 missing browser into a failing gate instead of a skip.
 
+## Pro release policy tests
+
+Run `ruby Tools/tests/test_self_release.rb` for offline checks of build allocation, source-commit tag reservation, refusal to replace existing tags, draft/prerelease flags, and literal changelog argument handling in the actual workflow script. These tests use command spies and temporary fixtures; they do not access the network, keychain, or publishing services. CI and the Pro release preflight run this suite. See `FASTLANE.md` for required signing/notarization secrets and the stable-release promotion procedure.
+
 ## Release test gate
 
 `check-repository-hygiene.py` rejects tracked installed dependencies, build and
