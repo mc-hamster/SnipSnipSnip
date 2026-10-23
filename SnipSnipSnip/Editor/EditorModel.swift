@@ -1163,12 +1163,35 @@ nonisolated struct Annotation: Identifiable, Equatable {
         return copy
     }
 
-    func refittingTextBounds() -> Annotation {
+    /// Uses the same crop-aware sizing for live edits, commits, and font changes.
+    func updatingText(_ text: String, within bounds: CGRect) -> Annotation {
+        let originX: CGFloat
+        let minWidth: CGFloat
+        switch kind {
+        case let .text(shape) where shape.automaticallySizesToText:
+            originX = shape.rect.minX
+            minWidth = 44
+        case let .callout(shape) where shape.automaticallySizesToText:
+            originX = shape.rect.minX
+            minWidth = 194
+        default:
+            // Manually sized text keeps its width and only grows in height.
+            return updatingText(text)
+        }
+
+        return updatingText(
+            text,
+            maximumAutoTextWidth: gscAutoTextMaxWidth(originX: originX, within: bounds, minWidth: minWidth),
+            autoTextBounds: bounds
+        )
+    }
+
+    func refittingTextBounds(within bounds: CGRect) -> Annotation {
         switch kind {
         case let .text(shape):
-            return updatingText(shape.text, refittingBounds: true)
+            return updatingText(shape.text, within: bounds)
         case let .callout(shape):
-            return updatingText(shape.text, refittingBounds: true)
+            return updatingText(shape.text, within: bounds)
         default:
             return self
         }

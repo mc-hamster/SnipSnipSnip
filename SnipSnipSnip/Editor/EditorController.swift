@@ -1507,22 +1507,7 @@ final class EditorController: ObservableObject {
 
         beginTextEditingSessionIfNeeded(for: annotation.id)
 
-        let updatedAnnotation: Annotation
-        if case let .text(shape) = annotation.kind, shape.automaticallySizesToText {
-            updatedAnnotation = annotation.updatingText(
-                text,
-                maximumAutoTextWidth: maximumAutoTextWidth(for: shape),
-                autoTextBounds: snapshot.cropRect
-            )
-        } else if case let .callout(shape) = annotation.kind, shape.automaticallySizesToText {
-            updatedAnnotation = annotation.updatingText(
-                text,
-                maximumAutoTextWidth: maximumAutoCalloutWidth(for: shape),
-                autoTextBounds: snapshot.cropRect
-            )
-        } else {
-            updatedAnnotation = annotation.updatingText(text)
-        }
+        let updatedAnnotation = annotation.updatingText(text, within: snapshot.cropRect)
         let updatedSnapshot = UpdateAnnotationCommand(annotation: updatedAnnotation).apply(to: snapshot)
 
         guard updatedSnapshot != snapshot else {
@@ -2872,10 +2857,15 @@ final class EditorController: ObservableObject {
 
     private func mutateStyle(_ mutation: (inout AnnotationStyle) -> Void) {
         if !selectedAnnotations.isEmpty {
+            // Finish typing before deriving a separate undoable style edit.
+            commitPendingTextEdits()
             let updated = selectedAnnotations.map { annotation -> Annotation in
                 var style = annotation.style
                 mutation(&style)
-                return annotation.updatingStyle(style)
+                let styledAnnotation = annotation.updatingStyle(style)
+                return style.fontSize != annotation.style.fontSize
+                    ? styledAnnotation.refittingTextBounds(within: snapshot.cropRect)
+                    : styledAnnotation
             }
 
             updatePersistedToolStyles(using: updated)
@@ -3219,7 +3209,7 @@ final class EditorController: ObservableObject {
             return
         }
 
-        let refittedAnnotation = annotation.refittingTextBounds()
+        let refittedAnnotation = annotation.refittingTextBounds(within: snapshot.cropRect)
         let refittedSnapshot = UpdateAnnotationCommand(annotation: refittedAnnotation).apply(to: snapshot)
 
         guard refittedSnapshot != snapshot else {
@@ -3249,22 +3239,6 @@ final class EditorController: ObservableObject {
         default:
             return gscSuggestedTextRect(adjacentTo: annotation.boundingRect, within: snapshot.cropRect)
         }
-    }
-
-    private func maximumAutoTextWidth(for shape: TextShape) -> CGFloat {
-        gscAutoTextMaxWidth(
-            originX: shape.rect.minX,
-            within: snapshot.cropRect,
-            minWidth: 44
-        )
-    }
-
-    private func maximumAutoCalloutWidth(for shape: CalloutShape) -> CGFloat {
-        gscAutoTextMaxWidth(
-            originX: shape.rect.minX,
-            within: snapshot.cropRect,
-            minWidth: 194
-        )
     }
 
     private func defaultSuggestedTextRect() -> CGRect {

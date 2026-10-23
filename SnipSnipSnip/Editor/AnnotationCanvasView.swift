@@ -460,10 +460,13 @@ private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate 
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
-        // A selected text annotation is drawn by this live editor overlay. When
-        // Select is active, let the canvas receive the gesture so the annotation
-        // can be moved or resized instead of NSTextView consuming the drag.
-        controller.activeTool == .select ? nil : super.hitTest(point)
+        // Keep the canvas's complete handle targets reachable under the live
+        // editor, while clicks in the text interior still position the caret.
+        if controller.activeTool == .select
+            || (superview as? AnnotationCanvasView)?.containsResizeHandle(at: point) == true {
+            return nil
+        }
+        return super.hitTest(point)
     }
 
     override func layout() {
@@ -664,61 +667,8 @@ private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate 
     }
 
     private func fittedTextRect(for text: String, context: EditableTextContext) -> CGRect {
-        let font = NSFont.systemFont(ofSize: context.annotation.style.fontSize, weight: .semibold)
-
-        switch context {
-        case let .text(_, shape):
-            if shape.automaticallySizesToText {
-                let fittedRect = gscSnugTextRect(
-                    for: text,
-                    origin: shape.rect.origin,
-                    font: font,
-                    horizontalPadding: 24,
-                    verticalPadding: 20,
-                    minSize: CGSize(width: 44, height: 34),
-                    maxWidth: maximumAutoTextWidth(for: shape)
-                )
-
-                return gscTextRectPositionedWithinBounds(fittedRect, bounds: controller.snapshot.cropRect)
-            }
-
-            return gscFittedTextRect(
-                for: text,
-                currentRect: shape.rect,
-                font: font,
-                horizontalPadding: 24,
-                verticalPadding: 20,
-                minSize: shape.rect.size,
-                maxWidth: max(maximumAutoTextWidth(for: shape), shape.rect.width)
-            )
-        case let .callout(_, shape):
-            let minSize = CGSize(width: 194, height: 72)
-            if shape.automaticallySizesToText {
-                let fittedRect = gscSnugCalloutRect(
-                    for: text,
-                    origin: shape.rect.origin,
-                    font: font,
-                    textHorizontalPadding: 40,
-                    textVerticalPadding: 24,
-                    badgeAllowance: calloutBadgeAllowance,
-                    minSize: minSize,
-                    maxWidth: maximumAutoCalloutWidth(for: shape)
-                )
-
-                return gscTextRectPositionedWithinBounds(fittedRect, bounds: controller.snapshot.cropRect)
-            }
-
-            return gscFittedCalloutRect(
-                for: text,
-                currentRect: shape.rect,
-                font: font,
-                textHorizontalPadding: 40,
-                textVerticalPadding: 24,
-                badgeAllowance: calloutBadgeAllowance,
-                minSize: minSize,
-                maxWidth: max(maximumAutoCalloutWidth(for: shape), shape.rect.width)
-            )
-        }
+        let fittedAnnotation = context.annotation.updatingText(text, within: controller.snapshot.cropRect)
+        return EditableTextContext(annotation: fittedAnnotation)?.documentRect ?? context.documentRect
     }
 
     private func maximumAutoTextWidth(for shape: TextShape) -> CGFloat {
@@ -1018,10 +968,6 @@ private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate 
         8 * displayScale
     }
 
-    private var calloutBadgeAllowance: CGFloat {
-        40
-    }
-
     private var cornerRadius: CGFloat {
         12 * displayScale
     }
@@ -1197,6 +1143,10 @@ final class AnnotationCanvasView: NSView {
 
     fileprivate func updateDraftCropMask(_ rect: CGRect?) {
         cropMaskView.updateDraftCropRect(rect)
+    }
+
+    fileprivate func containsResizeHandle(at point: CGPoint) -> Bool {
+        overlayView.containsResizeHandle(at: overlayView.convert(point, from: self))
     }
 
     func performAccessibilityAction(
@@ -2276,6 +2226,12 @@ private final class AnnotationCanvasOverlayView: NSView {
         let endpoint = target.endpoint
         interactionState.beginEndpointEdit(annotation: annotation, endpoint: endpoint)
         return true
+    }
+
+    func containsResizeHandle(at viewPoint: CGPoint) -> Bool {
+        guard controller.activeTool != .uiMapInspect else { return false }
+        return cropHandle(at: viewPoint) != nil
+            || (controller.activeTool != .crop && selectionHandle(at: viewPoint) != nil)
     }
 
     private func selectionHandleRect(for handle: ResizeHandle, bounds: CGRect) -> CGRect {

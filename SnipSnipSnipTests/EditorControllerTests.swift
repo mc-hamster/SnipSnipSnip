@@ -513,6 +513,190 @@ final class EditorControllerTests: XCTestCase {
         assertLiveTextOverlayIsSnug(state)
     }
 
+    func testTextCommitAndDeselectionPreserveCropAwareBoundsAndUndo() throws {
+        for cropWidth: CGFloat in [300, 800] {
+            let crop = CGRect(x: 0, y: 0, width: cropWidth, height: 600)
+            for annotation in [
+                Annotation.makeText(at: CGPoint(x: 40, y: 40)).updatingText("Original"),
+                Annotation.makeCallout(at: CGPoint(x: 40, y: 40), number: 1).updatingText("Original")
+            ] {
+                let controller = makeController(snapshot: makeEditorSnapshot(
+                    cropRect: crop, annotations: [annotation], selectedAnnotationIDs: [annotation.id]
+                ))
+                let text = "Please review this text box and keep its resize handles accessible.\n日本語 👩🏽‍💻"
+                controller.updateText(text)
+                let typed = try XCTUnwrap(controller.selectedAnnotation)
+                let typedRect = textBoxRect(of: typed)
+                XCTAssertLessThanOrEqual(typedRect.width, min(cropWidth, 520))
+                XCTAssertTrue(crop.contains(typedRect))
+
+                // Selection changes commit immediately, even before the debounce fires.
+                controller.clearSelection()
+                XCTAssertEqual(controller.snapshot.annotations, [typed])
+                controller.select(annotation.id)
+                XCTAssertEqual(controller.selectedText, text)
+                XCTAssertEqual(textBoxRect(of: try XCTUnwrap(controller.selectedAnnotation)), typedRect)
+
+                controller.undo()
+                XCTAssertEqual(controller.snapshot.annotations, [annotation])
+                controller.redo()
+                XCTAssertEqual(controller.snapshot.annotations, [typed])
+            }
+        }
+    }
+
+    func testDebouncedTextCommitPreservesNarrowCropBounds() async throws {
+        let crop = CGRect(x: 0, y: 0, width: 300, height: 600)
+        for annotation in [
+            Annotation.makeText(at: CGPoint(x: 40, y: 40)),
+            Annotation.makeCallout(at: CGPoint(x: 40, y: 40), number: 1)
+        ] {
+            let controller = makeController(snapshot: makeEditorSnapshot(
+                cropRect: crop, annotations: [annotation], selectedAnnotationIDs: [annotation.id]
+            ))
+            controller.updateText("Please review this text box and keep its resize handles accessible.")
+            let typed = try XCTUnwrap(controller.selectedAnnotation)
+            try await Task.sleep(nanoseconds: 450_000_000)
+            XCTAssertEqual(controller.selectedAnnotation, typed)
+            XCTAssertEqual(controller.persistenceRevision, 1)
+        }
+    }
+
+    func testTextToolsLeaveResizeHandlesReachableAndTextInteriorEditable() throws {
+        for annotation in [
+            Annotation.makeText(at: CGPoint(x: 140, y: 120)).updatingText("Resize this text box"),
+            Annotation.makeCallout(at: CGPoint(x: 140, y: 120), number: 1).updatingText("Resize this callout")
+        ] {
+            let controller = makeController(snapshot: makeEditorSnapshot(
+                cropRect: CGRect(x: 0, y: 0, width: 800, height: 600),
+                annotations: [annotation], selectedAnnotationIDs: [annotation.id]
+            ))
+            let (canvas, overlay, window) = makeCanvasHarness(
+                controller: controller, frame: CGRect(x: 0, y: 0, width: 640, height: 480)
+            )
+            for tool: EditorTool in [.text, .callout] {
+                controller.activateToolbarTool(tool)
+                let selectionRect = viewRect(for: try XCTUnwrap(controller.selectionBoundingRect), controller: controller)
+                for handle in ResizeHandle.allCases {
+                    let point = handle.position(in: selectionRect)
+                    // Exercise the half of each handle covered by the live editor.
+                    let insetPoint = CGPoint(
+                        x: point.x + (point.x < selectionRect.midX ? 2 : point.x > selectionRect.midX ? -2 : 0),
+                        y: point.y + (point.y < selectionRect.midY ? 2 : point.y > selectionRect.midY ? -2 : 0)
+                    )
+                    XCTAssertTrue(canvas.hitTest(canvas.convert(insetPoint, to: canvas.superview)) === overlay, "\(tool), \(handle)")
+                }
+                let state = try XCTUnwrap(canvas.debugTextEditorOverlayState)
+                let interior = CGPoint(x: state.overlayFrame.minX + state.textViewFrame.midX,
+                                       y: state.overlayFrame.minY + state.textViewFrame.midY)
+                XCTAssertTrue(canvas.hitTest(canvas.convert(interior, to: canvas.superview)) is NSTextView)
+            }
+
+            let original = try XCTUnwrap(controller.selectedAnnotation)
+            let selection = viewRect(for: try XCTUnwrap(controller.selectionBoundingRect), controller: controller)
+            let start = CGPoint(x: selection.maxX - 2, y: selection.midY)
+            let target = try XCTUnwrap(canvas.hitTest(canvas.convert(start, to: canvas.superview)))
+            XCTAssertTrue(target === overlay)
+            guard target === overlay else { continue }
+            let end = CGPoint(x: start.x + 50, y: start.y)
+            sendMouseEvent(.leftMouseDown, at: start, to: target, in: window, eventNumber: 1)
+            sendMouseEvent(.leftMouseDragged, at: end, to: target, in: window, eventNumber: 2)
+            sendMouseEvent(.leftMouseUp, at: end, to: target, in: window, eventNumber: 3)
+            let resized = try XCTUnwrap(controller.selectedAnnotation)
+            XCTAssertGreaterThan(textBoxRect(of: resized).width, textBoxRect(of: original).width)
+            XCTAssertEqual(controller.snapshot.annotations.count, 1)
+            controller.undo()
+            XCTAssertEqual(controller.selectedAnnotation, original)
+        }
+    }
+
+    func testFontSizeChangesRefitTextBoxesBeforeDeselectionAndSupportUndo() throws {
+        let crop = CGRect(x: 0, y: 0, width: 300, height: 600)
+        for base in [
+            Annotation.makeText(at: CGPoint(x: 40, y: 40)),
+            Annotation.makeCallout(at: CGPoint(x: 40, y: 40), number: 1)
+        ] {
+            var style = base.style
+            style.fontSize = 12
+            let annotation = base.updatingStyle(style).updatingText(
+                "A label that wraps when its font grows", maximumAutoTextWidth: 300, autoTextBounds: crop
+            )
+            let controller = makeController(snapshot: makeEditorSnapshot(
+                cropRect: crop, annotations: [annotation], selectedAnnotationIDs: [annotation.id]
+            ))
+            let (canvas, _, _) = makeCanvasHarness(
+                controller: controller, frame: CGRect(x: 0, y: 0, width: 300, height: 600)
+            )
+            controller.updateFontSize(48)
+            let enlarged = try XCTUnwrap(controller.selectedAnnotation)
+            let enlargedRect = textBoxRect(of: enlarged)
+            XCTAssertGreaterThan(enlargedRect.height, textBoxRect(of: annotation).height)
+            XCTAssertTrue(crop.contains(enlargedRect))
+            let live = try XCTUnwrap(canvas.debugTextEditorOverlayState)
+            let projected = viewRect(for: enlargedRect, controller: controller).integral
+            XCTAssertEqual(live.overlayFrame.height, projected.height, accuracy: 1)
+
+            controller.clearSelection()
+            XCTAssertEqual(controller.snapshot.annotations, [enlarged])
+            controller.undo()
+            XCTAssertEqual(controller.snapshot.annotations, [annotation])
+            controller.redo()
+            XCTAssertEqual(controller.snapshot.annotations, [enlarged])
+            controller.select(annotation.id)
+            controller.updateFontSize(12)
+            XCTAssertEqual(textBoxRect(of: try XCTUnwrap(controller.selectedAnnotation)).size, textBoxRect(of: annotation).size)
+        }
+    }
+
+    func testFontChangeDuringPendingTextEditKeepsSeparateUndoSteps() throws {
+        for annotation in [
+            Annotation.makeText(at: CGPoint(x: 40, y: 40)).updatingText("Original"),
+            Annotation.makeCallout(at: CGPoint(x: 40, y: 40), number: 1).updatingText("Original")
+        ] {
+            let controller = makeController(snapshot: makeEditorSnapshot(
+                cropRect: CGRect(x: 0, y: 0, width: 300, height: 600),
+                annotations: [annotation], selectedAnnotationIDs: [annotation.id]
+            ))
+            controller.updateText("Keep this freshly typed text when its font changes")
+            let typed = try XCTUnwrap(controller.selectedAnnotation)
+            controller.updateFontSize(48)
+            let enlarged = try XCTUnwrap(controller.selectedAnnotation)
+            XCTAssertGreaterThan(textBoxRect(of: enlarged).height, textBoxRect(of: typed).height)
+            controller.undo()
+            XCTAssertEqual(controller.selectedAnnotation, typed)
+            controller.undo()
+            XCTAssertEqual(controller.snapshot.annotations, [annotation])
+            controller.redo()
+            controller.redo()
+            XCTAssertEqual(controller.selectedAnnotation, enlarged)
+        }
+    }
+
+    func testFontSizeChangesGrowManuallySizedTextBoxesWithoutChangingWidth() throws {
+        for base in [
+            Annotation.makeText(at: CGPoint(x: 40, y: 40)),
+            Annotation.makeCallout(at: CGPoint(x: 40, y: 40), number: 1)
+        ] {
+            var style = base.style
+            style.fontSize = 12
+            let annotation = base.resized(to: CGRect(x: 40, y: 40, width: 220, height: 80))
+                .disablingAutomaticTextSizing().updatingStyle(style).updatingText("Keep this text visible as the font grows")
+            let controller = makeController(snapshot: makeEditorSnapshot(
+                cropRect: CGRect(x: 0, y: 0, width: 800, height: 800),
+                annotations: [annotation], selectedAnnotationIDs: [annotation.id]
+            ))
+            let originalRect = textBoxRect(of: annotation)
+            controller.updateFontSize(48)
+            let enlarged = try XCTUnwrap(controller.selectedAnnotation)
+            XCTAssertEqual(textBoxRect(of: enlarged).width, originalRect.width)
+            XCTAssertGreaterThan(textBoxRect(of: enlarged).height, originalRect.height)
+            controller.clearSelection()
+            XCTAssertEqual(controller.snapshot.annotations, [enlarged])
+            controller.undo()
+            XCTAssertEqual(controller.snapshot.annotations, [annotation])
+        }
+    }
+
     func testManualTextAnnotationModelKeepsWidthWhenUpdatingWrappedText() {
         let manualRect = CGRect(x: 40, y: 40, width: 140, height: 54)
         let text = Annotation(
@@ -3165,6 +3349,16 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
+    private func textBoxRect(of annotation: Annotation) -> CGRect {
+        switch annotation.kind {
+        case let .text(shape): return shape.rect
+        case let .callout(shape): return shape.rect
+        default:
+            XCTFail("Expected a text box or callout")
+            return .zero
+        }
+    }
+
     private func makeController(
         snapshot: EditorSnapshot? = nil,
         capture: CapturedScreenshot? = nil,

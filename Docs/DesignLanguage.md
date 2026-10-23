@@ -112,6 +112,7 @@ Use one product vocabulary across the main window, setup flows, menus, editors, 
 
 ### Main window and editors
 
+- Text boxes and Callouts share document-space sizing across live typing, committed edits, and font changes. Clicking away must preserve wrapping and bounds. Manually resized boxes keep their width and grow in height when needed. The live text editor yields selection and crop resize-handle hit areas to the canvas, while its text interior retains native caret placement and selection.
 - A single selected Line, Arrow, or Numbered Arrow shows only two accent-colored handles at its actual start and end, with no bounding-box resize frame. Each handle moves one endpoint while the other stays fixed. Multiple selected annotations retain shared bounding-box handles. Endpoint hit targets and cursors use the same canvas projection as their visible handles.
 
 - Capture Text is a direct Quick Capture action and menu/shortcut command. Reuse Region selection and local OCR without installing a screenshot, prompting about the open document, or saving captured pixels. Confirm successful clipboard delivery without opening the editor. Empty recognition leaves the clipboard unchanged. In the editor, Copy Text preserves line structure and offers explicit Join Lines cleanup.
