@@ -718,20 +718,22 @@ struct ScrollingCaptureService {
         let firstCaptureDuration = Self.elapsedMilliseconds(since: firstCaptureStart)
         var stitched = try stitcher.initialState(with: firstCapture.image, maxOutputHeight: request.maxOutputHeight)
         var previousImage = firstCapture.image
-        var previousSample = stitcher.makeSampleImage(for: firstCapture.image)
+        var previousSample = await stitcher.prepareSample(for: firstCapture.image)
         if stitched.outputHeight >= request.maxOutputHeight {
             warnings.append("The scrolling capture reached the maximum output height and was stopped early.")
         }
         ScrollingCaptureDiagnostics.info(
             "Captured first segment pixels=\(firstCapture.image.width)x\(firstCapture.image.height) captureMs=\(firstCaptureDuration)"
         )
+        let firstPreview = await stitcher.makePreview(for: stitched)
+        try cancellation.checkCancellation()
         await MainActor.run {
             progressHandler?(ScrollingCaptureProgress(
                 segmentCount: stitched.segmentCount,
                 outputHeight: stitched.outputHeight,
                 maxOutputHeight: request.maxOutputHeight,
                 warning: warnings.last,
-                previewImage: stitched.makePreviewImage(),
+                previewImage: firstPreview,
                 scrollTargetPoint: driver.scrollTargetPoint
             ))
         }
@@ -777,7 +779,6 @@ struct ScrollingCaptureService {
             try cancellation.checkCancellation()
             if cancellation.shouldFinish() { break captureSegments }
             let captureDuration = Self.elapsedMilliseconds(since: captureStart)
-            let nextSample = stitcher.makeSampleImage(for: nextImage)
 
             let duplicateStart = DispatchTime.now()
             let duplicateFrame = stitcher.imagesAreDuplicate(previousImage, nextImage)
@@ -797,12 +798,14 @@ struct ScrollingCaptureService {
             }
 
             let stitchStart = DispatchTime.now()
-            let appendResult: ScrollingStitchAppendResult
-            if let previousSample, let nextSample {
-                appendResult = stitcher.append(nextImage, after: previousImage, previousSample: previousSample, nextSample: nextSample, to: &stitched)
-            } else {
-                appendResult = stitcher.append(nextImage, after: previousImage, to: &stitched)
-            }
+            let processed = await stitcher.appendingFrame(
+                nextImage, after: previousImage, previousSample: previousSample, to: stitched
+            )
+            try cancellation.checkCancellation()
+            if cancellation.shouldFinish() { break captureSegments }
+            stitched = processed.state
+            let appendResult = processed.result
+            let nextSample = processed.sample
             let stitchDuration = Self.elapsedMilliseconds(since: stitchStart)
             switch appendResult {
             case .unchanged:
@@ -867,7 +870,6 @@ struct ScrollingCaptureService {
                 try cancellation.checkCancellation()
                 if cancellation.shouldFinish() { break captureSegments }
                 let retryCaptureDuration = Self.elapsedMilliseconds(since: retryCaptureStart)
-                let retrySample = stitcher.makeSampleImage(for: nextImage)
                 let retryPositionAdvanced = Self.positionAdvanced(from: previousPosition, to: driver.snapshotPosition())
 
                 if stitcher.imagesAreDuplicate(previousImage, nextImage) {
@@ -882,12 +884,14 @@ struct ScrollingCaptureService {
                 }
 
                 let retryStitchStart = DispatchTime.now()
-                let retryResult: ScrollingStitchAppendResult
-                if let previousSample, let retrySample {
-                    retryResult = stitcher.append(nextImage, after: previousImage, previousSample: previousSample, nextSample: retrySample, to: &stitched)
-                } else {
-                    retryResult = stitcher.append(nextImage, after: previousImage, to: &stitched)
-                }
+                let retried = await stitcher.appendingFrame(
+                    nextImage, after: previousImage, previousSample: previousSample, to: stitched
+                )
+                try cancellation.checkCancellation()
+                if cancellation.shouldFinish() { break captureSegments }
+                stitched = retried.state
+                let retryResult = retried.result
+                let retrySample = retried.sample
                 let retryStitchDuration = Self.elapsedMilliseconds(since: retryStitchStart)
                 switch retryResult {
                 case .unchanged:
@@ -952,13 +956,15 @@ struct ScrollingCaptureService {
             if segmentIndex == request.maxSegmentCount - 1 {
                 warnings.append("The scrolling capture reached the maximum number of segments and was stopped early.")
             }
+            let preview = await stitcher.makePreview(for: stitched)
+            try cancellation.checkCancellation()
             await MainActor.run {
                 progressHandler?(ScrollingCaptureProgress(
                     segmentCount: stitched.segmentCount,
                     outputHeight: stitched.outputHeight,
                     maxOutputHeight: request.maxOutputHeight,
                     warning: warnings.last,
-                    previewImage: stitched.makePreviewImage(),
+                    previewImage: preview,
                     scrollTargetPoint: driver.scrollTargetPoint
                 ))
             }

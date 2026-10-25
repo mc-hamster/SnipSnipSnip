@@ -495,6 +495,44 @@ func scrollingPixel(x: Int, y: Int) -> PixelSample {
     )
 }
 
+/// Unlike the gradient fixture (which repeats every 512 rows), this supports
+/// long-session tests whose scroll offsets must have a unique overlap.
+func scrollingRowSeed(_ row: Int) -> UInt64 {
+    var value = UInt64(bitPattern: Int64(row)) &+ 0x9E3779B97F4A7C15
+    value = (value ^ (value >> 30)) &* 0xBF58476D1CE4E5B9
+    value = (value ^ (value >> 27)) &* 0x94D049BB133111EB
+    return value ^ (value >> 31)
+}
+
+func makeNonrepeatingScrollingFrame(width: Int, height: Int, rowMapper: (Int) -> Int) -> CGImage {
+    let rows = (0..<height).map { scrollingRowSeed(rowMapper($0)) }
+    return makeRGBAImage(width: width, height: height) { x, y in
+        let row = rows[y]
+        return PixelSample(
+            red: UInt8(truncatingIfNeeded: row) &+ UInt8(truncatingIfNeeded: x),
+            green: UInt8(truncatingIfNeeded: row >> 8),
+            blue: UInt8(truncatingIfNeeded: row >> 16) &+ UInt8(truncatingIfNeeded: x * 3),
+            alpha: 255
+        )
+    }
+}
+
+/// Sparse text-like edges over a white page expose costly failed matches that
+/// dense color/noise fixtures reject much sooner. Dimensions are source pixels.
+func makeScrollingTextPage(width: Int, height: Int, offset: Int) -> CGImage {
+    let rows = (0..<(height + offset + 24) / 24 + 1).map { scrollingRowSeed($0) }
+    return makeRGBAImage(width: width, height: height) { x, y in
+        let row = y + offset
+        let line = rows[row / 24]
+        let end = width - 160 - Int(line % 550)
+        let cell = max(x - 160, 0) / 12
+        let ink = (5..<16).contains(row % 24) && x >= 160 && x < end
+            && (scrollingRowSeed(cell) ^ line) % 13 < 6 && x % 12 < 7
+        let value: UInt8 = ink ? 36 : 255
+        return PixelSample(red: value, green: value, blue: value, alpha: 255)
+    }
+}
+
 func assertScrollingRows(in image: CGImage, expectedHeight: Int, file: StaticString = #filePath, line: UInt = #line) {
     XCTAssertEqual(image.height, expectedHeight, file: file, line: line)
     for y in 0..<min(image.height, expectedHeight) {

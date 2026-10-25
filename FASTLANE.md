@@ -244,7 +244,7 @@ GITHUB_TOKEN=ghp_xxx \
 
 Publishing details:
 
-1. Commit source changes before publishing. Fastlane requires a clean checkout before its build-number bump.
+1. Commit source changes before publishing. Fastlane requires a clean checkout before its build-number bump. Publishing tests and archives a temporary detached source snapshot of that commit, so editor saves in the normal checkout cannot enter the package. The snapshot is removed when the run finishes or fails. It also verifies tracked source against the recorded commit after testing, after preparing the build number, after archiving, and immediately before reserving the publication tag. Only the exact build-number edit allocated by this run is allowed; other project edits, source edits, deletions, untracked files, or a changed commit stop publication.
 2. For publishing, Fastlane reads all remote Git tags and chooses a build above both the local build and every recognized `vVERSION-self.BUILD` or `vVERSION-beta.BUILD` tag, including tags reserved by an interrupted run. Authentication or lookup errors stop the build. Build-only runs increment the local build without requiring GitHub access.
 3. Fastlane builds with `SNIP_BUILD_TARGET=Self Release` and notarizes and staples the generated package by default.
 4. Fastlane atomically reserves a fresh tag at the exact source commit being built. An existing tag is an error; no published asset is overwritten, even with `draft:true`. Concurrent publishers may cause one run to fail safely; rerun to allocate a new build.

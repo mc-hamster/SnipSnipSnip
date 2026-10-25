@@ -528,6 +528,8 @@ private_lane :publish_self_release_package do |options|
   draft = boolean_option(draft_value, default_value: false)
   prerelease = boolean_option(prerelease_value, default_value: true)
 
+  prepared.fetch(:source_guard).verify!(build_number: prepared[:build_number])
+
   # Atomically reserve a fresh tag at the built source commit. Existing tags fail
   # here, including tags for published releases: never replace a public package.
   Actions.sh(
@@ -569,7 +571,7 @@ private_lane :build_release_pkg do |options|
   build_target = options[:build_target] || "Release"
   export_method = build_target == "Self Release" ? "developer-id" : "app-store"
   export_options = nil
-  marketing_version = current_release_version
+  marketing_version = options[:marketing_version] || current_release_version
   compilation_conditions = build_target == "Self Release" ? "" : "$(inherited) APP_STORE_BUILD"
   xcargs = [
     "-allowProvisioningUpdates",
@@ -598,7 +600,7 @@ private_lane :build_release_pkg do |options|
   end
 
   build_mac_app(
-    project: PROJECT_PATH,
+    project: options[:project_path] || PROJECT_PATH,
     scheme: SCHEME,
     configuration: "Release",
     clean: true,
@@ -742,8 +744,8 @@ private_lane :run_release_test_gate do |options|
 
     Actions.sh(
       [
-        Shellwords.escape(File.join(REPOSITORY_ROOT, "Tools", "run-release-test-gate.sh")),
-        "--project", Shellwords.escape(PROJECT_PATH),
+        Shellwords.escape(File.join(options[:source_root] || REPOSITORY_ROOT, "Tools", "run-release-test-gate.sh")),
+        "--project", Shellwords.escape(options[:project_path] || PROJECT_PATH),
         "--scheme", Shellwords.escape(SCHEME),
         "--derived-data", Shellwords.escape(derived_data_path),
         *only_testing_args
@@ -1002,50 +1004,66 @@ platform :mac do
     if publish_enabled
       status = Actions.sh("git -C #{Shellwords.escape(REPOSITORY_ROOT)} status --porcelain", log: false).strip
       UI.user_error!("Commit source changes before publishing a Pro release.") unless status.empty?
-    end
-    source_commit = current_git_commit if publish_enabled
-    run_release_test_gate(options)
-    ensure_self_release_signing_ready
-
-    prepared = prepare_local_version_and_build_number(
-      version: options[:version], publish: publish_enabled, repository: options[:repository]
-    )
-    prepared[:source_commit] = source_commit if publish_enabled
-
-    build_release_pkg(build_target: "Self Release")
-
-    notarize_enabled = boolean_option(
-      options[:notarize] || ENV["SELF_RELEASE_NOTARIZE"],
-      default_value: true
-    )
-    notarize_self_release_package if notarize_enabled
-
-    if publish_enabled
-      unless current_git_commit == source_commit
-        UI.user_error!("Source commit changed during the build; rerun before publishing.")
-      end
-      publish_self_release_package(
-        prepared: prepared,
-        changelog: options[:changelog],
-        repository: options[:repository],
-        tag: options[:tag],
-        release_name: options[:release_name],
-        prerelease: options[:prerelease],
-        draft: options[:draft],
-        beta: options[:beta]
+      source_commit = current_git_commit
+      source_guard = SelfReleaseSupport::PublishSource.new(
+        repository_root: REPOSITORY_ROOT, project_path: PROJECT_PATH, commit: source_commit
       )
-      next prepared
     end
+    SelfReleaseSupport.with_source_snapshot(repository_root: REPOSITORY_ROOT, commit: source_commit) do |source_root|
+      project_path = File.join(source_root, Pathname.new(PROJECT_PATH).relative_path_from(Pathname.new(REPOSITORY_ROOT)).to_s)
+      snapshot_guard = if publish_enabled
+        SelfReleaseSupport::PublishSource.new(repository_root: source_root, project_path: project_path, commit: source_commit)
+      end
+      run_release_test_gate(options.merge(source_root: source_root, project_path: project_path))
+      ensure_self_release_signing_ready
+      source_guard&.verify!
+      snapshot_guard&.verify!
 
-    record_fastlane_run_metadata(
-      lane_name: "self_release",
-      version: prepared[:version],
-      build_number: prepared[:build_number],
-      changelog_source: "build-only"
-    )
+      prepared = prepare_local_version_and_build_number(
+        version: options[:version], publish: publish_enabled, repository: options[:repository]
+      )
+      prepared[:source_commit] = source_commit if publish_enabled
+      prepared[:source_guard] = source_guard if publish_enabled
+      source_guard&.verify!(build_number: prepared[:build_number])
+      snapshot_guard&.apply_build_number!(prepared[:build_number])
 
-    UI.success("Built #{prepared[:version]} (#{prepared[:build_number]}) with SNIP_BUILD_TARGET=Self Release.")
-    prepared
+      build_release_pkg(build_target: "Self Release", project_path: project_path, marketing_version: prepared[:version])
+      source_guard&.verify!(build_number: prepared[:build_number])
+      snapshot_guard&.verify!(build_number: prepared[:build_number])
+
+      notarize_enabled = boolean_option(
+        options[:notarize] || ENV["SELF_RELEASE_NOTARIZE"],
+        default_value: true
+      )
+      notarize_self_release_package if notarize_enabled
+
+      if publish_enabled
+        unless current_git_commit == source_commit
+          UI.user_error!("Source commit changed during the build; rerun before publishing.")
+        end
+        publish_self_release_package(
+          prepared: prepared,
+          changelog: options[:changelog],
+          repository: options[:repository],
+          tag: options[:tag],
+          release_name: options[:release_name],
+          prerelease: options[:prerelease],
+          draft: options[:draft],
+          beta: options[:beta]
+        )
+        next prepared
+      end
+
+      record_fastlane_run_metadata(
+        lane_name: "self_release",
+        version: prepared[:version],
+        build_number: prepared[:build_number],
+        changelog_source: "build-only"
+      )
+
+      UI.success("Built #{prepared[:version]} (#{prepared[:build_number]}) with SNIP_BUILD_TARGET=Self Release.")
+      prepared
+    end
   end
 
   desc "Build and publish the Self Release package to GitHub Releases"

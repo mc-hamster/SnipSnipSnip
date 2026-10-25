@@ -1,14 +1,15 @@
+import Accelerate
 import CoreGraphics
 import Foundation
 
-nonisolated enum ScrollingStitchAppendResult: Equatable {
+nonisolated enum ScrollingStitchAppendResult: Equatable, Sendable {
     case appended
     case unchanged
     case lowConfidence
     case reachedMaximumHeight
 }
 
-nonisolated struct ScrollingStitchState {
+nonisolated struct ScrollingStitchState: Sendable {
     private var segments: [CGImage]
     fileprivate private(set) var lastCapturedFrame: CGImage
     private(set) var segmentCount: Int
@@ -93,7 +94,13 @@ nonisolated struct ScrollingStitchMatch: Equatable {
     }
 }
 
-nonisolated struct ScrollingStitcher {
+nonisolated struct ScrollingStitchFrameResult: Sendable {
+    let result: ScrollingStitchAppendResult
+    let state: ScrollingStitchState
+    let sample: ScrollingSampleImage?
+}
+
+nonisolated struct ScrollingStitcher: Sendable {
     private let minimumConfidence: Double
     private let sampleWidth: Int
 
@@ -141,6 +148,32 @@ nonisolated struct ScrollingStitcher {
 
     func makeSampleImage(for image: CGImage) -> ScrollingSampleImage? {
         ScrollingSampleImage(image: image, sampleWidth: sampleWidth)
+    }
+
+    @concurrent
+    func prepareSample(for image: CGImage) async -> ScrollingSampleImage? {
+        makeSampleImage(for: image)
+    }
+
+    @concurrent
+    func appendingFrame(
+        _ image: CGImage, after previousImage: CGImage,
+        previousSample: ScrollingSampleImage?, to state: ScrollingStitchState
+    ) async -> ScrollingStitchFrameResult {
+        var updated = state
+        let sample = makeSampleImage(for: image)
+        let result: ScrollingStitchAppendResult
+        if let previousSample, let sample {
+            result = append(image, after: previousImage, previousSample: previousSample, nextSample: sample, to: &updated)
+        } else {
+            result = append(image, after: previousImage, to: &updated)
+        }
+        return ScrollingStitchFrameResult(result: result, state: updated, sample: sample)
+    }
+
+    @concurrent
+    func makePreview(for state: ScrollingStitchState) async -> CGImage? {
+        state.makePreviewImage()
     }
 
     func append(_ nextImage: CGImage, to state: inout ScrollingStitchState) -> ScrollingStitchAppendResult {
@@ -223,7 +256,10 @@ nonisolated struct ScrollingStitcher {
             return nil
         }
         let maximumHeaderHeight = min(Int(Double(viewportHeight) * 0.20), 160)
+        let ambiguityMargin = 0.000_1
+        var candidates: [ScrollingStitchMatch] = []
         var best: ScrollingStitchMatch?
+        var differences = [Float](repeating: 0, count: previousSample.width * 3)
 
         // The last scroll can advance by just one pixel or not move at all.
         // Search every seam, including zero movement, so a stationary frame
@@ -231,7 +267,9 @@ nonisolated struct ScrollingStitcher {
         // Excluding a bounded header from both aligned strips keeps sticky
         // headers out of scoring without a second search dimension. The seam
         // remains totalOverlap regardless of how much header was excluded.
-        for totalOverlap in minimumOverlap...maximumOverlap {
+        // Check small movements first so their strong scores can cheaply rule
+        // out the remaining candidates without sampling every overlap in full.
+        for totalOverlap in stride(from: maximumOverlap, through: minimumOverlap, by: -1) {
             let nextStart = min(maximumHeaderHeight, totalOverlap - minimumOverlap)
             let overlap = totalOverlap - nextStart
             let score = confidence(
@@ -240,14 +278,29 @@ nonisolated struct ScrollingStitcher {
                 right: nextSample,
                 rightY: nextStart,
                 height: overlap,
-                minConfidence: max(best?.confidence ?? minimumConfidence, minimumConfidence)
+                differences: &differences,
+                minConfidence: max((best?.confidence ?? minimumConfidence) - ambiguityMargin, minimumConfidence)
             )
             let candidate = ScrollingStitchMatch(overlapHeight: overlap, nextStartY: nextStart, confidence: score)
+            if score >= minimumConfidence {
+                candidates.append(candidate)
+            }
             if isBetterMatch(candidate, than: best) {
                 best = candidate
             }
         }
 
+        guard let best else { return nil }
+        // A stationary match never invents content. For movement, distinct
+        // equally plausible offsets are ambiguous (for example repeated rows).
+        // Let the capture service retry or offer the accepted partial result.
+        if best.appendStartY < viewportHeight,
+           candidates.contains(where: {
+               abs($0.appendStartY - best.appendStartY) > 1
+                   && $0.confidence >= best.confidence - ambiguityMargin
+           }) {
+            return nil
+        }
         return best
     }
 
@@ -278,6 +331,7 @@ nonisolated struct ScrollingStitcher {
         right: ScrollingSampleImage,
         rightY: Int,
         height: Int,
+        differences: inout [Float],
         maxRows: Int = 160,
         minConfidence: Double = 0
     ) -> Double {
@@ -296,48 +350,57 @@ nonisolated struct ScrollingStitcher {
         let sampleCount = width * rows
         let maxAllowedDifference = Double(sampleCount) * 255 * (1 - minConfidence)
 
-        var difference = 0
-        var edgeDifference = 0
-        var edgeMagnitude = 0
+        // Accelerate executes the pixel arithmetic in optimized vector code even
+        // in Xcode's Debug builds. The metric and sampled rows are unchanged.
+        return left.colors.withUnsafeBufferPointer { leftColors in
+            right.colors.withUnsafeBufferPointer { rightColors in
+                left.edges.withUnsafeBufferPointer { leftEdges in
+                    right.edges.withUnsafeBufferPointer { rightEdges in
+                        differences.withUnsafeMutableBufferPointer { scratch in
+                            var difference: Double = 0
+                            var edgeDifference: Double = 0
+                            var edgeMagnitude: Double = 0
+                            let count = vDSP_Length(width)
+                            for yOffset in stride(from: 0, to: height, by: rowStep) {
+                                let leftRow = leftY + yOffset
+                                let rightRow = rightY + yOffset
+                                let leftOffset = leftRow * width
+                                let rightOffset = rightRow * width
+                                var rowDifference: Float = 0
+                                vDSP_vsub(leftColors.baseAddress! + leftOffset, 1,
+                                          rightColors.baseAddress! + rightOffset, 1,
+                                          scratch.baseAddress!, 1, count)
+                                vDSP_svemg(scratch.baseAddress!, 1, &rowDifference, count)
+                                difference += Double(rowDifference)
+                                if difference > maxAllowedDifference { return 0 }
 
-        for yOffset in stride(from: 0, to: height, by: rowStep) {
-            let leftOffset = (leftY + yOffset) * width
-            let rightOffset = (rightY + yOffset) * width
+                                vDSP_vsub(leftEdges.baseAddress! + leftOffset, 1,
+                                          rightEdges.baseAddress! + rightOffset, 1,
+                                          scratch.baseAddress!, 1, count)
+                                vDSP_svemg(scratch.baseAddress!, 1, &rowDifference, count)
+                                edgeDifference += Double(rowDifference)
+                                edgeMagnitude += Double(left.edgeMagnitudes[leftRow]) + Double(right.edgeMagnitudes[rightRow])
+                            }
 
-            for x in 0..<width {
-                difference += abs(Int(left.pixels[leftOffset + x]) - Int(right.pixels[rightOffset + x]))
-                if x >= 3 {
-                    let leftEdge = Int(left.pixels[leftOffset + x]) - Int(left.pixels[leftOffset + x - 3])
-                    let rightEdge = Int(right.pixels[rightOffset + x]) - Int(right.pixels[rightOffset + x - 3])
-                    edgeDifference += abs(leftEdge - rightEdge)
-                    edgeMagnitude += abs(leftEdge) + abs(rightEdge)
+                            let colorConfidence = 1 - difference / Double(sampleCount * 255)
+                            // Edge positions still reject unrelated text on white backgrounds.
+                            let edgeConfidence = edgeMagnitude > 0 ? 1 - edgeDifference / edgeMagnitude : 1
+                            return min(colorConfidence, edgeConfidence)
+                        }
+                    }
                 }
             }
-
-            if Double(difference) > maxAllowedDifference {
-                return 0
-            }
         }
-
-        guard sampleCount > 0 else {
-            return 0
-        }
-
-        let normalizedDifference = Double(difference) / Double(sampleCount * 255)
-        let colorConfidence = 1 - normalizedDifference
-        // White page backgrounds can dominate an average color score even when
-        // every text edge is misplaced. Require the informative edges to agree
-        // too; flat-color strips still use their color score.
-        let edgeConfidence = edgeMagnitude > 0 ? 1 - Double(edgeDifference) / Double(edgeMagnitude) : 1
-        return min(colorConfidence, edgeConfidence)
     }
 
 }
 
-nonisolated struct ScrollingSampleImage {
+nonisolated struct ScrollingSampleImage: Sendable {
     let width: Int
     let height: Int
-    let pixels: [UInt8]
+    let colors: [Float]
+    let edges: [Float]
+    let edgeMagnitudes: [Float]
 
     init?(image: CGImage, sampleWidth: Int) {
         let resolvedWidth = min(max(sampleWidth, 8), image.width)
@@ -364,19 +427,40 @@ nonisolated struct ScrollingSampleImage {
 
         // Preserve color channels: different colored rows can have identical
         // luminance, which otherwise looks like a stationary or repeated page.
-        var samples = [UInt8](repeating: 0, count: resolvedWidth * resolvedHeight * 3)
-        for y in 0..<resolvedHeight {
-            for x in 0..<resolvedWidth {
-                let offset = y * bytesPerRow + x * bytesPerPixel
-                let sampleOffset = (y * resolvedWidth + x) * 3
-                samples[sampleOffset] = rgba[offset]
-                samples[sampleOffset + 1] = rgba[offset + 1]
-                samples[sampleOffset + 2] = rgba[offset + 2]
+        let rowWidth = resolvedWidth * 3
+        let pixelCount = resolvedWidth * resolvedHeight
+        var colors = [Float](repeating: 0, count: pixelCount * 3)
+        rgba.withUnsafeBufferPointer { source in
+            colors.withUnsafeMutableBufferPointer { target in
+                for channel in 0..<3 {
+                    vDSP_vfltu8(source.baseAddress! + channel, 4,
+                                target.baseAddress! + channel, 3, vDSP_Length(pixelCount))
+                }
             }
         }
-
-        width = resolvedWidth
-        height = resolvedHeight
-        pixels = samples
+        var edges = [Float](repeating: 0, count: colors.count)
+        var edgeMagnitudes = [Float](repeating: 0, count: resolvedHeight)
+        colors.withUnsafeBufferPointer { source in
+            edges.withUnsafeMutableBufferPointer { target in
+                // Bound edge amplitude on both sides so isolated visual updates
+                // cannot outweigh aligned edges. Cache this once per frame.
+                var minimum: Float = -4
+                var maximum: Float = 4
+                for row in 0..<resolvedHeight where rowWidth > 3 {
+                    let offset = row * rowWidth
+                    let count = vDSP_Length(rowWidth - 3)
+                    let output = target.baseAddress! + offset + 3
+                    vDSP_vsub(source.baseAddress! + offset, 1,
+                              source.baseAddress! + offset + 3, 1, output, 1, count)
+                    vDSP_vclip(output, 1, &minimum, &maximum, output, 1, count)
+                    vDSP_svemg(output, 1, &edgeMagnitudes[row], count)
+                }
+            }
+        }
+        self.width = resolvedWidth
+        self.height = resolvedHeight
+        self.colors = colors
+        self.edges = edges
+        self.edgeMagnitudes = edgeMagnitudes
     }
 }

@@ -472,7 +472,7 @@ private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate 
     override func layout() {
         super.layout()
         if let context = editableTextContext {
-            textView.frame = textViewFrame(in: bounds, context: context)
+            layoutTextView(context: context)
             configureTextContainer()
         }
     }
@@ -622,7 +622,7 @@ private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate 
         textView.typingAttributes = attributes
         textView.font = attributes[.font] as? NSFont
         textView.alignment = context.alignment.nsTextAlignment
-        textView.frame = textViewFrame(in: bounds, context: context)
+        layoutTextView(context: context)
         configureTextContainer()
         needsLayout = true
     }
@@ -655,12 +655,10 @@ private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate 
             return
         }
 
-        frame = liveFittedOverlayRect(
-            for: text,
-            projectedRect: projectedRect,
-            context: context
-        )
-        textView.frame = textViewFrame(in: bounds, context: context)
+        // The annotation owns the final bounds. Lay out native text in the
+        // same document units, then let the view transform provide canvas zoom.
+        frame = projectedRect.integral
+        layoutTextView(context: context)
         configureTextContainer()
         layoutLiveTextIfNeeded()
         needsDisplay = true
@@ -671,177 +669,16 @@ private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate 
         return EditableTextContext(annotation: fittedAnnotation)?.documentRect ?? context.documentRect
     }
 
-    private func maximumAutoTextWidth(for shape: TextShape) -> CGFloat {
-        gscAutoTextMaxWidth(
-            originX: shape.rect.minX,
-            within: controller.snapshot.cropRect,
-            minWidth: 44
-        )
-    }
-
-    private func maximumAutoCalloutWidth(for shape: CalloutShape) -> CGFloat {
-        gscAutoTextMaxWidth(
-            originX: shape.rect.minX,
-            within: controller.snapshot.cropRect,
-            minWidth: 194
-        )
-    }
-
     private func textAttributes(for context: EditableTextContext) -> [NSAttributedString.Key: Any] {
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = context.alignment.nsTextAlignment
         paragraphStyle.lineBreakMode = .byWordWrapping
 
         return [
-            .font: NSFont.systemFont(ofSize: context.annotation.style.fontSize * displayScale, weight: .semibold),
+            .font: NSFont.systemFont(ofSize: context.annotation.style.fontSize, weight: .semibold),
             .foregroundColor: context.annotation.style.strokeColor.nsColor,
             .paragraphStyle: paragraphStyle
         ]
-    }
-
-    private func liveFittedOverlayRect(
-        for text: String,
-        projectedRect: CGRect,
-        context: EditableTextContext
-    ) -> CGRect {
-        let attributes = textAttributes(for: context)
-        let font = attributes[.font] as? NSFont
-        let minOverlaySize = minimumOverlaySize(for: context)
-        var overlayRect = projectedRect.standardized
-
-        if context.automaticallySizesToText {
-            let maxOverlayWidth = max(maximumOverlayWidth(for: context), minOverlaySize.width)
-            let maxContentWidth = max(textContentWidth(forOverlayWidth: maxOverlayWidth, height: max(overlayRect.height, minOverlaySize.height), context: context), 1)
-            let minContentWidth = max(textContentWidth(forOverlayWidth: minOverlaySize.width, height: minOverlaySize.height, context: context), 1)
-            let unwrappedContentWidth = ceil(
-                liveTextLayoutMetrics(for: text, width: 100_000, attributes: attributes).usedRect.width
-            ) + liveTextHorizontalLayoutSlack(for: font)
-            let targetContentWidth = unwrappedContentWidth <= maxContentWidth
-                ? max(unwrappedContentWidth, minContentWidth)
-                : maxContentWidth
-
-            overlayRect.size.width = min(
-                max(overlayWidth(forTextContentWidth: targetContentWidth, height: max(overlayRect.height, minOverlaySize.height), context: context), minOverlaySize.width),
-                maxOverlayWidth
-            )
-            overlayRect = positionLiveOverlayRectWithinCrop(overlayRect)
-        }
-
-        let contentWidth = max(textContentWidth(forOverlayWidth: overlayRect.width, height: max(overlayRect.height, minOverlaySize.height), context: context), 1)
-        let textMetrics = liveTextLayoutMetrics(for: text, width: contentWidth, attributes: attributes)
-        let targetHeight = ceil(textMetrics.usedRect.height)
-            + verticalTextPadding(for: context)
-            + liveTextVerticalLayoutSlack(for: font)
-        overlayRect.size.height = max(overlayRect.height, targetHeight, minOverlaySize.height)
-
-        if context.automaticallySizesToText {
-            overlayRect = positionLiveOverlayRectWithinCrop(overlayRect)
-        }
-
-        return overlayRect.integral
-    }
-
-    private func minimumOverlaySize(for context: EditableTextContext) -> CGSize {
-        switch context {
-        case .text:
-            return CGSize(width: 44 * displayScale, height: 34 * displayScale)
-        case .callout:
-            return CGSize(width: 194 * displayScale, height: 72 * displayScale)
-        }
-    }
-
-    private func maximumOverlayWidth(for context: EditableTextContext) -> CGFloat {
-        switch context {
-        case let .text(_, shape):
-            return maximumAutoTextWidth(for: shape) * displayScale
-        case let .callout(_, shape):
-            return maximumAutoCalloutWidth(for: shape) * displayScale
-        }
-    }
-
-    private func textContentWidth(forOverlayWidth overlayWidth: CGFloat, height: CGFloat, context: EditableTextContext) -> CGFloat {
-        switch context {
-        case .text:
-            return overlayWidth - textInsetX * 2
-        case .callout:
-            let badgeDiameter = calloutBadgeDiameter(forHeight: height)
-            return overlayWidth - badgeDiameter + calloutBadgeOverlap - calloutTextInsetX * 2
-        }
-    }
-
-    private func overlayWidth(forTextContentWidth contentWidth: CGFloat, height: CGFloat, context: EditableTextContext) -> CGFloat {
-        switch context {
-        case .text:
-            return contentWidth + textInsetX * 2
-        case .callout:
-            let badgeDiameter = calloutBadgeDiameter(forHeight: height)
-            return contentWidth + badgeDiameter - calloutBadgeOverlap + calloutTextInsetX * 2
-        }
-    }
-
-    private func verticalTextPadding(for context: EditableTextContext) -> CGFloat {
-        switch context {
-        case .text:
-            return textInsetY * 2
-        case .callout:
-            return calloutTextInsetY * 2
-        }
-    }
-
-    private func positionLiveOverlayRectWithinCrop(_ rect: CGRect) -> CGRect {
-        guard let cropRect = projectedTextRect(for: controller.snapshot.cropRect) else {
-            return rect.integral
-        }
-
-        return gscTextRectPositionedWithinBounds(rect, bounds: cropRect)
-    }
-
-    private func liveTextLayoutMetrics(
-        for text: String,
-        width: CGFloat,
-        attributes: [NSAttributedString.Key: Any]
-    ) -> (usedRect: CGRect, lineCount: Int) {
-        let textStorage = NSTextStorage(
-            string: liveTextMeasurementString(for: text),
-            attributes: attributes
-        )
-        let layoutManager = NSLayoutManager()
-        let textContainer = NSTextContainer(
-            size: CGSize(width: max(width, 1), height: liveTextMeasurementHeight)
-        )
-
-        layoutManager.usesFontLeading = textView.layoutManager?.usesFontLeading ?? true
-        textContainer.lineFragmentPadding = 0
-        textContainer.maximumNumberOfLines = 0
-        textContainer.lineBreakMode = .byWordWrapping
-
-        layoutManager.addTextContainer(textContainer)
-        textStorage.addLayoutManager(layoutManager)
-        layoutManager.ensureLayout(for: textContainer)
-
-        let glyphRange = layoutManager.glyphRange(for: textContainer)
-        var lineCount = 0
-        layoutManager.enumerateLineFragments(forGlyphRange: glyphRange) { _, _, _, _, _ in
-            lineCount += 1
-        }
-
-        return (layoutManager.usedRect(for: textContainer), max(lineCount, 1))
-    }
-
-    private func liveTextMeasurementString(for text: String) -> String {
-        guard !text.isEmpty else {
-            return " "
-        }
-
-        return text.hasSuffix("\n") || text.hasSuffix("\r") ? text + " " : text
-    }
-
-    private func liveTextHorizontalLayoutSlack(for font: NSFont?) -> CGFloat {
-        max((font?.pointSize ?? 0) * 0.06, displayScale, 0.75)
-    }
-
-    private func liveTextVerticalLayoutSlack(for font: NSFont?) -> CGFloat {
-        ceil(max((font?.pointSize ?? 0) * 0.12, (font?.descender.magnitude ?? 0) * 0.5, 2 * displayScale, 1))
     }
 
     private func layoutLiveTextIfNeeded() {
@@ -860,6 +697,14 @@ private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate 
             width: max(textView.bounds.width, 1),
             height: liveTextMeasurementHeight
         )
+    }
+
+    private func layoutTextView(context: EditableTextContext) {
+        textView.frame = textViewFrame(in: bounds, context: context)
+        textView.setBoundsSize(CGSize(
+            width: textView.frame.width / displayScale,
+            height: textView.frame.height / displayScale
+        ))
     }
 
     private func textViewFrame(in localBounds: CGRect, context: EditableTextContext) -> CGRect {
@@ -918,7 +763,8 @@ private final class AnnotationTextEditorOverlayView: NSView, NSTextViewDelegate 
         return AnnotationTextEditorOverlayDebugState(
             overlayFrame: frame,
             textViewFrame: textView.frame,
-            usedTextRect: textView.layoutManager?.usedRect(for: textContainer) ?? .zero,
+            usedTextRect: (textView.layoutManager?.usedRect(for: textContainer) ?? .zero)
+                .applying(CGAffineTransform(scaleX: displayScale, y: displayScale)),
             text: textView.string,
             lineFragmentCount: max(lineFragmentCount, 1),
             displayScale: displayScale,

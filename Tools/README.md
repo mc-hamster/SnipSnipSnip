@@ -82,7 +82,7 @@ missing browser into a failing gate instead of a skip.
 
 ## Pro release policy tests
 
-Run `ruby Tools/tests/test_self_release.rb` for offline checks of build allocation, source-commit tag reservation, refusal to replace existing tags, draft/prerelease flags, and literal changelog argument handling in the actual workflow script. These tests use command spies and temporary fixtures; they do not access the network, keychain, or publishing services. CI and the Pro release preflight run this suite. See `FASTLANE.md` for required signing/notarization secrets and the stable-release promotion procedure.
+Run `ruby Tools/tests/test_self_release.rb` for offline checks of build allocation, isolated source snapshots and cleanup, source-change rejection with only the expected build-number edit allowed, source-commit tag reservation, refusal to replace existing tags, draft/prerelease flags, and literal changelog argument handling in the actual workflow script. These tests use command spies and temporary fixtures; they do not access the network, keychain, or publishing services. CI and the Pro release preflight run this suite. See `FASTLANE.md` for required signing/notarization secrets and the stable-release promotion procedure.
 
 ## Release test gate
 

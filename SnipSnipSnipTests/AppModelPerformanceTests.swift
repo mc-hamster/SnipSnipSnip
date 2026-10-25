@@ -380,6 +380,7 @@ final class AppModelPerformanceTests: XCTestCase {
     }
 
     func testPerformanceBudgetCatalogCoversMajorScalablePaths() {
+        XCTAssertEqual(PerformanceBudgetCatalog.scrollingFrameStitch.maximumSeconds, 0.25)
         XCTAssertGreaterThan(PerformanceBudgetCatalog.captureEntryPoint.maximumSeconds, 0)
         XCTAssertGreaterThan(PerformanceBudgetCatalog.screenshotRenderAndExport.maximumSeconds, 0)
         XCTAssertGreaterThan(PerformanceBudgetCatalog.archiveIndexedSearch.maximumSeconds, 0)

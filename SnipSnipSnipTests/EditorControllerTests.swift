@@ -648,6 +648,33 @@ final class EditorControllerTests: XCTestCase {
         }
     }
 
+    func testLiveTextBoundsMatchTheModelAcrossCanvasScales() throws {
+        for base in [
+            Annotation.makeText(at: CGPoint(x: 40, y: 40)),
+            Annotation.makeCallout(at: CGPoint(x: 40, y: 40), number: 1)
+        ] {
+            for canvasSize in [CGSize(width: 240, height: 180), CGSize(width: 800, height: 600), CGSize(width: 1200, height: 900)] {
+                let annotation = base.updatingText("Text that wraps consistently at every canvas zoom")
+                let controller = makeController(snapshot: makeEditorSnapshot(
+                    cropRect: CGRect(x: 0, y: 0, width: 300, height: 600),
+                    annotations: [annotation], selectedAnnotationIDs: [annotation.id]
+                ), captureSize: CGSize(width: 800, height: 600))
+                let (canvas, _, _) = makeCanvasHarness(controller: controller, frame: CGRect(origin: .zero, size: canvasSize))
+                for fontSize: CGFloat in [12, 48, 20] {
+                    controller.updateFontSize(fontSize)
+                    canvas.layoutSubtreeIfNeeded()
+                    let model = try XCTUnwrap(controller.selectedAnnotation)
+                    let live = try XCTUnwrap(canvas.debugTextEditorOverlayState)
+                    assertRectsEqual(live.overlayFrame, viewRect(for: textBoxRect(of: model), controller: controller).integral)
+                    XCTAssertGreaterThanOrEqual(live.textViewFrame.height - ceil(live.usedTextRect.height), -1)
+                    controller.clearSelection()
+                    XCTAssertEqual(controller.snapshot.annotations, [model])
+                    controller.select(annotation.id)
+                }
+            }
+        }
+    }
+
     func testFontChangeDuringPendingTextEditKeepsSeparateUndoSteps() throws {
         for annotation in [
             Annotation.makeText(at: CGPoint(x: 40, y: 40)).updatingText("Original"),
