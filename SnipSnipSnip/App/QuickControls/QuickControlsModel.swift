@@ -290,13 +290,14 @@ final class QuickControlsModel: ObservableObject {
     }
 
     func setDockState(_ state: QuickControlsDockState) {
+        guard state != preferences.resolvedDockState else { return }
         var updated = preferences
         updated.dockState = state
         preferences = updated
     }
 
-    func toggleDockState() {
-        setDockState(preferences.resolvedDockState == .expanded ? .compact : .expanded)
+    func cycleDockState() {
+        setDockState(preferences.resolvedDockState.next)
     }
 
     func setDockEdge(_ edge: QuickControlsDockEdge) {
@@ -316,7 +317,7 @@ final class QuickControlsModel: ObservableObject {
     func restoreDefaultLayout() {
         var updated = preferences
         updated.items = QuickControlsPreferences.defaultItems
-        updated.dockState = .expanded
+        updated.dockState = .full
         updated.dockEdge = .right
         preferences = updated
     }

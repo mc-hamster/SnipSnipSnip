@@ -8,10 +8,16 @@ final class QuickControlsCoordinator: NSObject, NSWindowDelegate {
     private var palettePanel: NSPanel?
     private var customizationPanel: NSPanel?
     private var preferencesObserver: AnyCancellable?
+    private var menuTrackingObserver: AnyCancellable?
     private var hasActivated = false
     private var isRestoringFrame = false
     private var pendingDockSnap: DispatchWorkItem?
     private var paletteDisplayID: CGDirectDisplayID?
+    private var appliedDockState: QuickControlsDockState?
+    private var hoverReveal: QuickControlsIconReveal?
+    private var suppressesHoverUntilExit = false
+    private var hoverCollapseTimer: Timer?
+    private var trackingMenus = Set<ObjectIdentifier>()
 
     init(model: QuickControlsModel) {
         self.model = model
@@ -37,6 +43,13 @@ final class QuickControlsCoordinator: NSObject, NSWindowDelegate {
                     self.apply(self.model.preferences)
                 }
             }
+
+        let notifications = NotificationCenter.default
+        menuTrackingObserver = notifications.publisher(for: NSMenu.didBeginTrackingNotification)
+            .merge(with: notifications.publisher(for: NSMenu.didEndTrackingNotification))
+            .sink { [weak self] notification in
+                self?.menuTrackingChanged(notification)
+            }
     }
 
     func activate() {
@@ -52,7 +65,7 @@ final class QuickControlsCoordinator: NSObject, NSWindowDelegate {
         }
     }
 
-    func showPalette() {
+    private func showPalette() {
         let panel = palettePanel ?? makePalettePanel()
         if palettePanel == nil {
             palettePanel = panel
@@ -61,8 +74,11 @@ final class QuickControlsCoordinator: NSObject, NSWindowDelegate {
         panel.orderFrontRegardless()
     }
 
-    func hidePalette() {
+    private func hidePalette() {
+        cancelDockSnap()
         palettePanel?.orderOut(nil)
+        endHoverReveal(suppressUntilExit: false)
+        suppressesHoverUntilExit = false
     }
 
     func showCustomization() {
@@ -109,6 +125,10 @@ final class QuickControlsCoordinator: NSObject, NSWindowDelegate {
             customizationPanel = nil
         } else if window === palettePanel {
             palettePanel = nil
+            cancelDockSnap()
+            updateHoverReveal(nil)
+            cancelHoverCollapse()
+            suppressesHoverUntilExit = false
             model.setVisible(false)
         }
     }
@@ -118,26 +138,40 @@ final class QuickControlsCoordinator: NSObject, NSWindowDelegate {
             return
         }
 
-        if let palettePanel {
-            resizeAndAnchorPalette(palettePanel, preferences: preferences)
-        }
-
-        switch QuickControlsPaletteVisibilityDecision.resolve(
+        let visibility = QuickControlsPaletteVisibilityDecision.resolve(
             isRequestedVisible: preferences.isVisible,
             isPanelVisible: palettePanel?.isVisible == true
-        ) {
-        case .show:
-            showPalette()
-        case .preserve:
-            break
-        case .hide:
+        )
+        guard visibility != .hide else {
             hidePalette()
+            return
+        }
+
+        if let palettePanel {
+            let mode = preferences.resolvedDockState
+            let modeChanged = appliedDockState != mode
+            let baseFrame = restingFrame(of: palettePanel)
+            appliedDockState = mode
+            if modeChanged {
+                suppressesHoverUntilExit = mode == .iconOnly
+                updateHoverReveal(nil)
+                cancelHoverCollapse()
+            }
+            resizeAndAnchorPalette(palettePanel, preferences: preferences, from: baseFrame)
+            if modeChanged {
+                suppressesHoverUntilExit = mode == .iconOnly && pointerIsOver(palettePanel)
+                model.recordPanelFrame(palettePanel.frame, dockEdge: preferences.resolvedDockEdge)
+            }
+        }
+        if visibility == .show {
+            showPalette()
         }
     }
 
     private func makePalettePanel() -> NSPanel {
         let preferredSize = model.preferences.resolvedPanelSize
-        let panel = NSPanel(
+        appliedDockState = model.preferences.resolvedDockState
+        let panel = QuickControlsPalettePanel(
             contentRect: CGRect(origin: .zero, size: preferredSize),
             styleMask: [.nonactivatingPanel, .hudWindow],
             backing: .buffered,
@@ -151,6 +185,7 @@ final class QuickControlsCoordinator: NSObject, NSWindowDelegate {
             .stationary,
         ]
         panel.hidesOnDeactivate = false
+        panel.becomesKeyOnlyIfNeeded = true
         panel.isMovableByWindowBackground = true
         panel.acceptsMouseMovedEvents = true
         panel.sharingType = .none
@@ -161,8 +196,90 @@ final class QuickControlsCoordinator: NSObject, NSWindowDelegate {
         panel.maxSize = preferredSize
         panel.isReleasedWhenClosed = false
         panel.delegate = self
-        panel.contentView = NSHostingView(rootView: QuickControlsView(quickControls: model))
+        let hostingView = QuickControlsPaletteHostingView(rootView: paletteContent)
+        hostingView.sizingOptions = []
+        hostingView.pointerPresenceChanged = { [weak self] in self?.pointerPresenceChanged() }
+        panel.contentView = hostingView
         return panel
+    }
+
+    private var paletteContent: QuickControlsView {
+        QuickControlsView(quickControls: model, hoverReveal: hoverReveal) { [weak self] in
+            self?.endHoverReveal(suppressUntilExit: true)
+        }
+    }
+
+    private func updateHoverReveal(_ reveal: QuickControlsIconReveal?) {
+        guard hoverReveal != reveal else { return }
+        hoverReveal = reveal
+        (palettePanel?.contentView as? QuickControlsPaletteHostingView)?.rootView = paletteContent
+    }
+
+    private func restingFrame(of panel: NSWindow) -> CGRect {
+        hoverReveal?.iconFrame(in: panel.frame, edge: model.preferences.resolvedDockEdge) ?? panel.frame
+    }
+
+    private func pointerIsOver(_ panel: NSWindow) -> Bool {
+        panel.frame.contains(NSEvent.mouseLocation)
+    }
+
+    private func pointerPresenceChanged() {
+        guard !isRestoringFrame, let panel = palettePanel, panel.isVisible,
+              appliedDockState == .iconOnly, model.preferences.resolvedDockState == .iconOnly else { return }
+
+        if pointerIsOver(panel) {
+            cancelHoverCollapse()
+            guard hoverReveal == nil, !suppressesHoverUntilExit, trackingMenus.isEmpty,
+                  NSEvent.pressedMouseButtons == 0 else { return }
+            guard let screen = screen(withDisplayID: paletteDisplayID) ?? panel.screen else { return }
+            revealFull(on: panel, from: panel.frame, screen: screen, preferences: model.preferences)
+        } else {
+            suppressesHoverUntilExit = false
+            scheduleHoverCollapse()
+        }
+    }
+
+    private func menuTrackingChanged(_ notification: Notification) {
+        guard let menu = notification.object as? NSMenu else { return }
+        if notification.name == NSMenu.didBeginTrackingNotification {
+            trackingMenus.insert(ObjectIdentifier(menu))
+            cancelHoverCollapse()
+        } else {
+            trackingMenus.remove(ObjectIdentifier(menu))
+            if trackingMenus.isEmpty {
+                pointerPresenceChanged()
+            }
+        }
+    }
+
+    private func scheduleHoverCollapse() {
+        cancelHoverCollapse()
+        guard hoverReveal != nil, trackingMenus.isEmpty else { return }
+        // The default run-loop mode also defers collapse during native menu and mouse tracking.
+        hoverCollapseTimer = Timer.scheduledTimer(withTimeInterval: 0.22, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let panel = self.palettePanel, !self.pointerIsOver(panel) else { return }
+                if NSEvent.pressedMouseButtons & 1 != 0 || self.pendingDockSnap != nil {
+                    self.scheduleHoverCollapse()
+                } else {
+                    self.endHoverReveal(suppressUntilExit: false)
+                }
+            }
+        }
+    }
+
+    private func cancelHoverCollapse() {
+        hoverCollapseTimer?.invalidate()
+        hoverCollapseTimer = nil
+    }
+
+    private func endHoverReveal(suppressUntilExit: Bool) {
+        cancelHoverCollapse()
+        guard hoverReveal != nil, let panel = palettePanel else { return }
+        let frame = restingFrame(of: panel)
+        suppressesHoverUntilExit = suppressUntilExit && frame.contains(NSEvent.mouseLocation)
+        updateHoverReveal(nil)
+        setPaletteFrame(frame, on: panel)
     }
 
     private func restoreFrame(of panel: NSPanel) {
@@ -206,26 +323,52 @@ final class QuickControlsCoordinator: NSObject, NSWindowDelegate {
         }
     }
 
-    private func resizeAndAnchorPalette(_ panel: NSPanel, preferences: QuickControlsPreferences) {
-        isRestoringFrame = true
-        defer { isRestoringFrame = false }
-
-        var frame = panel.frame
+    private func resizeAndAnchorPalette(
+        _ panel: NSPanel,
+        preferences: QuickControlsPreferences,
+        from baseFrame: CGRect
+    ) {
+        var frame = baseFrame
         let screen = screen(withDisplayID: paletteDisplayID)
             ?? panel.screen
             ?? screenContainingMeaningfulArea(of: frame)
             ?? NSScreen.main
         paletteDisplayID = screen?.gscDisplayID
         let size = fittedSize(for: preferences, on: screen)
-        panel.minSize = size
-        panel.maxSize = size
         frame.origin.y += frame.height - size.height
         frame.size = size
-        panel.setFrame(
-            anchoredFrame(frame, edge: preferences.resolvedDockEdge, on: screen),
-            display: true,
-            animate: false
-        )
+        let edge = preferences.resolvedDockEdge
+        frame = anchoredFrame(frame, edge: edge, on: screen)
+        if hoverReveal != nil, let screen {
+            revealFull(on: panel, from: frame, screen: screen, preferences: preferences)
+        } else {
+            updateHoverReveal(nil)
+            setPaletteFrame(frame, on: panel)
+        }
+    }
+
+    private func revealFull(
+        on panel: NSWindow,
+        from iconFrame: CGRect,
+        screen: NSScreen,
+        preferences: QuickControlsPreferences
+    ) {
+        let size = fittedSize(for: preferences, presentation: .full, on: screen)
+        let visibleFrame = screen.visibleFrame
+        let reveal = QuickControlsIconReveal(iconFrame: iconFrame, visibleFrame: visibleFrame, fullHeight: size.height)
+        let frame = reveal.fullFrame(from: iconFrame, size: size, edge: preferences.resolvedDockEdge,
+                                     visibleFrame: visibleFrame)
+        setPaletteFrame(frame, on: panel)
+        updateHoverReveal(reveal)
+    }
+
+    private func setPaletteFrame(_ frame: CGRect, on panel: NSWindow, animate: Bool = false) {
+        guard frame != panel.frame else { return }
+        isRestoringFrame = true
+        defer { isRestoringFrame = false }
+        panel.minSize = frame.size
+        panel.maxSize = frame.size
+        panel.setFrame(frame, display: true, animate: animate)
     }
 
     private func anchoredFrame(
@@ -253,9 +396,10 @@ final class QuickControlsCoordinator: NSObject, NSWindowDelegate {
 
     private func fittedSize(
         for preferences: QuickControlsPreferences,
+        presentation: QuickControlsDockState? = nil,
         on screen: NSScreen?
     ) -> CGSize {
-        let naturalSize = preferences.resolvedPanelSize
+        let naturalSize = preferences.panelSize(for: presentation ?? preferences.resolvedDockState)
         guard let visibleFrame = screen?.visibleFrame else {
             return naturalSize
         }
@@ -274,7 +418,7 @@ final class QuickControlsCoordinator: NSObject, NSWindowDelegate {
               window === palettePanel else {
             return
         }
-        pendingDockSnap?.cancel()
+        cancelDockSnap()
         let workItem = DispatchWorkItem { [weak self, weak window] in
             guard let self, let window else { return }
             self.snapDock(window)
@@ -283,7 +427,13 @@ final class QuickControlsCoordinator: NSObject, NSWindowDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.22, execute: workItem)
     }
 
+    private func cancelDockSnap() {
+        pendingDockSnap?.cancel()
+        pendingDockSnap = nil
+    }
+
     private func snapDock(_ panel: NSWindow) {
+        pendingDockSnap = nil
         guard !isRestoringFrame else { return }
         // A pause in pointer movement is not the end of a window drag.
         // Wait for release before snapping or publishing a new saved frame.
@@ -291,18 +441,28 @@ final class QuickControlsCoordinator: NSObject, NSWindowDelegate {
             scheduleDockSnap(from: Notification(name: NSWindow.didMoveNotification, object: panel))
             return
         }
-        let screen = panel.screen ?? screenContainingMeaningfulArea(of: panel.frame) ?? NSScreen.main
-        guard let visibleFrame = screen?.visibleFrame else { return }
-        paletteDisplayID = screen?.gscDisplayID
+        guard let screen = panel.screen ?? screenContainingMeaningfulArea(of: panel.frame) ?? NSScreen.main else {
+            return
+        }
+        let visibleFrame = screen.visibleFrame
+        paletteDisplayID = screen.gscDisplayID
         let distanceToLeft = abs(panel.frame.minX - visibleFrame.minX)
         let distanceToRight = abs(visibleFrame.maxX - panel.frame.maxX)
         let edge: QuickControlsDockEdge = distanceToLeft <= distanceToRight ? .left : .right
-        var candidate = panel.frame
+        var candidate = restingFrame(of: panel)
+        cancelHoverCollapse()
         candidate.size = fittedSize(for: model.preferences, on: screen)
         let frame = anchoredFrame(candidate, edge: edge, on: screen)
-        isRestoringFrame = true
-        panel.setFrame(frame, display: true, animate: true)
-        isRestoringFrame = false
+        if hoverReveal != nil {
+            var preferences = model.preferences
+            preferences.dockEdge = edge
+            revealFull(on: panel, from: frame, screen: screen, preferences: preferences)
+            if !pointerIsOver(panel) {
+                scheduleHoverCollapse()
+            }
+        } else {
+            setPaletteFrame(frame, on: panel, animate: true)
+        }
         model.recordPanelFrame(frame, dockEdge: edge)
     }
 
@@ -313,6 +473,37 @@ final class QuickControlsCoordinator: NSObject, NSWindowDelegate {
         return NSScreen.screens.first { $0.gscDisplayID == displayID }
     }
 
+}
+
+private final class QuickControlsPalettePanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+}
+
+private final class QuickControlsPaletteHostingView: NSHostingView<QuickControlsView> {
+    var pointerPresenceChanged: (() -> Void)?
+    private var pointerTrackingArea: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let pointerTrackingArea {
+            removeTrackingArea(pointerTrackingArea)
+        }
+        let area = NSTrackingArea(rect: .zero, options: [.inVisibleRect, .mouseEnteredAndExited, .activeAlways],
+                                  owner: self, userInfo: nil)
+        addTrackingArea(area)
+        pointerTrackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        pointerPresenceChanged?()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        pointerPresenceChanged?()
+    }
 }
 
 private extension CGRect {

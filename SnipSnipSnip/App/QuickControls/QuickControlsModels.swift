@@ -17,6 +17,8 @@ nonisolated enum QuickControlsDockMetrics {
     static let compactSectionHeight: CGFloat = 9
     static let contentTopPadding: CGFloat = 3
     static let contentBottomPadding: CGFloat = 9
+    static let logoHitWidth = compactWidth - panelInset * 2
+    static let iconPanelSize = CGSize(width: compactWidth, height: expandedHeaderHeight + panelInset * 2)
 
     static func expandedWidth(for items: [QuickControlItem]) -> CGFloat {
         let longestLabelCount = items.map { item in
@@ -32,15 +34,15 @@ nonisolated enum QuickControlsDockMetrics {
         presentation: QuickControlsDockState
     ) -> CGFloat {
         guard itemCount > 0 else {
-            return presentation == .expanded ? 154 : 104
+            return presentation == .full ? 154 : 104
         }
-        let headerHeight = presentation == .expanded
+        let headerHeight = presentation == .full
             ? expandedHeaderHeight
             : compactHeaderHeight
-        let sectionHeight = presentation == .expanded
+        let sectionHeight = presentation == .full
             ? expandedSectionHeight
             : compactSectionHeight
-        let spacing: CGFloat = presentation == .expanded ? 6 : 5
+        let spacing: CGFloat = presentation == .full ? 6 : 5
         let childCount = itemCount + sectionCount
         return (panelInset * 2)
             + headerHeight
@@ -54,27 +56,66 @@ nonisolated enum QuickControlsDockMetrics {
 }
 
 nonisolated enum QuickControlsDockState: String, CaseIterable, Codable, Identifiable, Sendable {
-    case compact
-    case expanded
+    // Keep the stored values used by existing docks.
+    case slim = "compact"
+    case full = "expanded"
+    case iconOnly
 
     var id: String { rawValue }
 
     var label: String {
         switch self {
-        case .compact:
-            "Compact"
-        case .expanded:
-            "Expanded"
+        case .slim:
+            String(localized: "Slim")
+        case .full:
+            String(localized: "Full")
+        case .iconOnly:
+            String(localized: "Icon Only")
         }
     }
 
-    var width: CGFloat {
+    var next: Self {
         switch self {
-        case .compact:
-            QuickControlsDockMetrics.compactWidth
-        case .expanded:
-            QuickControlsDockMetrics.expandedWidth
+        case .slim: .full
+        case .full: .iconOnly
+        case .iconOnly: .slim
         }
+    }
+
+    var previewPresentation: Self { self == .iconOnly ? .full : self }
+}
+
+nonisolated enum QuickControlsIconReveal: Equatable, Sendable {
+    case above
+    case below
+
+    init(iconFrame: CGRect, visibleFrame: CGRect, fullHeight: CGFloat) {
+        let below = iconFrame.maxY - visibleFrame.minY
+        let above = visibleFrame.maxY - iconFrame.minY
+        self = below >= fullHeight || below >= above ? .below : .above
+    }
+
+    func fullFrame(from iconFrame: CGRect, size: CGSize, edge: QuickControlsDockEdge, visibleFrame: CGRect) -> CGRect {
+        let availableHeight = self == .above
+            ? visibleFrame.maxY - iconFrame.minY
+            : iconFrame.maxY - visibleFrame.minY
+        let height = min(size.height, availableHeight)
+        return CGRect(
+            x: edge == .left ? iconFrame.minX : iconFrame.maxX - size.width,
+            y: self == .above ? iconFrame.minY : iconFrame.maxY - height,
+            width: size.width,
+            height: height
+        )
+    }
+
+    func iconFrame(in fullFrame: CGRect, edge: QuickControlsDockEdge) -> CGRect {
+        let size = QuickControlsDockMetrics.iconPanelSize
+        return CGRect(
+            x: edge == .left ? fullFrame.minX : fullFrame.maxX - size.width,
+            y: self == .above ? fullFrame.minY : fullFrame.maxY - size.height,
+            width: size.width,
+            height: size.height
+        )
     }
 }
 
@@ -541,7 +582,7 @@ nonisolated struct QuickControlsPreferences: Codable, Equatable, Sendable {
             height: QuickControlsDockMetrics.naturalHeight(
                 itemCount: defaultItems.count,
                 sectionCount: sections.count,
-                presentation: .expanded
+                presentation: .full
             )
         )
     }
@@ -560,7 +601,7 @@ nonisolated struct QuickControlsPreferences: Codable, Equatable, Sendable {
     var panelFrame: QuickControlsPanelFrame?
     var preferredPanelSize: QuickControlsPanelSize? = nil
     var densityVersion: Int? = currentDensityVersion
-    var dockState: QuickControlsDockState? = .expanded
+    var dockState: QuickControlsDockState? = .full
     var dockEdge: QuickControlsDockEdge? = .right
 
     private enum CodingKeys: String, CodingKey {
@@ -569,7 +610,7 @@ nonisolated struct QuickControlsPreferences: Codable, Equatable, Sendable {
     }
 
     var resolvedDockState: QuickControlsDockState {
-        dockState ?? .expanded
+        dockState ?? .full
     }
 
     var resolvedDockEdge: QuickControlsDockEdge {
@@ -581,12 +622,18 @@ nonisolated struct QuickControlsPreferences: Codable, Equatable, Sendable {
     }
 
     var resolvedPanelSize: CGSize {
-        let presentation = resolvedDockState
+        panelSize(for: resolvedDockState)
+    }
+
+    func panelSize(for presentation: QuickControlsDockState) -> CGSize {
+        if presentation == .iconOnly {
+            return QuickControlsDockMetrics.iconPanelSize
+        }
         let sections = QuickControlsDockGrouping.sections(for: items)
         return CGSize(
-            width: presentation == .expanded
+            width: presentation == .full
                 ? QuickControlsDockMetrics.expandedWidth(for: items)
-                : presentation.width,
+                : QuickControlsDockMetrics.compactWidth,
             height: QuickControlsDockMetrics.naturalHeight(
                 itemCount: items.count,
                 sectionCount: sections.count,
@@ -601,7 +648,7 @@ nonisolated struct QuickControlsPreferences: Codable, Equatable, Sendable {
             return result.sanitized()
         }
 
-        result.dockState = result.dockState ?? .expanded
+        result.dockState = result.dockState ?? .full
         result.dockEdge = result.dockEdge ?? .right
         let size = result.resolvedPanelSize
         result.preferredPanelSize = QuickControlsPanelSize(size)

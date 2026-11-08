@@ -222,21 +222,28 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                                 "Quick Controls appears at startup by default. During setup, keep Show Quick Controls when SnipSnipSnip starts on for the fastest access, or turn it off when you prefer to show the dock only as needed.",
                                 "Choose Quick Controls under Screen Tools in the main window, or choose Show Quick Controls in Settings, the Capture menu, or the menu bar icon.",
                                 "Open Settings > General > Quick Controls to change the startup choice, check whether the dock is visible, or choose Customize Quick Controls when you want to change its controls or presentation. Startup is also available under Dock Settings in the customization window.",
-                                "Drag the application icon, title, or open space in the dock header to either side of a display. In Compact, drag the application icon. Release to snap the dock to the nearest screen edge; it remembers its edge and vertical position.",
-                                "Choose the edge-pointing button to switch between Expanded labeled rows and the space-saving Compact icon rail. The same controls stay in the same order, and the dock always fits them automatically."
+                                "Drag the logo to either side of a display. In Full, you can also drag the title or open space in the header. Release to snap the dock to the nearest screen edge."
+                            ]
+                        ),
+                        HelpArticleSection(
+                            title: "Switch dock modes",
+                            steps: [
+                                "Click the logo to cycle through Slim, Full, and Icon Only. Slim shows an icon rail, Full shows labeled rows, and Icon Only rests as just the logo.",
+                                "Hover over the logo in Icon Only to reveal Full. The dock tucks back into the logo after you move away and close any open menu. The chevron tucks away a hover reveal or switches the saved Full mode to Slim.",
+                                "Right-click or Control-click the logo to choose a mode directly, customize the dock, open SnipSnipSnip, or hide Quick Controls. With the logo focused, press Shift-F10 for the same menu. VoiceOver can also open it with Show Menu."
                             ]
                         ),
                         HelpArticleSection(
                             title: "Choose and arrange controls",
                             steps: [
-                                "Choose the dock menu, then Customize Quick Controls, or use Customize Quick Controls in Settings.",
+                                "Open the logo menu and choose Customize Quick Controls, or use Customize Quick Controls in Settings.",
                                 "Use the searchable Controls library. Screenshot, Create, and Record sections keep still-image actions such as Capture Region distinct from time-based actions such as Record Region. Less-common Capture Options stay available at the bottom of the library without changing the order of sections already in your dock.",
                                 "Choose + to add a control. Added controls expose a direct − button in the library and a Remove button in Selected Control; the final control can be removed too.",
-                                "Drag controls within their section in the Dock Preview. Move toward the top or bottom half of a control; the insertion line above or below shows whether the dragged control will land before or after it. A control cannot move into another section; that target shows a red boundary and prohibition symbol, and the pointer reports a forbidden drop. You can also select a control and use Move Earlier and Move Later. Drag a section header to rearrange that whole group without changing its internal control order. The preview uses the exact same controls, section order, and presentation as the live dock.",
-                                "In Expanded presentation, the small line below each control describes what it does or the effect of its current setting; it does not repeat the section name.",
-                                "Under Dock Settings, choose the Compact or Expanded Presentation and the Left or Right Screen Edge. Height and width follow the controls and presentation automatically.",
-                                "Choose Restore Defaults… in the customization header when you want the first-install layout. After confirmation, it restores Capture Region, Capture Window, Capture Screen, Repeat Last Capture, Capture Presets, Record Region, and Timer in Expanded presentation on the right edge.",
-                                "Choose Close when the layout is ready. Changes are saved immediately. An empty dock offers Customize so you can add controls again."
+                                "Drag controls within their section in the Dock Preview. Move toward the top or bottom half of a control to place the dragged control before or after it. The insertion line shows where it will land. A control stays in its section, and other sections show a red boundary and prohibition symbol when you drag over them. You can also select a control and use Move Earlier and Move Later. Drag a section header to rearrange the whole group while keeping its control order.",
+                                "In Full, the small line below each control describes what it does or the effect of its current setting. In Icon Only, the Dock Preview shows the Full layout revealed on hover.",
+                                "Under Dock Settings, choose Slim, Full, or Icon Only for Presentation and Left or Right for Screen Edge. The dock fits its contents automatically.",
+                                "Choose Restore Defaults… in the customization header when you want the first-install layout. After confirmation, it restores Capture Region, Capture Window, Capture Screen, Repeat Last Capture, Capture Presets, Record Region, and Timer in Full mode on the right edge.",
+                                "Choose Close when the layout is ready. Changes are saved immediately. An empty dock offers Customize when its controls are shown, and you can open the logo menu to customize it in any mode."
                             ]
                         ),
                         HelpArticleSection(
@@ -244,7 +251,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                             bullets: [
                                 "Quick Controls calls the same actions used by the main window, Capture menu, menu bar icon, and existing shared Presets and Timer menus.",
                                 "Capture Window and Record Window use the on-screen Window chooser so the main window stays out of the way. Cancel Region or Window selection to return to the app you were using with Quick Controls still available.",
-                                "The dock keeps its display when you expand or collapse it. Clipboard History and Screen Inspector open on that display the first time you choose them from Quick Controls.",
+                                "The dock keeps its display when you switch modes. Clipboard History and Screen Inspector open on that display the first time you choose them from Quick Controls.",
                                 "A completed capture opens its editor. Permission setup and capture problems may open the main window when they need your attention.",
                                 "Capture and recording actions become unavailable while another capture, recording, Guide, or connected-device session blocks a new one.",
                                 "The dock follows across Spaces and stays above ordinary windows until hidden.",

@@ -213,9 +213,6 @@
         }
       }
     },
-    "%@. Expand Quick Controls" : {
-
-    },
     "%@…" : {
 
     },
@@ -1773,6 +1770,9 @@
         }
       }
     },
+    "Click to switch Quick Controls modes. Right-click for the menu." : {
+
+    },
     "Clicks" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2971,9 +2971,6 @@
     "Expand permission setup and diagnostics." : {
 
     },
-    "Expand Quick Controls" : {
-
-    },
     "Expanded" : {
 
     },
@@ -3439,6 +3436,9 @@
     "Frontmost Window" : {
 
     },
+    "Full" : {
+
+    },
     "Full frame. Click or drag to choose a fixed focus. The outlined area will fill the video." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3705,6 +3705,9 @@
 
     },
     "I, II, III" : {
+
+    },
+    "Icon Only" : {
 
     },
     "Icon: %@" : {
@@ -5539,7 +5542,7 @@
     "Quick Controls Dock Preview" : {
 
     },
-    "Quick Controls Menu" : {
+    "Quick Controls Logo" : {
 
     },
     "Quit %@" : {
@@ -6875,6 +6878,9 @@
     "Show/Hide Inspector" : {
 
     },
+    "Showing the Full layout revealed on hover." : {
+
+    },
     "Shown" : {
 
     },
@@ -6900,6 +6906,9 @@
           }
         }
       }
+    },
+    "Slim" : {
+
     },
     "Smaller file · 15 fps" : {
 
@@ -7348,7 +7357,7 @@
     "This reads the current item. To monitor future copies without prompts, allow clipboard access in System Settings." : {
 
     },
-    "This restores Capture Region, Capture Window, Capture Screen, Repeat Last Capture, Capture Presets, Record Region, and Timer in Expanded presentation on the right edge." : {
+    "This restores Capture Region, Capture Window, Capture Screen, Repeat Last Capture, Capture Presets, Record Region, and Timer in Full mode on the right edge." : {
 
     },
     "This restores capture, shortcuts, recording, output, Snip Library, naming, privacy, and Quick Controls settings to their default values. It does not delete Snip History or Recycle Bin items." : {
