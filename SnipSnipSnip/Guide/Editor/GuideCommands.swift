@@ -25,9 +25,25 @@ struct GuideInsertStepCommand: GuideCommand {
     let step: GuideStep
     let image: CGImage
     let index: Int
+    var advancedEdit: EditableScreenshotDocument? = nil
 
-    func apply(to controller: GuideEditorController) { controller.insertStepWithoutCommand(step, image: image, at: index) }
+    func apply(to controller: GuideEditorController) { controller.insertStepWithoutCommand(step, image: image, at: index, advancedEdit: advancedEdit) }
     func undo(on controller: GuideEditorController) { controller.removeStepWithoutCommand(id: step.id) }
+}
+
+@MainActor
+struct GuideDuplicateStepsCommand: GuideCommand {
+    let name = "Duplicate Steps"
+    let insertions: [GuideInsertStepCommand]
+
+    func apply(to controller: GuideEditorController) {
+        insertions.forEach { $0.apply(to: controller) }
+        controller.selection = Set(insertions.map { $0.step.id })
+    }
+
+    func undo(on controller: GuideEditorController) {
+        insertions.reversed().forEach { $0.undo(on: controller) }
+    }
 }
 
 @MainActor

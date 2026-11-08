@@ -58,6 +58,7 @@ extension EditorController {
         )
 
         if snapshot.composition != nil {
+            if isPrivate, taintsDocument { markDocumentPrivate() }
             execute(AddCompositionItemCommand(item: addedItem, afterItemID: afterItemID))
         } else {
             let rootAssetID = try compositionAssetRepository.add(
@@ -83,11 +84,8 @@ extension EditorController {
                 canvas: CompositionCanvasState(appearance: CompositionCanvasAppearance())
             )
             composition.repairComparisonSelection()
+            if isPrivate, taintsDocument { markDocumentPrivate() }
             execute(SetCompositionCommand(composition: composition))
-        }
-
-        if isPrivate, taintsDocument {
-            markDocumentPrivate()
         }
         presentationInspectorTab = .layout
         setWorkspaceMode(.presentation)
@@ -112,6 +110,7 @@ extension EditorController {
         afterItemID: UUID? = nil,
         replacingItemID: UUID? = nil
     ) throws -> UUID? {
+        try SSSDocumentPackage.validateIdentityIntegrity(of: document.session)
         let initialAssetIDs = Set(compositionAssetRepository.assetIDs)
         let importsPrivatePixels = document.isPrivate
             || document.compositionStoredAssets.contains {
@@ -295,6 +294,7 @@ extension EditorController {
             isPrivate: isPrivate
         )
         let replacementState = Self.editState(for: replacementCapture)
+        if isPrivate, taintsDocument { markDocumentPrivate() }
         execute(
             ReplaceCompositionItemCommand(
                 itemID: itemID,
@@ -303,9 +303,6 @@ extension EditorController {
                 title: replacementCapture.sourceName
             )
         )
-        if isPrivate, taintsDocument {
-            markDocumentPrivate()
-        }
         showNotice("Replaced the selected composition item.")
 
         return CompositionInsertionResult(
@@ -398,7 +395,8 @@ extension EditorController {
             return
         }
         let originalFraming = Dictionary(
-            uniqueKeysWithValues: composition.items.map { ($0.id, $0.framing) }
+            composition.items.map { ($0.id, $0.framing) },
+            uniquingKeysWith: { first, _ in first }
         )
         for index in composition.items.indices where selectedIDs.contains(composition.items[index].id) {
             mutation(&composition.items[index])

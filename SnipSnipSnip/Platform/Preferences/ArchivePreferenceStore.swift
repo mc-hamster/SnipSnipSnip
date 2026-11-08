@@ -2,40 +2,55 @@ import Foundation
 
 nonisolated struct ArchivePreferenceStore {
     private let storage: PreferenceStorage
+    let bookmarks: ArchiveBookmarkClient
+    let requiresSecurityScope: Bool
 
-    init(storage: PreferenceStorage) {
+    init(storage: PreferenceStorage, bookmarks: ArchiveBookmarkClient = .live,
+         requiresSecurityScope: Bool = ArchiveBookmarkClient.requiresSecurityScope) {
         self.storage = storage
+        self.bookmarks = bookmarks
+        self.requiresSecurityScope = requiresSecurityScope
     }
 
     func loadLocationURL() -> URL? {
-        if let bookmarkData = storage.data(forKey: AppModelPreferenceKey.archiveLocationBookmarkData) {
-            var isStale = false
-            if let url = try? URL(
-                resolvingBookmarkData: bookmarkData,
-                options: [.withSecurityScope, .withoutUI],
-                relativeTo: nil,
-                bookmarkDataIsStale: &isStale
-            ) {
-                return url
-            }
-        }
-
-        guard let path = storage.string(forKey: AppModelPreferenceKey.archiveLocationPath) else {
-            return nil
-        }
-
-        return URL(fileURLWithPath: path, isDirectory: true)
+        resolveLocation().accessibleURL
     }
 
-    func saveLocationURL(_ url: URL?) {
-        if let url {
-            storage.set(url.path, forKey: AppModelPreferenceKey.archiveLocationPath)
+    func resolveLocation() -> ArchiveLocationResolution {
+        let pathURL = storage.string(forKey: AppModelPreferenceKey.archiveLocationPath)
+            .map { URL(fileURLWithPath: $0, isDirectory: true) }
+        if let bookmarkData = storage.data(forKey: AppModelPreferenceKey.archiveLocationBookmarkData) {
+            do {
+                let resolution = try bookmarks.resolve(bookmarkData)
+                if resolution.isStale {
+                    let renewed = try bookmarks.create(resolution.url)
+                    storage.set(renewed, forKey: AppModelPreferenceKey.archiveLocationBookmarkData)
+                }
+                storage.set(resolution.url.path, forKey: AppModelPreferenceKey.archiveLocationPath)
+                return ArchiveLocationResolution(requestedURL: resolution.url, error: nil)
+            } catch {
+                // Preserve the saved choice for reauthorization, never treat its
+                // plain path as a replacement for a failed security capability.
+                return ArchiveLocationResolution(requestedURL: pathURL, error: .bookmarkUnavailable)
+            }
+        }
+        return ArchiveLocationResolution(requestedURL: pathURL,
+            error: pathURL.map { requiresSecurityScope && !bookmarks.hasPermanentAccess($0) } == true ? .bookmarkUnavailable : nil)
+    }
 
-            if let bookmarkData = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
+    func saveLocationURL(_ url: URL?) throws {
+        if let url {
+            do {
+                let bookmarkData = try bookmarks.create(url)
+                // Commit only after the persistent capability is created.
                 storage.set(bookmarkData, forKey: AppModelPreferenceKey.archiveLocationBookmarkData)
-            } else {
+            } catch {
+                guard !requiresSecurityScope || bookmarks.hasPermanentAccess(url) else { throw ArchiveFolderAccessError.bookmarkUnavailable }
+                // Unsandboxed editions legitimately use ordinary filesystem
+                // paths; they do not require a security-scoped capability.
                 storage.removeObject(forKey: AppModelPreferenceKey.archiveLocationBookmarkData)
             }
+            storage.set(url.path, forKey: AppModelPreferenceKey.archiveLocationPath)
         } else {
             storage.removeObject(forKey: AppModelPreferenceKey.archiveLocationPath)
             storage.removeObject(forKey: AppModelPreferenceKey.archiveLocationBookmarkData)

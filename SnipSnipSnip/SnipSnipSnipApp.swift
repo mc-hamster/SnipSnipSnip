@@ -36,6 +36,10 @@ private struct CaptureCommands: Commands {
         )
 
         CommandMenu("Capture") {
+            Button("Capture Text", action: capture.captureText)
+                .keyboardShortcut(hotKey(for: .textCapture), modifiers: AppShortcut.modifiers)
+                .disabled(isCaptureOrRecordingActive || isNativeFilePanelActive)
+
             Button(
                 "Capture \(WorkflowVocabulary.Source.region)",
                 action: capture.captureRegion
@@ -329,6 +333,7 @@ private struct DocumentCommands: Commands {
     @ObservedObject var video: VideoWorkflowModel
     @ObservedObject var guide: GuideWorkflowModel
     @ObservedObject var creation: CreationWorkflowModel
+    @ObservedObject var printing: DocumentPrintCoordinator
     @FocusedValue(\.documentOutputCommandIsAvailable)
     private var focusedDocumentOutputIsAvailable
 
@@ -358,6 +363,12 @@ private struct DocumentCommands: Commands {
             Button("Save As…", action: documents.saveDocumentAs)
                 .keyboardShortcut("S", modifiers: [.command, .shift])
                 .disabled(!canSaveDocument)
+        }
+
+        CommandGroup(replacing: .printItem) {
+            Button("Print…", action: documents.printCurrentDocument)
+                .keyboardShortcut("p", modifiers: .command)
+                .disabled(!canPrintCurrentContent || printing.isPrinting)
         }
 
         CommandGroup(after: .importExport) {
@@ -450,6 +461,16 @@ private struct DocumentCommands: Commands {
     private var documentOutputIsAvailable: Bool {
         focusedDocumentOutputIsAvailable
             ?? documents.isEditorDocumentOutputAvailable
+    }
+
+    private var canPrintCurrentContent: Bool {
+        guard !capture.isWorking, !video.blocksNewCapture, !guide.isActive,
+              focusedDocumentOutputIsAvailable != false,
+              documents.videoEditorController == nil else { return false }
+        if let controller = documents.guideEditorController {
+            return !controller.includedSteps.isEmpty
+        }
+        return documents.editorController != nil && documentOutputIsAvailable
     }
 }
 
@@ -594,6 +615,9 @@ private struct EditorCommands: Commands {
 
     var body: some Commands {
         CommandGroup(after: .toolbar) {
+            Button("Show Capture Preview", action: documents.showCapturePreview)
+                .disabled(!documents.hasCapturePreview)
+            Divider()
             Button("Add…") {
                 NotificationCenter.default.post(
                     name: .sssRequestContextualCaptureAddition,
@@ -610,7 +634,7 @@ private struct EditorCommands: Commands {
                 NotificationCenter.default.post(name: .sssToggleEditorInspector, object: nil)
             }
             .keyboardShortcut("i", modifiers: [.command, .option])
-            .disabled(documents.editorController == nil)
+            .disabled(documents.editorController == nil && documents.videoEditorController == nil)
         }
 
         CommandGroup(after: .pasteboard) {
@@ -847,7 +871,8 @@ struct SnipSnipSnipApp: App {
                 documents: model.documents,
                 video: model.video,
                 guide: model.guide,
-                creation: model.creation
+                creation: model.creation,
+                printing: model.documents.printCoordinator
             )
             PasteboardCommands(documents: model.documents)
             EditorCommands(
@@ -882,6 +907,7 @@ struct SnipSnipSnipApp: App {
                 permissions: model.permissions,
                 clipboard: model.clipboard,
                 quickControls: model.quickControls,
+                capture: model.capture,
                 capabilities: model.capabilities,
                 completeOnboarding: {
                     model.lifecycle.completeOnboarding(

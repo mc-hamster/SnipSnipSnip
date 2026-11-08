@@ -15,6 +15,7 @@ nonisolated enum PerformanceBudgetCatalog {
     static let archiveIndexedSearch = PerformanceBudget(name: "Archive indexed search", maximumSeconds: 0.25)
     static let videoExportPlanning = PerformanceBudget(name: "Video export planning", maximumSeconds: 0.05)
     static let videoStoragePressureCheck = PerformanceBudget(name: "Video storage pressure check", maximumSeconds: 0.05)
+    static let scrollingFrameStitch = PerformanceBudget(name: "Scrolling frame stitch (Debug and Release)", maximumSeconds: 0.25)
 
     // Composition release gates are intentionally kept beside the other
     // product-wide budgets so tests, profiling scripts, and release sign-off

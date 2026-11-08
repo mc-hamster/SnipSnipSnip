@@ -53,7 +53,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
             .canRequest(.accessibility)
         )
 
-        for capability in [AppCapability.scrollingCapture, .uiMap, .accessibilityAutomation, .guideCapture] {
+        for capability in [AppCapability.scrollingCapture, .uiMap, .accessibilityAutomation, .guideCapture, .videoShortcutCapture] {
             let service = SystemCapturePermissionService(
                 capabilities: capabilities([.screenRecording, capability]),
                 client: makePermissionClient()
@@ -302,12 +302,10 @@ final class AppArchitecturePlatformTests: XCTestCase {
 
         defaults.set(Data([0xFF, 0x00]), forKey: AppModelPreferenceKey.capturePresets)
         defaults.set(0.25, forKey: AppModelPreferenceKey.screenshotJPEGQuality)
-        defaults.set(true, forKey: AppModelPreferenceKey.autoCopyEnabled)
         defaults.set(Data([0x01]), forKey: AppModelPreferenceKey.screenRulerPreferences)
 
         XCTAssertTrue(stores.capture.loadCapturePresets().isEmpty)
         XCTAssertEqual(stores.capture.loadScreenshotJPEGQuality(), ImageExportOptions.sanitizedJPEGQuality(0.25))
-        XCTAssertTrue(stores.clipboard.loadAutoCopyEnabled())
         XCTAssertEqual(stores.screenTools.loadRulerPreferences(), .default)
         XCTAssertFalse(stores.capture.loadUIMapEnabled(defaultEnabled: false))
 
@@ -323,6 +321,31 @@ final class AppArchitecturePlatformTests: XCTestCase {
         ]
         stores.capture.saveCapturePresets(presets)
         XCTAssertEqual(AppPreferenceStores(storage: defaults).capture.loadCapturePresets(), presets)
+    }
+
+    func testCapturePresetLoadingRepairsDuplicateIDsAndPreservesEveryPreset() throws {
+        let defaults = makeIsolatedDefaults()
+        let store = CapturePreferenceStore(storage: defaults)
+        let first = CapturePreset(name: "First", target: .fullscreen, options: CaptureRunOptions(), hotKey: .one)
+        var second = first
+        second.name = "Second"
+        second.hotKey = .two
+        let third = CapturePreset(name: "Third", target: .fullscreen, options: CaptureRunOptions())
+        // Seed storage directly to represent older or malformed preferences.
+        defaults.set(try JSONEncoder().encode([first, second, third, second]), forKey: AppModelPreferenceKey.capturePresets)
+
+        let loaded = store.loadCapturePresets()
+        XCTAssertEqual(loaded.count, 4)
+        XCTAssertEqual(Set(loaded.map(\.id)).count, 4)
+        XCTAssertEqual(loaded[0], first)
+        XCTAssertEqual(loaded[2], third)
+        for index in [1, 3] {
+            var preserved = loaded[index]
+            preserved.id = second.id
+            XCTAssertEqual(preserved, second)
+        }
+        XCTAssertEqual(store.loadCapturePresets(), loaded)
+        XCTAssertEqual(CapturePreferenceStore(storage: defaults).loadCapturePresets(), loaded)
     }
 
     func testAutomationPresetResolverFindsByIDAndCaseInsensitiveName() {
@@ -394,12 +417,15 @@ final class AppArchitecturePlatformTests: XCTestCase {
             "SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+ConnectedDevice.swift",
             "SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+Execution.swift",
             "SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+PermissionGate.swift",
+            "SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+PresetRegionCapture.swift",
             "SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+Presets.swift",
             "SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+Scrolling.swift",
+            "SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+ScrollingSelection.swift",
             "SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+WindowCapture.swift",
             "SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+Windows.swift",
             "SnipSnipSnip/App/Workflows/Clipboard/ClipboardWorkflowModel+Clipboard.swift",
             "SnipSnipSnip/App/Workflows/Document/DocumentWorkflowModel+EditorSession.swift",
+            "SnipSnipSnip/App/Workflows/Document/DocumentWorkflowModel+ImageOutput.swift",
             "SnipSnipSnip/App/Workflows/Document/DocumentWorkflowModel+Recovery.swift",
             "SnipSnipSnip/App/Workflows/Document/DocumentWorkflowModel+History.swift",
             "SnipSnipSnip/App/Workflows/Permission/PermissionWorkflowModel.swift",
@@ -492,7 +518,6 @@ final class AppArchitecturePlatformTests: XCTestCase {
         for forbiddenShellFragment in [
             "var editorController:",
             "var videoEditorController:",
-            "var autoCopyEnabled:",
             "var captureDelay:",
             "var screenshotJPEGQuality:",
             "var permissionStatus:",
@@ -642,7 +667,6 @@ final class AppArchitecturePlatformTests: XCTestCase {
 
         for forbiddenHook in [
             "automationPreferencesChangeHandler",
-            "autoCopyChangeHandler",
             "maintenanceRequestHandler",
         ] {
             try assertFragment(
@@ -660,10 +684,6 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertTrue(
             coordinator.contains("protocol WorkflowOutputSink"),
             "Workflows that only emit domain outputs should depend on a sink protocol, not the concrete coordinator."
-        )
-        XCTAssertTrue(
-            coordinator.contains("case .autoCopyChanged(let enabled):"),
-            "Clipboard preference changes should route through typed workflow output instead of mutable runtime callback hooks."
         )
         XCTAssertTrue(
             workflowModels.contains("weak var outputSink: (any WorkflowOutputSink)?"),
@@ -772,6 +792,10 @@ final class AppArchitecturePlatformTests: XCTestCase {
         )
         let captureScrollingExecution = try String(
             contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+ScrollingExecution.swift"),
+            encoding: .utf8
+        )
+        let captureScrollingSelection = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowModel+ScrollingSelection.swift"),
             encoding: .utf8
         )
         let captureWindowCapture = try String(
@@ -990,10 +1014,6 @@ final class AppArchitecturePlatformTests: XCTestCase {
             captureCompletion.contains("scheduleClipboardSnipRecording"),
             "Clipboard history routing belongs to AppWorkflowCoordinator and ClipboardWorkflowModel, not CaptureWorkflowModel."
         )
-        XCTAssertFalse(
-            captureCompletion.contains("scheduleAutoCopy"),
-            "Auto-copy routing belongs to AppWorkflowCoordinator and DocumentWorkflowModel, not CaptureWorkflowModel."
-        )
         XCTAssertTrue(
             coordinator.contains("documents.installCapturedScreenshot(result)"),
             "AppWorkflowCoordinator should route completed captures into DocumentWorkflowModel."
@@ -1022,6 +1042,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
             )
             XCTAssertTrue(
                 captureScrolling.contains(scrollingMember)
+                    || captureScrollingSelection.contains(scrollingMember)
                     || captureScrollingExecution.contains(scrollingMember),
                 "Expected scrolling capture member missing: \(scrollingMember)"
             )
@@ -1658,13 +1679,20 @@ final class AppArchitecturePlatformTests: XCTestCase {
         )
         XCTAssertTrue(
             coordinatorPorts.contains("func refreshPermissions()")
-                && coordinatorPorts.contains("func checkPermissionSetupGuideStatus()"),
+                && coordinatorPorts.contains("func cancelDeferredOperation(ifFeature: String?)"),
             "Coordinator permission routing should command the PermissionWorkflowModel instead of capture-owned permission helpers."
         )
         XCTAssertTrue(
-            coordinator.contains("case .requirementsMayNowBeSatisfied(let status):")
-                && coordinator.contains("capture?.retryPendingPermissionCommandIfSatisfied(status)"),
-            "Permission changes should route through typed permission output and typed capture retry commands."
+            coordinator.contains("case .permissionsChanged:") && coordinator.contains("capture?.notifyPermissionsChanged()"),
+            "Permission changes should notify the capture workflow through typed output."
+        )
+        XCTAssertFalse(
+            coordinator.contains("capture?.retryPendingPermissionCommandIfSatisfied("),
+            "A permission status notification must not automatically resume capture in the background."
+        )
+        XCTAssertFalse(
+            coordinator.contains("permissions?.checkPermissionSetupGuideStatus()"),
+            "Foregrounding must use passive status reads, not a consent-capable content probe."
         )
         XCTAssertTrue(
             coordinatorPorts.contains("func setConnectedDeviceSessionActive(_ isActive: Bool)"),
@@ -1758,7 +1786,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
             "ArchiveWorkflowModel should use ArchiveLocationPresenting instead of creating open panels directly."
         )
         XCTAssertTrue(
-            archiveWorkflow.contains("dependencies.locationPresenter.selectArchiveLocation(initialDirectory: directoryURL)"),
+            archiveWorkflow.contains("dependencies.locationPresenter.selectArchiveLocation(initialDirectory: requestedArchiveLocationURL ?? directoryURL)"),
             "Archive location selection should route through ArchiveLocationPresenting."
         )
         XCTAssertTrue(
@@ -1894,7 +1922,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
         )
     }
 
-    func testNativeSettingsCommandIsNotDuplicatedAndSettingsResetToGeneralWhenDismissed() throws {
+    func testNativeSettingsCommandIsNotDuplicatedAndSearchKeepsSidebarSelection() throws {
         let app = try String(
             contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/SnipSnipSnipApp.swift"),
             encoding: .utf8
@@ -1912,8 +1940,10 @@ final class AppArchitecturePlatformTests: XCTestCase {
             contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/App/CaptureAutomationSettingsView.swift"),
             encoding: .utf8
         )
-        XCTAssertTrue(settings.contains(".onDisappear"))
-        XCTAssertTrue(settings.contains("lifecycle.selectedSettingsTab = .general"))
+        XCTAssertTrue(settings.contains("NavigationSplitView"))
+        XCTAssertTrue(settings.contains("Search Settings"))
+        XCTAssertTrue(settings.contains("List(selection: settingsSelection)"))
+        XCTAssertFalse(settings.contains("lifecycle.selectedSettingsTab = .general"))
     }
 
     func testAppCommandSurfacesReceiveExplicitWorkflowsInsteadOfObservingAppModel() throws {
@@ -2116,6 +2146,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
                 "SnipSnipSnip/App/ScreenInspectorController.swift",
                 "SnipSnipSnip/Capture/ConnectedDevicePreviewWindowController.swift",
                 "SnipSnipSnip/Video/VideoEditorView.swift",
+                "SnipSnipSnip/Video/VideoPlaybackView.swift",
             ]
         )
         try assertFragment(
@@ -2123,7 +2154,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
             in: files,
             isOnlyUsedIn: [
                 "SnipSnipSnip/Editor/EditorView.swift",
-                "SnipSnipSnip/Video/VideoEditorView.swift",
+                "SnipSnipSnip/Video/VideoTrimTimelineView.swift",
             ]
         )
 
@@ -2137,6 +2168,9 @@ final class AppArchitecturePlatformTests: XCTestCase {
             "ConnectedDevicePreviewWindowController.swift",
             "Editor/EditorView.swift",
             "Video/VideoEditorView.swift",
+            "Video/VideoPlaybackView.swift",
+            "Video/VideoTrimTimelineView.swift",
+            "Video/VideoZoomTargetView.swift",
         ] {
             XCTAssertTrue(design.contains(documentedException), "Fixed-dark exception is not documented: \(documentedException)")
         }
@@ -2227,9 +2261,9 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertTrue(help.contains("title: \"Take and finish a screenshot\""))
         XCTAssertTrue(help.contains("without showing those private details in result rows"))
         XCTAssertTrue(help.contains("Use Quick Capture to choose Region, Window, or Screen"))
-        XCTAssertTrue(help.contains("Select, Crop, the Arrow family, and Text visible as labeled one-click controls"))
+        XCTAssertTrue(help.contains("Select, Crop, Auto Crop, the Arrow family, Text, Highlight Box, and Redact together as labeled one-click controls"))
         XCTAssertTrue(help.contains("choose Arrow or Numbered Arrow"))
-        XCTAssertTrue(help.contains("the main button shows that tool’s name and icon"))
+        XCTAssertTrue(help.contains("each split control reuses its last-selected member"))
         XCTAssertTrue(help.contains("Insert Image remains a one-time action"))
         XCTAssertTrue(help.contains("Crop Image, Properties, and History directly visible"))
         XCTAssertTrue(help.contains("Crop changes apply immediately and remain available through Undo and Change History"))
@@ -2355,22 +2389,27 @@ final class AppArchitecturePlatformTests: XCTestCase {
         )
         XCTAssertFalse(content.contains("ToolbarItem(id: \"capture-region\""))
         XCTAssertTrue(editor.contains("struct EditorCommandBar: View"))
-        XCTAssertTrue(editor.contains("ScrollView(.horizontal, showsIndicators: false)"))
+        XCTAssertTrue(editor.contains("ScrollView(.horizontal)"))
+        XCTAssertTrue(editor.contains(".accessibilityIdentifier(\"editor.commandBar.edit.tools.scroll\")"))
         XCTAssertTrue(editor.contains("private static let arrowTools: [EditorTool] = [.arrow, .numberedArrow]"))
         XCTAssertTrue(editor.contains("accessibilityIdentifier: \"editor.toolGroup.arrow\""))
         XCTAssertTrue(editor.contains("private func toolGroupMenu("))
         XCTAssertTrue(editor.contains("lastUsedTool.wrappedValue.label"))
-        XCTAssertTrue(editor.contains("lastUsedTool.wrappedValue.systemImage"))
+        XCTAssertTrue(editor.contains("StableEditorToolLabel(tool: lastUsedTool.wrappedValue, family: tools)"))
         XCTAssertTrue(editor.contains("title: \"Shapes\""))
         XCTAssertTrue(editor.contains("title: \"Draw\""))
         XCTAssertTrue(editor.contains("title: \"Emphasize\""))
         XCTAssertTrue(editor.contains("\"editor.toolGroup.redact\""))
         XCTAssertTrue(editor.contains("Label(lastMoreTool.label, systemImage: lastMoreTool.systemImage)"))
-        XCTAssertTrue(editor.contains("controller.currentRedactionMode.label"))
+        XCTAssertTrue(editor.contains("controller.activateToolbarTool(.redact)"))
+        XCTAssertTrue(editor.contains("toolButton(.highlight)"))
+        XCTAssertTrue(editor.contains("editor.redaction.outputGuidance"))
         XCTAssertTrue(editor.contains("systemName: \"chevron.down\""))
         XCTAssertTrue(editor.contains("accessibilityIdentifier: \"editor.toolGroup.shapes\""))
         XCTAssertTrue(editor.contains(".accessibilityIdentifier(\"\\(accessibilityIdentifier).choices\")"))
-        XCTAssertTrue(editor.contains("struct EditorCommandGroup<Content: View>: View"))
+        let commandGroup = try String(contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/Support/EditorCommandGroup.swift"), encoding: .utf8)
+        XCTAssertTrue(commandGroup.contains("struct EditorCommandGroup<Content: View>: View"))
+        XCTAssertTrue(commandGroup.contains("struct EditorDirectToolButtonStyle: ButtonStyle"))
         XCTAssertTrue(editor.contains("EditorCommandGroup(\"Selection and common tools\")"))
         XCTAssertTrue(editor.contains("EditorCommandGroup(\"Grouped annotation tools\")"))
         XCTAssertTrue(editor.contains("EditorCommandGroup(\"History\")"))
@@ -2432,7 +2471,14 @@ final class AppArchitecturePlatformTests: XCTestCase {
         XCTAssertTrue(editorInspector.contains("Crop handles stay available on the image while you use any annotation tool."))
         XCTAssertTrue(editorInspector.contains("Adjustments apply immediately and remain undoable."))
         XCTAssertTrue(guide.contains("struct GuideEditorToolbarContent: ToolbarContent"))
-        XCTAssertTrue(video.contains("struct VideoEditorToolbarContent: ToolbarContent"))
+        let videoCommands = try String(contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/Video/VideoEditorCommandBar.swift"), encoding: .utf8)
+        XCTAssertTrue(content.contains("VideoEditorCommandBar("))
+        XCTAssertFalse(content.contains("VideoEditorToolbarContent("))
+        XCTAssertTrue(videoCommands.contains("EditorCommandGroup(\"History\")"))
+        XCTAssertTrue(videoCommands.contains("EditorCommandGroup(\"Inspector\")"))
+        XCTAssertTrue(videoCommands.contains("EditorCommandGroup(\"Output\")"))
+        XCTAssertTrue(videoCommands.contains("EditorDirectToolButtonStyle"))
+        XCTAssertTrue(content.contains("VideoSessionBar("))
         XCTAssertFalse(content.contains("AppModel"))
         XCTAssertFalse(editor.contains("AppModel"))
         XCTAssertFalse(guide.contains("AppModel"))
@@ -2516,6 +2562,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
             "SCStream",
             in: files,
             isOnlyUsedIn: [
+                "SnipSnipSnip/Capture/ScreenCapturePermissions.swift",
                 "SnipSnipSnip/Platform/System/LiveDesktopPreviewSource.swift",
                 "SnipSnipSnip/Platform/System/ScreenRecordingPlatform.swift",
             ]
@@ -2553,6 +2600,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
             "AVAudioApplication.requestRecordPermission",
             in: files,
             isOnlyUsedIn: [
+                "SnipSnipSnip/Platform/Environment/MediaPermissionService.swift",
                 "SnipSnipSnip/Platform/System/ScreenRecordingPlatform.swift",
             ]
         )
@@ -2560,6 +2608,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
             "AVCaptureDevice",
             in: files,
             isOnlyUsedIn: [
+                "SnipSnipSnip/Platform/Environment/MediaPermissionService.swift",
                 "SnipSnipSnip/Platform/System/ConnectedDevicePlatform.swift",
             ]
         )
@@ -2867,7 +2916,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
             "func beginVideoWindowSelection()",
             "func dismissWindowPicker()",
             "func desktopSnapshotForVideoSelection() async throws -> DesktopCompositeSnapshot",
-            "func videoWindowSelectionSnapshot(fallbackWindows: [CaptureWindowSummary]) async throws -> (windows: [CaptureWindowSummary], snapshot: DesktopCompositeSnapshot)",
+            "func videoWindowSelectionSnapshot() async throws -> (windows: [CaptureWindowSummary], snapshot: DesktopCompositeSnapshot)",
             "func performVideoWork<Result>(",
         ] {
             XCTAssertTrue(

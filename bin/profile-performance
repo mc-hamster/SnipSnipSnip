@@ -33,6 +33,8 @@ PERF_TESTS="
 -only-testing:SnipSnipSnipTests/AppModelPerformanceTests/testScreenshotRenderAndStreamingExportBudget
 -only-testing:SnipSnipSnipTests/AppModelPerformanceTests/testArchiveIndexedSearchBudget
 -only-testing:SnipSnipSnipTests/AppModelPerformanceTests/testVideoExportPlanningAndStorageBudget
+-only-testing:SnipSnipSnipTests/ScrollingStitcherTests/testTextPageStitchMeetsInteractiveBudgetInDebugAndRelease
+-only-testing:SnipSnipSnipTests/ScrollingStitcherTests/testNearBlankPageStitchMeetsInteractiveBudget
 -only-testing:SnipSnipSnipTests/ScrollingStitcherTests/testAppendPerformanceLongScrollingSession
 -only-testing:SnipSnipSnipTests/ScrollingStitcherTests/testAppendPerformanceManySmallScrollingFrames
 -only-testing:SnipSnipSnipTests/CompositionPerformanceTests/testLayoutP95BudgetAcrossDeterministicCountsAndModes
@@ -53,8 +55,10 @@ fi
 rm -rf "$TIME_TRACE" "$ALLOC_TRACE"
 
 ensure_single_instance_is_available() {
-  if pgrep -x "SnipSnipSnip" >/dev/null 2>&1; then
-    echo "error: SnipSnipSnip is already running." >&2
+  local running_pids
+  running_pids="$(/usr/bin/osascript -l JavaScript -e 'ObjC.import("AppKit"); ObjC.unwrap($.NSRunningApplication.runningApplicationsWithBundleIdentifier("com.oontz.SnipSnipSnip.Dev")).map(a => Number(a.processIdentifier)).join(" ")')"
+  if [ -n "$running_pids" ]; then
+    echo "error: SnipSnipSnip Dev is already running." >&2
     echo "       Quit the running copy before starting app-hosted performance tests." >&2
     exit 2
   fi

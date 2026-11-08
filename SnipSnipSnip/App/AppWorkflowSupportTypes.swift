@@ -135,6 +135,7 @@ struct PermissionSetupGuide: Identifiable {
     let requirement: CapturePermissionRequirement
     let appName: String
     let appPath: String
+    var featureName: String? = nil
 }
 
 struct InteractiveCaptureAutosaveSuspension {
@@ -154,7 +155,7 @@ enum DocumentFormatMigrationDecision {
 }
 
 nonisolated enum AppModelPreferenceKey {
-    static let autoCopyEnabled = "appModel.autoCopyEnabled"
+    static let showsCapturePreview = "appModel.showsCapturePreview"
     static let autoRefreshWindowsEnabled = "appModel.autoRefreshWindowsEnabled"
     static let archiveLocationBookmarkData = "appModel.archiveLocationBookmarkData"
     static let archiveLocationPath = "appModel.archiveLocationPath"

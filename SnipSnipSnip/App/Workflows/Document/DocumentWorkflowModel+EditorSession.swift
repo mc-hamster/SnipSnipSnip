@@ -92,12 +92,19 @@ extension DocumentWorkflowModel {
     func confirmSaveBeforeContinuing() {
         let continuation = pendingEditorAction
         let cancellation = pendingEditorCancellation
+        let expectedEditor = editorController
+        let expectedVideo = videoEditorController
+        let expectedGuide = guideEditorController
         pendingEditorAction = nil
         pendingEditorCancellation = nil
         isShowingUnsavedChangesPrompt = false
 
         Task { @MainActor [weak self] in
-            guard let self, await self.saveCurrentDocument() else {
+            guard let self,
+                  self.editorController === expectedEditor,
+                  self.videoEditorController === expectedVideo,
+                  self.guideEditorController === expectedGuide,
+                  await self.saveCurrentDocument(), !self.hasUnsavedChanges else {
                 cancellation?()
                 return
             }
@@ -153,29 +160,26 @@ extension DocumentWorkflowModel {
         )
         editorRenderObserver = controller.$snapshot
             .dropFirst()
-            .sink { [weak self, weak controller] _ in
+            .sink { [weak self, weak controller] newSnapshot in
                 guard let self else {
                     return
                 }
 
                 self.updateDocumentChangeTracking(allowDirtyFastPath: true)
 
-                guard self.autoCopyEnabled,
-                      let controller,
-                      !controller.isPrivateDocument,
-                      controller.workspaceMode != .presentation else {
-                    return
-                }
-
+                guard let controller else { return }
                 let renderedState = RenderedEditorState(
-                    snapshot: controller.documentSession.currentSnapshot
+                    snapshot: newSnapshot
                 )
                 guard renderedState != lastRenderedState else {
                     return
                 }
                 lastRenderedState = renderedState
 
-                self.scheduleAutoCopy(for: controller)
+                // A preview represents the captured result, not an older source
+                // underneath newly added annotations or redactions.
+                self.capturePreviewCoordinator.clear()
+                self.hasCapturePreview = false
             }
 
         editorPersistenceObserver = controller.$persistenceRevision
@@ -185,6 +189,9 @@ extension DocumentWorkflowModel {
                     return
                 }
 
+                if controller.isPrivateDocument, self.currentRecoverySessionID != nil {
+                    self.excludeCurrentPrivateDocumentFromRecoveryAndHistory()
+                }
                 self.updateDocumentChangeTracking()
                 self.scheduleAutosave(for: controller)
             }
@@ -208,48 +215,6 @@ extension DocumentWorkflowModel {
         refreshRecoveryPresentationState()
     }
 
-    func copyCurrentEditorImageToClipboard() {
-        cancelPendingAutoCopy()
-
-        guard let controller = editorController else {
-            return
-        }
-
-        controller.copyAnnotatedImage(
-            appearance: controller.currentWorkspaceOutputAppearance
-        )
-        clipboardMonitor.markCurrentPasteboardChangeAsHandled()
-    }
-
-    func cancelPendingAutoCopy() {
-        pendingAutoCopyTask?.cancel()
-        pendingAutoCopyTask = nil
-        autoCopyRequestGeneration &+= 1
-    }
-
-    func copyCurrentAnnotatedImageToClipboard() {
-        cancelPendingAutoCopy()
-        guard let controller = editorController,
-              controller.isDocumentOutputAvailable else {
-            return
-        }
-        controller.copyAnnotatedImage(
-            appearance: controller.currentWorkspaceOutputAppearance
-        )
-        clipboardMonitor.markCurrentPasteboardChangeAsHandled()
-    }
-
-    func copyCurrentPlainEditorImageToClipboard() {
-        cancelPendingAutoCopy()
-        editorController?.copyAnnotatedImage(appearance: .plain)
-        clipboardMonitor.markCurrentPasteboardChangeAsHandled()
-    }
-
-    func copyCurrentStyledEditorImageToClipboard() {
-        cancelPendingAutoCopy()
-        editorController?.copyAnnotatedImage(appearance: .styled)
-        clipboardMonitor.markCurrentPasteboardChangeAsHandled()
-    }
 
     func resetEditorSessionState() {
         editorRenderObserver = nil
@@ -257,7 +222,6 @@ extension DocumentWorkflowModel {
         editorCommandStateObserver = nil
         videoPersistenceObserver = nil
         textRecognitionCoordinator.cancelAll()
-        cancelPendingAutoCopy()
         pendingAutosaveTask?.cancel()
         pendingAutosaveTask = nil
         cancelPendingWindowThumbnailRefresh()
@@ -285,92 +249,11 @@ extension DocumentWorkflowModel {
         syncMainWindowDocumentState()
     }
 
-    func copyRenderedImageToClipboard(
-        from controller: EditorController,
-        appearance: ScreenshotOutputAppearance
-    ) throws {
-        let image = try controller.exportedImageForInteractiveUse(
-            appearance: appearance
-        )
-        try ImageExporter.copyToClipboard(image, pasteboard: systemServices.pasteboard)
-        clipboardMonitor.markCurrentPasteboardChangeAsHandled()
-    }
-
-    func copyRenderedImageToClipboardAsync(
-        from controller: EditorController,
-        appearance: ScreenshotOutputAppearance,
-        requestGeneration: UInt
-    ) async {
-        do {
-            let image = try await controller.renderedImageForExport(
-                appearance: appearance
-            )
-            let pngData = try await Task.detached(
-                priority: .utility
-            ) {
-                try Task.checkCancellation()
-                return try ImageExporter.pngData(for: image)
-            }.value
-
-            guard autoCopyEnabled,
-                  !controller.isPrivateDocument,
-                  editorController === controller,
-                  autoCopyRequestGeneration == requestGeneration,
-                  !Task.isCancelled else {
-                return
-            }
-
-            try ImageExporter.copyPNGDataToClipboard(pngData, pasteboard: systemServices.pasteboard)
-            clipboardMonitor.markCurrentPasteboardChangeAsHandled()
-        } catch is CancellationError {
-            // Cancellation is expected when a newer auto-copy task supersedes this one.
-        } catch {
-            presentError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
-        }
-    }
-
-    func scheduleAutoCopy(for controller: EditorController) {
-        pendingAutoCopyTask?.cancel()
-        autoCopyRequestGeneration &+= 1
-        let requestGeneration = autoCopyRequestGeneration
-        guard !controller.isPrivateDocument else {
-            pendingAutoCopyTask = nil
-            return
-        }
-        pendingAutoCopyTask = Task { @MainActor [weak self, weak controller] in
-            do {
-                try await self?.systemServices.scheduler.sleep(nanoseconds: ClipboardWorkflowConstants.autoCopyDebounceNanoseconds)
-            } catch {
-                return
-            }
-
-            guard let self,
-                  self.autoCopyEnabled,
-                  let controller,
-                  !controller.isPrivateDocument,
-                  self.editorController === controller else {
-                return
-            }
-
-            await self.copyRenderedImageToClipboardAsync(
-                from: controller,
-                appearance: controller.currentWorkspaceOutputAppearance,
-                requestGeneration: requestGeneration
-            )
-
-            // A superseding request owns the task slot. Do not clear it when
-            // this older render finishes after being cancelled.
-            guard self.autoCopyRequestGeneration == requestGeneration else {
-                return
-            }
-            self.pendingAutoCopyTask = nil
-        }
-    }
-
     func installEditorController(
         _ controller: EditorController,
         documentURL: URL?,
         savedSession: EditorDocumentSession?,
+        savedAutosaveState: AutosaveState? = nil,
         recoverySessionID: UUID? = nil,
         shouldCreateRecoverySession: Bool = true,
         initialCheckpointLabel: String? = nil
@@ -385,7 +268,7 @@ extension DocumentWorkflowModel {
         pendingCompositionImportRecovery = nil
         currentDocumentURL = documentURL
         savedDocumentSession = savedSession
-        savedEditorAutosaveState = savedSession.map { _ in
+        savedEditorAutosaveState = savedAutosaveState ?? savedSession.map { _ in
             AutosaveState(controller: controller, documentURL: documentURL)
         }
         lastAutosavedState = nil
@@ -411,10 +294,14 @@ extension DocumentWorkflowModel {
     }
 
     func discardCurrentDocument() {
+        closeCurrentDocument(keepingScreenshotInRecents: false)
+    }
+
+    func closeCurrentDocument(keepingScreenshotInRecents: Bool) {
         historyPreviewCoordinator.close()
         let discardedRecoveryVideo = videoEditorController != nil && currentVideoUsesRecoveryCheckpoint
         let previousTemporaryVideoURL = currentOwnedTemporaryVideoSourceURL(replacingWith: nil)
-        clearCurrentRecoveryPendingState()
+        if !keepingScreenshotInRecents { clearCurrentRecoveryPendingState() }
         editorController = nil
         videoEditorController = nil
         guideEditorController = nil
@@ -492,7 +379,7 @@ extension DocumentWorkflowModel {
         }
 
         if let controller = guideEditorController {
-            hasUnsavedChanges = currentDocumentURL == nil || controller.project != savedGuideProject
+            hasUnsavedChanges = currentDocumentURL == nil || controller.contentVersion != savedGuideContentVersion
             syncMainWindowDocumentState()
             return
         }
@@ -611,6 +498,7 @@ extension DocumentWorkflowModel {
     }
 
     func requestMainWindowPresentation() {
+        capturePreviewCoordinator.close()
         dependencies.lifecycle.requestMainWindowPresentation()
     }
 

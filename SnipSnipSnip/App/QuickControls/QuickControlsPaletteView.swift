@@ -4,28 +4,44 @@ struct QuickControlsView: View {
     @ObservedObject private var quickControls: QuickControlsModel
     @ObservedObject private var lifecycle: AppLifecycleModel
     @ObservedObject private var capture: CaptureWorkflowModel
-    @ObservedObject private var clipboard: ClipboardWorkflowModel
     @ObservedObject private var video: VideoWorkflowModel
     @ObservedObject private var guide: GuideWorkflowModel
+    private let hoverReveal: QuickControlsIconReveal?
+    private let dismissHoverReveal: () -> Void
 
-    init(quickControls: QuickControlsModel) {
+    init(
+        quickControls: QuickControlsModel,
+        hoverReveal: QuickControlsIconReveal?,
+        dismissHoverReveal: @escaping () -> Void
+    ) {
         self.quickControls = quickControls
         self.lifecycle = quickControls.lifecycle
         self.capture = quickControls.capture
-        self.clipboard = quickControls.clipboard
         self.video = quickControls.video
         self.guide = quickControls.guide
+        self.hoverReveal = hoverReveal
+        self.dismissHoverReveal = dismissHoverReveal
     }
 
     var body: some View {
-        let presentation = quickControls.preferences.resolvedDockState
+        let mode = quickControls.preferences.resolvedDockState
+        let reveal = mode == .iconOnly ? hoverReveal : nil
+        let presentation = reveal == nil ? mode : .full
 
         QuickControlsDockShell(
             presentation: presentation,
             edge: quickControls.preferences.resolvedDockEdge,
             status: quickControls.activeStatusLabel,
             statusSymbol: statusSymbol,
-            togglePresentation: quickControls.toggleDockState
+            collapse: {
+                if reveal != nil {
+                    dismissHoverReveal()
+                } else {
+                    quickControls.setDockState(.slim)
+                }
+            },
+            headerAtBottom: reveal == .above,
+            allowsWindowDragging: true
         ) {
             if quickControls.preferences.items.isEmpty {
                 QuickControlsEmptyState(
@@ -34,7 +50,7 @@ struct QuickControlsView: View {
                 )
             } else {
                 ScrollView(.vertical) {
-                    LazyVStack(spacing: presentation == .expanded ? 6 : 5) {
+                    LazyVStack(spacing: presentation == .full ? 6 : 5) {
                         ForEach(QuickControlsDockGrouping.sections(for: quickControls.preferences.items)) { section in
                             QuickControlsDockSectionHeader(
                                 category: section.category,
@@ -45,7 +61,7 @@ struct QuickControlsView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, presentation == .expanded ? 8 : 3)
+                    .padding(.horizontal, presentation == .full ? 8 : 3)
                     .padding(.top, QuickControlsDockMetrics.contentTopPadding)
                     .padding(.bottom, QuickControlsDockMetrics.contentBottomPadding)
                 }
@@ -97,10 +113,6 @@ struct QuickControlsView: View {
         case .privateCapture:
             toggleButton(item.kind, presentation: presentation, state: state) {
                 capture.updatePrivateCaptureEnabled(!capture.privateCaptureEnabled)
-            }
-        case .autoCopy:
-            toggleButton(item.kind, presentation: presentation, state: state) {
-                clipboard.autoCopyEnabled.toggle()
             }
         default:
             Button { quickControls.perform(item.kind) } label: {

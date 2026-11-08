@@ -1,6 +1,54 @@
 # Automation Service Plan
 
+## Automation reliability checks
+
+The bundled CLI sends its original JSON argument array through the dedicated
+`execute command line` Apple Event (`SSSaCLIR`, `argumentsJSON`/`SSja`) to the
+shared `AutomationCLIParser`. This event uses the existing narrow scripting
+access group and the same validation/execution service. It preserves the
+command-line source and unattended interaction policy; the helper no longer
+maintains a second parser or generates per-command AppleScript. Use the helper
+from the same app version. Malformed transport responses fail with exit 70;
+Apple Events denial uses exit 77. Busy/unavailable Guide states use exit 69 and Guide finalization failure uses exit 74. Status reports the actual microphone authorization without prompting. The helper waits up to five minutes for output.
+
+AppleScript samples use the dictionary's spaced command names, such as
+`automation status` and `export current screenshot`. Camel-case Swift method
+names are not scripting terms. Sample variables must not shadow dictionary
+parameter names. CLI argument values retain spaces, quotes, Unicode, and
+backslashes. Unknown, duplicate, inapplicable, missing-value, and conflicting
+output options fail with `invalidRequest` (exit 64). Export format identifiers
+are case-insensitive. Rectangle input must contain exactly four finite numbers.
+Duplicate or valueless URL query parameters and malformed preset UUIDs are
+rejected before execution.
+
+Overlapping mutating automation requests return `busy` (CLI exit 69), including
+while an interactive capture is pending. Status and preset listing remain
+available. This prevents one caller from exporting another caller's capture.
+
+Opening a document waits for successful loading and any permitted unsaved-work
+decision before producing output. Unattended opening returns
+`confirmationRequired` when the current document is unsaved; cancellation returns
+`userCancelled`. A failed or cancelled open never exports the previous document.
+Interactive region/window capture retains its requested output, appearance, and
+Private Capture choice until selection completes. Cancellation clears that
+operation; a later capture cannot inherit its output. Interactive-only repeats
+return `confirmationRequired` to unattended callers.
+Capture failures return specific permission/target errors without opening a
+recovery sheet, and unattended capture does not start permission remediation. Saved-window
+presets and repeat commands check Screen Recording before resolving their targets.
+Diagnostic summaries omit document paths, source titles, and preset names;
+explicit JSON results still include the output URLs required by callers.
+
+Sample 26 uses `app-default` appearance, so a valid Comparison or Steps document
+can export HTML without first configuring Polish. Its URL sample percent-encodes
+the output path and supports `OUTPUT_DIR`, including spaces and ampersands.
+
+
+Screenshot capture and editor changes preserve the clipboard. Clipboard delivery requires an explicit copy output or a Capture Preset with Copy to Clipboard as its outcome. The retired global Auto Copy preference is ignored, including during automated captures. Existing copy commands, result fields, and sample-script procedures remain unchanged.
+
 ## Status
+
+Interactive screenshot additions: Capture Text has a configurable global keyboard shortcut but no new external automation route. Highlighter Fit to Text is an interactive annotation gesture. Session-only Output Size is isolated from external automation and preset outputs; original rendering remains their default. Existing sample-script procedures and formats remain unchanged.
 
 This document is the architecture and interface plan for external automation and
 the reference checklist for the v1 implementation.
@@ -33,6 +81,16 @@ Implemented v1 coverage:
 - GitHub-only sample scripts under `Docs/Automation/SampleScripts`.
 
 ## Goals
+
+- Keep post-capture preview presentation outside automation routing. Latch the
+  automation presentation choice through interactive selection and permission
+  recovery. Treat a rejected pasteboard clear/write as an output failure through
+  existing error handling, without adding an output mode or result field.
+
+- Reject conflicting composition item identities before rendering, including
+  excluded items. Automated Copy uses the existing `outputFailed` error and
+  preserves the clipboard and editable document; no adapter or sample-script
+  procedure changes are required.
 
 - Provide a stable, product-level automation contract for capture, composition,
   presets, export, clipboard, document opening, and permission preflight.
@@ -175,7 +233,10 @@ enum AutomationInteractionPolicy: String, Codable, Sendable {
 ```
 
 - `never`: fail if the action needs a picker, save panel, permission prompt, or
-  interactive region selection.
+  interactive region selection. This includes Guide: missing Screen Recording,
+  Accessibility, or enabled narration's Microphone access returns `permissionDenied`
+  without opening permission UI. Guide Region with `never` returns `invalidRequest`
+  before presenting setup. Permission status checks must not trigger consent prompts.
 - `promptIfNeeded`: allow permission remediation, missing-window replacement,
   save panels, or confirmation dialogs.
 - `requireUserSelection`: explicitly start an interactive region or window
@@ -237,6 +298,10 @@ incompatible item counts before committing one undoable change.
 
 Guide v1 keeps start (window, app, interactive region, or display), pause, resume, manual step, stop, open `.sssguide`, and export identifiers stable on every surface. Guide creation and dedicated control/export are Pro-only. The App Store edition decodes those requests and returns `proFeatureRequired` before permission or capture work; generic `.sssguide` opening remains shared. In Pro, interactive Guide regions are constrained to the display where selection begins and cross-display rectangles are rejected; normal screenshot-region automation remains unchanged. Window and app Guides resolve and follow the current source geometry without changing the persisted automation command.
 
+Interactive Guide Region setup retains the request's Private Capture choice until that setup starts or is cancelled. A replacement request receives a fresh setup generation, and the effective choice is the request's privacy OR current global Private Capture. Private setup requests are excluded from permission-restart persistence.
+
+Window and App starts enumerate live targets only after permission preflight; unattended missing-access requests must return before discovery. Guide result `source` values derive from the active project's source rather than the setup UI selection, and remain absent when no Guide is active.
+
 Initial capture targets:
 
 ```swift
@@ -251,6 +316,8 @@ enum CaptureAutomationTarget: Codable, Sendable {
 
 `interactiveRegion` and `interactiveWindow` require
 `interactionPolicy == .requireUserSelection` or `promptIfNeeded`.
+
+Interactive Window selection and the click-to-select shortcut in interactive Region selection include visible app-owned normal windows, floating panels, modal dialogs, utility windows, and custom levels below Dock. Desktop surfaces, system UI owners, and higher menu/overlay levels remain excluded; Window candidates retain the existing 60 × 40 point minimum; Screen Recording permission remains required, with no Accessibility requirement. Saved-window presets and Repeat Last Capture can resolve those explicitly selected panels. Automatic frontmost-window capture remains restricted to normal-level windows. Interactive Region and Window selection refresh the eligible window list before presentation and share the same capture-space window bounds and front-to-back ordering for hover and click selection. Window selection does not substitute cross-application Accessibility hit tests or cached carousel geometry; its keyboard and VoiceOver targets remain available. Commands, interaction policies, result fields, and output formats are unchanged. Command names, routes, result fields, and output formats are unchanged.
 
 Unsupported first-version targets should return `unsupportedFeature` instead of
 silently falling back:
@@ -321,6 +388,15 @@ enum AutomationExportFormat: String, Codable, Sendable {
     case html
 }
 ```
+
+Static Blink outputs, including PDF and Print, use the configured poster frame.
+Interactive HTML starts baked Difference results at full visibility so the stored
+intensity is applied once. Composition exports use same-volume replacement staging
+without requiring permission to create siblings of the selected file.
+
+Capped and animated Styled outputs carry logical composition dimensions into
+the presentation renderer independently of the decoded preview pixels. Look
+geometry and Mockup Actual Size framing stay consistent with uncapped output.
 
 GIF/APNG/MP4 are composition-aware Blink outputs with deterministic timing,
 crossfade, loop behavior, and a disclosed 4,096 px longest-side cap. HTML is a
@@ -480,18 +556,18 @@ Initial command vocabulary:
 
 ```applescript
 tell application "SnipSnipSnip"
-    automationStatus
-    listCapturePresets
-    runCapturePreset given name:"Docs Header", output:"clipboard"
-    captureFullscreen given display:"current", outputPath:"/Users/me/Downloads/fullscreen.png", format:"png", overwrite:true
-    captureFrontmostWindow given output:"editor"
-    captureRegion given rect:"100,100,640,480", outputPath:"/Users/me/Downloads/region.png", format:"png", overwrite:true
-    captureWindow given interactive:true, output:"clipboard"
-    captureFullscreen given destination:"append", afterItemID:"…", appearance:"plain", output:"editor"
-    setCompositionLayout given layout:"steps", axis:"vertical"
-    setCompositionCompareMode given mode:"wipe", firstItemID:"…", secondItemID:"…", wipePosition:0.4
-    repeatLastCapture given output:"editor"
-    exportCurrentScreenshot given outputPath:"/Users/me/Downloads/current.png", format:"png", overwrite:true
+    automation status
+    list capture presets
+    run capture preset given name:"Docs Header", output:"clipboard"
+    capture fullscreen given display:"current", outputPath:"/Users/me/Downloads/fullscreen.png", format:"png", overwrite:true
+    capture frontmost window given output:"editor"
+    capture region given rect:"100,100,640,480", outputPath:"/Users/me/Downloads/region.png", format:"png", overwrite:true
+    capture window given interactive:true, output:"clipboard"
+    capture fullscreen given destination:"append", afterItemID:"…", appearance:"plain", output:"editor"
+    set composition layout given layout:"steps", axis:"vertical"
+    set composition compare mode given mode:"wipe", firstItemID:"…", secondItemID:"…", wipePosition:0.4
+    repeat last capture given output:"editor"
+    export current screenshot given outputPath:"/Users/me/Downloads/current.png", format:"png", overwrite:true
 end tell
 ```
 
@@ -624,8 +700,11 @@ Supporting types:
 - `AppShortcutsProvider` advertises common capture phrases and uses
   `AppIntents.AppShortcut` explicitly so it does not collide with the in-app
   keyboard shortcut catalog. The Guide App Shortcut is compiled only into Pro
-  and development builds; the intent identifier remains decodable in the App
-  Store edition for stable `proFeatureRequired` results.
+  and development builds. App Store builds explicitly set
+  `GuideActionIntent.isDiscoverable` to `false` in extracted App Intents
+  metadata; the intent identifier remains registered and dedicated requests
+  retain `proFeatureRequired` results. Hiding the shortcut tile alone is
+  insufficient to hide the action from the system catalog.
 - Opening `.sss` documents uses `IntentFile` with the SnipSnipSnip document
   package type.
 
@@ -811,7 +890,7 @@ output behavior is added.
 The first usable automation release should include:
 
 - `status`
-- `listCapturePresets`
+- `list capture presets`
 - `runPreset`
 - `capture fullscreen`
 - `capture frontmost window`
@@ -821,3 +900,25 @@ The first usable automation release should include:
 
 This gives users useful automation while keeping the service small enough to
 test and keep aligned with the existing app model.
+
+Private image Copy outputs retain the existing PNG and `copiedClipboard` result
+contract and publish `org.nspasteboard.ConcealedType` with the image. Explicitly
+pasting that image back into SnipSnipSnip retains Private document handling. No
+command, option, URL route, or sample procedure changes.
+
+
+Permission readiness uses the same passive macOS Screen Recording gate as the
+capture and recording services. A successful content probe does not override a
+negative gate. Unrelated verification errors remain retryable instead of being
+reported as permission denial or a required restart. Unattended calls continue
+to return the existing permissionDenied error without opening setup UI.
+
+## Development and shipping namespaces
+
+Xcode Debug builds use `com.oontz.SnipSnipSnip.Dev` (**SnipSnipSnip Dev**), while TestFlight, App Store, and GitHub builds retain `com.oontz.SnipSnipSnip`. Each permits one process, and Dev can run alongside a distributed copy. Dev has independent permissions, preferences, keychain encryption keys, and default app-owned storage (`~/Library/Application Support/SnipSnipSnip Dev`). Shipping paths and existing data stay unchanged. Do not select the same custom history folder in both apps.
+
+The Debug bundle's CLI targets Dev; the shipping CLI targets the shipping app. Set `SSSCTL` to the Debug bundle's `Contents/Library/Helpers/snipsnipsnipctl` when running CLI samples against Dev. AppleScript addresses Dev with `tell application id "com.oontz.SnipSnipSnip.Dev"`. Dev registers `snipsnipsnip-dev://`; shipping retains `snipsnipsnip://`. URL samples accept `SSS_URL_SCHEME=snipsnipsnip-dev` with unchanged procedure basenames and parameters. The Share extension follows its containing app's namespace. Document formats remain compatible across builds.
+
+The disposable automation sample validator targets Dev and substitutes that identity into AppleScript fixtures. The serial XCTest gate checks the selected configuration's namespace, so a shipping copy may remain open during Debug tests. Grant Dev access once and keep Apple Development signing and team stable for subsequent rebuilds; macOS may ask again if the code-signing identity changes. No permission resets or shipping-data migration occur. The system clipboard and global shortcut registrations remain shared macOS resources; assign different shortcuts if both copies are active.
+
+The Debug product is **SnipSnipSnip Dev.app**, with executable **SnipSnipSnip Dev**, so Finder and macOS permission setup can distinguish it from the shipping **SnipSnipSnip.app**. The Swift module remains `SnipSnipSnip`. When adding Dev manually to a permission list, select the Dev product in Xcode’s DerivedData.

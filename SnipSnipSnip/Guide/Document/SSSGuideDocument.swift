@@ -57,6 +57,7 @@ nonisolated enum SSSGuideDocumentPackage {
         to url: URL,
         files: any FileSystemServicing = SystemFileService()
     ) throws {
+        try validateIdentities(in: document.project)
         let temporaryURL = files.temporaryDirectory
             .appendingPathComponent("\(temporaryDirectoryPrefix)\(UUID().uuidString)", isDirectory: true)
         defer { try? files.removeItem(at: temporaryURL) }
@@ -162,6 +163,7 @@ nonisolated enum SSSGuideDocumentPackage {
         to url: URL,
         files: any FileSystemServicing = SystemFileService()
     ) throws {
+        try validateIdentities(in: document.project)
         if files.fileExists(atPath: url.path), !files.directoryExists(at: url) {
             try files.removeItem(at: url)
         }
@@ -292,6 +294,13 @@ nonisolated enum SSSGuideDocumentPackage {
         )
     }
 
+    private static func validateIdentities(in project: GuideProject) throws {
+        guard IdentityIntegrity.firstDuplicate(in: project.steps.lazy.map(\.id)) == nil,
+              IdentityIntegrity.firstDuplicate(in: project.timeline.segments.lazy.map(\.id)) == nil else {
+            throw SSSGuideDocumentError.invalidManifest
+        }
+    }
+
     nonisolated static func load(
         from url: URL,
         files: any FileSystemServicing = SystemFileService()
@@ -309,6 +318,12 @@ nonisolated enum SSSGuideDocumentPackage {
         let manifest: Manifest
         do { manifest = try decoder.decode(Manifest.self, from: files.readData(from: manifestURL)) }
         catch { throw SSSGuideDocumentError.invalidManifest }
+
+        try validateIdentities(in: manifest.project)
+        guard IdentityIntegrity.firstDuplicate(in: manifest.assets.steps.lazy.map(\.id)) == nil,
+              IdentityIntegrity.firstDuplicate(in: manifest.assets.media.lazy.map(\.id)) == nil else {
+            throw SSSGuideDocumentError.invalidManifest
+        }
 
         var images: [UUID: CGImage] = [:]
         var advancedEdits: [UUID: EditableScreenshotDocument] = [:]

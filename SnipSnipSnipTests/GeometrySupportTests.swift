@@ -4,6 +4,74 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class GeometrySupportTests: XCTestCase {
+    func testScalingRectUpAndDownDoesNotGrowItsPixelBounds() {
+        let rect = CGRect(x: 32, y: 22, width: 80, height: 40)
+        let source = CGRect(x: 0, y: 0, width: 200, height: 200)
+        let target = CGRect(x: 0, y: 0, width: 400, height: 400)
+        let doubled = gscScaledRect(rect, from: source, to: target)
+
+        assertRectsEqual(doubled, CGRect(x: 64, y: 44, width: 160, height: 80))
+        assertRectsEqual(gscScaledRect(doubled, from: target, to: source), rect)
+    }
+
+    func testScalingPreservesFractionalGeometryThroughRepeatedRoundTripsAndFlips() {
+        let rect = CGRect(x: 32.25, y: 22.5, width: 80.5, height: 40.25)
+        let source = CGRect(x: 10, y: -20, width: 200, height: 120)
+        let target = CGRect(x: -14, y: 7, width: 137, height: 83)
+        var restored = rect
+        for _ in 0..<20 {
+            restored = gscScaledRect(restored, from: source, to: target)
+            restored = gscScaledRect(restored, from: target, to: source)
+        }
+        assertRectsEqual(restored, rect)
+
+        for flipX in [false, true] {
+            for flipY in [false, true] {
+                let signedTarget = SignedScaleBounds(
+                    minXTarget: flipX ? target.maxX : target.minX,
+                    maxXTarget: flipX ? target.minX : target.maxX,
+                    minYTarget: flipY ? target.maxY : target.minY,
+                    maxYTarget: flipY ? target.minY : target.maxY
+                )
+                let signedSource = SignedScaleBounds(
+                    minXTarget: flipX ? source.maxX : source.minX,
+                    maxXTarget: flipX ? source.minX : source.maxX,
+                    minYTarget: flipY ? source.maxY : source.minY,
+                    maxYTarget: flipY ? source.minY : source.maxY
+                )
+                let scaled = gscScaledRect(rect, from: source, to: signedTarget)
+                assertRectsEqual(gscScaledRect(scaled, from: target, to: signedSource), rect)
+            }
+        }
+    }
+
+    func testOverlayRectTransformPreservesOffsetAndFractionalScreenGeometry() {
+        let transform = AppKitOverlayTransform(
+            overlayFrame: CGRect(x: -1600, y: -720, width: 1600, height: 900)
+        )
+        let rect = CGRect(x: -1500.25, y: -600.5, width: 400.5, height: 300.25)
+        let local = transform.localRect(fromGlobalRect: rect)
+        assertRectsEqual(local, CGRect(x: 99.75, y: 480.25, width: 400.5, height: 300.25))
+        XCTAssertEqual(
+            transform.globalPoint(fromLocalPoint: CGPoint(x: local.minX, y: local.maxY)),
+            rect.origin
+        )
+    }
+
+    func testPreviewPixelRectRoundsOnlyAfterScalingForCropCreation() {
+        let transform = CapturePreviewTransform(
+            displayTransform: CaptureDisplayTransform(
+                captureFrame: CGRect(x: 0, y: 0, width: 200, height: 200),
+                overlayFrame: CGRect(x: 0, y: 0, width: 200, height: 200)
+            ),
+            previewPixelSize: CGSize(width: 137, height: 137)
+        )
+        XCTAssertEqual(
+            transform.previewTopLeftPixelRect(fromCaptureGlobalRect: CGRect(x: 32, y: 22, width: 80, height: 40)),
+            CGRect(x: 21, y: 15, width: 56, height: 28)
+        )
+    }
+
     func testDistanceFromPointToSegmentReturnsZeroOnLine() {
         let distance = gscDistanceFromPoint(
             CGPoint(x: 20, y: 20),
@@ -69,6 +137,17 @@ final class GeometrySupportTests: XCTestCase {
         XCTAssertEqual(resizedInner.maxYTarget, 202)
         XCTAssertEqual(resizedInner.minXTarget, inner.minX)
         XCTAssertEqual(resizedInner.maxXTarget, inner.maxX)
+    }
+
+    func testInnerSignedScaleBoundsPreserveFractionalInsets() {
+        let outer = CGRect(x: 10.25, y: 20.5, width: 100.5, height: 80.25)
+        let inner = CGRect(x: 15.5, y: 25.75, width: 90, height: 69.75)
+        let target = SignedScaleBounds(minXTarget: -40.5, maxXTarget: 200.25, minYTarget: -20.25, maxYTarget: 160.5)
+        let scaled = gscInnerSignedScaleBounds(inner, from: outer, to: target)
+        XCTAssertEqual(scaled.minXTarget - target.minXTarget, inner.minX - outer.minX)
+        XCTAssertEqual(target.maxXTarget - scaled.maxXTarget, outer.maxX - inner.maxX)
+        XCTAssertEqual(scaled.minYTarget - target.minYTarget, inner.minY - outer.minY)
+        XCTAssertEqual(target.maxYTarget - scaled.maxYTarget, outer.maxY - inner.maxY)
     }
 
     func testPointSnapKeepsRectangleDrawingAnchorStable() {

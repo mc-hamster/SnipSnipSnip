@@ -1,3 +1,3 @@
 tell application id "com.oontz.SnipSnipSnip"
-    listCapturePresets
+    list capture presets
 end tell

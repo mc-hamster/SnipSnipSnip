@@ -165,6 +165,39 @@ final class ImageExportFileWriterTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
     }
 
+    func testAsyncEncodingUsesReplacementDirectoryAndPreservesDestinationOnCancellation() async throws {
+        let directory = try makeDestinationDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let destination = directory.appendingPathComponent("export.html")
+        let original = Data("old content".utf8)
+        let replacement = Data("complete output".utf8)
+
+        for cancels in [false, true] {
+            try original.write(to: destination)
+            let stagingDirectory = try await Task.detached { () async throws -> URL in
+                var stagedDirectory: URL?
+                do {
+                    try await ImageExportFileWriter.write(to: destination) { stagedURL in
+                        stagedDirectory = stagedURL.deletingLastPathComponent()
+                        XCTAssertNotEqual(stagedDirectory?.resolvingSymlinksInPath(), directory.resolvingSymlinksInPath())
+                        XCTAssertEqual(try Data(contentsOf: destination), original)
+                        await Task.yield()
+                        try replacement.write(to: stagedURL)
+                        if cancels { withUnsafeCurrentTask { $0?.cancel() } }
+                    }
+                    XCTAssertFalse(cancels, "Cancellation must prevent installation")
+                } catch is CancellationError {
+                    XCTAssertTrue(cancels)
+                }
+                return try XCTUnwrap(stagedDirectory)
+            }.value
+
+            XCTAssertEqual(try Data(contentsOf: destination), cancels ? original : replacement)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: stagingDirectory.path))
+            XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path), ["export.html"])
+        }
+    }
+
     private func makeDestinationDirectory() throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

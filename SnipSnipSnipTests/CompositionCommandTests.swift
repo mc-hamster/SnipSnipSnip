@@ -112,6 +112,24 @@ final class CompositionCommandTests: XCTestCase {
         )
     }
 
+    func testDuplicateCompositionItemRejectsExistingIdentityAndCommandReplay() {
+        let first = makeItem(title: "First")
+        let second = makeItem(title: "Second")
+        let snapshot = makeCompositionSnapshot(items: [first, second])
+        for existingID in [first.id, second.id] {
+            XCTAssertEqual(
+                DuplicateCompositionItemCommand(itemID: first.id, duplicateItemID: existingID)
+                    .apply(to: snapshot),
+                snapshot
+            )
+        }
+
+        let command = DuplicateCompositionItemCommand(itemID: first.id, duplicateItemID: UUID())
+        let duplicated = command.apply(to: snapshot)
+        XCTAssertEqual(duplicated.composition?.items.count, 3)
+        XCTAssertEqual(command.apply(to: duplicated), duplicated)
+    }
+
     func testDuplicateCompositionItemSharesImmutableAssetAndCopiesEditableState() {
         let originalID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
         let duplicateID = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!

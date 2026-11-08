@@ -5,6 +5,33 @@ import XCTest
 
 final class CompositionEditingScopeTests: XCTestCase {
     @MainActor
+    func testIdentityAdmissionRejectsProjectedItemAndCanvasChangesWithoutChangingRootOrHistory() throws {
+        let annotation = Annotation.makeNumberedArrow(from: .zero, to: CGPoint(x: 30, y: 20), number: 1)
+        for editsItem in [true, false] {
+            let fixture = try makeController(
+                rootAnnotations: [annotation], itemAnnotationSets: [[annotation], []],
+                canvasAnnotations: [annotation]
+            )
+            if editsItem {
+                fixture.controller.enterCompositionItemEditing(fixture.itemIDs[0])
+            } else {
+                fixture.controller.enterCompositionEditing()
+            }
+            let before = fixture.controller.documentSession
+            let projected = fixture.controller.snapshot
+            let revision = fixture.controller.persistenceRevision
+
+            fixture.controller.execute(ConflictingAnnotationTestCommand())
+
+            XCTAssertEqual(fixture.controller.documentSession, before)
+            XCTAssertEqual(fixture.controller.snapshot, projected)
+            XCTAssertEqual(fixture.controller.persistenceRevision, revision)
+            XCTAssertNotNil(fixture.controller.errorMessage)
+            XCTAssertNoThrow(try EditorIdentityIntegrity.validate(fixture.controller.documentSession))
+        }
+    }
+
+    @MainActor
     func testEnteringItemEditingProjectsItemWithoutOverwritingItWithRootEdits() throws {
         let rootAnnotation = Annotation.makeRectangle(
             in: CGRect(x: 2, y: 3, width: 12, height: 10)
@@ -411,6 +438,26 @@ final class CompositionEditingScopeTests: XCTestCase {
             0.20,
             accuracy: 0.01
         )
+        guard case .rectangle(let originalShape) = stored.kind else {
+            return XCTFail("Expected the stored rectangle")
+        }
+        for _ in 0..<4 {
+            controller.enterCompositionEditing()
+            controller.finishCompositionEditing()
+            let restored = try XCTUnwrap(controller.composition?.canvas.annotations.first { $0.id == annotation.id })
+            guard case .rectangle(let shape) = restored.kind else {
+                return XCTFail("Expected the restored rectangle")
+            }
+            assertRectsEqual(shape.rect, originalShape.rect)
+            XCTAssertEqual(restored.id, stored.id)
+            let restoredLengths = [restored.style.lineWidth, restored.style.fontSize,
+                restored.style.effectRadius, restored.style.cornerRadius, restored.style.freehandSimplification]
+            let storedLengths = [stored.style.lineWidth, stored.style.fontSize,
+                stored.style.effectRadius, stored.style.cornerRadius, stored.style.freehandSimplification]
+            for (actual, expected) in zip(restoredLengths, storedLengths) {
+                XCTAssertEqual(actual, expected, accuracy: 0.000_000_001)
+            }
+        }
     }
 
     @MainActor

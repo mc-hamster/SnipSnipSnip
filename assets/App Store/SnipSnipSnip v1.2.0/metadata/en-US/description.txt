@@ -1,0 +1,38 @@
+Turn what is on your screen into something clear and useful. SnipSnipSnip brings screenshots, annotation, visual comparisons, screen recording, and Clipboard History together in a native Mac app.
+
+Free and open source. No account, subscription, watermark, or forced cloud upload.
+
+CAPTURE WHAT MATTERS
+Capture a Region, Window, or Screen. Drag for a custom area or click a window, with a visible outline showing your target. Use a timer, repeat your last capture, or save a Capture Preset for a routine task. Quick Controls keeps your favorite actions beside your work.
+
+Capture Text copies recognized words directly from a selected screen area using local OCR. Capture Preview offers quick actions before you open the editor.
+
+EXPLAIN WITH EDITABLE ANNOTATIONS
+Add arrows, text, callouts, shapes, freehand marks, highlights, measurements, and spotlights. Crop, rotate, group, align, and reorder annotations. Blur, pixelate, or cover sensitive details. Highlighter can fit strokes to recognized text.
+
+Save an editable .sss document to revisit your work, with the original screenshot and annotation state kept separately. Copy or export when you want a flattened result.
+
+MAKE A COMPARISON, STEPS, OR A COMBINED IMAGE
+Show Before and After in a Comparison. Build ordered, captioned Steps to explain a process. Arrange several screenshots into one Combined Image. Share Comparisons and Steps as interactive HTML files that work offline, or export Steps as a paginated PDF.
+
+POLISH BEFORE YOU SHARE
+Give your screenshots a finished look with backgrounds, spacing, shadows, borders, and Mockups. Choose Output Size for delivered still images. Copy, export PNG/JPEG/PDF, use native sharing, drag a result into another app, or print.
+
+RECORD AND REFINE VIDEO
+Record a Region, Window, or Screen with optional system audio and microphone narration. Pause and resume recording, then review the result. Trim the ends, remove a section, add zooms, adjust cursor and click effects when pointer data is available, and apply presentation styling. Keep your source footage in an editable .sssvideo document and export a finished Video or animated loop.
+
+FIND IT AND USE IT AGAIN
+Opt in to Clipboard History to search, preview, pin, and reuse text, links, images, files, and screenshots in a compact floating palette. Copy and Return takes you back to your previous app after a successful copy.
+
+Snip Library brings Recent Snips, searchable Snip History, and the Recycle Bin together. Local OCR helps you find text in saved screenshots. Recovery helps you return to interrupted work.
+
+TOOLS FOR EVERYDAY MAC WORK
+Inspect pixels and colors with Screen Inspector, check dimensions with Screen Ruler, and automate supported capture and export tasks with Shortcuts, AppleScript, URL commands, and the bundled command-line tool.
+
+LOCAL FIRST
+Screenshot editing, OCR, and rendering happen on your Mac. Private Capture skips the normal screenshot history and recovery paths. Rendered PNG, JPEG, and PDF output is re-encoded without source metadata. Editable documents retain original pixels; share flattened output when redactions must be permanent.
+
+MAC APP STORE EDITION
+Includes screenshot editing, Comparisons, Steps, Combined Images, Video, and support for opening, editing, saving, and exporting existing .sssguide documents. Guide creation and recording, Scrolling Capture, Connected Device Capture, UI Map capture, and recording keyboard shortcuts are not included in this edition.
+
+Requires macOS 26 or later. Screen Recording permission enables capture and recording. Microphone permission is needed only for narration. This edition does not request Accessibility access.

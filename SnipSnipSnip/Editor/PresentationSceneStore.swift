@@ -8,11 +8,22 @@ nonisolated struct PresentationSceneValidationError: LocalizedError, Equatable {
 }
 
 nonisolated enum PresentationSceneValidator {
+    static let maximumSceneBytes = 4 * 1_024 * 1_024
+    static let maximumCanvasDimension = 16_384
+    static let maximumCanvasPixels = 134_217_728
+    static let maximumGeometryMagnitude: CGFloat = 1_000_000
+
     static func validate(
         svgText: String,
         source: PresentationSceneSource,
         fileURL: URL? = nil
     ) throws -> (metadata: PresentationSceneMetadata, sanitizedSVGText: String) {
+        guard svgText.utf8.count <= maximumSceneBytes else {
+            throw PresentationSceneValidationError(message: "Scene SVG exceeds safe resource bounds.")
+        }
+        if svgText.range(of: "<!DOCTYPE", options: .caseInsensitive) != nil {
+            throw PresentationSceneValidationError(message: "Scene SVG must not declare a DTD.")
+        }
         guard let data = svgText.data(using: .utf8) else {
             throw PresentationSceneValidationError(message: "Scene is not valid UTF-8.")
         }
@@ -27,6 +38,7 @@ nonisolated enum PresentationSceneValidator {
         if document.dtd != nil {
             throw PresentationSceneValidationError(message: "Scene SVG must not declare a DTD.")
         }
+        try rejectStylesheetInstructions(in: document)
 
         guard let metadataElement = findMetadataElement(in: document.rootElement()) else {
             throw PresentationSceneValidationError(message: "Scene SVG is missing metadata id=\"snipsnipsnip-scene\".")
@@ -74,6 +86,10 @@ nonisolated enum PresentationSceneValidator {
         guard metadata.canvas.width > 0, metadata.canvas.height > 0 else {
             throw PresentationSceneValidationError(message: "Scene metadata canvas must have positive width and height.")
         }
+        guard metadata.canvas.width <= maximumCanvasDimension, metadata.canvas.height <= maximumCanvasDimension,
+              metadata.canvas.width * metadata.canvas.height <= maximumCanvasPixels else {
+            throw PresentationSceneValidationError(message: "Scene canvas exceeds safe resource bounds.")
+        }
 
         if source == .bundled {
             guard metadata.id.hasPrefix("builtin.") else {
@@ -91,6 +107,11 @@ nonisolated enum PresentationSceneValidator {
             guard seenSlotIDs.insert(slot.id).inserted else {
                 throw PresentationSceneValidationError(message: "Scene metadata contains duplicate slot id \(slot.id).")
             }
+            let scales = [slot.minScale, slot.maxScale, slot.maxAutoEnlargement].compactMap { $0 }
+            guard scales.allSatisfy({ $0.isFinite && $0 > 0 && $0 <= maximumGeometryMagnitude }),
+                  slot.minScale == nil || slot.maxScale == nil || slot.minScale! <= slot.maxScale! else {
+                throw PresentationSceneValidationError(message: "Scene slot scale limits exceed safe resource bounds.")
+            }
         }
 
         let screenshotSlots = metadata.slots.filter { $0.id == PresentationSceneStore.primaryScreenshotSlotID && $0.type == .image }
@@ -104,9 +125,12 @@ nonisolated enum PresentationSceneValidator {
         var primaryScreenshotElementCount = 0
 
         try visitElements(in: document.rootElement()) { element in
-            let elementName = element.name?.lowercased() ?? ""
+            let elementName = (element.localName ?? element.name)?.lowercased() ?? ""
             if elementName == "script" || elementName == "foreignobject" || animationElementNames.contains(elementName) {
                 throw PresentationSceneValidationError(message: "Scene SVG contains unsupported <\(element.name ?? elementName)> content.")
+            }
+            if elementName == "style" {
+                try validateCSSReferences(element.stringValue ?? "")
             }
 
             for attribute in element.attributes ?? [] {
@@ -128,6 +152,21 @@ nonisolated enum PresentationSceneValidator {
                     || lowerValue.contains("data:") {
                     throw PresentationSceneValidationError(message: "Scene SVG must not reference remote, file, or embedded data URLs.")
                 }
+                if attributeName == "href" || attributeName.hasSuffix(":href") {
+                    let reference = attributeValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if reference.hasPrefix("snipsnipsnip:"),
+                       !allowedSlotIDs.contains(String(reference.dropFirst("snipsnipsnip:".count))) {
+                        throw PresentationSceneValidationError(message: "Scene SVG references unknown slot \(reference).")
+                    }
+                    guard reference.hasPrefix("#")
+                        || (reference.hasPrefix("snipsnipsnip:") && allowedSlotIDs.contains(String(reference.dropFirst("snipsnipsnip:".count)))) else {
+                        throw PresentationSceneValidationError(message: "Scene SVG must not reference external resources.")
+                    }
+                }
+                if attributeName == "xml:base", !attributeValue.isEmpty {
+                    throw PresentationSceneValidationError(message: "Scene SVG must not reference external resources through xml:base.")
+                }
+                try validateCSSReferences(attributeValue)
 
                 for slotID in snipSlotReferences(in: attributeValue) where !allowedSlotIDs.contains(slotID) {
                     throw PresentationSceneValidationError(message: "Scene SVG references unknown slot \(slotID).")
@@ -136,6 +175,20 @@ nonisolated enum PresentationSceneValidator {
 
             if elementName == "image",
                element.attribute(forName: "data-sss-slot")?.stringValue == PresentationSceneStore.primaryScreenshotSlotID {
+                for name in ["x", "y", "width", "height"] {
+                    if let raw = element.attribute(forName: name)?.stringValue,
+                       let number = PresentationSceneGeometryResolver.length(raw, default: 0) {
+                        guard abs(number) <= maximumGeometryMagnitude,
+                              (name == "x" || name == "y" || number > 0) else {
+                            throw PresentationSceneValidationError(message: "Scene screenshot slot exceeds safe resource bounds.")
+                        }
+                    } else if let raw = element.attribute(forName: name)?.stringValue {
+                        let numeric = raw.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "px", with: "")
+                        if let number = Double(numeric), !number.isFinite {
+                            throw PresentationSceneValidationError(message: "Scene screenshot slot exceeds safe resource bounds.")
+                        }
+                    }
+                }
                 primaryScreenshotElementCount += 1
             }
         }
@@ -151,6 +204,49 @@ nonisolated enum PresentationSceneValidator {
         "animatetransform",
         "set",
     ]
+
+    private static func rejectStylesheetInstructions(in node: XMLNode) throws {
+        if node.kind == .processingInstruction, node.name?.lowercased() == "xml-stylesheet" {
+            throw PresentationSceneValidationError(message: "Scene SVG must not reference external stylesheets.")
+        }
+        for child in node.children ?? [] { try rejectStylesheetInstructions(in: child) }
+    }
+
+    private static func validateCSSReferences(_ value: String) throws {
+        // CSS escapes and comments cannot be allowed to conceal resource syntax.
+        let withoutComments = value.replacingOccurrences(of: #"/\*[\s\S]*?\*/"#, with: "", options: .regularExpression)
+        let decoded = NSMutableString(string: withoutComments)
+        for match in cssEscapePattern.matches(in: withoutComments, range: NSRange(location: 0, length: decoded.length)).reversed() {
+            let replacement: String
+            if match.range(at: 1).location != NSNotFound,
+               let scalarValue = UInt32((withoutComments as NSString).substring(with: match.range(at: 1)), radix: 16),
+               let scalar = UnicodeScalar(scalarValue) {
+                replacement = String(scalar)
+            } else if match.range(at: 2).location != NSNotFound {
+                let character = (withoutComments as NSString).substring(with: match.range(at: 2))
+                replacement = character == "\n" || character == "\r" ? "" : character
+            } else {
+                replacement = ""
+            }
+            decoded.replaceCharacters(in: match.range, with: replacement)
+        }
+        let css = decoded as String
+        if css.range(of: "@import", options: .caseInsensitive) != nil {
+            throw PresentationSceneValidationError(message: "Scene SVG must not reference external stylesheets.")
+        }
+        for match in cssURLPattern.matches(in: css, range: NSRange(location: 0, length: (css as NSString).length)) {
+            let reference = (css as NSString).substring(with: match.range(at: 1))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard reference.hasPrefix("#") else {
+                throw PresentationSceneValidationError(message: "Scene SVG must not reference external resources in CSS.")
+            }
+        }
+    }
+
+    private static let cssEscapePattern = try! NSRegularExpression(pattern: #"\\(?:([0-9a-fA-F]{1,6})[ \t\r\n\f]?|([\s\S]))"#)
+    private static let cssURLPattern = try! NSRegularExpression(pattern: #"url\s*\(([^)]*)\)"#, options: [.caseInsensitive])
 
     private static func findMetadataElement(in element: XMLElement?) -> XMLElement? {
         guard let element else {
@@ -246,7 +342,7 @@ nonisolated struct PresentationSceneStore {
         let applicationSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support", isDirectory: true)
         return applicationSupport
-            .appendingPathComponent("SnipSnipSnip", isDirectory: true)
+            .appendingPathComponent(AppNamespace.current.supportDirectoryName, isDirectory: true)
             .appendingPathComponent("Presentation Scenes", isDirectory: true)
     }
 

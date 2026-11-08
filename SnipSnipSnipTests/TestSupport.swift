@@ -5,6 +5,24 @@ import XCTest
 
 let testCapabilities = BuildTargetCapabilityProvider().snapshot(for: .dev)
 
+nonisolated func assertRectsEqual(
+    _ actual: CGRect, _ expected: CGRect, accuracy: CGFloat = 0.000_000_001,
+    file: StaticString = #filePath, line: UInt = #line
+) {
+    XCTAssertEqual(actual.minX, expected.minX, accuracy: accuracy, file: file, line: line)
+    XCTAssertEqual(actual.minY, expected.minY, accuracy: accuracy, file: file, line: line)
+    XCTAssertEqual(actual.width, expected.width, accuracy: accuracy, file: file, line: line)
+    XCTAssertEqual(actual.height, expected.height, accuracy: accuracy, file: file, line: line)
+}
+
+/// Document workflow tests must not resize or retitle windows owned by another fixture.
+@MainActor
+struct TestDocumentWindowPresenter: DocumentWindowPresenting {
+    func syncMainWindowDocumentState(documentURL: URL?, hasUnsavedChanges: Bool, title: String) {}
+    func resizeMainWindowForContent(pixelSize: CGSize, kind: DocumentWindowContentKind, animated: Bool) -> Bool { false }
+    func restoreMainWindowForCaptureHome(animated: Bool) {}
+}
+
 nonisolated func makeDefaults(named suiteName: String) -> UserDefaults {
     let defaults = UserDefaults(suiteName: suiteName)!
     defaults.removePersistentDomain(forName: suiteName)
@@ -42,6 +60,7 @@ nonisolated struct TestCapturePermissionService: CapturePermissionServicing {
         CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
     }
     var screenRecordingVerifier: @Sendable () async -> Bool = { true }
+    var screenRecordingProbe: (@Sendable () async -> ScreenRecordingAccessProbeResult)? = nil
     var requestHandler: @Sendable (CapturePermissionRequirement) -> Bool = { _ in true }
     var settingsHandler: @Sendable (CapturePermissionRequirement) -> Void = { _ in }
     var canRequestHandler: @Sendable (CapturePermissionRequirement) -> Bool = { _ in true }
@@ -101,6 +120,11 @@ nonisolated struct TestCapturePermissionService: CapturePermissionServicing {
 
     func verifyScreenRecordingAccess() async -> Bool {
         await screenRecordingVerifier()
+    }
+
+    func probeScreenRecordingAccess() async -> ScreenRecordingAccessProbeResult {
+        if let screenRecordingProbe { return await screenRecordingProbe() }
+        return await screenRecordingVerifier() ? .available : .permissionDenied
     }
 
     func openSystemSettings(for requirement: CapturePermissionRequirement) {
@@ -171,6 +195,22 @@ nonisolated struct TestClock: ClockProviding {
     func now() -> Date {
         date
     }
+}
+
+nonisolated func makeScreenWindowSnapshot(
+    id: CGWindowID = 900_001,
+    ownerPID: pid_t = 900_001,
+    ownerName: String = "App",
+    bundleIdentifier: String? = "com.example.app",
+    title: String = "Window",
+    frame: CGRect = CGRect(x: 20, y: 20, width: 240, height: 180),
+    layer: Int = 0,
+    isOnScreen: Bool = true
+) -> ScreenWindowSnapshot {
+    ScreenWindowSnapshot(
+        id: id, ownerName: ownerName, ownerPID: ownerPID, bundleIdentifier: bundleIdentifier,
+        title: title, frame: frame, layer: layer, isOnScreen: isOnScreen
+    )
 }
 
 nonisolated struct TestScreenCapturePlatform: ScreenCapturePlatform {
@@ -295,11 +335,15 @@ extension ScreenCaptureService {
         self.init(permissions: TestCapturePermissionService())
     }
 
-    nonisolated init(permissions: any CapturePermissionServicing) {
+    nonisolated init(
+        permissions: any CapturePermissionServicing,
+        windows: [ScreenWindowSnapshot] = [],
+        frontmostApplicationProcessIdentifier: pid_t? = nil
+    ) {
         self.init(
             permissions: permissions,
-            platform: TestScreenCapturePlatform(),
-            workspace: TestWorkspaceService(),
+            platform: TestScreenCapturePlatform(content: ScreenContentSnapshot(displays: [], windows: windows, applications: [])),
+            workspace: TestWorkspaceService(frontmostApplicationProcessIdentifier: frontmostApplicationProcessIdentifier),
             screens: TestScreenTopologyService(),
             mouse: TestMouseLocationService(),
             windowFocus: TestApplicationWindowFocusService(),
@@ -315,10 +359,10 @@ extension ScreenRecordingService {
     }
 
     @MainActor
-    init(permissions: any CapturePermissionServicing) {
+    init(permissions: any CapturePermissionServicing, platform: any ScreenRecordingPlatform = TestScreenRecordingPlatform()) {
         self.init(
             permissions: permissions,
-            platform: TestScreenRecordingPlatform(),
+            platform: platform,
             capturePlatform: TestScreenCapturePlatform(),
             workspace: TestWorkspaceService(),
             screens: TestScreenTopologyService(),
@@ -434,6 +478,71 @@ private enum TestLifetimeRetainer {
 enum CoordinateImagePattern {
     case cartesian
     case weighted(xMultiplier: Int, yMultiplier: Int, includeBlueSum: Bool)
+}
+
+func makeScrollingFrame(width: Int, height: Int, rowMapper: (Int) -> Int) -> CGImage {
+    makeRGBAImage(width: width, height: height) { x, y in
+        scrollingPixel(x: x, y: rowMapper(y))
+    }
+}
+
+func scrollingPixel(x: Int, y: Int) -> PixelSample {
+    PixelSample(
+        red: UInt8(truncatingIfNeeded: x),
+        green: UInt8(truncatingIfNeeded: y),
+        blue: UInt8(truncatingIfNeeded: x * 3 + y / 2),
+        alpha: 255
+    )
+}
+
+/// Unlike the gradient fixture (which repeats every 512 rows), this supports
+/// long-session tests whose scroll offsets must have a unique overlap.
+func scrollingRowSeed(_ row: Int) -> UInt64 {
+    var value = UInt64(bitPattern: Int64(row)) &+ 0x9E3779B97F4A7C15
+    value = (value ^ (value >> 30)) &* 0xBF58476D1CE4E5B9
+    value = (value ^ (value >> 27)) &* 0x94D049BB133111EB
+    return value ^ (value >> 31)
+}
+
+func makeNonrepeatingScrollingFrame(width: Int, height: Int, rowMapper: (Int) -> Int) -> CGImage {
+    let rows = (0..<height).map { scrollingRowSeed(rowMapper($0)) }
+    return makeRGBAImage(width: width, height: height) { x, y in
+        let row = rows[y]
+        return PixelSample(
+            red: UInt8(truncatingIfNeeded: row) &+ UInt8(truncatingIfNeeded: x),
+            green: UInt8(truncatingIfNeeded: row >> 8),
+            blue: UInt8(truncatingIfNeeded: row >> 16) &+ UInt8(truncatingIfNeeded: x * 3),
+            alpha: 255
+        )
+    }
+}
+
+/// Sparse text-like edges over a white page expose costly failed matches that
+/// dense color/noise fixtures reject much sooner. Dimensions are source pixels.
+func makeScrollingTextPage(width: Int, height: Int, offset: Int) -> CGImage {
+    let rows = (0..<(height + offset + 24) / 24 + 1).map { scrollingRowSeed($0) }
+    return makeRGBAImage(width: width, height: height) { x, y in
+        let row = y + offset
+        let line = rows[row / 24]
+        let end = width - 160 - Int(line % 550)
+        let cell = max(x - 160, 0) / 12
+        let ink = (5..<16).contains(row % 24) && x >= 160 && x < end
+            && (scrollingRowSeed(cell) ^ line) % 13 < 6 && x % 12 < 7
+        let value: UInt8 = ink ? 36 : 255
+        return PixelSample(red: value, green: value, blue: value, alpha: 255)
+    }
+}
+
+func assertScrollingRows(in image: CGImage, expectedHeight: Int, file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertEqual(image.height, expectedHeight, file: file, line: line)
+    for y in 0..<min(image.height, expectedHeight) {
+        for x in [0, image.width / 2, image.width - 1] {
+            XCTAssertEqual(
+                samplePixel(in: image, topLeftX: x, topLeftY: y), scrollingPixel(x: x, y: y),
+                "Pixel (\(x), \(y))", file: file, line: line
+            )
+        }
+    }
 }
 
 func makeRGBAImage(
@@ -715,4 +824,47 @@ func makeCaptureWindow(
         focusRank: focusRank,
         thumbnail: resolvedThumbnail
     )
+}
+
+/// Use an isolated pasteboard while exercising app-level output routing.
+@MainActor
+func makePasteboardTestEnvironment(
+    defaults: UserDefaults,
+    pasteboard: any PasteboardServicing
+) -> AppEnvironment {
+    let permissions = TestCapturePermissionService()
+    let live = AppSystemServices.live(permissions: permissions)
+    let services = AppSystemServices(
+        files: live.files, workspace: live.workspace, screens: live.screens,
+        mouse: live.mouse, windowFocus: live.windowFocus, bundle: live.bundle,
+        pasteboard: pasteboard, clock: live.clock, ids: live.ids,
+        scheduler: live.scheduler, permissions: permissions,
+        accessibility: live.accessibility, screenCapturePlatform: live.screenCapturePlatform,
+        screenRecordingPlatform: live.screenRecordingPlatform,
+        connectedDevicePlatform: live.connectedDevicePlatform
+    )
+    return AppEnvironment(defaults: defaults, systemServices: services)
+}
+
+@MainActor
+final class ScrollingTestDriver: ScrollDriver {
+    let sourceName = "Test scrolling content"
+    var reportedPosition: Double?
+    var advancesPosition = false
+    var restorationSucceeds = true
+    var hasMoreContent: Bool? = nil
+    private(set) var scrollDistances: [CGFloat] = []
+    private(set) var restoredPositions: [Double] = []
+
+    init(reportedPosition: Double?) { self.reportedPosition = reportedPosition }
+    func snapshotPosition() -> Double? { reportedPosition }
+    func restorePosition(_ position: Double) {
+        restoredPositions.append(position)
+        if restorationSucceeds { reportedPosition = position }
+    }
+    func scrollDown(logicalDistance: CGFloat) {
+        scrollDistances.append(logicalDistance)
+        if advancesPosition, let position = reportedPosition { reportedPosition = min(position + 1, 1) }
+    }
+    func isAtEnd(previousPosition: Double?) -> Bool { reportedPosition != nil }
 }

@@ -25,6 +25,8 @@ struct ContentView: View {
     @FocusState private var focusedCaptureDiscovery: CaptureDiscoveryItem?
     @SceneStorage("editor.inspector.isPresented")
     private var isEditorInspectorPresented = true
+    @SceneStorage("video.inspector.visible")
+    private var isVideoInspectorPresented = false
     @State private var compositionImportDetails:
         CompositionImportRecoveryState?
 
@@ -43,7 +45,7 @@ struct ContentView: View {
                 EditorCommandBar(
                     controller: editorController,
                     isInspectorPresented: $isEditorInspectorPresented,
-                    onBack: documents.closeEditor,
+                    onBack: documents.returnToCapture,
                     onFloatReference: { documents.floatCurrentEditorReference(appearance: $0) },
                     onExportPNG: { documents.exportAnnotatedImage(as: .png, appearance: $0) },
                     onExportJPEG: { documents.exportAnnotatedImage(as: .jpeg, appearance: $0) },
@@ -60,7 +62,21 @@ struct ContentView: View {
                     onShowLayers: showLayersWindow,
                     onShowUIMap: showUIMapWindow,
                     dragOutPayloadProvider: { documents.promisedAnnotatedImagePayload(appearance: $0) },
-                    compositionAddActions: compositionAddActions(for: editorController)
+                    compositionAddActions: compositionAddActions(for: editorController),
+                    onDiscard: documents.closeEditor
+                )
+                .disabled(capture.isWorking)
+                Divider()
+            }
+
+            if let videoController = documents.videoEditorController {
+                VideoEditorCommandBar(
+                    controller: videoController,
+                    inspectorVisible: $isVideoInspectorPresented,
+                    exportPreferences: video.exportPreferences,
+                    onBack: documents.closeEditor,
+                    onExportRequest: video.exportVideo(using:),
+                    dragOutPayloadProvider: video.promisedVideoPayload
                 )
                 Divider()
             }
@@ -74,7 +90,9 @@ struct ContentView: View {
                         onAddRecentSnip: { documents.addRecentSnip($0, to: guideController) },
                         savedThemes: guide.savedThemes,
                         onSaveTheme: guide.saveTheme,
-                        onSetDefaultBranding: guide.setDefaultBranding
+                        onSetDefaultBranding: guide.setDefaultBranding,
+                        onRetrySave: documents.saveDocument,
+                        onSaveAs: documents.saveDocumentAs
                     )
                         .id(ObjectIdentifier(guideController))
                 } else if let editorController = documents.editorController {
@@ -110,7 +128,7 @@ struct ContentView: View {
                     )
                     .id(ObjectIdentifier(editorController))
                 } else if let videoController = documents.videoEditorController {
-                    VideoEditorView(controller: videoController)
+                    VideoEditorView(controller: videoController, supportsShortcutCapture: capabilities.isEnabled(.videoShortcutCapture), inspectorVisible: $isVideoInspectorPresented)
                 } else {
                     emptyState
                 }
@@ -137,6 +155,10 @@ struct ContentView: View {
         .sheet(isPresented: $capture.isShowingWindowPicker) {
             CaptureWindowPickerView(
                 windows: capture.availableWindows,
+                purpose: {
+                    if case .videoRecording = capture.windowPickerMode { return .video }
+                    return .screenshot
+                }(),
                 onSelect: { window in
                     switch capture.windowPickerMode {
                     case .videoRecording:
@@ -228,6 +250,9 @@ struct ContentView: View {
             CapturePresetNamingSheetView(capture: capture)
                 .frame(width: 420)
         }
+        .sheet(item: $video.recordingStartRecovery) { recovery in
+            VideoPermissionRecoveryView(video: video, recovery: recovery)
+        }
         .sheet(item: $capture.captureRecovery) { recovery in
             CaptureRecoverySheetView(
                 recovery: recovery,
@@ -302,7 +327,7 @@ struct ContentView: View {
             permissions.refreshPermissions()
 
             guard capture.autoRefreshWindowsEnabled,
-                  documents.editorController == nil,
+                  !hasOpenDocument,
                   !capture.isWorking,
                   !capture.isShowingWindowPicker,
                   permissions.permissionStatus.hasScreenRecording else {
@@ -591,7 +616,9 @@ struct ContentView: View {
             GuideEditorToolbarContent(
                 controller: guideController,
                 onBack: documents.closeEditor,
-                onExport: { documents.exportCurrentGuide(showProgressWindow: $0) },
+                onExport: { formats, showProgressWindow in
+                    documents.exportCurrentGuide(formats: formats, showProgressWindow: showProgressWindow)
+                },
                 exportIsActive: documents.guideExportIsActive,
                 exportProgress: documents.guideExportProgress,
                 exportStatus: documents.guideExportStatus,
@@ -603,16 +630,6 @@ struct ContentView: View {
                 onShareExports: documents.shareGuideExports,
                 dragOutPayloadProvider: documents.promisedGuidePayload
             )
-        } else if let videoController = documents.videoEditorController {
-            VideoEditorToolbarContent(
-                controller: videoController,
-                documentFilename: documents.currentDocumentFilename,
-                hasUnsavedChanges: documents.hasUnsavedChanges,
-                exportPreferences: video.exportPreferences,
-                onBack: documents.closeEditor,
-                onExportRequest: video.exportVideo(using:),
-                dragOutPayloadProvider: video.promisedVideoPayload
-            )
         }
     }
 
@@ -622,35 +639,43 @@ struct ContentView: View {
                 HStack(alignment: .center, spacing: 10) {
                     captureHeaderIdentity
                     Spacer(minLength: 12)
-                    if documents.editorController != nil {
+                    if documents.editorController != nil || documents.videoEditorController != nil {
                         contextualCreateButton
                     } else {
                         captureHeaderOptions
                     }
-                    autoCopyToggle
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
                     captureHeaderIdentity
                     HStack(spacing: 8) {
                         Spacer(minLength: 0)
-                        if documents.editorController != nil {
+                        if documents.editorController != nil || documents.videoEditorController != nil {
                             contextualCreateButton
                         } else {
                             captureHeaderOptions
                         }
-                        autoCopyToggle
                     }
                 }
             }
 
             captureHeaderActions
 
-            if !headerCaptureReady {
+            if let permissionGuide = permissions.permissionSetupGuide {
+                ScrollView {
+                    PermissionSetupView(permissions: permissions, guide: permissionGuide)
+                }
+                .frame(maxHeight: 230)
+            } else if !headerCaptureReady {
                 if hasOpenDocument {
                     compactPermissionStrip
                     if isPermissionDiagnosticExpanded {
-                        headerPermissionCallout
+                        if documents.videoEditorController != nil {
+                            ScrollView { headerPermissionCallout }
+                                .frame(height: 120)
+                        } else {
+                            headerPermissionCallout
+                        }
                     }
                 } else {
                     headerPermissionCallout
@@ -791,15 +816,6 @@ struct ContentView: View {
             .help(headerCaptureReady ? "Capture permissions are ready." : permissionCalloutSummary)
     }
 
-    private var autoCopyToggle: some View {
-        Toggle("Auto Copy", isOn: $clipboard.autoCopyEnabled)
-            .toggleStyle(.switch)
-            .controlSize(.small)
-            .font(.subheadline.weight(.semibold))
-            .fixedSize()
-            .help("Automatically copy the current rendered snip after captures and editor changes.")
-    }
-
     private var captureHeaderOptions: some View {
         HStack(spacing: 6) {
             discoveryTarget(.timer) {
@@ -865,6 +881,8 @@ struct ContentView: View {
         Group {
             if let controller = documents.editorController {
                 editorSessionBar(controller)
+            } else if let controller = documents.videoEditorController {
+                VideoSessionBar(controller: controller, inspectorVisible: $isVideoInspectorPresented)
             } else {
                 HStack(alignment: .top, spacing: 18) {
                     captureDiscoveryActionGroups
@@ -921,6 +939,8 @@ struct ContentView: View {
                     )
                 }
                 repeatLastCaptureButton
+                captureButton(title: "Capture Text", systemImage: "text.viewfinder",
+                    discoveryItem: .captureText, action: capture.captureText)
                 capturePresetsMenu
             }
         }
@@ -1702,16 +1722,7 @@ struct ContentView: View {
                 missingPermissionRow(requirement)
             }
 
-            if let guide = permissions.permissionSetupGuide {
-                PermissionSetupGuideView(
-                    guide: guide,
-                    onOpenSettings: permissions.openPermissionSettingsFromGuide,
-                    onRevealApp: permissions.revealAppForPermissionSetup,
-                    onCopyPath: permissions.copyAppPathForPermissionSetup,
-                    onCheckAgain: permissions.checkPermissionSetupGuideStatus,
-                    onDone: permissions.dismissPermissionSetupGuide
-                )
-            }
+
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -2476,123 +2487,6 @@ private struct CaptureModeCard<Content: View>: View {
     }
 }
 
-private struct PermissionSetupGuideView: View {
-    let guide: PermissionSetupGuide
-    let onOpenSettings: () -> Void
-    let onRevealApp: () -> Void
-    let onCopyPath: () -> Void
-    let onCheckAgain: () -> Void
-    let onDone: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: guide.requirement.systemImage)
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(.orange)
-                    .frame(width: 44, height: 44)
-                    .background(Color.orange.opacity(0.12), in: .rect(cornerRadius: 12, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Allow \(guide.requirement.title)")
-                        .font(.title2.weight(.semibold))
-
-                    Text(permissionIntro)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 10) {
-                setupStep(firstSetupStep)
-                setupStep("If \(guide.appName) is listed, turn it on.")
-                setupStep("If it is still not listed, click the + button and choose the app shown below. Development builds may live inside Xcode DerivedData, so adding the exact running app matters.")
-                setupStep(finalSetupStep)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Current app")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-
-                Text(guide.appPath)
-                    .font(.caption.monospaced())
-                    .textSelection(.enabled)
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(nsColor: .textBackgroundColor), in: .rect(cornerRadius: 8, style: .continuous))
-            }
-
-            HStack(spacing: 10) {
-                Button("Open Settings", action: onOpenSettings)
-                    .buttonStyle(.glass)
-
-                Button("Reveal App", action: onRevealApp)
-                    .buttonStyle(.glass)
-
-                Button("Copy Path", action: onCopyPath)
-                    .buttonStyle(.glass)
-
-                Spacer(minLength: 12)
-
-                Button("Check Again", action: onCheckAgain)
-                    .buttonStyle(.glass)
-
-                Button("Done", action: onDone)
-                    .keyboardShortcut(.cancelAction)
-                    .buttonStyle(.glass)
-            }
-        }
-        .padding(12)
-        .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: 10, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.16), lineWidth: 1)
-        }
-    }
-
-    private var permissionIntro: String {
-        switch guide.requirement {
-        case .screenRecording:
-            return "macOS needs this before \(AppBranding.displayName) can read screen pixels for captures, recordings, and live window thumbnails."
-        case .accessibility:
-            return "macOS needs this for Accessibility workflows such as Scrolling Capture and Window UI Map."
-        }
-    }
-
-    private var firstSetupStep: String {
-        switch guide.requirement {
-        case .screenRecording:
-            return "Use the macOS prompt's Open System Settings button, or click Open Settings here to go to Privacy & Security > Screen Recording."
-        case .accessibility:
-            return "Use the macOS prompt's Open System Settings button, or click Open Settings here to go to Privacy & Security > Accessibility."
-        }
-    }
-
-    private var finalSetupStep: String {
-        switch guide.requirement {
-        case .screenRecording:
-            return "Return here and click Check Again. If macOS still cannot give this running copy access, restart \(AppBranding.displayName) when prompted."
-        case .accessibility:
-            return "Return here and click Check Again."
-        }
-    }
-
-    private func setupStep(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "checkmark.circle")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.orange)
-                .padding(.top, 2)
-
-            Text(text)
-                .font(.subheadline)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-}
-
 private struct CapturePresetNamingSheetView: View {
     @ObservedObject var capture: CaptureWorkflowModel
     @Environment(\.dismiss) private var dismiss
@@ -2785,6 +2679,7 @@ private struct CaptureRecoverySheetView: View {
         case .retryLastCapture: "Try Again"
         case .setUpScreenRecording: "Set Up Screen Recording"
         case .setUpAccessibility: "Set Up Accessibility"
+        case .openCameraSettings: "Open Camera Settings"
         case .refreshWindows: "Refresh Windows"
         case .pickAnotherWindow: "Pick Another Window"
         case .captureFrontmostWindow: "Capture Frontmost"

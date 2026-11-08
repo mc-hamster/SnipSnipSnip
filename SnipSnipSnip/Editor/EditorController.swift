@@ -118,6 +118,8 @@ final class EditorController: ObservableObject {
     private static let textEditingCommitDelayNanoseconds: UInt64 = 300_000_000
 
     @Published private(set) var snapshot: EditorSnapshot
+    @Published var smartHighlightEnabled = true
+    @Published var screenshotOutputSize: ScreenshotOutputSize = .original
     @Published var activeTool: EditorTool = .select {
         didSet {
             guard activeTool != oldValue else {
@@ -169,6 +171,7 @@ final class EditorController: ObservableObject {
         dismissError()
         action?()
     }
+    let outputActivity = ScreenshotOutputActivity()
     @Published private(set) var notice: EditorNotice?
     var noticeMessage: String? { notice?.message }
     var editorSingleKeyToolShortcutsEnabled = true
@@ -237,6 +240,7 @@ final class EditorController: ObservableObject {
         revision: Int,
         targetMaximumPixelDimension: Int?,
         comparisonPhase: CompositionComparisonPhase,
+        logicalContentSize: CGSize,
         image: CGImage
     )?
 
@@ -356,7 +360,7 @@ final class EditorController: ObservableObject {
         self.defaults = defaults
         self.capabilities = capabilities
         self.preferredRedactionMode = defaults.string(forKey: EditorPreferenceKey.lastRedactionMode)
-            .flatMap(RedactionMode.init(rawValue:)) ?? .blur
+            .flatMap(RedactionMode.init(rawValue:)) ?? .solid
         self.capture = capture
         self.documentCapture = capture
         self.isPrivateDocument = isPrivateDocument
@@ -414,7 +418,7 @@ final class EditorController: ObservableObject {
             currentSnapshot: initialDocumentSnapshot,
             undoStack: [],
             redoStack: [],
-            toolStyles: Dictionary(uniqueKeysWithValues: EditorTool.allCases.map { ($0, AnnotationStyle.default(for: $0)) }),
+            toolStyles: Dictionary(EditorTool.allCases.map { ($0, AnnotationStyle.default(for: $0)) }, uniquingKeysWith: { first, _ in first }),
             savedPresentations: []
         )
         self.initialSnapshot = session.initialSnapshot
@@ -451,7 +455,7 @@ final class EditorController: ObservableObject {
         self.defaults = defaults
         self.capabilities = capabilities
         self.preferredRedactionMode = defaults.string(forKey: EditorPreferenceKey.lastRedactionMode)
-            .flatMap(RedactionMode.init(rawValue:)) ?? .blur
+            .flatMap(RedactionMode.init(rawValue:)) ?? .solid
         self.capture = capture
         self.documentCapture = capture
         self.isPrivateDocument = isPrivateDocument
@@ -1064,6 +1068,9 @@ final class EditorController: ObservableObject {
         guard updatedSnapshot != previousSnapshot else {
             return
         }
+        guard acceptsIdentityIntegrity(updatedSnapshot, context: String(reflecting: type(of: command))) else {
+            return
+        }
 
         var shouldPruneCompositionAssets = false
         if undoable, coalescedGestureInitialSnapshots.isEmpty {
@@ -1224,10 +1231,7 @@ final class EditorController: ObservableObject {
             }
             return duplicate
         }
-        for duplicate in duplicates {
-            execute(AddAnnotationCommand(annotation: duplicate))
-        }
-        execute(SetSelectionCommand(annotationIDs: duplicates.map(\.id)), undoable: false)
+        execute(AddAnnotationsCommand(annotations: duplicates))
     }
 
     func select(_ annotationID: UUID?, additive: Bool = false, toggle: Bool = false) {
@@ -1503,22 +1507,7 @@ final class EditorController: ObservableObject {
 
         beginTextEditingSessionIfNeeded(for: annotation.id)
 
-        let updatedAnnotation: Annotation
-        if case let .text(shape) = annotation.kind, shape.automaticallySizesToText {
-            updatedAnnotation = annotation.updatingText(
-                text,
-                maximumAutoTextWidth: maximumAutoTextWidth(for: shape),
-                autoTextBounds: snapshot.cropRect
-            )
-        } else if case let .callout(shape) = annotation.kind, shape.automaticallySizesToText {
-            updatedAnnotation = annotation.updatingText(
-                text,
-                maximumAutoTextWidth: maximumAutoCalloutWidth(for: shape),
-                autoTextBounds: snapshot.cropRect
-            )
-        } else {
-            updatedAnnotation = annotation.updatingText(text)
-        }
+        let updatedAnnotation = annotation.updatingText(text, within: snapshot.cropRect)
         let updatedSnapshot = UpdateAnnotationCommand(annotation: updatedAnnotation).apply(to: snapshot)
 
         guard updatedSnapshot != snapshot else {
@@ -1919,7 +1908,9 @@ final class EditorController: ObservableObject {
         let priorPurpose = documentPurpose
         let priorStage = workflowStage
 
-        if let previous = undoStack.popLast() {
+        if let previous = undoStack.last {
+            guard acceptsIdentityIntegrity(previous, context: "Undo") else { return }
+            undoStack.removeLast()
             let shouldPruneCompositionAssets =
                 appendRedoSnapshot(canonicalCompositionEditingSnapshot(snapshot))
             applySnapshot(
@@ -1942,6 +1933,7 @@ final class EditorController: ObservableObject {
         guard !hasTruncatedUndoHistory, snapshot != initialSnapshot else {
             return
         }
+        guard acceptsIdentityIntegrity(initialSnapshot, context: "Undo initial state") else { return }
 
         let shouldPruneCompositionAssets =
             appendRedoSnapshot(canonicalCompositionEditingSnapshot(snapshot))
@@ -1966,9 +1958,11 @@ final class EditorController: ObservableObject {
         let priorPurpose = documentPurpose
         let priorStage = workflowStage
 
-        guard let next = redoStack.popLast() else {
+        guard let next = redoStack.last,
+              acceptsIdentityIntegrity(next, context: "Redo") else {
             return
         }
+        redoStack.removeLast()
 
         let shouldPruneCompositionAssets =
             appendUndoSnapshot(canonicalCompositionEditingSnapshot(snapshot))
@@ -2214,7 +2208,8 @@ final class EditorController: ObservableObject {
         try renderExportInput(
             exportRenderInput(
                 for: appearance,
-                compositionSafetyPolicy: .fail
+                compositionSafetyPolicy: .fail,
+                usesOutputSize: false
             )
         )
     }
@@ -2382,7 +2377,7 @@ final class EditorController: ObservableObject {
                     }
 
                     let recognizedText = try await textRecognizer.recognizeText(in: cropped)
-                    return CaptureTextRecognizer.normalizedRecognizedText(recognizedText)
+                    return RecognizedTextFormatting.preservingLines(recognizedText)
                 }.value
                 self?.ocrReviewText = text
             } catch {
@@ -2396,21 +2391,26 @@ final class EditorController: ObservableObject {
 
     func copyOCRReviewTextToClipboard() {
         let text = ocrReviewText ?? ""
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-        ocrReviewText = nil
+        do {
+            try TextCaptureService.writeText(text, isPrivate: isPrivateDocument, pasteboard: SystemPasteboardService())
+            ocrReviewText = nil
+            showNotice("Text copied to the clipboard.")
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func dismissOCRReview() {
         ocrReviewText = nil
     }
 
-    func addImageOverlayFromPasteboard() -> Bool {
-        guard let image = imageFromPasteboard() else {
+    func addImageOverlayFromPasteboard(pasteboard: NSPasteboard = .general) -> Bool {
+        let isPrivatePaste = ClipboardPasteboardReader.containsConcealedType(pasteboard.types?.map(\.rawValue) ?? [])
+        guard let image = imageFromPasteboard(pasteboard) else {
             return false
         }
 
+        if isPrivatePaste { markDocumentPrivate() }
         addImageOverlay(image)
         return true
     }
@@ -2473,30 +2473,47 @@ final class EditorController: ObservableObject {
         compositionEditingScope == .layout
     }
 
-    func copyAnnotatedImage(appearance: ScreenshotOutputAppearance) {
+    func copyAnnotatedImage(
+        appearance: ScreenshotOutputAppearance,
+        pasteboard: any PasteboardServicing = SystemPasteboardService(),
+        completion: ((Bool) -> Void)? = nil
+    ) {
+        commitPendingTextEdits()
         do {
             let input = try exportRenderInput(for: appearance)
-            Task { @MainActor [weak self] in
-                do {
-                    let pngData = try await EditorExportRenderer.renderPNGData(from: input)
-                    try ImageExporter.copyPNGDataToClipboard(pngData)
+            let hasRedactions = containsRedactions
+            let isPrivateCopy = isPrivateDocument
+            outputActivity.copy(
+                key: ScreenshotCopyRequestKey(
+                    contentRevision: presentationContentRevision,
+                    appearance: appearance,
+                    outputSize: input.outputSize,
+                    isPrivate: isPrivateCopy
+                ),
+                render: { try await EditorExportRenderer.renderPNGData(from: input) },
+                deliver: { try ImageExporter.copyPNGDataToClipboard($0, isPrivate: isPrivateCopy, pasteboard: pasteboard) },
+                didSucceed: { [weak self] in
                     self?.showNotice(EditorNotice(
-                        message: String(localized: "Copied screenshot."),
-                        accessibilityAnnouncement: String(
-                            localized: "Screenshot copied to the clipboard."
-                        )
+                        message: hasRedactions
+                            ? String(localized: "Copied screenshot with redactions applied. Ready to paste.")
+                            : String(localized: "Copied screenshot. Ready to paste."),
+                        accessibilityAnnouncement: String(localized: "Screenshot copied to the clipboard.")
                     ))
-                } catch {
+                },
+                didFail: { [weak self] error in
                     self?.reportOutputFailure(error, actionTitle: "Copy Again") { [weak self] in
-                        self?.copyAnnotatedImage(appearance: appearance)
+                        self?.copyAnnotatedImage(appearance: appearance, pasteboard: pasteboard, completion: completion)
                     }
-                }
-            }
+                },
+                completion: completion
+            )
         } catch is CancellationError {
+            completion?(false)
             return
         } catch {
+            completion?(false)
             reportOutputFailure(error, actionTitle: "Copy Again") { [weak self] in
-                self?.copyAnnotatedImage(appearance: appearance)
+                self?.copyAnnotatedImage(appearance: appearance, pasteboard: pasteboard, completion: completion)
             }
         }
     }
@@ -2506,11 +2523,12 @@ final class EditorController: ObservableObject {
             && snapshot.presentation.requiresPNGForFaithfulExport
     }
 
-    func renderedImageForExport(appearance: ScreenshotOutputAppearance) async throws -> CGImage {
+    func renderedImageForExport(appearance: ScreenshotOutputAppearance, usesOutputSize: Bool = false) async throws -> CGImage {
         try await EditorExportRenderer.renderImage(
             from: exportRenderInput(
                 for: appearance,
-                compositionSafetyPolicy: .fail
+                compositionSafetyPolicy: .fail,
+                usesOutputSize: usesOutputSize
             )
         )
     }
@@ -2521,12 +2539,15 @@ final class EditorController: ObservableObject {
         filenameTemplate: ScreenshotFilenameTemplate = ScreenshotFilenameTemplate.default,
         exportOptions: ImageExportOptions = .default
     ) {
+        guard let exportID = outputActivity.beginExport() else { return }
         let input: EditorExportRenderInput
         do {
             input = try exportRenderInput(for: appearance)
         } catch is CancellationError {
+            outputActivity.finishExport(id: exportID)
             return
         } catch {
+            outputActivity.finishExport(id: exportID)
             reportOutputFailure(error, actionTitle: "Export Again…") { [weak self] in
                 self?.saveAnnotatedImage(appearance: appearance, format: format, filenameTemplate: filenameTemplate, exportOptions: exportOptions)
             }
@@ -2538,7 +2559,9 @@ final class EditorController: ObservableObject {
             appearance: appearance
         )
 
+        let activity = outputActivity
         Task { @MainActor [weak self] in
+            defer { activity.finishExport(id: exportID) }
             do {
                 if input.snapshot.presentation.requiresPNGForFaithfulExport, format != .png {
                     throw ImageExportError.transparentPresentationRequiresPNG
@@ -2552,6 +2575,7 @@ final class EditorController: ObservableObject {
                     return
                 }
 
+                activity.beginExportRendering(id: exportID)
                 let image = try await EditorExportRenderer.renderImage(from: input)
                 try await ImageExporter.write(image, format: format, to: url, options: exportOptions)
                 self?.showNotice(EditorNotice(
@@ -2680,7 +2704,8 @@ final class EditorController: ObservableObject {
     private func exportRenderInput(
         for appearance: ScreenshotOutputAppearance,
         compositionSafetyPolicy:
-            EditorCompositionRasterSafetyPolicy = .prompt
+            EditorCompositionRasterSafetyPolicy = .prompt,
+        usesOutputSize: Bool = true
     ) throws -> EditorExportRenderInput {
         var exportSnapshot = canonicalCompositionEditingSnapshot(snapshot)
         switch appearance {
@@ -2752,6 +2777,7 @@ final class EditorController: ObservableObject {
             snapshot: exportSnapshot,
             compositionOutput: compositionOutput,
             compositionMaximumOutputDimension: maximumOutputDimension,
+            outputSize: usesOutputSize ? screenshotOutputSize : .original,
             pinnedUIMapElements: pinnedUIMapElements,
             uiMapOverlayOptions: uiMapOverlayOptions,
             suppressesContentDiagnostics: isPrivateDocument
@@ -2761,19 +2787,22 @@ final class EditorController: ObservableObject {
     private func renderExportInput(
         _ input: EditorExportRenderInput
     ) throws -> CGImage {
+        let image: CGImage
         if let compositionOutput = input.compositionOutput {
-            return try CompositionOutputExporter.staticImage(
+            image = try CompositionOutputExporter.staticImage(
                 compositionOutput,
                 maximumOutputDimension:
                     input.compositionMaximumOutputDimension
             )
-        }
-        return try CompositionDocumentRenderer.renderImage(
+        } else {
+            image = try CompositionDocumentRenderer.renderImage(
             baseImage: input.baseImage,
             snapshot: input.snapshot,
             pinnedUIMapElements: input.pinnedUIMapElements,
             uiMapOverlayOptions: input.uiMapOverlayOptions
         )
+        }
+        return try input.outputSize.resized(image)
     }
 
     private func presentCompositionRasterScaleConfirmation(
@@ -2828,10 +2857,15 @@ final class EditorController: ObservableObject {
 
     private func mutateStyle(_ mutation: (inout AnnotationStyle) -> Void) {
         if !selectedAnnotations.isEmpty {
+            // Finish typing before deriving a separate undoable style edit.
+            commitPendingTextEdits()
             let updated = selectedAnnotations.map { annotation -> Annotation in
                 var style = annotation.style
                 mutation(&style)
-                return annotation.updatingStyle(style)
+                let styledAnnotation = annotation.updatingStyle(style)
+                return style.fontSize != annotation.style.fontSize
+                    ? styledAnnotation.refittingTextBounds(within: snapshot.cropRect)
+                    : styledAnnotation
             }
 
             updatePersistedToolStyles(using: updated)
@@ -2865,9 +2899,7 @@ final class EditorController: ObservableObject {
         addAnnotation(Annotation.makeImageOverlay(image: image, in: rect))
     }
 
-    private func imageFromPasteboard() -> CGImage? {
-        let pasteboard = NSPasteboard.general
-
+    private func imageFromPasteboard(_ pasteboard: NSPasteboard) -> CGImage? {
         for type in [NSPasteboard.PasteboardType.png, .tiff] {
             guard let data = pasteboard.data(forType: type),
                   let source = CGImageSourceCreateWithData(data as CFData, nil),
@@ -3139,9 +3171,9 @@ final class EditorController: ObservableObject {
     }
 
     private func persistToolStyles() {
-        let records = Dictionary(uniqueKeysWithValues: toolStyles.map { key, value in
+        let records = Dictionary(toolStyles.map { key, value in
             (key.rawValue, PersistedEditorToolStyleRecord(value))
-        })
+        }, uniquingKeysWith: { first, _ in first })
 
         guard let data = try? JSONEncoder().encode(records) else {
             return
@@ -3177,7 +3209,7 @@ final class EditorController: ObservableObject {
             return
         }
 
-        let refittedAnnotation = annotation.refittingTextBounds()
+        let refittedAnnotation = annotation.refittingTextBounds(within: snapshot.cropRect)
         let refittedSnapshot = UpdateAnnotationCommand(annotation: refittedAnnotation).apply(to: snapshot)
 
         guard refittedSnapshot != snapshot else {
@@ -3207,22 +3239,6 @@ final class EditorController: ObservableObject {
         default:
             return gscSuggestedTextRect(adjacentTo: annotation.boundingRect, within: snapshot.cropRect)
         }
-    }
-
-    private func maximumAutoTextWidth(for shape: TextShape) -> CGFloat {
-        gscAutoTextMaxWidth(
-            originX: shape.rect.minX,
-            within: snapshot.cropRect,
-            minWidth: 44
-        )
-    }
-
-    private func maximumAutoCalloutWidth(for shape: CalloutShape) -> CGFloat {
-        gscAutoTextMaxWidth(
-            originX: shape.rect.minX,
-            within: snapshot.cropRect,
-            minWidth: 194
-        )
     }
 
     private func defaultSuggestedTextRect() -> CGRect {
@@ -3739,10 +3755,10 @@ final class EditorController: ObservableObject {
         }
         let sourceBounds = CGRect(origin: .zero, size: sourceSize)
         let destinationBounds = CGRect(origin: .zero, size: destinationSize)
-        let styleScale = min(
-            destinationSize.width / sourceSize.width,
-            destinationSize.height / sourceSize.height
-        )
+        // Proxy pixel rounding can change the aspect ratio slightly. Use the
+        // same length in both directions so entering and leaving is reversible.
+        let styleScale = max(destinationSize.width, destinationSize.height)
+            / max(sourceSize.width, sourceSize.height)
         var scaled = annotation.scaled(
             from: sourceBounds,
             to: destinationBounds
@@ -3957,6 +3973,7 @@ final class EditorController: ObservableObject {
         let canonical = canonicalizesCompositionEditingChanges
             ? canonicalCompositionEditingSnapshot(updatedSnapshot)
             : updatedSnapshot
+        guard acceptsIdentityIntegrity(canonical, context: "Apply snapshot") else { return }
         let projected = projectedCompositionEditingSnapshot(canonical)
         snapshot = projected
         workflowResumeState = workflowResumeState.normalized(
@@ -3964,6 +3981,10 @@ final class EditorController: ObservableObject {
             composition: projected.composition
         )
         invalidateCanvas(invalidationReason)
+        // The presentation preview owns its rendered canvas dimensions. Resetting
+        // to source pixels here makes zoom and drag coordinates jump between
+        // successive events while the next preview is still rendering.
+        guard workspaceMode != .presentation else { return }
         updateViewport(
             publishChange: fitViewportToCrop,
             invalidationReason: fitViewportToCrop ? .full : invalidationReason
@@ -3980,6 +4001,13 @@ final class EditorController: ObservableObject {
 
             return updatedViewport.focused(on: projected.cropRect)
         }
+    }
+
+    private func acceptsIdentityIntegrity(_ candidate: EditorSnapshot, context: String) -> Bool {
+        guard let violation = EditorIdentityIntegrity.violation(in: candidate) else { return true }
+        EditorIdentityIntegrity.report(violation, context: context)
+        errorMessage = String(localized: "The change could not be applied safely. Your screenshot is unchanged.")
+        return false
     }
 
     private func updateViewport(
@@ -4069,6 +4097,7 @@ nonisolated private struct EditorExportRenderInput: @unchecked Sendable {
     let snapshot: EditorSnapshot
     let compositionOutput: CompositionOutputInput?
     let compositionMaximumOutputDimension: Int?
+    let outputSize: ScreenshotOutputSize
     let pinnedUIMapElements: [UIMapElement]
     let uiMapOverlayOptions: UIMapOverlayOptions
     let suppressesContentDiagnostics: Bool
@@ -4078,6 +4107,7 @@ nonisolated private struct EditorExportRenderInput: @unchecked Sendable {
         snapshot: EditorSnapshot,
         compositionOutput: CompositionOutputInput? = nil,
         compositionMaximumOutputDimension: Int? = nil,
+        outputSize: ScreenshotOutputSize = .original,
         pinnedUIMapElements: [UIMapElement] = [],
         uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions(),
         suppressesContentDiagnostics: Bool = false
@@ -4085,6 +4115,7 @@ nonisolated private struct EditorExportRenderInput: @unchecked Sendable {
         self.baseImage = baseImage
         self.snapshot = snapshot
         self.compositionOutput = compositionOutput
+        self.outputSize = outputSize
         self.compositionMaximumOutputDimension =
             compositionMaximumOutputDimension
         self.pinnedUIMapElements = pinnedUIMapElements
@@ -4124,7 +4155,7 @@ nonisolated private enum EditorExportRenderer {
                 }
 
             try Task.checkCancellation()
-            return image
+            return try input.outputSize.resized(image)
         }
 
         return try await withTaskCancellationHandler {
@@ -4170,7 +4201,7 @@ nonisolated private enum EditorExportRenderer {
                         context: "image=\(image.width)x\(image.height)",
                         warnAfterMS: 80
                     ) {
-                        try ImageExporter.pngData(for: image)
+                        try ImageExporter.pngData(for: input.outputSize.resized(image))
                     }
                 }
             }

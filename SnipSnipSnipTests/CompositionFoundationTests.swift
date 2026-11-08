@@ -4,6 +4,51 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class CompositionFoundationTests: XCTestCase {
+    func testIdenticalAssetCopiesCoalesceWithoutLosingPixels() throws {
+        let image = makeCoordinateImage(width: 16, height: 12)
+        let stored = CompositionStoredAsset(
+            descriptor: CompositionAssetDescriptor(pixelWidth: 16, pixelHeight: 12),
+            encodedPNG: try ImageExporter.pngData(for: image)
+        )
+        let repository = CompositionAssetRepository(storedAssets: [stored, stored])
+
+        XCTAssertEqual(repository.storedAssets(), [stored])
+        XCTAssertEqual(repository.availability(for: stored.descriptor.id), .available)
+        let restored = try repository.asset(for: stored.descriptor.id)
+        XCTAssertEqual(samplePixel(in: restored.image, topLeftX: 8, topLeftY: 6),
+                       samplePixel(in: image, topLeftX: 8, topLeftY: 6))
+    }
+
+    func testConflictingAssetCopiesArePreservedAndRefusedUntilExplicitlyReplaced() throws {
+        let id = UUID()
+        let publicAsset = CompositionStoredAsset(
+            descriptor: CompositionAssetDescriptor(id: id, pixelWidth: 16, pixelHeight: 12),
+            encodedPNG: try ImageExporter.pngData(for: makeCoordinateImage(width: 16, height: 12))
+        )
+        let privateAsset = CompositionStoredAsset(
+            descriptor: CompositionAssetDescriptor(id: id, pixelWidth: 16, pixelHeight: 12, isPrivate: true),
+            encodedPNG: publicAsset.encodedPNG
+        )
+        let repository = CompositionAssetRepository(storedAssets: [publicAsset, privateAsset])
+        let violation = EditorIdentityViolation(scope: .compositionAssets, ownerID: nil, duplicateID: id)
+
+        XCTAssertEqual(Set(repository.assetIDs), [id])
+        XCTAssertNil(repository.storedAsset(for: id))
+        XCTAssertEqual(repository.availability(for: id), .corrupt)
+        XCTAssertEqual(repository.storedAssets(referencedBy: [id]), [publicAsset, privateAsset])
+        XCTAssertThrowsError(try repository.asset(for: id)) { XCTAssertEqual($0 as? EditorIdentityViolation, violation) }
+        XCTAssertThrowsError(try repository.capturedScreenshot(for: id)) { XCTAssertEqual($0 as? EditorIdentityViolation, violation) }
+        XCTAssertThrowsError(try repository.thumbnail(for: id)) { XCTAssertEqual($0 as? EditorIdentityViolation, violation) }
+        XCTAssertThrowsError(try repository.replaceUIMap(for: id, with: nil)) { XCTAssertEqual($0 as? EditorIdentityViolation, violation) }
+
+        try repository.insert(privateAsset)
+        XCTAssertEqual(repository.storedAssets(), [privateAsset])
+        XCTAssertEqual(repository.availability(for: id), .available)
+        XCTAssertTrue(try repository.asset(for: id).descriptor.isPrivate)
+        repository.removeAssets([id])
+        XCTAssertTrue(repository.storedAssets().isEmpty)
+    }
+
     func testPersistentValueModelsRoundTripWithoutLoss() throws {
         let assetID = UUID()
         let linkGroupID = UUID()
@@ -73,6 +118,45 @@ final class CompositionFoundationTests: XCTestCase {
 
         XCTAssertEqual(steps.label(for: 0), "MMMM")
         XCTAssertEqual(steps.label(for: 1), "MMMMI")
+    }
+
+    func testDuplicateCompositionIdentitiesFailLayoutAndRenderingForEveryMode() throws {
+        let asset = CompositionAsset(image: makeCoordinateImage(width: 37, height: 23), sourceName: "Original")
+        let item = CompositionItem(assetID: asset.descriptor.id)
+        let repository = CompositionAssetRepository()
+        try repository.insert(CompositionStoredAsset(
+            descriptor: asset.descriptor,
+            encodedPNG: try ImageExporter.pngData(for: asset.image)
+        ))
+
+        for mode in CompositionLayoutMode.allCases {
+            for excluded in [false, true] {
+                var duplicate = item
+                duplicate.isIncluded = !excluded
+                var composition = CompositionSnapshot(items: [item, duplicate])
+                composition.layout.mode = mode
+
+                XCTAssertThrowsError(try CompositionLayoutEngine.layout(
+                    composition: composition,
+                    assetDescriptors: [asset.descriptor.id: asset.descriptor]
+                )) { error in
+                    XCTAssertEqual(error as? CompositionLayoutError, .duplicateItemID(itemID: item.id))
+                }
+                XCTAssertThrowsError(try CompositionRenderer.render(
+                    composition: composition,
+                    assets: [asset.descriptor.id: asset]
+                )) { error in
+                    XCTAssertEqual(error as? CompositionRenderError, .layout(.duplicateItemID(itemID: item.id)))
+                }
+                XCTAssertThrowsError(try CompositionRenderer.renderPreview(
+                    composition: composition,
+                    assetRepository: repository,
+                    options: CompositionRenderOptions()
+                )) { error in
+                    XCTAssertEqual(error as? CompositionRenderError, .layout(.duplicateItemID(itemID: item.id)))
+                }
+            }
+        }
     }
 
     func testSingleAutoItemPreservesExactPixelsAndImageIdentity() throws {

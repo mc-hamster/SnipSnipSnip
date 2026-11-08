@@ -11,6 +11,20 @@ nonisolated struct EditorViewport: Equatable {
     var contentSize: CGSize = .zero
     var zoomScale: CGFloat = fitZoomScale
     var offset: CGSize = .zero
+    private(set) var followsFitScale: Bool = true
+
+    init(
+        canvasSize: CGSize = .zero,
+        contentSize: CGSize = .zero,
+        zoomScale: CGFloat = fitZoomScale,
+        offset: CGSize = .zero
+    ) {
+        self.canvasSize = canvasSize
+        self.contentSize = contentSize
+        self.zoomScale = zoomScale
+        self.offset = offset
+        followsFitScale = zoomScale == Self.fitZoomScale
+    }
 
     var fitScale: CGFloat {
         let effectiveCanvasSize = effectiveCanvasSize
@@ -98,6 +112,24 @@ nonisolated struct EditorViewport: Equatable {
            updated.zoomScale == Self.fitZoomScale,
            updated.offset == .zero {
             updated.zoomScale = updated.cappedInitialZoomScale(maxDisplayScale: maxInitialDisplayScale)
+            updated.followsFitScale = updated.zoomScale == Self.fitZoomScale
+        } else if !followsFitScale,
+                  previousCanvasSize.width > 0,
+                  previousCanvasSize.height > 0,
+                  displayScale > 0,
+                  updated.fitScale > 0 {
+            // Preserve the content under the old canvas center at the new center.
+            // A resize changes Fit, but must not change a chosen magnification.
+            let focalPoint = CGPoint(
+                x: (previousCanvasSize.width / 2 - imageRect.minX) / displayScale,
+                y: (previousCanvasSize.height / 2 - imageRect.minY) / displayScale
+            )
+            updated.zoomScale = updated.clampedZoomScale(displayScale / updated.fitScale)
+            let centeredOrigin = updated.centeredOrigin(for: updated.displayedContentSize(for: updated.zoomScale))
+            updated.offset = CGSize(
+                width: size.width / 2 - focalPoint.x * updated.displayScale - centeredOrigin.x,
+                height: size.height / 2 - focalPoint.y * updated.displayScale - centeredOrigin.y
+            )
         }
 
         updated.offset = updated.clampedOffset(updated.offset)
@@ -111,6 +143,7 @@ nonisolated struct EditorViewport: Equatable {
         if fitToWindow {
             updated.zoomScale = Self.fitZoomScale
             updated.offset = .zero
+            updated.followsFitScale = true
         } else {
             updated.offset = updated.clampedOffset(updated.offset)
         }
@@ -122,6 +155,7 @@ nonisolated struct EditorViewport: Equatable {
         var updated = self
         updated.zoomScale = Self.fitZoomScale
         updated.offset = .zero
+        updated.followsFitScale = true
         return updated
     }
 
@@ -158,6 +192,7 @@ nonisolated struct EditorViewport: Equatable {
 
         var updated = self
         updated.zoomScale = targetZoomScale
+        updated.followsFitScale = false
         updated.offset = updated.clampedOffset(
             CGSize(
                 width: imageOrigin.x - centeredOrigin.x,
@@ -172,17 +207,19 @@ nonisolated struct EditorViewport: Equatable {
         var updated = self
         updated.zoomScale = updated.cappedInitialZoomScale(maxDisplayScale: maxDisplayScale)
         updated.offset = .zero
+        updated.followsFitScale = updated.zoomScale == Self.fitZoomScale
         return updated
     }
 
     func zoomed(to requestedZoomScale: CGFloat, anchoredAt anchor: CGPoint? = nil) -> EditorViewport {
         let clampedZoomScale = clampedZoomScale(requestedZoomScale)
+        var updated = self
+        updated.followsFitScale = false
 
         guard clampedZoomScale != zoomScale else {
-            return self
+            return updated
         }
 
-        var updated = self
         let previousRect = imageRect
         updated.zoomScale = clampedZoomScale
 

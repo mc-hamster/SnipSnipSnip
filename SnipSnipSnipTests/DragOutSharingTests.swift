@@ -101,7 +101,7 @@ final class DragOutSharingTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: outputURL, encoding: .utf8), "shared off main actor")
     }
 
-    func testFilePromiseDelegateWritesToProvidedURLWithoutAppendingFilename() async throws {
+    func testFilePromiseDelegateDeliversToProvidedURLWithSameStagedFilename() async throws {
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("png")
@@ -128,8 +128,33 @@ final class DragOutSharingTests: XCTestCase {
 
         await fulfillment(of: [completionExpectation], timeout: 2)
         XCTAssertNil(completionError)
-        XCTAssertEqual(observedDestinationURL, outputURL)
+        XCTAssertEqual(observedDestinationURL?.lastPathComponent, outputURL.lastPathComponent)
+        XCTAssertNotEqual(observedDestinationURL?.deletingLastPathComponent(), outputURL.deletingLastPathComponent())
         XCTAssertEqual(try String(contentsOf: outputURL, encoding: .utf8), "promised")
+    }
+
+    func testFailedPromisedWriterNeverDeletesExistingDestination() async throws {
+        for writesPartialData in [false, true] {
+            let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent("DragOut-\(UUID()).txt")
+            let original = Data("Existing user's file".utf8)
+            try original.write(to: outputURL)
+            defer { try? FileManager.default.removeItem(at: outputURL) }
+            var completionCount = 0
+            let payload = PromisedFilePayload(suggestedFilename: outputURL.lastPathComponent, contentType: .plainText,
+                writer: { stagedURL in
+                    if writesPartialData { try Data("partial".utf8).write(to: stagedURL) }
+                    throw ExpectedError.failed
+                }, completion: { result in
+                    completionCount += 1
+                    guard case .failure = result else { return XCTFail("A failed write must not announce success") }
+                })
+            do {
+                try await payload.write(to: outputURL)
+                XCTFail("Expected write failure")
+            } catch { XCTAssertTrue(error is ExpectedError) }
+            XCTAssertEqual(try Data(contentsOf: outputURL), original)
+            XCTAssertEqual(completionCount, 1)
+        }
     }
 
     func testDirectImageWriteEncodesFinalDestination() async throws {

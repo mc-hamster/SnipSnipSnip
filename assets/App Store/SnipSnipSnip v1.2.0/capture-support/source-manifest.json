@@ -1,0 +1,67 @@
+[
+  {
+    "file": "01-screenshot-edit.png",
+    "sha256": "74e22c6d9c66da62d3bac18f0647e2be47efde94397e57736e1592596da75835",
+    "bytes": 1310830
+  },
+  {
+    "file": "03-comparison.png",
+    "sha256": "f75038a34e9635a7bb6b8da2bc6e173524b810703f2b4777cf17e6b942fed926",
+    "bytes": 865763
+  },
+  {
+    "file": "04-steps.png",
+    "sha256": "b604a77b2677e668c431a4581dc85ab74d755365989a07ef317d7507585d3aaa",
+    "bytes": 1148819
+  },
+  {
+    "file": "05-combined-image.png",
+    "sha256": "0ec59df3fa606b06892eff004b269f6df1513bb7ac25328b125137198864f3ca",
+    "bytes": 1058515
+  },
+  {
+    "file": "06-polish.png",
+    "sha256": "4c9d9f56281990763ec9f7d9cb15e544bb912f32fc431e8eed953fb998b638c2",
+    "bytes": 1366829
+  },
+  {
+    "file": "07-capture-home.png",
+    "sha256": "01daa7a5fc58cad03a43b4b92c2897722e9ef782e1ef50cdf249bbd1fbdc38fc",
+    "bytes": 306710
+  },
+  {
+    "file": "08-clipboard-history.png",
+    "sha256": "2a04984ecb0271d0bf8cd4d519328068768d3b2543328a0515ded4fcb942bc0b",
+    "bytes": 157453
+  },
+  {
+    "file": "08-clipboard-preview.png",
+    "sha256": "238f690d7c1b7bb1b84e2728098852b51e727727fc62d4547dc2899308ab597b",
+    "bytes": 88529
+  },
+  {
+    "file": "09-screen-ruler.png",
+    "sha256": "433fdf56ba394b0d81c10c83e0c0aa20e18ebee48f6e14264d32868648def992",
+    "bytes": 24835
+  },
+  {
+    "file": "10-screen-inspector.png",
+    "sha256": "22cef5fe28b30bfa233ad133674eb1532fa2a5444fca54ac02231a024ba6d2de",
+    "bytes": 189598
+  },
+  {
+    "file": "11-video-review.png",
+    "sha256": "ffb4d877715e2d8e5525a33edd820735138e4547e7b8d250a4de7bd2d2523ccd",
+    "bytes": 351423
+  },
+  {
+    "file": "12-video-trim.png",
+    "sha256": "9488e4f29cc0925cc436241199542e0ddbcbabbe91faeea7c294fab01ffbd5cc",
+    "bytes": 453149
+  },
+  {
+    "file": "preview-source.mp4",
+    "sha256": "57bd2b25055f342b61d9294e9c27d3685e5b9d40a73071a4e22798171fe2557b",
+    "bytes": 3556746
+  }
+]

@@ -60,11 +60,33 @@ private enum OnboardingClipboardChoice: Hashable {
     case disabled
 }
 
+private struct OnboardingGroupBoxStyle: GroupBoxStyle {
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.content
+            .padding(18)
+            .background(
+                Color(nsColor: .windowBackgroundColor),
+                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(
+                        contrast == .increased ? Color.primary : Color(nsColor: .separatorColor),
+                        lineWidth: contrast == .increased ? 2 : 1
+                    )
+                    .allowsHitTesting(false)
+            }
+    }
+}
+
 struct OnboardingView: View {
     @ObservedObject var lifecycle: AppLifecycleModel
     @ObservedObject var permissions: PermissionWorkflowModel
     @ObservedObject var clipboard: ClipboardWorkflowModel
     @ObservedObject var quickControls: QuickControlsModel
+    private let capture: CaptureWorkflowModel
     private let capabilities: AppCapabilitySnapshot
     private let completeOnboardingAction: () -> Void
     @Environment(\.dismiss) private var dismiss
@@ -81,6 +103,7 @@ struct OnboardingView: View {
         permissions: PermissionWorkflowModel,
         clipboard: ClipboardWorkflowModel,
         quickControls: QuickControlsModel,
+        capture: CaptureWorkflowModel,
         capabilities: AppCapabilitySnapshot,
         completeOnboarding: @escaping () -> Void
     ) {
@@ -88,6 +111,7 @@ struct OnboardingView: View {
         self.permissions = permissions
         self.clipboard = clipboard
         self.quickControls = quickControls
+        self.capture = capture
         self.capabilities = capabilities
         self.completeOnboardingAction = completeOnboarding
 
@@ -104,25 +128,32 @@ struct OnboardingView: View {
     var body: some View {
         VStack(spacing: 0) {
             onboardingHeader
-                .padding(.horizontal, 24)
-                .padding(.vertical, 18)
+                .padding(.horizontal, 28)
+                .padding(.vertical, 24)
 
             Divider()
 
             Form {
-                if lifecycle.onboardingPresentationMode == .replay {
-                    replaySummary
-                } else {
-                    currentStepContent
+                Group {
+                    if lifecycle.onboardingPresentationMode == .replay {
+                        replaySummary
+                    } else {
+                        currentStepContent
+                    }
                 }
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
             }
             .formStyle(.grouped)
+            .groupBoxStyle(OnboardingGroupBoxStyle())
+            .contentMargins(.horizontal, 28, for: .scrollContent)
+            .contentMargins(.vertical, 24, for: .scrollContent)
             .scrollBounceBehavior(.basedOnSize)
 
             Divider()
 
             footer
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 28)
                 .padding(.vertical, 14)
         }
         .frame(
@@ -166,16 +197,16 @@ struct OnboardingView: View {
     }
 
     private var onboardingHeader: some View {
-        HStack(alignment: .top, spacing: 20) {
+        HStack(alignment: .top, spacing: 16) {
             Image(systemName: headerSymbol)
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(Color.accentColor)
                 .frame(width: 32, height: 32)
                 .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text(headerTitle)
-                    .font(.title2.weight(.semibold))
+                    .font(.system(size: 25, weight: .semibold))
 
                 Text(headerSummary)
                     .font(.subheadline)
@@ -235,11 +266,11 @@ struct OnboardingView: View {
     }
 
     private var captureAccessStep: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 20) {
             screenRecordingGroup(showsSetupActions: false)
 
             Label(
-                "macOS groups screenshot access under Screen Recording. SnipSnipSnip captures only when you choose a capture or recording action.",
+                "macOS groups screenshot access under Screen Recording. Continue opens the macOS permission prompt. SnipSnipSnip captures only when you choose a capture or recording action.",
                 systemImage: "lock.shield"
             )
             .font(.footnote)
@@ -260,7 +291,8 @@ struct OnboardingView: View {
     }
 
     private var readyStep: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 20) {
+            UIMapOnboardingSetupView(capture: capture, permissions: permissions, capabilities: capabilities)
             quickControlsStartupGroup
             launchAtLoginGroup
 
@@ -284,8 +316,9 @@ struct OnboardingView: View {
     }
 
     private var replaySummary: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 20) {
             screenRecordingGroup(showsSetupActions: true)
+            UIMapOnboardingSetupView(capture: capture, permissions: permissions, capabilities: capabilities)
             clipboardChoiceGroup
             quickControlsStartupGroup
             launchAtLoginGroup
@@ -304,12 +337,16 @@ struct OnboardingView: View {
         }
     }
 
+    @ViewBuilder
     private func screenRecordingGroup(showsSetupActions: Bool) -> some View {
         let needsAttention = permissions.screenRecordingSetupNeedsAttention
         let hasAccess = !needsAttention && permissions.permissionStatus.hasScreenRecording
         let isWaiting = !needsAttention && permissions.activePermissionRequest == .screenRecording
 
-        return InsetGroupBox {
+        if let guide = permissions.permissionSetupGuide, guide.requirement == .screenRecording {
+            PermissionSetupView(permissions: permissions, guide: guide, showsPrimaryAction: showsSetupActions, onRestart: restartAfterPermissionSetup)
+        } else {
+        InsetGroupBox {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .center, spacing: 12) {
                     Image(systemName: "display")
@@ -336,6 +373,7 @@ struct OnboardingView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, 46)
 
                 if needsAttention {
                     Label(
@@ -378,6 +416,7 @@ struct OnboardingView: View {
         } label: {
             Label("Required capture access", systemImage: "checkmark.shield")
         }
+        }
     }
 
     private var clipboardChoiceGroup: some View {
@@ -409,6 +448,9 @@ struct OnboardingView: View {
                 Label(clipboardChoiceStatus, systemImage: clipboardChoiceStatusSymbol)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                if clipboard.needsClipboardAccess {
+                    ClipboardAccessNotice(clipboard: clipboard)
+                }
             }
             .padding(.vertical, 2)
         } label: {
@@ -614,6 +656,7 @@ struct OnboardingView: View {
             Spacer(minLength: 16)
 
             Button(primaryFooterTitle, action: primaryFooterAction)
+                .accessibilityIdentifier("onboarding.primary")
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
                 .disabled(isPrimaryFooterDisabled)
@@ -627,7 +670,7 @@ struct OnboardingView: View {
 
         if selectedStep == .captureAccess,
            permissions.activePermissionRequest == .screenRecording {
-            return "Waiting for Settings"
+            return "Open Settings"
         }
 
         if selectedStep == .captureAccess,
@@ -637,7 +680,7 @@ struct OnboardingView: View {
 
         if selectedStep == .captureAccess,
            !permissions.permissionStatus.hasScreenRecording {
-            return "Set Up Screen Recording"
+            return "Continue"
         }
 
         return selectedStep == .ready ? "Finish" : "Continue"
@@ -649,7 +692,8 @@ struct OnboardingView: View {
         }
 
         if selectedStep == .captureAccess {
-            return permissions.activePermissionRequest != nil
+            return permissions.isCheckingPermission || permissions.activeMediaPermissionRequest != nil
+                || (permissions.activePermissionRequest != nil && permissions.activePermissionRequest != .screenRecording)
         }
 
         if selectedStep == .clipboard {
@@ -673,7 +717,11 @@ struct OnboardingView: View {
 
         if selectedStep == .captureAccess,
            !permissions.permissionStatus.hasScreenRecording {
-            permissions.requestPermission(.screenRecording)
+            if permissions.activePermissionRequest == .screenRecording {
+                permissions.openPermissionSettings(.screenRecording)
+            } else {
+                permissions.requestPermission(.screenRecording)
+            }
             return
         }
 
@@ -764,16 +812,7 @@ struct OnboardingView: View {
     }
 
     private func permissionStatusLabel(hasAccess: Bool) -> String {
-        if hasAccess {
-            return "Allowed"
-        }
-        if permissions.activePermissionRequest == .screenRecording {
-            return "Waiting for Settings"
-        }
-        if permissions.screenRecordingSetupNeedsAttention {
-            return "Restart Required"
-        }
-        return "Needs Setup"
+        permissions.statusTitle(for: .screenRecording)
     }
 
     private func permissionStatusColor(hasAccess: Bool) -> Color {

@@ -1,3 +1,4 @@
+-- Readiness reflects the passive macOS gate used by capture services.
 tell application id "com.oontz.SnipSnipSnip"
-    automationStatus
+    automation status
 end tell

@@ -6,6 +6,10 @@ Capture, annotate, redact, record, inspect, automate, and share without sending 
 
 [**Download free on the Mac App Store**](https://apps.apple.com/us/app/snipsnipsnip/id6761775175?mt=12) · [**Download free SnipSnipSnip Pro**](https://github.com/mc-hamster/SnipSnipSnip/releases/latest) · [Website](https://www.oontz.com/apps/snipsnipsnip/) · [Get support](https://www.oontz.com/contact/)
 
+## Unreleased Changes
+
+Auto Copy has been removed. Capturing and editing screenshots now leave the clipboard unchanged until you choose Copy. For quick capture-and-paste, use a Capture Preset with the Copy to Clipboard outcome. Saved Quick Controls layouts keep their remaining controls, and explicit automation copy outputs continue to work.
+
 ## Choose An Edition
 
 Both editions are free and open source:

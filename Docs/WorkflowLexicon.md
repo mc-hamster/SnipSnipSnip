@@ -1,7 +1,7 @@
 ---
 description: "Canonical product terminology for SnipSnipSnip workflows, actions, stages, statuses, libraries, and outputs."
 status: active
-last_reviewed: 2026-08-11
+last_reviewed: 2026-09-30
 ---
 
 # SnipSnipSnip Workflow Lexicon
@@ -84,7 +84,7 @@ Source nouns describe where content comes from. They are not action labels by th
 | Canonical source | Meaning | Notes |
 | --- | --- | --- |
 | **Region** | A selected rectangular area of the screen. | Pair with **Capture** for an action. |
-| **Window** | A selected app window. | Pair with **Capture** for an action. |
+| **Window** | A selected app window, including eligible dialogs, floating panels, and utility windows. | Pair with **Capture** for an action. |
 | **Screen** | The full visible contents of a screen. | Use instead of Full, Full Screen, or Fullscreen in product copy. |
 | **App** | The application observed while recording a Guide. | Use for Guide recording scope. |
 | **Display** | A physical monitor selected from available hardware. | Reserve this term for hardware selection. |
@@ -95,9 +95,11 @@ Source nouns describe where content comes from. They are not action labels by th
 
 Use **More Ways to Capture** as the umbrella for less common capture sources.
 
+**Capture Region** and **Record Region** share two selection gestures: drag for a custom Region, or click a visible Window. Before drawing begins, outline the eligible Window beneath the pointer to make the click gesture discoverable. Region and Window refresh candidate windows when selection starts and share one capture-space hit test for hover and click selection. They share a thin neutral outline, a clear target against the dimmed desktop, and a compact target-name label. The outline settles into view while three tapered graphite markers with bright leading tips glide around its border, one third of a perimeter apart. The continuous border and target name remain steady. It disappears while drawing or adjusting a Region. Reduce Motion keeps it static. Reduce Transparency keeps the label opaque and preserves the border crawl. Explicit Window choices include visible app-owned dialogs and utility panels; Capture Frontmost Window selects an ordinary application window. Menus, desktop surfaces, and system overlays are excluded from Window choices.
+
 **Quick Capture** names the main-window group of one-action Screenshot sources and actions: Region, Window, Screen, Scroll when available, Repeat Last, and Presets. **Scroll** is the compact header label for Capture Scrolling Content, **Repeat Last** is the compact header label for Repeat Last Capture, and **Presets** remains a menu because it contains a variable set of named targets. **Create** names the adjacent guided area with direct Comparison, Steps, and Combined Image entries; each opens setup with that result selected so the user only chooses its source and options. Direct Screenshot setup is omitted because Quick Capture already provides the primary one-click Screenshot paths. **Record** names the adjacent activity area with direct Region, Window, Screen, Guide when available, and connected-device entries. **Screen Tools** names the utility group containing Screen Ruler and Screen Inspector; direct Clipboard History access sits beside these utilities but keeps its established product name. These are navigation group labels, not new workflow or output nouns.
 
-**Quick Controls** names the always-available configurable side dock that exposes a person's chosen existing SnipSnipSnip actions above other apps. It appears at app startup by default. **Show Quick Controls when SnipSnipSnip starts** names the opt-out startup preference; do not shorten it to Enable Quick Controls because the dock remains available when that preference is off. Use **Show Quick Controls** and **Hide Quick Controls** for immediate visibility commands, **Dock Visible** and **Dock Hidden** for current visibility status, and **Customize Quick Controls** for choosing and ordering controls or configuring the dock. Hiding the dock does not change its startup preference. **Controls** names the searchable customization library. Its **Screenshot**, **Capture Options**, **Create**, and **Record** sections separate action families; controls use canonical verb-first labels such as **Capture Region**, **Create Comparison**, and **Record Region** rather than relying on similar icons. Expanded-row supporting text briefly explains the action's intent or current consequence and never repeats its section name. **Added** identifies controls already in the dock and **Remove** removes one directly from the library or Selected Control editor. **Dock Preview** names the exact interactive preview, including draggable section headers that rearrange whole populated action-family groups while retaining each group's internal control order. **Dock Settings** groups **Presentation**, **Screen Edge**, and **Startup**; dock dimensions are never user-facing settings because the dock fits its configured controls. **Expanded** is the labeled-row presentation; **Compact** is the icon-rail presentation. Use **Expand Quick Controls** and **Collapse Quick Controls** for switching them, **Left** and **Right** for the screen edge, **Move Earlier** and **Move Later** for control ordering, and **Move Section Earlier** and **Move Section Later** for section-order accessibility actions. **Restore Defaults…** restores the first-install controls and dock configuration after confirmation. **No Controls** names the empty layout state and offers **Customize** in the visible dock. Quick Controls is a navigation surface, not a capture source, output, WidgetKit widget, toolbar, or use of the **Float** output action.
+**Quick Controls** names the always-available configurable side dock that exposes a person's chosen existing SnipSnipSnip actions above other apps. It appears at app startup by default. **Show Quick Controls when SnipSnipSnip starts** names the opt-out startup preference; do not shorten it to Enable Quick Controls because the dock remains available when that preference is off. Use **Show Quick Controls** and **Hide Quick Controls** for immediate visibility commands, **Dock Visible** and **Dock Hidden** for current visibility status, and **Customize Quick Controls** for choosing and ordering controls or configuring the dock. Hiding the dock does not change its startup preference. **Controls** names the searchable customization library. Its **Screenshot**, **Capture Options**, **Create**, and **Record** sections separate action families; controls use canonical verb-first labels such as **Capture Region**, **Create Comparison**, and **Record Region** rather than relying on similar icons. Full row supporting text briefly explains the action's intent or current consequence and never repeats its section name. **Added** identifies controls already in the dock and **Remove** removes one directly from the library or Selected Control editor. **Dock Preview** names the interactive preview. It shows the Full layout in Icon Only and includes draggable section headers that rearrange whole populated action-family groups while retaining each group's internal control order. **Dock Settings** groups **Presentation**, **Screen Edge**, and **Startup**; dock dimensions are never user-facing settings because the dock fits its configured controls. **Slim** shows the icon rail, **Full** shows labeled rows, and **Icon Only** shows the logo and reveals Full on hover. The **Quick Controls Logo** cycles through the modes and opens the menu for choosing a mode directly. **Collapse Quick Controls** names the Full chevron action, which switches to Slim or dismisses a hover reveal. Use **Left** and **Right** for the screen edge, **Move Earlier** and **Move Later** for control ordering, and **Move Section Earlier** and **Move Section Later** for section-order accessibility actions. **Restore Defaults…** restores the first-install controls and dock configuration after confirmation. **No Controls** names the empty layout state and offers **Customize** in the visible dock. Quick Controls is a navigation surface, not a capture source, output, WidgetKit widget, toolbar, or use of the **Float** output action.
 
 The header exposes capture-affecting state with compact labels: **Timer: Off**, **Timer: 3s**, **Timer: 5s**, or **Timer: 10s**; **Cursor On** or **Cursor Off**; and **Private On** or **Private Off**. These compact state labels supplement the canonical Timer, Include Cursor, and Private Capture terminology; explanatory copy and Settings continue using the full terms.
 
@@ -155,11 +157,23 @@ Stage names should describe the current task or the next meaningful task. They s
 | Steps | **Add Step** → **Order & Caption** → optional **Polish** | Collect the next still, organize the sequence, and add explanatory text. |
 | Combined Image | **Add Image** → **Arrange** → optional **Polish** | Add visual material, position it, then optionally apply finishing treatment. |
 | Guide | **Record a Guide** or **Build Steps Manually** → **Edit Guide** | Create the procedure, then refine its steps and explanation. |
-| Video | **Record Video** → **Trim Video** | Record full-motion content, then adjust its bounds. |
+| Video | **Record Video** → **Review** → optional **Trim** / **Polish** → **Export** | Watch the video first; editing is optional. |
 
 Use singular stage labels such as **Add Step** and **Add Image** when the immediate action adds one item. Use the plural product noun, such as **Steps**, when naming the workflow or result.
 
 After a repeatable Before capture, the Comparison stage uses **Repeat Last Capture for After** as its primary action. This preserves the canonical **Repeat Last Capture** action while naming the After destination that completes the pair. If Before cannot be repeated, use **Capture After** and let the source menu default to Region.
+
+### Guide editing and saving
+
+**Step Note** is explanatory content visible in the step preview and included in exports. Do not call this field Internal Note or imply that it is private authoring content.
+
+**Guide Changes Not Saved** identifies a failed manual save or autosave. Keep **Retry** and **Save As…** beside the explanation until a save succeeds. Save and Save As preserve selection, search, and undo history. **Clear Search** restores step reordering when search is active.
+
+Guide Share, Copy Files, and Reveal in Finder refer to files exported from the current Guide and its current edits. After an edit or a document switch, require another export and explain that the Guide changed. Do not silently reuse an older export.
+
+## Pro updates
+
+**Check for Pro Updates** compares the installed marketing version and build number with the **latest stable GitHub release**. Show the installed version as `VERSION (BUILD)` so people can distinguish builds with the same version. **Download Update** opens the release page for a manual package download; users quit Pro before installing. Prereleases remain available manually on GitHub Releases and are not offered by this checker.
 
 ## Activity Statuses
 
@@ -177,9 +191,19 @@ Use **capturing** for the observed interaction activity because a Guide is not a
 
 ### Video
 
+**Video — Review** and **Video — Polish** identify the current workflow in the shared contextual header. **Polish** opens the Look inspector; **Back to Content** returns to review without undoing edits or changing the visible/exported Video. **Look** in the Video command row reopens background and presentation controls. Trim, Zooms, Cursor & Clicks, and Sound & Shortcuts are direct editing tools, not choices hidden behind a separate Adjust menu. Screenshot and Video share Undo, Redo, Inspector, Export, and Drag vocabulary and command-group styling. Screenshot offers Back to Capture with a separate Discard action; Video keeps its explicit Discard exit until durable retention supports a similar return path.
+
+**Edit Video** identifies the editor. **Play** and **Pause** review the video with current edits; **Back to Start** pauses at the first kept frame. Playback and scrubbing do not require entering an editing section. **Trim** keeps the desired part; **Remove Section** excludes a mistake without deleting source footage and **Restore** brings it back. **Polish** opens presentation controls; **Polish Video** applies a background, smooth cursor, and suggested click-driven zooms as one undoable edit. Opening Polish alone never changes the document. **Zooms**, **Cursor & Clicks**, and **Sound & Shortcuts** name inspector destinations. **Add Zoom at Playhead**, **Follow Cursor**, and **Suggest Zooms from Clicks** describe their actual actions. **Use Start Frame as Thumbnail** changes the saved still image, not playback; it replaces the ambiguous Use Start Frame as Preview label. **Reset Video Edits** restores the full source and capture-time appearance and can be undone. Do not introduce Studio Mode or a separate product name for these capabilities.
+
+**Record Keyboard Shortcuts** is an optional Video setting for command/control shortcut labels, not typed text. It requires Accessibility access; ordinary recording and pointer metadata do not. **Search Settings** finds specific controls by their labels and related words, and selecting a result opens its category, nested page, and section.
+
+Shortcut recording has its own build capability: enabled for Dev and Self Release, unavailable in App Store builds. Do not use the automation capability as a proxy. When unavailable, explain that limitation without directing the user to a missing setting. Existing shortcut data in a saved Video remains viewable.
+
 - Recording
 - Paused
 - Finishing
+
+**Zoom Target** names the editing-only full-frame view with a destination outline and center marker. **Show Target** selects a zoom and pauses at its midpoint; **Preview Zoom** plays the current edits from that zoom’s start, without editing guides. **Fixed Focus** stays at a chosen source position. Clicking or dragging the target turns off **Follow Cursor**; **Horizontal Focus** and **Vertical Focus** provide the keyboard equivalent. Distinguish a hidden cursor from missing recorded cursor positions: Follow Cursor still follows hidden recorded positions, but uses the saved fixed focus when position data is unavailable at the current frame. Never describe the target guide as part of the exported video.
 
 Within an explicitly identified Video workflow, the shorter statuses are sufficient. Use **Video Recording** only when surrounding context does not establish that the activity is video.
 
@@ -194,7 +218,15 @@ Clipboard history observes new clipboard content; it does not record the screen.
 
 ### Permission terminology
 
-**Screen Recording** is the macOS permission name and must remain unchanged when referring to that system permission, even when the app feature is Capture, Guide, or Video.
+Feature-dependent setup, Create descriptions, Help instructions, and shortcut catalogs must follow the current build capabilities. A saved Pro preference does not make an unavailable permission setup or capture feature visible in another edition. Existing Guide document editing remains available separately from Guide capture.
+
+**UI Map Access** is the optional setup card on **You’re Ready** and **Setup Summary** in builds that support UI Map. **Enable UI Map for Window captures** saves the capture preference and starts Accessibility setup only when enabled without access. **Set Up**, **Open Settings**, and **Manage** beside **Accessibility** offer the same access actions in Settings > Capture > Advanced. Finishing onboarding does not require Accessibility.
+
+**Screen Recording** remains the short permission label in the app. When giving the System Settings path, use its full pane title, **Privacy & Security > Screen & System Audio Recording**.
+
+**Needs Setup**, **Waiting for Access**, **Allowed**, and **Restart Required** distinguish missing access, an outstanding setup request, usable access, and a grant that requires relaunch. Never use Restart Required for denial alone or an unrelated verification failure. A retryable check failure uses Access could not be checked right now; it does not revoke a known grant. Allowed/Ready must agree with the passive OS access gate used by capture services. **Manage** navigates to an already-allowed permission without changing readiness. **Continue** opens the native consent prompt during first-run setup and, after setup, explicitly resumes a waiting action. **Cancel Setup** abandons the waiting action without revoking system access. **Troubleshooting** contains exact-app paths, Reveal App, and Copy Path. **Capture Without UI Map** changes only the waiting Window screenshot, preserving the saved UI Map preference. Resuming **Capture Frontmost Window** after permission setup opens **Choose Window** to reconfirm the target; uninterrupted Frontmost capture stays a direct action.
+
+Optional Microphone and Camera use **Not Requested**, **Not Allowed**, **Restricted**, and **Allowed**. Use **Open Microphone Settings**, **Open Camera Settings**, and **Record Without Microphone** for permission recovery. The latter changes only the current recording attempt. Copying saved items and Capture Text must not request access to existing clipboard content for an optional rollback backup. **Clipboard Access** is separate from the Clipboard History preference; **Monitoring Blocked** and **Monitoring Needs Access** mean macOS currently prevents unattended reads. **Open Privacy Settings** opens its recovery destination. **Read Clipboard Once** requests one foreground read and retains an approved item without implying permission to monitor future copies. An unrequested default is not a grant. Background monitoring follows the access policy reported by macOS and resumes only when it reports **Allowed**.
 
 ## Lifecycle Verbs
 
@@ -202,7 +234,8 @@ Lifecycle verbs have consistent consequences across workflows.
 
 | Canonical verb | Meaning |
 | --- | --- |
-| **Back** | Return to the preceding choice without completing the current workflow. |
+| **Back** | Return to the preceding choice while preserving state. |
+| **Back to Capture** | Retain the current non-private screenshot in Recent Snips and return to Capture; Private Capture asks for Save, Discard, or Cancel. |
 | **Cancel** | Stop the current temporary operation without accepting it. |
 | **Done** | Accept the current work and leave the editing or arrangement stage. |
 | **Stop** | End an ongoing capture, recording, or monitoring session while retaining the result when applicable. |
@@ -215,6 +248,8 @@ Lifecycle verbs have consistent consequences across workflows.
 
 Do not use **Clear** as a synonym for irreversible deletion. Do not use **Done** to end an ongoing recording when **Stop** states the consequence more clearly.
 
+**Stop & Open Guide** finishes an active Private Guide and opens its completed work for Save or Export before a conflicting action can continue. It never promises a recovery checkpoint. **Stop & Continue** remains the corresponding action for a recoverable Guide; a failed checkpoint keeps the Guide open.
+
 ## Output Verbs
 
 | Canonical verb | Meaning |
@@ -223,6 +258,7 @@ Do not use **Clear** as a synonym for irreversible deletion. Do not use **Done**
 | **Copy** | Put the result on the clipboard. |
 | **Export** | Produce a file or alternate format from the current result. |
 | **Share** | Send the result through the macOS sharing system. |
+| **Print** | Send the current Screenshot, Comparison, Steps, Combined Image, or Guide to the native macOS print dialog. |
 | **Float** | Keep the result visible in a floating presentation. |
 | **Drag** | Provide the result as a draggable item for another destination. |
 | **Reveal in Finder** | Show an existing file in Finder. |
@@ -257,6 +293,8 @@ Use short, literal stage labels beneath the progress bar:
 
 Use **Interactive HTML export cancelled.** for the non-error completion notice after cancellation.
 
+For a rejected editor change, use **The change could not be applied safely. Your screenshot is unchanged.** Keep the existing screenshot and undo history, and describe retrying the action or saving the current work before reporting the repeated failure. Do not expose internal identifiers in this message.
+
 ## Library and History Terms
 
 Library terms identify distinct scopes. Do not shorten them to generic **Library** or **History** when the scope would become ambiguous.
@@ -275,6 +313,22 @@ Library terms identify distinct scopes. Do not shorten them to generic **Library
 **Archive** may remain an internal storage or implementation term. It should not name the general user-facing history experience.
 
 ## Editor Annotation Terms
+
+A single selected **Line**, **Arrow**, or **Numbered Arrow** uses two endpoint handles: one at its start and one at its end. Dragging an endpoint handle changes only that endpoint; dragging the annotation moves it. Multiple selected annotations use shared bounding-box resize handles.
+
+**Auto Crop** tightens the current crop around screenshot content and visible annotations as an immediate, undoable action. It is directly available beside Crop in the first Edit command row without changing the selected annotation tool. **Padded** is the same action with a small margin. The Crop Image inspector places Auto Crop, Padded, and **Reset Crop** above the detailed controls; Reset Crop restores the full captured image.
+
+**Capture Text** selects screen content and copies locally recognized text without opening or replacing a Screenshot document. It is available in Quick Capture, the Capture menu, the menu bar icon menu, and configurable Global Shortcuts (Command-Shift-T by default). **Copy Text** remains the editor's review-and-copy tool. Recognition preserves lines and estimates indentation; **Join Lines** is an explicit paragraph cleanup action. Neither promises exact recovery of source-code whitespace. Private text copies carry a concealed clipboard marker.
+
+**Fit to Text** is the Highlighter's on-by-default, session-only option that fits newly drawn strokes to confidently recognized words and lines. It is not a separate annotation tool. Uncertain recognition or an intervening edit retains the original freehand stroke. Fitting is part of the same undo step.
+
+**Output Size** names the screenshot command row's **Size** control. **Original Size**, **Half Size**, and **Custom Width** set delivered still-image dimensions; **Apply Width** commits a custom width with linked proportions. This is a per-open-document output choice, not an image edit or a saved global preference. It affects Copy, Share, Drag, Print, and PNG/JPEG/PDF exports, including each paginated PDF page. Editable files, original pixels, history previews, animation, Interactive HTML, and automation retain their established sizes.
+
+**Capture Preview** is the optional post-capture thumbnail and action panel, distinct from Quick Controls, History Preview, and Float. In Settings, **Show Capture Preview** enables this alternative for future captures; in View and the menu bar icon menu, it restores an existing preview without opening the editor. **Close Capture Preview** hides it without deleting its document. **Edit** in this panel opens the screenshot editor. **Copy** copies the rendered screenshot, **Export…** chooses a PNG destination, and **Drag Screenshot** delivers rendered output using the configured drag format. Ordinary standalone Screenshots open in the editor by default; opting into Capture Preview does not change automation outcomes or Private Capture.
+
+**After Capture** is the Editor & Output Settings section containing Show Capture Preview. It is off when no preference has been stored; existing stored choices remain in force. Restoring defaults turns it off. Capturing and editing a Screenshot preserve the clipboard until Copy is chosen. **Copy to Clipboard** is the explicit Capture Preset outcome for capture-and-paste workflows; explicit automation copy outputs remain available.
+
+**Redact** names solid covering and is permanently available in the common-tool group. Its disclosure menu retains **Blur** and **Pixelate**. **Highlight Box** is also a direct common tool. Copy completion may say **Copied screenshot with redactions applied. Ready to paste.** This describes the rendered clipboard image, not removal of source pixels from the editable document.
 
 | Term | Canonical meaning | Avoid as a synonym |
 | --- | --- | --- |
@@ -441,3 +495,39 @@ For any workflow-language change, verify:
 - **No Matching Clipboard Items** means active search or filters hide results; **Clear Filters** restores the complete view. **No Clipboard Items Yet** means no items are saved. **Clipboard History Unavailable** identifies a storage access failure.
 - **Monitoring Off**, **Monitoring Paused**, **Monitoring Unavailable**, and **Monitoring** distinguish disabled, paused, inaccessible, and active Clipboard History. **Try Again** retries storage access or saving without discarding in-memory history.
 - **Copy Again**, **Export Again…**, **Export PNG…**, and **Share Again** are explicit screenshot output recovery actions. Retrying Export reopens the destination chooser; it never silently overwrites another file.
+
+
+### Clipboard browsing and organization
+
+- Repeated copies of the same single image update one Clipboard History item using decoded pixels, independent of image encoding and clipboard format metadata. Keep pins and collection membership, and use the latest copy's content and time. Consolidate existing duplicates when history loads. Preserve distinct multi-item selections, PDFs, animations, and editable snips.
+- **Content Type** identifies the All, Text, Links, Images, Files, Snips, and Pinned scopes. **Filters** opens the secondary **When**, **Source**, and **Collection** choices. **Reset Filters** resets only those secondary choices; **Clear Filters** also clears Search and returns Content Type to All. **Clear Search** changes only the search query.
+- **Preview** opens the full selected clipboard item without copying it; **Back** returns to the card feed. Clicking a clipboard card copies it, while arrow-key selection only changes the selection. **Clipboard Actions** contains window-wide commands, including **Permanently Delete Unpinned Items…**. **More Actions** contains commands for one item. **Copied** is temporary confirmation of a successful clipboard write, distinct from row selection.
+- **Pinned**, **Today**, **Yesterday**, and dated headings organize the clipboard list. They do not change the numbered copy shortcuts' order. **Details** discloses the selected item's precise copy time, source, size, and stored item count.
+- **Add to Collection** assigns an existing or newly named collection. **Remove from [collection name]** removes membership only. **Edit Text** opens the temporary text editor; **Done** returns to its preview and keeps the draft. **Edited · Original kept** identifies a preview of a temporary draft. **Clipboard Text Preview**, **Edit Clipboard Text**, **Clipboard Image Preview**, and **Color Preview** are the accessible names of the inspector's content surfaces. **Reveal in Finder** locates copied files; **Open Snip in Editor** retains its existing editable-history behavior.
+
+
+## Experience polish terms
+
+- **Copy and Return** copies the selected Clipboard History item's draft-aware content, then returns to the application from which Clipboard History was opened. Its shortcut is **Shift-Command-Return**. It never pastes automatically. Ordinary **Copy**, card clicks, Return while browsing, and Command-Return retain the palette's stay-open behavior. Failures or an unavailable destination keep the palette and drafts.
+- **Copying…** and **Exporting…** identify slow pending screenshot output on the existing completion control. The accessible names are **Copying screenshot…** and **Exporting screenshot**. Success wording remains **Copied screenshot. Ready to paste.**, with the existing redaction-aware variant. Completion is announced only after delivery succeeds.
+- **Drag-Out Format** replaces **Screenshot Format** in Editor & Output > Export & Sharing. It controls promised-file drag delivery, not explicitly chosen Export formats. JPEG Quality retains its current meaning.
+- **No Available Windows** means discovery returned no eligible windows. **No Matching Windows** means a search hides available windows. **Search Apps and Windows** matches application names and window titles. Window-selection instructions use Capture for a Screenshot and Record for Video.
+- **Cancel** in Open, Import Image, Guide setup, and Guide export-options/destination selection preserves the current editing context and prior settings. Starting an operation commits its chosen settings; cancelling an already started operation stops that job.
+
+Private Screenshot copies carry the standard concealed clipboard marker, including
+Capture Presets, automation, and Connected Device preview. Explicit Paste of a
+concealed image permanently marks the destination Screenshot/composition Private,
+including image overlays. Cancellation or failed decoding does not change the
+current document. Transient and auto-generated clipboard markers alone do not
+mean Private.
+
+
+### Snip History folder access
+
+**Snip History Folder Needs Access** identifies an unavailable saved custom folder. **Choose Location…** reauthorizes a folder; **Use Default Location** clears that saved custom choice. The warning names the active default storage and states that existing history was not moved or deleted. Folder selection changes the visible history source, not the contents of either folder.
+
+## Development app identity
+
+**SnipSnipSnip Dev** names the local Xcode Debug app. It has independent macOS permissions and app-owned state and may run alongside the distributed **SnipSnipSnip** or **SnipSnipSnip Pro** app. Each namespace still permits one process. “Dev” identifies the development app, not a user workflow or shipping edition.
+
+The development bundle filename is **SnipSnipSnip Dev.app** and its executable name is **SnipSnipSnip Dev**. Permission troubleshooting must name that exact copy when directing someone to Reveal App or System Settings.

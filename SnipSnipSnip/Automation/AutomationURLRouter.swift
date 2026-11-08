@@ -11,7 +11,10 @@ nonisolated enum AutomationURLRouter {
             return nil
         }
 
-        let query = Query(components.queryItems ?? [])
+        let queryItems = components.queryItems ?? []
+        var queryNames = Set<String>()
+        guard queryItems.allSatisfy({ queryNames.insert($0.name).inserted && $0.value != nil }) else { return nil }
+        let query = Query(queryItems)
         let path = components.path
         for key in ["private", "interactive", "overwrite", "reveal"] {
             if query.string(key) != nil, query.bool(key) == nil {
@@ -97,6 +100,7 @@ nonisolated enum AutomationURLRouter {
         case "/status":
             return request(.status, interactionPolicy: .promptIfNeeded, output: .none)
         case "/presets/run":
+            if let id = query.string("id"), UUID(uuidString: id) == nil { return nil }
             let command = RunPresetAutomationCommand(id: query.uuid("id"), name: query.string("name"))
             return request(.runPreset(command), usesCaptureDestination: true)
         case "/capture/fullscreen":

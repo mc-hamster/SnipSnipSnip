@@ -21,53 +21,30 @@ struct EditorView: View {
     var onUndoLibrarySwitch: () -> Void = {}
 
     var body: some View {
-        ZStack {
-            EditorCanvasScrollContainer(controller: controller)
-
+        EditorCanvasScrollContainer(controller: controller)
+        // Transient chrome must not contribute a minimum size to the canvas.
+        // A ZStack includes every sibling in sizing, even top-aligned notices.
+        .overlay {
             if let progress = compositionExportProgress {
                 CompositionExportProgressOverlay(
                     progress: progress,
                     onCancel: onCancelCompositionExport
                 )
-                .zIndex(2)
             }
-
+        }
+        .overlay {
             if let notice = controller.notice {
-                HStack(spacing: 10) {
-                    Text(notice.message)
-                        .font(.caption.weight(.medium))
-
-                    if let action = notice.action {
-                        Button(action.title) {
-                            performNoticeAction(action)
-                        }
-                        .buttonStyle(.borderless)
-                    }
-
-                    Button {
-                        controller.dismissNotice()
-                    } label: {
-                        Image(systemName: "xmark")
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("Dismiss notification")
-                    .help("Dismiss notification")
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .sssFloatingOverlaySurface(cornerRadius: 18, shadowOpacity: 0.10)
-                .padding(16)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel(notice.accessibilityAnnouncement)
+                OutputNoticeView(
+                    notice: notice,
+                    onAction: performNoticeAction,
+                    onDismiss: controller.dismissNotice
+                )
                 .accessibilityIdentifier("editor.notice")
-                .transition(.opacity)
-                .zIndex(3)
             }
-
+        }
+        .overlay {
             if controller.numberedArrowResequencingOrder != nil {
                 NumberedArrowResequencingBar(controller: controller)
-                    .zIndex(4)
             }
         }
         .background(Color(nsColor: .underPageBackgroundColor))
@@ -266,6 +243,7 @@ private struct EditorCanvasScrollContainer: View {
                             thickness: scrollerThickness
                         )
                         .frame(width: scrollerThickness, height: canvasHeight)
+                        .accessibilityIdentifier("editor.scrollbar.vertical")
                     }
 
                     HStack(spacing: 0) {
@@ -275,6 +253,7 @@ private struct EditorCanvasScrollContainer: View {
                             thickness: scrollerThickness
                         )
                         .frame(width: canvasWidth, height: scrollerThickness)
+                        .accessibilityIdentifier("editor.scrollbar.horizontal")
 
                         Rectangle()
                             .fill(Color.black.opacity(0.40))
@@ -397,12 +376,12 @@ enum EditorToolbarMode {
         return false
     }
 
-    var backTitle: String { isGuideStep ? "Cancel" : "Discard" }
+    var backTitle: String { isGuideStep ? String(localized: "Cancel") : String(localized: "Back to Capture") }
 
     var backHelp: String {
         isGuideStep
             ? "Cancel Advanced Edit and leave this Guide step unchanged."
-            : "Discard the current editor session and return to the capture screen."
+            : "Return to Capture, keeping non-private work in Recent Snips. Private work asks you to Save or Discard."
     }
 
     var applyAction: (() -> Void)? {
@@ -622,7 +601,7 @@ struct EditorCommandBar: View {
     private static let arrowTools: [EditorTool] = [.arrow, .numberedArrow]
     private static let shapeTools: [EditorTool] = [.rectangle, .ellipse, .line, .statusMark]
     private static let drawingTools: [EditorTool] = [.freehand, .highlighter]
-    private static let emphasisTools: [EditorTool] = [.highlight, .spotlight, .measure]
+    private static let emphasisTools: [EditorTool] = [.spotlight, .measure]
     private static let moreTools: [EditorTool] = [.callout, .ocrText, .colorPicker]
 
     @ObservedObject var controller: EditorController
@@ -640,13 +619,14 @@ struct EditorCommandBar: View {
     let dragOutPayloadProvider: @MainActor (ScreenshotOutputAppearance) -> PromisedFilePayload?
     var compositionAddActions: CompositionAddActions?
     var mode: EditorToolbarMode = .standard
+    var onDiscard: (() -> Void)?
     @State private var isShowingFirstAdditionPurpose = false
     @State private var pendingFirstAddition:
         ((CompositionAddActions) -> Void)?
     @State private var lastShapeTool: EditorTool = .rectangle
     @State private var lastArrowTool: EditorTool = .arrow
     @State private var lastDrawingTool: EditorTool = .freehand
-    @State private var lastEmphasisTool: EditorTool = .highlight
+    @State private var lastEmphasisTool: EditorTool = .spotlight
     @State private var lastMoreTool: EditorTool = .callout
 
     var body: some View {
@@ -697,96 +677,167 @@ struct EditorCommandBar: View {
 
     private var editCommands: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    if controller.compositionEditingScope != .layout, !mode.isGuideStep {
-                        Button(action: controller.finishCompositionEditing) {
-                            Label("Done", systemImage: "checkmark")
+            HStack(spacing: 8) {
+                editorExitCommands
+                ScrollView(.horizontal) {
+                    HStack(spacing: 6) {
+                        if mode.isGuideStep {
+                            Text("Advanced Step Edit")
+                                .font(.headline)
+                                .lineLimit(1)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .buttonBorderShape(.capsule)
-                        .keyboardShortcut(.defaultAction)
-                        .help("Apply these edits and return to the focused content stage.")
 
-                        Text(controller.compositionEditingScopeTitle ?? "Composition Editing")
-                            .font(.headline)
-                            .lineLimit(1)
-                            .accessibilityAddTraits(.isHeader)
-
-                        if case .item = controller.compositionEditingScope {
-                            Button(action: controller.selectPreviousCompositionItemForEditing) {
-                                Image(systemName: "chevron.left")
+                        EditorCommandGroup("Selection and common tools") {
+                            toolButton(.select)
+                            toolButton(.crop)
+                            if controller.showsCropControls {
+                                autoCropButton
                             }
-                            .buttonStyle(.bordered)
-                            .buttonBorderShape(.circle)
-                            .disabled(!controller.canSelectPreviousCompositionItem)
-                            .help("Edit Previous Item")
-                            .accessibilityLabel("Edit Previous Item")
-
-                            Button(action: controller.selectNextCompositionItemForEditing) {
-                                Image(systemName: "chevron.right")
-                            }
-                            .buttonStyle(.bordered)
-                            .buttonBorderShape(.circle)
-                            .disabled(!controller.canSelectNextCompositionItem)
-                            .help("Edit Next Item")
-                            .accessibilityLabel("Edit Next Item")
+                            toolGroupMenu(
+                                title: "Arrow",
+                                tools: Self.arrowTools,
+                                lastUsedTool: $lastArrowTool,
+                                accessibilityIdentifier: "editor.toolGroup.arrow"
+                            )
+                            toolButton(.text)
+                            toolButton(.highlight)
+                            redactionControl
                         }
-                    } else {
-                        backButton
+                        EditorCommandGroup("Grouped annotation tools") {
+                            toolGroupMenu(
+                                title: "Shapes",
+                                tools: Self.shapeTools,
+                                lastUsedTool: $lastShapeTool,
+                                accessibilityIdentifier: "editor.toolGroup.shapes"
+                            )
+                            toolGroupMenu(
+                                title: "Draw",
+                                tools: Self.drawingTools,
+                                lastUsedTool: $lastDrawingTool,
+                                accessibilityIdentifier: "editor.toolGroup.draw"
+                            )
+                            toolGroupMenu(
+                                title: "Emphasize",
+                                tools: Self.emphasisTools,
+                                lastUsedTool: $lastEmphasisTool,
+                                accessibilityIdentifier: "editor.toolGroup.emphasize"
+                            )
+                            moreToolsControl
+                        }
                     }
-
-                    if mode.isGuideStep {
-                        Text("Advanced Step Edit")
-                            .font(.headline)
-                            .lineLimit(1)
-                    }
-
-                    EditorCommandGroup("Selection and common tools") {
-                        toolButton(.select)
-                        toolButton(.crop)
-                        toolGroupMenu(
-                            title: "Arrow",
-                            tools: Self.arrowTools,
-                            lastUsedTool: $lastArrowTool,
-                            accessibilityIdentifier: "editor.toolGroup.arrow"
-                        )
-                        toolButton(.text)
-                    }
-                    EditorCommandGroup("Grouped annotation tools") {
-                        toolGroupMenu(
-                            title: "Shapes",
-                            tools: Self.shapeTools,
-                            lastUsedTool: $lastShapeTool,
-                            accessibilityIdentifier: "editor.toolGroup.shapes"
-                        )
-                        toolGroupMenu(
-                            title: "Draw",
-                            tools: Self.drawingTools,
-                            lastUsedTool: $lastDrawingTool,
-                            accessibilityIdentifier: "editor.toolGroup.draw"
-                        )
-                        toolGroupMenu(
-                            title: "Emphasize",
-                            tools: Self.emphasisTools,
-                            lastUsedTool: $lastEmphasisTool,
-                            accessibilityIdentifier: "editor.toolGroup.emphasize"
-                        )
-                        redactionControl
-                        moreToolsControl
-                    }
+                    .fixedSize(horizontal: true, vertical: false)
                 }
-                .fixedSize(horizontal: true, vertical: false)
+                .accessibilityIdentifier("editor.commandBar.edit.tools.scroll")
             }
 
-            ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 8) {
+                        EditorCommandGroup("History") {
+                            undoButton
+                            redoButton
+                        }
+                        EditorCommandGroup("Layers and arrangement") {
+                            arrangementCommands
+                        }
+                        EditorCommandGroup("Zoom") {
+                            zoomCommands
+                        }
+                        EditorCommandGroup("Inspector") {
+                            inspectorToggle
+                        }
+
+                        if controller.compositionEditingScope == .layout, !mode.isGuideStep {
+                            EditorCommandGroup("References and drag out") {
+                                referenceCommands
+                            }
+                        }
+                    }
+                    .fixedSize(horizontal: true, vertical: false)
+                }
+                .accessibilityIdentifier("editor.commandBar.edit.secondary.scroll")
+
+                if let applyAction = mode.applyAction {
+                    Button("Apply to Step", action: applyAction)
+                        .buttonStyle(.borderedProminent)
+                        .buttonBorderShape(.capsule)
+                        .help("Save these annotations on this Guide step and return to the Guide editor.")
+                        .fixedSize()
+                } else if controller.compositionEditingScope == .layout {
+                    EditorCommandGroup("Output") {
+                        documentOutputCommands
+                    }
+                    .fixedSize()
+                }
+            }
+            if controller.activeTool.defaultRedactionMode != nil || controller.containsRedactions {
+                Label("Redact covers sensitive details. Copy and Export apply redactions; editable files retain the original.", systemImage: "lock.shield")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("editor.redaction.outputGuidance")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var editorExitCommands: some View {
+        if controller.compositionEditingScope != .layout, !mode.isGuideStep {
+            Button(action: controller.finishCompositionEditing) {
+                Label("Done", systemImage: "checkmark")
+            }
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.capsule)
+            .keyboardShortcut(.defaultAction)
+            .help("Apply these edits and return to the focused content stage.")
+            .accessibilityIdentifier("editor.composition.done")
+
+            Text(controller.compositionEditingScopeTitle ?? "Composition Editing")
+                .font(.headline)
+                .lineLimit(1)
+                .accessibilityAddTraits(.isHeader)
+
+            if case .item = controller.compositionEditingScope {
+                Button(action: controller.selectPreviousCompositionItemForEditing) {
+                    Image(systemName: "chevron.left")
+                }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.circle)
+                .disabled(!controller.canSelectPreviousCompositionItem)
+                .help("Edit Previous Item")
+                .accessibilityLabel("Edit Previous Item")
+
+                Button(action: controller.selectNextCompositionItemForEditing) {
+                    Image(systemName: "chevron.right")
+                }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.circle)
+                .disabled(!controller.canSelectNextCompositionItem)
+                .help("Edit Next Item")
+                .accessibilityLabel("Edit Next Item")
+            }
+        } else {
+            backButton
+        }
+    }
+
+    private var presentationCommands: some View {
+        HStack(spacing: 8) {
+            backButton
+            ScrollView(.horizontal) {
                 HStack(spacing: 8) {
+                    if controller.workflowStage != .polishing {
+                        Button(action: leaveCurrentWorkspace) {
+                            Label("Annotate Result", systemImage: EditorWorkspaceMode.edit.systemImage)
+                        }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.capsule)
+                        .help(currentWorkspaceBackHelp)
+                        .accessibilityIdentifier("editor.backToEdit")
+                    }
                     EditorCommandGroup("History") {
                         undoButton
                         redoButton
-                    }
-                    EditorCommandGroup("Layers and arrangement") {
-                        arrangementCommands
                     }
                     EditorCommandGroup("Zoom") {
                         zoomCommands
@@ -794,78 +845,45 @@ struct EditorCommandBar: View {
                     EditorCommandGroup("Inspector") {
                         inspectorToggle
                     }
-
-                    if let applyAction = mode.applyAction {
-                        Button("Apply to Step", action: applyAction)
-                            .buttonStyle(.borderedProminent)
-                            .buttonBorderShape(.capsule)
-                            .help("Save these annotations on this Guide step and return to the Guide editor.")
-                    } else if controller.compositionEditingScope == .layout {
-                        EditorCommandGroup("Output") {
-                            documentOutputCommands
-                        }
-                        EditorCommandGroup("References and drag out") {
-                            referenceCommands
-                        }
+                    EditorCommandGroup("References and drag out") {
+                        referenceCommands
                     }
                 }
                 .fixedSize(horizontal: true, vertical: false)
             }
-            .accessibilityIdentifier("editor.commandBar.edit.secondary.scroll")
-        }
-    }
-
-    private var presentationCommands: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                backButton
-
-                if controller.workflowStage != .polishing {
-                    Button(action: leaveCurrentWorkspace) {
-                        Label(
-                            "Annotate Result",
-                            systemImage: EditorWorkspaceMode.edit.systemImage
-                        )
-                    }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.capsule)
-                    .help(currentWorkspaceBackHelp)
-                    .accessibilityIdentifier("editor.backToEdit")
-                }
-
-                EditorCommandGroup("History") {
-                    undoButton
-                    redoButton
-                }
-                EditorCommandGroup("Zoom") {
-                    zoomCommands
-                }
-                EditorCommandGroup("Inspector") {
-                    inspectorToggle
-                }
-
-                EditorCommandGroup("Output") {
-                    outputCommands(appearance: controller.currentWorkspaceOutputAppearance)
-                }
-                EditorCommandGroup("References and drag out") {
-                    referenceCommands
-                }
+            .accessibilityIdentifier("editor.commandBar.presentation.scroll")
+            EditorCommandGroup("Output") {
+                outputCommands(appearance: controller.currentWorkspaceOutputAppearance)
             }
-            .fixedSize(horizontal: true, vertical: false)
+            .fixedSize()
         }
-        .accessibilityIdentifier("editor.commandBar.presentation.scroll")
     }
 
     private var backButton: some View {
-        Button(action: onBack) {
-            Label(mode.backTitle, systemImage: "xmark")
+        HStack(spacing: 2) {
+            Button(action: onBack) {
+                Label(mode.backTitle, systemImage: mode.isGuideStep ? "xmark" : "arrow.left")
+            }
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.capsule)
+            .help(mode.backHelp)
+            .accessibilityIdentifier(mode.isGuideStep ? "editor.cancel" : "editor.backToCapture")
+
+            if !mode.isGuideStep, let onDiscard {
+                Menu {
+                    Button("Discard…", action: onDiscard)
+                        .accessibilityIdentifier("editor.discard")
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
+                .menuIndicator(.hidden)
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Screenshot Actions")
+                .accessibilityLabel("Screenshot Actions")
+            }
         }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .help(mode.backHelp)
-        .accessibilityIdentifier(
-            mode.isGuideStep ? "editor.cancel" : "editor.discard"
-        )
+        .fixedSize()
     }
 
     @ViewBuilder
@@ -1083,36 +1101,25 @@ struct EditorCommandBar: View {
     private func outputCommands(
         appearance: ScreenshotOutputAppearance
     ) -> some View {
-        Button {
-            onCopy(appearance)
-        } label: {
-            Label("Copy", systemImage: "doc.on.doc")
-        }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .help("Copy the output currently shown in this workspace.")
-        .accessibilityValue(visibleOutputAccessibilityValue)
-        .accessibilityIdentifier("editor.output.copy.current")
+        ScreenshotCopyButton(
+            activity: controller.outputActivity,
+            outputDescription: visibleOutputAccessibilityValue
+        ) { onCopy(appearance) }
 
         exportMenu(appearance: appearance)
         shareButton(appearance: appearance)
+        ScreenshotOutputSizeControl(controller: controller, appearance: appearance)
     }
 
     private func exportMenu(
         appearance: ScreenshotOutputAppearance
     ) -> some View {
-        Menu {
+        ScreenshotExportMenu(
+            activity: controller.outputActivity,
+            outputDescription: visibleOutputAccessibilityValue
+        ) {
             outputFormatButtons(appearance: appearance)
-        } label: {
-            Label("Export", systemImage: "square.and.arrow.down")
         }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .help("Export the output currently shown in this workspace.")
-        .accessibilityValue(visibleOutputAccessibilityValue)
-        .accessibilityIdentifier(
-            "editor.output.export.current"
-        )
     }
 
     @ViewBuilder
@@ -1224,6 +1231,19 @@ struct EditorCommandBar: View {
         .disabled(!isToolEnabled(tool))
     }
 
+    private var autoCropButton: some View {
+        Button(action: controller.autoCropCurrentCrop) {
+            Label("Auto Crop", systemImage: "crop")
+                .font(.subheadline.weight(.medium))
+                .padding(.horizontal, 8)
+                .frame(height: 28)
+        }
+        .buttonStyle(EditorDirectToolButtonStyle(isSelected: false))
+        .help("Tighten the current crop around screenshot content and visible annotations.")
+        .accessibilityLabel("Auto Crop")
+        .accessibilityIdentifier("editor.crop.auto")
+    }
+
     private func toolGroupMenu(
         title: String,
         tools: [EditorTool],
@@ -1236,10 +1256,7 @@ struct EditorCommandBar: View {
             Button {
                 controller.activateToolbarTool(lastUsedTool.wrappedValue)
             } label: {
-                Label(
-                    lastUsedTool.wrappedValue.label,
-                    systemImage: lastUsedTool.wrappedValue.systemImage
-                )
+                StableEditorToolLabel(tool: lastUsedTool.wrappedValue, family: tools)
                     .font(.subheadline.weight(.medium))
                     .padding(.horizontal, 8)
                     .frame(height: 28)
@@ -1283,24 +1300,24 @@ struct EditorCommandBar: View {
     }
 
     private var redactionControl: some View {
-        let isSelected = controller.activeTool.defaultRedactionMode != nil
+        let isSelected = controller.activeTool == .redact
 
         return HStack(spacing: 2) {
             Button {
-                controller.activateToolbarTool(controller.currentRedactionMode.editorTool)
+                controller.activateToolbarTool(.redact)
             } label: {
                 Label(
-                    controller.currentRedactionMode.label,
-                    systemImage: controller.currentRedactionMode.toolbarSystemImage
+                    "Redact",
+                    systemImage: EditorTool.redact.systemImage
                 )
                 .font(.subheadline.weight(.medium))
                 .padding(.horizontal, 8)
                 .frame(height: 28)
             }
             .buttonStyle(EditorDirectToolButtonStyle(isSelected: isSelected))
-            .help("Use \(controller.currentRedactionMode.label). Open the disclosure menu for other redaction tools.")
-            .accessibilityLabel(controller.currentRedactionMode.label)
-            .accessibilityHint("Activate this tool. Use the adjacent menu to choose another tool in the Redact group.")
+            .help("Cover sensitive details with a solid redaction. Blur and Pixelate are in the adjacent menu.")
+            .accessibilityLabel("Redact")
+            .accessibilityHint("Cover sensitive details with a solid redaction.")
             .accessibilityValue(isSelected ? "Selected" : "Not selected")
             .accessibilityIdentifier("editor.toolGroup.redact")
 
@@ -1437,67 +1454,6 @@ struct EditorCommandBar: View {
     }
 }
 
-private struct EditorCommandGroup<Content: View>: View {
-    let accessibilityLabel: String
-    let content: Content
-    @Environment(\.colorSchemeContrast) private var contrast
-
-    init(_ accessibilityLabel: String, @ViewBuilder content: () -> Content) {
-        self.accessibilityLabel = accessibilityLabel
-        self.content = content()
-    }
-
-    var body: some View {
-        HStack(spacing: 5) {
-            content
-        }
-        .padding(3)
-        .background(Color(nsColor: .windowBackgroundColor), in: .rect(cornerRadius: 11, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .strokeBorder(
-                    Color(nsColor: .separatorColor),
-                    lineWidth: contrast == .increased ? 2 : 1
-                )
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(accessibilityLabel)
-    }
-}
-
-private struct EditorDirectToolButtonStyle: ButtonStyle {
-    let isSelected: Bool
-    @Environment(\.isEnabled) private var isEnabled
-    @Environment(\.colorSchemeContrast) private var contrast
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
-            .background {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(backgroundColor(isPressed: configuration.isPressed))
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(
-                        isSelected ? Color.accentColor : Color(nsColor: .separatorColor),
-                        lineWidth: isSelected || contrast == .increased ? 2 : 1
-                    )
-            }
-            .opacity(isEnabled ? 1 : 0.45)
-            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-
-    private func backgroundColor(isPressed: Bool) -> Color {
-        if isSelected {
-            return Color.accentColor.opacity(contrast == .increased ? 0.28 : 0.18)
-        }
-        if isPressed {
-            return Color.primary.opacity(0.10)
-        }
-        return Color(nsColor: .controlBackgroundColor)
-    }
-}
 
 private struct OCRReviewView: View {
     @Binding var text: String
@@ -1518,6 +1474,10 @@ private struct OCRReviewView: View {
                 }
 
             HStack {
+                Button("Join Lines") {
+                    text = RecognizedTextFormatting.paragraph(text)
+                }
+                .help("Join the recognized lines into a paragraph. Review before copying.")
                 Spacer()
                 Button("Cancel", action: onCancel)
                     .buttonStyle(.glass)

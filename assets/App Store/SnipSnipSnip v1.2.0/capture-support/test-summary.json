@@ -1,0 +1,17 @@
+{
+  "sourceCommit": "d02d4920b27c56eb46cc566afb4f39b5c33ae59a",
+  "suite": "AppStoreScreenshotAssetUITests/testCaptureCampaignSources",
+  "finalCaptureResult": "Campaign-06.xcresult",
+  "result": "Passed",
+  "passedTests": 1,
+  "failedTests": 0,
+  "skippedTests": 0,
+  "build": {
+    "CFBundleShortVersionString": "1.2.0",
+    "CFBundleVersion": "179",
+    "SnipBuildTarget": "Release",
+    "LSMultipleInstancesProhibited": true
+  },
+  "parallelTesting": false,
+  "note": "UI fixture capture only; not signed release validation."
+}

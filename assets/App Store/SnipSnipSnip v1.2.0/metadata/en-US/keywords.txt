@@ -1,0 +1,1 @@
+screenshot,screen,recorder,annotation,clipboard,ocr,redact,compare,steps,markup,measure,video
