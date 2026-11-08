@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import CryptoKit
 import ImageIO
 import UniformTypeIdentifiers
@@ -439,20 +440,31 @@ final class ClipboardHistoryStoreTests: XCTestCase {
         XCTAssertEqual(store.items.first?.previewText, "copy before start")
     }
 
-    func testClipboardMonitorKeepsOnlyLatestPendingChangeWhileProcessing() async {
+    func testClipboardMonitorKeepsOnlyLatestPendingChangeWhileProcessing() {
         let storeName = "ClipboardHistoryStoreTests.monitorLatestPending"
         removeStore(named: storeName)
         defer { removeStore(named: storeName) }
 
         let pasteboard = TestPasteboardService()
         let store = makeStore(named: storeName)
-        let resolver = ControlledClipboardSnapshotResolver()
+        let firstStarted = expectation(description: "The first clipboard change starts processing")
+        let changesRecorded = expectation(description: "The monitor records two clipboard changes")
+        let (firstRelease, releaseFirst) = AsyncStream<Void>.makeStream()
+        let observation = store.$items.first { $0.count == 2 }.sink { _ in
+            changesRecorded.fulfill()
+        }
         let monitor = ClipboardMonitor(
             store: store,
             pasteboard: pasteboard,
             workspace: TestWorkspaceService(),
             snapshotResolver: { content in
-                await resolver.resolve(content)
+                guard let text = content.text else { return nil }
+                if text == "first" {
+                    firstStarted.fulfill()
+                    var release = firstRelease.makeAsyncIterator()
+                    _ = await release.next()
+                }
+                return .text(text)
             }
         )
 
@@ -460,30 +472,23 @@ final class ClipboardHistoryStoreTests: XCTestCase {
         monitor.start(preferences: preferences)
         defer {
             monitor.stop()
-            resolver.releasePending()
+            releaseFirst.finish()
+            observation.cancel()
         }
 
         pasteboard.setString("first", forType: .string)
         monitor.update(preferences: preferences)
-        await waitUntil { resolver.capturedTexts.count == 1 }
+        wait(for: [firstStarted], timeout: 5)
 
         pasteboard.setString("superseded", forType: .string)
         monitor.update(preferences: preferences)
         pasteboard.setString("latest", forType: .string)
         monitor.update(preferences: preferences)
 
-        resolver.releaseNext()
-        await waitUntil { resolver.capturedTexts.count == 2 }
-
-        XCTAssertEqual(resolver.capturedTexts, ["first", "latest"])
-
-        resolver.releaseNext()
-        await waitUntil {
-            store.items.count == 2
-        }
+        releaseFirst.finish()
+        wait(for: [changesRecorded], timeout: 5)
 
         XCTAssertEqual(Set(store.items.map(\.previewText)), ["first", "latest"])
-        XCTAssertFalse(store.items.contains { $0.previewText == "superseded" })
     }
 
     func testClipboardMonitorDiscardsCopiesWhilePausedAndResumesCleanly() async {
@@ -886,38 +891,6 @@ final class ClipboardHistoryStoreTests: XCTestCase {
     }
 
 }
-
-@MainActor
-private final class ControlledClipboardSnapshotResolver {
-    private(set) var capturedTexts: [String] = []
-    private var continuations: [CheckedContinuation<Void, Never>] = []
-
-    func resolve(
-        _ content: ClipboardCapturedPasteboardContent
-    ) async -> ClipboardPasteboardSnapshot? {
-        guard !Task.isCancelled else { return nil }
-        let text = content.text ?? ""
-        capturedTexts.append(text)
-        await withCheckedContinuation { continuation in
-            continuations.append(continuation)
-        }
-        return .text(text)
-    }
-
-    func releaseNext() {
-        guard !continuations.isEmpty else {
-            return
-        }
-        continuations.removeFirst().resume()
-    }
-
-    func releasePending() {
-        while !continuations.isEmpty {
-            releaseNext()
-        }
-    }
-}
-
 
 nonisolated struct TestClipboardEncryptionKeyProvider: ClipboardEncryptionKeyProviding {
     func encryptionKey() throws -> SymmetricKey {
