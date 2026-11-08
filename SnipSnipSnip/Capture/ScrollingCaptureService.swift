@@ -155,8 +155,6 @@ struct AccessibilityScrollDriver: ScrollDriver {
             "Resolving scroll target rect=\(Self.describe(viewportRect))"
         )
 
-        // AXUIElementCopyElementAtPosition takes top-left screen coordinates,
-        // the same global coordinate space as the selected capture viewport.
         guard let target = Self.resolveTarget(
             in: viewportRect,
             accessibility: accessibility

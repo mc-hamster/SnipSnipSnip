@@ -325,11 +325,20 @@ final class ProjectVersionAlignmentTests: XCTestCase {
                 sharedScheme.contains(#"value = "$(\#(browserEnvironmentName))""#)
             )
         }
-        XCTAssertEqual(
-            fastfile.components(separatedBy: "run_release_test_gate(options)").count - 1,
-            2,
-            "App Store and Self Release lanes must both run the complete release test gate."
-        )
+        let publicLanes = fastfile.components(separatedBy: "\n  lane :").dropFirst()
+        for laneName in ["release", "self_release"] {
+            let lane = try XCTUnwrap(
+                publicLanes.first { $0.hasPrefix("\(laneName) ") },
+                "The Fastfile must define the \(laneName) lane."
+            )
+            let runsReleaseTestGate = lane.split(separator: "\n").contains { line in
+                line.trimmingCharacters(in: .whitespaces).hasPrefix("run_release_test_gate(")
+            }
+            XCTAssertTrue(
+                runsReleaseTestGate,
+                "The \(laneName) lane must run the complete release test gate."
+            )
+        }
         XCTAssertTrue(releaseWorkflow.contains("RELEASE_METADATA_READY: ${{ inputs.metadata_ready }}"))
         XCTAssertTrue(releaseWorkflow.contains("RELEASE_MANUAL_QA_CONFIRMED: ${{ inputs.manual_qa_confirmed }}"))
         XCTAssertFalse(releaseWorkflow.contains("RELEASE_METADATA_READY: true"))
