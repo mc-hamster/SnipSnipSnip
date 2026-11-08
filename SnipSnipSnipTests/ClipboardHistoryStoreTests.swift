@@ -456,30 +456,31 @@ final class ClipboardHistoryStoreTests: XCTestCase {
             }
         )
 
-        monitor.start(preferences: enabledPreferences)
-        pasteboard.setString("first", forType: .string)
-        await waitUntil {
-            await resolver.captureCount == 1
+        let preferences = enabledPreferences
+        monitor.start(preferences: preferences)
+        defer {
+            monitor.stop()
+            resolver.releasePending()
         }
+
+        pasteboard.setString("first", forType: .string)
+        monitor.update(preferences: preferences)
+        await waitUntil { resolver.capturedTexts.count == 1 }
 
         pasteboard.setString("superseded", forType: .string)
-        try? await Task.sleep(nanoseconds: 300_000_000)
+        monitor.update(preferences: preferences)
         pasteboard.setString("latest", forType: .string)
-        try? await Task.sleep(nanoseconds: 300_000_000)
+        monitor.update(preferences: preferences)
 
-        await resolver.releaseNext()
-        await waitUntil {
-            await resolver.captureCount == 2
-        }
+        resolver.releaseNext()
+        await waitUntil { resolver.capturedTexts.count == 2 }
 
-        let capturedTexts = await resolver.capturedTexts
-        XCTAssertEqual(capturedTexts, ["first", "latest"])
+        XCTAssertEqual(resolver.capturedTexts, ["first", "latest"])
 
-        await resolver.releaseNext()
+        resolver.releaseNext()
         await waitUntil {
             store.items.count == 2
         }
-        monitor.stop()
 
         XCTAssertEqual(Set(store.items.map(\.previewText)), ["first", "latest"])
         XCTAssertFalse(store.items.contains { $0.previewText == "superseded" })
@@ -886,23 +887,17 @@ final class ClipboardHistoryStoreTests: XCTestCase {
 
 }
 
-private actor ControlledClipboardSnapshotResolver {
-    private var texts: [String] = []
+@MainActor
+private final class ControlledClipboardSnapshotResolver {
+    private(set) var capturedTexts: [String] = []
     private var continuations: [CheckedContinuation<Void, Never>] = []
-
-    var captureCount: Int {
-        texts.count
-    }
-
-    var capturedTexts: [String] {
-        texts
-    }
 
     func resolve(
         _ content: ClipboardCapturedPasteboardContent
     ) async -> ClipboardPasteboardSnapshot? {
+        guard !Task.isCancelled else { return nil }
         let text = content.text ?? ""
-        texts.append(text)
+        capturedTexts.append(text)
         await withCheckedContinuation { continuation in
             continuations.append(continuation)
         }
@@ -914,6 +909,12 @@ private actor ControlledClipboardSnapshotResolver {
             return
         }
         continuations.removeFirst().resume()
+    }
+
+    func releasePending() {
+        while !continuations.isEmpty {
+            releaseNext()
+        }
     }
 }
 
