@@ -9,6 +9,7 @@ protocol AutomationStatusPort: AnyObject {
 
 @MainActor
 protocol CaptureAutomationPort: AnyObject {
+    var hasPendingInteractiveAutomationCapture: Bool { get }
     func runAutomationPreset(
         _ command: RunPresetAutomationCommand,
         request: AutomationRequest
@@ -82,6 +83,10 @@ final class AutomationWorkflowModel: AutomationHost, AutomationOutputPort {
         self.files = files
         self.workspace = workspace
         self.pasteboard = pasteboard
+    }
+
+    var hasPendingInteractiveAutomationCapture: Bool {
+        capturePort?.hasPendingInteractiveAutomationCapture ?? false
     }
 
     var automationCapabilities: AutomationCapabilities {

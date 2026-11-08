@@ -1,0 +1,4 @@
+interface:
+  display_name: "SSS Validation"
+  short_description: "Build and validate SnipSnipSnip changes safely"
+  default_prompt: "Use $sss-validation to validate the current SnipSnipSnip changes with the appropriate repository checks."

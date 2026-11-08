@@ -1,6 +1,5 @@
 import CoreGraphics
 import Foundation
-import Vision
 
 nonisolated protocol CaptureTextRecognizing: Sendable {
     nonisolated func recognizeText(in image: CGImage) async throws -> String
@@ -14,16 +13,7 @@ nonisolated struct VisionCaptureTextRecognizer: CaptureTextRecognizing {
 
 enum CaptureTextRecognizer {
     nonisolated static func recognizeText(in image: CGImage) async throws -> String {
-        var request = RecognizeTextRequest(.revision3)
-        request.recognitionLevel = .accurate
-        request.usesLanguageCorrection = true
-        request.automaticallyDetectsLanguage = true
-
-        let observations = try await ImageRequestHandler(image).perform(request)
-
-        return observations
-            .compactMap { $0.topCandidates(1).first?.string }
-            .joined(separator: " ")
+        try await VisionTextLayoutRecognizer().recognizeLayout(in: image).formattedText
     }
 
     nonisolated static func recognizeText(in image: CGImage, region: CGRect) async throws -> String {

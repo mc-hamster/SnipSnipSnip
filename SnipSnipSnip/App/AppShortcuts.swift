@@ -12,6 +12,7 @@ enum AppShortcut {
             ShortcutCatalogEntry(keys: "Command-Q", action: "Quit or run in background"),
             ShortcutCatalogEntry(keys: "Command-S", action: "Save"),
             ShortcutCatalogEntry(keys: "Shift-Command-S", action: "Save As"),
+            ShortcutCatalogEntry(keys: "Command-P", action: "Print"),
             ShortcutCatalogEntry(
                 keys: "Command-C",
                 action: String(localized: "Copy current workspace output")
@@ -22,6 +23,7 @@ enum AppShortcut {
             )
         ]),
         ShortcutCatalogSection(title: "Default Global Shortcuts", entries: [
+            ShortcutCatalogEntry(keys: "Command-Shift-T", action: "Capture Text"),
             ShortcutCatalogEntry(
                 keys: "Command-Shift-1",
                 action: "Capture \(WorkflowVocabulary.Source.region)"
@@ -92,9 +94,11 @@ enum AppShortcut {
             ShortcutCatalogEntry(keys: "Escape", action: "Close Screen Inspector")
         ]),
         ShortcutCatalogSection(title: "Clipboard History", entries: [
-            ShortcutCatalogEntry(keys: "Return", action: "Paste selected item"),
+            ShortcutCatalogEntry(keys: "Return", action: "Copy selected item while browsing"),
             ShortcutCatalogEntry(keys: "Command-Return", action: "Copy selected item"),
-            ShortcutCatalogEntry(keys: "Shift-Return", action: "Paste selected item as plain text"),
+            ShortcutCatalogEntry(keys: "Shift-Command-Return", action: "Copy and Return"),
+            ShortcutCatalogEntry(keys: "Space", action: "Preview selected item while browsing"),
+            ShortcutCatalogEntry(keys: "Command-F", action: "Search Clipboard History"),
             ShortcutCatalogEntry(keys: "Arrow Keys", action: "Move selection"),
             ShortcutCatalogEntry(keys: "Escape", action: "Clear search, then close Clipboard History"),
             ShortcutCatalogEntry(keys: "Option-1 through Option-9", action: "Copy visible item")
@@ -142,6 +146,7 @@ enum AppShortcut {
 
     private static func shortcutActionLabel(for action: GlobalHotKeyAction) -> String {
         switch action {
+        case .textCapture: "Capture Text"
         case .region:
             "Capture \(WorkflowVocabulary.Source.region)"
         case .window:

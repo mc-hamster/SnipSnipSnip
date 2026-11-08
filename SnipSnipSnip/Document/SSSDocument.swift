@@ -184,6 +184,7 @@ nonisolated enum SSSDocumentPackage {
         includeUIMapSearchText: Bool,
         files: any FileSystemServicing = SystemFileService()
     ) throws {
+        try validateIdentityIntegrity(of: document.session)
         var persistedDocument = document
         if persistedDocument.session.currentSnapshot.composition == nil {
             let lifted = try liftLegacySession(
@@ -1351,9 +1352,10 @@ nonisolated enum SSSDocumentPackage {
             files: files
         )
         let declaredAssets = Dictionary(
-            uniqueKeysWithValues: (manifest.assets.captures ?? []).map {
+            (manifest.assets.captures ?? []).map {
                 ($0.id, $0.descriptor)
-            }
+            },
+            uniquingKeysWith: { first, _ in first }
         )
         let contentSize = try resolvedSnapshotContentSize(
             manifest.session.currentSnapshot,
@@ -1489,6 +1491,14 @@ nonisolated enum SSSDocumentPackage {
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         return collapsed.isEmpty ? nil : collapsed
+    }
+
+    nonisolated static func validateIdentityIntegrity(of session: EditorDocumentSession) throws {
+        do {
+            try EditorIdentityIntegrity.validate(session)
+        } catch let violation as EditorIdentityViolation {
+            throw SSSDocumentError.invalidComposition(violation.persistenceReason)
+        }
     }
 
     nonisolated private static func validateManifest(
@@ -2842,9 +2852,9 @@ nonisolated private struct SessionRecord: Codable {
     }
 
     nonisolated func editorDocumentSession(imageOverlays: [UUID: CGImage] = [:]) throws -> EditorDocumentSession {
-        var decodedToolStyles: [EditorTool: AnnotationStyle] = Dictionary(uniqueKeysWithValues: EditorTool.allCases.map {
+        var decodedToolStyles: [EditorTool: AnnotationStyle] = Dictionary(EditorTool.allCases.map {
             ($0, .default(for: $0))
-        })
+        }, uniquingKeysWith: { first, _ in first })
 
         for record in toolStyles {
             guard let tool = EditorTool(rawValue: record.tool) else {

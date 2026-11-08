@@ -6,7 +6,7 @@ nonisolated enum CLIExitCodeMapper {
               let object = try? JSONSerialization.jsonObject(with: data)
                 as? [String: Any],
               let status = object["status"] as? String else {
-            return 0
+            return 70
         }
 
         if status == "succeeded" {
@@ -17,13 +17,14 @@ nonisolated enum CLIExitCodeMapper {
         switch error?["code"] as? String {
         case "invalidRequest":
             return 64
-        case "featureUnavailable", "targetUnavailable", "proFeatureRequired",
+        case "busy", "featureUnavailable", "targetUnavailable", "proFeatureRequired",
+             "noActiveGuide", "guideAlreadyActive", "guideHasNoSteps", "guideSourceMediaUnavailable",
              "noActiveComposition", "compositionItemNotFound",
              "compositionRequiresMultipleItems", "incompatibleCompositionItems",
              "staleDestination":
             return 69
         case "unsupportedOutput", "outputFailed",
-             "unsupportedComparisonOutput", "oversizedOutput":
+             "unsupportedComparisonOutput", "oversizedOutput", "guideFinalizationFailed":
             return 74
         case "permissionDenied", "confirmationRequired":
             return 77

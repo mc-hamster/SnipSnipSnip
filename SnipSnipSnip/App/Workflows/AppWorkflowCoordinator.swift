@@ -65,16 +65,11 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
         switch output {
         case .presentError(let message):
             lifecycle?.presentError(message)
-        case .permissionsChanged(let status):
+        case .permissionsChanged:
+            // Passive status changes must not enumerate protected screen content
+            // or resume capture while System Settings is frontmost. The visible
+            // capture workspace owns thumbnail refresh; Continue owns resumption.
             capture?.notifyPermissionsChanged()
-            if status.hasScreenRecording {
-                capture?.refreshAvailableWindows(
-                    includeThumbnails: true,
-                    allowsCancellingPendingThumbnailRefresh: true
-                )
-            }
-        case .requirementsMayNowBeSatisfied(let status):
-            capture?.retryPendingPermissionCommandIfSatisfied(status)
         case .permissionSetupDismissed:
             capture?.cancelPendingPermissionCommand()
         case .requestMainWindowPresentation:
@@ -99,8 +94,15 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
                 }
                 return
             }
-            let workflowOutcome = result.workflowPreset?.outcome ?? .openInEditor
-            let willBeCopied = workflowOutcome == .copyToClipboard || clipboard?.autoCopyEnabled == true
+            let workflowOutcome = result.automationRequest == nil ? (result.workflowPreset?.outcome ?? .openInEditor) : .openInEditor
+            let willBeCopied = workflowOutcome == .copyToClipboard || result.automationRequest?.output == .copyRenderedImage
+            if let request = result.automationRequest {
+                Task { @MainActor [weak self, weak controller] in
+                    guard let self, let controller, documents.editorController === controller else { return }
+                    let output = await self.automationResultAfterCurrentEditorOutput(request, result.capture.kind.rawValue, nil)
+                    if let error = output.error { self.lifecycle?.presentError(error.message) }
+                }
+            }
 
             if !result.isPrivateCapture, installation.disposition == .newDocument {
                 clipboard?.scheduleClipboardSnipRecording(
@@ -123,8 +125,6 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
                         lifecycle?.presentError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
                     }
                 }
-            } else if clipboard?.autoCopyEnabled == true, installation.disposition == .newDocument {
-                documents.scheduleAutoCopy(for: controller)
             }
 
             if result.shouldProcessUIMap {
@@ -143,8 +143,13 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
                 )
             }
 
-            if workflowOutcome == .openInEditor {
-                lifecycle?.requestMainWindowPresentation()
+            if workflowOutcome == .openInEditor, result.automationRequest == nil {
+                let showedPreview = documents.presentCapturePreview(for: result, installation: installation)
+                capture?.finishCapturePresentation(showingPreview: showedPreview)
+                if !showedPreview {
+                    capture?.showCapturedFeedback()
+                    lifecycle?.requestMainWindowPresentation()
+                }
             }
         case .presentError(let message):
             lifecycle?.presentError(message)
@@ -172,12 +177,6 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
         switch output {
         case .presentError(let message):
             lifecycle?.presentError(message)
-        case .autoCopyChanged(let enabled):
-            if enabled {
-                documents?.copyCurrentEditorImageToClipboard()
-            } else {
-                documents?.cancelPendingAutoCopy()
-            }
         }
     }
 
@@ -223,15 +222,11 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
     func handleApplicationDidBecomeActive() {
         permissions?.refreshPermissions()
         lifecycle?.refreshLaunchAtLoginStatus()
-        permissions?.checkPermissionSetupGuideStatus()
 
         if capture?.autoRefreshWindowsEnabled == false {
             refreshAvailableWindowsOnApplicationForegroundIfNeeded()
         }
 
-        if let permissionStatus = permissions?.permissionStatus {
-            capture?.retryPendingPermissionCommandIfSatisfied(permissionStatus)
-        }
     }
 
     func activateStartupServices(
@@ -302,6 +297,10 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
         capture?.canRepeatLastCapture ?? false
     }
 
+    var hasCapturePreview: Bool { documents?.hasCapturePreview == true }
+
+    func showCapturePreview() { documents?.showCapturePreview() }
+
     func handleGlobalHotKeyAction(_ action: GlobalHotKeyAction) {
         let isCapturing = capture?.isWorking == true
         let isRecording = video?.blocksNewCapture == true
@@ -320,6 +319,8 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
         }
 
         switch action {
+        case .textCapture:
+            capture?.captureText()
         case .region:
             capture?.captureRegion()
         case .window:
@@ -362,6 +363,7 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
             return
         }
 
+        permissions?.cancelDeferredOperation(ifFeature: nil)
         clipboard?.resetClipboardPreferencesToDefaults()
         capture?.resetCapturePreferencesToDefaults()
         documents?.resetDocumentPreferencesToDefaults()
@@ -393,6 +395,16 @@ final class AppWorkflowCoordinator: WorkflowOutputSink {
             if await guide?.prepareForConflictingAction(named: "opening another document") == false { return }
             documents?.openDocument(at: url)
         }
+    }
+
+    func openAutomationDocument(_ url: URL, interactionPolicy: AutomationInteractionPolicy) async throws {
+        guard guide?.isActive != true, video?.blocksNewCapture != true else {
+            throw AutomationExecutionError(code: .busy, message: "Stop the active recording before opening a document.")
+        }
+        guard let documents else {
+            throw AutomationExecutionError(code: .internalError, message: "Document workflow is not available.")
+        }
+        try await documents.loadAutomationDocument(from: url, interactionPolicy: interactionPolicy)
     }
 
     func saveDocument(_ controller: EditorController, to url: URL) async -> Bool {
@@ -433,6 +445,8 @@ struct CaptureWorkflowResult {
     let workflowPreset: CapturePreset?
     let intent: CaptureIntent
     let completionRole: CaptureCompletionRole
+    let allowsCapturePreview: Bool
+    let automationRequest: AutomationRequest?
 
     init(
         capture: CapturedScreenshot,
@@ -446,7 +460,9 @@ struct CaptureWorkflowResult {
         uiMapSkipReason: String?,
         workflowPreset: CapturePreset?,
         intent: CaptureIntent,
-        completionRole: CaptureCompletionRole = .standalone
+        completionRole: CaptureCompletionRole = .standalone,
+        allowsCapturePreview: Bool = false,
+        automationRequest: AutomationRequest? = nil
     ) {
         self.capture = capture
         self.uiMapSourceCapture = uiMapSourceCapture
@@ -460,6 +476,8 @@ struct CaptureWorkflowResult {
         self.workflowPreset = workflowPreset
         self.intent = intent
         self.completionRole = completionRole
+        self.allowsCapturePreview = allowsCapturePreview
+        self.automationRequest = automationRequest
     }
 }
 
@@ -495,7 +513,6 @@ enum LifecycleWorkflowOutput {
 
 enum PermissionWorkflowOutput {
     case permissionsChanged(CapturePermissionStatus)
-    case requirementsMayNowBeSatisfied(CapturePermissionStatus)
     case permissionSetupDismissed
     case requestMainWindowPresentation
     case presentError(String)
@@ -516,7 +533,6 @@ enum DocumentWorkflowOutput {
 }
 
 enum ClipboardWorkflowOutput {
-    case autoCopyChanged(Bool)
     case presentError(String)
 }
 

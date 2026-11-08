@@ -9,6 +9,7 @@ Describe the affected workflow, behavior, or documentation.
 ## Validation
 
 - [ ] Relevant automated tests pass.
+- [ ] Repository hygiene passes; generated artifacts and accidental duplicate copies are excluded.
 - [ ] I manually exercised the affected workflow when appropriate.
 - [ ] I added or updated tests for geometry, commands, rendering, parsing, permissions, privacy, or automation changes.
 - [ ] I updated in-app Help for user-visible behavior or label changes.

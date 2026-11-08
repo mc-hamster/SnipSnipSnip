@@ -59,6 +59,7 @@ struct ScreenRecordingService {
     let files: any FileSystemServicing
     let mouse: any MouseLocationProviding
     let clock: any ClockProviding
+    let supportsShortcutCapture: Bool
 
     init(
         permissions: any CapturePermissionServicing,
@@ -68,7 +69,8 @@ struct ScreenRecordingService {
         screens: any ScreenTopologyProviding,
         files: any FileSystemServicing,
         mouse: any MouseLocationProviding,
-        clock: any ClockProviding
+        clock: any ClockProviding,
+        supportsShortcutCapture: Bool = false
     ) {
         self.permissions = permissions
         self.platform = platform
@@ -78,6 +80,7 @@ struct ScreenRecordingService {
         self.files = files
         self.mouse = mouse
         self.clock = clock
+        self.supportsShortcutCapture = supportsShortcutCapture
     }
 
     func startFullscreenRecording(preferences: VideoRecordingPreferences) async throws -> ScreenRecordingSession {
@@ -239,7 +242,18 @@ struct ScreenRecordingService {
             preferences: preferences
         )
 
+        let interactionRecorder = platform.makeInteractionRecorder(target: target)
+        var preferences = preferences
+        if !supportsShortcutCapture, preferences.recordsKeyboardShortcuts == true {
+            preferences.recordsKeyboardShortcuts = false
+        }
+        var configuration = configuration
+        if interactionRecorder != nil {
+            configuration.showsCursor = false
+            configuration.showsMouseClicks = false
+        }
         let platformSession = try await platform.makeSession(target: target, configuration: configuration)
+        platformSession.setFrameSink(interactionRecorder)
         let session = ScreenRecordingSession(
             platformSession: platformSession,
             configuration: configuration,
@@ -251,7 +265,8 @@ struct ScreenRecordingService {
             presentationFrame: presentationFrame,
             platform: platform,
             files: files,
-            clock: clock
+            clock: clock,
+            interactionRecorder: interactionRecorder
         )
         try await session.start()
         return session
@@ -524,6 +539,10 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
     private var activeSegmentToken: ScreenRecordingSegmentToken?
     private var segmentOutputURLs: [URL] = []
     private var candidateSegmentOutputURLs: [URL] = []
+    private let interactionRecorder: VideoInteractionRecorder?
+    private var interactionsBySegment: [URL: VideoInteractionTrack] = [:]
+    private var activeInteractionURL: URL?
+    private var finalizedInteractions: VideoInteractionTrack?
     private let completionTracker = RecordingOutputCompletionTracker()
     private let startTracker = RecordingOutputStartTracker()
     private var didStop = false
@@ -557,7 +576,8 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
         presentationFrame: CGRect = .zero,
         platform: any ScreenRecordingPlatform,
         files: any FileSystemServicing,
-        clock: any ClockProviding
+        clock: any ClockProviding,
+        interactionRecorder: VideoInteractionRecorder? = nil
     ) {
         self.outputURL = outputURL
         self.kind = kind
@@ -573,6 +593,7 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
         self.recordingWidth = configuration.width
         self.recordingHeight = configuration.height
         self.startedAt = clock.now()
+        self.interactionRecorder = interactionRecorder
         platformSession.setEventSink(self)
     }
 
@@ -582,6 +603,8 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
         activeSegmentToken = token
         completionTracker.track(token: token, outputURL: segmentOutputURL)
         candidateSegmentOutputURLs.append(segmentOutputURL)
+        activeInteractionURL = segmentOutputURL
+        interactionRecorder?.begin(recordsShortcuts: preferences.recordsKeyboardShortcuts == true)
         isPaused = false
     }
 
@@ -598,6 +621,7 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
         } catch {
             if isCaptureRunning { try? await platformSession.stopCapture() }
             isCaptureRunning = false
+            finishInteractionSegment()
             try? platformSession.removeRecordingSegment(activeSegmentToken)
             self.activeSegmentToken = nil
             throw error
@@ -783,12 +807,36 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
             bounds: bounds,
             recordedAt: startedAt,
             duration: duration,
-            preferences: preferences
+            preferences: preferences,
+            interactions: finalizedInteractions
         )
     }
 
     private func waitForRecordingOutputToFinish(_ token: ScreenRecordingSegmentToken) async throws {
+        finishInteractionSegment()
         try await completionTracker.wait(for: token, timeoutNanoseconds: 10_000_000_000)
+    }
+
+    private func finishInteractionSegment() {
+        guard let url = activeInteractionURL, let interactionRecorder else { return }
+        interactionsBySegment[url] = interactionRecorder.finish()
+        activeInteractionURL = nil
+    }
+
+    private func assembleInteractions(for urls: [URL]) async {
+        guard interactionRecorder != nil else { return }
+        var result = VideoInteractionTrack()
+        var offset = 0.0
+        for url in urls {
+            let duration = (try? await AVURLAsset(url: url).load(.duration).seconds) ?? 0
+            if let track = interactionsBySegment[url]?.normalized(duration: duration) {
+                result.samples += track.samples.map { var s = $0; s.time += offset; return s }
+                result.clicks += track.clicks.map { var c = $0; c.time += offset; return c }
+                result.shortcuts += track.shortcuts.map { var k = $0; k.time += offset; return k }
+            }
+            offset += duration
+        }
+        finalizedInteractions = result
     }
 
     private func finalizeOutputURL() async throws -> URL {
@@ -801,6 +849,7 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
         Self.logger.notice("Finalize recording with \(usableSegmentURLs.count, privacy: .public) usable segment(s)")
 
         if usableSegmentURLs.count == 1, let singleSegmentURL = usableSegmentURLs.first {
+            await assembleInteractions(for: usableSegmentURLs)
             try? files.removeItem(at: outputURL)
             if singleSegmentURL.standardizedFileURL != outputURL.standardizedFileURL {
                 try files.copyItem(at: singleSegmentURL, to: outputURL)
@@ -832,6 +881,7 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
             try? files.removeItem(at: outputURL)
             return try await salvageLongestSegment(from: usableSegmentURLs)
         }
+        await assembleInteractions(for: usableSegmentURLs)
         cleanupCandidateSegments()
         return outputURL
     }
@@ -883,6 +933,7 @@ final class ScreenRecordingSession: ScreenRecordingPlatformEventSink {
         }
 
         recoveredFromSegmentFailure = true
+        await assembleInteractions(for: [best.url])
         Self.logger.notice(
             "Recovered recording from longest valid segment duration=\(best.duration, privacy: .public)s; preserving all candidate segments"
         )

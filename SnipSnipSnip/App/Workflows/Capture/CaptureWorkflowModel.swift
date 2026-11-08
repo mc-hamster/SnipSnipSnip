@@ -12,6 +12,9 @@ struct CaptureWorkflowDependencies {
     let makeScrollingCaptureService: (any ScreenCaptureServiceType) -> ScrollingCaptureService
     let preferenceStore: CapturePreferenceStore
     let automationPreferenceStore: AutomationPreferenceStore
+    var confirmScrollingTarget: (ScrollingCaptureTarget) -> ScrollingCaptureTargetConfirmation.Choice = {
+        ScrollingCaptureTargetConfirmation.present(target: $0)
+    }
 }
 
 @MainActor
@@ -25,6 +28,7 @@ final class CaptureWorkflowModel: ObservableObject, AutomationStatusPort, Captur
     weak var documents: (any CaptureDocumentWorkflowPort)?
     weak var video: (any CaptureVideoWorkflowPort)?
     weak var guide: (any CaptureGuideWorkflowPort)?
+    var shouldKeepAppWindowHiddenAfterCapture = false
     @Published var availableWindows: [CaptureWindowSummary] = []
     @Published var windowThumbnailRefreshGeneration = 0
     @Published var isLoadingWindowChoices = false
@@ -112,6 +116,8 @@ final class CaptureWorkflowModel: ObservableObject, AutomationStatusPort, Captur
     @Published var isShowingCapturePresetNamingSheet = false
     @Published var capturePresetNameDraft = ""
     @Published var captureRecovery: CaptureRecovery?
+    var pendingConnectedDevicePreviewIntent: ConnectedDevicePreviewIntent?
+    var windowChoiceLoadID: UUID?
     var pendingWindowThumbnailTask: Task<Void, Never>?
     var pendingPermissionCommand: PendingCapturePermissionRequest?
     /// Captured when an operation starts and consumed only by a successful
@@ -126,7 +132,6 @@ final class CaptureWorkflowModel: ObservableObject, AutomationStatusPort, Captur
     /// explicit retry to resume the exact operation.
     var pendingRecoveryCaptureContext: CaptureCompletionContext?
     var pendingScrollingPartialCapture: (result: ScrollingCaptureResult, isPrivateCapture: Bool)?
-    var activeWorkflowPresetID: CapturePreset.ID?
     var capturePrivacyLockDepth = 0
     var interactiveCaptureAutosaveSuspensionDepth = 0
     var connectedDevicePreviewController: ConnectedDevicePreviewWindowController?

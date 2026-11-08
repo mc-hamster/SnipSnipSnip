@@ -10,10 +10,10 @@ description: "Workspace instructions for implementing SnipSnipSnip as a local-fi
 - If a user-visible feature, workflow, or label changes, update the in-app Help guide in the same change so Help matches the shipped behavior.
 
 ## Single-Instance Development
-- SnipSnipSnip supports only one app process at a time, including app-hosted XCTest. Preserve both `LSMultipleInstancesProhibited` and the early `SingleInstanceCoordinator` lifetime lock.
+- SnipSnipSnip supports only one app process at a time per namespace, including app-hosted XCTest. Xcode Debug uses `com.oontz.SnipSnipSnip.Dev` (SnipSnipSnip Dev); distributed builds retain `com.oontz.SnipSnipSnip`. Development and shipping copies may run together. Preserve both `LSMultipleInstancesProhibited` and the early `SingleInstanceCoordinator` lifetime lock.
 - Acquire the lifetime lock before constructing `AppModel` or starting capture, clipboard, recovery, archive, automation, or recording services.
-- Before launching the app or running app-hosted tests, check whether SnipSnipSnip is already running. Ask the user to quit a user-owned running copy; do not terminate it without permission.
-- When a copy must remain running, use build-only validation such as `xcodebuild build` or `xcodebuild build-for-testing`. Run app-hosted tests after the active copy exits so Launch Services can start the test host reliably.
+- Before launching the app or running app-hosted tests, check whether SnipSnipSnip is already running in the namespace being launched. Ask the user to quit a user-owned running copy; do not terminate it without permission.
+- When a copy in the same namespace must remain running, use build-only validation such as `xcodebuild build` or `xcodebuild build-for-testing`. Run app-hosted tests after the active copy exits so Launch Services can start the test host reliably.
 - Run app-hosted XCTest suites in one host process. Keep the shared scheme testable non-parallel and keep lock primitives, startup ordering, and built-product single-instance configuration covered by focused tests.
 - Do not use `open -n`, invoke `Contents/MacOS/SnipSnipSnip` directly, remove the Info.plist prohibition, or otherwise bypass the guard to run the app or tests.
 - Keep restart behavior compatible with the lock: wait for the current PID to exit and keep the lock descriptor close-on-exec before reopening the app.
@@ -48,6 +48,10 @@ description: "Workspace instructions for implementing SnipSnipSnip as a local-fi
 - Keep shell samples syntax-checkable with `bash -n`, and update automation contract tests when parser, route, result, permission, privacy, or output behavior changes.
 
 ## Quality
+- Keep generated dependencies, build products, submission archives, render intermediates, and accidental duplicate copies out of Git. Retain original artwork, intentional app resources, source, and dependency manifests/lockfiles.
+- Before adding a file, verify its purpose in the app, tests, developer tooling, documentation, or retained artwork. Put generated output under an ignored directory and add an ignore rule when introducing a new generator.
+- Run `python3 Tools/check-repository-hygiene.py` before submitting changes; use `--staged` to verify the exact pending commit after staging. CI and release gates enforce repository hygiene.
+- Keep production Swift free of duplicate-key trapping dictionary constructors. Use an explicit duplicate policy for derived lookups and reject conflicting document identities through `EditorIdentityIntegrity`; never discard ambiguous screenshot content. Run `python3 Tools/check-identity-safety.py` before submitting changes.
 - Prefer small, testable value types for geometry and editor state.
 - Add or update tests when changing geometry, command, or rendering logic.
 - Prefer helper extraction over repeating shape-switch logic across annotation operations.

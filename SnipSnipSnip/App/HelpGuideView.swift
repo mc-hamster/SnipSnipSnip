@@ -28,14 +28,14 @@ nonisolated enum HelpSearchSelectionPolicy {
     }
 }
 
-private struct HelpCategory: Identifiable {
+struct HelpCategory: Identifiable {
     let title: String
     let articles: [HelpArticle]
 
     var id: String { title }
 }
 
-private struct HelpArticle: Identifiable {
+struct HelpArticle: Identifiable {
     let id: String
     let title: String
     let summary: String
@@ -44,7 +44,7 @@ private struct HelpArticle: Identifiable {
     let relatedIDs: [String]
 }
 
-private struct HelpArticleSection: Identifiable {
+struct HelpArticleSection: Identifiable {
     let title: String
     let body: String?
     let steps: [String]
@@ -68,7 +68,7 @@ private struct HelpArticleSection: Identifiable {
     }
 }
 
-private struct HelpArticleLink: Identifiable {
+struct HelpArticleLink: Identifiable {
     let title: String
     let url: URL
 
@@ -89,7 +89,7 @@ struct HelpGuideView: View {
         self.capture = capture
     }
 
-    private static func categories(
+    static func categories(
         for capabilities: AppCapabilitySnapshot,
         fullscreenDisplayMode: ScreenshotFullscreenDisplayMode
     ) -> [HelpCategory] {
@@ -98,6 +98,7 @@ struct HelpGuideView: View {
         let uiMapEnabled = capabilities.isEnabled(.uiMap)
         let proUpdateCheckEnabled = capabilities.isEnabled(.proUpdateCheck)
         let guideEnabled = capabilities.isEnabled(.guideCapture)
+        let shortcutRecordingEnabled = capabilities.isEnabled(.videoShortcutCapture)
         var accessibilityUses: [String] = []
         if guideEnabled {
             accessibilityUses.append("Guide uses it while active to observe actions and keyboard focus, group non-secure text entry, and mask secure fields.")
@@ -130,7 +131,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Take and finish a screenshot",
                             steps: [
-                                "Use Quick Capture to choose Region, Window, or Screen. Region, Window, Screen, Scroll, and Repeat Last are direct actions, and Presets stays in its own menu.",
+                                "Use Quick Capture to choose Region, Window, or Screen. Region, Window, Screen\(scrollingCaptureEnabled ? ", Scroll" : ""), and Repeat Last are direct actions, and Presets stays in its own menu.",
                                 "Use the editor to crop, annotate, redact, or copy text.",
                                 "Choose Copy, Export, Share, Float, or Drag for the result currently shown.",
                                 "Choose Save or Save As when you want to keep an editable .sss document."
@@ -142,11 +143,11 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Discover screen tools and capture options",
-                            body: "Use Screen Tools in the main header to add a Screen Ruler, open Screen Inspector, or show Quick Controls. Clipboard History opens beside those utilities. Point to an action or move keyboard focus to it to see an animated explanation of what it creates or opens. The pointer preview changes after a short 50 millisecond dwell, while keyboard focus changes it immediately. Timer, Cursor, Private Capture, and Auto Copy state stays visible beside Ready; choose a state control to change it. The main window keeps this single discovery stage visible whenever no document is open, and Reduce Motion shows the fully resolved static scene."
+                            body: "Use Screen Tools in the main header to add a Screen Ruler, open Screen Inspector, or show Quick Controls. Clipboard History opens beside those utilities. Point to an action or move keyboard focus to it to see an animated explanation of what it creates or opens. The pointer preview changes after a short 50 millisecond dwell, while keyboard focus changes it immediately. Timer, Cursor, and Private Capture state stays visible beside Ready; choose a state control to change it. The main window keeps this single discovery stage visible whenever no document is open, and Reduce Motion shows the fully resolved static scene."
                         ),
                         HelpArticleSection(
                             title: "Know what stays editable",
-                            body: "Screenshots open in the screenshot editor and Videos open in the video editor. Auto Copy copies the current screenshot after capture and editor changes when enabled. Import an existing image with File > Import Image. Find saved and recoverable screenshot work in the Snip Library."
+body: "Ordinary screenshots open in the editor immediately so you can annotate, redact, copy, or export without an extra step. Capture Preview is off by default; turn on Show Capture Preview in Settings > Editor & Output > After Capture to use a small lower-left preview instead. In the preview, Copy puts the screenshot on the clipboard; Edit opens the full editor; Export chooses a PNG destination; drag the thumbnail into another app. Close hides only the preview. Show Capture Preview in the menu bar icon menu or View menu brings it back until you edit or replace the screenshot. Non-private work remains available through the editor and Recent Snips. Private Capture, explicit presets, multi-image workflows, and connected-device captures retain their intended destination. Videos open in the video editor. Capture and editor changes leave the clipboard unchanged until you choose Copy. For capture-and-paste workflows, use a Capture Preset with Copy to Clipboard as its outcome. Previously saved Capture Preview choices are respected. Import an existing image with File > Import Image."
                         )
                     ],
                     important: [
@@ -166,19 +167,23 @@ struct HelpGuideView: View {
                             title: "Screen Recording",
                             body: "Required for screenshot pixels, live window thumbnails, and screen recording. The main capture screen shows the full setup card. While a screenshot, video, or Guide is open, a compact “Screenshot capture unavailable — Set Up” strip remains visible and expands to the full diagnostics when selected or when a capture is attempted.",
                             steps: [
-                                "Click Set Up beside Screen Recording in SnipSnipSnip. If macOS does not show a prompt, SnipSnipSnip opens the Screen Recording settings pane.",
-                                "Allow SnipSnipSnip in System Settings > Privacy & Security > Screen Recording.",
-                                "If SnipSnipSnip shows Restart Required, finish any remaining onboarding permission first if you want it ready too, then use Restart SnipSnipSnip so macOS applies Screen Recording access without the normal quit confirmation."
+                                "Choose Continue during first-run setup, or Set Up beside Screen Recording in Settings > Privacy > Permissions. macOS presents its own consent prompt. If access is still unavailable, choose Open Settings in the setup guidance.",
+                                "Allow SnipSnipSnip in System Settings > Privacy & Security > Screen & System Audio Recording.",
+                                "Access updates automatically. Use Check Again if macOS still shows a different state. Restart Required appears after a new grant or when a granted permission cannot be used by the running copy. Restart preserves work through the normal recovery safeguards. Denying access does not require a restart. A temporary Check Again failure shows a retry message and does not change usable permission into Restart Required. Ready always requires the same macOS access state that capture and recording enforce."
                             ]
                         ),
                         HelpArticleSection(
+                            title: "Continue after setup",
+                            body: "When an action waits for access, choose Continue after access becomes available. Granting access in System Settings does not automatically start capture. Cancel Setup abandons the waiting action without changing macOS permissions. Fresh non-private Screenshot, Video, and Guide requests can offer Continue after a restart for up to 30 minutes; only source and setup choices are retained, never captured content or window titles. Window and Region targets are selected again. If setup interrupted Capture Frontmost Window, Continue opens Choose Window so you can confirm the target after returning from System Settings. Private captures and document-specific Add or Replace actions must be started again from the appropriate document after restart."
+                        ),
+                        HelpArticleSection(
                             title: "Audio permissions",
-                            body: "Microphone and system audio permissions are optional and are not part of onboarding setup. macOS asks for Microphone only when microphone narration is enabled for a recording or Guide, and asks for system audio only when system audio capture is enabled."
+                            body: "Microphone and system audio are optional and are not part of onboarding setup. macOS asks for Microphone when narration is used, or when you explicitly choose Set Up in Settings > Privacy > Permissions. After denial, Open Microphone Settings lets you review access. If the window list cannot load, Video offers Try Again. Cancel stops the pending selection without reopening it later. Record Without Microphone retries that Video without narration and leaves your saved preferences unchanged. Guide setup also offers narration-free audio choices. System audio is captured only when enabled for the recording."
                         )
                     ] + (connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(
                             title: "Camera",
-                            body: "Required only when you start a connected iPhone or iPad preview, screenshot, or recording, and it is not part of onboarding setup. macOS exposes trusted iPhone and iPad screens as video sources, so the system permission is named Camera even though SnipSnipSnip is using it for the connected-device screen stream."
+                            body: "Used for connected iPhone or iPad preview, screenshots, and recording, and omitted from onboarding setup. Choose Continue in the explanation to open the macOS Camera prompt. After denial, use Open Camera Settings and then choose the device again. Settings > Privacy > Permissions also offers an explicit Camera setup action. macOS exposes trusted iPhone and iPad screens as video sources, so the system permission is named Camera even though SnipSnipSnip is using it for the connected-device screen stream."
                         )
                     ] : []) + (guideEnabled || scrollingCaptureEnabled || uiMapEnabled
                         ? [
@@ -186,9 +191,11 @@ struct HelpGuideView: View {
                                 title: "Accessibility",
                                 body: accessibilityUses.joined(separator: " "),
                                 steps: [
-                                    "Click Set Up beside Accessibility in SnipSnipSnip.",
+                                    uiMapEnabled
+                                        ? "Use UI Map Access on the You’re Ready setup page or Setup Summary. Enable UI Map for Window captures starts Accessibility setup; Set Up beside Accessibility requests access directly. The same controls are available in Settings > Capture > Advanced."
+                                        : "Click Set Up beside Accessibility in Settings > Privacy > Permissions.",
                                     "Allow SnipSnipSnip in System Settings > Privacy & Security > Accessibility.",
-                                    "If SnipSnipSnip is not listed, open the setup guide, choose Reveal App, and add that exact app with the + button."
+                                    "Setup guidance remains visible even when Screen Recording is already allowed. Capture Without UI Map continues the waiting Window screenshot without changing your saved UI Map preference. If the app is missing, expand Troubleshooting, choose Reveal App, and add that copy with the + button."
                                 ]
                             )
                         ]
@@ -199,7 +206,7 @@ struct HelpGuideView: View {
                                 ? "Ordinary Region and Screen screenshot capture do not require Accessibility. Guide does require it while capturing a workflow."
                                 : "Region and Screen screenshot capture do not require Accessibility.",
                             "In Settings, Set Up starts a missing permission and Manage opens System Settings for a permission that is already allowed.",
-                            "Development builds launched from Xcode may need Accessibility permission for the exact app in DerivedData, not a copy in Applications."
+                            "Xcode Debug builds appear as SnipSnipSnip Dev and can run alongside the distributed app. Dev keeps its own permissions, settings, Clipboard History, Snip History, and recovery. If Dev is missing from a permission list, use Reveal App and add SnipSnipSnip Dev.app with the + button. Allow the Dev copy in System Settings once; the distributed app keeps its existing grants. Keep the development signing identity stable across rebuilds."
                         ]
                         : [],
                     relatedIDs: ["troubleshoot-capture", "privacy"]
@@ -215,21 +222,28 @@ struct HelpGuideView: View {
                                 "Quick Controls appears at startup by default. During setup, keep Show Quick Controls when SnipSnipSnip starts on for the fastest access, or turn it off when you prefer to show the dock only as needed.",
                                 "Choose Quick Controls under Screen Tools in the main window, or choose Show Quick Controls in Settings, the Capture menu, or the menu bar icon.",
                                 "Open Settings > General > Quick Controls to change the startup choice, check whether the dock is visible, or choose Customize Quick Controls when you want to change its controls or presentation. Startup is also available under Dock Settings in the customization window.",
-                                "Drag the application icon or open space in the dock header to either side of a display. The dock snaps to the nearest screen edge and remembers its edge and vertical position.",
-                                "Choose the edge-pointing button to switch between Expanded labeled rows and the space-saving Compact icon rail. The same controls stay in the same order, and the dock always fits them automatically."
+                                "Drag the logo to either side of a display. In Full, you can also drag the title or open space in the header. Release to snap the dock to the nearest screen edge."
+                            ]
+                        ),
+                        HelpArticleSection(
+                            title: "Switch dock modes",
+                            steps: [
+                                "Click the logo to cycle through Slim, Full, and Icon Only. Slim shows an icon rail, Full shows labeled rows, and Icon Only rests as just the logo.",
+                                "Hover over the logo in Icon Only to reveal Full. The dock tucks back into the logo after you move away and close any open menu. The chevron tucks away a hover reveal or switches the saved Full mode to Slim.",
+                                "Right-click or Control-click the logo to choose a mode directly, customize the dock, open SnipSnipSnip, or hide Quick Controls. With the logo focused, press Shift-F10 for the same menu. VoiceOver can also open it with Show Menu."
                             ]
                         ),
                         HelpArticleSection(
                             title: "Choose and arrange controls",
                             steps: [
-                                "Choose the dock menu, then Customize Quick Controls, or use Customize Quick Controls in Settings.",
+                                "Open the logo menu and choose Customize Quick Controls, or use Customize Quick Controls in Settings.",
                                 "Use the searchable Controls library. Screenshot, Create, and Record sections keep still-image actions such as Capture Region distinct from time-based actions such as Record Region. Less-common Capture Options stay available at the bottom of the library without changing the order of sections already in your dock.",
                                 "Choose + to add a control. Added controls expose a direct − button in the library and a Remove button in Selected Control; the final control can be removed too.",
-                                "Drag controls within their section in the Dock Preview. Move toward the top or bottom half of a control; the insertion line above or below shows whether the dragged control will land before or after it. A control cannot move into another section; that target shows a red boundary and prohibition symbol, and the pointer reports a forbidden drop. You can also select a control and use Move Earlier and Move Later. Drag a section header to rearrange that whole group without changing its internal control order. The preview uses the exact same controls, section order, and presentation as the live dock.",
-                                "In Expanded presentation, the small line below each control describes what it does or the effect of its current setting; it does not repeat the section name.",
-                                "Under Dock Settings, choose the Compact or Expanded Presentation and the Left or Right Screen Edge. Height and width follow the controls and presentation automatically.",
-                                "Choose Restore Defaults… in the customization header when you want the first-install layout. After confirmation, it restores Capture Region, Capture Window, Capture Screen, Repeat Last Capture, Capture Presets, Record Region, and Timer in Expanded presentation on the right edge.",
-                                "Choose Close when the layout is ready. Changes are saved immediately. An empty dock offers Customize so you can add controls again."
+                                "Drag controls within their section in the Dock Preview. Move toward the top or bottom half of a control to place the dragged control before or after it. The insertion line shows where it will land. A control stays in its section, and other sections show a red boundary and prohibition symbol when you drag over them. You can also select a control and use Move Earlier and Move Later. Drag a section header to rearrange the whole group while keeping its control order.",
+                                "In Full, the small line below each control describes what it does or the effect of its current setting. In Icon Only, the Dock Preview shows the Full layout revealed on hover.",
+                                "Under Dock Settings, choose Slim, Full, or Icon Only for Presentation and Left or Right for Screen Edge. The dock fits its contents automatically.",
+                                "Choose Restore Defaults… in the customization header when you want the first-install layout. After confirmation, it restores Capture Region, Capture Window, Capture Screen, Repeat Last Capture, Capture Presets, Record Region, and Timer in Full mode on the right edge.",
+                                "Choose Close when the layout is ready. Changes are saved immediately. An empty dock offers Customize when its controls are shown, and you can open the logo menu to customize it in any mode."
                             ]
                         ),
                         HelpArticleSection(
@@ -237,7 +251,7 @@ struct HelpGuideView: View {
                             bullets: [
                                 "Quick Controls calls the same actions used by the main window, Capture menu, menu bar icon, and existing shared Presets and Timer menus.",
                                 "Capture Window and Record Window use the on-screen Window chooser so the main window stays out of the way. Cancel Region or Window selection to return to the app you were using with Quick Controls still available.",
-                                "The dock keeps its display when you expand or collapse it. Clipboard History and Screen Inspector open on that display the first time you choose them from Quick Controls.",
+                                "The dock keeps its display when you switch modes. Clipboard History and Screen Inspector open on that display the first time you choose them from Quick Controls.",
                                 "A completed capture opens its editor. Permission setup and capture problems may open the main window when they need your attention.",
                                 "Capture and recording actions become unavailable while another capture, recording, Guide, or connected-device session blocks a new one.",
                                 "The dock follows across Spaces and stays above ordinary windows until hidden.",
@@ -254,13 +268,13 @@ struct HelpGuideView: View {
                 HelpArticle(
                     id: "pro-updates",
                     title: "Update SnipSnipSnip Pro",
-                    summary: "Check GitHub Releases for the newest Pro package and download it manually.",
+                    summary: "Check the latest stable Pro version and build on GitHub Releases, then download the package manually.",
                     sections: [
                         HelpArticleSection(
                             title: "Check for updates",
                             steps: [
                                 "Choose Help > Check for Pro Updates, or open Settings > General > Help & Onboarding.",
-                                "SnipSnipSnip Pro reads the latest GitHub release and compares it with the version you are running.",
+                                "SnipSnipSnip Pro reads the latest stable GitHub release and compares its version and build number with the app you are running.",
                                 "If a newer version is available, choose Download Update to open the GitHub release page.",
                                 "Download the newest Pro package from GitHub Releases, quit SnipSnipSnip Pro, and install the package normally."
                             ]
@@ -271,7 +285,7 @@ struct HelpGuideView: View {
                         )
                     ],
                     important: [
-                        "Only download SnipSnipSnip Pro packages from the official GitHub Releases page or another trusted Oontz link."
+                        "Only download SnipSnipSnip Pro packages from the official GitHub Releases page or another trusted Oontz link. Prereleases are available there manually and are not offered by the update checker."
                     ],
                     relatedIDs: ["get-started", "troubleshoot-capture"]
                 )
@@ -283,7 +297,7 @@ struct HelpGuideView: View {
                     sections: uiMapEnabled ? [
                         HelpArticleSection(
                             title: "Enable UI Map for Window captures",
-                            body: "UI Map is a SnipSnipSnip Pro feature. Open Settings > Capture > Advanced and turn on Enable UI Map for Window captures. Window screenshots then try to save available metadata for visible interface elements in the selected window, including names, labels, identifiers, roles, positions, sizes, parent hierarchy, and owning app. This makes a Window screenshot searchable and inspectable as structured interface data, not just pixels. Settings also controls the default visible details for pinned UI Map overlays; only Show outline is enabled by default."
+                            body: "UI Map is available in Pro and development builds. UI Map Access on the You’re Ready setup page and Setup Summary offers Enable UI Map for Window captures and Accessibility setup. You can finish onboarding with UI Map turned off. Open Settings > Capture > Advanced to change the same preference or choose Set Up, Open Settings, or Manage beside Accessibility. Enable UI Map for Window captures starts macOS Accessibility setup only when you turn it on and access is needed. Window screenshots then try to save available metadata for visible interface elements in the selected window, including names, labels, identifiers, roles, positions, sizes, parent hierarchy, and owning app. This makes a Window screenshot searchable and inspectable as structured interface data, not just pixels. Settings also controls the default visible details for pinned UI Map overlays; only Show outline is enabled by default."
                         ),
                         HelpArticleSection(
                             title: "Capture behavior",
@@ -335,23 +349,23 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Open clipboard history",
-                            body: "Clipboard History is optional and off by default. Make an explicit choice during onboarding or enable it in Settings > Snip Library > Clipboard, then choose Clipboard History from the menu bar icon or use Command-Shift-V. Search is focused when the floating window opens. No Matching Clipboard Items means search or filters are hiding results; Clear Filters shows the full history again. Separate messages explain an empty history, disabled monitoring, paused monitoring, or unavailable storage. Storage warnings appear in the window with Try Again. Keep the app open when recent changes could not be saved, resolve storage access or disk space, then retry. Press Command-W to close the window."
+                            body: "Clipboard History is optional and off by default. If macOS limits background clipboard access, Monitoring Blocked or Monitoring Needs Access appears with Open Privacy Settings. Monitoring stops immediately if access is withdrawn, including copied content still being processed. Saved items remain usable. An unrequested default also waits for access. Read Clipboard Once performs one explicit foreground read and keeps the approved item even when future background reads still require access. Allow background access in System Settings to monitor future copies without prompts. Background monitoring follows the access policy reported by macOS. Copying a saved item or using Capture Text does not ask to read the current clipboard. Explicit Paste stays separate from background monitoring. Make an explicit choice during onboarding or enable it in Settings > Snip Library > Clipboard, then choose Clipboard History from the menu bar icon or use Command-Shift-V. Search is focused when the floating window opens; Command-F returns to it. Choose All, Text, Links, Images, Files, Snips, or Pinned in the pill row above the cards; scroll the row horizontally in a narrow window. Filters opens When, Source, and Collection choices, which apply immediately. Active filters appear below the scopes and can be removed individually. Reset Filters in the popover preserves the search and content type; Clear Filters resets the complete view. No Matching Clipboard Items means search or filters are hiding results; Clear Filters shows the full history again. Separate messages explain an empty history, disabled monitoring, paused monitoring, or unavailable storage. Storage warnings appear in the window with Try Again. Keep the app open when recent changes could not be saved, resolve storage access or disk space, then retry. Press Command-W to close the window."
                         ),
                         HelpArticleSection(
                             title: "What appears",
-                            body: "Clipboard History saves copied plain and rich text, links, images, PDFs, files, and non-private SnipSnipSnip screenshots. It preserves compatible original clipboard representations so normal paste can retain formatting and multi-item selections. Adding screenshots that were not copied is on by default for new and reset installations, and Settings > Snip Library > Clipboard controls it. Private Capture screenshots are never added."
+                            body: "Clipboard History saves copied plain and rich text, links, images, PDFs, files, and non-private SnipSnipSnip screenshots. It preserves compatible original clipboard representations so normal paste can retain formatting and multi-item selections. Copying the same single image again updates its existing item, even when the source app offers different image formats or metadata. Pins and collections are kept, and the latest copy supplies the content and copy time. Existing duplicates are consolidated when history loads. Different multi-item selections, PDFs, animations, and editable snips remain separate. Adding screenshots that were not copied is on by default for new and reset installations, and Settings > Snip Library > Clipboard controls it. Private Capture screenshots are never added. Private screenshot copies carry a concealed clipboard marker. Pasting a concealed image makes its destination document Private, even if you later undo or remove the pasted image."
                         ),
                         HelpArticleSection(
                             title: "Copy and paste actions",
-                            body: "Choose Copy to place the selected item on the system clipboard, then switch to the destination and paste with Command-V. Return while browsing or searching and Command-Return while editing activate the visible Copy action. If an item has a draft, the action is Copy Edited and copies that draft as plain text. Row copy buttons and Option-1 through Option-9 while browsing use the same rule. Copy Options > Copy Original preserves the stored content and formatting; Copy Plain Text copies its original text without formatting. Inside a text editor, Return inserts a line break, arrow keys move the caret, and Command-Z undoes text edits. Escape from an editing field returns focus to Search; from Search it clears the query, or closes the window when the query is empty."
+                            body: "Click a card or choose Copy to place its content on the system clipboard, then switch to the destination and paste with Command-V. The palette stays open after ordinary copying. Choose Copy and Return or press Shift-Command-Return to copy the selected item and return to the application you opened Clipboard History from, then paste with Command-V. Copy and Return uses the same draft-aware content as Copy Edited. If copying fails or the destination application is no longer available, the palette stays open with an explanation and keeps your drafts. Return while browsing or searching and Command-Return while editing activate the visible Copy action. If an item has a draft, the action is Copy Edited and copies that draft as plain text. Card clicks and Option-1 through Option-9 while browsing use the same draft-aware rule, with shortcut numbers following the visible cards across day sections. Copied appears beside an item only after a successful copy. Arrow keys select without copying. Choose Preview, the eye button on a hovered or selected card, or Space while browsing to inspect the full item. Back returns to the cards with search, filters, scroll position, selection, and drafts intact. More Actions and the contextual menu retain the item commands. Copy Options > Copy Original preserves the stored content and formatting; Copy Plain Text copies its original text without formatting. Inside a text editor, Return inserts a line break, arrow keys move the caret, and Command-Z undoes text edits. Escape from an editing field returns focus to Search; from Preview it returns to the cards; from Search it clears the query, or closes the window when the query is empty. Command-F returns from Preview to Search."
                         ),
                         HelpArticleSection(
                             title: "Find and organize items",
-                            body: "Search includes item content, source app, type, collections, link metadata, file paths, and locally recognized text inside images and screenshots. Narrow results by type, date, source app, or collection. The detail pane previews content, edits and transforms text, opens links, checks file availability, and adds named collections. Text drafts stay with each item as you select other rows or change filters, until you close Clipboard History or disable it. Reset restores the original text for the selected item. Adding an existing collection keeps the item in that collection; use Remove to take it out. Pin durable favorites for quick access. Open Snip in Editor finds the latest retained version of a screenshot even when it is no longer recent. If its editable history is unavailable, the clipboard copy remains available."
+                            body: "Search includes item content, source app, type, collections, link metadata, file paths, and locally recognized text inside images and screenshots. The item feed has a soft gray background so white cards remain distinct. Pinned items appear first, followed by Today, Yesterday, and dated sections. Image and snip cards show large cropped previews; Preview shows the full fitted image. A contrasting gray background and outlined image edges keep white screenshots easy to distinguish. This preview styling does not change copied images. Opaque colors fill their cards with contrasting text, and code and JSON use monospaced text. Narrow results by type, date, source app, or collection. Preview shows a readable full-content view first. Choose Edit Text to edit or transform text, then Done to return to the preview while keeping the draft. Links have an explicit Open Link action, images have a large fitted preview, and files show their availability. Expand Details for the precise copy time, source, size, and stored item count. Choose Add to Collection to select an existing collection or enter a name; remove a membership with the cross beside its name. Reveal in Finder locates a copied file. Text drafts stay with each item as you select other rows or change filters, until you close Clipboard History or disable it. Reset restores the original text for the selected item. Adding an existing collection keeps the item in that collection; use the Remove from action beside its name to take it out. Pin durable favorites for quick access. Open Snip in Editor finds the latest retained version of a screenshot even when it is no longer recent. If its editable history is unavailable, the clipboard copy remains available."
                         ),
                         HelpArticleSection(
                             title: "Pause and retention",
-                            body: "Use the Monitoring menu in Clipboard History or Settings > Snip Library > Clipboard to pause monitoring for five minutes, one hour, or until restart. Settings also controls unpinned item retention, the item and storage targets, and the maximum size accepted for a single item. Delete removes an item from the list and offers Undo Delete for 30 seconds. Command-Z while browsing also restores the last deleted item; native text undo takes precedence in editing fields. Undo clears filters so the restored item is visible. Recovery data remains encrypted and its original deadline survives an app restart. Permanent bulk deletion requires confirmation and removes the affected items from deletion recovery too."
+                            body: "Use the Monitoring icon menu in the Clipboard History header or Settings > Snip Library > Clipboard to pause monitoring for five minutes, one hour, or until restart. Settings also controls unpinned item retention, the item and storage targets, and the maximum size accepted for a single item. Delete removes an item from the list and offers Undo Delete for 30 seconds. Command-Z while browsing also restores the last deleted item; native text undo takes precedence in editing fields. Undo clears filters so the restored item is visible. Recovery data remains encrypted and its original deadline survives an app restart. Choose Clipboard Actions > Permanently Delete Unpinned Items… for bulk deletion. It requires confirmation, keeps pinned items, and removes the affected items from deletion recovery too."
                         ),
                         HelpArticleSection(
                             title: "Ignore apps",
@@ -413,7 +427,7 @@ struct HelpGuideView: View {
                                 "Choose Screen Inspector under Screen Tools in the main window.",
                                 "Choose Screen Inspector from the menu bar icon or the Capture menu.",
                                 "Use Command-Shift-8 by default, or change the shortcut in Settings > Shortcuts.",
-                                "The inspector floats above other apps so you can keep working while it follows the cursor."
+                                "The inspector floats above other apps so you can keep working while it follows the cursor. Sampling pauses while Screen Recording access needs setup; a permission failure clears the live sample so the setup guidance remains visible."
                             ]
                         ),
                         HelpArticleSection(
@@ -428,6 +442,7 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Copy, freeze, and capture",
                             bullets: [
+                                "Copy HEX and Copy RGB share a dedicated row below Freeze, Capture, and Close; measurement controls are on the row beneath them.",
                                 "Use Copy HEX or Option-Command-H to copy the current center-pixel color as HEX.",
                                 "Use Copy RGB or Option-Command-R to copy the current center-pixel color as RGB.",
                                 "Use Freeze, Space, or Option-Command-F to hold a static sample while you inspect details.",
@@ -461,7 +476,7 @@ struct HelpGuideView: View {
                                 "Choose Number each step to make every captured step start with a visible number. Leave it off for unnumbered steps. In either case, you can show or hide the number later for any individual step in the Step inspector.",
                                 "Choose Show action crosshairs to mark where each captured action happened. Leave it off for clean steps without crosshairs. You can show or hide the crosshairs later for any individual step in the Marker section of the Step inspector.",
                                 "Choose Region, Window, App, or Screen in Record a Guide. These match the capture terms used in the main window; App additionally follows you between one app’s windows. This choice controls how Guide follows your work, but it does not select the exact target yet. Window and App Guides automatically follow the active source when it moves, resizes, or crosses onto a mixed-scale or rotated display.",
-                                "Review the plain-language capture summary, or expand Fine-tune capture for optional video smoothness, pointer, desktop cleanup, on-device instruction, secure-field, and display menu-bar choices. Hover over any choice for a plain-language explanation; the defaults work well for most Guides.",
+                                "Review the plain-language capture summary, or expand Fine-tune capture for optional video smoothness, pointer, desktop cleanup, on-device instruction, secure-field, and display menu-bar choices. These choices stay temporary until the selected target starts capturing successfully. Cancel setup or target selection to keep your saved defaults unchanged. Hover over any choice for a plain-language explanation; the defaults work well for most Guides.",
                                 "Choose Start Guide, then select the live target on screen. Draw a Region; hover and click a Window; click any window belonging to an App; or click a Screen when more than one display is connected. Window and App also offer Choose from List when the target is hidden or easier to recognize by name. Escape returns to Record a Guide without losing the choices you already made. A Guide region stays on the display where the drag begins; the selector visibly clamps it at that display edge. Ordinary screenshot regions may still span displays. Screen capture includes every visible app—even SnipSnipSnip itself when you are demonstrating it—while keeping the floating Guide controls out of the result.",
                                 "Work normally. One click, double-click, text selection, scroll burst, three-finger swipe, non-secure text-entry burst, supported keyboard shortcut, or Manual Step creates one step. Guide waits briefly after a swipe so a transition between Spaces can finish before it saves the step. Printable typing is captured even in custom and web editors that do not expose a standard macOS text value. When a non-secure focused field does expose its value, paste, dictation, and input-method edits are detected too. Text changes are grouped into one step after about 0.65 seconds without a change rather than creating a step per key.",
                                 "Use the floating HUD to pause, add a manual step, delete a recent step, stop, or discard. Discard closes the HUD immediately while Guide removes the live capture and its recovery checkpoint. Its System Audio and Mic controls use the same live meters and switches as the recording controls; turn either source on or off for the active Guide while it is capturing. The newest 20 step previews stay available in the HUD without making a long session progressively heavier; all earlier steps remain in the Guide. Hover a preview to see a larger version with its step number and captured instruction. When source video needs a moment to close safely, the HUD replaces the capture timer with the real finalization stage: stopping media, preparing the document, rendering the preview, or saving recovery. It does not invent a time estimate.",
@@ -477,14 +492,15 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Edit without production work",
                             bullets: [
-                                "Reorder, search, duplicate, delete, restore, include, or exclude steps in the left pane. Deleted steps are crossed out and marked Deleted; Control-click one and choose Restore to bring it back.",
-                                "The inspector opens on Step and returns there whenever you select another step. Edit the instruction, action, duration, export inclusion, step number, marker, action crosshairs, screenshot, and optional internal note without digging through Guide-wide styling.",
+                                "Reorder, search, duplicate, delete, restore, include, or exclude steps in the left pane. Duplicating steps keeps their Advanced Step Edit annotations and redactions, and one Undo removes the whole duplication. Deleted steps are crossed out and marked Deleted; Control-click one and choose Restore to bring it back.",
+                                "The inspector opens on Step and returns there whenever you select another step. Edit the instruction, action, duration, export inclusion, step number, marker, action crosshairs, screenshot, and optional Step Note without digging through Guide-wide styling. Step Note appears in the preview and is included in exports.",
                                 "Choose Guide at the top of the inspector to edit the title, theme, appearance, colors, video click pulses, screenshot shadows, branding, and advanced style shared by every step. The Theme menu can save the current theme or make its organization, logo, copyright, legal statement, and styling the default for new Guides.",
                                 "Guide uses the detected clicked control and available screenshot space to place a numbered marker outside the control when space allows, while keeping it inside the screenshot. Turn Show step number or Show action crosshairs off when a particular step reads better without them. The crosshairs use transparent rings so the clicked content remains visible. In the preview, drag the action handle to point at a different action, or drag the handle around a visible number to move it; the marker follows the pointer throughout the drag. Deleted steps are skipped when Guide calculates step numbers; hiding a number does not renumber the other steps.",
                                 "Choose Edit Screenshot when a step needs the full screenshot annotation toolset. The familiar two editor command rows appear with direct tool buttons; choose a tool, make the edits, then select Apply to Step. Cancel leaves the step unchanged.",
                                 String(localized: "Use Steps to arrange captures you already have. Use Guide to record a workflow automatically."),
                                 String(localized: "Guide remains separate from the manual Steps workflow. Guide can also capture source video, audio, actions, and markers."),
-                                "Save the editable project as .sssguide. Existing .sss and .sssvideo documents are unchanged."
+                                "Clear Search before dragging steps or using the move arrows to reorder them. Clearing the search restores reordering and Undo.",
+                                "Save the editable project as .sssguide. Save and Save As preserve your selected steps, search, and undo history. Once saved, Guide autosaves subsequent edits and finishes pending saves before quitting. Unsaved or private Guides offer Save, Discard, or Cancel when you quit; a failed save or newer edits keep the Guide open. If saving fails, Guide Changes Not Saved remains visible with Retry and Save As; your edits stay open until you can save successfully. Existing .sss and .sssvideo documents are unchanged."
                             ]
                         ),
                         HelpArticleSection(
@@ -494,11 +510,12 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Export and share",
                             bullets: [
-                                "Click Export to choose one or more formats. The sheet groups formats by purpose: Documents (PDF and Word Document), Animated sharing (GIF and APNG), Video (Full Motion, Action Highlights, and Step Slideshow MP4), and Files and packages (step images and ZIP). PDF and GIF are selected by default. PDF and Word exports use print-quality stills to keep captured interface text sharp. The format choices live in this export sheet, not the editor inspector.",
+                                "Click Export to choose one or more formats. The sheet groups formats by purpose: Documents (PDF and Word Document), Animated sharing (GIF and APNG), Video (Full Motion, Action Highlights, and Step Slideshow MP4), and Files and packages (step images and ZIP). PDF and GIF are selected by default. PDF and Word exports use print-quality stills to keep captured interface text sharp. The format choices live in this export sheet. They stay temporary until you accept an export folder and export starts; cancelling either chooser preserves the Guide settings and Undo history.",
                                 "Choose whether to show the separate export-progress window. It reports the active format plus real step, segment, encoder, ZIP-entry, or byte progress. Work without a measurable fraction uses an activity indicator and a concrete stage such as Finalizing video. You can cancel a long or multi-format export while keeping completed top-level files. Each file is written to a temporary sibling and replaces the destination only after it finishes, so cancellation, an encoder failure, or app interruption does not overwrite an earlier good export. ZIP uses ZIP64 for large media and succeeds only when every selected nested format succeeds. Stale partial export files are cleaned up automatically.",
                                 "Full Motion preserves capture chronology. Other step-based exports use the current Guide order. Video click highlights appear only as a brief pulse at each click and obey the current Guide's Show click target highlights setting.",
                                 "Full Motion and Action Highlights require source video and include captured microphone or system audio. Slideshow MP4 remains available when source video is off.",
-                                "After export, share through the native share sheet, copy the exported files, or reveal them in Finder for Mail, Messages, Slack, Notion, and other standard destinations."
+                                "After export, the completion message offers Reveal in Finder without switching apps automatically. Share through the native share sheet, copy the exported files, or reveal them in Finder for Mail, Messages, Slack, Notion, and other standard destinations. These actions use only an export of the current Guide and its current edits. If you edit the Guide, including while an export is running, export again before sharing. Opening another Guide clears the previous export actions.",
+                                "Guide setup, Edit Screenshot, and export sheets fit the available display area. Scroll their options while Cancel and the completion action stay visible."
                             ]
                         ),
                         HelpArticleSection(
@@ -510,6 +527,7 @@ struct HelpGuideView: View {
                                 "Completed steps and finalized media segments are autosaved incrementally so an interrupted capture can be recovered without rewriting every earlier image after each action.",
                                 "When you quit during a recoverable active Guide, choose Stop & Quit, Keep Capturing in Background, or Cancel. Restart offers Stop & Restart or Cancel. The app does not show a second ordinary quit confirmation after this Guide decision. If the final checkpoint fails, the Guide opens and the app stays running instead of risking the session.",
                                 "Private Guide intentionally has no automatic recovery checkpoint. Quit and restart offer Open Guide & Stay, Discard and continue, or Cancel; the app never claims private work was saved for recovery.",
+                                "If another action needs an active Private Guide to stop, Stop & Open Guide keeps its completed work open for Save or Export before you retry that action. A failed recovery checkpoint also keeps the Guide open. Interactive automation retains its requested Private Capture choice throughout Guide setup; cancelling that setup clears the request.",
                                 "The exact captured crop is stored with each video segment, so cursor placement and video orientation remain correct on mixed-scale or rotated displays even if the display arrangement changes before export."
                             ]
                         )
@@ -573,11 +591,15 @@ struct HelpGuideView: View {
                     summary: "Capture a region, window, screen image, or repeat a previous capture.",
                     sections: [
                         HelpArticleSection(
+                            title: "Find a window",
+                            body: "The Choose Window list can search application names and window titles. No Matching Windows means the search hides available windows; clear the search to see them. No Available Windows means there are no eligible windows to choose. Pick On Screen remains available, with instructions for Screenshot or Video as appropriate. Window and Region selection share the same thin neutral outline, clear target against a dimmed desktop, and compact window-name label. The outline settles into view while three graphite markers with bright tips glide around its border, evenly spaced around the border; Reduce Motion keeps it static. Reduce Transparency keeps the target label opaque and preserves the crawl. Window selects a whole window, while Region also lets you drag a custom area. Both modes refresh the window list when selection starts and use the same window bounds and front-to-back order to identify the window under the pointer. Their outlines also stay aligned on scaled displays. Window choices include visible app dialogs, floating panels, and utility windows, including untitled panels. Very small popups, menus, desktop surfaces, the Dock, and system overlays are not offered. Capture Frontmost Window selects an ordinary application window. These exclusions apply to Window choices; drawn regions and Screen capture can still include those surfaces in the visible result."
+                        ),
+                        HelpArticleSection(
                             title: "Capture a region",
                             steps: [
                                 "Choose Region from the main window, menu bar icon, Capture menu, or global shortcut.",
                                 "Drag the area you want to capture over the live desktop. The loupe refreshes while you aim without including capture overlay graphics.",
-                                "Single-click a visible window instead of dragging to capture that window.",
+                                "Move the pointer over a visible window to see its thin neutral outline. The outline settles into view while three graphite markers with bright tips glide around its border, evenly spaced around the border. Reduce Motion keeps it static. Single-click the outlined window, app dialog, or utility panel to capture it, or drag to select a custom region. While you draw or adjust a region, the same moving outline follows the region box and remains visible until capture or cancellation.",
                                 "A screenshot region may span connected displays.",
                                 "By default, releasing the mouse captures immediately. If Always Capture on Mouse Up is off, click Capture in the floating controls."
                             ]
@@ -643,18 +665,19 @@ struct HelpGuideView: View {
                                 "Drag over a scrollable area within one display. The selector uses the same crosshair, live loupe, and precision-control preferences as Region Capture.",
                                 "Confirm the detected app and selected viewport, or choose another area before capture starts. Turn off Show this again if you want future scrolling captures to start immediately after selection.",
                                 "Wait while SnipSnipSnip scrolls and captures segments. The progress panel shows the captured length, capacity remaining, a stitched preview, and any quality warning.",
-                                "Press Esc to cancel, or press Return or click Done to stop early and use the segments already captured."
+                                "Press Esc to cancel, or press Return or click Done to stop early and use the segments already captured. On a very small display, the panel may show Use Return: Done · Esc: Cancel and disable its buttons so it does not block scrolling."
                             ]
                         ),
                         HelpArticleSection(
                             title: "Keep useful partial results",
-                            body: "If later frames cannot be stitched or capture is interrupted after useful content was collected, choose Keep Partial Result to open what was captured. SnipSnipSnip labels it as partial and recommends reviewing seams before sharing. You can also retry the same area or capture only the visible area."
+                            body: "If later frames cannot be stitched or capture is interrupted after useful content was collected, choose Keep Partial Result to open what was captured. Repeating content can also make stitching uncertain. Capture retries an ambiguous segment before offering a partial result, rather than guessing its alignment. SnipSnipSnip labels the kept result as partial and recommends reviewing seams before sharing. You can also retry the same area or capture only the visible area. Reaching the height or segment limit stops capture with a warning; check that the result includes all the content you need. Escape cancels capture without keeping a partial result."
                         ),
                         HelpArticleSection(
                             title: "Best results",
                             bullets: [
                                 "Start with the content positioned at the beginning of the area you need.",
                                 "Avoid changing the target window while capture is running.",
+                                "Let capture finish to include the final short scroll. Repeated frames at the end are omitted.",
                                 "If a page has heavy animation or sticky overlays, try a smaller selection."
                             ]
                         )
@@ -670,24 +693,54 @@ struct HelpGuideView: View {
                 HelpArticle(
                     id: "record-video",
                     title: "Record the screen",
-                    summary: "Record a region, window, or screen and trim the video before export.",
+                    summary: "Record and review a Video, then optionally trim or polish it for sharing.",
                     sections: [
+                        HelpArticleSection(
+                            title: "Find the exported video",
+                            body: "A successful export shows the filename and Reveal in Finder. Choose it to select the file in Finder. This brief confirmation does not resize the player, change playback, or move your editing controls. Export progress remains cancellable, and errors stay available until you dismiss them."
+                        ),
                         HelpArticleSection(
                             title: "Start and control a recording",
                             steps: [
                                 "Choose Record Region, Record Window, or Record Screen.",
-                                "Record Region and Pick On Screen recording start from the live desktop selection overlay, with the live loupe available while you aim. Drag to choose a custom region, or click a window to record the whole window.",
+                                "Record Region and Pick On Screen recording start from the live desktop selection overlay, with the live loupe available while you aim. Move the pointer over a visible window to see its thin neutral outline, then click to record the whole window. The outline settles into view while three graphite markers with bright tips glide around its border, evenly spaced around the border. Reduce Motion keeps it static. Drag to choose a custom region; the same moving outline follows the region box while you draw, adjust, or confirm it.",
                                 "Use the floating recording control to Pause, Resume, or Stop. The System and Mic meters show live signal when those sources are enabled.",
-                                "When the recording finishes, use the video editor to review and trim the result."
+                                "When the recording finishes, choose Play beneath the video to watch it. Trim and Polish are optional; you can export without making any edits."
                             ]
+                        ),
+                        HelpArticleSection(
+                            title: "Watch before editing",
+                            body: "The video fits the available window, including portrait recordings. Play/Pause, Back to Start, elapsed time, and the playhead stay beneath it, even when the inspector is open. Drag the playhead to inspect any point; scrubbing pauses playback. Playback includes your current effects and skips removed sections. Back to Start pauses at the first kept frame. Nothing plays automatically. The inspector starts hidden unless you previously chose to show it."
                         ),
                         HelpArticleSection(
                             title: "Choose recording options",
                             body: "Open Settings > Video to set the default quality, frame rate, display used for Screen recording, cursor visibility, click rings, system audio, and microphone narration. During an active recording, use the floating recording control's color-coded System Audio and Mic switches to turn those sources on or off for that recording only. The meters below those switches confirm whether each enabled source is receiving signal."
                         ),
                         HelpArticleSection(
+                            title: "Polish without losing your original",
+                            body: "Choose Polish in the Video workflow header, just as you do for a Screenshot. The header changes to Video — Polish and offers Back to Content. Look opens grouped Background and Effects controls; Polish Video applies a clean background, smoother cursor, and zooms suggested from recorded clicks. Opening Polish or returning to Content does not change your edits. Adjust the background, shape, spacing, corners, and shadow in the inspector. Zooms lets you add a zoom at the playhead, set precise times and magnification, follow the cursor, or choose a fixed focus. Cursor & Clicks controls cursor size, smoothing, visibility, and click rings. Fine-Tune Motion offers optional motion blur; leave it off for the sharpest text. Preview and export use the same effects."
+                        ),
+                        HelpArticleSection(
+                            title: String(localized: "Choose where to zoom"),
+                            body: String(localized: "Open Zooms and select a zoom in the strip below the video, or choose Show Target in its inspector group. The paused Zoom Target view shows the full, unzoomed frame with an outline of the area that will fill the video at the selected magnification and a center marker. The target remains visible even when the cursor is hidden or was not recorded. Click or drag inside the video to choose a fixed focus; this turns off Follow Cursor and the whole drag is one undoable change. For keyboard control, turn off Follow Cursor and adjust Horizontal Focus and Vertical Focus in the inspector. Follow Cursor uses recorded positions even when Show Cursor is off; when no position is available at the current frame, the target view explains that it is using the saved fixed focus. Preview Zoom plays from that zoom’s start with your current edits. Play and scrubbing remain below the video. Guides disappear during playback, when you select another tool, or when you hide the inspector, and are never included in exports.")
+                        ),
+                        HelpArticleSection(
+                            title: "Remove a mistake and undo changes",
+                            body: "In Trim, move the playhead to the start of a mistake and choose Mark Start, then move to its end and choose Mark End. Remove Section skips that part in playback and exports, including its sound. Restore brings a removed section back. You can also enter exact seconds. All edits preserve the original recording; Command-Z undoes a change, including an entire slider drag. Reset Video Edits restores the full source and capture-time appearance and can also be undone. Save as .sssvideo to keep the original footage and editable effects together."
+                        ),
+                        HelpArticleSection(
+                            title: "Cursor, sound, and shortcut privacy",
+                            body: "New screen Videos retain separate cursor and click data locally so they can be changed afterward. Older and connected-device Videos may have the cursor baked into the footage; the inspector explains when separate data is unavailable. Sound & Shortcuts adjusts recorded sound and any shortcut labels."
+                                + (shortcutRecordingEnabled ? " To include shortcuts in your next recording, enable Record Keyboard Shortcuts in Settings > Video and use Set Up if Accessibility is missing. Only command/control shortcuts are recorded, never ordinary typed text; secure input is excluded. Shortcut recording is off by default." : "")
+                                + " Normal recording and cursor data do not require Accessibility."
+                        ),
+                        HelpArticleSection(
+                            title: "Find controls quickly",
+                            body: "Video uses the same grouped command rows as Screenshot and Polish. Discard comes first, followed by Trim, Zooms, Cursor & Clicks, and Sound & Shortcuts. The next row groups Undo/Redo, Inspector, and Drag beside Export. Discard and Export stay visible when secondary controls need horizontal scrolling, and the window fits the available display area. Choose an editing tool to open its grouped inspector; the selected tool has a visible boundary. Trim also shows the thumbnail strip: drag it to scrub, or move the handles to keep a smaller part. Use Start Frame as Thumbnail only changes the saved Video's still image; use Play to watch. Show/Hide Inspector (Option-Command-I) opens or hides details without hiding playback. With the preview focused, Space plays or pauses and Left/Right Arrow moves one frame. New capture commands remain available in the Capture menu and shortcuts."
+                        ),
+                        HelpArticleSection(
                             title: "Quit, restart, and recover",
-                            body: "If you quit during a recording, choose Stop & Quit, Keep Recording in Background, or Cancel. Restart offers Stop & Restart or Cancel. Stop first enters Finishing, preserves the Video for recovery, and exits only after that checkpoint succeeds. Unsaved Videos are also preserved when the app exits. On the next launch, use Recover Last Session to reopen the Video; the recovery remains available until you save the Video or explicitly discard it."
+                            body: "If Screen Recording access changes during recording, the captured Video is recovered when possible and permission setup stays visible. A successful recovery does not hide the access problem or offer a screenshot retry. If you quit during a recording, choose Stop & Quit, Keep Recording in Background, or Cancel. Restart offers Stop & Restart or Cancel. Stop first enters Finishing, preserves the Video for recovery, and exits only after that checkpoint succeeds. Unsaved Videos are also preserved when the app exits. On the next launch, use Recover Last Session to reopen the Video; the recovery remains available until you save the Video or explicitly discard it."
                         ),
                     ] + (connectedDeviceCaptureEnabled ? [
                         HelpArticleSection(
@@ -697,7 +750,7 @@ struct HelpGuideView: View {
                     ] : []) + [
                         HelpArticleSection(
                             title: "Export video",
-                            body: "Use the video editor Export menu or File > Export to export MP4 using a quality preset or a size-limited target, or export short silent loops as GIF or APNG. Size-limited exports retry at a lower bitrate if the result exceeds the selected cap. Drag the file icon beside Export to send the current trimmed export to Finder, Mail, or another app. Click the icon without dragging to see a short reminder. The editor window temporarily hides during the drag and returns when the drag finishes. Encoding begins after the destination accepts the drop."
+                            body: "Choose Export beside the Video preview. Select MP4 for a video with sound, GIF for a short documentation loop, or APNG for a crisp silent loop with better color. Choose quality, optionally set Keep Under a File Size for MP4, then Choose Location. On a smaller display, scroll the options; Cancel and Choose Location stay visible. File > Export repeats the last export choices. Size-limited exports retry compression when needed. All trims, removed sections, and effects are included. Use Drag Out in the command row to send that same finished result to Finder, Mail, or another app; encoding starts after the destination accepts the drop. The editor hides during the drag and returns afterward."
                         )
                     ],
                     important: [
@@ -719,15 +772,15 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Recover from capture and output errors",
-                            body: "Capture recovery explains that open work is unchanged and offers source-specific next actions. Copy, Export, and Share failures keep the editable screenshot intact and offer a retry; Export Again reopens the destination chooser, and transparent Polish can offer Export PNG."
+                            body: "Capture recovery explains that open work is unchanged and offers source-specific next actions. Copy, Export, and Share failures keep the editable screenshot intact and offer a retry; Export Again reopens the destination chooser, and transparent Polish can offer Export PNG. If a change would create conflicting entries, SnipSnipSnip rejects it and keeps the previous screenshot and undo history. The message says that the change could not be applied safely. Try the action again; if it repeats, save your work and include the action in a bug report. If an existing image arrangement contains conflicting entries, rendering stops with an error. Try Undo or reopen a saved version before retrying."
                         ),
                         HelpArticleSection(
                             title: "Choose a tool",
-                            body: "The first Edit command row keeps Select, Crop, the Arrow family, and Text visible as labeled one-click controls. Open the Arrow disclosure menu to choose Arrow or Numbered Arrow. Split controls also provide Shapes (Rectangle, Ellipse, Line, and Status Mark), Draw (Freehand and Highlighter), Emphasize (Highlight Box, Spotlight, and Ruler), Redact (Blur, Pixelate, and Redact), and More Tools (Callout, Copy Text, Pick Color, and Insert Image). After you choose a tool that remains active, the main button shows that tool’s name and icon and reuses it when clicked. Use the adjacent disclosure arrow to choose a different member of the group. Insert Image remains a one-time action. The active direct tool or group has a filled background and stronger boundary as well as its accessibility state. Review, Order & Caption, Arrange, and Polish still begin with Discard. The second Edit row keeps History, Layers and Arrangement, Zoom, Inspector, Output, and References and Drag Out in workflow order. At narrow widths, scroll each row horizontally without losing any action."
+                            body: "The first Edit command row keeps Select, Crop, Auto Crop, the Arrow family, Text, Highlight Box, and Redact together as labeled one-click controls. Auto Crop tightens the screenshot immediately without opening the inspector or changing your annotation tool. Open the Arrow disclosure menu to choose Arrow or Numbered Arrow. Redact always starts a solid covering; its adjacent menu also offers Blur and Pixelate. Split controls provide Shapes (Rectangle, Ellipse, Line, and Status Mark), Draw (Freehand and Highlighter), Emphasize (Spotlight and Ruler), and More Tools (Callout, Copy Text, Pick Color, and Insert Image). Except for the permanently available solid Redact action, each split control reuses its last-selected member. Use the adjacent disclosure arrow to choose a different member of the group. Insert Image remains a one-time action. The active direct tool or group has a filled background and stronger boundary as well as its accessibility state. Back to Capture stays visible across Edit, Review, Order & Caption, Arrange, and Polish. It keeps non-private work in Recent Snips before returning to Capture; choose a retained screenshot in Snip Library to continue editing. If it cannot be kept, the editor stays open with an error. Screenshot Actions beside Back to Capture contains Discard. Private Capture still asks you to Save, Discard, or Cancel. Copy or Export does not mark the editable document saved. On smaller displays, the window fits the available area; scroll secondary toolbar controls while Back to Capture, Copy, Export, and Share remain visible. In nested editing, Done or Cancel and Apply to Step remain visible instead."
                         ),
                         HelpArticleSection(
                             title: "Select and arrange annotations",
-                            body: "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. Use the trash button in Layers and Arrangement, press Delete, or right-click an annotation and choose Delete. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing, moving, and resizing. Press Escape before releasing the pointer to cancel a drawing, move, resize, or crop drag without changing the screenshot.",
+                            body: "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. A single selected Line, Arrow, or Numbered Arrow has two handles, one at its start and one at its end. Drag either handle to adjust that endpoint while keeping the other fixed. Drag the annotation itself to move it. Use the trash button in Layers and Arrangement, press Delete, or right-click an annotation and choose Delete. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing rectangle-shaped annotations and moving or resizing selections. Their magnetic distance stays consistent at every zoom level, and an acquired guide remains stable until you move away. Hold Option while moving or resizing to temporarily bypass snapping; release it to resume alignment. Press Escape before releasing the pointer to cancel a drawing, move, resize, or crop drag without changing the screenshot.",
                             bullets: [
                                 "With VoiceOver or Full Keyboard Access, Tab and Shift-Tab traverse annotations from front to back. Space selects and Shift-Space toggles additive selection; Escape returns focus to the canvas.",
                                 "Arrow keys move a selected annotation by 1 pixel and Shift-arrows move it by 10. Option-arrows resize by 1 pixel and Shift-Option-arrows resize by 10.",
@@ -736,8 +789,12 @@ struct HelpGuideView: View {
                             ]
                         ),
                         HelpArticleSection(
+                            title: "Review before sharing",
+                            body: "Use solid Redact to cover sensitive details, then choose Copy and wait for the Ready to paste confirmation. Copy and Export apply the visible redactions to the delivered image. Editable screenshot files retain the original pixels so redactions can be changed later; do not send an editable project when you intend to share only the redacted image. Review sensitive details before choosing Copy or using a Capture Preset with Copy to Clipboard as its outcome."
+                        ),
+                        HelpArticleSection(
                             title: "Use the inspector",
-                            body: "The native right inspector keeps Crop Image, Properties, and History directly visible. Crop Image opens exact crop controls without changing the selected annotation tool. Properties shows only controls for the current tool or selection and names that context, such as Arrow, Text, or Selection. History uses the full inspector for Change History and the Snip Library instead of stacking them beneath editing controls; the History button includes the current document’s change count. Crop handles remain available on the image while any annotation tool is selected, and crop changes apply immediately through normal undo. Comparison, Steps, Arrange, Look, and Mockup continue to show their stage-specific inspector. The inspector is visible by default and remembered for each window scene. Use the Inspector control immediately after Zoom, or View > Show/Hide Inspector (Command-Option-I), to toggle it."
+                            body: "The native right inspector keeps Crop Image, Properties, and History directly visible. Crop Image opens Auto Crop, Padded, and Reset Crop above the exact crop controls without changing the selected annotation tool. Properties shows only controls for the current tool or selection and names that context, such as Arrow, Text, or Selection. History uses the full inspector for Change History and the Snip Library instead of stacking them beneath editing controls; the History button includes the current document’s change count. Crop handles remain available on the image while any annotation tool is selected, and crop changes apply immediately through normal undo. Comparison, Steps, Arrange, Look, and Mockup continue to show their stage-specific inspector. The inspector is visible by default and remembered for each window scene. Use the Inspector control immediately after Zoom, or View > Show/Hide Inspector (Command-Option-I), to toggle it. A chosen magnification and the content at the center of the canvas remain stable when the inspector or window changes size; Fit to Window follows the available canvas."
                         )
                     ],
                     important: [
@@ -862,12 +919,12 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Crop a screenshot",
                             steps: [
-                                "Drag a crop handle on the visible image perimeter.",
+                                "Click Auto Crop beside Crop in the first Edit command row to tighten the crop around screenshot content and visible annotations. You do not need to open the inspector or select the Crop tool.",
+                                "To adjust the crop manually, drag a crop handle on the visible image perimeter.",
                                 "Use the loupe and live pixel size to refine the crop.",
                                 "Choose Crop Image at the top of the inspector for exact X, Y, Width, and Height values. This does not change the selected annotation tool.",
                                 "Choose Freeform or a fixed aspect ratio in Crop Image before drawing or resizing the crop.",
-                                "Click Auto Crop to tighten the current crop around screenshot content and visible annotations, or click Padded to keep a small margin.",
-                                "Click Reset Crop to return to the full captured image.",
+                                "Auto Crop, Padded, and Reset Crop are also at the top of Crop Image. Choose Padded to keep a small margin, or Reset Crop to return to the full captured image.",
                                 "Crop changes apply immediately and remain available through Undo and Change History."
                             ]
                         ),
@@ -894,11 +951,15 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Add annotations",
-                            body: "Draw shapes, lines, arrows, numbered arrows, checkmarks and X status marks, freehand strokes, marker-style highlighter strokes, highlight boxes, rulers, spotlights, text, and callouts from the top editor command row. For Numbered Arrow, drag from the numbered badge toward the target. Each new Numbered Arrow receives the next number in the current annotation scope. Status Mark offers Circled, Cartoon, and Vintage treatments in the inspector, along with the standard color controls. Text boxes and callouts fit snugly while you type until you manually resize them; after a manual resize, their width stays fixed and they grow taller as text wraps. Selected text boxes and callouts can be edited in place with normal cursor movement, arrow keys, selection, and click-to-position behavior. Insert Image adds an editable overlay that can be moved, resized, rotated, faded, saved, copied, exported, and shared."
+                            body: "Draw shapes, lines, arrows, numbered arrows, checkmarks and X status marks, freehand strokes, marker-style highlighter strokes, highlight boxes, rulers, spotlights, text, and callouts from the top editor command row. For Numbered Arrow, drag from the numbered badge toward the target. Each new Numbered Arrow receives the next number in the current annotation scope. Status Mark offers Circled, Cartoon, and Vintage treatments in the inspector, along with the standard color controls. Text boxes and callouts fit snugly while you type until you manually resize them; after a manual resize, their width stays fixed and they grow taller as text wraps. Clicking away preserves the box size and wrapping. Zooming keeps the live editor aligned with the saved box. Changing Font refits the box immediately, preserving a manually resized width. Selected text boxes and callouts can be edited in place with normal cursor movement, arrow keys, selection, and click-to-position behavior. Resize handles remain available while Text or Callout is active; choose Select to move the box. Insert Image adds an editable overlay that can be moved, resized, rotated, faded, saved, copied, exported, and shared."
                         ),
                         HelpArticleSection(
                             title: "Edit styles",
                             body: "Use the inspector to change stroke color, fill color, line width, text size, effect strength, arrow heads, regular Arrow labels, Numbered Arrow badge style and sequence position, status mark symbol and treatment, callout style, rectangle corners, freehand smoothing, and alignment where supported. Use Rotate in the lower editor command row to turn selected annotations by 90 degrees."
+                        ),
+                        HelpArticleSection(
+                            title: "Fit highlights to text",
+                            body: "Choose Highlighter from Draw or press H, then draw across words. Fit to Text is on by default for this editor session. Local recognition straightens the marker and fits it to confidently recognized words and lines; uncertain text keeps the freehand stroke. Turn off Fit to Text in Properties to draw freely. The stroke appears immediately, and fitting only finishes if you have not made another edit. Undo removes the complete gesture and Redo restores its fitted form."
                         ),
                         HelpArticleSection(
                             title: "Manage layers",
@@ -955,14 +1016,18 @@ struct HelpGuideView: View {
                 HelpArticle(
                     id: "copy-text",
                     title: "Copy text from a screenshot",
-                    summary: "Run local OCR on a selected screenshot region and copy the recognized text.",
+                    summary: "Capture text directly from the screen or review text recognized inside the editor.",
                     sections: [
+                        HelpArticleSection(
+                            title: "Capture text without opening the editor",
+                            body: "Choose Capture Text in Quick Capture, the Capture menu, or the menu bar icon menu, or press Command-Shift-T by default. Drag over text on screen; SnipSnipSnip recognizes it locally and copies it without replacing the open document or saving a screenshot. Escape cancels. If no text is found, the clipboard stays unchanged. Settings > Automation > Global Shortcuts can change the shortcut. Private Capture marks the copied text as concealed so SnipSnipSnip Clipboard History skips it; other clipboard apps may not honor that marker."
+                        ),
                         HelpArticleSection(
                             title: "Copy recognized text",
                             steps: [
                                 "Choose the Copy Text tool in the top editor command row.",
                                 "Drag over the text region in the screenshot.",
-                                "Review the normalized text.",
+                                "Review the recognized text. Line breaks are preserved and indentation is estimated; verify code and commands before using them. Choose Join Lines only when you want a paragraph.",
                                 "Copy the accepted text to the clipboard."
                             ]
                         ),
@@ -981,16 +1046,20 @@ struct HelpGuideView: View {
             articles: [
                 HelpArticle(
                     id: "copy-save-export",
-                    title: "Copy, save, export, and share",
+                    title: "Copy, save, export, share, and print",
                     summary: "Choose the right output for editing later or sending now.",
                     sections: [
                         HelpArticleSection(
                             title: "Use Copy or Share",
-                            body: "Copy, Export, Share, Float, and Drag follow the visible stage. Edit, Comparison Review, Steps, and Arrange use the unwrapped content, annotations, pinned UI Map overlays, and flattened redactions. Polish uses the visible Look or Mockup; when none is configured, it uses the same unwrapped content. Back to Content changes the boundary explicitly. Edit Selected Capture and Annotate Result hide document output until Done returns to the focused content stage. When Auto Copy runs after capture or an Edit change, it uses that same visible-stage output. Polish changes do not trigger Auto Copy."
+                            body: "Copy, Export, Share, Float, and Drag follow the visible stage. Edit, Comparison Review, Steps, and Arrange use the unwrapped content, annotations, pinned UI Map overlays, and flattened redactions. Polish uses the visible Look or Mockup; when none is configured, it uses the same unwrapped content. Back to Content changes the boundary explicitly. Edit Selected Capture and Annotate Result hide document output until Done returns to the focused content stage. Capturing or editing does not update the clipboard; choose Copy when the visible result is ready. Copy confirms success only after the clipboard write. If preparation takes a moment, its button shows Copying…; repeated requests for an unchanged result share that copy. You can continue editing while the requested image is prepared. Export similarly shows Exporting… after you choose a destination when preparation takes a moment. Export completion identifies the file and offers Reveal in Finder. After Copy succeeds, “Copied screenshot. Ready to paste.” appears briefly near the top of the editor and dismisses automatically. The confirmation floats above the canvas: the crop, zoom, scroll position, and both scrollbars stay in place. The confirmation is not part of the copied image. Routine export confirmations also leave the canvas or video player in place."
+                        ),
+                        HelpArticleSection(
+                            title: "Print the current document",
+                            body: "Choose File > Print… or press Command-P to open the macOS print dialog for the current Screenshot, Comparison, Steps, Combined Image, or Guide. Choose a printer, paper, page range, or the dialog’s PDF options. Printing includes the current annotations and redactions; Polish prints its visible Look or Mockup. Transparent areas use the paper background. Steps prints one included step per page, while Guide uses its PDF paper, orientation, cover, and compact-layout settings. Each page fits the printable area and rotates automatically. Very large compositions may be reduced to safe rendering limits. Printing preserves your editable work and does not mark it saved. Print is unavailable for Video, empty Guides, active capture, or nested screenshot editing; finish nested editing before printing."
                         ),
                         HelpArticleSection(
                             title: "Export screenshots",
-                            body: "Choose Polish when you want optional finishing treatment. Look handles transparent, solid, gradient, spotlight, or blurred-screenshot backgrounds, spacing, corners, and shadows. Mockup applies browser, window, phone, tablet, and other designed SVG wrappers. Entering Polish does not apply a treatment automatically. Copy, Export, Share, Float, and Drag use the visible Polish preview; Back to Content restores unwrapped output. Transparent Polish output uses PNG without disabling JPEG or PDF in content stages."
+                            body: "Choose Polish when you want optional finishing treatment. Look handles transparent, solid, gradient, spotlight, or blurred-screenshot backgrounds, spacing, corners, and shadows. Mockup applies browser, window, phone, tablet, and other designed SVG wrappers. Entering Polish does not apply a treatment automatically. VoiceOver identifies selected Looks, Mockups, saved variants, and alignment choices. Copy, Export, Share, Float, and Drag use the visible Polish preview; Back to Content restores unwrapped output. Transparent Polish output uses PNG without disabling JPEG or PDF in content stages."
                         ),
                         HelpArticleSection(
                             title: "If screenshot export fails",
@@ -1010,7 +1079,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Adjust Mockup framing",
-                            body: "Auto tries to fit arbitrary screenshot sizes into the Mockup slot. If the result needs correction, open Adjust to change alignment, scale, or nudge the screenshot. Drag inside the slot to reposition it. Pinch, Command-scroll, and Option-scroll zoom the full Polish preview. Double-click the slot or use Reset Framing to return to the Mockup default."
+                            body: "Auto tries to fit arbitrary screenshot sizes into the Mockup slot. If the result needs correction, open Adjust to change alignment, scale, or nudge the screenshot. Drag inside the slot to reposition it; press Escape during a drag to cancel the change. Custom SVGs with nested viewports or CSS transforms use the framing controls instead of direct dragging. Pinch, Command-scroll, and Option-scroll zoom the full Polish preview. Double-click the slot or use Reset Framing to return to the Mockup default."
                         ),
                         HelpArticleSection(
                             title: "Save Polish presets in a document",
@@ -1018,7 +1087,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Manage Mockup files",
-                            body: "Mockup → Manage includes controls for revealing the User Mockups folder and reloading files. Settings > Editor & Output lets you choose, reveal, reset, or reload the root Mockup folder. The default folder contains Bundled and User subfolders. Add custom SVG files to User. For file-format compatibility, Mockups use the presentation-scene metadata schema and data-sss-slot markers; remote URLs, file URLs, scripts, foreignObject, animation, and event handlers are rejected. Diagnostics appear only when there is something to review."
+                            body: "Mockup → Manage includes controls for revealing the User Mockups folder and reloading files. Settings > Editor & Output lets you choose, reveal, reset, or reload the root Mockup folder. The default folder contains Bundled and User subfolders. Add custom SVG files to User. For file-format compatibility, Mockups use the presentation-scene metadata schema and data-sss-slot markers; external images and stylesheets, remote URLs, file URLs, scripts, foreignObject, animation, and event handlers are rejected. Invalid or excessively large canvas, screenshot-slot, and framing values are rejected before rendering. Diagnostics appear only when there is something to review."
                         ),
                         HelpArticleSection(
                             title: "Import from Finder or Photos",
@@ -1026,11 +1095,15 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Drag output into another app",
-                            body: "Drag sends the output shown in the active content or Polish stage to Finder, Mail, or another app. If you click without dragging, SnipSnipSnip shows a short reminder. During the drag, the editor window temporarily hides so you can reach the destination, then returns when the drag finishes. Settings > Editor & Output controls whether screenshot drag-out normally uses PNG, JPEG, or PDF and sets JPEG quality. Transparent Polish output automatically uses PNG so the result stays faithful."
+                            body: "Drag sends the output shown in the active content or Polish stage to Finder, Mail, or another app. If you click without dragging, SnipSnipSnip shows a short reminder. During the drag, the editor window temporarily hides so you can reach the destination, then returns when the drag finishes. Settings > Editor & Output > Export & Sharing names this preference Drag-Out Format. It controls whether screenshot drag-out normally uses PNG, JPEG, or PDF and also sets JPEG quality. Choosing a format here does not change the format selected explicitly in Export. Transparent Polish output automatically uses PNG so the result stays faithful."
                         ),
                         HelpArticleSection(
                             title: "Save editable work",
                             body: "Save and Save As write .sss screenshot and composition packages or .sssvideo video packages. Use these formats when you may need to revise item order, layout, crop, annotations, redactions, trim range, or other editable state later."
+                        ),
+                        HelpArticleSection(
+                            title: "Choose output size",
+                            body: "Choose Size beside Copy, Export, and Share. Original Size keeps full resolution; Half Size halves both pixel dimensions; Custom Width lets you enter a width and choose Apply Width while height follows the proportions. The panel shows the output dimensions. This session-only choice applies to copied, dragged, shared, and PNG, JPEG, or PDF output; paginated PDFs size each page. It does not resize the original pixels, annotations, editable files, history previews, animation, Interactive HTML, or automation output. Large compositions may still require safety scaling. Custom output is limited to 32,768 pixels per side and 64 million pixels in total."
                         ),
                         HelpArticleSection(
                             title: "Filename suggestions",
@@ -1048,16 +1121,20 @@ struct HelpGuideView: View {
                     summary: "Save work as .sss or .sssvideo packages when you need to reopen and revise it.",
                     sections: [
                         HelpArticleSection(
+                            title: "Open or import without losing your place",
+                            body: "File > Open and Import Image keep your current editing session while you choose and load a replacement. Cancelling the chooser or choosing an unreadable or unsupported file keeps the current document, selection, zoom, and Undo history. If the replacement loads successfully and the current document needs a save decision, choose Save, Discard, or Cancel before switching. Cancel keeps your current work."
+                        ),
+                        HelpArticleSection(
                             title: ".sss screenshot packages",
                             body: "A .sss package keeps the base image, preview, crop, annotations, optional Polish settings, image overlay assets, undo and redo history, and searchable metadata."
                         ),
                         HelpArticleSection(
                             title: ".sssvideo video packages",
-                            body: "A .sssvideo package keeps the source media, trim range, poster frame, and recording metadata."
+                            body: "A .sssvideo package keeps the original media, trim and removed sections, preview image, presentation, zooms, and any separate cursor, click, or shortcut data. Reopen it to revise effects without flattening the original. Existing version-2 projects still open with their original trim state."
                         ),
                         HelpArticleSection(
                             title: "Compatibility",
-                            body: "Current packages open directly. Older unsupported packages and recovery checkpoints can be moved to the macOS Trash when SnipSnipSnip detects that they no longer match the current document baseline."
+                            body: "Current packages open directly. A file rejected by File > Open stays untouched, and your current editing session remains open. During launch and recovery compatibility checks, older unsupported packages and recovery checkpoints can be moved to the macOS Trash when they no longer match the current document baseline."
                         )
                     ],
                     important: [
@@ -1073,6 +1150,10 @@ struct HelpGuideView: View {
                         HelpArticleSection(
                             title: "Recover an interrupted session",
                             body: "If SnipSnipSnip closes while a session has unsaved work, the next launch can show Recover Last Session."
+                        ),
+                        HelpArticleSection(
+                            title: "Restore Snip History folder access",
+                            body: "If a saved custom folder cannot be accessed, the app explains the problem and keeps new snips in the default location. Existing history is not moved or deleted. Open Settings > Snip Library > Snips and choose Choose Location to authorize the original folder again, or Use Default Location to keep default storage. Choosing a different folder changes which history is shown; it does not merge or move the contents of either folder."
                         ),
                         HelpArticleSection(
                             title: "Use Change History",
@@ -1121,10 +1202,27 @@ struct HelpGuideView: View {
                     relatedIDs: ["redact", "permissions", "editable-documents"]
                 ),
                 HelpArticle(
+                    id: "find-settings",
+                    title: "Find a setting",
+                    summary: "Search directly for the control you want to change.",
+                    sections: [
+                        HelpArticleSection(
+                            title: "Search Settings",
+                            body: "Open Settings with Command-Comma and use Search Settings. Search Settings finds individual controls by their labels and related words. Choose a result to open its category and any nested page, scroll to the setting, and briefly highlight it. For example, JPEG quality reveals JPEG Quality in Editor & Output, while clipboard settings open the Clipboard page of Snip Library. Clearing search keeps the category you chose."
+                        ),
+                        HelpArticleSection(
+                            title: "Choose the right output preference",
+                            body: "Drag-Out Format in Editor & Output controls files shared by dragging from the screenshot editor. Export chooses its format separately. JPEG Quality applies to JPEG exports and drag-out files."
+                        )
+                    ],
+                    important: [],
+                    relatedIDs: ["keyboard-shortcuts", "copy-save-export", "clipboard-history"]
+                ),
+                HelpArticle(
                     id: "keyboard-shortcuts",
                     title: "Keyboard shortcuts",
                     summary: "Use centralized shortcuts for help, capture, save, editor tools, layers, and screen utilities.",
-                    sections: AppShortcut.catalogSections.map { section in
+                    sections: AppShortcut.catalogSections(includesGuideCapture: guideEnabled).map { section in
                         HelpArticleSection(
                             title: section.title,
                             bullets: section.entries.map { "\($0.keys): \($0.action)." }
@@ -1159,13 +1257,12 @@ struct HelpGuideView: View {
                                 "Run a capture preset by choosing a saved preset.",
                                 "Capture a screen, frontmost window, region, or interactive window.",
                                 "Add a capture to a composition, replace an exact item, set its layout or comparison, apply a saved template, and export the completed composition.",
-                                "Start, pause, resume, add a step to, stop, or export a Guide.",
                                 "Repeat the last capture, open an editable .sss document, or export the current screenshot."
-                            ]
+                            ] + (guideEnabled ? ["Start, pause, resume, add a step to, stop, or export a Guide."] : [])
                         ),
                         HelpArticleSection(
                             title: "Foreground actions",
-                            body: "Status and preset listing can run in the background and show Shortcuts result summaries. Non-interactive capture, composition, export, and fixed-target repeat actions return only after the requested change or file output finishes. Interactive region and window captures, connected-device or scrolling repeats, editor output, and floating references continue in SnipSnipSnip so you can choose a target or see the resulting UI."
+                            body: "Status and preset listing can run in the background and show Shortcuts result summaries. Non-interactive capture, composition, export, and fixed-target repeat actions return only after the requested change or file output finishes. Interactive region and window captures, connected-device or scrolling repeats, editor output, and floating references continue in SnipSnipSnip so you can choose a target or see the resulting UI. Interactive capture keeps the requested output and Private Capture choice until you finish selecting; cancelling does not apply them to your next capture."
                         ),
                         HelpArticleSection(
                             title: "Output and privacy",
@@ -1173,7 +1270,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Script interfaces",
-                            body: "Use Apple Shortcuts actions for native macOS automation. Use the command-line helper, AppleScript suite, or URL routes from scripts and launchers when you need those interfaces directly. Those compatibility interfaces retain their existing fullscreen command and option identifiers even though the app’s visible source name is Screen."
+                            body: "Use Apple Shortcuts actions for native macOS automation. Use the command-line helper, AppleScript suite, or URL routes from scripts and launchers when you need those interfaces directly. AppleScript uses spaced commands such as automation status. The command-line helper rejects unknown or conflicting options. Wait for one automation operation or interactive capture to finish before starting another; status and preset listing remain available. Save unsaved work before opening another document unattended; a failed or cancelled open never exports the previous document. Those compatibility interfaces retain their existing fullscreen command and option identifiers even though the app’s visible source name is Screen."
                         )
                     ],
                     important: [
@@ -1191,7 +1288,7 @@ struct HelpGuideView: View {
                     sections: [
                         HelpArticleSection(
                             title: "Blank captures or missing thumbnails",
-                            body: "Click Set Up for Screen Recording, use the macOS prompt or the Screen Recording settings pane that SnipSnipSnip opens, then return and click Check Again. If System Settings shows SnipSnipSnip enabled but the app still cannot capture, SnipSnipSnip shows Restart Required. During onboarding, finish any remaining permission first if you want it ready too, then use Restart SnipSnipSnip so macOS applies the new Screen Recording access."
+                            body: "Choose Set Up for Screen Recording, then use the macOS prompt or Open Settings to review Screen & System Audio Recording access. Return to the app; status refreshes automatically. Check Again performs an explicit verification if needed. A new grant may require Restart SnipSnipSnip. If access was denied, enable it in System Settings or cancel setup; restarting alone does not grant permission."
                         ),
                         HelpArticleSection(
                             title: "A window is missing",
@@ -1211,7 +1308,7 @@ struct HelpGuideView: View {
                         ),
                         HelpArticleSection(
                             title: "Export diagnostics for support",
-                            body: "Use Settings > Privacy > Export Diagnostics to save a local JSON report with sanitized app, permission, display, storage, connected-device, and status details. Diagnostics do not include screenshots, clipboard contents, OCR text, annotation text, document data, window titles, or raw file paths."
+                            body: "Use Settings > Privacy > Export Diagnostics to save a local JSON report with sanitized app, permission, display, storage, connected-device, and status details. Diagnostics use safe status and error categories instead of detailed error messages. They do not include screenshots, clipboard contents, OCR text, annotation text, document data, window titles, or raw file paths."
                         )
                     ] + (scrollingCaptureEnabled
                         ? [

@@ -342,6 +342,7 @@ nonisolated enum CompositionOutputExporter {
         format: CompositionOutputFormat,
         to destination: URL,
         imageOptions: ImageExportOptions = .default,
+        stillOutputSize: ScreenshotOutputSize = .original,
         maximumOutputDimension: Int? = nil,
         forcedPDFItemsPerPage: Int? = nil,
         progress: CompositionOutputProgressHandler? = nil
@@ -354,6 +355,7 @@ nonisolated enum CompositionOutputExporter {
                 format: format,
                 to: destination,
                 imageOptions: imageOptions,
+                stillOutputSize: stillOutputSize,
                 maximumOutputDimension: maximumOutputDimension,
                 forcedPDFItemsPerPage: forcedPDFItemsPerPage,
                 progress: progress
@@ -366,6 +368,7 @@ nonisolated enum CompositionOutputExporter {
         format: CompositionOutputFormat,
         to destination: URL,
         imageOptions: ImageExportOptions,
+        stillOutputSize: ScreenshotOutputSize,
         maximumOutputDimension: Int?,
         forcedPDFItemsPerPage: Int?,
         progress: CompositionOutputProgressHandler?
@@ -394,7 +397,7 @@ nonisolated enum CompositionOutputExporter {
                 resolvedInput,
                 maximumOutputDimension: maximumOutputDimension
             )
-            let image = rendered.image
+            let image = try stillOutputSize.resized(rendered.image)
             try await atomicFileAsync(destination) { temporaryURL in
                 let imageFormat: ImageExportFormat = format == .png ? .png : .jpeg
                 try await ImageExporter.write(
@@ -420,6 +423,7 @@ nonisolated enum CompositionOutputExporter {
                 summary = try writePDF(
                     resolvedInput,
                     maximumOutputDimension: maximumOutputDimension,
+                    outputSize: stillOutputSize,
                     to: temporaryURL
                 )
             }
@@ -518,7 +522,7 @@ nonisolated enum CompositionOutputExporter {
     // MARK: - Rendering
 
     private struct RenderedAnimation {
-        let frames: [TimedFrame]
+        let frames: AnimationFrames
         let loops: Bool
         let wasScaled: Bool
     }
@@ -528,24 +532,53 @@ nonisolated enum CompositionOutputExporter {
         let duration: TimeInterval
     }
 
+    typealias AnimationBlendRenderer = @Sendable (CGImage, CGImage, CGFloat) -> CGImage?
+
+    struct AnimationFramePlan: Sendable {
+        let startsWithSecondary: Bool
+        let blendFraction: CGFloat?
+        let duration: TimeInterval
+    }
+
+    /// Retain only the two endpoints and timing records. Encoders request one
+    /// crossfade raster at a time instead of retaining up to 26 full-size images.
+    struct AnimationFrames: RandomAccessCollection, @unchecked Sendable {
+        let primary: CGImage
+        let secondary: CGImage
+        let plan: [AnimationFramePlan]
+        let blendRenderer: AnimationBlendRenderer
+
+        var startIndex: Int { plan.startIndex }
+        var endIndex: Int { plan.endIndex }
+
+        subscript(position: Int) -> TimedFrame {
+            let frame = plan[position]
+            let first = frame.startsWithSecondary ? secondary : primary
+            let second = frame.startsWithSecondary ? primary : secondary
+            let image = frame.blendFraction.flatMap { blendRenderer(first, second, $0) } ?? first
+            return TimedFrame(image: image, duration: frame.duration)
+        }
+    }
+
     private static func renderStatic(
         _ input: CompositionOutputInput,
         maximumOutputDimension: Int?
     ) throws -> PresentedRender {
-        let phase: CompositionComparisonPhase
-        if let composition = input.snapshot.composition,
-           composition.layout.mode == .compare,
-           composition.comparison.mode == .blink {
-            phase = composition.comparison.posterFrame == .secondary ? .secondary : .primary
-        } else {
-            phase = .primary
-        }
         return try renderPresented(
             input,
             snapshot: input.snapshot,
-            phase: phase,
+            phase: staticComparisonPhase(for: input.snapshot),
             maximumOutputDimension: maximumOutputDimension
         )
+    }
+
+    private static func staticComparisonPhase(for snapshot: EditorSnapshot) -> CompositionComparisonPhase {
+        if let composition = snapshot.composition,
+           composition.layout.mode == .compare,
+           composition.comparison.mode == .blink {
+            return composition.comparison.posterFrame == .secondary ? .secondary : .primary
+        }
+        return .primary
     }
 
     private static func renderedBlinkAnimation(
@@ -629,7 +662,7 @@ nonisolated enum CompositionOutputExporter {
             targetMaximumPixelDimension: repositoryRenderTarget,
             uiMapOverlayOptions: input.uiMapOverlayOptions
         )
-        let content: CGImage
+        let content: CompositionRenderResult
         do {
             guard let renderedContent = try CompositionDocumentRenderer.renderContent(
                 baseImage: input.baseImage,
@@ -640,7 +673,7 @@ nonisolated enum CompositionOutputExporter {
                 pinnedUIMapElements: input.pinnedUIMapElements,
                 uiMapOverlayOptions: input.uiMapOverlayOptions,
                 compositionOptions: compositionOptions
-            )?.image else {
+            ) else {
                 throw CompositionOutputError.failedToRender
             }
             content = renderedContent
@@ -649,7 +682,7 @@ nonisolated enum CompositionOutputExporter {
         }
 
         let expectedSize = ScreenshotPresentationRenderer.outputSize(
-            for: CGSize(width: content.width, height: content.height),
+            for: content.logicalCanvasSize,
             presentation: snapshot.presentation
         )
         if maximumOutputDimension == nil {
@@ -657,9 +690,10 @@ nonisolated enum CompositionOutputExporter {
         }
         let requestedCap = maximumOutputDimension.map(CGFloat.init)
         guard let rendered = ScreenshotPresentationRenderer.renderWithLayout(
-            contentImage: content,
+            contentImage: content.image,
             presentation: snapshot.presentation,
-            maxPixelDimension: requestedCap
+            maxPixelDimension: requestedCap,
+            logicalContentSize: content.logicalCanvasSize
         )?.image else {
             throw CompositionOutputError.failedToRender
         }
@@ -784,18 +818,22 @@ nonisolated enum CompositionOutputExporter {
         secondary: CGImage,
         interval: TimeInterval,
         crossfade: TimeInterval,
-        loops: Bool
-    ) -> [TimedFrame] {
+        loops: Bool,
+        blendRenderer: AnimationBlendRenderer? = nil
+    ) -> AnimationFrames {
+        let renderer = blendRenderer ?? { first, second, fraction in
+            blend(first, second, fraction: fraction)
+        }
         let resolvedInterval = min(max(interval.isFinite ? interval : 0.75, 0.05), 10)
         let resolvedCrossfade = min(
             max(crossfade.isFinite ? crossfade : 0, 0),
             resolvedInterval
         )
         guard resolvedCrossfade > 0.001 else {
-            return [
-                TimedFrame(image: primary, duration: resolvedInterval),
-                TimedFrame(image: secondary, duration: resolvedInterval),
-            ]
+            return AnimationFrames(primary: primary, secondary: secondary, plan: [
+                AnimationFramePlan(startsWithSecondary: false, blendFraction: nil, duration: resolvedInterval),
+                AnimationFramePlan(startsWithSecondary: true, blendFraction: nil, duration: resolvedInterval),
+            ], blendRenderer: renderer)
         }
 
         let transitionFrameCount = min(
@@ -804,28 +842,31 @@ nonisolated enum CompositionOutputExporter {
         )
         let transitionFrameDuration = resolvedCrossfade / Double(transitionFrameCount)
         let holdDuration = max(resolvedInterval - resolvedCrossfade, 0.02)
-        var frames = [TimedFrame(image: primary, duration: holdDuration)]
+        var frames = [AnimationFramePlan(startsWithSecondary: false, blendFraction: nil, duration: holdDuration)]
         for index in 1...transitionFrameCount {
             let fraction = CGFloat(index) / CGFloat(transitionFrameCount + 1)
-            frames.append(TimedFrame(
-                image: blend(primary, secondary, fraction: fraction) ?? primary,
+            frames.append(AnimationFramePlan(
+                startsWithSecondary: false,
+                blendFraction: fraction,
                 duration: transitionFrameDuration
             ))
         }
-        frames.append(TimedFrame(
-            image: secondary,
+        frames.append(AnimationFramePlan(
+            startsWithSecondary: true,
+            blendFraction: nil,
             duration: loops ? holdDuration : resolvedInterval
         ))
         if loops {
             for index in 1...transitionFrameCount {
                 let fraction = CGFloat(index) / CGFloat(transitionFrameCount + 1)
-                frames.append(TimedFrame(
-                    image: blend(secondary, primary, fraction: fraction) ?? secondary,
+                frames.append(AnimationFramePlan(
+                    startsWithSecondary: true,
+                    blendFraction: fraction,
                     duration: transitionFrameDuration
                 ))
             }
         }
-        return frames
+        return AnimationFrames(primary: primary, secondary: secondary, plan: frames, blendRenderer: renderer)
     }
 
     private static func blend(
@@ -852,7 +893,7 @@ nonisolated enum CompositionOutputExporter {
     // MARK: - Animated encoders
 
     private static func writeAnimatedImage(
-        _ frames: [TimedFrame],
+        _ frames: AnimationFrames,
         loops: Bool,
         format: CompositionOutputFormat,
         to destination: URL
@@ -886,23 +927,26 @@ nonisolated enum CompositionOutputExporter {
             ] as CFDictionary)
         }
 
-        for frame in frames {
+        for index in frames.indices {
             try Task.checkCancellation()
-            let delay = min(max(frame.duration, 0.02), 10)
-            let properties: CFDictionary = format == .gif
-                ? [
-                    kCGImagePropertyGIFDictionary: [
-                        kCGImagePropertyGIFDelayTime: delay,
-                        kCGImagePropertyGIFUnclampedDelayTime: delay,
-                    ],
-                ] as CFDictionary
-                : [
-                    kCGImagePropertyPNGDictionary: [
-                        kCGImagePropertyAPNGDelayTime: delay,
-                        kCGImagePropertyAPNGUnclampedDelayTime: delay,
-                    ],
-                ] as CFDictionary
-            CGImageDestinationAddImage(output, frame.image, properties)
+            autoreleasepool {
+                let frame = frames[index]
+                let delay = min(max(frame.duration, 0.02), 10)
+                let properties: CFDictionary = format == .gif
+                    ? [
+                        kCGImagePropertyGIFDictionary: [
+                            kCGImagePropertyGIFDelayTime: delay,
+                            kCGImagePropertyGIFUnclampedDelayTime: delay,
+                        ],
+                    ] as CFDictionary
+                    : [
+                        kCGImagePropertyPNGDictionary: [
+                            kCGImagePropertyAPNGDelayTime: delay,
+                            kCGImagePropertyAPNGUnclampedDelayTime: delay,
+                        ],
+                    ] as CFDictionary
+                CGImageDestinationAddImage(output, frame.image, properties)
+            }
         }
         guard CGImageDestinationFinalize(output) else {
             throw CompositionOutputError.failedToEncode(format: format)
@@ -910,7 +954,7 @@ nonisolated enum CompositionOutputExporter {
     }
 
     private static func writeMP4(
-        _ frames: [TimedFrame],
+        _ frames: AnimationFrames,
         to destination: URL
     ) async throws {
         guard let first = frames.first else {
@@ -964,28 +1008,30 @@ nonisolated enum CompositionOutputExporter {
         writer.startSession(atSourceTime: .zero)
 
         var timestamp = CMTime.zero
-        for frame in frames {
+        for index in frames.indices {
             try Task.checkCancellation()
             try await waitUntilReady(input, writer: writer)
-            guard let pixelBuffer = pixelBuffer(
-                image: frame.image,
-                width: width,
-                height: height
-            ), adaptor.append(pixelBuffer, withPresentationTime: timestamp) else {
+            let buffer = autoreleasepool {
+                pixelBuffer(image: frames[index].image, width: width, height: height)
+            }
+            guard let buffer, adaptor.append(buffer, withPresentationTime: timestamp) else {
                 throw CompositionOutputError.mediaWriterFailed(
                     writer.error?.localizedDescription ?? "A comparison frame could not be written."
                 )
             }
             timestamp = CMTimeAdd(
                 timestamp,
-                CMTime(seconds: max(frame.duration, 0.02), preferredTimescale: 600)
+                CMTime(seconds: max(frames.plan[index].duration, 0.02), preferredTimescale: 600)
             )
         }
 
         try await waitUntilReady(input, writer: writer)
-        if let last = frames.last,
-           let finalBuffer = pixelBuffer(image: last.image, width: width, height: height) {
-            _ = adaptor.append(finalBuffer, withPresentationTime: timestamp)
+        guard let last = frames.last,
+              let finalBuffer = pixelBuffer(image: last.image, width: width, height: height),
+              adaptor.append(finalBuffer, withPresentationTime: timestamp) else {
+            throw CompositionOutputError.mediaWriterFailed(
+                writer.error?.localizedDescription ?? "A comparison frame could not be written."
+            )
         }
         writer.endSession(atSourceTime: timestamp)
         input.markAsFinished()
@@ -1065,6 +1111,38 @@ nonisolated enum CompositionOutputExporter {
 
     // MARK: - PDF
 
+    /// Paper can receive transparent artwork. Reuse the PDF page renderer without
+    /// applying the file-export restriction that requires PNG for transparency.
+    static func printPDFData(
+        _ input: CompositionOutputInput,
+        outputSize: ScreenshotOutputSize = .original
+    ) async throws -> Data {
+        try await PresentationPerformanceMetrics.withLoggingSuppressed(
+            input.suppressesContentDiagnostics
+        ) {
+            try printingPDFData(input, outputSize: outputSize)
+        }
+    }
+
+    private static func printingPDFData(
+        _ input: CompositionOutputInput,
+        outputSize: ScreenshotOutputSize
+    ) throws -> Data {
+        let input = inputWithForcedPDFPagination(input, itemsPerPage: 1)
+        let preflight = try Self.preflight(input, format: .pdf)
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SnipSnipSnip-Print-\(UUID().uuidString).pdf")
+        defer { try? FileManager.default.removeItem(at: url) }
+        _ = try writePDF(
+            input,
+            maximumOutputDimension: preflight.isOversized
+                ? preflight.recommendedMaximumOutputDimension : nil,
+            outputSize: outputSize,
+            to: url
+        )
+        return try Data(contentsOf: url)
+    }
+
     private struct PDFRenderSummary {
         let pageCount: Int
         let firstPixelSize: CGSize
@@ -1142,6 +1220,7 @@ nonisolated enum CompositionOutputExporter {
     private static func writePDF(
         _ input: CompositionOutputInput,
         maximumOutputDimension: Int?,
+        outputSize: ScreenshotOutputSize,
         to destination: URL
     ) throws -> PDFRenderSummary {
         let snapshots = try estimatedPageSnapshots(
@@ -1155,14 +1234,15 @@ nonisolated enum CompositionOutputExporter {
         let first = try renderPresented(
             input,
             snapshot: firstSnapshot,
-            phase: .primary,
+            phase: staticComparisonPhase(for: firstSnapshot),
             maximumOutputDimension: maximumOutputDimension
         )
+        let firstImage = try outputSize.resized(first.image)
         var firstMediaBox = CGRect(
             x: 0,
             y: 0,
-            width: first.image.width,
-            height: first.image.height
+            width: firstImage.width,
+            height: firstImage.height
         )
         guard let context = CGContext(
             destination as CFURL,
@@ -1179,10 +1259,10 @@ nonisolated enum CompositionOutputExporter {
                 : try renderPresented(
                     input,
                     snapshot: snapshot,
-                    phase: .primary,
+                    phase: staticComparisonPhase(for: snapshot),
                     maximumOutputDimension: maximumOutputDimension
                 )
-            let image = rendered.image
+            let image = index == 0 ? firstImage : try outputSize.resized(rendered.image)
             wasScaled = wasScaled || rendered.wasScaled
             let mediaBox = CGRect(x: 0, y: 0, width: image.width, height: image.height)
             context.beginPDFPage([
@@ -1195,8 +1275,8 @@ nonisolated enum CompositionOutputExporter {
         return PDFRenderSummary(
             pageCount: snapshots.count,
             firstPixelSize: CGSize(
-                width: first.image.width,
-                height: first.image.height
+                width: firstImage.width,
+                height: firstImage.height
             ),
             wasScaled: wasScaled
         )
@@ -1411,9 +1491,9 @@ nonisolated enum CompositionOutputExporter {
                 (min(max(settings.blinkInterval, 0.25), 10) * 1_000).rounded()
             ),
             blinkPoster: settings.posterFrame == .secondary ? .after : .before,
-            differenceVisibilityPercent: Int(
-                (min(max(settings.differenceIntensity, 0), 1) * 100).rounded()
-            )
+            // The rendered Difference image already contains the requested
+            // intensity. Viewer opacity must not apply that setting twice.
+            differenceVisibilityPercent: 100
         )
     }
 
@@ -1509,42 +1589,17 @@ nonisolated enum CompositionOutputExporter {
         )
     }
 
-    private static func temporaryURL(for destination: URL) -> URL {
-        let pathExtension = destination.pathExtension
-        let stem = destination.deletingPathExtension().lastPathComponent
-        let suffix = pathExtension.isEmpty ? "" : ".\(pathExtension)"
-        return destination.deletingLastPathComponent().appendingPathComponent(
-            "\(stem).\(UUID().uuidString).tmp\(suffix)"
-        )
-    }
-
     private static func atomicFile(
         _ destination: URL,
         operation: (URL) throws -> Void
     ) throws {
-        let temporary = temporaryURL(for: destination)
-        defer { try? FileManager.default.removeItem(at: temporary) }
-        try operation(temporary)
-        try install(temporary, at: destination)
+        try ImageExportFileWriter.write(to: destination, encode: operation)
     }
 
     private static func atomicFileAsync(
         _ destination: URL,
         operation: (URL) async throws -> Void
     ) async throws {
-        let temporary = temporaryURL(for: destination)
-        defer { try? FileManager.default.removeItem(at: temporary) }
-        try await operation(temporary)
-        try Task.checkCancellation()
-        try install(temporary, at: destination)
-    }
-
-    private static func install(_ temporary: URL, at destination: URL) throws {
-        let fileManager = FileManager.default
-        if fileManager.fileExists(atPath: destination.path) {
-            _ = try fileManager.replaceItemAt(destination, withItemAt: temporary)
-        } else {
-            try fileManager.moveItem(at: temporary, to: destination)
-        }
+        try await ImageExportFileWriter.write(to: destination, encode: operation)
     }
 }

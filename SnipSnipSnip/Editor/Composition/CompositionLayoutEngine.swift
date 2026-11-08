@@ -32,6 +32,12 @@ nonisolated enum CompositionLayoutEngine {
         composition: CompositionSnapshot,
         renderedItemSizes: [UUID: CGSize]
     ) throws -> CompositionRenderLayout {
+        // Validate every item, including excluded ones: rendering also builds
+        // an identity lookup from the complete composition after layout.
+        if let id = IdentityIntegrity.firstDuplicate(in: composition.items.lazy.map(\.id)) {
+            throw CompositionLayoutError.duplicateItemID(itemID: id)
+        }
+
         let included = try composition.items.compactMap { item -> ResolvedItem? in
             guard item.isIncluded else { return nil }
             guard let size = renderedItemSizes[item.id] else {
@@ -319,7 +325,7 @@ nonisolated enum CompositionLayoutEngine {
             targetSize.width / max(layout.canvasSize.width, 1),
             targetSize.height / max(layout.canvasSize.height, 1)
         )
-        let sourceSizes = Dictionary(uniqueKeysWithValues: items.map { ($0.item.id, $0.sourceSize) })
+        let sourceSizes = Dictionary(items.map { ($0.item.id, $0.sourceSize) }, uniquingKeysWith: { first, _ in first })
         let visibleScales = layout.items.compactMap { placement -> CGFloat? in
             guard let source = sourceSizes[placement.itemID],
                   source.width > 0,
@@ -627,10 +633,6 @@ nonisolated enum CompositionLayoutEngine {
         let appearance = composition.canvas.appearance.sanitized
         let spacing = appearance.itemSpacing
         let insets = appearance.insets
-        let captionHeights = items.map {
-            captionHeight(for: $0.item, width: $0.sourceSize.width, appearance: appearance)
-        }
-
         let placements: [CompositionItemRenderLayout]
         let canvasSize: CGSize
 
@@ -645,6 +647,9 @@ nonisolated enum CompositionLayoutEngine {
                     : items.map { $0.item.weight },
                 count: items.count
             )
+            let captionHeights = items.enumerated().map { index, resolved in
+                captionHeight(for: resolved.item, width: widths[index], appearance: appearance)
+            }
             let maximumCaptionHeight = reservedCaptionHeight(
                 captionHeights.max() ?? 0,
                 placement: appearance.captionPlacement
@@ -684,6 +689,9 @@ nonisolated enum CompositionLayoutEngine {
             )
         case .vertical:
             let imageWidth = max(items.map(\.sourceSize.width).max() ?? 1, 1)
+            let captionHeights = items.map {
+                captionHeight(for: $0.item, width: imageWidth, appearance: appearance)
+            }
             let availableImageHeight = max(items.map(\.sourceSize.height).reduce(0, +), CGFloat(items.count))
             let heights = proportionalSizes(
                 total: availableImageHeight,
@@ -1155,6 +1163,8 @@ nonisolated enum CompositionLayoutEngine {
                         : [primary.item.weight, secondary.item.weight],
                     count: 2
                 )
+                let primaryCaptionHeight = captionHeight(for: primary.item, width: widths[0], appearance: appearance)
+                let secondaryCaptionHeight = captionHeight(for: secondary.item, width: widths[1], appearance: appearance)
                 let firstImage = CGRect(
                     x: insets.leading,
                     y: insets.top,
@@ -1287,22 +1297,23 @@ nonisolated enum CompositionLayoutEngine {
                     role: .comparisonSecondary
                 )
             ]
-            sharedFrame = imageRect
+            let sharedImageRect = placements[0].imageClipRect
+            sharedFrame = sharedImageRect
             if composition.comparison.mode == .wipe {
                 let position = composition.comparison.wipePosition.clampedToUnit
                 switch composition.comparison.axis {
                 case .horizontal:
                     dividerRect = CGRect(
-                        x: imageRect.minX + imageRect.width * position - appearance.comparisonDividerWidth / 2,
-                        y: imageRect.minY,
+                        x: sharedImageRect.minX + sharedImageRect.width * position - appearance.comparisonDividerWidth / 2,
+                        y: sharedImageRect.minY,
                         width: appearance.comparisonDividerWidth,
-                        height: imageRect.height
+                        height: sharedImageRect.height
                     )
                 case .vertical:
                     dividerRect = CGRect(
-                        x: imageRect.minX,
-                        y: imageRect.minY + imageRect.height * position - appearance.comparisonDividerWidth / 2,
-                        width: imageRect.width,
+                        x: sharedImageRect.minX,
+                        y: sharedImageRect.minY + sharedImageRect.height * position - appearance.comparisonDividerWidth / 2,
+                        width: sharedImageRect.width,
                         height: appearance.comparisonDividerWidth
                     )
                 }
@@ -1386,9 +1397,18 @@ nonisolated enum CompositionLayoutEngine {
             raw.append((resolved, imageRect, captionRect))
         }
 
-        let rawBounds = raw.map { value in
-            value.captionRect.map { value.imageRect.union($0) } ?? value.imageRect
-        }.union
+        let rawPlacements = raw.enumerated().map { index, value in
+            makePlacement(
+                value.resolved,
+                imageRect: value.imageRect,
+                captionRect: value.captionRect,
+                badgeRect: nil,
+                captionPlacement: appearance.captionPlacement,
+                zIndex: value.resolved.item.zIndex == 0 ? index : value.resolved.item.zIndex,
+                role: .item
+            )
+        }
+        let rawBounds = rawPlacements.map(\.frameRect).union
         let explicitCanvas = composition.layout.freeformCanvasSize
         let translation: CGSize
         let canvasSize: CGSize
@@ -1410,16 +1430,8 @@ nonisolated enum CompositionLayoutEngine {
             )
         }
 
-        let placements = raw.enumerated().map { index, value in
-            makePlacement(
-                value.resolved,
-                imageRect: value.imageRect.offsetBy(dx: translation.width, dy: translation.height),
-                captionRect: value.captionRect?.offsetBy(dx: translation.width, dy: translation.height),
-                badgeRect: nil,
-                captionPlacement: appearance.captionPlacement,
-                zIndex: value.resolved.item.zIndex == 0 ? index : value.resolved.item.zIndex,
-                role: .item
-            )
+        let placements = rawPlacements.map {
+            shifted($0, dx: translation.width, dy: translation.height)
         }
 
         return makeLayout(
@@ -1488,7 +1500,10 @@ nonisolated enum CompositionLayoutEngine {
             imageClipRect: resolvedImageRect,
             imageDrawRect: drawRect,
             captionRect: resolvedCaptionRect,
-            badgeRect: badgeRect,
+            badgeRect: badgeRect?.offsetBy(
+                dx: resolvedImageRect.minX - imageRect.minX,
+                dy: resolvedImageRect.minY - imageRect.minY
+            ),
             opacity: resolved.item.opacity.clampedToUnit,
             zIndex: zIndex,
             role: role

@@ -17,6 +17,8 @@ nonisolated enum QuickControlsDockMetrics {
     static let compactSectionHeight: CGFloat = 9
     static let contentTopPadding: CGFloat = 3
     static let contentBottomPadding: CGFloat = 9
+    static let logoHitWidth = compactWidth - panelInset * 2
+    static let iconPanelSize = CGSize(width: compactWidth, height: expandedHeaderHeight + panelInset * 2)
 
     static func expandedWidth(for items: [QuickControlItem]) -> CGFloat {
         let longestLabelCount = items.map { item in
@@ -32,15 +34,15 @@ nonisolated enum QuickControlsDockMetrics {
         presentation: QuickControlsDockState
     ) -> CGFloat {
         guard itemCount > 0 else {
-            return presentation == .expanded ? 154 : 104
+            return presentation == .full ? 154 : 104
         }
-        let headerHeight = presentation == .expanded
+        let headerHeight = presentation == .full
             ? expandedHeaderHeight
             : compactHeaderHeight
-        let sectionHeight = presentation == .expanded
+        let sectionHeight = presentation == .full
             ? expandedSectionHeight
             : compactSectionHeight
-        let spacing: CGFloat = presentation == .expanded ? 6 : 5
+        let spacing: CGFloat = presentation == .full ? 6 : 5
         let childCount = itemCount + sectionCount
         return (panelInset * 2)
             + headerHeight
@@ -54,27 +56,66 @@ nonisolated enum QuickControlsDockMetrics {
 }
 
 nonisolated enum QuickControlsDockState: String, CaseIterable, Codable, Identifiable, Sendable {
-    case compact
-    case expanded
+    // Keep the stored values used by existing docks.
+    case slim = "compact"
+    case full = "expanded"
+    case iconOnly
 
     var id: String { rawValue }
 
     var label: String {
         switch self {
-        case .compact:
-            "Compact"
-        case .expanded:
-            "Expanded"
+        case .slim:
+            String(localized: "Slim")
+        case .full:
+            String(localized: "Full")
+        case .iconOnly:
+            String(localized: "Icon Only")
         }
     }
 
-    var width: CGFloat {
+    var next: Self {
         switch self {
-        case .compact:
-            QuickControlsDockMetrics.compactWidth
-        case .expanded:
-            QuickControlsDockMetrics.expandedWidth
+        case .slim: .full
+        case .full: .iconOnly
+        case .iconOnly: .slim
         }
+    }
+
+    var previewPresentation: Self { self == .iconOnly ? .full : self }
+}
+
+nonisolated enum QuickControlsIconReveal: Equatable, Sendable {
+    case above
+    case below
+
+    init(iconFrame: CGRect, visibleFrame: CGRect, fullHeight: CGFloat) {
+        let below = iconFrame.maxY - visibleFrame.minY
+        let above = visibleFrame.maxY - iconFrame.minY
+        self = below >= fullHeight || below >= above ? .below : .above
+    }
+
+    func fullFrame(from iconFrame: CGRect, size: CGSize, edge: QuickControlsDockEdge, visibleFrame: CGRect) -> CGRect {
+        let availableHeight = self == .above
+            ? visibleFrame.maxY - iconFrame.minY
+            : iconFrame.maxY - visibleFrame.minY
+        let height = min(size.height, availableHeight)
+        return CGRect(
+            x: edge == .left ? iconFrame.minX : iconFrame.maxX - size.width,
+            y: self == .above ? iconFrame.minY : iconFrame.maxY - height,
+            width: size.width,
+            height: height
+        )
+    }
+
+    func iconFrame(in fullFrame: CGRect, edge: QuickControlsDockEdge) -> CGRect {
+        let size = QuickControlsDockMetrics.iconPanelSize
+        return CGRect(
+            x: edge == .left ? fullFrame.minX : fullFrame.maxX - size.width,
+            y: self == .above ? fullFrame.minY : fullFrame.maxY - size.height,
+            width: size.width,
+            height: size.height
+        )
     }
 }
 
@@ -214,7 +255,6 @@ nonisolated enum QuickControlKind: String, CaseIterable, Codable, Identifiable, 
     case timer
     case includeCursor
     case privateCapture
-    case autoCopy
     case createComparison
     case createSteps
     case createCombinedImage
@@ -235,7 +275,7 @@ nonisolated enum QuickControlKind: String, CaseIterable, Codable, Identifiable, 
         case .captureRegion, .captureWindow, .captureScreen,
              .captureScrollingContent, .repeatLastCapture, .capturePresets:
             .screenshot
-        case .timer, .includeCursor, .privateCapture, .autoCopy:
+        case .timer, .includeCursor, .privateCapture:
             .captureOptions
         case .createComparison, .createSteps, .createCombinedImage:
             .create
@@ -269,8 +309,6 @@ nonisolated enum QuickControlKind: String, CaseIterable, Codable, Identifiable, 
             "Include Cursor"
         case .privateCapture:
             "Private Capture"
-        case .autoCopy:
-            "Auto Copy"
         case .createComparison:
             "Create Comparison"
         case .createSteps:
@@ -318,8 +356,6 @@ nonisolated enum QuickControlKind: String, CaseIterable, Codable, Identifiable, 
             "Show the pointer in captures"
         case .privateCapture:
             "Skip Snip History and OCR"
-        case .autoCopy:
-            "Copy after each capture"
         case .createComparison:
             "Review two versions together"
         case .createSteps:
@@ -367,8 +403,6 @@ nonisolated enum QuickControlKind: String, CaseIterable, Codable, Identifiable, 
             "cursorarrow"
         case .privateCapture:
             "hand.raised"
-        case .autoCopy:
-            "doc.on.clipboard"
         case .createComparison:
             "rectangle.split.2x1"
         case .createSteps:
@@ -409,7 +443,7 @@ nonisolated enum QuickControlKind: String, CaseIterable, Codable, Identifiable, 
 
     var isToggle: Bool {
         switch self {
-        case .includeCursor, .privateCapture, .autoCopy:
+        case .includeCursor, .privateCapture:
             true
         default:
             false
@@ -442,7 +476,7 @@ nonisolated enum QuickControlKind: String, CaseIterable, Codable, Identifiable, 
             .screenRuler
         case .screenInspector:
             .screenInspector
-        case .capturePresets, .includeCursor, .autoCopy,
+        case .capturePresets, .includeCursor,
              .createComparison, .createSteps, .createCombinedImage,
              .openApplication:
             nil
@@ -548,7 +582,7 @@ nonisolated struct QuickControlsPreferences: Codable, Equatable, Sendable {
             height: QuickControlsDockMetrics.naturalHeight(
                 itemCount: defaultItems.count,
                 sectionCount: sections.count,
-                presentation: .expanded
+                presentation: .full
             )
         )
     }
@@ -567,11 +601,16 @@ nonisolated struct QuickControlsPreferences: Codable, Equatable, Sendable {
     var panelFrame: QuickControlsPanelFrame?
     var preferredPanelSize: QuickControlsPanelSize? = nil
     var densityVersion: Int? = currentDensityVersion
-    var dockState: QuickControlsDockState? = .expanded
+    var dockState: QuickControlsDockState? = .full
     var dockEdge: QuickControlsDockEdge? = .right
 
+    private enum CodingKeys: String, CodingKey {
+        case isVisible, showsOnAppLaunch, items, panelFrame, preferredPanelSize
+        case densityVersion, dockState, dockEdge
+    }
+
     var resolvedDockState: QuickControlsDockState {
-        dockState ?? .expanded
+        dockState ?? .full
     }
 
     var resolvedDockEdge: QuickControlsDockEdge {
@@ -583,12 +622,18 @@ nonisolated struct QuickControlsPreferences: Codable, Equatable, Sendable {
     }
 
     var resolvedPanelSize: CGSize {
-        let presentation = resolvedDockState
+        panelSize(for: resolvedDockState)
+    }
+
+    func panelSize(for presentation: QuickControlsDockState) -> CGSize {
+        if presentation == .iconOnly {
+            return QuickControlsDockMetrics.iconPanelSize
+        }
         let sections = QuickControlsDockGrouping.sections(for: items)
         return CGSize(
-            width: presentation == .expanded
+            width: presentation == .full
                 ? QuickControlsDockMetrics.expandedWidth(for: items)
-                : presentation.width,
+                : QuickControlsDockMetrics.compactWidth,
             height: QuickControlsDockMetrics.naturalHeight(
                 itemCount: items.count,
                 sectionCount: sections.count,
@@ -603,7 +648,7 @@ nonisolated struct QuickControlsPreferences: Codable, Equatable, Sendable {
             return result.sanitized()
         }
 
-        result.dockState = result.dockState ?? .expanded
+        result.dockState = result.dockState ?? .full
         result.dockEdge = result.dockEdge ?? .right
         let size = result.resolvedPanelSize
         result.preferredPanelSize = QuickControlsPanelSize(size)
@@ -634,5 +679,35 @@ nonisolated struct QuickControlsPreferences: Codable, Equatable, Sendable {
         let size = result.resolvedPanelSize
         result.preferredPanelSize = QuickControlsPanelSize(size)
         return result
+    }
+}
+
+nonisolated extension QuickControlsPreferences {
+    // Decode retired controls by their stored identity before constructing the
+    // current catalog, so removing one control never resets a person's dock.
+    private nonisolated struct StoredControl: Decodable {
+        var kind: String
+        var size: QuickControlSize
+    }
+
+    nonisolated init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        isVisible = try container.decode(Bool.self, forKey: .isVisible)
+        showsOnAppLaunch = try container.decodeIfPresent(Bool.self, forKey: .showsOnAppLaunch)
+        items = try container.decode([StoredControl].self, forKey: .items).compactMap { stored in
+            guard stored.kind != "autoCopy" else { return nil }
+            guard let kind = QuickControlKind(rawValue: stored.kind) else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .items, in: container,
+                    debugDescription: "Unknown Quick Controls identity: \(stored.kind)"
+                )
+            }
+            return QuickControlItem(kind: kind, size: stored.size)
+        }
+        panelFrame = try container.decodeIfPresent(QuickControlsPanelFrame.self, forKey: .panelFrame)
+        preferredPanelSize = try container.decodeIfPresent(QuickControlsPanelSize.self, forKey: .preferredPanelSize)
+        densityVersion = try container.decodeIfPresent(Int.self, forKey: .densityVersion)
+        dockState = try container.decodeIfPresent(QuickControlsDockState.self, forKey: .dockState)
+        dockEdge = try container.decodeIfPresent(QuickControlsDockEdge.self, forKey: .dockEdge)
     }
 }

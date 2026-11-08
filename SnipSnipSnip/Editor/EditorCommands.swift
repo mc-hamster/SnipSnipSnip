@@ -46,6 +46,12 @@ nonisolated struct AddAnnotationCommand: DocumentCommand {
     var label: String { "Add Annotation" }
 
     func apply(to snapshot: EditorSnapshot) -> EditorSnapshot {
+        // Replaying a placement must not introduce a second layer with the
+        // same identity. Intentional duplication creates a fresh ID first.
+        guard !snapshot.annotations.contains(where: { $0.id == annotation.id }) else {
+            return snapshot
+        }
+
         var updated = snapshot
         updated.annotations.append(annotation)
 
@@ -58,6 +64,25 @@ nonisolated struct AddAnnotationCommand: DocumentCommand {
     }
 }
 
+nonisolated struct AddAnnotationsCommand: DocumentCommand {
+    let annotations: [Annotation]
+
+    var label: String { "Add Annotation" }
+
+    func apply(to snapshot: EditorSnapshot) -> EditorSnapshot {
+        let addedIDs = annotations.map(\.id)
+        guard !annotations.isEmpty,
+              IdentityIntegrity.firstDuplicate(in: addedIDs) == nil,
+              Set(snapshot.annotations.map(\.id)).isDisjoint(with: addedIDs) else {
+            return snapshot
+        }
+        let updated = annotations.reduce(snapshot) { result, annotation in
+            AddAnnotationCommand(annotation: annotation).apply(to: result)
+        }
+        return SetSelectionCommand(annotationIDs: addedIDs).apply(to: updated)
+    }
+}
+
 nonisolated struct UpdateAnnotationsCommand: DocumentCommand {
     let annotations: [Annotation]
 
@@ -65,7 +90,9 @@ nonisolated struct UpdateAnnotationsCommand: DocumentCommand {
 
     func apply(to snapshot: EditorSnapshot) -> EditorSnapshot {
         var updated = snapshot
-        let mapped = Dictionary(uniqueKeysWithValues: annotations.map { ($0.id, $0) })
+        // A batch can contain successive edits to the same annotation.
+        // Apply the final edit rather than trapping on its repeated ID.
+        let mapped = Dictionary(annotations.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
 
         updated.annotations = updated.annotations.map { annotation in
             mapped[annotation.id] ?? annotation
@@ -138,7 +165,7 @@ nonisolated struct DeleteAnnotationsAndRenumberNumberedArrowsCommand: DocumentCo
         updated.selectedAnnotationIDs.removeAll { idSet.contains($0) }
 
         let sequencePositions = Dictionary(
-            uniqueKeysWithValues: updated.annotations
+            updated.annotations
                 .compactMap { annotation -> (UUID, Int)? in
                     guard case let .arrow(shape) = annotation.kind,
                           let number = shape.sequenceNumber else {
@@ -148,7 +175,8 @@ nonisolated struct DeleteAnnotationsAndRenumberNumberedArrowsCommand: DocumentCo
                 }
                 .sorted { $0.1 < $1.1 }
                 .enumerated()
-                .map { ($0.element.0, $0.offset + 1) }
+                .map { ($0.element.0, $0.offset + 1) },
+            uniquingKeysWith: { first, _ in first }
         )
         updated.annotations = updated.annotations.map { annotation in
             guard let number = sequencePositions[annotation.id] else {
@@ -166,8 +194,10 @@ nonisolated struct ResequenceNumberedArrowsCommand: DocumentCommand {
     var label: String { "Resequence Numbered Arrows" }
 
     func apply(to snapshot: EditorSnapshot) -> EditorSnapshot {
+        guard IdentityIntegrity.firstDuplicate(in: annotationIDs) == nil else { return snapshot }
         let positions = Dictionary(
-            uniqueKeysWithValues: annotationIDs.enumerated().map { ($0.element, $0.offset + 1) }
+            annotationIDs.enumerated().map { ($0.element, $0.offset + 1) },
+            uniquingKeysWith: { first, _ in first }
         )
         var updated = snapshot
         updated.annotations = updated.annotations.map { annotation in
@@ -307,16 +337,10 @@ nonisolated struct ReorderAnnotationsCommand: DocumentCommand {
             annotations.insert(contentsOf: selectedAnnotations, at: minIndex - 1)
 
         case (.forward, .extreme):
-            guard maxIndex < annotations.count - 1 else {
-                return snapshot
-            }
             annotations.remove(at: selectedIndices)
             annotations.append(contentsOf: selectedAnnotations)
 
         case (.backward, .extreme):
-            guard minIndex > 0 else {
-                return snapshot
-            }
             annotations.remove(at: selectedIndices)
             annotations.insert(contentsOf: selectedAnnotations, at: 0)
         }
@@ -340,11 +364,12 @@ nonisolated struct SetAnnotationOrderCommand: DocumentCommand {
         }
 
         let existingIDs = snapshot.annotations.map(\.id)
-        guard Set(annotationIDsBackToFront) == Set(existingIDs) else {
+        guard Set(existingIDs).count == existingIDs.count,
+              Set(annotationIDsBackToFront) == Set(existingIDs) else {
             return snapshot
         }
 
-        let annotationsByID = Dictionary(uniqueKeysWithValues: snapshot.annotations.map { ($0.id, $0) })
+        let annotationsByID = Dictionary(snapshot.annotations.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let reordered = annotationIDsBackToFront.compactMap { annotationsByID[$0] }
         guard reordered.count == snapshot.annotations.count, reordered.map(\.id) != existingIDs else {
             return snapshot

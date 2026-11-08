@@ -38,7 +38,7 @@ enum SSSVideoDocumentError: LocalizedError {
 nonisolated enum SSSVideoDocumentPackage {
     static let temporaryDirectoryPrefix = "SnipSnipSnipVideo-"
     static let formatIdentifier = "com.oontz.snipsnipsnip.video-document"
-    static let formatVersion = 2
+    static let formatVersion = 3
 
     static let manifestFilename = "document.json"
     static let mediaFilename = "media.mp4"
@@ -134,7 +134,7 @@ nonisolated enum SSSVideoDocumentPackage {
             throw SSSVideoDocumentError.unsupportedFormatIdentifier(manifestHeader.formatIdentifier)
         }
 
-        guard manifestHeader.formatVersion == formatVersion else {
+        guard (2...formatVersion).contains(manifestHeader.formatVersion) else {
             throw SSSVideoDocumentError.unsupportedFormatVersion(manifestHeader.formatVersion)
         }
 
@@ -169,7 +169,7 @@ nonisolated enum SSSVideoDocumentPackage {
                 return .unsupportedFormatIdentifier(manifestHeader.formatIdentifier)
             }
 
-            guard manifestHeader.formatVersion == formatVersion else {
+            guard (2...formatVersion).contains(manifestHeader.formatVersion) else {
                 return .unsupportedFormatVersion(manifestHeader.formatVersion)
             }
 
@@ -260,6 +260,7 @@ nonisolated private struct RecordingRecord: Codable {
     var recordedAt: Date
     var duration: TimeInterval
     var preferences: VideoRecordingPreferences
+    var interactions: VideoInteractionTrack?
 
     init(_ recording: CapturedVideoRecording) {
         kind = recording.kind
@@ -268,6 +269,7 @@ nonisolated private struct RecordingRecord: Codable {
         recordedAt = recording.recordedAt
         duration = recording.duration
         preferences = recording.preferences
+        interactions = recording.interactions
     }
 
     func capturedVideoRecording(with mediaURL: URL) -> CapturedVideoRecording {
@@ -278,7 +280,8 @@ nonisolated private struct RecordingRecord: Codable {
             bounds: bounds.cgRect,
             recordedAt: recordedAt,
             duration: duration,
-            preferences: preferences
+            preferences: preferences,
+            interactions: interactions?.normalized(duration: duration)
         )
     }
 }
@@ -287,18 +290,24 @@ nonisolated private struct SessionRecord: Codable {
     var trimStartSeconds: TimeInterval
     var trimEndSeconds: TimeInterval
     var posterTimeSeconds: TimeInterval
+    var effects: VideoEffects?
+    var removedRanges: [VideoTimeRange]?
 
     init(_ session: VideoEditorSession) {
         trimStartSeconds = session.trimStartSeconds
         trimEndSeconds = session.trimEndSeconds
         posterTimeSeconds = session.posterTimeSeconds
+        effects = session.effects
+        removedRanges = session.removedRanges
     }
 
     func videoEditorSession() -> VideoEditorSession {
         VideoEditorSession(
             trimStartSeconds: trimStartSeconds,
             trimEndSeconds: trimEndSeconds,
-            posterTimeSeconds: posterTimeSeconds
+            posterTimeSeconds: posterTimeSeconds,
+            effects: effects ?? VideoEffects(),
+            removedRanges: removedRanges ?? []
         )
     }
 }

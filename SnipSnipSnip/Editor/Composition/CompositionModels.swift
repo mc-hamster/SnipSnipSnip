@@ -776,12 +776,6 @@ nonisolated struct CompositionConnectorRenderLayout: Equatable, Codable, Sendabl
     let style: CompositionStepConnectorStyle
 }
 
-nonisolated enum CompositionComparisonClip: Equatable, Codable, Sendable {
-    case none
-    case leading(fraction: CGFloat, axis: CompositionAxis)
-    case trailing(fraction: CGFloat, axis: CompositionAxis)
-}
-
 nonisolated struct CompositionComparisonRenderLayout: Equatable, Codable, Sendable {
     let mode: CompositionComparisonMode
     let axis: CompositionAxis
@@ -951,6 +945,7 @@ nonisolated struct CompositionRenderLayout: Equatable, Codable, Sendable {
 
 nonisolated enum CompositionLayoutError: LocalizedError, Equatable {
     case emptyComposition
+    case duplicateItemID(itemID: UUID)
     case missingAssetDescriptor(assetID: UUID)
     case invalidAssetDimensions(assetID: UUID)
     case comparisonRequiresTwoItems
@@ -959,6 +954,8 @@ nonisolated enum CompositionLayoutError: LocalizedError, Equatable {
         switch self {
         case .emptyComposition:
             return "The composition has no included images."
+        case .duplicateItemID:
+            return "The image arrangement contains conflicting entries."
         case .missingAssetDescriptor(let assetID):
             return "The composition is missing image metadata for \(assetID.uuidString)."
         case .invalidAssetDimensions(let assetID):

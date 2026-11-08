@@ -41,7 +41,7 @@ enum EditorNoticeAction: Equatable {
     var title: String {
         switch self {
         case .open: "Open"
-        case .reveal: "Reveal"
+        case .reveal: "Reveal in Finder"
         case .undoLibrarySwitch: "Undo"
         }
     }

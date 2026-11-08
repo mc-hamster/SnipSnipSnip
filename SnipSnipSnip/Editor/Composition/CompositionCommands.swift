@@ -80,7 +80,7 @@ nonisolated struct RemoveCompositionItemsCommand: DocumentCommand {
         }
 
         composition.canvas.annotationAnchors = Dictionary(
-            uniqueKeysWithValues: composition.canvas.annotationAnchors.map { annotationID, anchors in
+            composition.canvas.annotationAnchors.map { annotationID, anchors in
                 let current = resolvedAnchors[annotationID] ?? anchors
                 return (
                     annotationID,
@@ -89,7 +89,8 @@ nonisolated struct RemoveCompositionItemsCommand: DocumentCommand {
                         secondary: current.secondary?.detachingIfNeeded(from: removableIDs)
                     )
                 )
-            }
+            },
+            uniquingKeysWith: { first, _ in first }
         )
         composition.items.removeAll { removableIDs.contains($0.id) }
         composition.selectedItemIDs.removeAll { removableIDs.contains($0) }
@@ -153,6 +154,7 @@ nonisolated struct DuplicateCompositionItemCommand: DocumentCommand {
 
     func apply(to snapshot: EditorSnapshot) -> EditorSnapshot {
         guard var composition = snapshot.composition,
+              !composition.items.contains(where: { $0.id == duplicateItemID }),
               let index = composition.items.firstIndex(where: { $0.id == itemID }) else {
             return snapshot
         }

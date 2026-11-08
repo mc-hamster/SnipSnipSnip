@@ -38,18 +38,16 @@ final class AppStoreScreenshotAssetUITests: XCTestCase {
         outputDirectory = nil
     }
 
-    func testCaptureCampaignSources() async throws {
+    func testCaptureCampaignSources() throws {
         let mainWindow = app.windows.firstMatch
         XCTAssertTrue(mainWindow.waitForExistence(timeout: 15))
         XCTAssertTrue(element("editor.annotationCanvas").waitForExistence(timeout: 10))
 
         try capture(mainWindow, named: "01-screenshot-edit")
 
-        let create = element("creation.present")
-        XCTAssertTrue(create.waitForExistence(timeout: 5))
-        create.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
-        ).click()
+        // Use the native Create command while capturing assets. The dedicated
+        // front-door suite covers the visible header button separately.
+        app.typeKey("n", modifierFlags: .command)
         XCTAssertTrue(element("creation.quickStart").waitForExistence(timeout: 5))
         try capture(mainWindow, named: "02-create")
         app.buttons["Cancel"].firstMatch.click()
@@ -77,9 +75,9 @@ final class AppStoreScreenshotAssetUITests: XCTestCase {
         try capture(mainWindow, named: "06-polish")
         app.buttons["Back to Content"].click()
 
-        let discard = element("editor.discard")
-        XCTAssertTrue(discard.waitForExistence(timeout: 5))
-        discard.click()
+        let back = element("editor.backToCapture")
+        XCTAssertTrue(back.waitForExistence(timeout: 5))
+        back.click()
         if app.sheets.firstMatch.waitForExistence(timeout: 2) {
             let confirmation = app.sheets.firstMatch.buttons["Discard Changes"].firstMatch
             if confirmation.exists {
@@ -94,7 +92,10 @@ final class AppStoreScreenshotAssetUITests: XCTestCase {
         clipboard.click()
         let clipboardWindow = app.windows.matching(identifier: "clipboard-history").firstMatch
         XCTAssertTrue(clipboardWindow.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Release comparison – 1.1.3"].waitForExistence(timeout: 5))
+        let releaseComparison = clipboardWindow.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'clipboard.item.' AND label CONTAINS %@", "Release comparison – 1.1.3")
+        ).firstMatch
+        XCTAssertTrue(releaseComparison.waitForExistence(timeout: 5))
         try capture(clipboardWindow, named: "08-clipboard-history")
         let closeClipboard = clipboardWindow.buttons[XCUIIdentifierCloseWindow]
         XCTAssertTrue(closeClipboard.waitForExistence(timeout: 5))
@@ -112,7 +113,7 @@ final class AppStoreScreenshotAssetUITests: XCTestCase {
         let horizontal = app.menuItems["New Horizontal Ruler"]
         XCTAssertTrue(horizontal.waitForExistence(timeout: 5))
         horizontal.click()
-        await waitForPresentation()
+        waitForPresentation()
         try capture(app, named: "09-screen-ruler")
 
         captureMenu.click()
@@ -125,7 +126,7 @@ final class AppStoreScreenshotAssetUITests: XCTestCase {
         XCTAssertTrue(app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH 'Freeze'")
         ).firstMatch.waitForExistence(timeout: 5))
-        await waitForPresentation()
+        waitForPresentation()
         try capture(app, named: "10-screen-ruler-inspector")
     }
 
@@ -178,7 +179,7 @@ final class AppStoreScreenshotAssetUITests: XCTestCase {
         add(attachment)
     }
 
-    private func waitForPresentation() async {
-        try? await Task.sleep(for: .milliseconds(600))
+    private func waitForPresentation() {
+        Thread.sleep(forTimeInterval: 0.6)
     }
 }

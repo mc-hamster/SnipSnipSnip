@@ -29,7 +29,8 @@ extension AppModelComposition {
                 capabilities: context.environment.capabilities,
                 permissions: context.environment.permissions,
                 scheduler: context.environment.systemServices.scheduler,
-                lifecycle: lifecycle
+                lifecycle: lifecycle,
+                restartStore: PermissionRestartStore(defaults: context.environment.defaults)
             )
         )
     }
@@ -134,7 +135,8 @@ extension AppModelComposition {
             ),
             recoveryStore: context.recoveryStore,
             configuredArchiveLocationURL: context.configuredArchiveLocationURL,
-            preferenceStore: context.preferenceStores.archive
+            preferenceStore: context.preferenceStores.archive,
+            preparedLocation: context.archiveLocation
         )
         archiveWorkflow.shouldStartMaintenance = shouldStartArchiveMaintenance
         return archiveWorkflow

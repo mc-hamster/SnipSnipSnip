@@ -5,7 +5,44 @@ import XCTest
 
 @MainActor
 final class QuickControlsTests: XCTestCase {
-    func testQuickControlsPresentationContextPreservesDisplayAndCompactCancellation() {
+    func testHeaderDragAcceptsInactiveClicksAndForwardsToItsOwnWindow() throws {
+        let panel = DragRecordingPanel(
+            contentRect: CGRect(x: 100, y: 100, width: 200, height: 80),
+            styleMask: [.nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.isReleasedWhenClosed = false
+        defer { panel.close() }
+        let target = QuickControlsWindowDragView(frame: CGRect(x: 0, y: 0, width: 140, height: 40))
+        panel.contentView = target
+        let event = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: CGPoint(x: 20, y: 20),
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: panel.windowNumber,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 1
+        ))
+
+        XCTAssertTrue(target.acceptsFirstMouse(for: event))
+        XCTAssertFalse(target.acceptsFirstResponder)
+        XCTAssertFalse(target.mouseDownCanMoveWindow)
+        XCTAssertTrue(target.hitTest(CGPoint(x: 20, y: 20)) === target)
+        target.mouseDown(with: event)
+        XCTAssertTrue(panel.dragEvent === event)
+
+        // A detached target must safely ignore a click rather than drag another window.
+        target.removeFromSuperview()
+        panel.dragEvent = nil
+        target.mouseDown(with: event)
+        XCTAssertNil(panel.dragEvent)
+    }
+
+    func testQuickControlsPresentationContextPreservesDisplayAndCancellation() {
         let context = WorkflowPresentationContext.quickControls(displayID: 42)
 
         XCTAssertEqual(context.origin, .quickControls)
@@ -50,7 +87,7 @@ final class QuickControlsTests: XCTestCase {
              .repeatLastCapture, .capturePresets, .recordRegion, .timer]
         )
         XCTAssertEqual(preferences.resolvedPanelSize, QuickControlsPreferences.defaultPanelSize)
-        XCTAssertEqual(preferences.resolvedDockState, .expanded)
+        XCTAssertEqual(preferences.resolvedDockState, .full)
         XCTAssertEqual(preferences.resolvedDockEdge, .right)
     }
 
@@ -85,7 +122,7 @@ final class QuickControlsTests: XCTestCase {
         let height = QuickControlsDockMetrics.naturalHeight(
             itemCount: items.count,
             sectionCount: QuickControlsDockGrouping.sections(for: items).count,
-            presentation: .compact
+            presentation: .slim
         )
         let expected = QuickControlsPreferences(
             isVisible: true,
@@ -96,7 +133,7 @@ final class QuickControlsTests: XCTestCase {
             preferredPanelSize: QuickControlsPanelSize(
                 CGSize(width: QuickControlsDockMetrics.compactWidth, height: height)
             ),
-            dockState: .compact,
+            dockState: .slim,
             dockEdge: .left
         )
 
@@ -106,6 +143,66 @@ final class QuickControlsTests: XCTestCase {
             QuickControlsPreferenceStore(storage: defaults).loadPreferences(),
             expected
         )
+
+        var iconOnly = expected
+        iconOnly.dockState = .iconOnly
+        store.savePreferences(iconOnly)
+
+        XCTAssertEqual(store.loadPreferences(), iconOnly.sanitized())
+        XCTAssertEqual(store.loadPreferences().resolvedPanelSize, QuickControlsDockMetrics.iconPanelSize)
+        XCTAssertEqual(store.loadPreferences().resolvedDockState.previewPresentation, .full)
+    }
+
+    func testRetiredAutoCopyControlMigrationPreservesRemainingLayoutAndSettings() throws {
+        let name = "QuickControlsTests.retiredControl.\(UUID())"
+        let defaults = makeDefaults(named: name)
+        defer { defaults.removePersistentDomain(forName: name) }
+        let stored: [String: Any] = [
+            "isVisible": false, "showsOnAppLaunch": false,
+            "items": [
+                ["kind": "screenInspector", "size": "wide"],
+                ["kind": "autoCopy", "size": "compact"],
+                ["kind": "captureRegion", "size": "standard"],
+            ],
+            "panelFrame": ["x": 120, "y": 240, "width": 64, "height": 400],
+            "densityVersion": QuickControlsPreferences.currentDensityVersion,
+            "dockState": "compact", "dockEdge": "left",
+        ]
+        defaults.set(try JSONSerialization.data(withJSONObject: stored),
+                     forKey: AppModelPreferenceKey.quickControlsPreferences)
+        let store = QuickControlsPreferenceStore(storage: defaults)
+        let loaded = store.loadPreferences()
+        XCTAssertEqual(loaded.items, [
+            QuickControlItem(kind: .screenInspector, size: .wide),
+            QuickControlItem(kind: .captureRegion, size: .standard),
+        ])
+        XCTAssertFalse(loaded.isVisible)
+        XCTAssertFalse(loaded.resolvedShowsOnAppLaunch)
+        XCTAssertEqual(loaded.resolvedDockState, .slim)
+        XCTAssertEqual(loaded.resolvedDockEdge, .left)
+        XCTAssertEqual(loaded.panelFrame?.x, 120)
+        XCTAssertEqual(loaded.panelFrame?.y, 240)
+        XCTAssertEqual(loaded.panelFrame?.height, loaded.resolvedPanelSize.height)
+        XCTAssertNil(QuickControlKind(rawValue: "autoCopy"))
+        store.savePreferences(loaded)
+        XCTAssertEqual(store.loadPreferences(), loaded)
+        let saved = try XCTUnwrap(defaults.data(forKey: AppModelPreferenceKey.quickControlsPreferences))
+        XCTAssertFalse(String(decoding: saved, as: UTF8.self).contains("autoCopy"))
+    }
+
+    func testRemovingOnlyRetiredControlLeavesIntentionalEmptyDock() throws {
+        let data = Data(#"{"isVisible":true,"items":[{"kind":"autoCopy","size":"compact"}]}"#.utf8)
+        let loaded = try JSONDecoder().decode(QuickControlsPreferences.self, from: data).migratedToCurrentDock()
+        XCTAssertTrue(loaded.items.isEmpty)
+        XCTAssertTrue(loaded.isVisible)
+        XCTAssertTrue(loaded.resolvedShowsOnAppLaunch)
+    }
+
+    func testLegacyExpandedPreferenceLoadsAsFull() throws {
+        let data = Data(#"{"isVisible":true,"items":[],"dockState":"expanded"}"#.utf8)
+        let preferences = try JSONDecoder().decode(QuickControlsPreferences.self, from: data)
+        XCTAssertEqual(preferences.resolvedDockState, .full)
+        XCTAssertTrue(preferences.items.isEmpty)
     }
 
     func testControlCatalogFollowsBuildCapabilitiesWithoutChangingSavedIdentity() {
@@ -168,7 +265,7 @@ final class QuickControlsTests: XCTestCase {
         ).quickControls
         var preferences = model.preferences
         preferences.items = [QuickControlItem(kind: .screenInspector)]
-        preferences.dockState = .compact
+        preferences.dockState = .slim
         preferences.dockEdge = .left
         preferences.isVisible = true
         model.preferences = preferences
@@ -176,7 +273,7 @@ final class QuickControlsTests: XCTestCase {
         model.restoreDefaultLayout()
 
         XCTAssertEqual(model.preferences.items, QuickControlsPreferences.defaultItems)
-        XCTAssertEqual(model.preferences.resolvedDockState, .expanded)
+        XCTAssertEqual(model.preferences.resolvedDockState, .full)
         XCTAssertEqual(model.preferences.resolvedDockEdge, .right)
         XCTAssertTrue(model.preferences.isVisible)
     }
@@ -242,21 +339,46 @@ final class QuickControlsTests: XCTestCase {
 
         XCTAssertEqual(preferences.resolvedPanelSize, QuickControlsPreferences.defaultPanelSize)
 
-        preferences.dockState = .compact
+        preferences.dockState = .slim
         let compactHeight = QuickControlsDockMetrics.naturalHeight(
             itemCount: preferences.items.count,
             sectionCount: QuickControlsDockGrouping.sections(for: preferences.items).count,
-            presentation: .compact
+            presentation: .slim
         )
         XCTAssertEqual(preferences.resolvedPanelSize, CGSize(width: 64, height: compactHeight))
 
         preferences.items.append(QuickControlItem(kind: .clipboardHistory))
         XCTAssertGreaterThan(preferences.resolvedPanelSize.height, compactHeight)
 
-        preferences.dockState = .expanded
+        preferences.dockState = .full
         let baselineWidth = preferences.resolvedPanelSize.width
         preferences.items.append(QuickControlItem(kind: .captureScrollingContent))
         XCTAssertGreaterThan(preferences.resolvedPanelSize.width, baselineWidth)
+    }
+
+    func testIconRevealKeepsTheLogoAnchoredAtBothScreenEdges() {
+        let screen = CGRect(x: -1200, y: 20, width: 1200, height: 800)
+        let iconSize = QuickControlsDockMetrics.iconPanelSize
+        let fullSize = CGSize(width: 260, height: 660)
+
+        for edge in QuickControlsDockEdge.allCases {
+            let x = edge == .left ? screen.minX : screen.maxX - iconSize.width
+            for (y, expectedDirection) in [
+                (screen.maxY - iconSize.height, QuickControlsIconReveal.below),
+                (screen.midY, .below),
+                (screen.minY, .above)
+            ] {
+                let icon = CGRect(origin: CGPoint(x: x, y: y), size: iconSize)
+                let direction = QuickControlsIconReveal(iconFrame: icon, visibleFrame: screen,
+                                                        fullHeight: fullSize.height)
+                let full = direction.fullFrame(from: icon, size: fullSize, edge: edge, visibleFrame: screen)
+                XCTAssertEqual(direction, expectedDirection)
+                XCTAssertEqual(direction.iconFrame(in: full, edge: edge), icon)
+                XCTAssertTrue(full.contains(icon))
+                XCTAssertTrue(screen.contains(full))
+                XCTAssertEqual(full.height, y == screen.midY ? icon.maxY - screen.minY : fullSize.height)
+            }
+        }
     }
 
     func testLegacyDefaultPanelMigratesToStudioDockWithoutChangingItsPosition() {
@@ -443,7 +565,7 @@ final class QuickControlsTests: XCTestCase {
         XCTAssertEqual(
             model.preferences.items.map(\.kind),
             [.captureRegion, .captureWindow, .clipboardHistory, .captureScreen,
-             .repeatLastCapture, .capturePresets, .timer]
+             .repeatLastCapture, .capturePresets, .recordRegion, .timer]
         )
 
         for kind in model.preferences.items.dropFirst().map(\.kind) {
@@ -459,7 +581,7 @@ final class QuickControlsTests: XCTestCase {
         XCTAssertFalse(model.remove(.captureRegion))
     }
 
-    func testCustomizationRemainsOpenWhileDockSettingsChange() {
+    func testCustomizationRemainsOpenWhileDockSettingsChange() async throws {
         let suiteName = "QuickControlsTests.customizationSettings"
         let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -472,7 +594,9 @@ final class QuickControlsTests: XCTestCase {
         let coordinator = appModel.quickControlsCoordinator
 
         coordinator.activate()
-        RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+        await waitUntil { NSApp.windows.contains { $0.title == "Quick Controls" && $0.isVisible } }
+        let palette = try XCTUnwrap(NSApp.windows.first { $0.title == "Quick Controls" && $0.isVisible })
+        defer { palette.close() }
         coordinator.showCustomization()
 
         guard let window = NSApp.windows.first(where: { $0.title == "Customize Quick Controls" }) else {
@@ -480,11 +604,41 @@ final class QuickControlsTests: XCTestCase {
         }
         defer { window.close() }
 
-        model.setDockState(.compact)
-        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        let logo = QuickControlsLogoButton()
+        logo.quickControls = model
 
-        XCTAssertTrue(window.isVisible)
-        XCTAssertEqual(model.preferences.resolvedDockState, .compact)
+        for mode in [QuickControlsDockState.iconOnly, .slim, .full] {
+            logo.cycleMode()
+            let size = model.preferences.resolvedPanelSize
+            let showsControls = mode != .iconOnly
+            let hasExpectedFrame = {
+                palette.frame.width == size.width
+                    && (palette.frame.height > QuickControlsDockMetrics.iconPanelSize.height) == showsControls
+            }
+            await waitUntil { hasExpectedFrame() }
+            XCTAssertTrue(window.isVisible)
+            XCTAssertEqual(model.preferences.resolvedDockState, mode)
+            XCTAssertTrue(hasExpectedFrame(), "Expected \(mode.label) layout, got \(palette.frame.size).")
+            let menu = try XCTUnwrap(logo.makeContextMenu())
+            XCTAssertEqual(Array(menu.items.prefix(3).map(\.title)), ["Slim", "Full", "Icon Only"])
+            XCTAssertEqual(menu.items.filter { $0.state == .on }.map(\.title), [mode.label])
+        }
+
+        let menu = try XCTUnwrap(logo.makeContextMenu())
+        let iconOnly = try XCTUnwrap(menu.item(withTitle: "Icon Only"))
+        XCTAssertTrue(NSApp.sendAction(try XCTUnwrap(iconOnly.action), to: iconOnly.target, from: iconOnly))
+        await waitUntil { palette.frame.size == QuickControlsDockMetrics.iconPanelSize }
+        XCTAssertEqual(model.preferences.resolvedDockState, .iconOnly)
+        XCTAssertEqual(palette.frame.size, QuickControlsDockMetrics.iconPanelSize)
     }
 
+}
+
+@MainActor
+private final class DragRecordingPanel: NSPanel {
+    var dragEvent: NSEvent?
+
+    override func performDrag(with event: NSEvent) {
+        dragEvent = event
+    }
 }

@@ -17,6 +17,8 @@ Existing scalable paths:
 - `AppModelPerformanceTests/testScreenshotRenderAndStreamingExportBudget`
 - `AppModelPerformanceTests/testArchiveIndexedSearchBudget`
 - `AppModelPerformanceTests/testVideoExportPlanningAndStorageBudget`
+- `ScrollingStitcherTests/testTextPageStitchMeetsInteractiveBudgetInDebugAndRelease`
+- `ScrollingStitcherTests/testNearBlankPageStitchMeetsInteractiveBudget`
 - `ScrollingStitcherTests/testAppendPerformanceLongScrollingSession`
 - `ScrollingStitcherTests/testAppendPerformanceManySmallScrollingFrames`
 
@@ -47,6 +49,20 @@ downsampling afterward. The append fixture measures cold decode plus capped
 assembly and the warm cached path. Release sign-off must additionally trace the
 end-to-end Add Capture workflow in the UI; an on-screen preview must never
 create or cache a full-resolution composite before its final downsample.
+
+## Scrolling Capture Gate
+
+Both Debug and Release must stitch a 2,590 × 1,236 pixel text-page viewport
+(including sample preparation and the bounded preview) in at most 250 ms.
+The fixture advances 927 pixels, matching a normal three-quarter scroll on a
+Retina display. A near-blank page with one changed pixel has the same ceiling;
+it exercises the case where many offsets look equally good. Frame capture and
+the intentional 220 ms scroll-settle delay are outside this matching budget.
+These tests contain hard assertions, so a passing XCTest measurement without a
+baseline cannot conceal multi-second stitching in Xcode. Keep sample preparation,
+stitching, and preview generation off the main actor; the responsiveness test
+covers that executor boundary. Validate end-to-end capture timings in the app's
+ScrollingCapture diagnostics when investigating a real page.
 
 ## Composition Release Gates
 
@@ -140,8 +156,9 @@ writes:
   whether item edits are rendered more than once.
 - If renderer time regresses, inspect `EditorRenderer` draw/export paths and
   redaction processing.
-- If stitcher time regresses, inspect `ScrollingStitcher.bestMatch`
-  coarse/refined loops and `GrayImage` conversion.
+- If stitcher time regresses, inspect `ScrollingStitcher.bestMatch`,
+  cached RGB/edge preparation, vector scoring, and the worker executor boundary.
+  Retain the complete offset search and ambiguous-match rejection when optimizing.
 - If archive search regresses, inspect `DocumentRecoveryStore` search-index
   loading and checkpoint metadata updates before adding UI-side filtering.
 - If video budget checks regress, inspect `VideoStorageGuardrails` temp-file

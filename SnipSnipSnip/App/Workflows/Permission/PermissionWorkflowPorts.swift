@@ -6,6 +6,8 @@ struct PermissionWorkflowDependencies {
     let permissions: any CapturePermissionServicing
     let scheduler: any Scheduling
     let lifecycle: any WorkflowLifecyclePresenting
+    var mediaPermissions: any MediaPermissionServicing = SystemMediaPermissionService()
+    var restartStore: PermissionRestartStore? = nil
 }
 
 enum PermissionGateResult {
@@ -28,6 +30,12 @@ protocol PermissionGatekeeping: AnyObject {
     var permissionSetupGuide: PermissionSetupGuide? { get }
     var activePermissionRequest: CapturePermissionRequirement? { get }
 
+    func mediaPermissionStatus(for kind: MediaPermissionKind) -> MediaPermissionStatus
+    func openMediaPermissionSettings(_ kind: MediaPermissionKind)
+    func offerPermissionAlternative(title: String, action: @escaping @MainActor () -> Void)
+    func cancelDeferredOperation(ifFeature: String?)
+    func rememberPermissionRestartAction(_ action: PermissionRestartAction)
+    func deferOperation(requiring requirements: [CapturePermissionRequirement], featureName: String, resume: @escaping @MainActor () -> Void)
     func refreshPermissions()
     func preflight(_ requirements: [CapturePermissionRequirement], featureName: String) -> PermissionGateResult
     func requestPermission(_ requirement: CapturePermissionRequirement)

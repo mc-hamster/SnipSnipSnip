@@ -86,7 +86,7 @@
 			<string>$(SNIP_APP_DISPLAY_NAME) Import</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>snipsnipsnip</string>
+				<string>$(SNIP_URL_SCHEME)</string>
 			</array>
 		</dict>
 	</array>

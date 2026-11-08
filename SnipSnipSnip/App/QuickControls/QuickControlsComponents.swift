@@ -6,39 +6,29 @@ struct QuickControlsDockShell<Content: View>: View {
     let edge: QuickControlsDockEdge
     let status: String?
     let statusSymbol: String
-    let togglePresentation: () -> Void
+    let collapse: () -> Void
+    var headerAtBottom = false
+    var allowsWindowDragging = false
     @ViewBuilder let content: Content
-
-    init(
-        presentation: QuickControlsDockState,
-        edge: QuickControlsDockEdge,
-        status: String?,
-        statusSymbol: String,
-        togglePresentation: @escaping () -> Void,
-        @ViewBuilder content: () -> Content
-    ) {
-        self.presentation = presentation
-        self.edge = edge
-        self.status = status
-        self.statusSymbol = statusSymbol
-        self.togglePresentation = togglePresentation
-        self.content = content()
-    }
 
     var body: some View {
         VStack(spacing: 0) {
-            QuickControlsDockHeader(
-                presentation: presentation,
-                edge: edge,
-                status: status,
-                statusSymbol: statusSymbol,
-                togglePresentation: togglePresentation
-            )
-
-            Divider().opacity(0.65)
-            content
+            if !headerAtBottom {
+                header
+            }
+            if presentation != .iconOnly {
+                if !headerAtBottom {
+                    Divider().opacity(0.65)
+                }
+                content
+                if headerAtBottom {
+                    Divider().opacity(0.65)
+                }
+            }
+            if headerAtBottom {
+                header
+            }
         }
-        .background(Color.clear)
         .sssFloatingOverlaySurface(
             cornerRadius: QuickControlsDockMetrics.panelCornerRadius,
             isInteractive: true,
@@ -46,124 +36,248 @@ struct QuickControlsDockShell<Content: View>: View {
         )
         .padding(QuickControlsDockMetrics.panelInset)
     }
+
+    private var header: some View {
+        QuickControlsDockHeader(
+            presentation: presentation,
+            edge: edge,
+            status: status,
+            statusSymbol: statusSymbol,
+            collapse: collapse,
+            allowsWindowDragging: allowsWindowDragging
+        )
+    }
 }
 
-struct QuickControlsDockHeader: View {
+private struct QuickControlsDockHeader: View {
     let presentation: QuickControlsDockState
     let edge: QuickControlsDockEdge
     let status: String?
     let statusSymbol: String
-    let togglePresentation: () -> Void
+    let collapse: () -> Void
+    let allowsWindowDragging: Bool
 
     var body: some View {
-        Group {
-            if presentation == .expanded { expandedHeader } else { compactHeader }
+        HStack(spacing: 0) {
+            if presentation != .full || edge == .left {
+                logo
+            }
+            if presentation == .full {
+                if edge == .left { collapseButton }
+                title
+                if edge == .right {
+                    collapseButton
+                    logo
+                }
+            }
         }
-        .frame(
-            height: presentation == .expanded
-                ? QuickControlsDockMetrics.expandedHeaderHeight
-                : QuickControlsDockMetrics.compactHeaderHeight
-        )
+        .frame(maxWidth: .infinity)
+        .frame(height: presentation == .slim
+            ? QuickControlsDockMetrics.compactHeaderHeight
+            : QuickControlsDockMetrics.expandedHeaderHeight)
         .background(.background.opacity(0.24))
     }
 
-    private var expandedHeader: some View {
-        HStack(spacing: 7) {
-            brandMark(size: 28)
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Quick Controls")
-                    .font(.subheadline.weight(.semibold))
+    private var logo: some View {
+        QuickControlsLogo(allowsWindowDragging: allowsWindowDragging, status: status)
+            .frame(width: QuickControlsDockMetrics.logoHitWidth)
+            .frame(maxHeight: .infinity)
+    }
+
+    private var title: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text("Quick Controls")
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+            if let status {
+                Label(status, systemImage: statusSymbol)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-                if let status {
-                    Label(status, systemImage: statusSymbol)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-            Spacer(minLength: 0)
-            Button(action: togglePresentation) {
-                Image(systemName: edge == .right ? "chevron.right" : "chevron.left")
-                    .font(.caption.weight(.semibold))
-                    .frame(width: 24, height: 24)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Collapse Quick Controls")
-            .accessibilityLabel("Collapse Quick Controls")
-            QuickControlsDockMenu()
-        }
-        .padding(.leading, 9)
-        .padding(.trailing, 7)
-    }
-
-    private var compactHeader: some View {
-        HStack(spacing: 2) {
-            if edge == .right {
-                expandButton
-            }
-            brandMark(size: 23, showsStatus: true)
-            if edge == .left {
-                expandButton
             }
         }
-        .padding(.horizontal, 1)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .padding(.horizontal, 9)
+        .overlay {
+            if allowsWindowDragging {
+                QuickControlsWindowDragTarget()
+                    .help("Drag to Move Quick Controls")
+                    .accessibilityHidden(true)
+            }
+        }
     }
 
-    private var expandButton: some View {
-        Button(action: togglePresentation) {
-            Image(systemName: edge == .right ? "chevron.left" : "chevron.right")
-                .font(.system(size: 11, weight: .bold))
-                .frame(width: 21, height: 28)
-                .background(.quaternary, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+    private var collapseButton: some View {
+        Button(action: collapse) {
+            Image(systemName: edge == .right ? "chevron.right" : "chevron.left")
+                .font(.caption.weight(.semibold))
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(status.map { "\($0). Expand Quick Controls" } ?? "Expand Quick Controls")
-        .accessibilityLabel("Expand Quick Controls")
-        .accessibilityValue(status ?? "Ready")
-    }
-
-    private func brandMark(size: CGFloat, showsStatus: Bool = false) -> some View {
-        Image(nsImage: NSApplication.shared.applicationIconImage)
-            .resizable()
-            .interpolation(.high)
-            .frame(width: size, height: size)
-            .overlay(alignment: .topTrailing) {
-                if showsStatus, status != nil {
-                    Circle()
-                        .fill(Color.orange)
-                        .frame(width: 6, height: 6)
-                        .overlay(Circle().stroke(.background, lineWidth: 1))
-                }
-            }
-            .accessibilityHidden(true)
-            .help("Drag to Move Quick Controls")
+        .help("Collapse Quick Controls")
+        .accessibilityLabel("Collapse Quick Controls")
     }
 }
 
-private struct QuickControlsDockMenu: View {
+private struct QuickControlsLogo: NSViewRepresentable {
     @EnvironmentObject private var quickControls: QuickControlsModel
+    let allowsWindowDragging: Bool
+    let status: String?
 
-    var body: some View {
-        Menu {
-            Button(
-                quickControls.preferences.resolvedDockState == .expanded
-                    ? "Collapse Quick Controls"
-                    : "Expand Quick Controls"
-            ) { quickControls.toggleDockState() }
-            Button("Customize Quick Controls…", action: quickControls.showCustomization)
-            Divider()
-            Button("Open \(AppBranding.displayName)") { quickControls.perform(.openApplication) }
-            Button("Hide Quick Controls") { quickControls.setVisible(false) }
-        } label: {
-            Image(systemName: "ellipsis")
-                .frame(width: 22, height: 22)
-                .contentShape(Rectangle())
+    func makeNSView(context: Context) -> QuickControlsLogoButton {
+        let button = QuickControlsLogoButton()
+        let image = NSApp.applicationIconImage.copy() as? NSImage
+        image?.size = CGSize(width: 28, height: 28)
+        button.image = image
+        button.imageScaling = .scaleNone
+        button.imagePosition = .imageOnly
+        button.isBordered = false
+        button.target = button
+        button.action = #selector(QuickControlsLogoButton.cycleMode)
+        button.toolTip = String(localized: "Click to switch Quick Controls modes. Right-click for the menu.")
+        button.setAccessibilityIdentifier("quickControls.logo")
+        button.setAccessibilityLabel(String(localized: "Quick Controls Logo"))
+        return button
+    }
+
+    func updateNSView(_ button: QuickControlsLogoButton, context: Context) {
+        button.quickControls = quickControls
+        button.allowsWindowDragging = allowsWindowDragging
+        let mode = quickControls.preferences.resolvedDockState.label
+        button.setAccessibilityValue(status.map { "\(mode), \($0)" } ?? mode)
+    }
+}
+
+// The native button keeps click, keyboard, and VoiceOver activation available
+// while handing off an actual drag to the window server after a movement threshold.
+final class QuickControlsLogoButton: NSButton {
+    weak var quickControls: QuickControlsModel?
+    var allowsWindowDragging = false
+
+    override var mouseDownCanMoveWindow: Bool { false }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    @objc func cycleMode() {
+        quickControls?.cycleDockState()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        if event.modifierFlags.contains(.control) {
+            showContextMenu(with: event)
+            return
         }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-        .help("Quick Controls Menu")
+        guard allowsWindowDragging, let window else {
+            super.mouseDown(with: event)
+            return
+        }
+
+        highlight(true)
+        defer { highlight(false) }
+        window.trackEvents(matching: [.leftMouseDragged, .leftMouseUp], timeout: NSEvent.foreverDuration,
+                           mode: .eventTracking) { nextEvent, stop in
+            guard let nextEvent else {
+                stop.pointee = true
+                return
+            }
+            if nextEvent.type == .leftMouseUp {
+                stop.pointee = true
+                if bounds.contains(convert(nextEvent.locationInWindow, from: nil)) {
+                    cycleMode()
+                }
+            } else {
+                let current = nextEvent.locationInWindow
+                let start = event.locationInWindow
+                if hypot(current.x - start.x, current.y - start.y) >= 4 {
+                    stop.pointee = true
+                    window.performDrag(with: event)
+                }
+            }
+        }
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        showContextMenu(with: event)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if event.modifierFlags.contains(.shift),
+           event.charactersIgnoringModifiers?.utf16.first == UInt16(NSF10FunctionKey),
+           accessibilityPerformShowMenu() {
+            return
+        }
+        super.keyDown(with: event)
+    }
+
+    override func accessibilityPerformShowMenu() -> Bool {
+        guard let menu = makeContextMenu(), window != nil else { return false }
+        menu.popUp(positioning: nil, at: CGPoint(x: bounds.midX, y: bounds.minY), in: self)
+        return true
+    }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        makeContextMenu()
+    }
+
+    private func showContextMenu(with event: NSEvent) {
+        guard let menu = makeContextMenu() else { return }
+        NSMenu.popUpContextMenu(menu, with: event, for: self)
+    }
+
+    func makeContextMenu() -> NSMenu? {
+        guard let quickControls else { return nil }
+        let menu = NSMenu()
+        for mode in QuickControlsDockState.allCases {
+            let item = addItem(mode.label, action: #selector(selectMode(_:)), to: menu)
+            item.representedObject = mode.rawValue
+            item.state = quickControls.preferences.resolvedDockState == mode ? .on : .off
+        }
+        menu.addItem(.separator())
+        addItem(String(localized: "Customize Quick Controls…"), action: #selector(customize), to: menu)
+        menu.addItem(.separator())
+        addItem(String(localized: "Open \(AppBranding.displayName)"), action: #selector(openApplication), to: menu)
+        addItem(String(localized: "Hide Quick Controls"), action: #selector(hide), to: menu)
+        return menu
+    }
+
+    @discardableResult
+    private func addItem(_ title: String, action: Selector, to menu: NSMenu) -> NSMenuItem {
+        let item = menu.addItem(withTitle: title, action: action, keyEquivalent: "")
+        item.target = self
+        return item
+    }
+
+    @objc private func selectMode(_ item: NSMenuItem) {
+        guard let value = item.representedObject as? String,
+              let mode = QuickControlsDockState(rawValue: value) else { return }
+        quickControls?.setDockState(mode)
+    }
+
+    @objc private func customize() { quickControls?.showCustomization() }
+    @objc private func openApplication() { quickControls?.perform(.openApplication) }
+    @objc private func hide() { quickControls?.setVisible(false) }
+}
+
+// Keep the window drag target over the non-button part of the Full header.
+private struct QuickControlsWindowDragTarget: NSViewRepresentable {
+    func makeNSView(context: Context) -> QuickControlsWindowDragView {
+        QuickControlsWindowDragView()
+    }
+
+    func updateNSView(_ nsView: QuickControlsWindowDragView, context: Context) {}
+}
+
+final class QuickControlsWindowDragView: NSView {
+    override var mouseDownCanMoveWindow: Bool { false }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func mouseDown(with event: NSEvent) {
+        guard event.type == .leftMouseDown else { return }
+        window?.performDrag(with: event)
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .openHand)
     }
 }
 
@@ -172,7 +286,7 @@ struct QuickControlsDockSectionHeader: View {
     let presentation: QuickControlsDockState
 
     var body: some View {
-        if presentation == .expanded {
+        if presentation == .full {
             HStack(spacing: 7) {
                 Text(category.label.uppercased())
                     .font(.system(size: 9, weight: .semibold))
@@ -208,7 +322,7 @@ struct QuickControlDockLabel: View {
     }
 
     var body: some View {
-        if presentation == .expanded { expandedContent } else { compactContent }
+        if presentation == .full { expandedContent } else { compactContent }
     }
 
     private var expandedContent: some View {
@@ -291,10 +405,10 @@ private struct QuickControlDockSurfaceModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .frame(maxWidth: presentation == .expanded ? .infinity : nil)
+            .frame(maxWidth: presentation == .full ? .infinity : nil)
             .frame(
-                width: presentation == .compact ? QuickControlsDockMetrics.compactControlSize : nil,
-                height: presentation == .compact ? QuickControlsDockMetrics.compactControlSize : QuickControlsDockMetrics.expandedControlHeight
+                width: presentation == .slim ? QuickControlsDockMetrics.compactControlSize : nil,
+                height: presentation == .slim ? QuickControlsDockMetrics.compactControlSize : QuickControlsDockMetrics.expandedControlHeight
             )
             .contentShape(RoundedRectangle(cornerRadius: QuickControlsDockMetrics.controlCornerRadius, style: .continuous))
             .background(
@@ -331,7 +445,7 @@ struct QuickControlsEmptyState: View {
             Image(systemName: "plus")
                 .font(.title3.weight(.medium))
                 .foregroundStyle(.secondary)
-            if presentation == .expanded {
+            if presentation == .full {
                 Text("No Controls").font(.subheadline.weight(.semibold))
                 Text("Add controls in customization.")
                     .font(.caption)
@@ -339,7 +453,7 @@ struct QuickControlsEmptyState: View {
                     .multilineTextAlignment(.center)
             }
             if let customize {
-                Button(presentation == .expanded ? "Customize" : "Add", action: customize)
+                Button(presentation == .full ? "Customize" : "Add", action: customize)
                     .controlSize(.small)
             }
         }

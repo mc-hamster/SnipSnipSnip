@@ -123,9 +123,12 @@ nonisolated enum GlobalHotKeyAction: UInt32, CaseIterable {
     case repeatLastCapture = 5
     case screenInspector = 6
     case guide = 7
+    case textCapture = 8
 
     var label: String {
         switch self {
+        case .textCapture:
+            return "Capture Text"
         case .region:
             return WorkflowVocabulary.Source.region
         case .window:
@@ -150,7 +153,8 @@ nonisolated enum GlobalHotKeyAction: UInt32, CaseIterable {
         .frontmostWindow: .four,
         .repeatLastCapture: .seven,
         .screenInspector: .eight,
-        .guide: .nine
+        .guide: .nine,
+        .textCapture: .t
     ]
 
     static func availableActions(for capabilities: AppCapabilitySnapshot) -> [GlobalHotKeyAction] {

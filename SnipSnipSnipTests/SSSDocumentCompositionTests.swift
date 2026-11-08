@@ -5,6 +5,50 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class SSSDocumentCompositionTests: XCTestCase {
+    func testSaveRejectsConflictingIdentitiesInEveryScopeAndHistoryBeforeReplacingPackage() throws {
+        let url = temporaryPackageURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let document = makeEditableDocument()
+        try SSSDocumentPackage.save(document: document, previewImage: document.capture.image, to: url)
+        let manifestURL = url.appendingPathComponent(SSSDocumentPackage.manifestFilename)
+        let original = try Data(contentsOf: manifestURL)
+        let arrow = Annotation.makeNumberedArrow(from: .zero, to: CGPoint(x: 20, y: 12), number: 1)
+        let item = CompositionItem(assetID: UUID())
+        var annotations = document.session.currentSnapshot
+        annotations.annotations = [arrow, arrow]
+        var items = document.session.currentSnapshot
+        items.composition = CompositionSnapshot(items: [item, item])
+        var itemAnnotations = document.session.currentSnapshot
+        var annotatedItem = item
+        annotatedItem.editState.annotations = [arrow, arrow]
+        itemAnnotations.composition = CompositionSnapshot(items: [annotatedItem])
+        var canvasAnnotations = document.session.currentSnapshot
+        canvasAnnotations.composition = CompositionSnapshot(
+            items: [item], canvas: CompositionCanvasState(annotations: [arrow, arrow])
+        )
+        for invalid in [annotations, items, itemAnnotations, canvasAnnotations] {
+            for location in 0..<4 {
+                var malformed = document
+                switch location {
+                case 0: malformed.session.initialSnapshot = invalid
+                case 1: malformed.session.currentSnapshot = invalid
+                case 2: malformed.session.undoStack = [invalid]
+                default: malformed.session.redoStack = [invalid]
+                }
+                XCTAssertThrowsError(try SSSDocumentPackage.save(
+                    document: malformed, previewImage: document.capture.image, to: url
+                )) { error in
+                    guard case SSSDocumentError.invalidComposition(let reason) = error else {
+                        return XCTFail("Unexpected error: \(error)")
+                    }
+                    XCTAssertTrue(reason.hasPrefix("duplicate"))
+                }
+                XCTAssertEqual(try Data(contentsOf: manifestURL), original)
+            }
+        }
+        XCTAssertEqual(try SSSDocumentPackage.load(from: url).capture.image.width, document.capture.image.width)
+    }
+
     func testV7ManifestPersistsPermanentPrivateStateAndOmitsSearchMetadata() throws {
         let packageURL = temporaryPackageURL()
         defer { try? FileManager.default.removeItem(at: packageURL) }
@@ -1287,6 +1331,14 @@ final class SSSDocumentCompositionTests: XCTestCase {
                 SSSDocumentPackage.maximumPersistedFixedOutputDimension + 1,
             height: 120
         )
+        XCTAssertThrowsError(
+            try PresentationSceneValidator.validate(svgText: oversizedSVG, source: .user)
+        ) {
+            XCTAssertEqual(
+                ($0 as? PresentationSceneValidationError)?.message,
+                "Scene canvas exceeds safe resource bounds."
+            )
+        }
         try updateManifest(at: packageURL) { manifest in
             var session = manifest["session"] as! [String: Any]
             var current = session["currentSnapshot"] as! [String: Any]
@@ -1308,7 +1360,7 @@ final class SSSDocumentCompositionTests: XCTestCase {
 
         XCTAssertThrowsError(try SSSDocumentPackage.load(from: packageURL)) {
             guard case SSSDocumentError.invalidComposition(let reason) = $0,
-                  reason.contains("Presentation output dimensions") else {
+                  reason == "Presentation Scene data is invalid" else {
                 return XCTFail(
                     "Expected Scene canvas rejection before decode, got \($0)"
                 )

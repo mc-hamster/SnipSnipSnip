@@ -424,7 +424,58 @@ nonisolated enum CompositionTemplateStore {
               template.itemSettings.count <= maximumItemsPerTemplate,
               template.layout.targetAspectRatio.isFinite,
               template.layout.targetAspectRatio > 0,
+              template.layout.targetAspectRatio <= CGFloat(SSSDocumentPackage.maximumGeometryMagnitude),
               template.itemSettings.allSatisfy(\.isValid) else {
+            throw CompositionTemplateStoreError.invalidTemplate
+        }
+        try validateReusableSettings(template)
+    }
+
+    /// Imported templates must obey the same numeric bounds as editable files
+    /// before their values can enter layout, numbering, or rendering.
+    private static func validateReusableSettings(_ template: CompositionTemplate) throws {
+        let magnitude = CGFloat(SSSDocumentPackage.maximumGeometryMagnitude)
+        let comparison = template.comparison
+        let appearance = template.appearance
+        let steps = template.steps
+        let nonnegativeGeometry: [CGFloat] = [
+            appearance.insets.top, appearance.insets.leading, appearance.insets.bottom, appearance.insets.trailing,
+            appearance.itemSpacing, appearance.itemBorderWidth, appearance.itemCornerRadius, appearance.itemShadowBlur,
+            appearance.captionFontSize, appearance.captionInsets.top, appearance.captionInsets.leading,
+            appearance.captionInsets.bottom, appearance.captionInsets.trailing,
+            appearance.titleFontSize, appearance.titleInsets.top, appearance.titleInsets.leading,
+            appearance.titleInsets.bottom, appearance.titleInsets.trailing,
+            appearance.stepBadgeDiameter, appearance.connectorWidth, appearance.comparisonDividerWidth,
+            comparison.differenceIntensity,
+        ]
+        let unitValues = [comparison.wipePosition, comparison.overlayOpacity, comparison.changeThreshold,
+                          comparison.registrationSensitivity, comparison.unchangedContentOpacity]
+        let offsets = [appearance.itemShadowOffset.width, appearance.itemShadowOffset.height,
+                       comparison.manualRegistrationOffset.width, comparison.manualRegistrationOffset.height]
+        guard nonnegativeGeometry.allSatisfy({ $0.isFinite && (0...magnitude).contains($0) }),
+              unitValues.allSatisfy({ $0.isFinite && (0...1).contains($0) }),
+              offsets.allSatisfy({ $0.isFinite && abs($0) <= magnitude }),
+              comparison.blinkInterval.isFinite, comparison.blinkInterval > 0, comparison.blinkInterval <= 60,
+              comparison.blinkCrossfadeDuration.isFinite, comparison.blinkCrossfadeDuration >= 0,
+              comparison.blinkCrossfadeDuration <= comparison.blinkInterval,
+              (-1_000_000...1_000_000).contains(steps.startIndex),
+              (1...maximumItemsPerTemplate).contains(steps.gridColumns),
+              steps.itemsPerPage.map({ (1...maximumItemsPerTemplate).contains($0) }) ?? true,
+              template.layout.gridColumns.map({ (1...maximumItemsPerTemplate).contains($0) }) ?? true else {
+            throw CompositionTemplateStoreError.invalidTemplate
+        }
+        if let size = template.layout.freeformCanvasSize,
+           ![size.width, size.height].allSatisfy({ $0.isFinite && $0 > 0 && $0 <= magnitude }) {
+            throw CompositionTemplateStoreError.invalidTemplate
+        }
+        var colors = [appearance.itemFill, appearance.itemBorderColor, appearance.itemShadowColor,
+                      appearance.captionColor, appearance.captionBackgroundColor, appearance.titleColor,
+                      appearance.titleBackgroundColor, appearance.stepBadgeFill, appearance.stepBadgeForeground,
+                      appearance.connectorColor, appearance.comparisonDividerColor, comparison.changeHighlightColor]
+        if case .color(let fill) = appearance.fill { colors.append(fill) }
+        guard colors.allSatisfy({ color in
+            [color.red, color.green, color.blue, color.alpha].allSatisfy { $0.isFinite && (0...1).contains($0) }
+        }) else {
             throw CompositionTemplateStoreError.invalidTemplate
         }
     }
@@ -457,12 +508,17 @@ private nonisolated extension CompositionTemplateItemSettings {
     var isValid: Bool {
         weight.isFinite
             && weight > 0
+            && Double(weight) <= SSSDocumentPackage.maximumGeometryMagnitude
             && opacity.isFinite
             && (0...1).contains(opacity)
             && framing.scale.isFinite
             && framing.scale > 0
+            && Double(framing.scale) <= SSSDocumentPackage.maximumGeometryMagnitude
             && framing.offset.width.isFinite
             && framing.offset.height.isFinite
+            && abs(Double(framing.offset.width)) <= SSSDocumentPackage.maximumGeometryMagnitude
+            && abs(Double(framing.offset.height)) <= SSSDocumentPackage.maximumGeometryMagnitude
+            && (-1_000_000...1_000_000).contains(zIndex)
             && normalizedFreeformFrame.map { frame in
                 frame.origin.x.isFinite
                     && frame.origin.y.isFinite
@@ -470,6 +526,9 @@ private nonisolated extension CompositionTemplateItemSettings {
                     && frame.height.isFinite
                     && frame.width > 0
                     && frame.height > 0
+                    && [frame.minX, frame.minY, frame.maxX, frame.maxY, frame.width, frame.height].allSatisfy {
+                        abs(Double($0)) <= SSSDocumentPackage.maximumGeometryMagnitude
+                    }
             } ?? true
     }
 }

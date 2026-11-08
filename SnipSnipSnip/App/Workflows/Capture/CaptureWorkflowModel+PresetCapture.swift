@@ -10,7 +10,7 @@ extension CaptureWorkflowModel {
         )
     }
 
-    private func capturePreset(
+    func capturePreset(
         _ preset: CapturePreset,
         captureContext: CaptureCompletionContext
     ) {
@@ -18,7 +18,10 @@ extension CaptureWorkflowModel {
             return
         }
 
-        activeWorkflowPresetID = preset.id
+        var captureContext = captureContext
+        captureContext.workflowPreset = preset
+        captureContext.workflowPresetRunID = UUID()
+        activeCaptureContext = captureContext
         markCapturePresetRan(id: preset.id)
 
         switch preset.target {
@@ -77,9 +80,13 @@ extension CaptureWorkflowModel {
         id: CapturePreset.ID,
         captureContext: CaptureCompletionContext
     ) {
-        guard let preset = capturePresets.first(where: { $0.id == id }) else {
+        guard let currentPreset = capturePresets.first(where: { $0.id == id }) else {
             return
         }
+        var preset = captureContext.workflowPreset ?? currentPreset
+        // Target replacement updates the saved target, but an in-progress
+        // attempt retains the output/options the user originally chose.
+        preset.target = currentPreset.target
         capturePreset(preset, captureContext: captureContext)
     }
 
@@ -111,7 +118,8 @@ extension CaptureWorkflowModel {
             guard ensureScreenshotCaptureAccess(
                 for: .frontmostWindow,
                 runOptions:
-                    capturePresets.first(where: { $0.id == presetID })?.options
+                    captureContext.workflowPreset?.options
+                    ?? capturePresets.first(where: { $0.id == presetID })?.options
                     ?? currentCaptureRunOptions()
             ) else {
                 return
@@ -122,16 +130,11 @@ extension CaptureWorkflowModel {
             defer { isWorking = false }
 
             do {
-                let windowOptions = windows.isEmpty
-                    ? try await captureService.listWindows(includeThumbnails: false)
-                    : windows
+                let windowOptions = try await captureService.listWindows(includeThumbnails: false)
                 let snapshot = try await captureService.captureDesktopOverlaySnapshot()
                 let session = WindowSelectionSession(
                     snapshot: snapshot,
-                    windows: windowOptions,
-                    capabilities: dependencies.capabilities,
-                    accessibility: dependencies.systemServices.accessibility,
-                    screens: dependencies.systemServices.screens
+                    windows: windowOptions
                 )
 
                 guard let selectedWindow = await session.begin() else {
@@ -164,6 +167,7 @@ extension CaptureWorkflowModel {
         captureContext: CaptureCompletionContext
     ) {
         Task {
+            defer { resetPreparedCaptureContext(ifMatching: captureContext) }
             guard ensureScreenshotCaptureAccess(for: .frontmostWindow, runOptions: options) else {
                 return
             }

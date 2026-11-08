@@ -7,6 +7,16 @@ final class ProjectVersionAlignmentTests: XCTestCase {
             .deletingLastPathComponent()
     }
 
+    func testDebugIdentityIsIndependentAndShippingIdentityStaysStable() throws {
+        let project = try String(contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip.xcodeproj/project.pbxproj"), encoding: .utf8)
+        for (target, suffix) in [("SnipSnipSnip", ""), ("SnipSnipSnipShareExtension", ".ShareExtension"), ("snipsnipsnipctl", ".CLI")] {
+            XCTAssertEqual(Set(targetBuildSettingValues(named: "PRODUCT_BUNDLE_IDENTIFIER", targetName: target, in: project)),
+                           Set(["com.oontz.SnipSnipSnip.Dev" + suffix, "com.oontz.SnipSnipSnip" + suffix]))
+        }
+        XCTAssertEqual(targetBuildSettingValues(named: "SNIP_URL_SCHEME", targetName: "SnipSnipSnip", in: project),
+                       ["\"snipsnipsnip-dev\"", "snipsnipsnip"])
+    }
+
     func testExplicitBuildNumberDefinitionsStaySynchronized() throws {
         let projectURL = repositoryRoot
             .appendingPathComponent("SnipSnipSnip.xcodeproj")
@@ -299,7 +309,8 @@ final class ProjectVersionAlignmentTests: XCTestCase {
         XCTAssertTrue(releaseTestGate.contains("test-without-building"))
         XCTAssertTrue(releaseTestGate.contains("codesign --force --sign -"))
         XCTAssertTrue(releaseTestGate.contains("-parallel-testing-enabled NO"))
-        XCTAssertTrue(releaseTestGate.contains("pgrep -x"))
+        XCTAssertTrue(releaseTestGate.contains("runningApplicationsWithBundleIdentifier"))
+        XCTAssertTrue(releaseTestGate.contains("com.oontz.SnipSnipSnip.Dev"))
         for browserEnvironmentName in [
             "SSS_RUN_EXTERNAL_HTML_BROWSER_TESTS",
             "SSS_REQUIRE_EXTERNAL_HTML_BROWSERS",
@@ -314,11 +325,20 @@ final class ProjectVersionAlignmentTests: XCTestCase {
                 sharedScheme.contains(#"value = "$(\#(browserEnvironmentName))""#)
             )
         }
-        XCTAssertEqual(
-            fastfile.components(separatedBy: "run_release_test_gate(options)").count - 1,
-            2,
-            "App Store and Self Release lanes must both run the complete release test gate."
-        )
+        let publicLanes = fastfile.components(separatedBy: "\n  lane :").dropFirst()
+        for laneName in ["release", "self_release"] {
+            let lane = try XCTUnwrap(
+                publicLanes.first { $0.hasPrefix("\(laneName) ") },
+                "The Fastfile must define the \(laneName) lane."
+            )
+            let runsReleaseTestGate = lane.split(separator: "\n").contains { line in
+                line.trimmingCharacters(in: .whitespaces).hasPrefix("run_release_test_gate(")
+            }
+            XCTAssertTrue(
+                runsReleaseTestGate,
+                "The \(laneName) lane must run the complete release test gate."
+            )
+        }
         XCTAssertTrue(releaseWorkflow.contains("RELEASE_METADATA_READY: ${{ inputs.metadata_ready }}"))
         XCTAssertTrue(releaseWorkflow.contains("RELEASE_MANUAL_QA_CONFIRMED: ${{ inputs.manual_qa_confirmed }}"))
         XCTAssertFalse(releaseWorkflow.contains("RELEASE_METADATA_READY: true"))

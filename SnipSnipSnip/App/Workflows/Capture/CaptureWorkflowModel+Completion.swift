@@ -14,7 +14,7 @@ extension CaptureWorkflowModel {
     func captureRunOptions(
         for captureContext: CaptureCompletionContext
     ) -> CaptureRunOptions {
-        let base = CaptureRunOptions(
+        let base = captureContext.workflowPreset?.options ?? CaptureRunOptions(
             captureDelay: captureDelay,
             includesCursor: screenshotIncludesCursor,
             fullscreenDisplayMode: screenshotFullscreenDisplayMode,
@@ -47,14 +47,15 @@ extension CaptureWorkflowModel {
         cursorCaptureGlobalLocation: CGPoint? = nil,
         shouldAttemptUIMapCapture: Bool = true,
         runOptions: CaptureRunOptions? = nil,
-        completionContext: CaptureCompletionContext? = nil
+        completionContext: CaptureCompletionContext? = nil,
+        allowsCapturePreview: Bool = true
     ) throws {
         guard let outputSink else {
             throw CaptureWorkflowCompletionError.missingCoordinator
         }
 
         let captureContext = completionContext ?? activeCaptureContext
-        let resolvedRunOptions = runOptions ?? currentCaptureRunOptions()
+        let resolvedRunOptions = runOptions ?? captureRunOptions(for: captureContext)
         let contentDiagnostics = CaptureContentDiagnostics(
             isPrivateCapture: isPrivateCapture
         )
@@ -82,11 +83,12 @@ extension CaptureWorkflowModel {
             shouldAttemptUIMapCapture: shouldAttemptUIMapCapture,
             shouldProcessUIMap: shouldProcessUIMap,
             uiMapSkipReason: uiMapEligibility.skipReason,
-            workflowPreset: activeWorkflowPreset,
+            workflowPreset: captureContext.workflowPreset,
             intent: captureContext.intent,
-            completionRole: captureContext.role
+            completionRole: captureContext.role,
+            allowsCapturePreview: allowsCapturePreview && captureContext.allowsCapturePreview,
+            automationRequest: captureContext.automationRequest
         )))
-        activeWorkflowPresetID = nil
         AppAccessibility.announce("Capture complete. \(Int(capture.pixelSize.width)) by \(Int(capture.pixelSize.height)) pixels.")
     }
 
@@ -147,14 +149,6 @@ extension CaptureWorkflowModel {
             }
         }
         AppAccessibility.announce("Screen Inspector capture complete.")
-    }
-
-    private var activeWorkflowPreset: CapturePreset? {
-        guard let activeWorkflowPresetID else {
-            return nil
-        }
-
-        return capturePresets.first(where: { $0.id == activeWorkflowPresetID })
     }
 
     private func currentCursorOverlay(

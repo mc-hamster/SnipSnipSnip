@@ -100,21 +100,29 @@ extension CaptureWorkflowModel {
         Task {
             var sessionCaptureContext = captureContext
             guard dependencies.capabilities.isEnabled(.connectedDeviceCapture) else {
-                present(
+                presentConnectedDeviceFailure(
                     ConnectedDeviceCaptureError
                         .publicScreenCaptureUnavailable,
-                    recovering: .connectedDevice(device),
+                    device: device,
+                    intent: intent,
                     captureContext: captureContext
                 )
                 return
             }
 
             guard video?.blocksNewCapture != true, guide?.isActive != true, connectedDevicePreviewController == nil else {
-                present(
+                presentConnectedDeviceFailure(
                     ConnectedDeviceCaptureError.sessionAlreadyActive,
-                    recovering: .connectedDevice(device),
+                    device: device,
+                    intent: intent,
                     captureContext: captureContext
                 )
+                return
+            }
+
+            if await connectedDeviceCaptureService.videoAuthorizationStatus() == .denied {
+                presentConnectedDeviceFailure(ConnectedDeviceCaptureError.cameraPermissionDenied,
+                    device: device, intent: intent, captureContext: captureContext)
                 return
             }
 
@@ -174,11 +182,8 @@ extension CaptureWorkflowModel {
                         self.outputSink?.handle(.recordingCompleted(recording))
                     },
                     presentError: { [weak self] error in
-                        self?.present(
-                            error,
-                            recovering: .connectedDevice(device),
-                            captureContext: sessionCaptureContext
-                        )
+                        self?.presentConnectedDeviceFailure(error, device: device, intent: intent,
+                            captureContext: sessionCaptureContext)
                     },
                     onClose: { [weak self] in
                         guard let self else {
@@ -212,13 +217,17 @@ extension CaptureWorkflowModel {
                 isConnectedDeviceSessionActive = false
                 isWorking = false
                 endCapturePrivacyLock()
-                present(
-                    error,
-                    recovering: .connectedDevice(device),
-                    captureContext: captureContext
-                )
+                presentConnectedDeviceFailure(error, device: device, intent: intent,
+                    captureContext: captureContext)
             }
         }
+    }
+
+    private func presentConnectedDeviceFailure(_ error: Error, device: ConnectedAppleDevice,
+                                                intent: ConnectedDevicePreviewIntent,
+                                                captureContext: CaptureCompletionContext) {
+        present(error, recovering: .connectedDevice(device), captureContext: captureContext)
+        if captureRecovery != nil { pendingConnectedDevicePreviewIntent = intent }
     }
 
     private func prepareTemporaryVideoStorageForConnectedDeviceRecording() throws {
@@ -232,10 +241,9 @@ extension CaptureWorkflowModel {
 
         let alert = NSAlert()
         alert.alertStyle = .informational
-        alert.messageText = "Allow Camera Access for Connected Device Preview?"
+        alert.messageText = "Camera Access for Connected Device Preview"
         alert.informativeText = "\(AppBranding.displayName) uses Camera access only when you preview, capture, or record a connected iPhone or iPad. macOS exposes trusted device screens as video sources, so this permission is required before the live preview can start."
-        alert.addButton(withTitle: "Allow Camera")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "Continue")
 
         return alert.runModal() == .alertFirstButtonReturn
     }

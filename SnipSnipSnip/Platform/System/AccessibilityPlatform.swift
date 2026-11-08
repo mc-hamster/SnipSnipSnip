@@ -58,6 +58,7 @@ protocol AccessibilityPlatform: Sendable {
     nonisolated func systemWideElement() -> AccessibilityElementHandle
     nonisolated func applicationElement(processID: pid_t) -> AccessibilityElementHandle
     nonisolated func setMessagingTimeout(_ timeout: TimeInterval, for element: AccessibilityElementHandle)
+    /// Hit-tests in global screen coordinates with a top-left origin, matching capture viewports.
     nonisolated func element(
         at point: CGPoint,
         from systemElement: AccessibilityElementHandle

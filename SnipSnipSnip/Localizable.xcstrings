@@ -1,10 +1,70 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Build numbered Steps by capturing or importing each image.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Build numbered Steps by capturing or importing each image."
+          }
+        }
+      }
+    },
+    "UI Map Access": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "UI Map Access"
+          }
+        }
+      }
+    },
+    "UI Map uses Accessibility to read visible controls and their locations during Window captures. Ordinary Region and Screen screenshots work without this access.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "UI Map uses Accessibility to read visible controls and their locations during Window captures. Ordinary Region and Screen screenshots work without this access."
+          }
+        }
+      }
+    },
+    "Optional. Enabling UI Map starts macOS Accessibility setup if access is needed. You can finish setup with UI Map turned off.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optional. Enabling UI Map starts macOS Accessibility setup if access is needed. You can finish setup with UI Map turned off."
+          }
+        }
+      }
+    },
     "" : {
 
     },
+    ": " : {
+
+    },
     "%.1f pt" : {
+
+    },
+    "%.1f–%.1f s" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$.1f–%2$.1f s"
+          }
+        }
+      }
+    },
+    "%.1f×" : {
 
     },
     "%.1fs" : {
@@ -59,6 +119,17 @@
     "%@ alignment" : {
 
     },
+    "%@ and %lld more" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ and %lld more"
+          }
+        }
+      }
+    },
     "%@ appears here after you have autosaves, recent snips, or saved checkpoints to search." : {
 
     },
@@ -69,6 +140,9 @@
 
     },
     "%@ Help" : {
+
+    },
+    "%@ in seconds" : {
 
     },
     "%@ layout" : {
@@ -139,19 +213,6 @@
         }
       }
     },
-    "%@. Expand Quick Controls" : {
-
-    },
-    "%@. Press Option-%lld while browsing Clipboard History." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@. Press Option-%2$lld while browsing Clipboard History."
-          }
-        }
-      }
-    },
     "%@…" : {
 
     },
@@ -174,6 +235,17 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$lld × %2$lld"
+          }
+        }
+      }
+    },
+    "%lld active filters" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld active filters"
           }
         }
       }
@@ -221,13 +293,21 @@
         }
       }
     },
+    "%lld items" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld items"
+          }
+        }
+      }
+    },
     "%lld percent" : {
 
     },
     "%lld pt" : {
-
-    },
-    "%lld shown" : {
 
     },
     "%lld steps" : {
@@ -321,11 +401,28 @@
     "A and B framing matches • %@" : {
 
     },
+    "A brief ring makes each click easy to follow." : {
+      "extractionState" : "manual"
+    },
     "A composition must keep at least one item" : {
 
     },
     "A composition must retain at least one item." : {
 
+    },
+    "A little blur softens zoom transitions. Leave it off for the sharpest text." : {
+      "extractionState" : "manual"
+    },
+    "A successful export shows the filename and Reveal in Finder. Choose it to select the file in Finder. This brief confirmation does not resize the player, change playback, or move your editing controls. Export progress remains cancellable, and errors stay available until you dismiss them." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A successful export shows the filename and Reveal in Finder. Choose it to select the file in Finder. This brief confirmation does not resize the player, change playback, or move your editing controls. Export progress remains cancellable, and errors stay available until you dismiss them."
+          }
+        }
+      }
     },
     "a, b, c" : {
 
@@ -345,6 +442,56 @@
     "Accent" : {
 
     },
+    "Access could not be checked right now. Try Check Again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Access could not be checked right now. Try Check Again."
+          }
+        }
+      }
+    },
+    "Access has changed. Restart to finish applying it to this running copy." : {
+
+    },
+    "Access is ready. Choose Continue to resume %@." : {
+
+    },
+    "Accessibility" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accessibility"
+          }
+        }
+      }
+    },
+    "Accessibility access is ready." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accessibility access is ready."
+          }
+        }
+      }
+    },
+    "Accessibility access needs attention." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accessibility access needs attention."
+          }
+        }
+      }
+    },
     "Action" : {
 
     },
@@ -360,9 +507,6 @@
     "Activate this tool. Use the adjacent menu to choose another tool in the More Tools group." : {
 
     },
-    "Activate this tool. Use the adjacent menu to choose another tool in the Redact group." : {
-
-    },
     "Actual Size" : {
 
     },
@@ -373,6 +517,12 @@
 
     },
     "Add %@" : {
+
+    },
+    "Add a clean background, a smooth cursor, and zooms that follow your clicks." : {
+
+    },
+    "Add a clean background. You can add your own zooms next." : {
 
     },
     "Add a control from the library, or select one in the preview." : {
@@ -396,6 +546,17 @@
     "Add another capture or image, then choose whether to compare, explain with steps, or combine. Your annotations and optional Polish are preserved." : {
 
     },
+    "Add arrows, text, highlights, or redactions before sharing." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add arrows, text, highlights, or redactions before sharing."
+          }
+        }
+      }
+    },
     "Add as Flattened Item" : {
 
     },
@@ -404,6 +565,9 @@
     },
     "Add as Step is for putting captures in order, then adding captions and numbers." : {
 
+    },
+    "Add Background" : {
+      "extractionState" : "manual"
     },
     "Add Capture to SnipSnipSnip Composition" : {
 
@@ -459,11 +623,25 @@
     "Add the pointer as an editable overlay where capture supports it." : {
 
     },
+    "Add to Collection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to Collection"
+          }
+        }
+      }
+    },
     "Add to Composition" : {
 
     },
     "Add to favorites." : {
 
+    },
+    "Add Zoom at Playhead" : {
+      "extractionState" : "manual"
     },
     "Add…" : {
 
@@ -518,6 +696,27 @@
     "Adjust the selected image overlay opacity." : {
 
     },
+    "Adjust the video's Look. Opening Polish does not change your edits." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adjust the video's Look. Opening Polish does not change your edits."
+          }
+        }
+      }
+    },
+    "Adjust the zoom from %@ to %@ seconds." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Adjust the zoom from %1$@ to %2$@ seconds."
+          }
+        }
+      }
+    },
     "Adjustments apply immediately and remain undoable. Crop handles stay available on the image while another annotation tool is selected." : {
 
     },
@@ -544,6 +743,28 @@
     },
     "After 90 Days" : {
 
+    },
+    "After Capture" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After Capture"
+          }
+        }
+      }
+    },
+    "After export, the completion message offers Reveal in Finder without switching apps automatically. Share through the native share sheet, copy the exported files, or reveal them in Finder for Mail, Messages, Slack, Notion, and other standard destinations. These actions use only an export of the current Guide and its current edits. If you edit the Guide, including while an export is running, export again before sharing. Opening another Guide clears the previous export actions." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After export, the completion message offers Reveal in Finder without switching apps automatically. Share through the native share sheet, copy the exported files, or reveal them in Finder for Mail, Messages, Slack, Notion, and other standard destinations. These actions use only an export of the current Guide and its current edits. If you edit the Guide, including while an export is running, export again before sharing. Opening another Guide clears the previous export actions."
+          }
+        }
+      }
     },
     "After Selecting a Region" : {
 
@@ -581,9 +802,6 @@
     "All Types" : {
 
     },
-    "Allow %@" : {
-
-    },
     "Allowed" : {
 
     },
@@ -611,6 +829,9 @@
     "Animated Loops" : {
 
     },
+    "Animated loops do not include sound." : {
+      "extractionState" : "manual"
+    },
     "Animated PNG" : {
 
     },
@@ -621,6 +842,9 @@
 
     },
     "Annotations and redactions apply above every item and below optional Polish. Resize or trim the canvas in Layout." : {
+
+    },
+    "Any Time" : {
 
     },
     "APNG" : {
@@ -649,6 +873,17 @@
     },
     "Append to Current Composition" : {
 
+    },
+    "Applies to copied, exported, shared, and dragged still images. Original pixels and editable files stay unchanged. This choice lasts while this document is open." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Applies to copied, exported, shared, and dragged still images. Original pixels and editable files stay unchanged. This choice lasts while this document is open."
+          }
+        }
+      }
     },
     "Applies to every step" : {
 
@@ -692,6 +927,17 @@
     "Apply to Step" : {
 
     },
+    "Apply Width" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply Width"
+          }
+        }
+      }
+    },
     "Arrange" : {
 
     },
@@ -719,14 +965,47 @@
     "Arrow Label" : {
 
     },
+    "Arrow Length" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrow Length"
+          }
+        }
+      }
+    },
     "Arrow Length: %.0f pt" : {
 
+    },
+    "Arrow Width" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrow Width"
+          }
+        }
+      }
     },
     "Arrow Width: %.0f pt" : {
 
     },
     "Arrowhead" : {
 
+    },
+    "Asks for Access" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Asks for Access"
+          }
+        }
+      }
     },
     "Aspect" : {
 
@@ -738,9 +1017,6 @@
 
     },
     "Auto" : {
-
-    },
-    "Auto Copy" : {
 
     },
     "Auto Crop" : {
@@ -758,9 +1034,6 @@
     "Automatic alignment could not find a reliable match." : {
 
     },
-    "Automatically copy the current rendered snip after captures and editor changes." : {
-
-    },
     "Axis" : {
 
     },
@@ -769,6 +1042,30 @@
     },
     "Back" : {
 
+    },
+    "Back to Capture" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back to Capture"
+          }
+        }
+      }
+    },
+    "Back to Content" : {
+
+    },
+    "Back to Start" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back to Start"
+          }
+        }
+      }
     },
     "Background" : {
 
@@ -799,6 +1096,9 @@
     },
     "Blink MP4…" : {
 
+    },
+    "Blue" : {
+      "extractionState" : "manual"
     },
     "Border" : {
 
@@ -864,11 +1164,25 @@
     "Callout Style" : {
 
     },
+    "Camera" : {
+
+    },
     "Cancel" : {
 
     },
     "Cancel Export" : {
 
+    },
+    "Cancel Setup" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel Setup"
+          }
+        }
+      }
     },
     "Cancelling an Add, Replace, or Change Goal operation leaves the document unchanged." : {
 
@@ -930,6 +1244,9 @@
     "Capture a Screenshot immediately from a live source, repeat, or preset." : {
 
     },
+    "Capture a screenshot, then choose Presets > Save Last Capture as Preset to add it here." : {
+      "extractionState" : "manual"
+    },
     "Capture a Window" : {
 
     },
@@ -984,6 +1301,17 @@
     "Capture Presets" : {
 
     },
+    "Capture Preview" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture Preview"
+          }
+        }
+      }
+    },
     "Capture Region" : {
 
     },
@@ -1011,6 +1339,17 @@
     "Capture Source" : {
 
     },
+    "Capture Text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture Text"
+          }
+        }
+      }
+    },
     "Capture the configured screen or all connected displays." : {
 
     },
@@ -1031,6 +1370,17 @@
     },
     "Capture Window" : {
 
+    },
+    "Capture Without UI Map" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture Without UI Map"
+          }
+        }
+      }
     },
     "Capture your actions and turn them into editable instructions." : {
 
@@ -1074,6 +1424,17 @@
     "Checking for Pro Updates..." : {
 
     },
+    "Checking…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking…"
+          }
+        }
+      }
+    },
     "Choose %@ Folder…" : {
 
     },
@@ -1104,11 +1465,33 @@
     "Choose a screenshot and inspect it at any size. It stays editable unless you turn on Use Rendered Image Only." : {
 
     },
+    "Choose a smaller width. Resized output is limited to 32,768 pixels per side and 64 million pixels in total." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a smaller width. Resized output is limited to 32,768 pixels per side and 64 million pixels in total."
+          }
+        }
+      }
+    },
     "Choose a specific comparison method." : {
 
     },
     "Choose a step to preview and edit it." : {
 
+    },
+    "Choose a visible window or open the list of available windows." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a visible window or open the list of available windows."
+          }
+        }
+      }
     },
     "Choose a window and capture it without the surrounding desktop." : {
 
@@ -1149,6 +1532,9 @@
     "Choose export folder" : {
 
     },
+    "Choose Export in the video editor for MP4 quality or file-size limits, or short GIF/APNG loops. Trims and effects are included." : {
+      "extractionState" : "manual"
+    },
     "Choose First Image" : {
 
     },
@@ -1176,6 +1562,9 @@
     "Choose Image" : {
 
     },
+    "Choose Last Used to start each new editor session with the tool you selected most recently, or choose a specific tool to always start there." : {
+      "extractionState" : "manual"
+    },
     "Choose Location…" : {
 
     },
@@ -1190,6 +1579,17 @@
     },
     "Choose one window and record its activity as Video." : {
 
+    },
+    "Choose pixel dimensions for Copy, Export, Share, and Drag. The editable original stays unchanged." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose pixel dimensions for Copy, Export, Share, and Drag. The editable original stays unchanged."
+          }
+        }
+      }
     },
     "Choose the After or B item." : {
 
@@ -1211,6 +1611,17 @@
     },
     "Choose the number of columns in the step grid." : {
 
+    },
+    "Choose the right output preference" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose the right output preference"
+          }
+        }
+      }
     },
     "Choose the target on screen, then start capturing this Guide." : {
 
@@ -1236,6 +1647,17 @@
     "Choose where the first image will come from: Region, Window, Screen, or Existing Image. Existing Image includes files, the clipboard, and the Snip Library. The Snip Library picker keeps the list beside a large scrollable and zoomable preview. Use Screenshot preserves editable captures by default; turn on Use Rendered Image Only only when you want a flattened image. More ways to capture keeps specialized acquisition methods out of the main decision. Fine-tune appears only when the selected source has optional settings." : {
 
     },
+    "Choose where to zoom" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose where to zoom"
+          }
+        }
+      }
+    },
     "Choose whether newly captured steps mark where the action happened. You can change this later for any individual step." : {
 
     },
@@ -1244,6 +1666,9 @@
     },
     "Choose whether region capture shows a full-screen crosshair, the magnifying glass, or both during region capture." : {
 
+    },
+    "Choose which details are shown by default when pinned UI Map elements are rendered on copied, shared, or exported screenshots." : {
+      "extractionState" : "manual"
     },
     "Choose Window" : {
 
@@ -1257,20 +1682,132 @@
     "Clear Filters" : {
 
     },
+    "Clear Search" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear Search"
+          }
+        }
+      }
+    },
+    "Clear Search to reorder steps." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear Search to reorder steps."
+          }
+        }
+      }
+    },
     "Clear Selection" : {
 
     },
     "Clear the distance measurement." : {
 
     },
+    "Click a card or choose Copy to place its content on the system clipboard, then switch to the destination and paste with Command-V. The palette stays open after copying. Return while browsing or searching and Command-Return while editing activate the visible Copy action. If an item has a draft, the action is Copy Edited and copies that draft as plain text. Card clicks and Option-1 through Option-9 while browsing use the same draft-aware rule, with shortcut numbers following the visible cards across day sections. Copied appears beside an item only after a successful copy. Arrow keys select without copying. Choose Preview, the eye button on a hovered or selected card, or Space while browsing to inspect the full item. Back returns to the cards with search, filters, scroll position, selection, and drafts intact. More Actions and the contextual menu retain the item commands. Copy Options > Copy Original preserves the stored content and formatting; Copy Plain Text copies its original text without formatting. Inside a text editor, Return inserts a line break, arrow keys move the caret, and Command-Z undoes text edits. Escape from an editing field returns focus to Search; from Preview it returns to the cards; from Search it clears the query, or closes the window when the query is empty. Command-F returns from Preview to Search." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click a card or choose Copy to place its content on the system clipboard, then switch to the destination and paste with Command-V. The palette stays open after copying. Return while browsing or searching and Command-Return while editing activate the visible Copy action. If an item has a draft, the action is Copy Edited and copies that draft as plain text. Card clicks and Option-1 through Option-9 while browsing use the same draft-aware rule, with shortcut numbers following the visible cards across day sections. Copied appears beside an item only after a successful copy. Arrow keys select without copying. Choose Preview, the eye button on a hovered or selected card, or Space while browsing to inspect the full item. Back returns to the cards with search, filters, scroll position, selection, and drafts intact. More Actions and the contextual menu retain the item commands. Copy Options > Copy Original preserves the stored content and formatting; Copy Plain Text copies its original text without formatting. Inside a text editor, Return inserts a line break, arrow keys move the caret, and Command-Z undoes text edits. Escape from an editing field returns focus to Search; from Preview it returns to the cards; from Search it clears the query, or closes the window when the query is empty. Command-F returns from Preview to Search."
+          }
+        }
+      }
+    },
+    "Click a card or choose Copy to place its content on the system clipboard, then switch to the destination and paste with Command-V. The palette stays open after ordinary copying. Choose Copy and Return or press Shift-Command-Return to copy the selected item and return to the application you opened Clipboard History from, then paste with Command-V. Copy and Return uses the same draft-aware content as Copy Edited. If copying fails or the destination application is no longer available, the palette stays open with an explanation and keeps your drafts. Return while browsing or searching and Command-Return while editing activate the visible Copy action. If an item has a draft, the action is Copy Edited and copies that draft as plain text. Card clicks and Option-1 through Option-9 while browsing use the same draft-aware rule, with shortcut numbers following the visible cards across day sections. Copied appears beside an item only after a successful copy. Arrow keys select without copying. Choose Preview, the eye button on a hovered or selected card, or Space while browsing to inspect the full item. Back returns to the cards with search, filters, scroll position, selection, and drafts intact. More Actions and the contextual menu retain the item commands. Copy Options > Copy Original preserves the stored content and formatting; Copy Plain Text copies its original text without formatting. Inside a text editor, Return inserts a line break, arrow keys move the caret, and Command-Z undoes text edits. Escape from an editing field returns focus to Search; from Preview it returns to the cards; from Search it clears the query, or closes the window when the query is empty. Command-F returns from Preview to Search." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click a card or choose Copy to place its content on the system clipboard, then switch to the destination and paste with Command-V. The palette stays open after ordinary copying. Choose Copy and Return or press Shift-Command-Return to copy the selected item and return to the application you opened Clipboard History from, then paste with Command-V. Copy and Return uses the same draft-aware content as Copy Edited. If copying fails or the destination application is no longer available, the palette stays open with an explanation and keeps your drafts. Return while browsing or searching and Command-Return while editing activate the visible Copy action. If an item has a draft, the action is Copy Edited and copies that draft as plain text. Card clicks and Option-1 through Option-9 while browsing use the same draft-aware rule, with shortcut numbers following the visible cards across day sections. Copied appears beside an item only after a successful copy. Arrow keys select without copying. Choose Preview, the eye button on a hovered or selected card, or Space while browsing to inspect the full item. Back returns to the cards with search, filters, scroll position, selection, and drafts intact. More Actions and the contextual menu retain the item commands. Copy Options > Copy Original preserves the stored content and formatting; Copy Plain Text copies its original text without formatting. Inside a text editor, Return inserts a line break, arrow keys move the caret, and Command-Z undoes text edits. Escape from an editing field returns focus to Search; from Preview it returns to the cards; from Search it clears the query, or closes the window when the query is empty. Command-F returns from Preview to Search."
+          }
+        }
+      }
+    },
     "Click a thumbnail to inspect a snapshot before restoring it." : {
 
+    },
+    "Click an outlined window to select it." : {
+      "comment" : "Region selector guidance, also included in accessibility help, for Screenshot and Video window selection.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click an outlined window to select it."
+          }
+        }
+      }
+    },
+    "Click Export to choose one or more formats. The sheet groups formats by purpose: Documents (PDF and Word Document), Animated sharing (GIF and APNG), Video (Full Motion, Action Highlights, and Step Slideshow MP4), and Files and packages (step images and ZIP). PDF and GIF are selected by default. PDF and Word exports use print-quality stills to keep captured interface text sharp. The format choices live in this export sheet. They stay temporary until you accept an export folder and export starts; cancelling either chooser preserves the Guide settings and Undo history." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click Export to choose one or more formats. The sheet groups formats by purpose: Documents (PDF and Word Document), Animated sharing (GIF and APNG), Video (Full Motion, Action Highlights, and Step Slideshow MP4), and Files and packages (step images and ZIP). PDF and GIF are selected by default. PDF and Word exports use print-quality stills to keep captured interface text sharp. The format choices live in this export sheet. They stay temporary until you accept an export folder and export starts; cancelling either chooser preserves the Guide settings and Undo history."
+          }
+        }
+      }
     },
     "Click the screenshot to sample a color from the base image." : {
 
     },
+    "Click to copy · ↑↓ to browse" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click to copy · ↑↓ to browse"
+          }
+        }
+      }
+    },
+    "Click to switch Quick Controls modes. Right-click for the menu." : {
+
+    },
+    "Clicks" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clicks"
+          }
+        }
+      }
+    },
     "Clipboard" : {
 
+    },
+    "Clipboard Access" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipboard Access"
+          }
+        }
+      }
+    },
+    "Clipboard Actions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipboard Actions"
+          }
+        }
+      }
     },
     "Clipboard History" : {
 
@@ -1278,8 +1815,74 @@
     "Clipboard History Disabled" : {
 
     },
+    "Clipboard History is optional and off by default. Make an explicit choice during onboarding or enable it in Settings > Snip Library > Clipboard, then choose Clipboard History from the menu bar icon or use Command-Shift-V. Search is focused when the floating window opens; Command-F returns to it. Choose All, Text, Links, Images, Files, Snips, or Pinned in the pill row above the cards; scroll the row horizontally in a narrow window. Filters opens When, Source, and Collection choices, which apply immediately. Active filters appear below the scopes and can be removed individually. Reset Filters in the popover preserves the search and content type; Clear Filters resets the complete view. No Matching Clipboard Items means search or filters are hiding results; Clear Filters shows the full history again. Separate messages explain an empty history, disabled monitoring, paused monitoring, or unavailable storage. Storage warnings appear in the window with Try Again. Keep the app open when recent changes could not be saved, resolve storage access or disk space, then retry. Press Command-W to close the window." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipboard History is optional and off by default. Make an explicit choice during onboarding or enable it in Settings > Snip Library > Clipboard, then choose Clipboard History from the menu bar icon or use Command-Shift-V. Search is focused when the floating window opens; Command-F returns to it. Choose All, Text, Links, Images, Files, Snips, or Pinned in the pill row above the cards; scroll the row horizontally in a narrow window. Filters opens When, Source, and Collection choices, which apply immediately. Active filters appear below the scopes and can be removed individually. Reset Filters in the popover preserves the search and content type; Clear Filters resets the complete view. No Matching Clipboard Items means search or filters are hiding results; Clear Filters shows the full history again. Separate messages explain an empty history, disabled monitoring, paused monitoring, or unavailable storage. Storage warnings appear in the window with Try Again. Keep the app open when recent changes could not be saved, resolve storage access or disk space, then retry. Press Command-W to close the window."
+          }
+        }
+      }
+    },
+    "Clipboard History saves copied plain and rich text, links, images, PDFs, files, and non-private SnipSnipSnip screenshots. It preserves compatible original clipboard representations so normal paste can retain formatting and multi-item selections. Adding screenshots that were not copied is on by default for new and reset installations, and Settings > Snip Library > Clipboard controls it. Private Capture screenshots are never added." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipboard History saves copied plain and rich text, links, images, PDFs, files, and non-private SnipSnipSnip screenshots. It preserves compatible original clipboard representations so normal paste can retain formatting and multi-item selections. Adding screenshots that were not copied is on by default for new and reset installations, and Settings > Snip Library > Clipboard controls it. Private Capture screenshots are never added."
+          }
+        }
+      }
+    },
     "Clipboard History Unavailable" : {
 
+    },
+    "Clipboard Image Preview" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipboard Image Preview"
+          }
+        }
+      }
+    },
+    "Clipboard item added. Background monitoring follows your macOS access setting." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipboard item added. Background monitoring follows your macOS access setting."
+          }
+        }
+      }
+    },
+    "Clipboard Items" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipboard Items"
+          }
+        }
+      }
+    },
+    "Clipboard Text Preview" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipboard Text Preview"
+          }
+        }
+      }
     },
     "Close" : {
 
@@ -1289,6 +1892,17 @@
     },
     "Close All Screen Rulers" : {
 
+    },
+    "Close Capture Preview" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close Capture Preview"
+          }
+        }
+      }
     },
     "Close Esc" : {
 
@@ -1301,6 +1915,17 @@
     },
     "Close the current connected-device preview before starting another connected-device session." : {
 
+    },
+    "Close the preview without deleting the screenshot." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close the preview without deleting the screenshot."
+          }
+        }
+      }
     },
     "Close these details and retry every failed file at its original composition destination." : {
 
@@ -1332,11 +1957,19 @@
     "Collection name" : {
 
     },
-    "Collections" : {
-
-    },
     "Color" : {
 
+    },
+    "Color Preview" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color Preview"
+          }
+        }
+      }
     },
     "Column" : {
 
@@ -1358,6 +1991,9 @@
     },
     "Combined Image offers Auto, Row, Column, Grid, Freeform, and compatible templates. Auto chooses a useful arrangement from item count and image shapes. Reorder items on the canvas or in Items, and adjust Fit, Fill, alignment, framing, captions, replacement, duplication, visibility, and removal. Freeform expands automatically until you set an explicit size. Trim to Items removes unused bounds and Auto Expand restores growth. Arrow keys move selected items; Option-arrows resize them; add Shift for 10-pixel changes. Align, Distribute, Match Size, and numeric geometry provide complete keyboard alternatives." : {
 
+    },
+    "Command-Shift-" : {
+      "extractionState" : "manual"
     },
     "Compact · 144 dpi" : {
 
@@ -1428,6 +2064,20 @@
     "Content" : {
 
     },
+    "Content Type" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Content Type"
+          }
+        }
+      }
+    },
+    "Continue" : {
+
+    },
     "Continue in SnipSnipSnip to finish this automation." : {
 
     },
@@ -1443,14 +2093,58 @@
     "Controls" : {
 
     },
+    "Controls how dark the area outside the green crop box appears after the editor refocuses on a crop that is larger than the visible stage." : {
+      "extractionState" : "manual"
+    },
     "Copied" : {
 
     },
-    "Copied screenshot." : {
-
+    "Copied screenshot with redactions applied. Ready to paste." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied screenshot with redactions applied. Ready to paste."
+          }
+        }
+      }
+    },
+    "Copied screenshot. Ready to paste." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied screenshot. Ready to paste."
+          }
+        }
+      }
+    },
+    "Copied. The previous app is unavailable; your item is ready to paste." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied. The previous app is unavailable; your item is ready to paste."
+          }
+        }
+      }
     },
     "Copy" : {
 
+    },
+    "Copy and Return" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy and Return"
+          }
+        }
+      }
     },
     "Copy current workspace output" : {
 
@@ -1482,6 +2176,17 @@
     "Copy Screenshot" : {
 
     },
+    "Copy selected item while browsing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy selected item while browsing"
+          }
+        }
+      }
+    },
     "Copy Text" : {
 
     },
@@ -1500,10 +2205,57 @@
     "Copy the output currently shown in this workspace." : {
 
     },
+    "Copy the selected item, then return to the app used before Clipboard History. Shift-Command-Return." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy the selected item, then return to the app used before Clipboard History. Shift-Command-Return."
+          }
+        }
+      }
+    },
     "Copy the stored original with its formatting, or just its original plain text." : {
 
     },
+    "Copy, Export, Share, Float, and Drag follow the visible stage. Edit, Comparison Review, Steps, and Arrange use the unwrapped content, annotations, pinned UI Map overlays, and flattened redactions. Polish uses the visible Look or Mockup; when none is configured, it uses the same unwrapped content. Back to Content changes the boundary explicitly. Edit Selected Capture and Annotate Result hide document output until Done returns to the focused content stage. Capturing or editing does not update the clipboard; choose Copy when the visible result is ready. Copy confirms success only after the clipboard write. If preparation takes a moment, its button shows Copying…; repeated requests for an unchanged result share that copy. You can continue editing while the requested image is prepared. Export similarly shows Exporting… after you choose a destination when preparation takes a moment. Export completion identifies the file and offers Reveal in Finder. Routine confirmations appear without moving the canvas or video player." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy, Export, Share, Float, and Drag follow the visible stage. Edit, Comparison Review, Steps, and Arrange use the unwrapped content, annotations, pinned UI Map overlays, and flattened redactions. Polish uses the visible Look or Mockup; when none is configured, it uses the same unwrapped content. Back to Content changes the boundary explicitly. Edit Selected Capture and Annotate Result hide document output until Done returns to the focused content stage. Capturing or editing does not update the clipboard; choose Copy when the visible result is ready. Copy confirms success only after the clipboard write. If preparation takes a moment, its button shows Copying…; repeated requests for an unchanged result share that copy. You can continue editing while the requested image is prepared. Export similarly shows Exporting… after you choose a destination when preparation takes a moment. Export completion identifies the file and offers Reveal in Finder. Routine confirmations appear without moving the canvas or video player."
+          }
+        }
+      }
+    },
+    "Copy, save, export, share, and print" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy, save, export, share, and print"
+          }
+        }
+      }
+    },
     "Copy, Share, Export, Float, and Drag use the visible stage. Edit, Review, Steps, and Arrange output unwrapped content; Polish outputs the visible Look or Mockup. PNG, JPEG, and PDF include the complete result and annotations. Before an oversized raster is created, choose Scale to Fit; a Steps PDF also offers Paginated PDF. Blink exports deterministic GIF, APNG, and MP4 output using its interval, crossfade, and loop settings, with a disclosed 4,096-pixel longest-side cap. Static Blink output defaults to After." : {
+
+    },
+    "Copying screenshot…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copying screenshot…"
+          }
+        }
+      }
+    },
+    "Copying…" : {
 
     },
     "Copyright / footer" : {
@@ -1518,11 +2270,44 @@
     "Corners" : {
 
     },
+    "Could not copy. Try again or open in Editor." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not copy. Try again or open in Editor."
+          }
+        }
+      }
+    },
     "Couldn't Update Launch at Login" : {
 
     },
     "Couldn’t Update Launch at Login" : {
 
+    },
+    "Cover sensitive details with a solid redaction." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cover sensitive details with a solid redaction."
+          }
+        }
+      }
+    },
+    "Cover sensitive details with a solid redaction. Blur and Pixelate are in the adjacent menu." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cover sensitive details with a solid redaction. Blur and Pixelate are in the adjacent menu."
+          }
+        }
+      }
     },
     "Create" : {
 
@@ -1557,9 +2342,6 @@
     "Crosshair" : {
 
     },
-    "Current app" : {
-
-    },
     "Current color" : {
 
     },
@@ -1578,6 +2360,17 @@
     "Current format: %@" : {
 
     },
+    "Current packages open directly. A file rejected by File > Open stays untouched, and your current editing session remains open. During launch and recovery compatibility checks, older unsupported packages and recovery checkpoints can be moved to the macOS Trash when they no longer match the current document baseline." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current packages open directly. A file rejected by File > Open stays untouched, and your current editing session remains open. During launch and recovery compatibility checks, older unsupported packages and recovery checkpoints can be moved to the macOS Trash when they no longer match the current document baseline."
+          }
+        }
+      }
+    },
     "Current picker color." : {
 
     },
@@ -1590,8 +2383,28 @@
     "Cursor" : {
 
     },
+    "Cursor & Clicks" : {
+      "extractionState" : "manual"
+    },
+    "Cursor and click appearance can be changed after recording. Optional keyboard shortcuts require existing Accessibility access and record shortcut names only, never typed text or passwords." : {
+      "extractionState" : "manual"
+    },
+    "Cursor Is Part of This Video" : {
+      "extractionState" : "manual"
+    },
     "Curve" : {
 
+    },
+    "Custom Width" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom Width"
+          }
+        }
+      }
     },
     "Customize" : {
 
@@ -1608,6 +2421,9 @@
     "Daily Capture" : {
 
     },
+    "Dark" : {
+      "extractionState" : "manual"
+    },
     "Default" : {
 
     },
@@ -1616,6 +2432,9 @@
     },
     "Default Design & Export" : {
 
+    },
+    "Default global shortcuts can be changed above. Built-in app and editor shortcuts are fixed in this version." : {
+      "extractionState" : "manual"
     },
     "Default Tool" : {
 
@@ -1659,8 +2478,22 @@
     "Deleted Items" : {
 
     },
+    "Deleted snips move to the Recycle Bin first. The scheduled cleanup permanently removes items after the configured retention period; the default is 30 days. Choose from 1 to 180 days." : {
+      "extractionState" : "manual"
+    },
     "Deleted Step" : {
 
+    },
+    "Details" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details"
+          }
+        }
+      }
     },
     "Details…" : {
 
@@ -1694,6 +2527,12 @@
     },
     "Discard the current video editor session and return to the capture screen." : {
 
+    },
+    "Discard…" : {
+
+    },
+    "Dismiss" : {
+      "extractionState" : "manual"
     },
     "Dismiss Import Results" : {
 
@@ -1746,17 +2585,78 @@
     "Drag controls or section headers to arrange the dock." : {
 
     },
+    "Drag finished video to share" : {
+      "extractionState" : "manual"
+    },
+    "Drag into another app, or click to open in Editor." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag into another app, or click to open in Editor."
+          }
+        }
+      }
+    },
     "Drag items to reorder. Drop files between items to Add Here, or over an item to Replace Item. Move buttons and the item menu provide complete keyboard alternatives." : {
 
     },
-    "Drag the current trimmed export into Finder, Mail, or another app. Export starts after the drop is accepted." : {
-
+    "Drag Out" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag Out"
+          }
+        }
+      }
+    },
+    "Drag Screenshot" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag Screenshot"
+          }
+        }
+      }
+    },
+    "Drag sends the output shown in the active content or Polish stage to Finder, Mail, or another app. If you click without dragging, SnipSnipSnip shows a short reminder. During the drag, the editor window temporarily hides so you can reach the destination, then returns when the drag finishes. Settings > Editor & Output > Export & Sharing names this preference Drag-Out Format. It controls whether screenshot drag-out normally uses PNG, JPEG, or PDF and also sets JPEG quality. Choosing a format here does not change the format selected explicitly in Export. Transparent Polish output automatically uses PNG so the result stays faithful." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag sends the output shown in the active content or Polish stage to Finder, Mail, or another app. If you click without dragging, SnipSnipSnip shows a short reminder. During the drag, the editor window temporarily hides so you can reach the destination, then returns when the drag finishes. Settings > Editor & Output > Export & Sharing names this preference Drag-Out Format. It controls whether screenshot drag-out normally uses PNG, JPEG, or PDF and also sets JPEG quality. Choosing a format here does not change the format selected explicitly in Export. Transparent Polish output automatically uses PNG so the result stays faithful."
+          }
+        }
+      }
+    },
+    "Drag the file icon from the screenshot editor to share the visible result. JPEG quality applies to Export JPEG and JPEG drag-out sharing. Transparent Polish output automatically uses PNG so the result stays faithful." : {
+      "extractionState" : "manual"
+    },
+    "Drag the finished video into Finder, Mail, or another app. Trims and effects are included; export starts after the drop is accepted." : {
+      "extractionState" : "manual"
     },
     "Drag the first selected Guide export format into Finder or another app." : {
 
     },
     "Drag the output currently shown in this workspace." : {
 
+    },
+    "Drag the screenshot into another app." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag the screenshot into another app."
+          }
+        }
+      }
     },
     "Drag the strip to scrub, or move the handles to trim." : {
 
@@ -1778,6 +2678,39 @@
     },
     "Drag to move this floating reference." : {
 
+    },
+    "Drag-Out Format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag-Out Format"
+          }
+        }
+      }
+    },
+    "Drag-Out Format controls files delivered by dragging from the screenshot editor. Export chooses its format separately. JPEG Quality applies to JPEG exports and drag-out files. Transparent Polish output automatically uses PNG." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag-Out Format controls files delivered by dragging from the screenshot editor. Export chooses its format separately. JPEG Quality applies to JPEG exports and drag-out files. Transparent Polish output automatically uses PNG."
+          }
+        }
+      }
+    },
+    "Drag-Out Format in Editor & Output controls files shared by dragging from the screenshot editor. Export chooses its format separately. JPEG Quality applies to JPEG exports and drag-out files." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag-Out Format in Editor & Output controls files shared by dragging from the screenshot editor. Export chooses its format separately. JPEG Quality applies to JPEG exports and drag-out files."
+          }
+        }
+      }
     },
     "Draw a border around every included item." : {
 
@@ -1812,6 +2745,28 @@
     "Edit" : {
 
     },
+    "Edit before copying. The original stays unchanged." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit before copying. The original stays unchanged."
+          }
+        }
+      }
+    },
+    "Edit Clipboard Text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Clipboard Text"
+          }
+        }
+      }
+    },
     "Edit Next Item" : {
 
     },
@@ -1824,6 +2779,17 @@
     "Edit Selected Capture" : {
 
     },
+    "Edit Text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Text"
+          }
+        }
+      }
+    },
     "Edit the right level" : {
 
     },
@@ -1832,6 +2798,9 @@
     },
     "Edit the selected source’s crop, annotations, redactions, and UI Map." : {
 
+    },
+    "Edit Video" : {
+      "extractionState" : "manual"
     },
     "Edit what this step says and how it plays" : {
 
@@ -1845,13 +2814,29 @@
     "Editable SnipSnipSnip Document" : {
 
     },
-    "Edited · kept while this window is open" : {
-
+    "Edited" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edited"
+          }
+        }
+      }
+    },
+    "Edited · Original kept" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edited · Original kept"
+          }
+        }
+      }
     },
     "Editor" : {
-
-    },
-    "Editor & Output" : {
 
     },
     "Editor Error" : {
@@ -1871,6 +2856,17 @@
     },
     "Element region" : {
 
+    },
+    "Empty Deleted Snips After" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empty Deleted Snips After"
+          }
+        }
+      }
     },
     "Empty Deleted Snips After: %lld day%@" : {
       "localizations" : {
@@ -1916,6 +2912,28 @@
     "Encoding images…" : {
 
     },
+    "Enter a valid width within the output limits." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a valid width within the output limits."
+          }
+        }
+      }
+    },
+    "Enter a width from 1 to 32,768 pixels." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a width from 1 to 32,768 pixels."
+          }
+        }
+      }
+    },
     "Entire screen" : {
 
     },
@@ -1951,9 +2969,6 @@
 
     },
     "Expand permission setup and diagnostics." : {
-
-    },
-    "Expand Quick Controls" : {
 
     },
     "Expanded" : {
@@ -2034,6 +3049,9 @@
     "Export the current SnipSnipSnip screenshot to a file." : {
 
     },
+    "Export the finished video as MP4, GIF, or APNG." : {
+
+    },
     "Export the output currently shown in this workspace." : {
 
     },
@@ -2043,8 +3061,8 @@
     "Export the selected template without captures or document-specific text." : {
 
     },
-    "Export the trimmed video using MP4, GIF, APNG, or another available format." : {
-
+    "Export Video" : {
+      "extractionState" : "manual"
     },
     "Export ZIP" : {
 
@@ -2068,6 +3086,28 @@
     "Exporting Interactive HTML" : {
 
     },
+    "Exporting screenshot" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporting screenshot"
+          }
+        }
+      }
+    },
+    "Exporting…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporting…"
+          }
+        }
+      }
+    },
     "Extra smooth · 60 fps" : {
 
     },
@@ -2077,11 +3117,47 @@
     "File" : {
 
     },
+    "File > Open and Import Image keep your current editing session while you choose and load a replacement. Cancelling the chooser or choosing an unreadable or unsupported file keeps the current document, selection, zoom, and Undo history. If the replacement loads successfully and the current document needs a save decision, choose Save, Discard, or Cancel before switching. Cancel keeps your current work." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File > Open and Import Image keep your current editing session while you choose and load a replacement. Cancelling the chooser or choosing an unreadable or unsupported file keeps the current document, selection, zoom, and Undo history. If the replacement loads successfully and the current document needs a save decision, choose Save, Discard, or Cancel before switching. Cancel keeps your current work."
+          }
+        }
+      }
+    },
+    "File Available" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File Available"
+          }
+        }
+      }
+    },
     "File Name" : {
 
     },
+    "File Unavailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File Unavailable"
+          }
+        }
+      }
+    },
     "Filename Template" : {
 
+    },
+    "Filename tokens: {kind}, {source}, {width}, {height}, {format}, and date patterns such as {yyyy-MM-dd-HH-mm-ss}." : {
+      "extractionState" : "manual"
     },
     "Files" : {
 
@@ -2092,14 +3168,88 @@
     "Fill Preset" : {
 
     },
-    "Filter" : {
-
+    "Filter Clipboard History" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filter Clipboard History"
+          }
+        }
+      }
+    },
+    "Filters" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filters"
+          }
+        }
+      }
+    },
+    "Filters (%lld)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filters (%lld)"
+          }
+        }
+      }
+    },
+    "Filters apply as you choose them." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filters apply as you choose them."
+          }
+        }
+      }
     },
     "Find a Control" : {
 
     },
+    "Find a setting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find a setting"
+          }
+        }
+      }
+    },
+    "Find a window" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find a window"
+          }
+        }
+      }
+    },
     "Find copied text, links, files, images, and recent screenshots." : {
 
+    },
+    "Find the exported video" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find the exported video"
+          }
+        }
+      }
     },
     "Fine Tune Shadow" : {
 
@@ -2110,8 +3260,25 @@
     "Fine-tune capture" : {
 
     },
+    "Fine-Tune Motion" : {
+
+    },
     "Finish Framing" : {
 
+    },
+    "Finished Length" : {
+      "extractionState" : "manual"
+    },
+    "Finished Length: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finished Length: %@"
+          }
+        }
+      }
     },
     "Finishing" : {
 
@@ -2125,14 +3292,58 @@
     "Fit all pixels, fill the frame, or display at actual pixel size." : {
 
     },
+    "Fit Highlight to Text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fit Highlight to Text"
+          }
+        }
+      }
+    },
+    "Fit new highlights to recognized words and lines. Turn off to draw freely. Uncertain text keeps your freehand stroke." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fit new highlights to recognized words and lines. Turn off to draw freely. Uncertain text keeps your freehand stroke."
+          }
+        }
+      }
+    },
     "Fit the screenshot to the window or show it at actual size." : {
 
+    },
+    "Fit to Text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fit to Text"
+          }
+        }
+      }
     },
     "Fit to View" : {
 
     },
     "Fit to Window" : {
 
+    },
+    "Fixed Focus" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fixed Focus"
+          }
+        }
+      }
     },
     "Float" : {
 
@@ -2158,11 +3369,39 @@
     "Folder Layout" : {
 
     },
+    "Follow Cursor" : {
+      "extractionState" : "manual"
+    },
     "Follow the session" : {
 
     },
+    "Following the recorded cursor, even though it is hidden in the video." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Following the recorded cursor, even though it is hidden in the video."
+          }
+        }
+      }
+    },
+    "Following the recorded cursor." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Following the recorded cursor."
+          }
+        }
+      }
+    },
     "Font" : {
 
+    },
+    "For your next recording, enable Record Keyboard Shortcuts in Settings > Video. It records shortcut names only, never typed text." : {
+      "extractionState" : "manual"
     },
     "Format" : {
 
@@ -2197,6 +3436,20 @@
     "Frontmost Window" : {
 
     },
+    "Full" : {
+
+    },
+    "Full frame. Click or drag to choose a fixed focus. The outlined area will fill the video." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full frame. Click or drag to choose a fixed focus. The outlined area will fill the video."
+          }
+        }
+      }
+    },
     "Full Motion MP4" : {
 
     },
@@ -2204,9 +3457,6 @@
 
     },
     "Full Motion MP4 and Action Highlights require source video." : {
-
-    },
-    "General" : {
 
     },
     "Get SnipSnipSnip Automation Status" : {
@@ -2254,6 +3504,26 @@
     "Guide Capturing" : {
 
     },
+    "Guide Changes Not Saved" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guide Changes Not Saved"
+          }
+        }
+      }
+    },
+    "Guide changes not saved. %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guide changes not saved. %@"
+          }
+        }
+      }
+    },
     "Guide Export" : {
 
     },
@@ -2263,6 +3533,17 @@
     "H" : {
 
     },
+    "Half Size" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Half Size"
+          }
+        }
+      }
+    },
     "Head Ends" : {
 
     },
@@ -2271,6 +3552,17 @@
     },
     "Height" : {
 
+    },
+    "Height adjusts automatically to keep the proportions." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Height adjusts automatically to keep the proportions."
+          }
+        }
+      }
     },
     "Help" : {
 
@@ -2317,6 +3609,9 @@
     "Hide UI Map outlines for unselected elements." : {
 
     },
+    "Highlight Clicks" : {
+      "extractionState" : "manual"
+    },
     "Highlight Color" : {
 
     },
@@ -2329,11 +3624,33 @@
     "History preview. Scroll to pan, pinch or Command-scroll to zoom, and double-click to switch between Fit and Actual Size." : {
 
     },
+    "History Storage Target" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "History Storage Target"
+          }
+        }
+      }
+    },
     "History Storage Target: %lld MB (Pinned Kept)" : {
 
     },
     "Horizontal" : {
 
+    },
+    "Horizontal %@, vertical %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Horizontal %@, vertical %@"
+          }
+        }
+      }
     },
     "Horizontal 0 Origin" : {
 
@@ -2350,6 +3667,31 @@
     "Hover a visible window to highlight it, then click to capture." : {
 
     },
+    "Hover a visible window to highlight it, then click to select it for Video." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hover a visible window to highlight it, then click to select it for Video."
+          }
+        }
+      }
+    },
+    "Hover a window, then click to capture. Esc cancels." : {
+
+    },
+    "Hover a window, then click to record Video. Esc cancels." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hover a window, then click to record Video. Esc cancels."
+          }
+        }
+      }
+    },
     "How do you want to build it?" : {
 
     },
@@ -2365,7 +3707,13 @@
     "I, II, III" : {
 
     },
+    "Icon Only" : {
+
+    },
     "Icon: %@" : {
+
+    },
+    "If the app is missing from the list, add this copy using the + button in System Settings." : {
 
     },
     "Ignore" : {
@@ -2441,6 +3789,16 @@
     },
     "Important" : {
 
+    },
+    "In System Settings, open Privacy & Security > %@ and turn on %@. Access updates automatically when macOS makes it available." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "In System Settings, open Privacy & Security > %1$@ and turn on %2$@. Access updates automatically when macOS makes it available."
+          }
+        }
+      }
     },
     "Include" : {
 
@@ -2550,6 +3908,28 @@
     "Items" : {
 
     },
+    "Join Lines" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Join Lines"
+          }
+        }
+      }
+    },
+    "Join the recognized lines into a paragraph. Review before copying." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Join the recognized lines into a paragraph. Review before copying."
+          }
+        }
+      }
+    },
     "JPEG" : {
 
     },
@@ -2589,8 +3969,14 @@
     "Keep the selected annotation at a normalized position when the layout changes." : {
 
     },
+    "Keep This Part" : {
+      "extractionState" : "manual"
+    },
     "Keep this UI Map overlay visible in copied, shared, and exported screenshots." : {
 
+    },
+    "Keep Under a File Size" : {
+      "extractionState" : "manual"
     },
     "Keep Views Linked" : {
 
@@ -2600,6 +3986,9 @@
     },
     "Keeps your most-used capture and recording actions above other apps with no need to open the main window." : {
 
+    },
+    "Keyboard Shortcuts" : {
+      "extractionState" : "manual"
     },
     "Label" : {
 
@@ -2617,6 +4006,12 @@
 
     },
     "Landscape" : {
+
+    },
+    "Last 7 Days" : {
+
+    },
+    "Last 30 Days" : {
 
     },
     "Launch %@ at Login" : {
@@ -2645,6 +4040,9 @@
     },
     "Library Section" : {
 
+    },
+    "Light" : {
+      "extractionState" : "manual"
     },
     "Line" : {
 
@@ -2712,11 +4110,25 @@
     "lowercase" : {
 
     },
-    "macOS groups screenshot access under Screen Recording. SnipSnipSnip captures only when you choose a capture or recording action." : {
+    "macOS groups screenshot access under Screen Recording. Continue opens the macOS permission prompt. SnipSnipSnip captures only when you choose a capture or recording action." : {
+
+    },
+    "macOS is limiting background clipboard access. Review clipboard access for %@ in Privacy & Security to resume monitoring. Your saved items remain available." : {
 
     },
     "Magnify pixels, sample colors, and measure spacing without taking a screenshot." : {
 
+    },
+    "Major Tick Every" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Major Tick Every"
+          }
+        }
+      }
     },
     "Major Tick Every: %lld" : {
 
@@ -2745,6 +4157,12 @@
     "Mark" : {
 
     },
+    "Mark End" : {
+      "extractionState" : "manual"
+    },
+    "Mark Start" : {
+      "extractionState" : "manual"
+    },
     "Mark Style" : {
 
     },
@@ -2766,11 +4184,50 @@
     "Match Size" : {
 
     },
+    "Match Video" : {
+      "extractionState" : "manual"
+    },
+    "Maximum Item Size" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maximum Item Size"
+          }
+        }
+      }
+    },
     "Maximum Item Size: %lld MB" : {
 
     },
+    "Maximum Size" : {
+      "extractionState" : "manual"
+    },
+    "Maximum Snip History Size" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maximum Snip History Size"
+          }
+        }
+      }
+    },
     "Maximum Snip History Size: %lld MB" : {
 
+    },
+    "Maximum Unpinned Items" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maximum Unpinned Items"
+          }
+        }
+      }
     },
     "Maximum Unpinned Items: %lld" : {
 
@@ -2781,8 +4238,14 @@
     "Method" : {
 
     },
-    "Missing" : {
+    "Microphone" : {
 
+    },
+    "Microphone Access Is Needed" : {
+
+    },
+    "Microphone and system audio remain optional. macOS asks for the matching privacy permission the first time those sources are used." : {
+      "extractionState" : "manual"
     },
     "Missing source" : {
 
@@ -2808,11 +4271,41 @@
     "Monitoring" : {
 
     },
+    "Monitoring Blocked" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monitoring Blocked"
+          }
+        }
+      }
+    },
+    "Monitoring Needs Access" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monitoring Needs Access"
+          }
+        }
+      }
+    },
     "Monitoring Paused" : {
 
     },
-    "More actions" : {
-
+    "More Actions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More Actions"
+          }
+        }
+      }
     },
     "More Options" : {
 
@@ -2877,11 +4370,34 @@
     "Move Section Later" : {
 
     },
+    "Move Selected Steps Down" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Selected Steps Down"
+          }
+        }
+      }
+    },
+    "Move Selected Steps Up" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Selected Steps Up"
+          }
+        }
+      }
+    },
     "Move the focal point left or right inside the frame." : {
 
     },
     "Move the focal point up or down inside the frame." : {
 
+    },
+    "Move the playhead to each end of the mistake, then mark it. Removed sections stay available to restore." : {
+      "extractionState" : "manual"
     },
     "Move the selected freeform item forward or backward in the layer order." : {
 
@@ -2891,6 +4407,17 @@
     },
     "Move to End" : {
 
+    },
+    "Move Zoom Target" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Zoom Target"
+          }
+        }
+      }
     },
     "MP4 Quality" : {
 
@@ -2912,6 +4439,17 @@
     },
     "Needs alignment" : {
 
+    },
+    "Needs Setup" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Needs Setup"
+          }
+        }
+      }
     },
     "Never" : {
 
@@ -2937,8 +4475,30 @@
     "No available running apps" : {
 
     },
+    "No Available Windows" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Available Windows"
+          }
+        }
+      }
+    },
     "No Capturable %@" : {
 
+    },
+    "No clipboard item was read. Copy an item and try again, or review Clipboard access in Privacy & Security." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No clipboard item was read. Copy an item and try again, or review Clipboard access in Privacy & Security."
+          }
+        }
+      }
     },
     "No clipboard items have been saved yet. Resume monitoring to save new copies." : {
 
@@ -2952,6 +4512,17 @@
     "No Controls" : {
 
     },
+    "No cursor position at this frame. Using the saved fixed focus." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No cursor position at this frame. Using the saved fixed focus."
+          }
+        }
+      }
+    },
     "No help topics found" : {
 
     },
@@ -2960,6 +4531,17 @@
     },
     "No Matching Clipboard Items" : {
 
+    },
+    "No Matching Windows" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Matching Windows"
+          }
+        }
+      }
     },
     "No Polish" : {
 
@@ -2970,20 +4552,31 @@
     "No Presets" : {
 
     },
-    "No Selection" : {
-
-    },
     "No shareable windows are currently available. Open an app window, then refresh." : {
 
     },
     "No Shortcut" : {
 
     },
+    "No shortcuts were recorded." : {
+      "extractionState" : "manual"
+    },
     "No Snip History items matched the current search." : {
 
     },
     "No Step Selected" : {
 
+    },
+    "No text was found. Try selecting a smaller, clearer area. Your clipboard has not changed." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No text was found. Try selecting a smaller, clearer area. Your clipboard has not changed."
+          }
+        }
+      }
     },
     "No valid mockups found. Add SVG mockups to the User folder or reload after restoring bundled examples." : {
 
@@ -2994,8 +4587,30 @@
     "None" : {
 
     },
+    "Not Allowed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not Allowed"
+          }
+        }
+      }
+    },
     "Not Now" : {
 
+    },
+    "Not Requested" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not Requested"
+          }
+        }
+      }
     },
     "Not selected" : {
       "comment" : "Accessibility value for an unselected item."
@@ -3051,6 +4666,28 @@
     "Off" : {
 
     },
+    "Off by default so screenshots open in the editor immediately. Turn on to show a small preview with Copy, Edit, Export, and drag actions instead. Private Capture, explicit presets, and multi-image workflows still open their intended destination." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off by default so screenshots open in the editor immediately. Turn on to show a small preview with Copy, Edit, Export, and drag actions instead. Private Capture, explicit presets, and multi-image workflows still open their intended destination."
+          }
+        }
+      }
+    },
+    "Off by default so you can review sensitive details first. When on, screenshots copy after capture and editor changes, before you may have added redactions. Private Capture never copies automatically." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off by default so you can review sensitive details first. When on, screenshots copy after capture and editor changes, before you may have added redactions. Private Capture never copies automatically."
+          }
+        }
+      }
+    },
     "OK" : {
 
     },
@@ -3069,14 +4706,47 @@
     "Open %@" : {
 
     },
+    "Open a list of available windows." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open a list of available windows."
+          }
+        }
+      }
+    },
     "Open a live connected-device preview. macOS may ask for Camera access because trusted iPhone and iPad screens are exposed as video sources." : {
 
     },
     "Open a live iPhone or iPad preview and record its screen." : {
 
     },
+    "Open a window and reopen this chooser, or try Pick On Screen." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open a window and reopen this chooser, or try Pick On Screen."
+          }
+        }
+      }
+    },
     "Open an editable SnipSnipSnip .sss document." : {
 
+    },
+    "Open Camera Settings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Camera Settings"
+          }
+        }
+      }
     },
     "Open Capture Access Help" : {
 
@@ -3096,6 +4766,17 @@
     "Open Help Guide" : {
 
     },
+    "Open in Editor" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open in Editor"
+          }
+        }
+      }
+    },
     "Open Link" : {
 
     },
@@ -3105,8 +4786,44 @@
     "Open Login Items in System Settings" : {
 
     },
+    "Open Microphone Settings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Microphone Settings"
+          }
+        }
+      }
+    },
+    "Open Microphone settings to enable narration, or choose No audio or App audio to continue without it." : {
+
+    },
     "Open optional settings for video smoothness, pointer visibility, desktop cleanup, instructions, and privacy." : {
 
+    },
+    "Open or import without losing your place" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open or import without losing your place"
+          }
+        }
+      }
+    },
+    "Open Privacy Settings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Privacy Settings"
+          }
+        }
+      }
     },
     "Open Screen Inspector" : {
 
@@ -3119,6 +4836,28 @@
     },
     "Open Settings" : {
 
+    },
+    "Open Settings > Snip Library > Clipboard to manage ignored apps. Use Ignore Running App for apps that are currently open, Choose App to pick an app from Applications, or Ignore beside a recent clipboard source." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Settings > Snip Library > Clipboard to manage ignored apps. Use Ignore Running App for apps that are currently open, Choose App to pick an app from Applications, or Ignore beside a recent clipboard source."
+          }
+        }
+      }
+    },
+    "Open Settings with Command-Comma and use Search Settings. Search Settings finds individual controls by their labels and related words. Choose a result to open its category and any nested page, scroll to the setting, and briefly highlight it. For example, JPEG quality reveals JPEG Quality in Editor & Output, while clipboard settings open the Clipboard page of Snip Library. Clearing search keeps the category you chose." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Settings with Command-Comma and use Search Settings. Search Settings finds individual controls by their labels and related words. Choose a result to open its category and any nested page, scroll to the setting, and briefly highlight it. For example, JPEG quality reveals JPEG Quality in Editor & Output, while clipboard settings open the Clipboard page of Snip Library. Clearing search keeps the category you chose."
+          }
+        }
+      }
     },
     "Open Snip in Editor" : {
 
@@ -3150,11 +4889,25 @@
     "Open this Snip History item in the editor." : {
 
     },
+    "Open Zooms and select a zoom in the strip below the video, or choose Show Target in its inspector group. The paused Zoom Target view shows the full, unzoomed frame with an outline of the area that will fill the video at the selected magnification and a center marker. The target remains visible even when the cursor is hidden or was not recorded. Click or drag inside the video to choose a fixed focus; this turns off Follow Cursor and the whole drag is one undoable change. For keyboard control, turn off Follow Cursor and adjust Horizontal Focus and Vertical Focus in the inspector. Follow Cursor uses recorded positions even when Show Cursor is off; when no position is available at the current frame, the target view explains that it is using the saved fixed focus. Preview Zoom plays from that zoom’s start with your current edits. Play and scrubbing remain below the video. Guides disappear during playback, when you select another tool, or when you hide the inspector, and are never included in exports." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Zooms and select a zoom in the strip below the video, or choose Show Target in its inspector group. The paused Zoom Target view shows the full, unzoomed frame with an outline of the area that will fill the video at the selected magnification and a center marker. The target remains visible even when the cursor is hidden or was not recorded. Click or drag inside the video to choose a fixed focus; this turns off Follow Cursor and the whole drag is one undoable change. For keyboard control, turn off Follow Cursor and adjust Horizontal Focus and Vertical Focus in the inspector. Follow Cursor uses recorded positions even when Show Cursor is off; when no position is available at the current frame, the target view explains that it is using the saved fixed focus. Preview Zoom plays from that zoom’s start with your current edits. Play and scrubbing remain below the video. Guides disappear during playback, when you select another tool, or when you hide the inspector, and are never included in exports."
+          }
+        }
+      }
+    },
     "Open…" : {
 
     },
     "Opening an editable multi-item .sss restores its Comparison, Steps, or Combined Image purpose and focused content stage." : {
 
+    },
+    "Optional and off by default. Turning this on begins monitoring supported copied content and loads or creates an encrypted local history whose key is protected by Keychain. macOS may ask you to allow Keychain access." : {
+      "extractionState" : "manual"
     },
     "Optional UUID of the composition item after which to insert." : {
 
@@ -3167,6 +4920,17 @@
     },
     "Orientation" : {
 
+    },
+    "Original Size" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Original Size"
+          }
+        }
+      }
     },
     "Other access is requested only when used" : {
 
@@ -3191,6 +4955,17 @@
     },
     "Output File" : {
 
+    },
+    "Output Size" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Output Size"
+          }
+        }
+      }
     },
     "Overlay" : {
 
@@ -3234,6 +5009,28 @@
     "Pause" : {
 
     },
+    "Pause and return to the first kept frame." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause and return to the first kept frame."
+          }
+        }
+      }
+    },
+    "Pause at this zoom’s midpoint and show the area it will focus on." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause at this zoom’s midpoint and show the area it will focus on."
+          }
+        }
+      }
+    },
     "Pause comparison preview" : {
 
     },
@@ -3250,9 +5047,6 @@
 
     },
     "Pause Monitoring Until Restart" : {
-
-    },
-    "Pause playback." : {
 
     },
     "Pause the Before and After preview." : {
@@ -3297,17 +5091,33 @@
     "Permanently delete Snip History and empty the Recycle Bin?" : {
 
     },
-    "Permanently delete unpinned Clipboard History items" : {
-
-    },
     "Permanently delete unpinned Clipboard History items?" : {
 
     },
     "Permanently Delete Unpinned Items" : {
 
     },
-    "Permission Diagnostics" : {
-
+    "Permanently Delete Unpinned Items…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permanently Delete Unpinned Items…"
+          }
+        }
+      }
+    },
+    "Permissions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permissions"
+          }
+        }
+      }
     },
     "Pick On Screen" : {
 
@@ -3363,17 +5173,66 @@
     "Play comparison preview" : {
 
     },
+    "Play or pause the video with your current edits." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play or pause the video with your current edits."
+          }
+        }
+      }
+    },
     "Play the Before and After preview." : {
 
     },
-    "Play the selected trim range from the current playhead or trim start." : {
-
+    "Play to review. Editing is optional." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play to review. Editing is optional."
+          }
+        }
+      }
     },
-    "Play the selected trim range." : {
-
+    "Playback" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playback"
+          }
+        }
+      }
+    },
+    "Playback controls" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playback controls"
+          }
+        }
+      }
     },
     "Playhead" : {
 
+    },
+    "Playhead %@ of %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playhead %@ of %@"
+          }
+        }
+      }
     },
     "PNG" : {
 
@@ -3405,6 +5264,9 @@
     "Polish step instructions on this Mac" : {
 
     },
+    "Polish Video" : {
+      "extractionState" : "manual"
+    },
     "Portrait" : {
 
     },
@@ -3418,11 +5280,33 @@
         }
       }
     },
+    "Preparing Capture Preview" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing Capture Preview"
+          }
+        }
+      }
+    },
     "Preparing files…" : {
 
     },
     "Preparing Interactive HTML…" : {
 
+    },
+    "Preparing Zoom Target…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing Zoom Target…"
+          }
+        }
+      }
     },
     "Presentation" : {
 
@@ -3436,17 +5320,70 @@
     "Presets" : {
 
     },
+    "Presets rerun a saved screenshot target with the timer, cursor, display, region, and Window UI Map options captured when the preset was created." : {
+      "extractionState" : "manual"
+    },
     "Press and drag on the image to preview %@ color; release to apply." : {
+
+    },
+    "Press to capture this window." : {
 
     },
     "Press to edit this composition annotation." : {
 
     },
+    "Press to follow this app in the Guide." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press to follow this app in the Guide."
+          }
+        }
+      }
+    },
+    "Press to record this window." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press to record this window."
+          }
+        }
+      }
+    },
+    "Press to select this window for Video." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press to select this window for Video."
+          }
+        }
+      }
+    },
     "Press to select. Custom actions edit, frame, arrange, duplicate, include, exclude, or remove this item." : {
 
     },
+    "Press to start the Guide with this window." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press to start the Guide with this window."
+          }
+        }
+      }
+    },
     "Pretty Print JSON" : {
 
+    },
+    "Preview" : {
+      "extractionState" : "manual"
     },
     "Preview %@" : {
 
@@ -3457,14 +5394,55 @@
     "Preview Screenshot" : {
 
     },
-    "Preview this screenshot without opening it." : {
-
+    "Preview selected item while browsing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview selected item while browsing"
+          }
+        }
+      }
     },
-    "Preview Trim" : {
+    "Preview the selected item. Space while browsing." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview the selected item. Space while browsing."
+          }
+        }
+      }
+    },
+    "Preview this screenshot without opening it." : {
 
     },
     "Preview Unavailable" : {
 
+    },
+    "Preview unavailable. Open in Editor to continue." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview unavailable. Open in Editor to continue."
+          }
+        }
+      }
+    },
+    "Preview Zoom" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview Zoom"
+          }
+        }
+      }
     },
     "Previous history item" : {
 
@@ -3475,11 +5453,40 @@
     "Primary Label" : {
 
     },
+    "Print" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Print"
+          }
+        }
+      }
+    },
     "Print · 300 dpi" : {
 
     },
-    "Privacy" : {
-
+    "Print the current document" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Print the current document"
+          }
+        }
+      }
+    },
+    "Print…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Print…"
+          }
+        }
+      }
     },
     "Privacy Policy" : {
 
@@ -3496,6 +5503,9 @@
     "Private Capture" : {
 
     },
+    "Private Capture keeps the current capture out of Snip History, Recent Snips, the Recycle Bin, Clipboard History, and background OCR indexing. You can still explicitly save or export the result. The setting is locked while a capture or recording is active so the in-progress capture uses the privacy choice it started with." : {
+      "extractionState" : "manual"
+    },
     "Private Composition" : {
 
     },
@@ -3507,6 +5517,9 @@
     },
     "Private Guide" : {
 
+    },
+    "Private Guide follows Private Capture: it skips Snip History, OCR indexing, diagnostics content, and AI refinement. Screen images and metadata never leave this Mac." : {
+      "extractionState" : "manual"
     },
     "Private source" : {
 
@@ -3523,17 +5536,45 @@
     "Quick Controls" : {
 
     },
+    "Quick Controls appear at startup by default. Hiding the dock now does not change its startup setting. Use Customize Quick Controls to choose and arrange its controls, or show the dock from the main window, Capture menu, or menu bar icon. Quick Controls are excluded from screenshots, Guides, and videos captured by SnipSnipSnip." : {
+      "extractionState" : "manual"
+    },
     "Quick Controls Dock Preview" : {
 
     },
-    "Quick Controls Menu" : {
+    "Quick Controls Logo" : {
 
     },
     "Quit %@" : {
 
     },
+    "Read Clipboard Once" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read Clipboard Once"
+          }
+        }
+      }
+    },
     "Ready" : {
 
+    },
+    "Ready to paste" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ready to paste"
+          }
+        }
+      }
+    },
+    "Ready to Share" : {
+      "extractionState" : "manual"
     },
     "REC" : {
 
@@ -3552,6 +5593,17 @@
     },
     "Recognized Text" : {
 
+    },
+    "Recognizing Text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recognizing Text"
+          }
+        }
+      }
     },
     "Record" : {
 
@@ -3589,6 +5641,9 @@
     "Record Connected Device" : {
 
     },
+    "Record Keyboard Shortcuts" : {
+      "extractionState" : "manual"
+    },
     "Record Microphone" : {
 
     },
@@ -3601,14 +5656,47 @@
     "Record System Audio" : {
 
     },
+    "Record this window." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record this window."
+          }
+        }
+      }
+    },
     "Record Window" : {
 
+    },
+    "Record Without Microphone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record Without Microphone"
+          }
+        }
+      }
     },
     "Recording" : {
 
     },
     "Recording Sources" : {
 
+    },
+    "Recording stopped because Screen Recording access changed. The captured Video was recovered." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording stopped because Screen Recording access changed. The captured Video was recovered."
+          }
+        }
+      }
     },
     "Recover Interrupted Guide" : {
 
@@ -3618,6 +5706,20 @@
     },
     "Recycle Bin" : {
 
+    },
+    "Redact" : {
+
+    },
+    "Redact covers sensitive details. Copy and Export apply redactions; editable files retain the original." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redact covers sensitive details. Copy and Export apply redactions; editable files retain the original."
+          }
+        }
+      }
     },
     "Redaction" : {
 
@@ -3679,8 +5781,33 @@
     "Remove %@" : {
 
     },
+    "Remove a Mistake" : {
+      "extractionState" : "manual"
+    },
+    "Remove filter: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove filter: %@"
+          }
+        }
+      }
+    },
     "Remove Finder files and folders from the desktop in captured steps and source video. App windows are still captured normally." : {
 
+    },
+    "Remove from %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from %@"
+          }
+        }
+      }
     },
     "Remove from favorites." : {
 
@@ -3690,6 +5817,9 @@
     },
     "Remove Mockup" : {
 
+    },
+    "Remove Section" : {
+      "extractionState" : "manual"
     },
     "Remove selected items" : {
 
@@ -3702,6 +5832,9 @@
     },
     "Remove this UI Map overlay from copied, shared, and exported screenshots." : {
 
+    },
+    "Removed Sections" : {
+      "extractionState" : "manual"
     },
     "Rename" : {
 
@@ -3790,6 +5923,17 @@
     "Reset Crop" : {
 
     },
+    "Reset Filters" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset Filters"
+          }
+        }
+      }
+    },
     "Reset Framing" : {
 
     },
@@ -3802,14 +5946,42 @@
     "Reset to Default Folder" : {
 
     },
+    "Reset Video Edits" : {
+      "extractionState" : "manual"
+    },
     "Resize Window for Zoom" : {
 
     },
     "Restart" : {
 
     },
+    "Restart %@" : {
+
+    },
     "Restart %@ without the normal quit confirmation so macOS applies Screen Recording access." : {
 
+    },
+    "Restart Required" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restart Required"
+          }
+        }
+      }
+    },
+    "Restart required to apply Screen Recording access." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restart required to apply Screen Recording access."
+          }
+        }
+      }
     },
     "Restart SnipSnipSnip to finish applying access." : {
 
@@ -3841,11 +6013,25 @@
     "Restore the first-install controls and dock configuration." : {
 
     },
+    "Restore the full recording and its original appearance. You can undo this too." : {
+      "extractionState" : "manual"
+    },
     "Restore the last deleted item within 30 seconds. Command-Z while browsing." : {
 
     },
     "Restore this draft to the original clipboard text." : {
 
+    },
+    "Restricted" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restricted"
+          }
+        }
+      }
     },
     "Resume" : {
 
@@ -3857,6 +6043,9 @@
 
     },
     "Resume the recording." : {
+
+    },
+    "Retry" : {
 
     },
     "Retry Failed" : {
@@ -3872,9 +6061,6 @@
 
     },
     "Reuse a saved target, timer, cursor, and output workflow." : {
-
-    },
-    "Reveal" : {
 
     },
     "Reveal App" : {
@@ -3897,6 +6083,28 @@
     },
     "Review Issues" : {
 
+    },
+    "Review sensitive details before copying or dragging." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review sensitive details before copying or dragging."
+          }
+        }
+      }
+    },
+    "Review the plain-language capture summary, or expand Fine-tune capture for optional video smoothness, pointer, desktop cleanup, on-device instruction, secure-field, and display menu-bar choices. These choices stay temporary until the selected target starts capturing successfully. Cancel setup or target selection to keep your saved defaults unchanged. Hover over any choice for a plain-language explanation; the defaults work well for most Guides." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review the plain-language capture summary, or expand Fine-tune capture for optional video smoothness, pointer, desktop cleanup, on-device instruction, secure-field, and display menu-bar choices. These choices stay temporary until the selected target starts capturing successfully. Cancel setup or target selection to keep your saved defaults unchanged. Hover over any choice for a plain-language explanation; the defaults work well for most Guides."
+          }
+        }
+      }
     },
     "Review the summary and use the single primary action. Cancelling setup, target selection, permission setup, or capture leaves the current document and preferences unchanged." : {
 
@@ -3946,6 +6154,9 @@
     "Run this workflow." : {
 
     },
+    "s" : {
+      "extractionState" : "manual"
+    },
     "Sample From Image" : {
 
     },
@@ -3963,6 +6174,9 @@
     },
     "Save available names, roles, identifiers, and locations of visible interface elements when capturing a window." : {
 
+    },
+    "Save available names, roles, identifiers, and locations of visible interface elements when capturing a window. Region, screen, scrolling, recording, and connected-device captures do not include UI Map metadata." : {
+      "extractionState" : "manual"
     },
     "Save Capture Preset" : {
 
@@ -4024,11 +6238,36 @@
     "Screen Inspector" : {
 
     },
+    "Screen Inspector is a floating live magnifier that samples pixels under the cursor, shows coordinates and color values, and can stay visible while you work in other apps." : {
+      "extractionState" : "manual"
+    },
     "Screen Recording" : {
 
     },
+    "Screen Recording access is ready." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen Recording access is ready."
+          }
+        }
+      }
+    },
     "Screen Recording access is required before window thumbnails can be shown." : {
 
+    },
+    "Screen Recording access needs attention." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen Recording access needs attention."
+          }
+        }
+      }
     },
     "Screen Recording and Accessibility access are required." : {
 
@@ -4038,6 +6277,9 @@
     },
     "Screen Ruler" : {
 
+    },
+    "Screen rulers are floating, resizable overlays. Click a ruler once to cycle through tick edge and zero-origin combinations, or set the default horizontal and vertical ruler positions here. Visible rulers are included in screenshots when the captured area contains them." : {
+      "extractionState" : "manual"
     },
     "Screen Source" : {
 
@@ -4051,8 +6293,29 @@
     "Screenshot" : {
 
     },
+    "Screenshot Actions" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screenshot Actions"
+          }
+        }
+      }
+    },
     "Screenshot Capture" : {
 
+    },
+    "Screenshot Capture › Advanced" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screenshot Capture › Advanced"
+          }
+        }
+      }
     },
     "Screenshot Capture Settings" : {
 
@@ -4061,9 +6324,6 @@
       "comment" : "Compact permission status shown while a document is open."
     },
     "Screenshot copied to the clipboard." : {
-
-    },
-    "Screenshot Format" : {
 
     },
     "Scroll" : {
@@ -4078,14 +6338,72 @@
     "Search %@" : {
 
     },
+    "Search Apps and Windows" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search Apps and Windows"
+          }
+        }
+      }
+    },
+    "Search by app name or window title." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search by app name or window title."
+          }
+        }
+      }
+    },
     "Search clipboard history" : {
 
+    },
+    "Search Clipboard History" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search Clipboard History"
+          }
+        }
+      }
+    },
+    "Search directly for the control you want to change." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search directly for the control you want to change."
+          }
+        }
+      }
     },
     "Search Help" : {
 
     },
+    "Search includes item content, source app, type, collections, link metadata, file paths, and locally recognized text inside images and screenshots. The item feed has a soft gray background so white cards remain distinct. Pinned items appear first, followed by Today, Yesterday, and dated sections. Image and snip cards show large cropped previews; Preview shows the full fitted image. A contrasting gray background and outlined image edges keep white screenshots easy to distinguish. This preview styling does not change copied images. Opaque colors fill their cards with contrasting text, and code and JSON use monospaced text. Narrow results by type, date, source app, or collection. Preview shows a readable full-content view first. Choose Edit Text to edit or transform text, then Done to return to the preview while keeping the draft. Links have an explicit Open Link action, images have a large fitted preview, and files show their availability. Expand Details for the precise copy time, source, size, and stored item count. Choose Add to Collection to select an existing collection or enter a name; remove a membership with the cross beside its name. Reveal in Finder locates a copied file. Text drafts stay with each item as you select other rows or change filters, until you close Clipboard History or disable it. Reset restores the original text for the selected item. Adding an existing collection keeps the item in that collection; use the Remove from action beside its name to take it out. Pin durable favorites for quick access. Open Snip in Editor finds the latest retained version of a screenshot even when it is no longer recent. If its editable history is unavailable, the clipboard copy remains available." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search includes item content, source app, type, collections, link metadata, file paths, and locally recognized text inside images and screenshots. The item feed has a soft gray background so white cards remain distinct. Pinned items appear first, followed by Today, Yesterday, and dated sections. Image and snip cards show large cropped previews; Preview shows the full fitted image. A contrasting gray background and outlined image edges keep white screenshots easy to distinguish. This preview styling does not change copied images. Opaque colors fill their cards with contrasting text, and code and JSON use monospaced text. Narrow results by type, date, source app, or collection. Preview shows a readable full-content view first. Choose Edit Text to edit or transform text, then Done to return to the preview while keeping the draft. Links have an explicit Open Link action, images have a large fitted preview, and files show their availability. Expand Details for the precise copy time, source, size, and stored item count. Choose Add to Collection to select an existing collection or enter a name; remove a membership with the cross beside its name. Reveal in Finder locates a copied file. Text drafts stay with each item as you select other rows or change filters, until you close Clipboard History or disable it. Reset restores the original text for the selected item. Adding an existing collection keeps the item in that collection; use the Remove from action beside its name to take it out. Pin durable favorites for quick access. Open Snip in Editor finds the latest retained version of a screenshot even when it is no longer recent. If its editable history is unavailable, the clipboard copy remains available."
+          }
+        }
+      }
+    },
     "Search name, role, label, or identifier" : {
 
+    },
+    "Search Settings" : {
+      "extractionState" : "manual"
     },
     "Search Snip History" : {
 
@@ -4126,6 +6444,17 @@
     "Select a UI Map element in the panel, or switch to Pin UI Map to pin elements directly from the screenshot." : {
 
     },
+    "Select a zoom to see its target on the full frame. Click or drag the target to choose a fixed focus." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select a zoom to see its target on the full frame. Click or drag the target to choose a fixed focus."
+          }
+        }
+      }
+    },
     "Select All" : {
 
     },
@@ -4138,8 +6467,41 @@
     "Select numbered arrows on the canvas in their new order." : {
 
     },
+    "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. A single selected Line, Arrow, or Numbered Arrow has two handles, one at its start and one at its end. Drag either handle to adjust that endpoint while keeping the other fixed. Drag the annotation itself to move it. Use the trash button in Layers and Arrangement, press Delete, or right-click an annotation and choose Delete. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing rectangle-shaped annotations and moving or resizing selections. Their magnetic distance stays consistent at every zoom level, and an acquired guide remains stable until you move away. Hold Option while moving or resizing to temporarily bypass snapping; release it to resume alignment. Press Escape before releasing the pointer to cancel a drawing, move, resize, or crop drag without changing the screenshot." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. A single selected Line, Arrow, or Numbered Arrow has two handles, one at its start and one at its end. Drag either handle to adjust that endpoint while keeping the other fixed. Drag the annotation itself to move it. Use the trash button in Layers and Arrangement, press Delete, or right-click an annotation and choose Delete. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing rectangle-shaped annotations and moving or resizing selections. Their magnetic distance stays consistent at every zoom level, and an acquired guide remains stable until you move away. Hold Option while moving or resizing to temporarily bypass snapping; release it to resume alignment. Press Escape before releasing the pointer to cancel a drawing, move, resize, or crop drag without changing the screenshot."
+          }
+        }
+      }
+    },
+    "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. Use the trash button in Layers and Arrangement, press Delete, or right-click an annotation and choose Delete. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing, moving, and resizing rectangles. Their magnetic distance stays consistent at every zoom level, and an acquired guide remains stable until you move away. Hold Option while moving or resizing to temporarily bypass snapping; release it to resume alignment. Press Escape before releasing the pointer to cancel a drawing, move, resize, or crop drag without changing the screenshot." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select one or more annotations to move, resize, rotate 90 degrees, group, ungroup, align, or delete them. Use the trash button in Layers and Arrangement, press Delete, or right-click an annotation and choose Delete. Click an empty area with the Select tool or choose Edit > Unselect to clear the current selection. Snap guides appear while drawing, moving, and resizing rectangles. Their magnetic distance stays consistent at every zoom level, and an acquired guide remains stable until you move away. Hold Option while moving or resizing to temporarily bypass snapping; release it to resume alignment. Press Escape before releasing the pointer to cancel a drawing, move, resize, or crop drag without changing the screenshot."
+          }
+        }
+      }
+    },
     "Select or Drag %@" : {
 
+    },
+    "Select text on screen and copy it without opening the editor. Recognition stays on this Mac." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select text on screen and copy it without opening the editor. Recognition stays on this Mac."
+          }
+        }
+      }
     },
     "Select this control. Drag toward the top or bottom of another control to move it before or after." : {
 
@@ -4225,6 +6587,17 @@
     "Set the spacing between composition items." : {
 
     },
+    "Set the still image shown for the saved Video. This does not start playback." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set the still image shown for the saved Video. This does not start playback."
+          }
+        }
+      }
+    },
     "Set the stroke thickness for the current tool or selection." : {
 
     },
@@ -4233,6 +6606,12 @@
     },
     "Set Up" : {
       "comment" : "Action that starts setup for a missing macOS permission."
+    },
+    "Set Up %@" : {
+
+    },
+    "Set up Accessibility to record shortcuts." : {
+      "extractionState" : "manual"
     },
     "Set up macOS %@ permission for %@." : {
       "localizations" : {
@@ -4259,11 +6638,28 @@
     "Set up the next missing macOS privacy permission for %@." : {
 
     },
+    "Set volume to zero to export a silent video. Recorded microphone and system sound are adjusted together." : {
+      "extractionState" : "manual"
+    },
+    "Setting %@ in %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Setting %@ in %@."
+          }
+        }
+      }
+    },
     "Setup progress" : {
 
     },
     "Shadow" : {
 
+    },
+    "Shape" : {
+      "extractionState" : "manual"
     },
     "Share" : {
 
@@ -4274,13 +6670,13 @@
     "Share…" : {
 
     },
+    "Shortcut recording is not available in this build. Videos with existing shortcut data can still display it." : {
+      "extractionState" : "manual"
+    },
     "Shortcut Reference" : {
 
     },
     "Shortcut: %@" : {
-
-    },
-    "Shortcuts" : {
 
     },
     "Show %@" : {
@@ -4318,6 +6714,17 @@
     },
     "Show Captions" : {
 
+    },
+    "Show Capture Preview" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Capture Preview"
+          }
+        }
+      }
     },
     "Show click pulses in video" : {
 
@@ -4421,6 +6828,9 @@
     "Show Screen Inspector" : {
 
     },
+    "Show Shortcuts" : {
+      "extractionState" : "manual"
+    },
     "Show source" : {
 
     },
@@ -4429,6 +6839,17 @@
     },
     "Show step number" : {
 
+    },
+    "Show Target" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Target"
+          }
+        }
+      }
     },
     "Show the configurable Quick Controls dock above other apps." : {
 
@@ -4457,6 +6878,9 @@
     "Show/Hide Inspector" : {
 
     },
+    "Showing the Full layout revealed on hover." : {
+
+    },
     "Shown" : {
 
     },
@@ -4466,17 +6890,51 @@
     "Simplify" : {
 
     },
+    "Single-key tool shortcuts work only when the screenshot canvas has focus and text entry is not active." : {
+      "extractionState" : "manual"
+    },
     "Size" : {
+
+    },
+    "Size unavailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Size unavailable"
+          }
+        }
+      }
+    },
+    "Slim" : {
 
     },
     "Smaller file · 15 fps" : {
 
+    },
+    "Smooth Movement" : {
+      "extractionState" : "manual"
     },
     "Smoothing" : {
 
     },
     "Snip History" : {
 
+    },
+    "Snip History Folder Needs Access" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snip History Folder Needs Access"
+          }
+        }
+      }
+    },
+    "Snip History stays local to this Mac. It stores editable .sss checkpoints, previews, searchable annotation text, and background OCR text unless Private Capture is enabled." : {
+      "extractionState" : "manual"
     },
     "Snip History Storage" : {
 
@@ -4490,17 +6948,37 @@
     "Snip Library Unavailable" : {
 
     },
+    "SnipSnipSnip does not monitor the clipboard or request the history key until Clipboard History is enabled. It skips concealed and transient pasteboard types and ignores Apple Passwords plus common password managers by default. History metadata and stored representations are encrypted on this Mac with a key protected by Keychain, excluded from Spotlight indexing and backup, and never uploaded by Clipboard History. Turning the feature off stops monitoring, unloads decrypted entries and previews, and keeps the encrypted history without loading it or requesting its key on the next launch. Source-app detection remains best-effort because macOS does not identify the source of every copy." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnipSnipSnip does not monitor the clipboard or request the history key until Clipboard History is enabled. It skips concealed and transient pasteboard types and ignores Apple Passwords plus common password managers by default. History metadata and stored representations are encrypted on this Mac with a key protected by Keychain, excluded from Spotlight indexing and backup, and never uploaded by Clipboard History. Turning the feature off stops monitoring, unloads decrypted entries and previews, and keeps the encrypted history without loading it or requesting its key on the next launch. Source-app detection remains best-effort because macOS does not identify the source of every copy."
+          }
+        }
+      }
+    },
     "Soft" : {
 
     },
     "Solid" : {
 
     },
+    "Sound" : {
+      "extractionState" : "manual"
+    },
+    "Sound & Shortcuts" : {
+      "extractionState" : "manual"
+    },
     "Source" : {
 
     },
     "Source Frame Rate" : {
 
+    },
+    "Source video is on by default so Full Motion and Action Highlights remain available. Turn it off when you only need PDF, animated, image, ZIP, or slideshow output." : {
+      "extractionState" : "manual"
     },
     "Square" : {
 
@@ -4590,6 +7068,17 @@
     "Step Images" : {
 
     },
+    "Step Note" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Step Note"
+          }
+        }
+      }
+    },
     "Step Numbering" : {
 
     },
@@ -4636,6 +7125,17 @@
     "Stop" : {
 
     },
+    "Stop & Open Guide" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop & Open Guide"
+          }
+        }
+      }
+    },
     "Stop and save the recording." : {
 
     },
@@ -4645,11 +7145,17 @@
     "Stored history could not be opened. Use Try Again above after resolving the storage or Keychain problem." : {
 
     },
+    "Strong" : {
+      "extractionState" : "manual"
+    },
     "Style the composition canvas" : {
 
     },
     "Styled" : {
 
+    },
+    "Suggest Zooms from Clicks" : {
+      "extractionState" : "manual"
     },
     "Support" : {
 
@@ -4675,14 +7181,118 @@
     "Text alignment" : {
 
     },
+    "Text Copied" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text Copied"
+          }
+        }
+      }
+    },
+    "Text copied to the clipboard." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text copied to the clipboard."
+          }
+        }
+      }
+    },
+    "Text could not be copied. Please try Capture Text again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text could not be copied. Please try Capture Text again."
+          }
+        }
+      }
+    },
     "The canvas expands automatically as items move or resize." : {
 
     },
     "The canvas uses an explicit size. Items may extend beyond its export bounds." : {
 
     },
+    "The change could not be applied safely. Your screenshot is unchanged." : {
+
+    },
+    "The Choose Window list can search application names and window titles. No Matching Windows means the search hides available windows; clear the search to see them. No Available Windows means there are no eligible windows to choose. Pick On Screen remains available, with instructions for Screenshot or Video as appropriate. Window and Region selection share the same thin neutral outline, clear target against a dimmed desktop, and compact window-name label. The outline settles into view while three graphite markers with bright tips glide around its border, evenly spaced around the border; Reduce Motion keeps it static. Reduce Transparency keeps the target label opaque and preserves the crawl. Window selects a whole window, while Region also lets you drag a custom area. Both modes refresh the window list when selection starts and use the same window bounds and front-to-back order to identify the window under the pointer. Window choices include visible app dialogs, floating panels, and utility windows, including untitled panels. Very small popups, menus, desktop surfaces, the Dock, and system overlays are not offered. Capture Frontmost Window selects an ordinary application window. These exclusions apply to Window choices; drawn regions and Screen capture can still include those surfaces in the visible result." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Choose Window list can search application names and window titles. No Matching Windows means the search hides available windows; clear the search to see them. No Available Windows means there are no eligible windows to choose. Pick On Screen remains available, with instructions for Screenshot or Video as appropriate. Window and Region selection share the same thin neutral outline, clear target against a dimmed desktop, and compact window-name label. The outline settles into view while three graphite markers with bright tips glide around its border, evenly spaced around the border; Reduce Motion keeps it static. Reduce Transparency keeps the target label opaque and preserves the crawl. Window selects a whole window, while Region also lets you drag a custom area. Both modes refresh the window list when selection starts and use the same window bounds and front-to-back order to identify the window under the pointer. Window choices include visible app dialogs, floating panels, and utility windows, including untitled panels. Very small popups, menus, desktop surfaces, the Dock, and system overlays are not offered. Capture Frontmost Window selects an ordinary application window. These exclusions apply to Window choices; drawn regions and Screen capture can still include those surfaces in the visible result."
+          }
+        }
+      }
+    },
+    "The crosshatch marks canvas space outside the original captured image. It is editor-only and is never included when copying, exporting, sharing, or saving rendered output." : {
+      "extractionState" : "manual"
+    },
     "The current %@ document has unsaved changes." : {
 
+    },
+    "The document could not be prepared for printing." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The document could not be prepared for printing."
+          }
+        }
+      }
+    },
+    "The native right inspector keeps Crop Image, Properties, and History directly visible. Crop Image opens Auto Crop, Padded, and Reset Crop above the exact crop controls without changing the selected annotation tool. Properties shows only controls for the current tool or selection and names that context, such as Arrow, Text, or Selection. History uses the full inspector for Change History and the Snip Library instead of stacking them beneath editing controls; the History button includes the current document’s change count. Crop handles remain available on the image while any annotation tool is selected, and crop changes apply immediately through normal undo. Comparison, Steps, Arrange, Look, and Mockup continue to show their stage-specific inspector. The inspector is visible by default and remembered for each window scene. Use the Inspector control immediately after Zoom, or View > Show/Hide Inspector (Command-Option-I), to toggle it. A chosen magnification and the content at the center of the canvas remain stable when the inspector or window changes size; Fit to Window follows the available canvas." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The native right inspector keeps Crop Image, Properties, and History directly visible. Crop Image opens Auto Crop, Padded, and Reset Crop above the exact crop controls without changing the selected annotation tool. Properties shows only controls for the current tool or selection and names that context, such as Arrow, Text, or Selection. History uses the full inspector for Change History and the Snip Library instead of stacking them beneath editing controls; the History button includes the current document’s change count. Crop handles remain available on the image while any annotation tool is selected, and crop changes apply immediately through normal undo. Comparison, Steps, Arrange, Look, and Mockup continue to show their stage-specific inspector. The inspector is visible by default and remembered for each window scene. Use the Inspector control immediately after Zoom, or View > Show/Hide Inspector (Command-Option-I), to toggle it. A chosen magnification and the content at the center of the canvas remain stable when the inspector or window changes size; Fit to Window follows the available canvas."
+          }
+        }
+      }
+    },
+    "The saved Snip History folder could not be accessed. New snips are kept in the default location. Choose Location in Snip Library settings to restore access. Existing history has not been moved or deleted." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The saved Snip History folder could not be accessed. New snips are kept in the default location. Choose Location in Snip Library settings to restore access. Existing history has not been moved or deleted."
+          }
+        }
+      }
+    },
+    "The screenshot changed while it was being kept in Recent Snips. Try again to keep your latest edits." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The screenshot changed while it was being kept in Recent Snips. Try again to keep your latest edits."
+          }
+        }
+      }
+    },
+    "The screenshot could not be copied to the clipboard. Try Copy again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The screenshot could not be copied to the clipboard. Try Copy again."
+          }
+        }
+      }
     },
     "Theme" : {
 
@@ -4699,8 +7309,41 @@
     "This cursor was captured as an editable overlay. Move, resize, or delete it like any other image overlay." : {
 
     },
+    "This draft is kept while Clipboard History is open." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This draft is kept while Clipboard History is open."
+          }
+        }
+      }
+    },
+    "This item could not be copied. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This item could not be copied. Try again."
+          }
+        }
+      }
+    },
     "This keeps your current documents, Snip History, and Recycle Bin contents, but it restores settings values to their shipped defaults." : {
 
+    },
+    "This Mockup uses CSS transforms or a nested SVG viewport. Use the inspector controls to adjust framing." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Mockup uses CSS transforms or a nested SVG viewport. Use the inspector controls to adjust framing."
+          }
+        }
+      }
     },
     "This permanently removes every saved screenshot version and deleted screenshot from this Mac. This cannot be undone." : {
 
@@ -4708,8 +7351,20 @@
     "This permanently removes pinned and unpinned clipboard items from this Mac." : {
 
     },
-    "This restores Capture Region, Capture Window, Capture Screen, Repeat Last Capture, Capture Presets, Record Region, and Timer in Expanded presentation on the right edge." : {
+    "This profile is copied into every new Guide and travels with the saved .sssguide document. Existing Guides keep their own branding. Use the Guide editor's Use as Default button to replace this profile from a finished design." : {
+      "extractionState" : "manual"
+    },
+    "This reads the current item. To monitor future copies without prompts, allow clipboard access in System Settings." : {
 
+    },
+    "This restores Capture Region, Capture Window, Capture Screen, Repeat Last Capture, Capture Presets, Record Region, and Timer in Full mode on the right edge." : {
+
+    },
+    "This restores capture, shortcuts, recording, output, Snip Library, naming, privacy, and Quick Controls settings to their default values. It does not delete Snip History or Recycle Bin items." : {
+      "extractionState" : "manual"
+    },
+    "This video has no separate cursor data. Record a new Video in SnipSnipSnip to adjust the cursor and clicks afterward." : {
+      "extractionState" : "manual"
     },
     "Tick Spacing" : {
 
@@ -4721,6 +7376,9 @@
 
     },
     "Timer" : {
+
+    },
+    "Timing" : {
 
     },
     "Title" : {
@@ -4740,6 +7398,17 @@
     },
     "To explain a process, choose Record a Guide for action-aware capture or Build Steps manually to add and caption each step yourself." : {
 
+    },
+    "Today" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today"
+          }
+        }
+      }
     },
     "Toggle Selection" : {
 
@@ -4762,6 +7431,9 @@
     "Triangle" : {
 
     },
+    "Trim" : {
+      "extractionState" : "manual"
+    },
     "Trim end" : {
 
     },
@@ -4771,17 +7443,39 @@
     "Trim to Items" : {
 
     },
-    "Trim Video" : {
-
-    },
     "Trim Whitespace" : {
 
+    },
+    "Trim, polish, then export." : {
+      "extractionState" : "manual"
+    },
+    "Troubleshooting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Troubleshooting"
+          }
+        }
+      }
     },
     "Try Again" : {
 
     },
     "Try the failed files again at their original composition destination." : {
 
+    },
+    "Turn off Follow Cursor and use Horizontal Focus and Vertical Focus in the Zooms inspector to position the target with the keyboard." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn off Follow Cursor and use Horizontal Focus and Vertical Focus in the Zooms inspector to position the target with the keyboard."
+          }
+        }
+      }
     },
     "Turn on SnipSnipSnip in System Settings, then return here." : {
 
@@ -4828,6 +7522,9 @@
     "Update" : {
 
     },
+    "Updating Preview" : {
+      "extractionState" : "manual"
+    },
     "UPPERCASE" : {
 
     },
@@ -4843,9 +7540,6 @@
           }
         }
       }
-    },
-    "Use %@. Open the disclosure menu for other redaction tools." : {
-
     },
     "Use %@. Open the disclosure menu for other tools." : {
 
@@ -4883,14 +7577,33 @@
     "Use source colors" : {
 
     },
-    "Use Start Frame as Poster" : {
-
+    "Use Start Frame as Preview" : {
+      "extractionState" : "manual"
+    },
+    "Use Start Frame as Thumbnail" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Start Frame as Thumbnail"
+          }
+        }
+      }
     },
     "Use Steps to arrange captures you already have. Use Guide to record a workflow automatically." : {
 
     },
-    "Use the trim start frame as the package poster frame." : {
-
+    "Use the Monitoring icon menu in the Clipboard History header or Settings > Snip Library > Clipboard to pause monitoring for five minutes, one hour, or until restart. Settings also controls unpinned item retention, the item and storage targets, and the maximum size accepted for a single item. Delete removes an item from the list and offers Undo Delete for 30 seconds. Command-Z while browsing also restores the last deleted item; native text undo takes precedence in editing fields. Undo clears filters so the restored item is visible. Recovery data remains encrypted and its original deadline survives an app restart. Choose Clipboard Actions > Permanently Delete Unpinned Items… for bulk deletion. It requires confirmation, keeps pinned items, and removes the affected items from deletion recovery too." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use the Monitoring icon menu in the Clipboard History header or Settings > Snip Library > Clipboard to pause monitoring for five minutes, one hour, or until restart. Settings also controls unpinned item retention, the item and storage targets, and the maximum size accepted for a single item. Delete removes an item from the list and offers Undo Delete for 30 seconds. Command-Z while browsing also restores the last deleted item; native text undo takes precedence in editing fields. Undo clears filters so the restored item is visible. Recovery data remains encrypted and its original deadline survives an app restart. Choose Clipboard Actions > Permanently Delete Unpinned Items… for bulk deletion. It requires confirmation, keeps pinned items, and removes the affected items from deletion recovery too."
+          }
+        }
+      }
     },
     "User contains custom SVG mockups." : {
 
@@ -4937,14 +7650,72 @@
     "Video" : {
 
     },
+    "Video — Polish" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video — Polish"
+          }
+        }
+      }
+    },
+    "Video — Review" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video — Review"
+          }
+        }
+      }
+    },
+    "Video Could Not Start" : {
+
+    },
     "Video Error" : {
 
     },
-    "Video Export" : {
-
+    "Video preview" : {
+      "extractionState" : "manual"
     },
     "Video smoothness" : {
 
+    },
+    "Video tools" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video tools"
+          }
+        }
+      }
+    },
+    "Video uses the same grouped command rows as Screenshot and Polish. Discard comes first, followed by Trim, Zooms, Cursor & Clicks, and Sound & Shortcuts. The next row groups Undo/Redo, Inspector, and Drag beside Export. Discard and Export stay visible when secondary controls need horizontal scrolling, and the window fits the available display area. Choose an editing tool to open its grouped inspector; the selected tool has a visible boundary. Trim also shows the thumbnail strip: drag it to scrub, or move the handles to keep a smaller part. Use Start Frame as Thumbnail only changes the saved Video's still image; use Play to watch. Show/Hide Inspector (Option-Command-I) opens or hides details without hiding playback. With the preview focused, Space plays or pauses and Left/Right Arrow moves one frame. New capture commands remain available in the Capture menu and shortcuts." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video uses the same grouped command rows as Screenshot and Polish. Discard comes first, followed by Trim, Zooms, Cursor & Clicks, and Sound & Shortcuts. The next row groups Undo/Redo, Inspector, and Drag beside Export. Discard and Export stay visible when secondary controls need horizontal scrolling, and the window fits the available display area. Choose an editing tool to open its grouped inspector; the selected tool has a visible boundary. Trim also shows the thumbnail strip: drag it to scrub, or move the handles to keep a smaller part. Use Start Frame as Thumbnail only changes the saved Video's still image; use Play to watch. Show/Hide Inspector (Option-Command-I) opens or hides details without hiding playback. With the preview focused, Space plays or pauses and Left/Right Arrow moves one frame. New capture commands remain available in the Capture menu and shortcuts."
+          }
+        }
+      }
+    },
+    "Video uses the same grouped command rows as Screenshot and Polish. Discard comes first, followed by Trim, Zooms, Cursor & Clicks, and Sound & Shortcuts. The next row groups Undo/Redo, Inspector, and Drag beside Export. Discard and Export stay visible when secondary controls need horizontal scrolling, and the window fits the available display area. Choose an editing tool to open its grouped inspector; the selected tool has a visible boundary. Trim also shows the thumbnail strip: drag it to scrub, or move the handles to keep a smaller part. Use Start Frame as Thumbnail only changes the saved Video's still image; use Play to watch. Show/Hide Inspector (Option-Command-I) opens or hides details without hiding playback. With the preview focused, Space plays or pauses and Left/Right Arrow moves one frame. New capture commands remain available in the Capture menu and shortcuts. Search Settings finds individual controls by their labels and related words. Choose a result to open its category and any nested page, scroll to the setting, and briefly highlight it. For example, JPEG quality reveals JPEG Quality in Editor & Output, while clipboard settings open the Clipboard page of Snip Library." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video uses the same grouped command rows as Screenshot and Polish. Discard comes first, followed by Trim, Zooms, Cursor & Clicks, and Sound & Shortcuts. The next row groups Undo/Redo, Inspector, and Drag beside Export. Discard and Export stay visible when secondary controls need horizontal scrolling, and the window fits the available display area. Choose an editing tool to open its grouped inspector; the selected tool has a visible boundary. Trim also shows the thumbnail strip: drag it to scrub, or move the handles to keep a smaller part. Use Start Frame as Thumbnail only changes the saved Video's still image; use Play to watch. Show/Hide Inspector (Option-Command-I) opens or hides details without hiding playback. With the preview focused, Space plays or pauses and Left/Right Arrow moves one frame. New capture commands remain available in the Capture menu and shortcuts. Search Settings finds individual controls by their labels and related words. Choose a result to open its category and any nested page, scroll to the setting, and briefly highlight it. For example, JPEG quality reveals JPEG Quality in Editor & Output, while clipboard settings open the Clipboard page of Snip Library."
+          }
+        }
+      }
     },
     "View All" : {
 
@@ -4955,11 +7726,36 @@
     "View Recycle Bin" : {
 
     },
+    "Visible in the preview and included in exports" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Visible in the preview and included in exports"
+          }
+        }
+      }
+    },
     "W" : {
 
     },
     "Wait before capture so you can prepare menus or pointer position." : {
 
+    },
+    "Waiting for Access" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for Access"
+          }
+        }
+      }
+    },
+    "Warm" : {
+      "extractionState" : "manual"
     },
     "Website" : {
 
@@ -4979,6 +7775,23 @@
     "When capture finishes" : {
 
     },
+    "When enabled, clipboard history stays encrypted on this Mac with a key protected by Keychain. Turning it off stops monitoring and unloads decrypted history and cached previews while preserving the encrypted history unless you permanently delete it. The history and its key are not loaded on the next launch. Private Capture always stays out of clipboard history." : {
+      "extractionState" : "manual"
+    },
+    "When enabled, region, window, frontmost-window, screen, and repeat screenshots add the current cursor as a movable, resizable, removable overlay. Scrolling Capture always excludes the cursor while stitching." : {
+      "extractionState" : "manual"
+    },
+    "When on, screenshots copy after capture and editor changes, before you may have added redactions. Turn off to review first. Private Capture never copies automatically." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When on, screenshots copy after capture and editor changes, before you may have added redactions. Turn off to review first. Private Capture never copies automatically."
+          }
+        }
+      }
+    },
     "Where will the first image come from?" : {
 
     },
@@ -4988,11 +7801,33 @@
     "Width" : {
 
     },
+    "Width (px)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Width (px)"
+          }
+        }
+      }
+    },
     "Width and Height" : {
 
     },
     "Window" : {
 
+    },
+    "Window selection targets" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window selection targets"
+          }
+        }
+      }
     },
     "Window UI Map needs Accessibility access before metadata can be captured." : {
 
@@ -5018,6 +7853,17 @@
     "Y" : {
 
     },
+    "Yesterday" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday"
+          }
+        }
+      }
+    },
     "You can replay this setup from Settings > General." : {
 
     },
@@ -5030,10 +7876,25 @@
     "Your open screenshot and annotations have not been replaced. Your capture settings are still in place. Choose an action below to continue." : {
 
     },
+    "Your original video is kept. Undo any change with ⌘Z." : {
+      "extractionState" : "manual"
+    },
+    "Your recording preferences are unchanged. Try Again returns to the selected recording source." : {
+
+    },
+    "Your trims and effects are included. The original stays editable." : {
+      "extractionState" : "manual"
+    },
     "ZIP" : {
 
     },
     "Zoom" : {
+
+    },
+    "Zoom at %.1f s" : {
+
+    },
+    "Zoom at %@ seconds" : {
 
     },
     "Zoom content inside the selected item frame." : {
@@ -5056,6 +7917,37 @@
     },
     "Zoom out." : {
 
+    },
+    "Zoom Target" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom Target"
+          }
+        }
+      }
+    },
+    "Zoom Target Unavailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom Target Unavailable"
+          }
+        }
+      }
+    },
+    "Zooms" : {
+      "extractionState" : "manual"
+    },
+    "Zooms & Removed Sections" : {
+
+    },
+    "Zooms guide attention. Select one below to adjust when and where it focuses." : {
+      "extractionState" : "manual"
     }
   },
   "version" : "1.0"

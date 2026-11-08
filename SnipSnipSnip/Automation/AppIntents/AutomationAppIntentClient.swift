@@ -214,7 +214,7 @@ extension AutomationOutput {
 
 extension AutomationRequest {
     nonisolated var debugSummary: String {
-        "source=\(source.kind.rawValue) caller=\(source.caller ?? "nil") command=\(command.debugSummary) interaction=\(interactionPolicy.rawValue) private=\(privacy.privateCapture) destination=\(captureDestination.rawValue) appendAfterItem=\(appendAfterCompositionItemID?.uuidString ?? "nil") replaceItem=\(replaceCompositionItemID?.uuidString ?? "nil") appearance=\(appearance.rawValue) output=\(output.debugSummary) validation=\(validationError?.message ?? "none") foreground=\(requiresAppIntentForeground)"
+        "source=\(source.kind.rawValue) command=\(command.debugSummary) interaction=\(interactionPolicy.rawValue) private=\(privacy.privateCapture) destination=\(captureDestination.rawValue) appendAfterItem=\(appendAfterCompositionItemID?.uuidString ?? "nil") replaceItem=\(replaceCompositionItemID?.uuidString ?? "nil") appearance=\(appearance.rawValue) output=\(output.debugSummary) validation=\(validationError?.message ?? "none") foreground=\(requiresAppIntentForeground)"
     }
 }
 
@@ -226,13 +226,13 @@ extension AutomationCommand {
         case .listPresets:
             return "listPresets"
         case .runPreset(let command):
-            return "runPreset(id=\(command.id?.uuidString ?? "nil"), name=\(command.name ?? "nil"))"
+            return "runPreset(id=\(command.id?.uuidString ?? "nil"), hasName=\(command.name != nil))"
         case .capture(let command):
             return "capture(target=\(command.target.debugSummary), delay=\(command.options.delay.debugSummary), cursor=\(command.options.includesCursor.map(String.init(describing:)) ?? "nil"), uiMap=\(command.options.windowUIMap.rawValue))"
         case .repeatLastCapture:
             return "repeatLastCapture"
         case .openDocument(let command):
-            return "openDocument(url=\(command.url.path))"
+            return "openDocument(fileURL=\(command.url.isFileURL))"
         case .exportCurrent(let command):
             return "exportCurrent(format=\(command.format.rawValue))"
         case .composition(let command):
@@ -251,7 +251,7 @@ extension CompositionAutomationCommand {
         case .setCompareMode(let command):
             return "compare(mode=\(command.mode.rawValue), first=\(command.firstItemID?.uuidString ?? "nil"), second=\(command.secondItemID?.uuidString ?? "nil"))"
         case .applyTemplate(let command):
-            return "template(id=\(command.id ?? "nil"), name=\(command.name ?? "nil"))"
+            return "template(id=\(command.id ?? "nil"), hasName=\(command.name != nil))"
         }
     }
 }
@@ -296,9 +296,9 @@ extension AutomationOutput {
         case .copyRenderedImage:
             return "copyRenderedImage"
         case .saveFile(let file):
-            return "saveFile(url=\(file.url?.path ?? "nil"), format=\(file.format.rawValue), overwrite=\(file.overwrite), reveal=\(file.revealInFinder))"
+            return "saveFile(hasURL=\(file.url != nil), format=\(file.format.rawValue), overwrite=\(file.overwrite), reveal=\(file.revealInFinder))"
         case .saveEditableDocument(let file):
-            return "saveEditableDocument(url=\(file.url?.path ?? "nil"), format=\(file.format.rawValue), overwrite=\(file.overwrite), reveal=\(file.revealInFinder))"
+            return "saveEditableDocument(hasURL=\(file.url != nil), format=\(file.format.rawValue), overwrite=\(file.overwrite), reveal=\(file.revealInFinder))"
         case .floatReference:
             return "floatReference"
         case .none:
@@ -310,7 +310,7 @@ extension AutomationOutput {
 extension AutomationResultEnvelope {
     nonisolated var debugSummary: String {
         let outputSummary = outputs.map(\.debugSummary).joined(separator: ",")
-        return "status=\(status.rawValue) payload=\(payload?.debugSummary ?? "nil") outputs=[\(outputSummary)] warnings=\(warnings.count) error=\(error?.message ?? "nil")"
+        return "status=\(status.rawValue) payload=\(payload?.debugSummary ?? "nil") outputs=[\(outputSummary)] warnings=\(warnings.count) error=\(error?.code.rawValue ?? "nil")"
     }
 }
 
@@ -324,9 +324,9 @@ extension AutomationPayload {
         case .presets(let presets):
             return "presets(count=\(presets.count))"
         case .capture(let summary):
-            return "capture(kind=\(summary.kind), source=\(summary.sourceName ?? "nil"), interactive=\(summary.acceptedInteractiveWorkflow))"
+            return "capture(kind=\(summary.kind), hasSource=\(summary.sourceName != nil), interactive=\(summary.acceptedInteractiveWorkflow))"
         case .export(let summary):
-            return "export(format=\(summary.format?.rawValue ?? "nil"), source=\(summary.source))"
+            return "export(format=\(summary.format?.rawValue ?? "nil"), source=redacted)"
         case .composition(let summary):
             return "composition(items=\(summary.itemCount), item=\(summary.itemID?.uuidString ?? "nil"), layout=\(summary.layout.rawValue), compare=\(summary.compareMode?.rawValue ?? "nil"))"
         case .permissionStatus(let summary):
@@ -341,6 +341,6 @@ extension AutomationPayload {
 
 extension AutomationOutputResult {
     nonisolated var debugSummary: String {
-        "kind=\(kind.rawValue), url=\(url?.path ?? "nil"), format=\(format?.rawValue ?? "nil")"
+        "kind=\(kind.rawValue), hasURL=\(url != nil), format=\(format?.rawValue ?? "nil")"
     }
 }

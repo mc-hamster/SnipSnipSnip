@@ -3,6 +3,129 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class ScrollingStitcherTests: XCTestCase {
+    func testTextPageStitchMeetsInteractiveBudgetInDebugAndRelease() throws {
+        let first = makeScrollingTextPage(width: 2590, height: 1236, offset: 0)
+        let next = makeScrollingTextPage(width: 2590, height: 1236, offset: 927)
+        let stitcher = ScrollingStitcher()
+        for _ in 0..<3 {
+            var state = try stitcher.initialState(with: first, maxOutputHeight: 60000)
+            let elapsed = PerformanceBudgetTimer.measure {
+                XCTAssertEqual(stitcher.append(next, to: &state), .appended)
+                XCTAssertNotNil(state.makePreviewImage())
+            }
+            XCTAssertEqual(state.outputHeight, 2163)
+            XCTAssertTrue(PerformanceBudgetCatalog.scrollingFrameStitch.contains(elapsed),
+                          "Text-page stitching took \(elapsed)s; budget is \(PerformanceBudgetCatalog.scrollingFrameStitch.maximumSeconds)s")
+        }
+    }
+
+    func testNearBlankPageStitchMeetsInteractiveBudget() throws {
+        let white = PixelSample(red: 255, green: 255, blue: 255, alpha: 255)
+        let first = makeSolidImage(width: 2590, height: 1236, color: white)
+        let next = makeRGBAImage(width: 2590, height: 1236) { x, y in
+            x == 2589 && y == 1235 ? PixelSample(red: 0, green: 0, blue: 0, alpha: 255) : white
+        }
+        let stitcher = ScrollingStitcher()
+        var state = try stitcher.initialState(with: first, maxOutputHeight: 60000)
+        let elapsed = PerformanceBudgetTimer.measure {
+            XCTAssertEqual(stitcher.append(next, to: &state), .unchanged)
+        }
+        XCTAssertEqual(state.outputHeight, 1236)
+        XCTAssertTrue(PerformanceBudgetCatalog.scrollingFrameStitch.contains(elapsed),
+                      "Near-blank stitching took \(elapsed)s; budget is \(PerformanceBudgetCatalog.scrollingFrameStitch.maximumSeconds)s")
+    }
+
+    @MainActor
+    func testAsynchronousFrameProcessingLetsMainActorRun() async throws {
+        let first = makeScrollingTextPage(width: 2590, height: 1236, offset: 0)
+        let next = makeScrollingTextPage(width: 2590, height: 1236, offset: 927)
+        let stitcher = ScrollingStitcher()
+        let state = try stitcher.initialState(with: first, maxOutputHeight: 60000)
+        var mainActorRan = false
+        Task { @MainActor in mainActorRan = true }
+        let result = await stitcher.appendingFrame(next, after: first, previousSample: nil, to: state)
+        XCTAssertTrue(mainActorRan, "Stitching must yield the main actor so capture controls remain responsive")
+        XCTAssertEqual(result.result, .appended)
+        XCTAssertEqual(result.state.outputHeight, 2163)
+    }
+
+    func testSparseUnrelatedTextEdgesDoNotMatchBecauseTheBackgroundIsWhite() throws {
+        func frame(multiplier: Int) -> CGImage {
+            makeRGBAImage(width: 48, height: 80) { x, y in
+                let value: UInt8 = x == ((y * y + multiplier * y + multiplier) % 41) + 3 ? 0 : 255
+                return PixelSample(red: value, green: value, blue: value, alpha: 255)
+            }
+        }
+        let first = frame(multiplier: 3)
+        let next = frame(multiplier: 11)
+        let stitcher = ScrollingStitcher()
+        var state = try stitcher.initialState(with: first, maxOutputHeight: 300)
+
+        XCTAssertEqual(stitcher.append(next, to: &state), .lowConfidence)
+        XCTAssertEqual(state.outputHeight, 80)
+        XCTAssertEqual(state.segmentCount, 1)
+    }
+    func testChangedViewportHeightIsRejectedWithoutAppendingContent() throws {
+        let first = makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 })
+        let next = makeScrollingFrame(width: 48, height: 90, rowMapper: { $0 + 50 })
+        let stitcher = ScrollingStitcher()
+        var state = try stitcher.initialState(with: first, maxOutputHeight: 300)
+
+        XCTAssertEqual(stitcher.append(next, to: &state), .lowConfidence)
+        XCTAssertNil(stitcher.bestMatch(previous: first, next: next))
+        assertScrollingRows(in: state.image, expectedHeight: 80)
+    }
+    func testSmallViewportRetainsOverlapAtNormalScrollDistance() throws {
+        let first = makeScrollingFrame(width: 12, height: 12, rowMapper: { $0 })
+        let next = makeScrollingFrame(width: 12, height: 12, rowMapper: { $0 + 9 })
+        let stitcher = ScrollingStitcher()
+        var state = try stitcher.initialState(with: first, maxOutputHeight: 100)
+
+        XCTAssertEqual(stitcher.append(next, to: &state), .appended)
+        assertScrollingRows(in: state.image, expectedHeight: 21)
+    }
+
+    func testEqualLuminanceColorRowsDoNotLookStationary() throws {
+        func pixel(at row: Int) -> PixelSample {
+            scrollingRowSeed(row) & 1 == 0
+                ? PixelSample(red: 255, green: 0, blue: 0, alpha: 255)
+                : PixelSample(red: 0, green: 130, blue: 0, alpha: 255)
+        }
+        let first = makeRGBAImage(width: 48, height: 80) { _, y in pixel(at: y) }
+        let next = makeRGBAImage(width: 48, height: 80) { _, y in pixel(at: y + 1) }
+        let stitcher = ScrollingStitcher()
+        var state = try stitcher.initialState(with: first, maxOutputHeight: 100)
+
+        XCTAssertEqual(stitcher.append(next, to: &state), .appended)
+        XCTAssertEqual(state.outputHeight, 81)
+        for y in 0..<81 {
+            XCTAssertEqual(samplePixel(in: state.image, topLeftX: 10, topLeftY: y), pixel(at: y))
+        }
+    }
+    func testInitialFrameRespectsOutputHeightLimit() throws {
+        let frame = makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 })
+        let state = try ScrollingStitcher().initialState(with: frame, maxOutputHeight: 25)
+
+        XCTAssertEqual(state.outputHeight, 25)
+        XCTAssertEqual(state.segmentCount, 1)
+        assertScrollingRows(in: state.image, expectedHeight: 25)
+    }
+
+    func testProgressPreviewIsBoundedWithoutReducingOutputResolution() throws {
+        let first = makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 })
+        let second = makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 + 50 })
+        let stitcher = ScrollingStitcher()
+        var state = try stitcher.initialState(with: first, maxOutputHeight: 300)
+        XCTAssertEqual(stitcher.append(second, to: &state), .appended)
+
+        let preview = try XCTUnwrap(state.makePreviewImage(maximumDimension: 32))
+
+        XCTAssertEqual(preview.width, 11)
+        XCTAssertEqual(preview.height, 32)
+        XCTAssertEqual(state.image.width, 48)
+        assertScrollingRows(in: state.image, expectedHeight: 130)
+    }
+
     func testStitchesPerfectOverlap() throws {
         let first = makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 })
         let second = makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 + 50 })
@@ -40,6 +163,113 @@ final class ScrollingStitcherTests: XCTestCase {
         XCTAssertTrue(stitcher.imagesAreDuplicate(frame, frame))
     }
 
+    func testSmallAndOddPixelScrollsPreserveEveryRow() throws {
+        let stitcher = ScrollingStitcher()
+        let first = makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 })
+
+        for distance in [1, 3, 7, 17, 25, 50, 67] {
+            let next = makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 + distance })
+            var state = try stitcher.initialState(with: first, maxOutputHeight: 300)
+
+            XCTAssertFalse(stitcher.imagesAreDuplicate(first, next), "Scroll distance: \(distance)")
+            XCTAssertEqual(stitcher.append(next, to: &state), .appended)
+            XCTAssertEqual(state.outputHeight, 80 + distance)
+            assertScrollingRows(in: state.image, expectedHeight: 80 + distance)
+        }
+    }
+
+    func testShortFinalScrollsAndRepeatedBottomDoNotLoseOrDuplicateRows() throws {
+        let stitcher = ScrollingStitcher()
+        let first = makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 })
+        var state = try stitcher.initialState(with: first, maxOutputHeight: 300)
+
+        for offset in [50, 57, 58] {
+            let frame = makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 + offset })
+            XCTAssertEqual(stitcher.append(frame, to: &state), .appended)
+            XCTAssertEqual(state.outputHeight, 80 + offset)
+            assertScrollingRows(in: state.image, expectedHeight: 80 + offset)
+        }
+        let last = makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 + 58 })
+        XCTAssertEqual(stitcher.append(last, to: &state), .unchanged)
+        assertScrollingRows(in: state.image, expectedHeight: 138)
+        XCTAssertEqual(state.segmentCount, 4)
+    }
+
+    func testStationaryFrameWithSmallVisualChangeDoesNotAppendADuplicateTail() throws {
+        let stitcher = ScrollingStitcher()
+        let first = makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 })
+        let changed = makeRGBAImage(width: 48, height: 80) { x, y in
+            x == 47 && y == 79
+                ? PixelSample(red: 255, green: 255, blue: 255, alpha: 255)
+                : scrollingPixel(x: x, y: y)
+        }
+        var state = try stitcher.initialState(with: first, maxOutputHeight: 300)
+
+        XCTAssertFalse(stitcher.imagesAreDuplicate(first, changed))
+        XCTAssertEqual(stitcher.append(changed, to: &state), .unchanged)
+        XCTAssertEqual(state.segmentCount, 1)
+        assertScrollingRows(in: state.image, expectedHeight: 80)
+    }
+
+    func testRepeatedContentWithCompetingNonzeroOffsetsIsRejected() throws {
+        let first = makeNonrepeatingScrollingFrame(width: 48, height: 800, rowMapper: { $0 % 240 })
+        let moved = makeNonrepeatingScrollingFrame(width: 48, height: 800, rowMapper: { ($0 + 600) % 240 })
+        let stitcher = ScrollingStitcher()
+        var state = try stitcher.initialState(with: first, maxOutputHeight: 3000)
+
+        XCTAssertFalse(stitcher.imagesAreDuplicate(first, moved))
+        XCTAssertNil(stitcher.bestMatch(previous: first, next: moved))
+        XCTAssertEqual(stitcher.append(moved, to: &state), .lowConfidence)
+        XCTAssertEqual(state.outputHeight, 800)
+        XCTAssertEqual(state.segmentCount, 1)
+    }
+
+    func testStationaryBlankContentDoesNotInventScrollWhenHeaderChanges() throws {
+        let stitcher = ScrollingStitcher()
+        let first = makeSolidImage(width: 48, height: 80, color: PixelSample(red: 255, green: 255, blue: 255, alpha: 255))
+        let changed = makeRGBAImage(width: 48, height: 80) { x, y in
+            let value: UInt8 = x == 20 && y == 3 ? 0 : 255
+            return PixelSample(red: value, green: value, blue: value, alpha: 255)
+        }
+        var state = try stitcher.initialState(with: first, maxOutputHeight: 300)
+
+        XCTAssertEqual(stitcher.append(changed, to: &state), .unchanged)
+        XCTAssertEqual(state.outputHeight, 80)
+        XCTAssertEqual(state.segmentCount, 1)
+    }
+
+    func testStickyHeaderWithShortFinalScrollPreservesBottomRows() throws {
+        let stitcher = ScrollingStitcher()
+        let first = makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 })
+        var state = try stitcher.initialState(with: first, maxOutputHeight: 300)
+
+        for offset in [38, 45, 46] {
+            let frame = makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 < 12 ? $0 : $0 + offset })
+            XCTAssertEqual(stitcher.append(frame, to: &state), .appended)
+            assertScrollingRows(in: state.image, expectedHeight: 80 + offset)
+        }
+    }
+
+    func testDuplicateDetectionIncludesUnsampledFinalRowPixels() {
+        let first = makeSolidImage(width: 200, height: 400, color: PixelSample(red: 255, green: 255, blue: 255, alpha: 255))
+        let changed = makeRGBAImage(width: 200, height: 400) { x, y in
+            let value: UInt8 = x == 199 && y == 399 ? 0 : 255
+            return PixelSample(red: value, green: value, blue: value, alpha: 255)
+        }
+
+        XCTAssertFalse(ScrollingStitcher().imagesAreDuplicate(first, changed))
+    }
+
+    func testMaximumHeightDuringShortFinalScrollKeepsOnlyAvailableRows() throws {
+        let stitcher = ScrollingStitcher()
+        let first = makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 })
+        let next = makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 + 7 })
+        var state = try stitcher.initialState(with: first, maxOutputHeight: 85)
+
+        XCTAssertEqual(stitcher.append(next, to: &state), .reachedMaximumHeight)
+        assertScrollingRows(in: state.image, expectedHeight: 85)
+    }
+
     func testLowConfidenceMismatchIsRejected() throws {
         let first = makeRGBSolidImage(width: 48, height: 80, red: 20, green: 40, blue: 60)
         let second = makeRGBSolidImage(width: 48, height: 80, red: 220, green: 180, blue: 120)
@@ -65,7 +295,7 @@ final class ScrollingStitcherTests: XCTestCase {
     func testAppendPerformanceLongScrollingSession() throws {
         let stitcher = ScrollingStitcher()
         let frames = (0..<14).map { index in
-            makeScrollingFrame(width: 640, height: 900, rowMapper: { $0 + (index * 110) })
+            makeNonrepeatingScrollingFrame(width: 640, height: 900, rowMapper: { $0 + (index * 110) })
         }
         let options = XCTMeasureOptions.default
         options.iterationCount = 5
@@ -76,7 +306,7 @@ final class ScrollingStitcherTests: XCTestCase {
             }
 
             for frame in frames.dropFirst() {
-                _ = stitcher.append(frame, to: &state)
+                XCTAssertEqual(stitcher.append(frame, to: &state), .appended)
             }
 
             XCTAssertGreaterThan(state.image.height, frames[0].height)
@@ -86,7 +316,7 @@ final class ScrollingStitcherTests: XCTestCase {
     func testAppendPerformanceManySmallScrollingFrames() throws {
         let stitcher = ScrollingStitcher()
         let frames = (0..<24).map { index in
-            makeScrollingFrame(width: 540, height: 620, rowMapper: { localY in
+            makeNonrepeatingScrollingFrame(width: 540, height: 620, rowMapper: { localY in
                 let overlap = 120 - ((index % 3) * 18)
                 return localY + (index * 90) - overlap
             })
@@ -100,26 +330,11 @@ final class ScrollingStitcherTests: XCTestCase {
             }
 
             for frame in frames.dropFirst() {
-                _ = stitcher.append(frame, to: &state)
+                XCTAssertEqual(stitcher.append(frame, to: &state), .appended)
             }
 
             XCTAssertGreaterThan(state.image.height, frames[0].height)
         }
-    }
-
-    private func makeScrollingFrame(width: Int, height: Int, rowMapper: (Int) -> Int) -> CGImage {
-        makeRGBAImage(width: width, height: height) { x, y in
-            scrollingPixel(x: x, y: rowMapper(y))
-        }
-    }
-
-    private func scrollingPixel(x: Int, y: Int) -> PixelSample {
-        PixelSample(
-            red: UInt8(truncatingIfNeeded: x),
-            green: UInt8(truncatingIfNeeded: y),
-            blue: UInt8(truncatingIfNeeded: x * 3 + y / 2),
-            alpha: 255
-        )
     }
 
     private func makeRGBSolidImage(width: Int, height: Int, red: UInt8, green: UInt8, blue: UInt8) -> CGImage {

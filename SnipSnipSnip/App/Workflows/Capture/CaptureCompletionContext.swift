@@ -16,7 +16,7 @@ nonisolated enum CaptureCompletionRole: String, Codable, Equatable, Sendable {
 
 /// Per-operation choices from Create > Fine-tune. They are latched alongside
 /// the destination and never write back to capture preferences.
-nonisolated struct CaptureOneShotOptions: Equatable, Sendable {
+nonisolated struct CaptureOneShotOptions: Codable, Equatable, Sendable {
     var captureDelay: CaptureDelay
     var includesCursor: Bool
     var privateCapture: Bool
@@ -48,6 +48,13 @@ nonisolated struct CaptureCompletionContext: Equatable, Sendable {
     var role: CaptureCompletionRole
     var oneShotOptions: CaptureOneShotOptions?
     var presentationContext: WorkflowPresentationContext
+    var allowsCapturePreview = true
+    /// Deferred output belongs to this exact interactive acquisition, not the next capture.
+    var automationRequest: AutomationRequest?
+    /// Output choices belong to one preset attempt, including its recovery and
+    /// target-selection continuations. They never apply to a later capture.
+    var workflowPreset: CapturePreset?
+    var workflowPresetRunID: UUID?
     /// Identifies a persistent acquisition surface whose later captures must
     /// continue the same user goal. Derived append contexts retain this token,
     /// allowing the surface's close handler to clear only its own state.

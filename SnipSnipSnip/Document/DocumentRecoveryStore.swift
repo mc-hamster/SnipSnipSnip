@@ -110,6 +110,7 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
     private let exclusionLock = NSLock()
     private let fileManager: FileManager
     private let files: any FileSystemServicing
+    private let folderAccess: ArchiveFolderAccess?
     private let rootURL: URL
     private let sessionsURL: URL
     private let searchIndexURL: URL
@@ -123,7 +124,7 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
         let applicationSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? fileManager.temporaryDirectory
         return applicationSupport
-            .appendingPathComponent("SnipSnipSnip", isDirectory: true)
+            .appendingPathComponent(AppNamespace.current.supportDirectoryName, isDirectory: true)
             .appendingPathComponent("Recovery", isDirectory: true)
     }
 
@@ -134,10 +135,12 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
     init(
         fileManager: FileManager = .default,
         baseURL: URL? = nil,
+        folderAccess: ArchiveFolderAccess? = nil,
         checkpointPackageDidWrite: (@Sendable (UUID) -> Void)? = nil,
         checkpointSessionDidCommit: (@Sendable (UUID) -> Void)? = nil
     ) {
         self.fileManager = fileManager
+        self.folderAccess = folderAccess
         self.files = SystemFileService(fileManager: fileManager)
         self.checkpointPackageDidWrite = checkpointPackageDidWrite
         self.checkpointSessionDidCommit = checkpointSessionDidCommit
@@ -291,6 +294,8 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
             try excludeSessionFromPresentation(sessionID)
             return
         }
+
+        try SSSDocumentPackage.validateIdentityIntegrity(of: document.session)
 
         try withLockedAccess {
             try ensureRootDirectories()
@@ -969,7 +974,7 @@ nonisolated final class DocumentRecoveryStore: @unchecked Sendable {
     private func withLockedAccess<T>(_ operation: () throws -> T) rethrows -> T {
         accessLock.lock()
         defer { accessLock.unlock() }
-        return try operation()
+        return try withExtendedLifetime(folderAccess) { try operation() }
     }
 
     private static func page(
@@ -1610,8 +1615,15 @@ nonisolated private enum RecoveryCheckpointSummary {
     }
 
     private static func annotationSummary(from previousSnapshot: EditorSnapshot, to currentSnapshot: EditorSnapshot) -> String? {
-        let previousByID = Dictionary(uniqueKeysWithValues: previousSnapshot.annotations.map { ($0.id, $0) })
-        let currentByID = Dictionary(uniqueKeysWithValues: currentSnapshot.annotations.map { ($0.id, $0) })
+        // Summary generation precedes package validation. Malformed snapshots
+        // must reach that throwing validator rather than trap in Dictionary.
+        guard IdentityIntegrity.firstDuplicate(in: previousSnapshot.annotations.lazy.map(\.id)) == nil,
+              IdentityIntegrity.firstDuplicate(in: currentSnapshot.annotations.lazy.map(\.id)) == nil else {
+            return nil
+        }
+
+        let previousByID = Dictionary(previousSnapshot.annotations.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let currentByID = Dictionary(currentSnapshot.annotations.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
         let added = currentSnapshot.annotations.filter { previousByID[$0.id] == nil }
         let removed = previousSnapshot.annotations.filter { currentByID[$0.id] == nil }

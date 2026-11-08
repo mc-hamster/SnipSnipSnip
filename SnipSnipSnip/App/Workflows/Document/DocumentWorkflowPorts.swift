@@ -44,12 +44,17 @@ protocol DocumentWindowPresenting {
 @MainActor
 protocol DocumentPasteboardImporting {
     func imageData(fromPasteboardNamed pasteboardName: String) -> Data?
+    func isConcealed(fromPasteboardNamed pasteboardName: String) -> Bool
     func clearPasteboard(named pasteboardName: String)
+}
+
+extension DocumentPasteboardImporting {
+    func isConcealed(fromPasteboardNamed pasteboardName: String) -> Bool { false }
 }
 
 @MainActor
 protocol DocumentAutomationCoordinatorPort: AnyObject {
-    func openDocument(_ url: URL)
+    func openAutomationDocument(_ url: URL, interactionPolicy: AutomationInteractionPolicy) async throws
     func automationResultAfterCurrentEditorOutput(
         _ request: AutomationRequest,
         _ kind: String,
@@ -76,7 +81,6 @@ protocol DocumentCaptureWorkflowPort: AnyObject {
 
 @MainActor
 protocol DocumentClipboardWorkflowPort: AnyObject {
-    var autoCopyEnabled: Bool { get }
     var monitor: ClipboardMonitor { get }
 }
 

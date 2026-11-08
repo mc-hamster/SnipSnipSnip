@@ -34,6 +34,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Test Pro release policy
+        run: /usr/bin/ruby Tools/tests/test_self_release.rb
+
       - name: Select latest Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
 
@@ -63,15 +66,55 @@ jobs:
       - name: Select latest Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
 
+      - name: Install Developer ID signing and notarization credentials
+        env:
+          CERTIFICATES_BASE64: ${{ secrets.SELF_RELEASE_CERTIFICATES_P12_BASE64 }}
+          CERTIFICATES_PASSWORD: ${{ secrets.SELF_RELEASE_CERTIFICATES_PASSWORD }}
+          NOTARY_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8_BASE64 }}
+          NOTARY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          : "${CERTIFICATES_BASE64:?Configure SELF_RELEASE_CERTIFICATES_P12_BASE64 with both Developer ID identities}"
+          : "${CERTIFICATES_PASSWORD:?Configure SELF_RELEASE_CERTIFICATES_PASSWORD}"
+          : "${NOTARY_KEY_BASE64:?Configure APP_STORE_CONNECT_API_KEY_P8_BASE64}"
+          : "${NOTARY_KEY_ID:?Configure APP_STORE_CONNECT_API_KEY_KEY_ID}"
+          : "${NOTARY_ISSUER_ID:?Configure APP_STORE_CONNECT_API_KEY_ISSUER_ID}"
+          umask 077
+          keychain="$RUNNER_TEMP/self-release.keychain-db"
+          certificate="$RUNNER_TEMP/self-release-certificates.p12"
+          notary_key="$RUNNER_TEMP/self-release-notary.p8"
+          keychain_password="$(openssl rand -hex 32)"
+          printf '%s' "$CERTIFICATES_BASE64" | base64 --decode > "$certificate"
+          printf '%s' "$NOTARY_KEY_BASE64" | base64 --decode > "$notary_key"
+          chmod 600 "$certificate" "$notary_key"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$certificate" -P "$CERTIFICATES_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$keychain_password" "$keychain"
+          security list-keychains -d user -s "$keychain" "$HOME/Library/Keychains/login.keychain-db"
+          printf 'APP_STORE_CONNECT_API_KEY_PATH=%s\n' "$notary_key" >> "$GITHUB_ENV"
+
       - name: Fastlane self release publish
         env:
           GITHUB_TOKEN: ${{ github.token }}
           RELEASE_SKIP_TESTS: "true"
+          APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}
+          APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
+          RELEASE_PRERELEASE: ${{ inputs.prerelease }}
+          RELEASE_DRAFT: ${{ inputs.draft }}
+          RELEASE_CHANGELOG: ${{ inputs.changelog }}
         run: |
-          lane_args="prerelease:${{ inputs.prerelease }} draft:${{ inputs.draft }}"
-
-          if [ -n "${{ inputs.changelog }}" ]; then
-            lane_args="$lane_args changelog:${{ inputs.changelog }}"
+          set -euo pipefail
+          lane_args=("prerelease:$RELEASE_PRERELEASE" "draft:$RELEASE_DRAFT")
+          if [[ -n "$RELEASE_CHANGELOG" ]]; then
+            lane_args+=("changelog:$RELEASE_CHANGELOG")
           fi
+          ./bin/fastlane mac self_release_publish "${lane_args[@]}"
 
-          ./bin/fastlane mac self_release_publish $lane_args
+      - name: Remove temporary signing credentials
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/self-release.keychain-db" || true
+          rm -f "$RUNNER_TEMP/self-release-certificates.p12" "$RUNNER_TEMP/self-release-notary.p8"

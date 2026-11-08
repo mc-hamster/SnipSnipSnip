@@ -481,6 +481,7 @@ nonisolated enum CaptureRecoveryAction: Hashable {
     case retryLastCapture
     case setUpScreenRecording
     case setUpAccessibility
+    case openCameraSettings
     case refreshWindows
     case pickAnotherWindow
     case captureFrontmostWindow
@@ -864,7 +865,8 @@ nonisolated struct ScrollingCaptureRequest: Equatable {
         maxOutputHeight: Int = Self.defaultMaxOutputHeight,
         isPrivateCapture: Bool = false
     ) {
-        self.viewportRect = viewportRect.gscIntegralStandardized
+        let normalizedViewport = viewportRect.gscIntegralStandardized
+        self.viewportRect = normalizedViewport.gscIsFinite && !normalizedViewport.isNull ? normalizedViewport : .zero
         self.sourceName = sourceName
         self.maxSegmentCount = max(maxSegmentCount, 2)
         self.maxOutputHeight = max(maxOutputHeight, 1)
@@ -1004,28 +1006,16 @@ nonisolated struct DesktopCompositeSnapshot {
     let displayPreviews: [DisplayPreview]
 }
 
-nonisolated func gscAppKitScreenRect(fromCGWindowBounds bounds: CGRect, desktopFrame: CGRect) -> CGRect {
-    let normalizedBounds = bounds.standardized
-    let normalizedDesktopFrame = desktopFrame.standardized
-
-    guard normalizedDesktopFrame.height > 0 else {
-        return normalizedBounds.gscIntegralStandardized
-    }
-
-    return CGRect(
-        x: normalizedBounds.minX,
-        y: normalizedDesktopFrame.maxY - normalizedBounds.maxY,
-        width: normalizedBounds.width,
-        height: normalizedBounds.height
-    ).gscIntegralStandardized
-}
-
-nonisolated func gscWindowBoundsByID(from windowInfo: [[String: Any]], desktopFrame: CGRect) -> [CGWindowID: CGRect] {
-    let normalizedDesktopFrame = desktopFrame.standardized
-
+nonisolated func gscWindowBoundsByID(
+    from windowInfo: [[String: Any]],
+    displayTransform: CaptureDisplayTransform
+) -> [CGWindowID: CGRect] {
     return windowInfo.reduce(into: [:]) { partialResult, info in
         guard let windowNumber = info[kCGWindowNumber as String] as? NSNumber,
-              let boundsDictionary = info[kCGWindowBounds as String] as? [String: Any] else {
+              let boundsDictionary = info[kCGWindowBounds as String] as? [String: Any],
+              ["X", "Y", "Width", "Height"].allSatisfy({
+                  (boundsDictionary[$0] as? NSNumber)?.doubleValue.isFinite == true
+              }) else {
             return
         }
 
@@ -1034,34 +1024,17 @@ nonisolated func gscWindowBoundsByID(from windowInfo: [[String: Any]], desktopFr
             return
         }
 
-        partialResult[CGWindowID(windowNumber.uint32Value)] = gscAppKitScreenRect(
-            fromCGWindowBounds: bounds,
-            desktopFrame: normalizedDesktopFrame
+        partialResult[CGWindowID(windowNumber.uint32Value)] = displayTransform.overlayGlobalRect(
+            fromCaptureGlobalRect: bounds
         )
     }
-}
-
-nonisolated func gscWindowBoundsByID(from windowInfo: [[String: Any]]) -> [CGWindowID: CGRect] {
-    let desktopFrame = NSScreen.screens.reduce(CGRect.null) { partialResult, screen in
-        partialResult.union(screen.frame)
-    }.standardized
-
-    return gscWindowBoundsByID(from: windowInfo, desktopFrame: desktopFrame)
-}
-
-func gscVisibleWindowBoundsByID() -> [CGWindowID: CGRect] {
-    guard let windowInfo = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
-        return [:]
-    }
-
-    return gscWindowBoundsByID(from: windowInfo)
 }
 
 nonisolated func gscWindowBounds(
     for window: CaptureWindowSummary,
     using visibleBoundsByID: [CGWindowID: CGRect]
 ) -> CGRect {
-    visibleBoundsByID[window.id] ?? window.frame.gscIntegralStandardized
+    visibleBoundsByID[window.id] ?? window.frame.standardized
 }
 
 nonisolated func gscPreferredHighlightRect(primary: CGRect, alternate: CGRect) -> CGRect {
