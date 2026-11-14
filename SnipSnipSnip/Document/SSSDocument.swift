@@ -111,7 +111,7 @@ nonisolated enum SSSDocumentPackage {
     static let previewImageFilename = "preview.png"
     static let imageOverlayAssetsDirectoryName = "assets/image-overlays"
     static let compositionCaptureAssetsDirectoryName = "assets/captures"
-    static let maximumImageDimension = 65_536
+    static let maximumImageDimension = ScreenshotRasterBudget.maximumDimension
     static let maximumImagePixels = 268_435_456
     static let maximumCompositionAssetCount = 10_000
     /// A single encoded source can still contain a normal long scrolling
@@ -130,7 +130,7 @@ nonisolated enum SSSDocumentPackage {
     static let maximumStoredPreviewBytes: UInt64 = 512 * 1_024 * 1_024
     static let maximumPersistedFixedOutputDimension = 16_384
     static let maximumPersistedFixedOutputPixels: UInt64 = 134_217_728
-    static let maximumComputedPresentationDimension = 131_072
+    static let maximumComputedPresentationDimension = ScreenshotRasterBudget.maximumDimension * 2
     static let maximumComputedPresentationPixels: UInt64 = 536_870_912
     static let maximumPersistedSceneBytes = 4 * 1_024 * 1_024
     static let maximumManifestBytes = 64 * 1_024 * 1_024

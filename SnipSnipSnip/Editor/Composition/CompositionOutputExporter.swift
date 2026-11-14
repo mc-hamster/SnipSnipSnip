@@ -232,8 +232,8 @@ nonisolated enum CompositionOutputError: LocalizedError, Equatable {
 /// exports. Animated and HTML output never receives source-file bytes or source
 /// metadata; it is built exclusively from fully rendered pixels.
 nonisolated enum CompositionOutputExporter {
-    static let maximumRasterDimension = 16_384
-    static let maximumRasterPixelCount = 134_217_728
+    static let maximumRasterDimension = ScreenshotRasterBudget.maximumDimension
+    static let maximumRasterPixelCount = ScreenshotRasterBudget.maximumPixelCount
     static let maximumEstimatedWorkingSetBytes = 1_073_741_824
     static let maximumAnimatedDimension = 4_096
 

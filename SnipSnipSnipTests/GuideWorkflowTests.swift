@@ -1251,6 +1251,24 @@ final class GuideWorkflowTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(withMedia, 640_000_000)
     }
 
+    func testGuidePackageRoundTripsImportedLongScrollingImage() throws {
+        let source = makeCoordinateImage(width: 8, height: 70_000)
+        let stepID = UUID()
+        var project = GuideProject(source: .region(CGRect(x: 0, y: 0, width: 800, height: 600)))
+        project.steps = [GuideStep(
+            id: stepID, sequence: 1, eventKind: .manual, caption: "Long scrolling image",
+            session: GuideStepSession(sourceCoordinateRect: CGRect(x: 0, y: 0, width: 800, height: 600), sourcePixelSize: CGSize(width: source.width, height: source.height))
+        )]
+        let document = EditableGuideDocument(project: project, stepImages: [stepID: source], previewImage: nil, logoImage: nil, mediaSegmentURLs: [:])
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("sssguide")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try SSSGuideDocumentPackage.save(document: document, to: url)
+        let loaded = try SSSGuideDocumentPackage.load(from: url)
+        let image = try XCTUnwrap(loaded.stepImages[stepID])
+        XCTAssertEqual(image.height, 70_000)
+        XCTAssertEqual(samplePixel(in: image, topLeftX: 2, topLeftY: 69_999), samplePixel(in: source, topLeftX: 2, topLeftY: 69_999))
+    }
+
     func testGuidePackageV1RoundTripsNonDestructiveStateAndMedia() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("GuidePackageTests-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }

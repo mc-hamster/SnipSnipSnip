@@ -43,12 +43,20 @@ final class CapturePermissionStatusTests: XCTestCase {
         )
     }
 
-    func testScrollingFeatureFlagsAreEnabledOnlyForDevAndSelfRelease() {
+    func testScrollingIsAvailableInAllEditionsAndAutomaticScrollingIsProOnly() {
         XCTAssertTrue(FeatureFlags.scrollingCaptureEnabled(for: .dev))
-        XCTAssertFalse(FeatureFlags.scrollingCaptureEnabled(for: .internalTesting))
-        XCTAssertFalse(FeatureFlags.scrollingCaptureEnabled(for: .externalTesting))
-        XCTAssertFalse(FeatureFlags.scrollingCaptureEnabled(for: .release))
+        XCTAssertTrue(FeatureFlags.scrollingCaptureEnabled(for: .internalTesting))
+        XCTAssertTrue(FeatureFlags.scrollingCaptureEnabled(for: .externalTesting))
+        XCTAssertTrue(FeatureFlags.scrollingCaptureEnabled(for: .release))
         XCTAssertTrue(FeatureFlags.scrollingCaptureEnabled(for: .selfRelease))
+
+        let provider = BuildTargetCapabilityProvider()
+        for target in [BuildTarget.release, .internalTesting, .externalTesting] {
+            let capabilities = provider.snapshot(for: target)
+            XCTAssertTrue(capabilities.isEnabled(.scrollingCapture))
+            XCTAssertFalse(capabilities.isEnabled(.automaticScrollingCapture))
+            XCTAssertEqual(CapturePermissionRequirement.availableCases(for: capabilities), [.screenRecording])
+        }
 
         XCTAssertFalse(FeatureFlags.accessibilityAutomationEnabled(for: .dev))
         XCTAssertFalse(FeatureFlags.accessibilityAutomationEnabled(for: .internalTesting))

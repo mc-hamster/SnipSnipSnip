@@ -5,6 +5,7 @@ nonisolated struct EditorViewport: Equatable {
     static let minZoomScale: CGFloat = 0.1
     static let maxZoomScale: CGFloat = 16
     static let maxInitialDisplayScale: CGFloat = 1.0
+    static let minimumMaximumDisplayScale: CGFloat = 8
     static let interactionInset: CGFloat = 20
 
     var canvasSize: CGSize = .zero
@@ -53,11 +54,18 @@ nonisolated struct EditorViewport: Equatable {
     }
 
     var canZoomIn: Bool {
-        zoomScale < Self.maxZoomScale
+        zoomScale < maximumZoomScale
     }
 
     var canZoomOut: Bool {
         zoomScale > Self.minZoomScale
+    }
+
+    // Relative-to-Fit limits make source pixels unreachable on very tall images.
+    // Retain the ordinary range while guaranteeing pixel-level editing.
+    var maximumZoomScale: CGFloat {
+        guard fitScale.isFinite, fitScale > 0 else { return Self.maxZoomScale }
+        return max(Self.maxZoomScale, Self.minimumMaximumDisplayScale / fitScale)
     }
 
     var actualSizeZoomScale: CGFloat {
@@ -111,8 +119,7 @@ nonisolated struct EditorViewport: Equatable {
            previousCanvasSize == .zero,
            updated.zoomScale == Self.fitZoomScale,
            updated.offset == .zero {
-            updated.zoomScale = updated.cappedInitialZoomScale(maxDisplayScale: maxInitialDisplayScale)
-            updated.followsFitScale = updated.zoomScale == Self.fitZoomScale
+            updated = updated.zoomedForInitialDisplay(maxDisplayScale: maxInitialDisplayScale)
         } else if !followsFitScale,
                   previousCanvasSize.width > 0,
                   previousCanvasSize.height > 0,
@@ -159,6 +166,16 @@ nonisolated struct EditorViewport: Equatable {
         return updated
     }
 
+    /// A readable starting point for tall captures, with the first row visible.
+    func zoomedToWidth(maxDisplayScale: CGFloat? = nil) -> EditorViewport {
+        guard contentSize.width > 0, fitScale > 0 else { return zoomedToFit() }
+        let widthScale = effectiveCanvasSize.width / contentSize.width
+        let targetScale = maxDisplayScale.map { min(widthScale, $0) } ?? widthScale
+        var updated = zoomed(to: targetScale / fitScale)
+        updated.offset = .zero
+        return updated.scrolledTo(verticalPosition: 1)
+    }
+
     func focused(on contentRect: CGRect) -> EditorViewport {
         let rect = contentRect.standardized.integral
         let effectiveCanvasSize = effectiveCanvasSize
@@ -173,11 +190,12 @@ nonisolated struct EditorViewport: Equatable {
             return zoomedToFit()
         }
 
-        let targetDisplayScale = min(
+        let requestedDisplayScale = min(
             effectiveCanvasSize.width / rect.width,
             effectiveCanvasSize.height / rect.height
         )
-        let targetZoomScale = clampedZoomScale(targetDisplayScale / fitScale)
+        let targetZoomScale = clampedZoomScale(requestedDisplayScale / fitScale)
+        let targetDisplayScale = fitScale * targetZoomScale
         let displayedSize = displayedContentSize(for: targetZoomScale)
         let centeredOrigin = centeredOrigin(for: displayedSize)
         let cropDisplayedSize = CGSize(width: rect.width * targetDisplayScale, height: rect.height * targetDisplayScale)
@@ -204,6 +222,11 @@ nonisolated struct EditorViewport: Equatable {
     }
 
     func zoomedForInitialDisplay(maxDisplayScale: CGFloat) -> EditorViewport {
+        if contentSize.height > contentSize.width * 3,
+           contentSize.width > 0,
+           effectiveCanvasSize.width / contentSize.width > fitScale * 2 {
+            return zoomedToWidth(maxDisplayScale: maxDisplayScale)
+        }
         var updated = self
         updated.zoomScale = updated.cappedInitialZoomScale(maxDisplayScale: maxDisplayScale)
         updated.offset = .zero
@@ -279,7 +302,8 @@ nonisolated struct EditorViewport: Equatable {
     }
 
     private func clampedZoomScale(_ value: CGFloat) -> CGFloat {
-        min(max(value, Self.minZoomScale), Self.maxZoomScale)
+        guard value.isFinite else { return value > 0 ? maximumZoomScale : Self.fitZoomScale }
+        return min(max(value, Self.minZoomScale), maximumZoomScale)
     }
 
     private func cappedInitialZoomScale(maxDisplayScale: CGFloat) -> CGFloat {

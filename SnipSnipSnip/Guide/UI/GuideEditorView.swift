@@ -178,7 +178,7 @@ struct GuideEditorView: View {
         ZStack {
             Color(nsColor: .windowBackgroundColor)
             if let step = controller.selectedStep, let image = controller.stepImages[step.id],
-               let rendered = GuideRenderer.renderStepCard(
+               let rendered = GuideRenderer.renderStepPreview(
                    step: step,
                    image: image,
                    theme: controller.project.theme,
@@ -188,15 +188,15 @@ struct GuideEditorView: View {
                ) {
                 GeometryReader { proxy in
                     ZStack {
-                        Image(decorative: rendered, scale: 1).resizable().scaledToFit().padding(30)
+                        Image(decorative: rendered.image, scale: 1).resizable().aspectRatio(rendered.logicalSize, contentMode: .fit).padding(30)
                         if let marker = step.session.marker, !marker.isHidden {
                             GuideMarkerHandles(
                                 number: controller.displayNumber(for: step.id) ?? step.sequence,
                                 showsNumber: step.showsStepNumber(using: controller.project.theme),
                                 showsTarget: step.showsActionTarget(using: controller.project.theme),
                                 viewportSize: proxy.size,
-                                cardPixelSize: CGSize(width: CGFloat(rendered.width), height: CGFloat(rendered.height)),
-                                sourceImageSize: CGSize(width: CGFloat(image.width), height: CGFloat(image.height)),
+                                cardLogicalSize: rendered.logicalSize,
+                                screenshotRect: rendered.screenshotRect,
                                 sourceCoordinateSize: step.session.sourcePixelSize,
                                 marker: marker,
                                 onBeginMove: { controller.beginMarkerDrag(stepID: step.id) },
@@ -595,8 +595,8 @@ private struct GuideMarkerHandles: View {
     let showsNumber: Bool
     let showsTarget: Bool
     let viewportSize: CGSize
-    let cardPixelSize: CGSize
-    let sourceImageSize: CGSize
+    let cardLogicalSize: CGSize
+    let screenshotRect: CGRect
     let sourceCoordinateSize: CGSize
     let marker: GuideMarker
     let onBeginMove: () -> Void
@@ -698,38 +698,34 @@ private struct GuideMarkerHandles: View {
 
     private var layout: (scale: CGFloat, origin: CGPoint) {
         let content = CGSize(width: max(viewportSize.width - 60, 1), height: max(viewportSize.height - 60, 1))
-        let scale = min(content.width / cardPixelSize.width, content.height / cardPixelSize.height)
+        let scale = min(content.width / cardLogicalSize.width, content.height / cardLogicalSize.height)
         return (
             scale,
             CGPoint(
-                x: (viewportSize.width - cardPixelSize.width * scale) / 2,
-                y: (viewportSize.height - cardPixelSize.height * scale) / 2
+                x: (viewportSize.width - cardLogicalSize.width * scale) / 2,
+                y: (viewportSize.height - cardLogicalSize.height * scale) / 2
             )
         )
     }
 
     private func viewPoint(for source: CGPoint) -> CGPoint {
-        let imageScale = min((cardPixelSize.width - 144) / max(sourceImageSize.width, 1), 1)
-        let imageSize = CGSize(width: sourceImageSize.width * imageScale, height: sourceImageSize.height * imageScale)
         let normalized = CGPoint(
             x: sourceCoordinateSize.width > 0 ? source.x / sourceCoordinateSize.width : 0,
             y: sourceCoordinateSize.height > 0 ? source.y / sourceCoordinateSize.height : 0
         )
         let value = layout
         return CGPoint(
-            x: value.origin.x + (72 + normalized.x * imageSize.width) * value.scale,
-            y: value.origin.y + (72 + normalized.y * imageSize.height) * value.scale
+            x: value.origin.x + (screenshotRect.minX + normalized.x * screenshotRect.width) * value.scale,
+            y: value.origin.y + (screenshotRect.minY + normalized.y * screenshotRect.height) * value.scale
         )
     }
 
     private func sourcePoint(for view: CGPoint) -> CGPoint {
-        let imageScale = min((cardPixelSize.width - 144) / max(sourceImageSize.width, 1), 1)
-        let imageSize = CGSize(width: sourceImageSize.width * imageScale, height: sourceImageSize.height * imageScale)
         let value = layout
         let cardPoint = CGPoint(x: (view.x - value.origin.x) / value.scale, y: (view.y - value.origin.y) / value.scale)
         return CGPoint(
-            x: min(max((cardPoint.x - 72) / max(imageSize.width, 1), 0), 1) * sourceCoordinateSize.width,
-            y: min(max((cardPoint.y - 72) / max(imageSize.height, 1), 0), 1) * sourceCoordinateSize.height
+            x: min(max((cardPoint.x - screenshotRect.minX) / max(screenshotRect.width, 1), 0), 1) * sourceCoordinateSize.width,
+            y: min(max((cardPoint.y - screenshotRect.minY) / max(screenshotRect.height, 1), 0), 1) * sourceCoordinateSize.height
         )
     }
 }

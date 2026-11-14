@@ -99,7 +99,7 @@ Each step session records crop, marker geometry and visibility, optional still-s
 - Unknown versions fail as unsupported and the package is not changed.
 - Asset paths must be non-empty, relative, slash-separated paths with no empty, `.` or `..` component and must resolve inside the package after symlink resolution.
 - Every project step must have exactly one matching asset and session record. The step ID and session must match the manifest.
-- Required assets must exist and decode successfully. Images are limited to 65,536 pixels per dimension and 268,435,456 total pixels.
+- Required assets must exist and decode successfully. Images are limited to 262,144 pixels per dimension and 268,435,456 total pixels.
 - Preview and logo are optional. Timeline and media are optional. A Guide without source media can still export PDF, GIF, APNG, images, ZIP, and slideshow MP4.
 - Version 1 readers ignore no required validation failures. Additive optional fields must decode safely when absent; required or meaning-changing fields require a future schema strategy or format version.
 

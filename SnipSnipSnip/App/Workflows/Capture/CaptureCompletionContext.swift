@@ -21,17 +21,20 @@ nonisolated struct CaptureOneShotOptions: Codable, Equatable, Sendable {
     var includesCursor: Bool
     var privateCapture: Bool
     var windowUIMapEnabled: Bool
+    var scrollingMode: ScrollingCaptureMode?
 
     init(
         captureDelay: CaptureDelay,
         includesCursor: Bool,
         privateCapture: Bool,
-        windowUIMapEnabled: Bool
+        windowUIMapEnabled: Bool,
+        scrollingMode: ScrollingCaptureMode? = nil
     ) {
         self.captureDelay = captureDelay
         self.includesCursor = includesCursor
         self.privateCapture = privateCapture
         self.windowUIMapEnabled = windowUIMapEnabled
+        self.scrollingMode = scrollingMode
     }
 
     func applying(to base: CaptureRunOptions) -> CaptureRunOptions {
@@ -39,6 +42,7 @@ nonisolated struct CaptureOneShotOptions: Codable, Equatable, Sendable {
         resolved.captureDelay = captureDelay
         resolved.includesCursor = includesCursor
         resolved.windowUIMapEnabled = windowUIMapEnabled
+        if let scrollingMode { resolved.scrollingMode = scrollingMode }
         return resolved
     }
 }

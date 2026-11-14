@@ -535,7 +535,7 @@ struct OnboardingView: View {
                 if shouldMentionAccessibility {
                     deferredPermissionRow(
                         title: "Accessibility",
-                        detail: "Scrolling Capture, UI Map, and assisted workflows.",
+                        detail: "Auto Scroll, UI Map, and assisted workflows.",
                         systemImage: "accessibility"
                     )
                 }
@@ -895,7 +895,7 @@ struct OnboardingView: View {
     }
 
     private var shouldMentionAccessibility: Bool {
-        capabilities.isEnabled(.scrollingCapture)
+        capabilities.isEnabled(.automaticScrollingCapture)
             || capabilities.isEnabled(.guideCapture)
             || capabilities.isEnabled(.uiMap)
     }

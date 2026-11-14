@@ -69,6 +69,7 @@ nonisolated struct ImageExportOptions: Equatable {
 
 enum ImageExportError: LocalizedError {
     case encodingFailed
+    case jpegDimensionsTooLarge
     case pdfEncodingFailed
     case shareUnavailable
     case clipboardUnavailable
@@ -78,6 +79,8 @@ enum ImageExportError: LocalizedError {
         switch self {
         case .encodingFailed:
             return "The image could not be encoded."
+        case .jpegDimensionsTooLarge:
+            return "JPEG supports up to 65,535 pixels per side. Export this long screenshot as PNG to keep every pixel, or choose a smaller output width."
         case .pdfEncodingFailed:
             return "The PDF document could not be encoded."
         case .shareUnavailable:
@@ -339,7 +342,14 @@ enum ImageExporter {
         }
     }
 
+    nonisolated private static func validateEncodingDimensions(_ image: CGImage, type: UTType) throws {
+        if type == .jpeg, image.width > 65_535 || image.height > 65_535 {
+            throw ImageExportError.jpegDimensionsTooLarge
+        }
+    }
+
     nonisolated private static func encodedData(for image: CGImage, type: UTType, properties: CFDictionary?) throws -> Data {
+        try validateEncodingDimensions(image, type: type)
         let normalizedImage = try normalizedImageForEncoding(image)
         let data = NSMutableData()
 
@@ -357,6 +367,7 @@ enum ImageExporter {
     }
 
     nonisolated private static func encodedWrite(for image: CGImage, type: UTType, properties: CFDictionary?, to url: URL) throws {
+        try validateEncodingDimensions(image, type: type)
         let normalizedImage = try normalizedImageForEncoding(image)
 
         guard let destination = CGImageDestinationCreateWithURL(url as CFURL, type.identifier as CFString, 1, nil) else {

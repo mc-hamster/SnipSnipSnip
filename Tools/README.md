@@ -255,3 +255,12 @@ after an actual permission denial must retain permission setup and the saved Vid
 The disposable Debug automation fixture uses SnipSnipSnip Dev (`com.oontz.SnipSnipSnip.Dev` and `snipsnipsnip-dev://`). The validator checks only that identity and selects Dev for URL and AppleScript samples.
 
 Run `python3 -m unittest discover -s Tools/tests -p 'test_automation_namespace.py'` to verify that audit fixtures refuse a shipping CLI, a missing Dev app, or ambiguous Dev processes before dispatching commands.
+
+## Scrolling replay and long-image validation
+
+[Scrolling capture validation](../Docs/ScrollingCaptureValidation.md) describes
+pixel-exact generated sequences, the opt-in local real-app frame corpus, and the
+live Manual Scroll/Auto Scroll compatibility matrix. Keep real captured frames
+outside Git. Run the capture, stitcher, viewport, raster-budget, and Guide-preview
+suites through the same serial test gate; compiling either edition does not
+establish that native consent or cross-app capture works on the shipping build.

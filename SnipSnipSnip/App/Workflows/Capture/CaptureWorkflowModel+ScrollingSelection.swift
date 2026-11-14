@@ -4,8 +4,17 @@ import Foundation
 @MainActor
 extension CaptureWorkflowModel {
     func beginScrollingCapture() {
-        let captureContext = activeCaptureContext
-        let runOptions = currentCaptureRunOptions()
+        var captureContext = activeCaptureContext
+        var runOptions = currentCaptureRunOptions()
+        let mode = resolvedScrollingMode(runOptions.scrollingMode)
+        runOptions.scrollingMode = mode
+        var options = captureContext.oneShotOptions ?? CaptureOneShotOptions(
+            captureDelay: runOptions.captureDelay, includesCursor: runOptions.includesCursor,
+            privateCapture: privateCaptureEnabled, windowUIMapEnabled: runOptions.windowUIMapEnabled
+        )
+        options.scrollingMode = mode
+        captureContext.oneShotOptions = options
+        activeCaptureContext = captureContext
         guard !isWorking, !isInteractiveCaptureActive else {
             resetPreparedCaptureContext(ifMatching: captureContext)
             return
@@ -19,7 +28,7 @@ extension CaptureWorkflowModel {
                 resetPreparedCaptureContext(ifMatching: captureContext)
             }
             guard !isWorking, !isInteractiveCaptureActive else { return }
-            guard preflightPermissions([.screenRecording, .accessibility], for: "Scrolling Capture") else {
+            guard preflightPermissions(scrollingPermissionRequirements(for: mode), for: "Scrolling Capture") else {
                 return
             }
             let isPrivateCapture = beginCapturePrivacyLock(
@@ -69,7 +78,8 @@ extension CaptureWorkflowModel {
                     let target = try service.resolveTarget(
                         for: ScrollingCaptureRequest(
                             viewportRect: region,
-                            isPrivateCapture: isPrivateCapture
+                            isPrivateCapture: isPrivateCapture,
+                            mode: mode
                         )
                     )
                     switch dependencies.confirmScrollingTarget(target) {

@@ -209,7 +209,7 @@ final class QuickControlsTests: XCTestCase {
         let release = BuildTargetCapabilityProvider().snapshot(for: .release)
         let development = BuildTargetCapabilityProvider().snapshot(for: .dev)
 
-        XCTAssertFalse(QuickControlKind.captureScrollingContent.isAvailable(in: release))
+        XCTAssertTrue(QuickControlKind.captureScrollingContent.isAvailable(in: release), "Manual Scroll is available in every edition")
         XCTAssertFalse(QuickControlKind.recordGuide.isAvailable(in: release))
         XCTAssertTrue(QuickControlKind.captureScrollingContent.isAvailable(in: development))
         XCTAssertTrue(QuickControlKind.recordGuide.isAvailable(in: development))

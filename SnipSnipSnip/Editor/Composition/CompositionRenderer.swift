@@ -46,8 +46,8 @@ nonisolated struct CompositionRenderOptions: Equatable, Codable, Sendable {
         comparisonPhase: CompositionComparisonPhase = .primary,
         appliesItemEdits: Bool = true,
         drawsCanvasAnnotations: Bool = true,
-        maximumPixelDimension: Int = 16_384,
-        maximumPixelCount: Int = 134_217_728,
+        maximumPixelDimension: Int = ScreenshotRasterBudget.maximumDimension,
+        maximumPixelCount: Int = ScreenshotRasterBudget.maximumPixelCount,
         targetMaximumPixelDimension: Int? = nil,
         uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions()
     ) {

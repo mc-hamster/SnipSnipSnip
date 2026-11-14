@@ -49,7 +49,7 @@ nonisolated enum SSSGuideDocumentPackage {
     static let stepsDirectory = "steps"
     static let mediaDirectory = "media"
     static let timelineFilename = "media/timeline.json"
-    static let maximumImageDimension = 65_536
+    static let maximumImageDimension = ScreenshotRasterBudget.maximumDimension
     static let maximumImagePixels = 268_435_456
 
     nonisolated static func save(

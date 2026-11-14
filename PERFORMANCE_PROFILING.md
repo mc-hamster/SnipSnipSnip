@@ -17,6 +17,7 @@ Existing scalable paths:
 - `AppModelPerformanceTests/testScreenshotRenderAndStreamingExportBudget`
 - `AppModelPerformanceTests/testArchiveIndexedSearchBudget`
 - `AppModelPerformanceTests/testVideoExportPlanningAndStorageBudget`
+- `ManualScrollingAccumulatorTests/testContinuousTextPageMatchingMeetsInteractiveFrameBudget`
 - `ScrollingStitcherTests/testTextPageStitchMeetsInteractiveBudgetInDebugAndRelease`
 - `ScrollingStitcherTests/testNearBlankPageStitchMeetsInteractiveBudget`
 - `ScrollingStitcherTests/testAppendPerformanceLongScrollingSession`
@@ -167,3 +168,14 @@ writes:
   provider ownership, and intermediate image lifetimes.
 - Confirm behavior remains unchanged with the corresponding functional and
   pixel-golden tests before optimizing.
+
+## Long scrolling captures
+
+Scrolling strips own only their accepted rows; `ScrollingReplayTests` checks
+provider storage for many one-pixel increments as well as complete output pixels.
+`ScreenshotRasterBudget` bounds new rasters by both width-dependent pixel count
+and longest side. The editor's base-image view stays viewport-sized even at
+Actual Size; Guide preview rasters are capped independently of logical layout.
+See [scrolling validation](Docs/ScrollingCaptureValidation.md) for deterministic
+replay and the separate live cross-app matrix. These functional checks supplement,
+not replace, the measured profiling budgets above.

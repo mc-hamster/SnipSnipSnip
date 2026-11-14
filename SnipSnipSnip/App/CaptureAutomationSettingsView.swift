@@ -1274,7 +1274,7 @@ struct CaptureAutomationSettingsView: View {
 
     private var accessibilityPermissionDiagnosticsDetail: String {
         var workflows: [String] = []
-        if capabilities.isEnabled(.scrollingCapture) { workflows.append("Scrolling Capture") }
+        if capabilities.isEnabled(.automaticScrollingCapture) { workflows.append("Auto Scroll") }
         if capabilities.isEnabled(.guideCapture) { workflows.append("Guide capture") }
         if capabilities.isEnabled(.uiMap), capture.uiMapEnabled { workflows.append("Window UI Map") }
         let workflowDetail = workflows.isEmpty ? "" : "Accessibility is required for \(ListFormatter.localizedString(byJoining: workflows)). "

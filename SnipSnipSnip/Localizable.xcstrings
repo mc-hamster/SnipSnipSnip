@@ -1,6 +1,424 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Auto Scroll": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto Scroll"
+          }
+        }
+      }
+    },
+    "Auto Scroll moves the selected app for you and requires Accessibility. With Manual Scroll, scroll normally and choose Stop when you’re finished. Manual Scroll needs only Screen Recording.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto Scroll moves the selected app for you and requires Accessibility. With Manual Scroll, scroll normally and choose Stop when you’re finished. Manual Scroll needs only Screen Recording."
+          }
+        }
+      }
+    },
+    "Auto Scroll started. Press Return to keep the captured result or Escape to cancel.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto Scroll started. Press Return to keep the captured result or Escape to cancel."
+          }
+        }
+      }
+    },
+    "Auto Scroll — capturing…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto Scroll — capturing…"
+          }
+        }
+      }
+    },
+    "Auto Scroll, UI Map, and assisted workflows.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto Scroll, UI Map, and assisted workflows."
+          }
+        }
+      }
+    },
+    "Building preview…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Building preview…"
+          }
+        }
+      }
+    },
+    "Capture stopped before the latest movement settled. Only confirmed content was kept.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capture stopped before the latest movement settled. Only confirmed content was kept."
+          }
+        }
+      }
+    },
+    "Capture stopped before you finished scrolling.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capture stopped before you finished scrolling."
+          }
+        }
+      }
+    },
+    "Choose Another Area": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose Another Area"
+          }
+        }
+      }
+    },
+    "Choose a smaller width. Resized output is limited to 262,144 pixels per side and 134,217,728 pixels in total.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a smaller width. Resized output is limited to 262,144 pixels per side and 134,217,728 pixels in total."
+          }
+        }
+      }
+    },
+    "Click Stop when finished in Manual Scroll. Auto Scroll detects the end. Revisited content is not duplicated.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Click Stop when finished in Manual Scroll. Auto Scroll detects the end. Revisited content is not duplicated."
+          }
+        }
+      }
+    },
+    "Enter a width from 1 to 262,144 pixels.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter a width from 1 to 262,144 pixels."
+          }
+        }
+      }
+    },
+    "Fit Width": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fit Width"
+          }
+        }
+      }
+    },
+    "For Manual Scroll, scroll normally in the selected area. Capture follows changes in speed, pauses, and direction without duplicating revisited content. For Auto Scroll, wait while SnipSnipSnip scrolls. The panel shows captured length, capacity used, a preview, and status.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For Manual Scroll, scroll normally in the selected area. Capture follows changes in speed, pauses, and direction without duplicating revisited content. For Auto Scroll, wait while SnipSnipSnip scrolls. The panel shows captured length, capacity used, a preview, and status."
+          }
+        }
+      }
+    },
+    "JPEG supports up to 65,535 pixels per side. Export this long screenshot as PNG to keep every pixel, or choose a smaller output width.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "JPEG supports up to 65,535 pixels per side. Export this long screenshot as PNG to keep every pixel, or choose a smaller output width."
+          }
+        }
+      }
+    },
+    "Looking for overlapping content…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Looking for overlapping content…"
+          }
+        }
+      }
+    },
+    "Manual Scroll": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manual Scroll"
+          }
+        }
+      }
+    },
+    "Manual Scroll needs Screen Recording access. Auto Scroll in Pro also needs Accessibility; use Reveal App in setup to add the exact running app if needed. Scroll normally in Manual Scroll and choose Stop when finished. If frames cannot be connected, capture stays active and looks for overlap. A result that still has missing content is identified when you stop.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manual Scroll needs Screen Recording access. Auto Scroll in Pro also needs Accessibility; use Reveal App in setup to add the exact running app if needed. Scroll normally in Manual Scroll and choose Stop when finished. If frames cannot be connected, capture stays active and looks for overlap. A result that still has missing content is identified when you stop."
+          }
+        }
+      }
+    },
+    "Manual Scroll started. Scroll normally, then click Stop to keep the result or Cancel to discard it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manual Scroll started. Scroll normally, then click Stop to keep the result or Cancel to discard it."
+          }
+        }
+      }
+    },
+    "Manual Scroll — capturing as you scroll": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manual Scroll — capturing as you scroll"
+          }
+        }
+      }
+    },
+    "Pause scrolling while the content settles.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause scrolling while the content settles."
+          }
+        }
+      }
+    },
+    "Press Return to keep the captured result or Escape to cancel.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Press Return to keep the captured result or Escape to cancel."
+          }
+        }
+      }
+    },
+    "Scroll down in small increments inside the selected area, pausing after each movement. Keep some of the previous content visible. Click Stop when finished; pauses do not end capture. Avoid scrolling backward or switching windows.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scroll down in small increments inside the selected area, pausing after each movement. Keep some of the previous content visible. Click Stop when finished; pauses do not end capture. Avoid scrolling backward or switching windows."
+          }
+        }
+      }
+    },
+    "Scroll normally in the selected area. Click Stop when you’re finished.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scroll normally in the selected area. Click Stop when you’re finished."
+          }
+        }
+      }
+    },
+    "Scroll normally. Click Stop to keep the result or Cancel to discard it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scroll normally. Click Stop to keep the result or Cancel to discard it."
+          }
+        }
+      }
+    },
+    "Scroll normally. Click Stop when finished.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scroll normally. Click Stop when finished."
+          }
+        }
+      }
+    },
+    "Scrolling capture progress": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scrolling capture progress"
+          }
+        }
+      }
+    },
+    "Scrolling…  Return: Stop  ·  Esc: Cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scrolling…  Return: Stop  ·  Esc: Cancel"
+          }
+        }
+      }
+    },
+    "Show this again": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show this again"
+          }
+        }
+      }
+    },
+    "SnipSnipSnip scrolls the selected app automatically. Stable pages, lists, and documents work best; animated or changing content may need a seam review.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SnipSnipSnip scrolls the selected app automatically. Stable pages, lists, and documents work best; animated or changing content may need a seam review."
+          }
+        }
+      }
+    },
+    "Some content could not be connected to the capture. Only connected content was kept.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some content could not be connected to the capture. Only connected content was kept."
+          }
+        }
+      }
+    },
+    "Start Capture": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start Capture"
+          }
+        }
+      }
+    },
+    "The latest movement could not be aligned. Scroll down in smaller increments and pause between movements.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The latest movement could not be aligned. Scroll down in smaller increments and pause between movements."
+          }
+        }
+      }
+    },
+    "The progress panel overlaps the scroll target. Use Return to keep the captured result or Escape to cancel.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The progress panel overlaps the scroll target. Use Return to keep the captured result or Escape to cancel."
+          }
+        }
+      }
+    },
+    "The scrolling capture reached its image capacity and stopped early. Capture the remaining content separately.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The scrolling capture reached its image capacity and stopped early. Capture the remaining content separately."
+          }
+        }
+      }
+    },
+    "The scrolling capture reached its segment limit and stopped early.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The scrolling capture reached its segment limit and stopped early."
+          }
+        }
+      }
+    },
+    "Use Return: Stop  ·  Esc: Cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use Return: Stop  ·  Esc: Cancel"
+          }
+        }
+      }
+    },
+    "Waiting for the content to settle. Pause scrolling or stop animations in the selected area.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for the content to settle. Pause scrolling or stop animations in the selected area."
+          }
+        }
+      }
+    },
     "Build numbered Steps by capturing or importing each image.": {
       "extractionState": "manual",
       "localizations": {

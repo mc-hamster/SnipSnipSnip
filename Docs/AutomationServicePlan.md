@@ -714,7 +714,7 @@ Supporting types:
 - In the App Store edition, return `proFeatureRequired` for explicit UI Map and
   dedicated Guide requests before any permission preflight. Do not request or
   direct the user to Accessibility.
-- In Pro, never attempt scrolling capture or UI Map metadata capture without
+- In Pro, never attempt Auto Scroll or UI Map metadata capture without
   Accessibility permission.
 - In Pro, never start Guide without Screen Recording and Accessibility
   permission.
@@ -922,3 +922,18 @@ The Debug bundle's CLI targets Dev; the shipping CLI targets the shipping app. S
 The disposable automation sample validator targets Dev and substitutes that identity into AppleScript fixtures. The serial XCTest gate checks the selected configuration's namespace, so a shipping copy may remain open during Debug tests. Grant Dev access once and keep Apple Development signing and team stable for subsequent rebuilds; macOS may ask again if the code-signing identity changes. No permission resets or shipping-data migration occur. The system clipboard and global shortcut registrations remain shared macOS resources; assign different shortcuts if both copies are active.
 
 The Debug product is **SnipSnipSnip Dev.app**, with executable **SnipSnipSnip Dev**, so Finder and macOS permission setup can distinguish it from the shipping **SnipSnipSnip.app**. The Swift module remains `SnipSnipSnip`. When adding Dev manually to a permission list, select the Dev product in Xcode’s DerivedData.
+
+## Scrolling capture edition boundary
+
+Manual Scroll is an interactive Screen Recording-only workflow in every edition.
+Auto Scroll remains Pro-only and requires Accessibility. Neither mode adds a v1
+automation primitive; `supportsScrollingCapture` now reports true in every edition
+when the capture workflow is available, describing interactive capture availability. Existing unsupported scrolling preset behavior and sample procedures are
+unchanged. Very tall JPEG output fails explicitly with guidance to use PNG or a
+smaller width; it does not silently truncate or downscale the result. Existing
+automation output-failure mapping remains in effect.
+
+Manual Scroll follows ordinary continuous scrolling, pauses, and reversals. It
+keeps observing after alignment gaps and reports any unresolved missing content
+when stopped. This changes the interactive capture engine, not v1 command names,
+arguments, result fields, or sample-script procedures.

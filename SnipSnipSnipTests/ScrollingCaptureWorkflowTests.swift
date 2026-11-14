@@ -7,6 +7,37 @@ final class ScrollingCaptureWorkflowTests: XCTestCase {
     private let region = CGRect(x: 20, y: 30, width: 200, height: 120)
     private let origin = WorkflowPresentationContext.quickControls(displayID: 7)
 
+    func testManualModeNeedsOnlyScreenRecordingAndSurvivesOptionRoundTrip() throws {
+        let fixture = ScrollingWorkflowFixture()
+        defer { fixture.cleanUp() }
+        XCTAssertEqual(fixture.workflow.scrollingPermissionRequirements(for: .manual), [.screenRecording])
+        XCTAssertEqual(fixture.workflow.scrollingPermissionRequirements(for: .automatic), [.screenRecording, .accessibility])
+        let options = CaptureOneShotOptions(captureDelay: .immediate, includesCursor: false,
+            privateCapture: false, windowUIMapEnabled: false, scrollingMode: .manual)
+        let restored = try JSONDecoder().decode(CaptureOneShotOptions.self, from: JSONEncoder().encode(options))
+        XCTAssertEqual(restored.scrollingMode, .manual)
+        XCTAssertEqual(restored.applying(to: CaptureRunOptions()).scrollingMode, .manual)
+        XCTAssertEqual(PermissionRestartAction.screenshot(.scrollingCapture, restored).requirements, [.screenRecording])
+    }
+
+    func testStandardEditionKeepsInteractiveScrollingAvailableWithoutAccessibility() {
+        let fixture = ScrollingWorkflowFixture(buildTarget: .release)
+        defer { fixture.cleanUp() }
+        XCTAssertEqual(fixture.workflow.resolvedScrollingMode(.automatic), .manual)
+        XCTAssertEqual(fixture.workflow.resolvedScrollingMode(nil), .manual)
+        XCTAssertTrue(fixture.workflow.automationCapabilities.supportsScrollingCapture,
+            "The existing status field describes interactive scrolling availability, not a new v1 command")
+        XCTAssertFalse(fixture.workflow.dependencies.capabilities.isEnabled(.automaticScrollingCapture))
+    }
+
+    func testLegacyOptionsDecodeWithoutScrollingMode() throws {
+        // Derive the legacy representation from the actual delay encoding.
+        let original = CaptureOneShotOptions(captureDelay: .immediate, includesCursor: false,
+            privateCapture: false, windowUIMapEnabled: false)
+        let data = try JSONEncoder().encode(original)
+        XCTAssertNil(try JSONDecoder().decode(CaptureOneShotOptions.self, from: data).scrollingMode)
+    }
+
     func testRepeatProtectsEditingAndRestoresPresentationAfterTargetFailure() async {
         let fixture = ScrollingWorkflowFixture()
         defer { fixture.cleanUp() }
@@ -79,7 +110,7 @@ private final class ScrollingWorkflowFixture {
     private let suite: String
     private let defaults: UserDefaults
 
-    init(failsTarget: Bool = true, confirmation: ScrollingCaptureTargetConfirmation.Choice = .cancel) {
+    init(buildTarget: BuildTarget = .dev, failsTarget: Bool = true, confirmation: ScrollingCaptureTargetConfirmation.Choice = .cancel) {
         let suite = "ScrollingWorkflowTests.\(UUID().uuidString)"
         let defaults = makeDefaults(named: suite)
         let windows = ScrollingWorkflowWindowPresenter()
@@ -89,7 +120,7 @@ private final class ScrollingWorkflowFixture {
         self.windows = windows
         self.probe = probe
         let permissions = TestCapturePermissionService()
-        let environment = AppEnvironment(defaults: defaults, buildTarget: .dev, permissions: permissions)
+        let environment = AppEnvironment(defaults: defaults, buildTarget: buildTarget, permissions: permissions)
         let lifecycle = TestWorkflowLifecyclePresenter()
         let gate = PermissionWorkflowModel(dependencies: PermissionWorkflowDependencies(
             capabilities: environment.capabilities, permissions: permissions,
@@ -111,6 +142,7 @@ private final class ScrollingWorkflowFixture {
                 },
                 preferenceStore: environment.preferenceStores.capture,
                 automationPreferenceStore: environment.preferenceStores.automation,
+                chooseScrollingMode: { .automatic },
                 confirmScrollingTarget: { _ in confirmation }
             ),
             captureService: ScreenCaptureService(), uiMapCaptureService: environment.makeUIMapCaptureService(),

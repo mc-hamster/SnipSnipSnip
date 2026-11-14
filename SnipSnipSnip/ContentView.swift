@@ -2234,7 +2234,7 @@ struct ContentView: View {
             return "Access Needed"
         }
 
-        return capabilities.isEnabled(.scrollingCapture) ? "Scroll Access Needed" : "Access Needed"
+        return capabilities.isEnabled(.automaticScrollingCapture) ? "Scroll Access Needed" : "Access Needed"
     }
 
     private var permissionStatusSystemImage: String {
@@ -2265,12 +2265,12 @@ struct ContentView: View {
             return "Screen Recording is required for captures, recordings, and live window thumbnails."
         }
 
-        if capabilities.isEnabled(.scrollingCapture), missingRequirements == [.accessibility] {
-            return "Accessibility is required for Scrolling Capture so \(AppBranding.displayName) can scroll the selected app while capturing."
+        if capabilities.isEnabled(.automaticScrollingCapture), missingRequirements == [.accessibility] {
+            return "Accessibility is required for Auto Scroll so \(AppBranding.displayName) can scroll the selected app while capturing."
         }
 
-        if capabilities.isEnabled(.scrollingCapture) {
-            return "Screen Recording is required for captures. Accessibility is also required for Scrolling Capture."
+        if capabilities.isEnabled(.automaticScrollingCapture) {
+            return "Screen Recording is required for captures. Accessibility is also required for Auto Scroll."
         }
 
         return "Screen Recording is required for captures, recordings, and live window thumbnails."

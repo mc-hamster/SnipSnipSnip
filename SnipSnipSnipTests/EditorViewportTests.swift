@@ -206,6 +206,43 @@ final class EditorViewportTests: XCTestCase {
         XCTAssertTrue(focused.canScrollVertically)
     }
 
+    func testVeryTallImageCanReachActualSizeAndInspectPixels() {
+        let viewport = EditorViewport(canvasSize: CGSize(width: 1000, height: 800), contentSize: CGSize(width: 1000, height: 200_000))
+        let actual = viewport.zoomed(to: viewport.actualSizeZoomScale)
+        XCTAssertEqual(actual.displayScale, 1, accuracy: 0.0001)
+        XCTAssertTrue(actual.canZoomIn)
+        XCTAssertEqual(viewport.zoomed(to: viewport.maximumZoomScale).displayScale, 8, accuracy: 0.0001)
+        XCTAssertFalse(viewport.zoomed(to: viewport.maximumZoomScale).canZoomIn)
+    }
+
+    func testTallInitialViewFitsWidthAndStartsAtFirstRow() {
+        let viewport = EditorViewport(contentSize: CGSize(width: 1200, height: 200_000))
+            .updatingCanvasSize(CGSize(width: 1000, height: 800), maxInitialDisplayScale: 1)
+        XCTAssertEqual(viewport.displayScale, 0.8, accuracy: 0.0001)
+        XCTAssertEqual(viewport.imageRect.minY, EditorViewport.interactionInset, accuracy: 0.001)
+        XCTAssertTrue(viewport.canScrollVertically)
+        XCTAssertFalse(viewport.canScrollHorizontally)
+        XCTAssertFalse(viewport.followsFitScale)
+        let bottom = viewport.scrolledTo(verticalPosition: 0)
+        XCTAssertEqual(bottom.imageRect.maxY, 780, accuracy: 0.001)
+        let fit = viewport.zoomedToFit()
+        XCTAssertEqual(fit.imageRect.height, 760, accuracy: 0.001)
+    }
+
+    func testFitWidthCapsInitialSmallSourceWithoutUpscaling() {
+        let viewport = EditorViewport(canvasSize: CGSize(width: 1000, height: 800), contentSize: CGSize(width: 200, height: 80_000))
+        XCTAssertEqual(viewport.zoomedForInitialDisplay(maxDisplayScale: 1).displayScale, 1, accuracy: 0.0001)
+        XCTAssertEqual(viewport.zoomedToWidth().imageRect.width, 960, accuracy: 0.001)
+    }
+
+    func testVeryTallActualSizeSurvivesResize() {
+        let initial = EditorViewport(canvasSize: CGSize(width: 1000, height: 800), contentSize: CGSize(width: 1200, height: 200_000))
+        let actual = initial.zoomed(to: initial.actualSizeZoomScale)
+        let resized = actual.updatingCanvasSize(CGSize(width: 600, height: 400))
+        XCTAssertEqual(resized.displayScale, 1, accuracy: 0.0001)
+        XCTAssertEqual(centerContentPoint(in: resized).y, centerContentPoint(in: actual).y, accuracy: 0.001)
+    }
+
     private func centerContentPoint(in viewport: EditorViewport) -> CGPoint {
         CGPoint(
             x: (viewport.canvasSize.width / 2 - viewport.imageRect.minX) / viewport.displayScale,
