@@ -1745,12 +1745,19 @@ final class MultiCaptureCompositionUITests: XCTestCase {
                 ) else {
                     return
                 }
+                let frame = inspector.frame
+                let target = element.exists ? element.frame : .null
+                let step = max(24, min(360, frame.height / 2))
+                let delta: CGFloat
+                if !target.isNull, !target.isInfinite, !target.isEmpty,
+                   abs(target.midY - frame.midY) > 8 {
+                    delta = max(-step, min(step, frame.midY - target.midY))
+                } else {
+                    delta = direction ? -step : step
+                }
                 inspector.coordinate(
                     withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
-                ).scroll(
-                    byDeltaX: 0,
-                    deltaY: direction ? -360 : 360
-                )
+                ).scroll(byDeltaX: 0, deltaY: delta)
             }
         }
         XCTAssertTrue(
