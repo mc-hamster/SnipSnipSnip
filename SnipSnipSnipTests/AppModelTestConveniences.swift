@@ -135,11 +135,6 @@ extension AppModel {
         set { capture.isShowingWindowPicker = newValue }
     }
 
-    var autoCopyEnabled: Bool {
-        get { clipboard.autoCopyEnabled }
-        set { clipboard.autoCopyEnabled = newValue }
-    }
-
     var autoRefreshWindowsEnabled: Bool {
         get { capture.autoRefreshWindowsEnabled }
         set { capture.autoRefreshWindowsEnabled = newValue }
@@ -418,11 +413,6 @@ extension AppModel {
         set { capture.pendingWindowThumbnailTask = newValue }
     }
 
-    var pendingScreenRecordingPermissionVerificationTask: Task<Void, Never>? {
-        get { permissions.pendingScreenRecordingPermissionVerificationTask }
-        set { permissions.pendingScreenRecordingPermissionVerificationTask = newValue }
-    }
-
     var screenRecordingPermissionVerificationGeneration: Int {
         get { permissions.screenRecordingPermissionVerificationGeneration }
         set { permissions.screenRecordingPermissionVerificationGeneration = newValue }
@@ -446,11 +436,6 @@ extension AppModel {
     var connectedDevicePreviewController: ConnectedDevicePreviewWindowController? {
         get { capture.connectedDevicePreviewController }
         set { capture.connectedDevicePreviewController = newValue }
-    }
-
-    var pendingAutoCopyTask: Task<Void, Never>? {
-        get { documents.pendingAutoCopyTask }
-        set { documents.pendingAutoCopyTask = newValue }
     }
 
     var pendingAutosaveTask: Task<Void, Never>? {

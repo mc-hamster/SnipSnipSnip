@@ -47,7 +47,7 @@ struct QuickControlsCustomizationView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This restores Capture Region, Capture Window, Capture Screen, Repeat Last Capture, Capture Presets, Record Region, and Timer in Expanded presentation on the right edge.")
+            Text("This restores Capture Region, Capture Window, Capture Screen, Repeat Last Capture, Capture Presets, Record Region, and Timer in Full mode on the right edge.")
         }
     }
 
@@ -188,9 +188,14 @@ struct QuickControlsCustomizationView: View {
                 Text("Dock Preview")
                     .font(.headline)
                 Spacer()
-                Text("Drag controls or section headers to arrange the dock.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("Drag controls or section headers to arrange the dock.")
+                    if quickControls.preferences.resolvedDockState == .iconOnly {
+                        Text("Showing the Full layout revealed on hover.")
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
 
             ScrollViewReader { proxy in
@@ -285,7 +290,7 @@ struct QuickControlsCustomizationView: View {
                         }
                         .labelsHidden()
                         .pickerStyle(.segmented)
-                        .frame(width: 180)
+                        .frame(width: 205)
                     }
 
                     VStack(alignment: .leading, spacing: 6) {
@@ -344,21 +349,21 @@ private struct QuickControlsDesignerCanvas: View {
     @State private var draggedControlKind: QuickControlKind?
 
     var body: some View {
-        let size = quickControls.preferences.resolvedPanelSize
-        let presentation = quickControls.preferences.resolvedDockState
+        let presentation = quickControls.preferences.resolvedDockState.previewPresentation
+        let size = quickControls.preferences.panelSize(for: presentation)
 
         QuickControlsDockShell(
             presentation: presentation,
             edge: quickControls.preferences.resolvedDockEdge,
             status: nil,
             statusSymbol: "hourglass",
-            togglePresentation: quickControls.toggleDockState
+            collapse: { quickControls.setDockState(.slim) }
         ) {
             if quickControls.preferences.items.isEmpty {
                 QuickControlsEmptyState(presentation: presentation, customize: nil)
             } else {
                 ScrollView(.vertical) {
-                    LazyVStack(spacing: presentation == .expanded ? 6 : 5) {
+                    LazyVStack(spacing: presentation == .full ? 6 : 5) {
                         ForEach(QuickControlsDockGrouping.sections(for: quickControls.preferences.items)) { section in
                             QuickControlsDesignerSection(
                                 section: section,
@@ -369,7 +374,7 @@ private struct QuickControlsDesignerCanvas: View {
                             )
                         }
                     }
-                    .padding(.horizontal, presentation == .expanded ? 8 : 3)
+                    .padding(.horizontal, presentation == .full ? 8 : 3)
                     .padding(.top, QuickControlsDockMetrics.contentTopPadding)
                     .padding(.bottom, QuickControlsDockMetrics.contentBottomPadding)
                 }
@@ -395,16 +400,16 @@ private struct QuickControlsDesignerSection: View {
     @State private var isDropTarget = false
 
     var body: some View {
-        VStack(spacing: presentation == .expanded ? 6 : 5) {
+        VStack(spacing: presentation == .full ? 6 : 5) {
             QuickControlsDockSectionHeader(
                 category: section.category,
                 presentation: presentation
             )
-            .overlay(alignment: presentation == .expanded ? .trailing : .center) {
+            .overlay(alignment: presentation == .full ? .trailing : .center) {
                 Image(systemName: "line.3.horizontal")
-                    .font(.system(size: presentation == .expanded ? 9 : 7, weight: .semibold))
+                    .font(.system(size: presentation == .full ? 9 : 7, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .padding(.trailing, presentation == .expanded ? 7 : 0)
+                    .padding(.trailing, presentation == .full ? 7 : 0)
                     .accessibilityHidden(true)
             }
             .contentShape(Rectangle())

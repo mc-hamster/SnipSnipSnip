@@ -104,6 +104,14 @@ nonisolated struct AppKitOverlayTransform: Equatable {
     func globalPoint(fromLocalPoint point: CGPoint) -> CGPoint {
         CGPoint(x: overlayFrame.minX + point.x, y: overlayFrame.maxY - point.y)
     }
+
+    func localRect(fromGlobalRect rect: CGRect) -> CGRect {
+        let normalized = rect.standardized
+        return CGRect(
+            origin: localPoint(fromGlobalPoint: CGPoint(x: normalized.minX, y: normalized.maxY)),
+            size: normalized.size
+        )
+    }
 }
 
 /// Maps Quartz/ScreenCaptureKit global points into top-left display-local points.
@@ -255,15 +263,14 @@ nonisolated struct CaptureDisplayTransform: Equatable {
     }
 
     func overlayGlobalRect(fromCaptureGlobalRect rect: CGRect) -> CGRect {
-        let normalized = rect.standardized
-        let minPoint = overlayGlobalPoint(fromCaptureGlobalPoint: CGPoint(x: normalized.minX, y: normalized.maxY))
-        let maxPoint = overlayGlobalPoint(fromCaptureGlobalPoint: CGPoint(x: normalized.maxX, y: normalized.minY))
+        // Use the same capture-space rounding as the Region outline. Rounding
+        // again after scaling to AppKit points expands the Window outline on
+        // scaled displays and makes the two selectors disagree.
+        let local = overlayLocalRect(fromCaptureGlobalRect: rect)
         return CGRect(
-            x: min(minPoint.x, maxPoint.x),
-            y: min(minPoint.y, maxPoint.y),
-            width: abs(maxPoint.x - minPoint.x),
-            height: abs(maxPoint.y - minPoint.y)
-        ).gscIntegralStandardized
+            origin: overlayGlobalPoint(fromOverlayLocalPoint: CGPoint(x: local.minX, y: local.maxY)),
+            size: local.size
+        )
     }
 }
 
@@ -291,13 +298,13 @@ nonisolated struct CapturePreviewTransform: Equatable {
     func previewTopLeftPixelRect(fromCaptureGlobalRect rect: CGRect) -> CGRect {
         captureLocalToPreviewTransform.targetRect(
             fromSourceRect: displayTransform.captureLocalRect(fromCaptureGlobalRect: rect)
-        )
+        ).gscIntegralStandardized
     }
 
     func previewTopLeftPixelRect(fromOverlayLocalRect rect: CGRect) -> CGRect {
         captureLocalToPreviewTransform.targetRect(
             fromSourceRect: displayTransform.captureLocalRect(fromOverlayLocalRect: rect)
-        )
+        ).gscIntegralStandardized
     }
 
     func appKitSourceRect(fromCaptureGlobalRect rect: CGRect) -> CGRect {

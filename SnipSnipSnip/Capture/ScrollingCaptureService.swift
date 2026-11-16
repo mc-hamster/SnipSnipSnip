@@ -3,95 +3,19 @@ import AppKit
 import CoreGraphics
 import Foundation
 
-enum ScrollingCaptureError: LocalizedError {
-    case accessibilityPermissionDenied
-    case invalidViewport
-    case noScrollableTarget
-    case firstFrameUnavailable
-    case stitchingFailed
-    case cancelled
-
-    var errorDescription: String? {
-        switch self {
-        case .accessibilityPermissionDenied:
-            return "Scrolling Capture needs Accessibility access so \(AppBranding.displayName) can scroll the selected app while capturing."
-        case .invalidViewport:
-            return "The selected scrolling area was too small to capture."
-        case .noScrollableTarget:
-            return "No scrollable area was found at the selected location. Select inside a scrollable page, document, or list and try again."
-        case .firstFrameUnavailable:
-            return "The first scrolling capture frame could not be captured."
-        case .stitchingFailed:
-            return "\(AppBranding.displayName) could not stitch the scrolling capture with enough confidence."
-        case .cancelled:
-            return "Scrolling capture was cancelled."
-        }
-    }
-}
-
-final class ScrollingCaptureCancellation: @unchecked Sendable {
-    private enum RequestedAction {
-        case none
-        case cancel
-        case finish
-    }
-
-    private let lock = NSLock()
-    private var requestedAction = RequestedAction.none
-
-    func cancel() {
-        lock.lock()
-        requestedAction = .cancel
-        lock.unlock()
-    }
-
-    func finish() {
-        lock.lock()
-        if requestedAction == .none {
-            requestedAction = .finish
-        }
-        lock.unlock()
-    }
-
-    func checkCancellation() throws {
-        lock.lock()
-        let action = requestedAction
-        lock.unlock()
-
-        if action == .cancel || Task.isCancelled {
-            throw ScrollingCaptureError.cancelled
-        }
-    }
-
-    func shouldFinish() -> Bool {
-        lock.lock()
-        let action = requestedAction
-        lock.unlock()
-
-        return action == .finish
-    }
-}
-
-struct ScrollingCaptureProgress: @unchecked Sendable {
-    let segmentCount: Int
-    let outputHeight: Int
-    let maxOutputHeight: Int
-    let warning: String?
-    let previewImage: CGImage?
-
-    /// Fraction of the maximum capture capacity consumed, clamped to 0…1.
-    var capacityFraction: Double {
-        guard maxOutputHeight > 0 else { return 0 }
-        return min(Double(outputHeight) / Double(maxOutputHeight), 1.0)
-    }
-}
-
 protocol ScrollDriver {
     var sourceName: String { get }
+    var scrollTargetPoint: CGPoint? { get }
+    var hasMoreContent: Bool? { get }
     func snapshotPosition() -> Double?
     func restorePosition(_ position: Double)
     func scrollDown(logicalDistance: CGFloat)
     func isAtEnd(previousPosition: Double?) -> Bool
+}
+
+extension ScrollDriver {
+    var scrollTargetPoint: CGPoint? { nil }
+    var hasMoreContent: Bool? { nil }
 }
 
 struct AccessibilityScrollDriver: ScrollDriver {
@@ -99,8 +23,8 @@ struct AccessibilityScrollDriver: ScrollDriver {
     private let scrollBar: AccessibilityElementHandle?
     private let centerPoint: CGPoint
     private let accessibility: any AccessibilityPlatform
-    private let screens: any ScreenTopologyProviding
     let sourceName: String
+    var scrollTargetPoint: CGPoint? { centerPoint }
 
     private struct ResolvedTarget {
         let element: AccessibilityElementHandle
@@ -120,48 +44,35 @@ struct AccessibilityScrollDriver: ScrollDriver {
     init(
         point: CGPoint,
         permissions: any CapturePermissionServicing,
-        accessibility: any AccessibilityPlatform = LiveAccessibilityPlatform(),
-        screens: any ScreenTopologyProviding = SystemScreenTopologyService()
+        accessibility: any AccessibilityPlatform = LiveAccessibilityPlatform()
     ) throws {
         try self.init(
             viewportRect: CGRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2),
             permissions: permissions,
-            accessibility: accessibility,
-            screens: screens
+            accessibility: accessibility
         )
     }
 
     init(
         viewportRect: CGRect,
         permissions: any CapturePermissionServicing,
-        accessibility: any AccessibilityPlatform = LiveAccessibilityPlatform(),
-        screens: any ScreenTopologyProviding = SystemScreenTopologyService()
+        accessibility: any AccessibilityPlatform = LiveAccessibilityPlatform()
     ) throws {
+        guard viewportRect.gscIsFinite, viewportRect.width > 0, viewportRect.height > 0 else {
+            throw ScrollingCaptureError.invalidViewport
+        }
         guard permissions.currentStatus().hasAccessibility else {
             ScrollingCaptureDiagnostics.error("Accessibility permission missing before resolving scroll target")
             throw ScrollingCaptureError.accessibilityPermissionDenied
         }
 
         self.accessibility = accessibility
-        self.screens = screens
         ScrollingCaptureDiagnostics.info(
             "Resolving scroll target rect=\(Self.describe(viewportRect))"
         )
 
-        let coordinateMappings = Self.currentCoordinateMappings(screens: screens)
-        let accessibilityRect = Self.accessibilityRect(
-            fromCaptureRect: viewportRect,
-            mappings: coordinateMappings
-        )
-
-        ScrollingCaptureDiagnostics.info(
-            "Accessibility target rect=\(Self.describe(accessibilityRect)) mappings=\(coordinateMappings.count)"
-        )
-
         guard let target = Self.resolveTarget(
             in: viewportRect,
-            accessibilityRect: accessibilityRect,
-            coordinateMappings: coordinateMappings,
             accessibility: accessibility
         ) else {
             ScrollingCaptureDiagnostics.error(
@@ -182,61 +93,25 @@ struct AccessibilityScrollDriver: ScrollDriver {
 
     private static func resolveTarget(
         in viewportRect: CGRect,
-        accessibilityRect: CGRect,
-        coordinateMappings: [CaptureAccessibilityTransform],
         accessibility: any AccessibilityPlatform
     ) -> ResolvedTarget? {
         let systemElement = accessibility.systemWideElement()
         var fallbackTarget: ResolvedTarget?
 
         for point in candidatePoints(in: viewportRect) {
-            let hitTestPoints = axHitTestPoints(
-                forCapturePoint: point,
-                coordinateMappings: coordinateMappings
-            )
+            let hitResult = accessibility.element(at: point, from: systemElement)
+            guard hitResult.status == .success, let hitElement = hitResult.element else { continue }
 
-            for hitTestPoint in hitTestPoints {
-                let hitResult = accessibility.element(at: hitTestPoint.accessibilityPoint, from: systemElement)
-                let hitElement = hitResult.element
-
-                guard hitResult.status == .success, let hitElement else {
-                    ScrollingCaptureDiagnostics.info(
-                        "AX hit test failed mode=\(hitTestPoint.mode) capturePoint=\(describe(point)) axPoint=\(describe(hitTestPoint.accessibilityPoint)) error=\(hitResult.status.rawValue)"
-                    )
-                    continue
-                }
-
-                ScrollingCaptureDiagnostics.info(
-                    "AX hit mode=\(hitTestPoint.mode) capturePoint=\(describe(point)) axPoint=\(describe(hitTestPoint.accessibilityPoint)) role=\(roleDescription(for: hitElement, accessibility: accessibility)) bundle=\(bundleIdentifier(for: hitElement, accessibility: accessibility) ?? "unknown")"
+            if let scrollable = Self.scrollableElement(startingAt: hitElement, containing: point, accessibility: accessibility) {
+                return ResolvedTarget(
+                    element: scrollable.element, scrollBar: scrollable.scrollBar,
+                    capturePoint: point, accessibilityPoint: point
                 )
-
-                if let scrollable = Self.scrollableElement(
-                    startingAt: hitElement,
-                    containing: hitTestPoint.accessibilityPoint,
-                    accessibility: accessibility
-                ) {
-                    ScrollingCaptureDiagnostics.info(
-                        "AX scrollable target found mode=\(hitTestPoint.mode) axPoint=\(describe(hitTestPoint.accessibilityPoint)) role=\(roleDescription(for: scrollable.element, accessibility: accessibility)) hasScrollBar=\(scrollable.scrollBar != nil)"
-                    )
-                    return ResolvedTarget(
-                        element: scrollable.element,
-                        scrollBar: scrollable.scrollBar,
-                        capturePoint: point,
-                        accessibilityPoint: hitTestPoint.accessibilityPoint
-                    )
-                }
-
-                if fallbackTarget == nil, allowsWheelFallback(for: hitElement, accessibility: accessibility) {
-                    ScrollingCaptureDiagnostics.info(
-                        "Using browser wheel fallback mode=\(hitTestPoint.mode) capturePoint=\(describe(point)) axPoint=\(describe(hitTestPoint.accessibilityPoint)) bundle=\(bundleIdentifier(for: hitElement, accessibility: accessibility) ?? "unknown") role=\(roleDescription(for: hitElement, accessibility: accessibility))"
-                    )
-                    fallbackTarget = ResolvedTarget(
-                        element: hitElement,
-                        scrollBar: nil,
-                        capturePoint: point,
-                        accessibilityPoint: hitTestPoint.accessibilityPoint
-                    )
-                }
+            }
+            if fallbackTarget == nil, allowsWheelFallback(for: hitElement, accessibility: accessibility) {
+                fallbackTarget = ResolvedTarget(
+                    element: hitElement, scrollBar: nil, capturePoint: point, accessibilityPoint: point
+                )
             }
         }
 
@@ -246,8 +121,6 @@ struct AccessibilityScrollDriver: ScrollDriver {
 
         return resolveWindowTarget(
             in: viewportRect,
-            accessibilityRect: accessibilityRect,
-            coordinateMappings: coordinateMappings,
             accessibility: accessibility
         )
     }
@@ -266,39 +139,17 @@ struct AccessibilityScrollDriver: ScrollDriver {
         ]
     }
 
-    private struct AXHitTestPoint {
-        let mode: String
-        let accessibilityPoint: CGPoint
-    }
-
-    private static func axHitTestPoints(
-        forCapturePoint capturePoint: CGPoint,
-        coordinateMappings: [CaptureAccessibilityTransform]
-    ) -> [AXHitTestPoint] {
-        let mappedPoint = Self.accessibilityPoint(
-            fromCapturePoint: capturePoint,
-            mappings: coordinateMappings
-        )
-        var points = [AXHitTestPoint(mode: "mapped", accessibilityPoint: mappedPoint)]
-
-        if hypot(mappedPoint.x - capturePoint.x, mappedPoint.y - capturePoint.y) > 0.5 {
-            points.append(AXHitTestPoint(mode: "capture", accessibilityPoint: capturePoint))
-        }
-
-        return points
-    }
-
     func snapshotPosition() -> Double? {
         guard let scrollBar,
               let value = Self.attribute("AXValue", from: scrollBar, accessibility: accessibility) as? NSNumber else {
             return nil
         }
 
-        return value.doubleValue
+        return value.doubleValue.isFinite ? value.doubleValue : nil
     }
 
     func restorePosition(_ position: Double) {
-        guard let scrollBar else {
+        guard position.isFinite, let scrollBar else {
             ScrollingCaptureDiagnostics.debug("Skipping scroll position restore because AX scroll value is unavailable")
             return
         }
@@ -308,9 +159,8 @@ struct AccessibilityScrollDriver: ScrollDriver {
     }
 
     func scrollDown(logicalDistance: CGFloat) {
+        guard let wheelDelta = Self.wheelDelta(for: logicalDistance) else { return }
         let cursorLocationBeforeScroll = CGEvent(source: nil)?.location
-        let magnitude = max(Int32(abs(logicalDistance).rounded()), 24)
-        let wheelDelta = logicalDistance >= 0 ? -magnitude : magnitude
         let event = CGEvent(
             scrollWheelEvent2Source: nil,
             units: .pixel,
@@ -330,12 +180,21 @@ struct AccessibilityScrollDriver: ScrollDriver {
         )
     }
 
-    func isAtEnd(previousPosition: Double?) -> Bool {
-        guard let previousPosition, let current = snapshotPosition() else {
-            return false
-        }
+    nonisolated static func wheelDelta(for logicalDistance: CGFloat) -> Int32? {
+        guard logicalDistance.isFinite, logicalDistance != 0 else { return nil }
+        let magnitude = Int32(min(max(abs(logicalDistance).rounded(), 1), CGFloat(Int32.max)))
+        return logicalDistance > 0 ? -magnitude : magnitude
+    }
 
-        return abs(current - previousPosition) < 0.0001
+    func isAtEnd(previousPosition: Double?) -> Bool {
+        hasMoreContent == false
+    }
+
+    var hasMoreContent: Bool? {
+        guard let current = snapshotPosition(), let scrollBar,
+              let maximum = Self.attribute("AXMaxValue", from: scrollBar, accessibility: accessibility) as? NSNumber,
+              maximum.doubleValue.isFinite else { return nil }
+        return current < maximum.doubleValue
     }
 
     private static func scrollableElement(
@@ -380,7 +239,7 @@ struct AccessibilityScrollDriver: ScrollDriver {
             return false
         }
 
-        return result.names.contains("AXScrollDown") || result.names.contains("AXScrollToVisible")
+        return result.names.contains("AXScrollDown")
     }
 
     private static func scrollableDescendant(
@@ -433,8 +292,6 @@ struct AccessibilityScrollDriver: ScrollDriver {
 
     private static func resolveWindowTarget(
         in viewportRect: CGRect,
-        accessibilityRect: CGRect,
-        coordinateMappings: [CaptureAccessibilityTransform],
         accessibility: any AccessibilityPlatform
     ) -> ResolvedTarget? {
         guard let windowTarget = windowTarget(under: viewportRect) else {
@@ -443,10 +300,7 @@ struct AccessibilityScrollDriver: ScrollDriver {
         }
 
         let point = CGPoint(x: viewportRect.midX, y: viewportRect.midY)
-        let accessibilityPoint = Self.accessibilityPoint(
-            fromCapturePoint: point,
-            mappings: coordinateMappings
-        )
+        let accessibilityPoint = point
         let appElement = accessibility.applicationElement(processID: windowTarget.ownerPID)
         ScrollingCaptureDiagnostics.info(
             "Window fallback candidate owner=\(windowTarget.ownerName) pid=\(windowTarget.ownerPID) bundle=\(windowTarget.bundleIdentifier ?? "unknown") frame=\(describe(windowTarget.frame)) rank=\(windowTarget.focusRank)"
@@ -458,7 +312,7 @@ struct AccessibilityScrollDriver: ScrollDriver {
             accessibility: accessibility
         ) {
             ScrollingCaptureDiagnostics.info(
-                "Window fallback resolved AX descendant role=\(roleDescription(for: scrollable.element, accessibility: accessibility)) hasScrollBar=\(scrollable.scrollBar != nil) axRect=\(describe(accessibilityRect))"
+                "Window fallback resolved AX descendant role=\(roleDescription(for: scrollable.element, accessibility: accessibility)) hasScrollBar=\(scrollable.scrollBar != nil)"
             )
             return ResolvedTarget(
                 element: scrollable.element,
@@ -492,42 +346,6 @@ struct AccessibilityScrollDriver: ScrollDriver {
         )
     }
 
-    private static func currentCoordinateMappings(screens: any ScreenTopologyProviding) -> [CaptureAccessibilityTransform] {
-        screens.screens.compactMap { screen in
-            let captureFrame = CGDisplayBounds(screen.displayID)
-            guard captureFrame.width > 0, captureFrame.height > 0 else {
-                return nil
-            }
-
-            return CaptureAccessibilityTransform(
-                captureFrame: captureFrame,
-                accessibilityFrame: screen.frame
-            )
-        }
-    }
-
-    private static func accessibilityPoint(
-        fromCapturePoint point: CGPoint,
-        mappings: [CaptureAccessibilityTransform]
-    ) -> CGPoint {
-        if let mapping = mappings.first(where: { $0.containsCapturePoint(point) }) {
-            return mapping.accessibilityPoint(fromCapturePoint: point)
-        }
-
-        return point
-    }
-
-    private static func accessibilityRect(
-        fromCaptureRect rect: CGRect,
-        mappings: [CaptureAccessibilityTransform]
-    ) -> CGRect {
-        if let mapping = mappings.first(where: { $0.intersectsCaptureRect(rect) }) {
-            return mapping.accessibilityRect(fromCaptureRect: rect)
-        }
-
-        return rect.gscIntegralStandardized
-    }
-
     private static func windowTarget(under viewportRect: CGRect) -> WindowTarget? {
         guard let windowInfo = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
             return nil
@@ -551,9 +369,7 @@ struct AccessibilityScrollDriver: ScrollDriver {
                 return nil
             }
 
-            let containsCenter = frame.contains(viewportCenter)
-            let intersectsViewport = frame.intersects(viewportRect)
-            guard containsCenter || intersectsViewport else {
+            guard frame.contains(viewportCenter) else {
                 return nil
             }
 
@@ -608,7 +424,7 @@ struct AccessibilityScrollDriver: ScrollDriver {
     }
 
     private static func describe(_ rect: CGRect) -> String {
-        "x=\(Int(rect.minX)) y=\(Int(rect.minY)) w=\(Int(rect.width)) h=\(Int(rect.height))"
+        String(format: "x=%.0f y=%.0f w=%.0f h=%.0f", Double(rect.minX), Double(rect.minY), Double(rect.width), Double(rect.height))
     }
 
     private static func bundleIdentifier(
@@ -696,8 +512,7 @@ struct ScrollingCaptureService {
             try AccessibilityScrollDriver(
                 viewportRect: viewportRect,
                 permissions: permissions,
-                accessibility: accessibility,
-                screens: screens
+                accessibility: accessibility
             )
         }
         self.stitcher = stitcher
@@ -719,6 +534,9 @@ struct ScrollingCaptureService {
         guard request.viewportRect.width > 8, request.viewportRect.height > 8 else {
             throw ScrollingCaptureError.invalidViewport
         }
+        if request.mode == .manual {
+            return ManualScrollingCaptureService.resolveTarget(for: request)
+        }
         guard permissions.currentStatus().hasAccessibility else {
             throw ScrollingCaptureError.accessibilityPermissionDenied
         }
@@ -737,7 +555,12 @@ struct ScrollingCaptureService {
                 isPrivateCapture: request.isPrivateCapture
             )
         ) {
-            try await captureWithDiagnostics(
+            if request.mode == .manual {
+                return try await ManualScrollingCaptureService(
+                    captureService: captureService, scheduler: scheduler, clock: clock, stitcher: stitcher
+                ).capture(request: request, cancellation: cancellation, progressHandler: progressHandler)
+            }
+            return try await captureWithDiagnostics(
                 request: request,
                 cancellation: cancellation,
                 progressHandler: progressHandler
@@ -750,6 +573,7 @@ struct ScrollingCaptureService {
         cancellation: ScrollingCaptureCancellation,
         progressHandler: (@MainActor (ScrollingCaptureProgress) -> Void)?
     ) async throws -> ScrollingCaptureResult {
+        try cancellation.checkCancellation()
         ScrollingCaptureDiagnostics.reset()
         ScrollingCaptureDiagnostics.info(
             "Starting capture rect=\(Self.describe(request.viewportRect)) maxSegments=\(request.maxSegmentCount) maxHeight=\(request.maxOutputHeight)"
@@ -766,12 +590,17 @@ struct ScrollingCaptureService {
         }
 
         let driver = try driverFactory(request.viewportRect)
+        try cancellation.checkCancellation()
         let originalPosition = driver.snapshotPosition()
         let originalPositionDescription = originalPosition.map { String($0) } ?? "unavailable"
         let parkedCursorLocation = parkCursorAwayFromViewport(request.viewportRect)
         ScrollingCaptureDiagnostics.info(
             "Scroll driver ready source=\(driver.sourceName) originalPosition=\(originalPositionDescription)"
         )
+        defer {
+            if let originalPosition { driver.restorePosition(originalPosition) }
+            restoreCursor(to: parkedCursorLocation)
+        }
 
         do {
             let result = try await captureLoop(
@@ -782,26 +611,19 @@ struct ScrollingCaptureService {
                 progressHandler: progressHandler
             )
 
-            if let originalPosition {
-                driver.restorePosition(originalPosition)
-            }
-            restoreCursor(to: parkedCursorLocation)
-
             ScrollingCaptureDiagnostics.info(
                 "Finished capture segmentsResultHeight=\(result.image.height) warnings=\(result.warnings.count)"
             )
+            try cancellation.checkCancellation()
             return result
         } catch {
             ScrollingCaptureDiagnostics.error("Capture failed error=\(error.localizedDescription)")
-            if let originalPosition {
-                driver.restorePosition(originalPosition)
-            }
-            restoreCursor(to: parkedCursorLocation)
+            try cancellation.checkCancellation()
             throw error
         }
     }
 
-    private func captureLoop(
+    func captureLoop(
         request: ScrollingCaptureRequest,
         sourceName: String,
         driver: any ScrollDriver,
@@ -809,28 +631,49 @@ struct ScrollingCaptureService {
         progressHandler: (@MainActor (ScrollingCaptureProgress) -> Void)?
     ) async throws -> ScrollingCaptureResult {
         var warnings: [String] = []
+        var scrollFraction = Self.primaryScrollFraction
+        try cancellation.checkCancellation()
         try await scheduler.sleep(nanoseconds: Self.cursorSettleDelayNanoseconds)
+        try cancellation.checkCancellation()
         let firstCaptureStart = DispatchTime.now()
         let firstCapture = try await captureService.captureRegionWithinSingleDisplayDirect(in: request.viewportRect)
+        try cancellation.checkCancellation()
         let firstCaptureDuration = Self.elapsedMilliseconds(since: firstCaptureStart)
-        var stitched = try stitcher.initialState(with: firstCapture.image, maxOutputHeight: request.maxOutputHeight)
+        let maximumHeight = ScreenshotRasterBudget.maximumHeight(forWidth: firstCapture.image.width, requestedHeight: request.maxOutputHeight)
+        guard maximumHeight > 0 else { throw ScrollingCaptureError.firstFrameUnavailable }
+        var stitched = try stitcher.initialState(with: firstCapture.image, maxOutputHeight: maximumHeight)
         var previousImage = firstCapture.image
-        var previousGray = stitcher.makeGrayImage(for: firstCapture.image)
+        var previousSample = await stitcher.prepareSample(for: firstCapture.image)
+        if stitched.outputHeight >= maximumHeight {
+            warnings.append("The scrolling capture reached its image capacity and stopped early. Capture the remaining content separately.")
+        }
         ScrollingCaptureDiagnostics.info(
             "Captured first segment pixels=\(firstCapture.image.width)x\(firstCapture.image.height) captureMs=\(firstCaptureDuration)"
         )
+        let firstPreview = await stitcher.makePreview(for: stitched)
+        try cancellation.checkCancellation()
         await MainActor.run {
             progressHandler?(ScrollingCaptureProgress(
                 segmentCount: stitched.segmentCount,
                 outputHeight: stitched.outputHeight,
-                maxOutputHeight: request.maxOutputHeight,
-                warning: nil,
-                previewImage: stitched.makeImage()
+                maxOutputHeight: maximumHeight,
+                warning: warnings.last,
+                previewImage: firstPreview,
+                scrollTargetPoint: driver.scrollTargetPoint
             ))
+        }
+        try cancellation.checkCancellation()
+        if stitched.outputHeight >= maximumHeight {
+            guard let image = await stitcher.makeOutput(for: stitched) else { throw ScrollingCaptureError.stitchingFailed }
+            try cancellation.checkCancellation()
+            return ScrollingCaptureResult(
+                image: image, sourceViewportRect: request.viewportRect, sourceName: sourceName,
+                capturedAt: clock.now(), warnings: warnings
+            )
         }
 
         do {
-        for segmentIndex in 1..<request.maxSegmentCount {
+        captureSegments: for segmentIndex in 1..<request.maxSegmentCount {
             try cancellation.checkCancellation()
             if cancellation.shouldFinish() {
                 ScrollingCaptureDiagnostics.info("Stopping capture because user chose Done before segment=\(segmentIndex + 1)")
@@ -843,7 +686,7 @@ struct ScrollingCaptureService {
                 "Preparing segment=\(segmentIndex + 1) previousPosition=\(previousPositionDescription)"
             )
             let scrollStart = DispatchTime.now()
-            driver.scrollDown(logicalDistance: request.viewportRect.height * Self.primaryScrollFraction)
+            driver.scrollDown(logicalDistance: request.viewportRect.height * scrollFraction)
             try await scheduler.sleep(nanoseconds: Self.postScrollSettleDelayNanoseconds)
             let scrollWaitDuration = Self.elapsedMilliseconds(since: scrollStart)
             try cancellation.checkCancellation()
@@ -855,15 +698,24 @@ struct ScrollingCaptureService {
             }
 
             let captureStart = DispatchTime.now()
-            var nextImage = try await captureService.captureRegionWithinSingleDisplayDirect(in: request.viewportRect).image
+            var nextImage = try await captureFrameConfirmingNoMovement(
+                in: request.viewportRect, after: previousImage, cancellation: cancellation
+            )
+            try cancellation.checkCancellation()
+            if cancellation.shouldFinish() { break captureSegments }
             let captureDuration = Self.elapsedMilliseconds(since: captureStart)
-            let nextGray = stitcher.makeGrayImage(for: nextImage)
 
             let duplicateStart = DispatchTime.now()
-            let duplicateFrame = stitcher.imagesAreDuplicate(previousImage, nextImage, lhsGray: previousGray, rhsGray: nextGray)
+            let duplicateFrame = stitcher.imagesAreDuplicate(previousImage, nextImage)
             let atEnd = driver.isAtEnd(previousPosition: previousPosition)
+            let positionAdvanced = Self.positionAdvanced(from: previousPosition, to: driver.snapshotPosition())
             let duplicateDuration = Self.elapsedMilliseconds(since: duplicateStart)
-            if duplicateFrame || atEnd {
+            // AX scroll values may be rounded or lag the rendered content.
+            // Never discard a changed frame solely because that value stalled.
+            if duplicateFrame {
+                if positionAdvanced || driver.hasMoreContent == true {
+                    throw try await repeatedContentInterruption(state: stitched, request: request, sourceName: sourceName, warnings: warnings)
+                }
                 ScrollingCaptureDiagnostics.info(
                     "Stopping capture at segment=\(segmentIndex + 1) duplicateFrame=\(duplicateFrame) atEnd=\(atEnd) scrollWaitMs=\(scrollWaitDuration) captureMs=\(captureDuration) duplicateMs=\(duplicateDuration)"
                 )
@@ -871,29 +723,37 @@ struct ScrollingCaptureService {
             }
 
             let stitchStart = DispatchTime.now()
-            let appendResult: ScrollingStitchAppendResult
-            if let previousGray, let nextGray {
-                appendResult = stitcher.append(nextImage, after: previousImage, previousGray: previousGray, nextGray: nextGray, to: &stitched)
-            } else {
-                appendResult = stitcher.append(nextImage, after: previousImage, to: &stitched)
-            }
+            let processed = await stitcher.appendingFrame(
+                nextImage, after: previousImage, previousSample: previousSample, to: stitched
+            )
+            try cancellation.checkCancellation()
+            if cancellation.shouldFinish() { break captureSegments }
+            stitched = processed.state
+            let appendResult = processed.result
+            let nextSample = processed.sample
             let stitchDuration = Self.elapsedMilliseconds(since: stitchStart)
             switch appendResult {
+            case .unchanged:
+                if positionAdvanced || driver.hasMoreContent == true {
+                    throw try await repeatedContentInterruption(state: stitched, request: request, sourceName: sourceName, warnings: warnings)
+                }
+                break captureSegments
             case .appended:
                 previousImage = nextImage
-                previousGray = nextGray
+                previousSample = nextSample
                 ScrollingCaptureDiagnostics.info(
                     "Appended segment=\(segmentIndex + 1) stitchedSegments=\(stitched.segmentCount) outputHeight=\(stitched.outputHeight) scrollWaitMs=\(scrollWaitDuration) captureMs=\(captureDuration) duplicateMs=\(duplicateDuration) stitchMs=\(stitchDuration)"
                 )
             case .reachedMaximumHeight:
-                warnings.append("The scrolling capture reached the maximum output height and was stopped early.")
+                warnings.append("The scrolling capture reached its image capacity and stopped early. Capture the remaining content separately.")
                 ScrollingCaptureDiagnostics.info(
                     "Stopping at max output height segment=\(segmentIndex + 1) outputHeight=\(stitched.outputHeight) scrollWaitMs=\(scrollWaitDuration) captureMs=\(captureDuration) duplicateMs=\(duplicateDuration) stitchMs=\(stitchDuration)"
                 )
-                guard let outputImage = stitched.makeImage() else {
+                guard let outputImage = await stitcher.makeOutput(for: stitched) else {
                     ScrollingCaptureDiagnostics.error("Failed to compose stitched image at max output height")
                     throw ScrollingCaptureError.stitchingFailed
                 }
+                try cancellation.checkCancellation()
                 return ScrollingCaptureResult(
                     image: outputImage,
                     sourceViewportRect: request.viewportRect,
@@ -903,51 +763,88 @@ struct ScrollingCaptureService {
                 )
             case .lowConfidence:
                 ScrollingCaptureDiagnostics.info(
-                    "Low stitch confidence segment=\(segmentIndex + 1); retrying with smaller scroll step scrollWaitMs=\(scrollWaitDuration) captureMs=\(captureDuration) duplicateMs=\(duplicateDuration) stitchMs=\(stitchDuration)"
+                    "Low stitch confidence segment=\(segmentIndex + 1); retrying capture scrollWaitMs=\(scrollWaitDuration) captureMs=\(captureDuration) duplicateMs=\(duplicateDuration) stitchMs=\(stitchDuration)"
                 )
                 let retryScrollStart = DispatchTime.now()
-                driver.scrollDown(logicalDistance: -(request.viewportRect.height * Self.retryScrollFraction))
+                var retriedWithSmallerStep = false
+                if let previousPosition {
+                    // Retry from the last accepted frame, not the failed one.
+                    // Equal backward/forward wheel deltas return to the same
+                    // failed position and can overshoot near the document end.
+                    driver.restorePosition(previousPosition)
+                    try await scheduler.sleep(nanoseconds: Self.postScrollSettleDelayNanoseconds)
+                    try cancellation.checkCancellation()
+                    if cancellation.shouldFinish() { break captureSegments }
+                    // Some apps expose a readable but non-settable scrollbar.
+                    // Do not scroll further unless the rewind actually worked.
+                    if let restoredPosition = driver.snapshotPosition(), abs(restoredPosition - previousPosition) <= 0.000001 {
+                        driver.scrollDown(logicalDistance: request.viewportRect.height * Self.retryScrollFraction)
+                        retriedWithSmallerStep = true
+                        scrollFraction = Self.retryScrollFraction
+                    }
+                }
+                // Without a restorable AX position, recapture after settling;
+                // guessing a backward distance can move above accepted content.
                 try await scheduler.sleep(nanoseconds: Self.postScrollSettleDelayNanoseconds)
-                driver.scrollDown(logicalDistance: request.viewportRect.height * Self.retryScrollFraction)
-                try await scheduler.sleep(nanoseconds: Self.postScrollSettleDelayNanoseconds)
+                try cancellation.checkCancellation()
+                if cancellation.shouldFinish() { break captureSegments }
                 let retryScrollDuration = Self.elapsedMilliseconds(since: retryScrollStart)
                 let retryCaptureStart = DispatchTime.now()
-                nextImage = try await captureService.captureRegionWithinSingleDisplayDirect(in: request.viewportRect).image
+                nextImage = try await captureFrameConfirmingNoMovement(
+                    in: request.viewportRect, after: previousImage, cancellation: cancellation
+                )
+                try cancellation.checkCancellation()
+                if cancellation.shouldFinish() { break captureSegments }
                 let retryCaptureDuration = Self.elapsedMilliseconds(since: retryCaptureStart)
-                let retryGray = stitcher.makeGrayImage(for: nextImage)
+                let retryPositionAdvanced = Self.positionAdvanced(from: previousPosition, to: driver.snapshotPosition())
 
-                if stitcher.imagesAreDuplicate(previousImage, nextImage, lhsGray: previousGray, rhsGray: retryGray) {
+                if stitcher.imagesAreDuplicate(previousImage, nextImage) {
+                    if retryPositionAdvanced || driver.hasMoreContent == true
+                        || (retriedWithSmallerStep && driver.hasMoreContent == nil) {
+                        throw try await repeatedContentInterruption(state: stitched, request: request, sourceName: sourceName, warnings: warnings)
+                    }
                     ScrollingCaptureDiagnostics.info(
                         "Stopping after retry because frame duplicated segment=\(segmentIndex + 1) retryScrollMs=\(retryScrollDuration) retryCaptureMs=\(retryCaptureDuration)"
                     )
-                    break
+                    break captureSegments
                 }
 
                 let retryStitchStart = DispatchTime.now()
-                let retryResult: ScrollingStitchAppendResult
-                if let previousGray, let retryGray {
-                    retryResult = stitcher.append(nextImage, after: previousImage, previousGray: previousGray, nextGray: retryGray, to: &stitched)
-                } else {
-                    retryResult = stitcher.append(nextImage, after: previousImage, to: &stitched)
-                }
+                let retried = await stitcher.appendingFrame(
+                    nextImage, after: previousImage, previousSample: previousSample, to: stitched
+                )
+                try cancellation.checkCancellation()
+                if cancellation.shouldFinish() { break captureSegments }
+                stitched = retried.state
+                let retryResult = retried.result
+                let retrySample = retried.sample
                 let retryStitchDuration = Self.elapsedMilliseconds(since: retryStitchStart)
                 switch retryResult {
+                case .unchanged:
+                    if retryPositionAdvanced || driver.hasMoreContent == true
+                        || (retriedWithSmallerStep && driver.hasMoreContent == nil) {
+                        throw try await repeatedContentInterruption(state: stitched, request: request, sourceName: sourceName, warnings: warnings)
+                    }
+                    break captureSegments
                 case .appended:
                     previousImage = nextImage
-                    previousGray = retryGray
-                    warnings.append("\(AppBranding.displayName) reduced one scroll step to keep stitching aligned.")
+                    previousSample = retrySample
+                    if retriedWithSmallerStep {
+                        warnings.append("\(AppBranding.displayName) reduced the scroll distance to keep later frames aligned.")
+                    }
                     ScrollingCaptureDiagnostics.info(
                         "Retry append succeeded segment=\(segmentIndex + 1) stitchedSegments=\(stitched.segmentCount) retryScrollMs=\(retryScrollDuration) retryCaptureMs=\(retryCaptureDuration) retryStitchMs=\(retryStitchDuration)"
                     )
                 case .reachedMaximumHeight:
-                    warnings.append("The scrolling capture reached the maximum output height and was stopped early.")
+                    warnings.append("The scrolling capture reached its image capacity and stopped early. Capture the remaining content separately.")
                     ScrollingCaptureDiagnostics.info(
                         "Retry append reached max output height segment=\(segmentIndex + 1) outputHeight=\(stitched.outputHeight) retryScrollMs=\(retryScrollDuration) retryCaptureMs=\(retryCaptureDuration) retryStitchMs=\(retryStitchDuration)"
                     )
-                    guard let outputImage = stitched.makeImage() else {
+                    guard let outputImage = await stitcher.makeOutput(for: stitched) else {
                         ScrollingCaptureDiagnostics.error("Failed to compose stitched image after retry max output height")
                         throw ScrollingCaptureError.stitchingFailed
                     }
+                    try cancellation.checkCancellation()
                     return ScrollingCaptureResult(
                         image: outputImage,
                         sourceViewportRect: request.viewportRect,
@@ -961,7 +858,7 @@ struct ScrollingCaptureService {
                         ScrollingCaptureDiagnostics.info(
                             "Returning partial result after low-confidence retry stitchedSegments=\(stitched.segmentCount) retryScrollMs=\(retryScrollDuration) retryCaptureMs=\(retryCaptureDuration) retryStitchMs=\(retryStitchDuration)"
                         )
-                        guard let outputImage = stitched.makeImage() else {
+                        guard let outputImage = await stitcher.makeOutput(for: stitched) else {
                             ScrollingCaptureDiagnostics.error("Failed to compose partial stitched image")
                             throw ScrollingCaptureError.stitchingFailed
                         }
@@ -982,24 +879,35 @@ struct ScrollingCaptureService {
                 }
             }
 
+            if segmentIndex == request.maxSegmentCount - 1 {
+                warnings.append("The scrolling capture reached the maximum number of segments and was stopped early.")
+            }
+            let preview = await stitcher.makePreview(for: stitched)
+            try cancellation.checkCancellation()
             await MainActor.run {
                 progressHandler?(ScrollingCaptureProgress(
                     segmentCount: stitched.segmentCount,
                     outputHeight: stitched.outputHeight,
-                    maxOutputHeight: request.maxOutputHeight,
+                    maxOutputHeight: maximumHeight,
                     warning: warnings.last,
-                    previewImage: stitched.makeImage()
+                    previewImage: preview,
+                    scrollTargetPoint: driver.scrollTargetPoint
                 ))
             }
         }
         } catch ScrollingCaptureError.cancelled {
             throw ScrollingCaptureError.cancelled
+        } catch is CancellationError {
+            throw ScrollingCaptureError.cancelled
         } catch let interruption as ScrollingCaptureInterruptedError {
+            try cancellation.checkCancellation()
             throw interruption
         } catch {
-            guard let partialImage = stitched.makeImage() else {
+            try cancellation.checkCancellation()
+            guard let partialImage = await stitcher.makeOutput(for: stitched) else {
                 throw error
             }
+            try cancellation.checkCancellation()
             throw ScrollingCaptureInterruptedError(
                 partialResult: ScrollingCaptureResult(
                     image: partialImage,
@@ -1012,16 +920,18 @@ struct ScrollingCaptureService {
             )
         }
 
+        try cancellation.checkCancellation()
         guard stitched.segmentCount > 0 else {
             ScrollingCaptureDiagnostics.error("No stitched segments were available at end of loop")
             throw ScrollingCaptureError.firstFrameUnavailable
         }
 
         let composeStart = DispatchTime.now()
-        guard let outputImage = stitched.makeImage() else {
+        guard let outputImage = await stitcher.makeOutput(for: stitched) else {
             ScrollingCaptureDiagnostics.error("Failed to compose final stitched image")
             throw ScrollingCaptureError.stitchingFailed
         }
+        try cancellation.checkCancellation()
         let composeDuration = Self.elapsedMilliseconds(since: composeStart)
 
         ScrollingCaptureDiagnostics.info(
@@ -1036,8 +946,47 @@ struct ScrollingCaptureService {
         )
     }
 
+    private func captureFrameConfirmingNoMovement(
+        in viewport: CGRect, after previousImage: CGImage, cancellation: ScrollingCaptureCancellation
+    ) async throws -> CGImage {
+        var candidate = try await captureService.captureRegionWithinSingleDisplayDirect(in: viewport).image
+        try cancellation.checkCancellation()
+        // A delayed wheel event and an in-flight animation are both temporal
+        // uncertainty. Confirm the frame has settled before accepting a seam or
+        // claiming the end, without sending another scroll event.
+        for _ in 0..<4 {
+            if cancellation.shouldFinish() { return candidate }
+            try await scheduler.sleep(nanoseconds: Self.postScrollSettleDelayNanoseconds)
+            try cancellation.checkCancellation()
+            if cancellation.shouldFinish() { return candidate }
+            let next = try await captureService.captureRegionWithinSingleDisplayDirect(in: viewport).image
+            try cancellation.checkCancellation()
+            if stitcher.imagesAreDuplicate(candidate, next) { return next }
+            candidate = next
+        }
+        throw ScrollingCaptureError.contentDidNotSettle
+    }
+
+    nonisolated static func positionAdvanced(from previous: Double?, to current: Double?) -> Bool {
+        guard let previous, let current, previous.isFinite, current.isFinite else { return false }
+        return current > previous
+    }
+
+    private func repeatedContentInterruption(
+        state: ScrollingStitchState, request: ScrollingCaptureRequest, sourceName: String, warnings: [String]
+    ) async throws -> ScrollingCaptureInterruptedError {
+        guard let image = await stitcher.makeOutput(for: state) else { throw ScrollingCaptureError.stitchingFailed }
+        return ScrollingCaptureInterruptedError(
+            partialResult: ScrollingCaptureResult(
+                image: image, sourceViewportRect: request.viewportRect, sourceName: sourceName,
+                capturedAt: clock.now(), warnings: warnings
+            ),
+            reason: "Scrolling could not be confirmed before the end; repeated content or a stalled app made the overlap uncertain."
+        )
+    }
+
     private static func describe(_ rect: CGRect) -> String {
-        "x=\(Int(rect.minX)) y=\(Int(rect.minY)) w=\(Int(rect.width)) h=\(Int(rect.height))"
+        String(format: "x=%.0f y=%.0f w=%.0f h=%.0f", Double(rect.minX), Double(rect.minY), Double(rect.width), Double(rect.height))
     }
 
     private static func describe(_ point: CGPoint) -> String {
@@ -1051,8 +1000,15 @@ struct ScrollingCaptureService {
         }
 
         let parkingLocation = MainActor.assumeIsolated {
-            let screen = screens.screens.first(where: { $0.frame.intersects(viewportRect) }) ?? screens.mainScreen
-            return Self.cursorParkingLocation(avoiding: viewportRect, on: screen?.visibleFrame)
+            let center = CGPoint(x: viewportRect.midX, y: viewportRect.midY)
+            guard let screen = screens.screens.first(where: { CGDisplayBounds($0.displayID).contains(center) }) else {
+                return nil as CGPoint?
+            }
+            return Self.cursorParkingLocation(
+                avoiding: viewportRect,
+                on: screen.visibleFrame,
+                displayTransform: CaptureDisplayTransform(captureFrame: CGDisplayBounds(screen.displayID), overlayFrame: screen.frame)
+            )
         }
 
         guard let parkingLocation, parkingLocation != originalLocation else {
@@ -1099,6 +1055,16 @@ struct ScrollingCaptureService {
         )
 
         return viewport.contains(clamped) ? nil : clamped
+    }
+
+    nonisolated static func cursorParkingLocation(
+        avoiding captureViewport: CGRect, on visibleOverlayFrame: CGRect, displayTransform: CaptureDisplayTransform
+    ) -> CGPoint? {
+        let overlayViewport = displayTransform.overlayGlobalRect(fromCaptureGlobalRect: captureViewport)
+        guard let overlayPoint = cursorParkingLocation(avoiding: overlayViewport, on: visibleOverlayFrame) else {
+            return nil
+        }
+        return displayTransform.captureGlobalPoint(fromOverlayGlobalPoint: overlayPoint)
     }
 
     private static func elapsedMilliseconds(since start: DispatchTime) -> Int {

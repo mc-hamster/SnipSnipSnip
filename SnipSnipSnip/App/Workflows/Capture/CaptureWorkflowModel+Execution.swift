@@ -9,6 +9,8 @@ extension CaptureWorkflowModel {
         minimizeAppWindow: Bool = false,
         runOptions: CaptureRunOptions? = nil,
         completionContext: CaptureCompletionContext? = nil,
+        allowsCapturePreview: Bool = true,
+        failureHandler: ((Error) -> Void)? = nil,
         _ action: () async throws -> CapturedScreenshot
     ) async -> Bool {
         let captureContext =
@@ -49,21 +51,21 @@ extension CaptureWorkflowModel {
         do {
             try await runCaptureDelayIfNeeded(actionName: "Capturing", delay: resolvedRunOptions.captureDelay)
             let capture = try await action()
-            showCapturedFeedback()
             try completeCapture(
                 capture,
                 request: request,
                 isPrivateCapture: isPrivateCapture,
                 runOptions: resolvedRunOptions,
-                completionContext: captureContext
+                completionContext: captureContext,
+                allowsCapturePreview: allowsCapturePreview
             )
             return true
         } catch {
-            present(
-                error,
-                recovering: request,
-                captureContext: captureContext
-            )
+            if let failureHandler {
+                failureHandler(error)
+            } else {
+                present(error, recovering: request, captureContext: captureContext)
+            }
             return false
         }
     }
@@ -153,17 +155,28 @@ extension CaptureWorkflowModel {
         CaptureFeedbackOverlay.showCapturedFeedback()
     }
 
+    func finishCapturePresentation(showingPreview: Bool) {
+        shouldKeepAppWindowHiddenAfterCapture = showingPreview
+    }
+
     func hideAppWindowIfNeeded() -> AppWindowVisibilityToken? {
-        dependencies.appWindowPresenter.hideAppWindowIfNeeded()
+        shouldKeepAppWindowHiddenAfterCapture = false
+        return dependencies.appWindowPresenter.hideAppWindowIfNeeded()
     }
 
     func hideAppWindowIfNeeded(
         for context: WorkflowPresentationContext
     ) -> AppWindowVisibilityToken? {
-        dependencies.appWindowPresenter.hideAppWindowIfNeeded(for: context)
+        shouldKeepAppWindowHiddenAfterCapture = false
+        return dependencies.appWindowPresenter.hideAppWindowIfNeeded(for: context)
     }
 
     func restoreAppWindowIfNeeded(_ token: AppWindowVisibilityToken?) {
+        if shouldKeepAppWindowHiddenAfterCapture {
+            shouldKeepAppWindowHiddenAfterCapture = false
+            dependencies.appWindowPresenter.keepAppWindowHidden(token)
+            return
+        }
         dependencies.appWindowPresenter.restoreAppWindowIfNeeded(token)
     }
 
@@ -198,21 +211,36 @@ extension CaptureWorkflowModel {
         return try await operation()
     }
 
-    func beginVideoWindowSelection() {
+    func beginVideoWindowSelection() async throws {
         windowPickerMode = .videoRecording
-        beginWindowPickerPresentation()
+        dependencies.lifecycle.requestMainWindowPresentation()
+        try await loadAvailableWindows(requestAccessIfNeeded: false, presentPicker: true,
+            showErrors: false, includeThumbnails: true).get()
     }
 
     func dismissWindowPicker() {
         isShowingWindowPicker = false
+        if case .videoRecording = windowPickerMode {
+            // Invalidate discovery before releasing the shared busy state. A
+            // late, non-cancellable platform response must not reopen this picker
+            // or overwrite a newer capture's windows and state.
+            if windowChoiceLoadID != nil {
+                windowChoiceLoadID = nil
+                isLoadingWindowChoices = false
+                isWorking = false
+            }
+            pendingWindowThumbnailTask?.cancel()
+            pendingWindowThumbnailTask = nil
+            windowPickerMode = .screenshot
+        }
     }
 
     func desktopSnapshotForVideoSelection() async throws -> DesktopCompositeSnapshot {
         try await captureService.captureDesktopOverlaySnapshot()
     }
 
-    func videoWindowSelectionSnapshot(fallbackWindows: [CaptureWindowSummary]) async throws -> (windows: [CaptureWindowSummary], snapshot: DesktopCompositeSnapshot) {
-        let windowOptions = fallbackWindows.isEmpty ? try await captureService.listWindows(includeThumbnails: false) : fallbackWindows
+    func videoWindowSelectionSnapshot() async throws -> (windows: [CaptureWindowSummary], snapshot: DesktopCompositeSnapshot) {
+        let windowOptions = try await captureService.listWindows(includeThumbnails: false)
         let snapshot = try await captureService.captureDesktopOverlaySnapshot()
         return (windowOptions, snapshot)
     }

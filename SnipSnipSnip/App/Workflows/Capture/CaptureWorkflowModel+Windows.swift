@@ -36,19 +36,23 @@ extension CaptureWorkflowModel {
         refreshAvailableWindows()
     }
 
+    @discardableResult
     func loadAvailableWindows(
         requestAccessIfNeeded: Bool,
         presentPicker: Bool,
         showErrors: Bool,
         includeThumbnails: Bool,
         allowsCancellingPendingThumbnailRefresh: Bool = true
-    ) async {
+    ) async -> Result<Void, Error> {
+        if Task.isCancelled { return .failure(CancellationError()) }
         if isLoadingWindowChoices {
-            if presentPicker {
-                isShowingWindowPicker = true
-            }
-
-            return
+            guard presentPicker else { return .success(()) }
+            // An explicit picker must own its discovery result, including errors.
+            // Fence the previous load before preflight so even a denied replacement
+            // cannot leave its predecessor's loading or busy state behind.
+            windowChoiceLoadID = nil
+            isLoadingWindowChoices = false
+            isWorking = false
         }
 
         dependencies.permissions.refreshPermissions()
@@ -66,7 +70,7 @@ extension CaptureWorkflowModel {
                 }
             }
 
-            return
+            return .failure(ScreenCaptureError.permissionDenied)
         }
 
         if allowsCancellingPendingThumbnailRefresh {
@@ -74,6 +78,8 @@ extension CaptureWorkflowModel {
             pendingWindowThumbnailTask = nil
         }
 
+        let loadID = UUID()
+        windowChoiceLoadID = loadID
         isLoadingWindowChoices = true
 
         if presentPicker {
@@ -81,16 +87,19 @@ extension CaptureWorkflowModel {
         }
 
         defer {
-            isLoadingWindowChoices = false
-
-            if presentPicker {
-                isWorking = false
+            if windowChoiceLoadID == loadID {
+                windowChoiceLoadID = nil
+                isLoadingWindowChoices = false
+                if presentPicker { isWorking = false }
             }
         }
 
         do {
             let shouldStageThumbnails = includeThumbnails && (presentPicker || !availableWindows.isEmpty)
             let windows = try await captureService.listWindows(includeThumbnails: shouldStageThumbnails ? false : includeThumbnails)
+            guard !Task.isCancelled, windowChoiceLoadID == loadID else {
+                return .failure(CancellationError())
+            }
             availableWindows = mergedWindowSummaries(windows)
             if includeThumbnails && !shouldStageThumbnails {
                 windowThumbnailRefreshGeneration += 1
@@ -103,7 +112,11 @@ extension CaptureWorkflowModel {
             if shouldStageThumbnails {
                 scheduleWindowThumbnailRefresh(showErrors: showErrors)
             }
+            return .success(())
         } catch {
+            guard !Task.isCancelled, windowChoiceLoadID == loadID else {
+                return .failure(CancellationError())
+            }
             if presentPicker {
                 availableWindows = []
             }
@@ -111,6 +124,7 @@ extension CaptureWorkflowModel {
             if showErrors {
                 present(error)
             }
+            return .failure(error)
         }
     }
 
@@ -147,7 +161,7 @@ extension CaptureWorkflowModel {
     }
 
     func mergedWindowSummaries(_ windows: [CaptureWindowSummary]) -> [CaptureWindowSummary] {
-        let existingWindows = Dictionary(uniqueKeysWithValues: availableWindows.map { ($0.id, $0) })
+        let existingWindows = Dictionary(availableWindows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
         return windows.map { window in
             CaptureWindowSummary(

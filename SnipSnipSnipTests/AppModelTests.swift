@@ -1779,23 +1779,23 @@ final class AppModelTests: XCTestCase {
         XCTAssertFalse(model.screenInspectorPreferences.showsCrosshair)
     }
 
-    func testRefreshPermissionsClearsReadyWhenShareableContentProbeFails() async {
+    func testExplicitPermissionCheckClearsReadyWhenShareableContentProbeFails() async {
         let suiteName = "AppModelTests.refreshPermissionsClearsReadyWhenShareableContentProbeFails"
         let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let originalScreenRecordingStatusProvider = ScreenCapturePermissions.screenRecordingStatusProvider
         let originalAccessibilityStatusProvider = ScreenCapturePermissions.accessibilityStatusProvider
-        let originalScreenRecordingAccessVerifier = ScreenCapturePermissions.screenRecordingAccessVerifier
+        let originalScreenRecordingAccessVerifier = ScreenCapturePermissions.screenRecordingAccessProbe
         defer {
             ScreenCapturePermissions.screenRecordingStatusProvider = originalScreenRecordingStatusProvider
             ScreenCapturePermissions.accessibilityStatusProvider = originalAccessibilityStatusProvider
-            ScreenCapturePermissions.screenRecordingAccessVerifier = originalScreenRecordingAccessVerifier
+            ScreenCapturePermissions.screenRecordingAccessProbe = originalScreenRecordingAccessVerifier
         }
 
         ScreenCapturePermissions.screenRecordingStatusProvider = { true }
         ScreenCapturePermissions.accessibilityStatusProvider = { false }
-        ScreenCapturePermissions.screenRecordingAccessVerifier = { false }
+        ScreenCapturePermissions.screenRecordingAccessProbe = { .permissionDenied }
 
         let model = retainForTestLifetime(
             AppModel(
@@ -1808,7 +1808,7 @@ final class AppModelTests: XCTestCase {
         )
         model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false)
 
-        model.permissions.refreshPermissions()
+        await model.permissions.refreshPermissionsIncludingScreenRecordingProbe()
 
         await waitUntil {
             model.permissionStatus == CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: false)
@@ -1819,7 +1819,7 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(model.permissionStatus.missingRequirements(for: releaseCapabilities), [.screenRecording])
     }
 
-    func testRequestScreenRecordingAccessOpensSettingsWhenPermissionStillMissing() async {
+    func testRequestScreenRecordingAccessWaitsForExplicitSettingsAction() async {
         let suiteName = "AppModelTests.requestScreenRecordingAccessOpensSettings"
         let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -1862,9 +1862,8 @@ final class AppModelTests: XCTestCase {
         XCTAssertTrue(recorder.didRequestScreenRecordingAccess())
         XCTAssertEqual(model.permissionSetupGuide?.requirement, .screenRecording)
 
-        await waitUntil {
-            recorder.openedSettingsRequirements() == [.screenRecording]
-        }
+        XCTAssertTrue(recorder.openedSettingsRequirements().isEmpty)
+        model.permissions.openPermissionSettings(.screenRecording)
 
         XCTAssertEqual(recorder.openedSettingsRequirements(), [.screenRecording])
         XCTAssertEqual(model.permissionSetupGuide?.requirement, .screenRecording)
@@ -1915,9 +1914,7 @@ final class AppModelTests: XCTestCase {
         let requests = await captureService.includeThumbnailRequests()
         XCTAssertEqual(requests, [])
 
-        await waitUntil {
-            recorder.openedSettingsRequirements() == [.screenRecording]
-        }
+        XCTAssertTrue(recorder.openedSettingsRequirements().isEmpty)
 
         XCTAssertEqual(model.permissionSetupGuide?.requirement, .screenRecording)
     }
@@ -1930,12 +1927,12 @@ final class AppModelTests: XCTestCase {
         let originalScreenRecordingStatusProvider = ScreenCapturePermissions.screenRecordingStatusProvider
         let originalAccessibilityStatusProvider = ScreenCapturePermissions.accessibilityStatusProvider
         let originalScreenRecordingAccessRequester = ScreenCapturePermissions.screenRecordingAccessRequester
-        let originalScreenRecordingAccessVerifier = ScreenCapturePermissions.screenRecordingAccessVerifier
+        let originalScreenRecordingAccessVerifier = ScreenCapturePermissions.screenRecordingAccessProbe
         defer {
             ScreenCapturePermissions.screenRecordingStatusProvider = originalScreenRecordingStatusProvider
             ScreenCapturePermissions.accessibilityStatusProvider = originalAccessibilityStatusProvider
             ScreenCapturePermissions.screenRecordingAccessRequester = originalScreenRecordingAccessRequester
-            ScreenCapturePermissions.screenRecordingAccessVerifier = originalScreenRecordingAccessVerifier
+            ScreenCapturePermissions.screenRecordingAccessProbe = originalScreenRecordingAccessVerifier
         }
 
         let recorder = PermissionRequestRecorder()
@@ -1945,7 +1942,7 @@ final class AppModelTests: XCTestCase {
             recorder.recordScreenRecordingRequest()
             return true
         }
-        ScreenCapturePermissions.screenRecordingAccessVerifier = { true }
+        ScreenCapturePermissions.screenRecordingAccessProbe = { .available }
 
         let captureService = WindowRefreshCaptureService()
         let model = retainForTestLifetime(
@@ -2506,8 +2503,8 @@ final class AppModelTests: XCTestCase {
         XCTAssertNil(model.pendingRecoverySession)
     }
 
-    func testLoadDocumentCancelsAndTerminatesForIncompatiblePackage() throws {
-        let suiteName = "AppModelTests.loadDocumentCancelsAndTerminatesForIncompatiblePackage"
+    func testLoadDocumentRejectsIncompatiblePackageWithoutReplacingWorkOrTerminating() throws {
+        let suiteName = "AppModelTests.loadDocumentRejectsIncompatiblePackage"
         let defaults = makeDefaults(named: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
@@ -2522,8 +2519,8 @@ final class AppModelTests: XCTestCase {
 
         var didTerminate = false
         let coordinator = IncompatibleDocumentCoordinator(
-            confirmationHandler: { _ in false },
-            trashHandler: { _ in XCTFail("Did not expect trash on cancellation") },
+            confirmationHandler: { _ in XCTFail("Opening a selected file must not invoke startup compatibility handling"); return false },
+            trashHandler: { _ in XCTFail("An incompatible selected file must be preserved") },
             cancellationNoticeHandler: { _ in },
             terminationHandler: { didTerminate = true }
         )
@@ -2539,10 +2536,21 @@ final class AppModelTests: XCTestCase {
             )
         )
 
+        let current = EditorController(capture: makeCapturedScreenshot(),
+            defaults: defaults, capabilities: testCapabilities, isPrivateDocument: true)
+        current.updateCropRect(CGRect(x: 2, y: 2, width: 20, height: 20))
+        model.documents.installEditorController(current, documentURL: nil, savedSession: nil,
+            shouldCreateRecoverySession: false)
+        let currentSession = current.documentSession
+
         model.documents.loadDocument(from: packageURL)
 
-        XCTAssertTrue(didTerminate)
-        XCTAssertNil(model.editorController)
+        XCTAssertFalse(didTerminate)
+        XCTAssertTrue(model.editorController === current)
+        XCTAssertEqual(current.documentSession, currentSession)
+        XCTAssertFalse(model.documents.isShowingUnsavedChangesPrompt)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: packageURL.path))
+        XCTAssertNotNil(model.lifecycle.errorMessage)
     }
 }
 

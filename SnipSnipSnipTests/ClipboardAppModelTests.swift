@@ -22,6 +22,207 @@ final class ClipboardAppModelTests: XCTestCase {
         try? FileManager.default.removeItem(at: url)
     }
 
+    func testClipboardDenialStopsBackgroundReadsAndUpdatesMonitoringStatus() async throws {
+        let name = "ClipboardAppModelTests.permission.\(UUID())"
+        let defaults = makeDefaults(named: name)
+        let store = makeClipboardStore(named: name + ".store")
+        let pasteboard = TestPasteboardService()
+        pasteboard.programmaticAccessPolicy = .denied
+        let model = retainForTestLifetime(AppModel(
+            defaults: defaults, environment: makePasteboardTestEnvironment(defaults: defaults, pasteboard: pasteboard),
+            recoveryStore: makeRecoveryStore(named: name + ".recovery"), clipboardHistoryStore: store,
+            shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false
+        ))
+        defer {
+            model.clipboard.monitor.stop()
+            defaults.removePersistentDomain(forName: name)
+            removeClipboardStore(named: name + ".store")
+            removeClipboardStore(named: name + ".recovery")
+        }
+        pasteboard.setString("Blocked clipboard value", forType: .string)
+        let reads = pasteboard.contentReadCount
+        model.clipboard.updateClipboardHistoryEnabled(true)
+        XCTAssertEqual(model.clipboard.monitoringStatus, "Monitoring Blocked")
+        XCTAssertTrue(model.clipboard.needsClipboardAccess)
+        XCTAssertEqual(pasteboard.contentReadCount, reads)
+        XCTAssertTrue(store.items.isEmpty)
+        pasteboard.programmaticAccessPolicy = .ask
+        model.clipboard.monitor.update(preferences: model.clipboard.preferences)
+        XCTAssertEqual(model.clipboard.monitoringStatus, "Monitoring Needs Access")
+        XCTAssertEqual(pasteboard.contentReadCount, reads)
+        pasteboard.programmaticAccessPolicy = .allowed
+        model.clipboard.monitor.update(preferences: model.clipboard.preferences)
+        XCTAssertEqual(model.clipboard.monitoringStatus, "Monitoring")
+        XCTAssertEqual(pasteboard.contentReadCount, reads, "Do not import content copied while access was blocked")
+        pasteboard.setString("New allowed copy", forType: .string)
+        model.clipboard.monitor.update(preferences: model.clipboard.preferences)
+        for _ in 0..<100 where store.items.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertFalse(store.items.isEmpty)
+        XCTAssertGreaterThan(pasteboard.contentReadCount, reads)
+    }
+
+    func testConcealedAndTransientCopiesDoNotReadClipboardSourceOrContent() {
+        for typeName in ClipboardPasteboardReader.concealedAndTransientTypeNames.sorted() {
+            let name = "ClipboardAppModelTests.excludedType.\(UUID())"
+            let store = makeClipboardStore(named: name)
+            let pasteboard = TestPasteboardService()
+            pasteboard.programmaticAccessPolicy = .systemDefault
+            let monitor = ClipboardMonitor(store: store, pasteboard: pasteboard, workspace: TestWorkspaceService())
+            defer { monitor.stop(); removeClipboardStore(named: name) }
+            pasteboard.setString("Excluded clipboard content", forType: .string)
+            pasteboard.setString("com.apple.Notes", forType: .init(ClipboardPasteboardReader.sourceTypeName))
+            pasteboard.addType(typeName)
+            var preferences = ClipboardPreferences.default
+            preferences.isEnabled = true
+
+            monitor.start(preferences: preferences)
+
+            XCTAssertEqual(pasteboard.contentReadCount, 0, "\(typeName) must be excluded before source or payload reads can prompt")
+            XCTAssertTrue(store.items.isEmpty)
+        }
+    }
+
+    func testIgnoredFrontmostAppCopyDoesNotReadClipboardContent() {
+        let name = "ClipboardAppModelTests.ignoredFrontmostApp.\(UUID())"
+        let store = makeClipboardStore(named: name)
+        let pasteboard = TestPasteboardService()
+        pasteboard.programmaticAccessPolicy = .systemDefault
+        let workspace = TestWorkspaceService(frontmostApplication: WorkspaceRunningApplicationSnapshot(
+            processIdentifier: 101, activationPolicy: .regular,
+            bundleIdentifier: "com.bitwarden.desktop", localizedName: "Bitwarden", bundleURL: nil
+        ))
+        let monitor = ClipboardMonitor(store: store, pasteboard: pasteboard, workspace: workspace)
+        defer { monitor.stop(); removeClipboardStore(named: name) }
+        pasteboard.setString("Ignored clipboard content", forType: .string)
+        var preferences = ClipboardPreferences.default
+        preferences.isEnabled = true
+
+        monitor.start(preferences: preferences)
+
+        XCTAssertEqual(pasteboard.contentReadCount, 0, "Ignored sources must be excluded before payload reads can prompt")
+        XCTAssertTrue(store.items.isEmpty)
+    }
+
+    func testIgnoredExplicitSourceCopyReadsOnlySourceMetadata() {
+        let name = "ClipboardAppModelTests.ignoredExplicitSource.\(UUID())"
+        let store = makeClipboardStore(named: name)
+        let pasteboard = TestPasteboardService()
+        let workspace = TestWorkspaceService(frontmostApplication: WorkspaceRunningApplicationSnapshot(
+            processIdentifier: 101, activationPolicy: .regular,
+            bundleIdentifier: "com.apple.Notes", localizedName: "Notes", bundleURL: nil
+        ))
+        let monitor = ClipboardMonitor(store: store, pasteboard: pasteboard, workspace: workspace)
+        defer { monitor.stop(); removeClipboardStore(named: name) }
+        pasteboard.setString("Ignored clipboard content", forType: .string)
+        pasteboard.setString("com.bitwarden.desktop", forType: .init(ClipboardPasteboardReader.sourceTypeName))
+        var preferences = ClipboardPreferences.default
+        preferences.isEnabled = true
+
+        monitor.start(preferences: preferences)
+
+        XCTAssertEqual(pasteboard.contentReadCount, 1, "Only the source metadata is needed to exclude an explicit ignored source")
+        XCTAssertTrue(store.items.isEmpty)
+    }
+
+    func testPermissionDeniedDuringClipboardReadStopsFurtherReadsImmediately() {
+        let name = "ClipboardSecondPass.deniedDuringRead.\(UUID())"
+        let store = makeClipboardStore(named: name)
+        let pasteboard = TestPasteboardService()
+        let monitor = ClipboardMonitor(store: store, pasteboard: pasteboard, workspace: TestWorkspaceService())
+        defer { monitor.stop(); removeClipboardStore(named: name) }
+        pasteboard.setString("Must not be captured after denial", forType: .string)
+        pasteboard.onContentRead = { [weak pasteboard] in pasteboard?.programmaticAccessPolicy = .denied }
+        var preferences = ClipboardPreferences.default
+        preferences.isEnabled = true
+        monitor.start(preferences: preferences)
+        XCTAssertEqual(pasteboard.contentReadCount, 1, "A denial during the first read must stop subsequent protected reads")
+        XCTAssertEqual(monitor.accessPolicy, .denied)
+        XCTAssertTrue(store.items.isEmpty)
+    }
+
+    func testRevokingClipboardAccessDiscardsInFlightIngestion() async {
+        for refreshBeforeCompletion in [true, false] {
+            let name = "ClipboardSecondPass.deniedDuringIngestion.\(UUID())"
+            let store = makeClipboardStore(named: name)
+            let pasteboard = TestPasteboardService()
+            let barrier = DeferredBoolVerifier()
+            let monitor = ClipboardMonitor(store: store, pasteboard: pasteboard, workspace: TestWorkspaceService(), snapshotResolver: { captured in
+                _ = await barrier.value()
+                return .text(captured.text ?? "")
+            })
+            defer { monitor.stop(); removeClipboardStore(named: name) }
+            pasteboard.setString("Pending clipboard content", forType: .string)
+            var preferences = ClipboardPreferences.default
+            preferences.isEnabled = true
+            monitor.start(preferences: preferences)
+            await barrier.waitForRequest()
+            pasteboard.programmaticAccessPolicy = .denied
+            if refreshBeforeCompletion { monitor.refreshAccessPolicy() }
+            await barrier.resume(returning: true)
+            for _ in 0..<100 { await Task.yield() }
+            XCTAssertTrue(store.items.isEmpty, "Revocation must invalidate pending ingestion even before the next timer tick")
+            XCTAssertEqual(monitor.accessPolicy, .denied)
+        }
+    }
+
+    func testBackgroundReaderStopsMidBatchWithoutBlockingExplicitPaste() throws {
+        let pasteboard = TestPasteboardService()
+        pasteboard.setString("Explicit paste remains available", forType: .string)
+        pasteboard.onContentRead = { [weak pasteboard] in pasteboard?.programmaticAccessPolicy = .denied }
+        let captured = ClipboardPasteboardReader.capturePasteboardContent(pasteboard,
+            sourceApp: nil, preferences: .default, background: true)
+        XCTAssertEqual(pasteboard.contentReadCount, 1)
+        XCTAssertNil(captured?.text)
+        pasteboard.onContentRead = nil
+        let explicit = ClipboardPasteboardReader.capturePasteboardContent(pasteboard, sourceApp: nil, preferences: .default)
+        XCTAssertEqual(try XCTUnwrap(explicit).text, "Explicit paste remains available")
+    }
+
+    func testConsentDefaultDoesNotPerformABackgroundRead() {
+        let name = "ClipboardAudit.default.\(UUID())"
+        let store = makeClipboardStore(named: name)
+        let pasteboard = TestPasteboardService()
+        pasteboard.programmaticAccessPolicy = .systemDefault
+        let monitor = ClipboardMonitor(store: store, pasteboard: pasteboard, workspace: TestWorkspaceService())
+        defer { monitor.stop(); removeClipboardStore(named: name) }
+        pasteboard.setString("No unsolicited consent request", forType: .string)
+        var preferences = ClipboardPreferences.default
+        preferences.isEnabled = true
+        monitor.start(preferences: preferences)
+        XCTAssertEqual(pasteboard.contentReadCount, 0)
+        XCTAssertTrue(store.items.isEmpty)
+    }
+
+    func testForegroundApprovalRetainsTheItemWhileAskBlocksFutureCopies() async {
+        let name = "ClipboardAudit.once.\(UUID())"
+        let store = makeClipboardStore(named: name)
+        let pasteboard = TestPasteboardService()
+        pasteboard.programmaticAccessPolicy = .systemDefault
+        let monitor = ClipboardMonitor(store: store, pasteboard: pasteboard, workspace: TestWorkspaceService())
+        defer { monitor.stop(); removeClipboardStore(named: name) }
+        pasteboard.setString("Approved once", forType: .string)
+        pasteboard.onContentRead = { [weak pasteboard] in pasteboard?.programmaticAccessPolicy = .ask }
+        var preferences = ClipboardPreferences.default
+        preferences.isEnabled = true
+        monitor.start(preferences: preferences)
+        let didRead = await monitor.readClipboardOnce(preferences: preferences)
+        XCTAssertTrue(didRead)
+        XCTAssertEqual(store.items.count, 1)
+        XCTAssertEqual(pasteboard.contentReadCount, 1)
+        XCTAssertEqual(monitor.accessPolicy, .ask)
+        pasteboard.setString("Next copy must wait", forType: .string)
+        monitor.update(preferences: preferences)
+        XCTAssertEqual(pasteboard.contentReadCount, 1)
+        XCTAssertEqual(store.items.count, 1)
+    }
+
+    func testOnlyAnExplicitAllowPolicyPermitsBackgroundReads() {
+        XCTAssertFalse(ClipboardAccessPolicy(.default).allowsBackgroundRead)
+        XCTAssertFalse(ClipboardAccessPolicy(.ask).allowsBackgroundRead)
+        XCTAssertFalse(ClipboardAccessPolicy(.alwaysDeny).allowsBackgroundRead)
+        XCTAssertTrue(ClipboardAccessPolicy(.alwaysAllow).allowsBackgroundRead)
+    }
+
     func testHistoryMutationsNotifyClipboardWindowModel() throws {
         let name = "ClipboardAppModelTests.historyObservation"
         let defaults = makeDefaults(named: name)
@@ -113,11 +314,14 @@ final class ClipboardAppModelTests: XCTestCase {
         XCTAssertTrue(preferences.recordsUncopiedSnips)
     }
 
-    func testCompletedCaptureRecordsSnipWhenAutoCopyIsDisabled() async throws {
-        let suiteName = "ClipboardAppModelTests.autoCopyDisabled"
-        let storeName = "ClipboardAppModelTests.autoCopyDisabled.store"
+    func testCompletedCaptureRecordsSnipWithoutCopying() async throws {
+        let suiteName = "ClipboardAppModelTests.uncopiedCapture"
+        let storeName = "ClipboardAppModelTests.uncopiedCapture.store"
         let defaults = makeDefaults(named: suiteName)
-        defaults.set(false, forKey: AppModelPreferenceKey.autoCopyEnabled)
+        defaults.set(true, forKey: "appModel.autoCopyEnabled")
+        let pasteboard = TestPasteboardService()
+        pasteboard.setString("Existing clipboard", forType: .string)
+        let before = pasteboard.changeCount
         defer {
             defaults.removePersistentDomain(forName: suiteName)
             removeClipboardStore(named: storeName)
@@ -126,7 +330,8 @@ final class ClipboardAppModelTests: XCTestCase {
         let store = makeClipboardStore(named: storeName)
         let model = retainForTestLifetime(AppModel(
             defaults: defaults,
-            recoveryStore: makeRecoveryStore(named: "ClipboardAppModelTests.autoCopyDisabled.recovery"),
+            environment: makePasteboardTestEnvironment(defaults: defaults, pasteboard: pasteboard),
+            recoveryStore: makeRecoveryStore(named: "ClipboardAppModelTests.uncopiedCapture.recovery"),
             clipboardHistoryStore: store,
             shouldCheckCompatibilityOnLaunch: false,
             shouldStartArchiveMaintenance: false
@@ -145,12 +350,47 @@ final class ClipboardAppModelTests: XCTestCase {
         }
 
         XCTAssertEqual(model.clipboard.clipboardHistoryItems.count, 1)
+        XCTAssertEqual(pasteboard.changeCount, before)
+        XCTAssertEqual(pasteboard.string(forType: .string), "Existing clipboard")
         guard case let .snip(_, _, title) = try XCTUnwrap(model.clipboard.clipboardHistoryItems.first).kind else {
             XCTFail("Expected a snip clipboard item")
             return
         }
         XCTAssertTrue(title.hasSuffix(".sss"))
         XCTAssertTrue(try XCTUnwrap(model.clipboard.clipboardHistoryItems.first).searchableText.contains("Timeline Source"))
+    }
+
+    func testCopyPresetRecordsSnipWhenUncopiedScreenshotHistoryIsDisabled() async throws {
+        let name = "ClipboardAppModelTests.copyPreset.\(UUID())"
+        let defaults = makeDefaults(named: name)
+        let pasteboard = TestPasteboardService()
+        let store = makeClipboardStore(named: name + ".store")
+        defer {
+            defaults.removePersistentDomain(forName: name)
+            removeClipboardStore(named: name + ".store")
+            removeClipboardStore(named: name + ".recovery")
+        }
+        let model = retainForTestLifetime(AppModel(
+            defaults: defaults,
+            environment: makePasteboardTestEnvironment(defaults: defaults, pasteboard: pasteboard),
+            recoveryStore: makeRecoveryStore(named: name + ".recovery"),
+            clipboardHistoryStore: store,
+            shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false
+        ))
+        model.clipboard.updateClipboardHistoryEnabled(true)
+        model.clipboard.updateRecordsUncopiedSnips(false)
+        let preset = CapturePreset(name: "Copy preset", target: .fullscreen,
+                                   options: CaptureRunOptions(), outcome: .copyToClipboard)
+        model.capture.capturePresets = [preset]
+        var context = CaptureCompletionContext.standalone
+        context.workflowPreset = preset
+        context.workflowPresetRunID = UUID()
+        try model.capture.completeCapture(makeCapturedScreenshot(), request: .fullscreen,
+                                        isPrivateCapture: false, shouldAttemptUIMapCapture: false,
+                                        completionContext: context)
+        await waitUntil { store.items.count == 1 && pasteboard.data(forType: .png) != nil }
+        XCTAssertEqual(store.items.count, 1)
+        XCTAssertNotNil(pasteboard.data(forType: .png))
     }
 
     func testPrivateCaptureDoesNotRecordClipboardSnip() async throws {
@@ -188,7 +428,6 @@ final class ClipboardAppModelTests: XCTestCase {
         let suiteName = "ClipboardAppModelTests.uncopiedSnipsDisabled"
         let storeName = "ClipboardAppModelTests.uncopiedSnipsDisabled.store"
         let defaults = makeDefaults(named: suiteName)
-        defaults.set(false, forKey: AppModelPreferenceKey.autoCopyEnabled)
         defer {
             defaults.removePersistentDomain(forName: suiteName)
             removeClipboardStore(named: storeName)

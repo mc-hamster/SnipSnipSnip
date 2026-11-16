@@ -29,7 +29,22 @@ nonisolated struct CapturePreferenceStore {
     }
 
     func loadCapturePresets() -> [CapturePreset] {
-        presetsPreference.load(from: storage)
+        let presets = presetsPreference.load(from: storage)
+        var reservedIDs = Set(presets.map(\.id))
+        guard reservedIDs.count != presets.count else { return presets }
+
+        // Preserve every preset and the first occurrence of each identity.
+        // Persist repaired IDs so menu, shortcut, and automation references
+        // remain stable on subsequent launches.
+        var seenIDs: Set<UUID> = []
+        let repaired = presets.map { preset in
+            guard !seenIDs.insert(preset.id).inserted else { return preset }
+            var copy = preset
+            repeat { copy.id = UUID() } while !reservedIDs.insert(copy.id).inserted
+            return copy
+        }
+        presetsPreference.save(repaired, to: storage)
+        return repaired
     }
 
     func saveCapturePresets(_ presets: [CapturePreset]) {

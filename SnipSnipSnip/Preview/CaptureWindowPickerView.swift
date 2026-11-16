@@ -1,10 +1,42 @@
 import SwiftUI
 
+enum CaptureWindowPickerPurpose {
+    case screenshot, video
+
+    var pickOnScreenInstructions: String {
+        switch self {
+        case .screenshot: String(localized: "Hover a visible window to highlight it, then click to capture.")
+        case .video: String(localized: "Hover a visible window to highlight it, then click to select it for Video.")
+        }
+    }
+
+    var selectionHint: String {
+        switch self {
+        case .screenshot: String(localized: "Capture this window.")
+        case .video: String(localized: "Record this window.")
+        }
+    }
+}
+
+enum CaptureWindowSearch {
+    static func matches(_ window: CaptureWindowSummary, query: String) -> Bool {
+        let tokens = query.components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }
+        let searchable = window.ownerName + " " + window.title
+        return tokens.allSatisfy { searchable.localizedStandardContains($0) }
+    }
+}
+
 struct CaptureWindowPickerView: View {
     let windows: [CaptureWindowSummary]
+    var purpose: CaptureWindowPickerPurpose = .screenshot
     let onSelect: (CaptureWindowSummary) -> Void
     let onPickOnScreen: () -> Void
     let onCancel: () -> Void
+    @State private var search = ""
+
+    private var matchingWindows: [CaptureWindowSummary] {
+        windows.filter { CaptureWindowSearch.matches($0, query: search) }
+    }
 
     var body: some View {
         NavigationStack {
@@ -23,7 +55,7 @@ struct CaptureWindowPickerView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Pick On Screen")
                                     .font(.headline)
-                                Text("Hover a visible window to highlight it, then click to capture.")
+                                Text(purpose.pickOnScreenInstructions)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -33,7 +65,22 @@ struct CaptureWindowPickerView: View {
                 }
 
                 Section("Windows") {
-                    ForEach(windows) { window in
+                    if windows.isEmpty {
+                        ContentUnavailableView {
+                            Label("No Available Windows", systemImage: "macwindow")
+                        } description: {
+                            Text("Open a window and reopen this chooser, or try Pick On Screen.")
+                        }
+                    } else if matchingWindows.isEmpty {
+                        ContentUnavailableView {
+                            Label("No Matching Windows", systemImage: "magnifyingglass")
+                        } description: {
+                            Text("Search by app name or window title.")
+                        } actions: {
+                            Button("Clear Search") { search = "" }
+                        }
+                    }
+                    ForEach(matchingWindows) { window in
                         Button {
                             onSelect(window)
                         } label: {
@@ -60,11 +107,13 @@ struct CaptureWindowPickerView: View {
                         .accessibilityValue(
                             "\(Int(window.frame.width)) by \(Int(window.frame.height)) pixels"
                         )
-                        .accessibilityHint("Capture this window.")
+                        .accessibilityHint(purpose.selectionHint)
                         .accessibilityIdentifier("capture.window.list.\(window.id)")
                     }
                 }
             }
+            .searchable(text: $search, prompt: "Search Apps and Windows")
+            .accessibilityIdentifier("capture.window.search")
             .navigationTitle("Choose Window")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

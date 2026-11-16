@@ -27,8 +27,18 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     )
     weak var automationCoordinator: (any DocumentAutomationCoordinatorPort)?
     let preferenceStore: EditorPreferenceStore
+    let capturePreviewCoordinator = CapturePreviewCoordinator()
+    let printCoordinator = DocumentPrintCoordinator()
+    @Published var hasCapturePreview = false
+    @Published var showsCapturePreview: Bool {
+        didSet { preferenceStore.saveShowsCapturePreview(showsCapturePreview) }
+    }
     @Published var editorController: EditorController? {
         didSet {
+            if oldValue !== editorController {
+                capturePreviewCoordinator.clear()
+                hasCapturePreview = false
+            }
             applyEditorPreferences(to: editorController)
             isEditorDocumentOutputAvailable =
                 editorController?.isDocumentOutputAvailable == true
@@ -36,7 +46,17 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     }
     @Published private(set) var isEditorDocumentOutputAvailable = false
     @Published var videoEditorController: VideoEditorController?
-    @Published var guideEditorController: GuideEditorController?
+    @Published var guideEditorController: GuideEditorController? {
+        didSet {
+            if oldValue !== guideEditorController {
+                resetGuideExportState()
+                pendingGuideAutosaveTask?.cancel()
+                pendingGuideAutosaveTask = nil
+                guideSaveGeneration = nil
+                oldValue?.isSaving = false
+            }
+        }
+    }
     @Published var currentDocumentURL: URL?
     @Published var hasUnsavedChanges = false
     @Published var guideExportIsActive = false
@@ -44,7 +64,10 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
     @Published var guideExportStatus: String?
     @Published var guideExportCurrentFormat: GuideExportFormat?
     @Published var guideExportCancellationRequested = false
-    @Published var lastGuideExportURLs: [URL] = []
+    @Published var guideExportReceipt: GuideExportReceipt?
+    var lastGuideExportURLs: [URL] {
+        guideExportReceipt?.currentURLs(for: guideEditorController?.contentVersion) ?? []
+    }
     @Published var compositionExportProgressState:
         CompositionExportProgressState?
     @Published var captureSearchQuery = ""
@@ -107,16 +130,15 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
             preferenceStore.saveUIMapPinnedOverlayDefaults(uiMapPinnedOverlayDefaults)
         }
     }
-    var pendingAutoCopyTask: Task<Void, Never>?
-    /// Monotonically identifies the newest auto-copy request. Rendering happens
-    /// asynchronously, so task cancellation alone cannot prevent an older render
-    /// from finishing after a newer editor change.
-    var autoCopyRequestGeneration: UInt = 0
     var pendingAutosaveTask: Task<Void, Never>?
     var pendingRecoveryRefreshTask: Task<Void, Never>?
     var pendingCaptureHistorySearchTask: Task<Void, Never>?
     var recoveryOperations = RecoveryOperationState()
     var pendingGuideAutosaveTask: Task<Void, Never>?
+    var guideDocumentWriter: any GuideDocumentWriting = GuideDocumentWriter()
+    var guideSaveGeneration: UUID?
+    var guideSaveCompletionWaiters: [UUID: [CheckedContinuation<Void, Never>]] = [:]
+    var savedGuideContentVersion: GuideContentVersion?
     var pendingGuideExportTask: Task<Void, Never>?
     var pendingGuideExportWorkerTask: Task<GuideExportResult, Never>?
     var activeGuideExportID: UUID?
@@ -163,6 +185,7 @@ final class DocumentWorkflowModel: ObservableObject, DocumentAutomationPort {
         self.videoRecoveryState = VideoRecoveryWorkflowState(store: videoRecoveryStore)
         self.incompatibleDocumentCoordinator = incompatibleDocumentCoordinator
         self.preferenceStore = preferenceStore
+        self.showsCapturePreview = preferenceStore.loadShowsCapturePreview()
         self.pendingRecoverySession = pendingRecoverySession
         self.allCaptureHistoryEntries = allCaptureHistoryEntries
         self.snipLibraryEntries =

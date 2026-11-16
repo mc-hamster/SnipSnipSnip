@@ -6,14 +6,18 @@ Capture, annotate, redact, record, inspect, automate, and share without sending 
 
 [**Download free on the Mac App Store**](https://apps.apple.com/us/app/snipsnipsnip/id6761775175?mt=12) · [**Download free SnipSnipSnip Pro**](https://github.com/mc-hamster/SnipSnipSnip/releases/latest) · [Website](https://www.oontz.com/apps/snipsnipsnip/) · [Get support](https://www.oontz.com/contact/)
 
+## Unreleased Changes
+
+Auto Copy has been removed. Capturing and editing screenshots now leave the clipboard unchanged until you choose Copy. For quick capture-and-paste, use a Capture Preset with the Copy to Clipboard outcome. Saved Quick Controls layouts keep their remaining controls, and explicit automation copy outputs continue to work.
+
 ## Choose An Edition
 
 Both editions are free and open source:
 
-- **SnipSnipSnip** is the Mac App Store build. It includes the complete everyday screenshot, annotation, OCR, archive, presentation, automation, clipboard-history, and screen-recording workflow. It can also open, edit, save, recover, and export existing `.sssguide` documents.
-- **SnipSnipSnip Pro** is the direct-download GitHub build. It includes everything above, plus Guide creation and recording, scrolling capture, trusted USB-connected iPhone/iPad capture, and UI Map structured screenshots. These advanced workflows are distributed separately because they use capabilities that are not available to the App Store edition.
+- **SnipSnipSnip** is the Mac App Store build. It includes the complete everyday screenshot, annotation, OCR, archive, presentation, automation, clipboard-history, and screen-recording workflow, including Manual Scroll capture. It can also open, edit, save, recover, and export existing `.sssguide` documents.
+- **SnipSnipSnip Pro** is the direct-download GitHub build. It includes everything above, plus Guide creation and recording, Auto Scroll, trusted USB-connected iPhone/iPad capture, and UI Map structured screenshots. These advanced workflows are distributed separately because they use capabilities that are not available to the App Store edition.
 
-SnipSnipSnip requires **macOS 26 or later**. Screenshot capture requires Screen Recording permission. The App Store edition does not request Accessibility. Accessibility is required only for Pro's Guide creation, scrolling capture, UI Map, and other Accessibility-assisted workflows; microphone permission is required only when narration is enabled.
+SnipSnipSnip requires **macOS 26 or later**. Screenshot capture requires Screen Recording permission. The App Store edition does not request Accessibility. Accessibility is required only for Pro's Guide creation, Auto Scroll, UI Map, and other Accessibility-assisted workflows; microphone permission is required only when narration is enabled.
 
 ## Install
 
@@ -32,7 +36,7 @@ Clone this repository and open `SnipSnipSnip.xcodeproj` in Xcode. See [Build And
 ## Features
 
 - Region, window, frontmost window, fullscreen, repeat, and timer screenshot capture, with optional precision controls for region sizing and current/selected/all-display fullscreen modes.
-- SnipSnipSnip Pro scrolling screenshot capture and connected iPhone/iPad capture.
+- Manual Scroll in every edition: scroll normally in the selected area, then choose Stop. Pro adds Auto Scroll and connected iPhone/iPad capture.
 - Non-destructive screenshot editor with crop, rectangle, ellipse, line, arrow, freehand, highlight, text, callouts, ruler measurements, spotlight/dim, image overlays, rotation, layer ordering, grouping, alignment, snapping, and blur/pixelate/solid redaction.
 - Local OCR for capture-history search and selectable Copy Text from a dragged screenshot region.
 - SnipSnipSnip Pro UI Map capture for saving visible interface element names, roles, identifiers, hierarchy, and geometry in editable `.sss` documents. UI Map turns a Window screenshot into a searchable, inspectable structured capture instead of pixels only.
@@ -58,14 +62,14 @@ Private Capture skips archive checkpoints, recent-snips recovery, recycle-bin re
 ## Permissions
 
 - Screen Recording: required for screenshot capture, window thumbnails, and screen recording pixels.
-- Accessibility: requested only by SnipSnipSnip Pro for Guide creation, Scrolling Capture, UI Map Window capture, and other Accessibility-assisted workflows. The Mac App Store edition never requests it.
+- Accessibility: requested only by SnipSnipSnip Pro for Guide creation, Auto Scroll, UI Map Window capture, and other Accessibility-assisted workflows. The Mac App Store edition never requests it.
 - Microphone: required only when microphone narration is enabled for recording.
 
-The app Settings screen includes permission diagnostics, remediation buttons, and a local sanitized diagnostics export for support. Standard region, window, and fullscreen capture do not require Accessibility.
+The app Settings screen includes permission diagnostics, remediation buttons, and a local sanitized diagnostics export for support. Manual Scroll and standard Region, Window, and Screen capture do not require Accessibility.
 
 ### Accessibility Permission For Xcode Builds
 
-When testing Pro Scrolling Capture or UI Map from Xcode, macOS grants Accessibility access to the exact `.app` bundle that Xcode launched. Development builds usually run from DerivedData, so granting access to a copied app in `/Applications` will not grant access to the debug build.
+When testing Pro Auto Scroll or UI Map from Xcode, macOS grants Accessibility access to the exact `.app` bundle that Xcode launched. Development builds usually run from DerivedData, so granting access to a copied app in `/Applications` will not grant access to the debug build.
 
 If SnipSnipSnip is not listed in **System Settings > Privacy & Security > Accessibility**:
 

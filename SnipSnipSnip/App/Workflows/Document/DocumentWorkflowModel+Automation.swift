@@ -40,8 +40,43 @@ extension DocumentWorkflowModel {
             return .failure(requestID: request.id, code: .internalError, message: "Automation workflow is not available.")
         }
 
-        automationCoordinator.openDocument(command.url)
-        return await automationCoordinator.automationResultAfterCurrentEditorOutput(request, "openDocument", command.url.lastPathComponent)
+        do {
+            try await automationCoordinator.openAutomationDocument(command.url, interactionPolicy: request.interactionPolicy)
+            return await automationCoordinator.automationResultAfterCurrentEditorOutput(request, "openDocument", command.url.lastPathComponent)
+        } catch let error as AutomationExecutionError {
+            return .failure(requestID: request.id, code: error.code, message: error.message)
+        } catch {
+            return .failure(requestID: request.id, code: .targetUnavailable, message: error.localizedDescription)
+        }
+    }
+
+    /// Opening for automation must finish before output can inspect the editor.
+    /// Never export an older document after a failed load or a cancelled prompt.
+    func loadAutomationDocument(from url: URL, interactionPolicy: AutomationInteractionPolicy) async throws {
+        guard pendingEditorAction == nil, !isShowingUnsavedChangesPrompt else {
+            throw AutomationExecutionError(code: .busy, message: "Finish the current document confirmation first.")
+        }
+        let candidate = try readPreparedDocument(from: url)
+        let reopeningCurrent = currentDocumentURL?.standardizedFileURL == url.standardizedFileURL
+        if hasUnsavedChanges {
+            guard interactionPolicy != .never else {
+                throw AutomationExecutionError(code: .confirmationRequired, message: "Save or close the current document before opening another document unattended.")
+            }
+            let accepted: Bool = await withCheckedContinuation { continuation in
+                pendingEditorAction = { continuation.resume(returning: true) }
+                pendingEditorCancellation = { continuation.resume(returning: false) }
+                isShowingUnsavedChangesPrompt = true
+                requestMainWindowPresentation()
+            }
+            guard accepted else {
+                throw AutomationExecutionError(code: .userCancelled, message: "Document opening was cancelled.")
+            }
+            // Save may have updated this same package while the prompt was open.
+            if reopeningCurrent, currentDocumentURL?.standardizedFileURL == url.standardizedFileURL, !hasUnsavedChanges {
+                return
+            }
+        }
+        installPreparedDocument(candidate, documentURL: url)
     }
 
     func exportCurrentAutomationDocument(

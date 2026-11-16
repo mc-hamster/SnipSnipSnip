@@ -1,6 +1,24 @@
 import AppKit
 
 @MainActor
+enum ScrollingCaptureModeSelection {
+    static func present() -> ScrollingCaptureMode? {
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = "Capture Scrolling Content"
+        alert.informativeText = "Auto Scroll moves the selected app for you and requires Accessibility. With Manual Scroll, scroll normally and choose Stop when you’re finished. Manual Scroll needs only Screen Recording."
+        alert.addButton(withTitle: "Auto Scroll")
+        alert.addButton(withTitle: "Manual Scroll")
+        alert.addButton(withTitle: "Cancel")
+        switch alert.runModal() {
+        case .alertFirstButtonReturn: return .automatic
+        case .alertSecondButtonReturn: return .manual
+        default: return nil
+        }
+    }
+}
+
+@MainActor
 enum ScrollingCaptureTargetConfirmation {
     private static let showsConfirmationKey = "ScrollingCaptureShowsTargetConfirmation"
 
@@ -12,7 +30,7 @@ enum ScrollingCaptureTargetConfirmation {
 
     static func present(target: ScrollingCaptureTarget) -> Choice {
         let defaults = UserDefaults.standard
-        if defaults.object(forKey: showsConfirmationKey) != nil,
+        if target.mode == .automatic, defaults.object(forKey: showsConfirmationKey) != nil,
            !defaults.bool(forKey: showsConfirmationKey) {
             return .start
         }
@@ -21,7 +39,10 @@ enum ScrollingCaptureTargetConfirmation {
         let alert = NSAlert()
         alert.alertStyle = .informational
         alert.messageText = "Ready to Capture \(target.sourceName)"
-        alert.informativeText = "Selected area: \(Int(target.viewportRect.width)) × \(Int(target.viewportRect.height)) points. Scrolling Capture works best with stable pages, lists, and documents. Animated or changing content may need a seam review."
+        let guidance = target.mode == .manual
+            ? "Scroll normally in the selected area. Click Stop when you’re finished."
+            : "SnipSnipSnip scrolls the selected app automatically. Stable pages, lists, and documents work best; animated or changing content may need a seam review."
+        alert.informativeText = "Selected area: \(Int(target.viewportRect.width)) × \(Int(target.viewportRect.height)) points. \(guidance)"
         alert.addButton(withTitle: "Start Capture")
         alert.addButton(withTitle: "Choose Another Area")
         alert.addButton(withTitle: "Cancel")
@@ -32,10 +53,10 @@ enum ScrollingCaptureTargetConfirmation {
             action: nil
         )
         showAgainCheckbox.state = .on
-        alert.accessoryView = showAgainCheckbox
+        if target.mode == .automatic { alert.accessoryView = showAgainCheckbox }
 
         let response = alert.runModal()
-        defaults.set(showAgainCheckbox.state == .on, forKey: showsConfirmationKey)
+        if target.mode == .automatic { defaults.set(showAgainCheckbox.state == .on, forKey: showsConfirmationKey) }
 
         switch response {
         case .alertFirstButtonReturn:
@@ -50,7 +71,8 @@ enum ScrollingCaptureTargetConfirmation {
 
 @MainActor
 final class ScrollingCaptureProgressOverlay {
-    private let window: NSWindow
+    private let mode: ScrollingCaptureMode
+    private let window: NSPanel
     private let view: ScrollingCaptureProgressView
     private var localKeyMonitor: Any?
     private var globalKeyMonitor: Any?
@@ -59,16 +81,22 @@ final class ScrollingCaptureProgressOverlay {
     private var lastAnnouncedSegmentCount = 0
     private var lastAnnouncedWarning: String?
 
-    init(onCancel: @escaping () -> Void, onDone: @escaping () -> Void) {
+    init(mode: ScrollingCaptureMode = .automatic, onCancel: @escaping () -> Void, onDone: @escaping () -> Void) {
+        self.mode = mode
         self.onCancel = onCancel
         self.onDone = onDone
-        view = ScrollingCaptureProgressView(onCancel: onCancel, onDone: onDone)
+        view = ScrollingCaptureProgressView(mode: mode, onCancel: onCancel, onDone: onDone)
         window = ScrollingCaptureProgressWindow(
             contentRect: CGRect(x: 0, y: 0, width: 420, height: 220),
-            styleMask: [.borderless],
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
+        window.becomesKeyOnlyIfNeeded = true
+        window.isFloatingPanel = true
+        // Manual scrolling happens in another app; completion controls must
+        // remain visible when that app becomes active.
+        window.hidesOnDeactivate = false
         window.isOpaque = false
         window.backgroundColor = .clear
         window.level = .screenSaver
@@ -80,14 +108,18 @@ final class ScrollingCaptureProgressOverlay {
 
     func show() {
         window.orderFrontRegardless()
-        window.makeKey()
-        window.makeFirstResponder(view)
+        if mode == .automatic {
+            window.makeKey()
+            window.makeFirstResponder(view)
+        }
         installKeyMonitors()
-        AppAccessibility.announce("Scrolling capture started. Press Return to keep the captured result or Escape to cancel.")
+        AppAccessibility.announce(mode == .manual
+            ? "Manual Scroll started. Scroll normally, then click Stop to keep the result or Cancel to discard it."
+            : "Auto Scroll started. Press Return to keep the captured result or Escape to cancel.")
     }
 
-    func show(avoiding rect: CGRect) {
-        position(avoiding: rect)
+    func show(avoiding rect: CGRect, scrollTargetPoint: CGPoint? = nil) {
+        position(avoiding: rect, scrollTargetPoint: scrollTargetPoint)
         show()
     }
 
@@ -128,8 +160,10 @@ final class ScrollingCaptureProgressOverlay {
             return nil
         }
 
-        globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            _ = self?.handleKeyEvent(event)
+        if mode == .automatic {
+            globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                _ = self?.handleKeyEvent(event)
+            }
         }
     }
 
@@ -158,14 +192,58 @@ final class ScrollingCaptureProgressOverlay {
         }
     }
 
-    private func position(avoiding rect: CGRect) {
-        guard let screen = NSScreen.screens.first(where: { $0.frame.intersects(rect) }) ?? NSScreen.main else {
+    private func position(avoiding rect: CGRect, scrollTargetPoint: CGPoint?) {
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        guard let screen = NSScreen.screens.first(where: {
+            guard let displayID = $0.gscDisplayID else { return false }
+            return CGDisplayBounds(displayID).contains(center)
+        }), let displayID = screen.gscDisplayID else {
             window.center()
             return
         }
 
+        let display = DisplaySnapshot(
+            displayID: displayID, name: screen.localizedName, frame: CGDisplayBounds(displayID),
+            overlayFrame: screen.frame, scale: screen.backingScaleFactor
+        )
+        window.setContentSize(CGSize(
+            width: min(window.frame.width, screen.visibleFrame.width),
+            height: min(window.frame.height, screen.visibleFrame.height)
+        ))
+        window.setFrameOrigin(Self.frameOrigin(
+            avoiding: rect, on: display, visibleFrame: screen.visibleFrame, panelSize: window.frame.size,
+            scrollTargetPoint: scrollTargetPoint
+        ))
+        // A very small display may have no placement that avoids the target.
+        // Keep scrolling functional and retain the global Return/Escape controls.
+        let keyboardOnly = mode == .automatic && Self.requiresKeyboardControls(
+            panelFrame: window.frame, scrollTargetPoint: scrollTargetPoint ?? center, on: display
+        )
+        window.ignoresMouseEvents = keyboardOnly
+        view.keyboardOnlyControls = keyboardOnly
+    }
+
+    nonisolated static func requiresKeyboardControls(
+        panelFrame: CGRect, scrollTargetPoint: CGPoint, on display: DisplaySnapshot
+    ) -> Bool {
+        panelFrame.contains(display.captureDisplayTransform.overlayGlobalPoint(fromCaptureGlobalPoint: scrollTargetPoint))
+    }
+
+    nonisolated static func frameOrigin(
+        avoiding captureViewport: CGRect, on display: DisplaySnapshot, visibleFrame: CGRect, panelSize size: CGSize,
+        scrollTargetPoint: CGPoint? = nil
+    ) -> CGPoint {
+        let rect = display.captureDisplayTransform.overlayGlobalRect(fromCaptureGlobalRect: captureViewport)
         let margin: CGFloat = 18
-        let size = window.frame.size
+        let insetX = min(margin, max((visibleFrame.width - size.width) / 2, 0))
+        let insetY = min(margin, max((visibleFrame.height - size.height) / 2, 0))
+        let minX = visibleFrame.minX + insetX
+        let maxX = max(minX, visibleFrame.maxX - size.width - insetX)
+        let minY = visibleFrame.minY + insetY
+        let maxY = max(minY, visibleFrame.maxY - size.height - insetY)
+        func clamped(_ point: CGPoint) -> CGPoint {
+            CGPoint(x: min(max(point.x, minX), maxX), y: min(max(point.y, minY), maxY))
+        }
         let candidates = [
             CGPoint(x: rect.maxX + margin, y: rect.maxY - size.height),
             CGPoint(x: rect.minX - size.width - margin, y: rect.maxY - size.height),
@@ -173,27 +251,41 @@ final class ScrollingCaptureProgressOverlay {
             CGPoint(x: rect.minX, y: rect.maxY + margin)
         ]
 
-        let visibleFrame = screen.visibleFrame
-        let selectedCandidate = candidates.first { candidate in
-            visibleFrame.contains(CGRect(origin: candidate, size: size))
-        } ?? CGPoint(
-            x: visibleFrame.maxX - size.width - margin,
-            y: visibleFrame.maxY - size.height - margin
+        let target = display.captureDisplayTransform.overlayGlobalPoint(
+            fromCaptureGlobalPoint: scrollTargetPoint ?? CGPoint(x: captureViewport.midX, y: captureViewport.midY)
         )
+        if let outside = candidates.map(clamped).first(where: {
+            let panel = CGRect(origin: $0, size: size)
+            return visibleFrame.contains(panel) && !panel.intersects(rect) && !panel.contains(target)
+        }) { return outside }
 
-        window.setFrameOrigin(CGPoint(
-            x: min(max(selectedCandidate.x, visibleFrame.minX + margin), visibleFrame.maxX - size.width - margin),
-            y: min(max(selectedCandidate.y, visibleFrame.minY + margin), visibleFrame.maxY - size.height - margin)
-        ))
+        // When the panel must overlap the viewport, keep the injected wheel
+        // event over the target app, rather than over this app's progress view.
+        let corners = [CGPoint(x: maxX, y: maxY), CGPoint(x: minX, y: maxY),
+                       CGPoint(x: maxX, y: minY), CGPoint(x: minX, y: minY)]
+        return corners.first { !CGRect(origin: $0, size: size).contains(target) } ?? corners[0]
     }
 }
 
-private final class ScrollingCaptureProgressWindow: NSWindow {
+private final class ScrollingCaptureProgressWindow: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
 }
 
 private final class ScrollingCaptureProgressView: NSView {
+    private let mode: ScrollingCaptureMode
+    var keyboardOnlyControls = false {
+        didSet {
+            doneButton.isEnabled = !keyboardOnlyControls
+            cancelButton.isEnabled = !keyboardOnlyControls
+            needsDisplay = true
+            setAccessibilityHelp(mode == .manual
+                ? "Scroll normally. Click Stop to keep the result or Cancel to discard it."
+                : (keyboardOnlyControls
+                    ? "The progress panel overlaps the scroll target. Use Return to keep the captured result or Escape to cancel."
+                    : "Press Return to keep the captured result or Escape to cancel."))
+        }
+    }
     var segmentCount = 1 {
         didSet { needsDisplay = true }
     }
@@ -211,11 +303,12 @@ private final class ScrollingCaptureProgressView: NSView {
     }
 
     private let cancelButton = NSButton(title: "Cancel", target: nil, action: nil)
-    private let doneButton = NSButton(title: "Done", target: nil, action: nil)
+    private let doneButton = NSButton(title: "Stop", target: nil, action: nil)
     private let onCancel: () -> Void
     private let onDone: () -> Void
 
-    init(onCancel: @escaping () -> Void, onDone: @escaping () -> Void) {
+    init(mode: ScrollingCaptureMode, onCancel: @escaping () -> Void, onDone: @escaping () -> Void) {
+        self.mode = mode
         self.onCancel = onCancel
         self.onDone = onDone
         super.init(frame: CGRect(x: 0, y: 0, width: 420, height: 220))
@@ -223,7 +316,9 @@ private final class ScrollingCaptureProgressView: NSView {
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
         setAccessibilityLabel("Scrolling capture progress")
-        setAccessibilityHelp("Press Return to keep the captured result or Escape to cancel.")
+        setAccessibilityHelp(mode == .manual
+            ? "Scroll normally. Click Stop to keep the result or Cancel to discard it."
+            : "Press Return to keep the captured result or Escape to cancel.")
         setAccessibilityIdentifier("capture.scrolling.progress")
         configureButtons()
         updateAccessibilityStatus()
@@ -246,14 +341,14 @@ private final class ScrollingCaptureProgressView: NSView {
         super.draw(dirtyRect)
 
         let panel = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 18, yRadius: 18)
-        NSColor.windowBackgroundColor.withAlphaComponent(0.94).setFill()
+        NSColor.windowBackgroundColor.withAlphaComponent(NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency ? 1 : 0.94).setFill()
         panel.fill()
-        NSColor.separatorColor.withAlphaComponent(0.45).setStroke()
+        NSColor.separatorColor.withAlphaComponent(NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast ? 1 : 0.45).setStroke()
         panel.lineWidth = 1
         panel.stroke()
 
         // Title
-        NSString(string: "Capturing scrolling area…").draw(
+        NSString(string: mode == .manual ? "Manual Scroll — capturing as you scroll" : "Auto Scroll — capturing…").draw(
             in: CGRect(x: 18, y: 18, width: bounds.width - 36, height: 22),
             withAttributes: [
                 .foregroundColor: NSColor.labelColor,
@@ -275,7 +370,9 @@ private final class ScrollingCaptureProgressView: NSView {
         drawCapacityBar(at: CGRect(x: 18, y: 70, width: bounds.width - 36, height: 7))
 
         // Keyboard hint
-        NSString(string: "Scrolling…  Return: Done  ·  Esc: Cancel").draw(
+        NSString(string: mode == .manual
+            ? "Scroll normally. Click Stop when finished."
+            : (keyboardOnlyControls ? "Use Return: Stop  ·  Esc: Cancel" : "Scrolling…  Return: Stop  ·  Esc: Cancel")).draw(
             in: CGRect(x: 18, y: 85, width: bounds.width - 36, height: 18),
             withAttributes: [
                 .foregroundColor: NSColor.tertiaryLabelColor,
@@ -323,11 +420,11 @@ private final class ScrollingCaptureProgressView: NSView {
             width: drawSize.width,
             height: drawSize.height
         )
-        NSGraphicsContext.current?.cgContext.draw(previewImage, in: drawRect)
+        ScrollingCapturePreviewRenderer.draw(previewImage, in: drawRect)
     }
 
     private func drawCapacityBar(at rect: CGRect) {
-        let fraction = max(0.02, capacityFraction) // always show a sliver so bar is visible from frame 1
+        let fraction = min(1, max(0.02, capacityFraction.isFinite ? capacityFraction : 0)) // always show a sliver so bar is visible from frame 1
         let radius = rect.height / 2
 
         // Track
@@ -409,5 +506,14 @@ private final class ScrollingCaptureProgressView: NSView {
 
     @objc private func done() {
         onDone()
+    }
+}
+
+@MainActor
+enum ScrollingCapturePreviewRenderer {
+    static func draw(_ image: CGImage, in rect: CGRect) {
+        NSImage(cgImage: image, size: CGSize(width: image.width, height: image.height)).draw(
+            in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil
+        )
     }
 }

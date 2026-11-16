@@ -3,6 +3,7 @@ import SwiftUI
 enum CaptureDiscoveryItem: String, Hashable {
     case overview
     case captureRegion
+    case captureText
     case captureWindow
     case captureScreen
     case captureScrolling
@@ -28,6 +29,7 @@ enum CaptureDiscoveryItem: String, Hashable {
         switch self {
         case .overview: "Capture it. Explain it. Present it."
         case .captureRegion: "Capture a Region"
+        case .captureText: "Capture Text"
         case .captureWindow: "Capture a Window"
         case .captureScreen: "Capture a Screen"
         case .captureScrolling: "Capture Scrolling Content"
@@ -57,6 +59,8 @@ enum CaptureDiscoveryItem: String, Hashable {
             "Point to an action to see what it creates or opens."
         case .captureRegion:
             "Drag around anything to create an editable Screenshot."
+        case .captureText:
+            "Select text on screen and copy it without opening the editor. Recognition stays on this Mac."
         case .captureWindow:
             "Choose a window and capture it without the surrounding desktop."
         case .captureScreen:
@@ -103,6 +107,7 @@ enum CaptureDiscoveryItem: String, Hashable {
     var shortcut: String? {
         switch self {
         case .captureRegion: "⌘⇧1"
+        case .captureText: "⌘⇧T"
         case .captureWindow: "⌘⇧2"
         case .captureScreen: "⌘⇧3"
         case .repeatLast: "⌘⇧7"
@@ -117,6 +122,7 @@ enum CaptureDiscoveryItem: String, Hashable {
         switch self {
         case .overview: .overview
         case .captureRegion: .captureRegion
+        case .captureText: .clipboard
         case .captureWindow: .captureWindow
         case .captureScreen: .captureScreen
         case .captureScrolling: .scroll

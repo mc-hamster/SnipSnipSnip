@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-open "snipsnipsnip://v1/capture/window?output=clipboard"
+# Region and Window use the same fresh window bounds to identify the target under the pointer.
+
+# Select an app window, dialog, or utility panel; menus and system overlays are excluded.
+
+open "${SSS_URL_SCHEME:-snipsnipsnip}://v1/capture/window?output=clipboard"

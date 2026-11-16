@@ -27,6 +27,7 @@ nonisolated enum BuildTarget: String, Sendable {
 nonisolated enum FeatureToggle: Sendable {
     case scrollingCapture
     case accessibilityAutomation
+    case videoShortcutCapture
     case connectedDeviceCapture
     case uiMap
     case guideCapture
@@ -40,6 +41,7 @@ nonisolated enum FeatureToggle: Sendable {
 nonisolated enum BuildTargetFeatureMatrix {
     private static let enabledFeaturesByTarget: [BuildTarget: Set<FeatureToggle>] = [
         .dev: [
+          .videoShortcutCapture,
           .connectedDeviceCapture,
           .uiMap,
           .guideCapture,
@@ -49,6 +51,7 @@ nonisolated enum BuildTargetFeatureMatrix {
         .externalTesting: [],
         .release: [],
         .selfRelease: [
+            .videoShortcutCapture,
             .scrollingCapture,
             .accessibilityAutomation,
             .connectedDeviceCapture,
@@ -124,7 +127,7 @@ nonisolated enum AppBranding {
     }
 
     static func displayName(for target: BuildTarget) -> String {
-        target == .selfRelease ? proDisplayName : standardDisplayName
+        target == .selfRelease ? proDisplayName : (target == .dev ? "SnipSnipSnip Dev" : standardDisplayName)
     }
 
     static func branded(_ text: String, for target: BuildTarget = .current) -> String {
@@ -138,11 +141,24 @@ nonisolated enum AppBranding {
 
         while let range = text[searchStart...].range(of: standardDisplayName) {
             result.append(contentsOf: text[searchStart..<range.lowerBound])
-            result.append(contentsOf: text[range.upperBound...].hasPrefix(" Pro") ? standardDisplayName : targetDisplayName)
+            result.append(contentsOf: text[range.upperBound...].hasPrefix(" Pro") || text[range.upperBound...].hasPrefix(" Dev") ? standardDisplayName : targetDisplayName)
             searchStart = range.upperBound
         }
 
         result.append(contentsOf: text[searchStart...])
         return result
     }
+}
+
+/// Stable runtime identity, independent of edition feature flags. Preserve the
+/// existing shipping storage path; development never adopts shipping state.
+nonisolated struct AppNamespace: Equatable, Sendable {
+    static let developmentBundleIdentifier = "com.oontz.SnipSnipSnip.Dev"
+    static let current = AppNamespace(bundleIdentifier: Bundle.main.bundleIdentifier ?? "com.oontz.SnipSnipSnip")
+
+    let bundleIdentifier: String
+
+    var isDevelopment: Bool { bundleIdentifier == Self.developmentBundleIdentifier }
+    var supportDirectoryName: String { isDevelopment ? "SnipSnipSnip Dev" : "SnipSnipSnip" }
+    var urlScheme: String { isDevelopment ? "snipsnipsnip-dev" : "snipsnipsnip" }
 }

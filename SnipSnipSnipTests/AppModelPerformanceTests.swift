@@ -200,7 +200,6 @@ final class AppModelPerformanceTests: XCTestCase {
         let model = AppModel(defaults: defaults, recoveryStore: recoveryStore, captureService: MockScreenCaptureService(), shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false)
         model.permissionStatus = CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: true)
         model.captureDelay = .immediate
-        model.autoCopyEnabled = false
         return model
     }
 
@@ -381,6 +380,7 @@ final class AppModelPerformanceTests: XCTestCase {
     }
 
     func testPerformanceBudgetCatalogCoversMajorScalablePaths() {
+        XCTAssertEqual(PerformanceBudgetCatalog.scrollingFrameStitch.maximumSeconds, 0.25)
         XCTAssertGreaterThan(PerformanceBudgetCatalog.captureEntryPoint.maximumSeconds, 0)
         XCTAssertGreaterThan(PerformanceBudgetCatalog.screenshotRenderAndExport.maximumSeconds, 0)
         XCTAssertGreaterThan(PerformanceBudgetCatalog.archiveIndexedSearch.maximumSeconds, 0)

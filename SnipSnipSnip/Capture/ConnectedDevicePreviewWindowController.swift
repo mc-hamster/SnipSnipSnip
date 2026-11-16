@@ -2,7 +2,7 @@ import AppKit
 import Combine
 import SwiftUI
 
-enum ConnectedDevicePreviewIntent {
+enum ConnectedDevicePreviewIntent: Equatable {
     case screenshot
     case recording
 }
@@ -221,7 +221,7 @@ private final class ConnectedDevicePreviewViewModel: ObservableObject {
         do {
             let capture = try latestOrCapturedScreenshot()
             latestScreenshot = capture
-            try ImageExporter.copyToClipboard(capture.image)
+            try ImageExporter.copyToClipboard(capture.image, isPrivate: isPrivateCapture)
         } catch {
             present(error)
         }

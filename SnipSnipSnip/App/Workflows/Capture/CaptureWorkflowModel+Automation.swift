@@ -1,9 +1,14 @@
 import AppKit
+import AVFAudio
 import Foundation
 import OSLog
 
 @MainActor
 extension CaptureWorkflowModel {
+    var hasPendingInteractiveAutomationCapture: Bool {
+        activeCaptureContext.automationRequest != nil || isShowingWindowPicker
+    }
+
     var automationCapabilities: AutomationCapabilities {
         AutomationCapabilities(
             supportsURLScheme: true,
@@ -27,7 +32,7 @@ extension CaptureWorkflowModel {
         return AutomationPermissionSummary(
             hasScreenRecording: status.hasScreenRecording,
             hasAccessibility: status.hasAccessibility,
-            hasMicrophone: false
+            hasMicrophone: AVAudioApplication.shared.recordPermission == .granted
         )
     }
 
@@ -66,9 +71,13 @@ extension CaptureWorkflowModel {
                 message: "UI Map capture is available in SnipSnipSnip Pro."
             )
         }
+        if let error = unattendedScreenRecordingError(for: request) {
+            return .failure(requestID: request.id, code: error.code, message: error.message)
+        }
         do {
             let destination = try automationCaptureDestinationContext(for: request)
             prepareCaptureIntent(destination.intent)
+            activeCaptureContext.allowsCapturePreview = false
             var leavesCaptureIntentPending = false
             defer {
                 if !leavesCaptureIntentPending {
@@ -86,6 +95,7 @@ extension CaptureWorkflowModel {
                         throw AutomationExecutionError(code: .targetUnavailable, message: "The preset's saved window is not available.")
                     }
                     leavesCaptureIntentPending = true
+                    prepareInteractiveAutomationOutput(request, runOptions: preset.options)
                     automationCoordinator.capturePreset(preset)
                     return acceptedInteractiveResult(requestID: request.id, kind: "preset", warning: "The preset needs a replacement window. SnipSnipSnip opened its normal replacement workflow.")
                 }
@@ -140,6 +150,7 @@ extension CaptureWorkflowModel {
         do {
             let destination = try automationCaptureDestinationContext(for: request)
             prepareCaptureIntent(destination.intent)
+            activeCaptureContext.allowsCapturePreview = false
             var leavesCaptureIntentPending = false
             defer {
                 if !leavesCaptureIntentPending {
@@ -188,6 +199,7 @@ extension CaptureWorkflowModel {
                     "capture.automation accepted interactiveRegion requestID=\(request.id.uuidString, privacy: .public)"
                 )
                 leavesCaptureIntentPending = true
+                prepareInteractiveAutomationOutput(request, runOptions: runOptions)
                 beginRegionCapture()
                 return acceptedInteractiveResult(requestID: request.id, kind: "interactiveRegion", warning: nil)
             case .interactiveWindow:
@@ -195,17 +207,18 @@ extension CaptureWorkflowModel {
                     "capture.automation accepted interactiveWindow requestID=\(request.id.uuidString, privacy: .public)"
                 )
                 leavesCaptureIntentPending = true
-                presentWindowPicker(intent: destination.intent)
+                prepareInteractiveAutomationOutput(request, runOptions: runOptions)
+                presentPreparedWindowPicker()
                 return acceptedInteractiveResult(requestID: request.id, kind: "interactiveWindow", warning: nil)
             }
         } catch let error as AutomationExecutionError {
             ShortcutsAutomationLog.logger.error(
-                "capture.automation executionError requestID=\(request.id.uuidString, privacy: .public) code=\(error.code.rawValue, privacy: .public) message=\(error.message, privacy: .public)"
+                "capture.automation executionError requestID=\(request.id.uuidString, privacy: .public) code=\(error.code.rawValue, privacy: .public) message=\(error.message, privacy: .private)"
             )
             return .failure(requestID: request.id, code: error.code, message: error.message)
         } catch {
             ShortcutsAutomationLog.logger.error(
-                "capture.automation unexpectedError requestID=\(request.id.uuidString, privacy: .public) message=\(error.localizedDescription, privacy: .public)"
+                "capture.automation unexpectedError requestID=\(request.id.uuidString, privacy: .public) message=\(error.localizedDescription, privacy: .private)"
             )
             present(error)
             return .failure(requestID: request.id, code: .internalError, message: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
@@ -226,9 +239,13 @@ extension CaptureWorkflowModel {
             return .failure(requestID: request.id, code: .targetUnavailable, message: "There is no repeatable last capture.")
         }
 
+        if let error = unattendedScreenRecordingError(for: request) {
+            return .failure(requestID: request.id, code: error.code, message: error.message)
+        }
         do {
             let destination = try automationCaptureDestinationContext(for: request)
             prepareCaptureIntent(destination.intent)
+            activeCaptureContext.allowsCapturePreview = false
             var leavesCaptureIntentPending = false
             defer {
                 if !leavesCaptureIntentPending {
@@ -281,8 +298,12 @@ extension CaptureWorkflowModel {
                 // live-preview interaction. Their result is therefore the same
                 // explicit accepted-interactive contract as region/window
                 // pickers; unattended repeat targets above await completion.
+                guard request.interactionPolicy != .never else {
+                    throw AutomationExecutionError(code: .confirmationRequired, message: "This repeat capture requires interaction.")
+                }
                 leavesCaptureIntentPending = true
-                repeatLastCapture(intent: destination.intent)
+                prepareInteractiveAutomationOutput(request, runOptions: runOptions)
+                beginRepeatLastCapture()
                 return acceptedInteractiveResult(
                     requestID: request.id,
                     kind: "repeatLastCapture",
@@ -320,11 +341,12 @@ extension CaptureWorkflowModel {
             ShortcutsAutomationLog.logger.info(
                 "capture.fullscreen start requestID=\(request.id.uuidString, privacy: .public)"
             )
-            let didComplete = await performCapture(
+            let didComplete = try await performAutomationCapture(
                 request: .fullscreen,
                 minimizeAppWindow: true,
                 runOptions: runOptions,
-                completionContext: captureContext
+                completionContext: captureContext,
+                automationRequest: request
             ) { [captureService] in
                 try await captureService.captureFullscreen(
                     mode: runOptions.fullscreenDisplayMode,
@@ -347,11 +369,12 @@ extension CaptureWorkflowModel {
             ShortcutsAutomationLog.logger.info(
                 "capture.frontmostWindow start requestID=\(request.id.uuidString, privacy: .public)"
             )
-            let didComplete = await performCapture(
+            let didComplete = try await performAutomationCapture(
                 request: .frontmostWindow,
                 minimizeAppWindow: true,
                 runOptions: runOptions,
-                completionContext: captureContext
+                completionContext: captureContext,
+                automationRequest: request
             ) { [captureService] in
                 let window = try await captureService.frontmostWindow()
                 return try await captureService.captureWindow(window)
@@ -373,11 +396,12 @@ extension CaptureWorkflowModel {
             ShortcutsAutomationLog.logger.info(
                 "capture.window start requestID=\(request.id.uuidString, privacy: .public)"
             )
-            let didComplete = await performCapture(
+            let didComplete = try await performAutomationCapture(
                 request: .window(window),
                 minimizeAppWindow: true,
                 runOptions: runOptions,
-                completionContext: captureContext
+                completionContext: captureContext,
+                automationRequest: request
             ) { [captureService] in
                 try await captureService.captureWindow(window)
             }
@@ -398,11 +422,12 @@ extension CaptureWorkflowModel {
             ShortcutsAutomationLog.logger.info(
                 "capture.region start requestID=\(request.id.uuidString, privacy: .public) rect=\(rect.debugDescription, privacy: .public)"
             )
-            let didComplete = await performCapture(
+            let didComplete = try await performAutomationCapture(
                 request: .region(rect),
                 minimizeAppWindow: true,
                 runOptions: runOptions,
-                completionContext: captureContext
+                completionContext: captureContext,
+                automationRequest: request
             ) { [captureService] in
                 try await captureService.captureRegion(in: rect)
             }
@@ -411,6 +436,58 @@ extension CaptureWorkflowModel {
             )
             try ensureAutomationCaptureCompleted(didComplete)
         }
+    }
+
+    private func unattendedScreenRecordingError(for request: AutomationRequest) -> AutomationError? {
+        guard request.interactionPolicy == .never else { return nil }
+        dependencies.permissions.refreshPermissions()
+        guard !dependencies.permissions.permissionStatus.hasScreenRecording else { return nil }
+        return AutomationError(code: .permissionDenied, message: "Screen Recording access is required before capture can begin.")
+    }
+
+    func prepareInteractiveAutomationOutput(_ request: AutomationRequest, runOptions: CaptureRunOptions) {
+        activeCaptureContext.automationRequest = request
+        activeCaptureContext.allowsCapturePreview = false
+        activeCaptureContext.oneShotOptions = CaptureOneShotOptions(
+            captureDelay: runOptions.captureDelay, includesCursor: runOptions.includesCursor,
+            privateCapture: request.privacy.privateCapture || privateCaptureEnabled,
+            windowUIMapEnabled: runOptions.windowUIMapEnabled)
+    }
+
+    private func performAutomationCapture(
+        request: LastCaptureRequest,
+        minimizeAppWindow: Bool,
+        runOptions: CaptureRunOptions,
+        completionContext: CaptureCompletionContext,
+        automationRequest: AutomationRequest,
+        _ action: () async throws -> CapturedScreenshot
+    ) async throws -> Bool {
+        dependencies.permissions.refreshPermissions()
+        let requirements = screenshotCapturePermissionRequirements(for: request, runOptions: runOptions)
+        if automationRequest.interactionPolicy == .never,
+           !requirements.allSatisfy({ dependencies.permissions.permissionStatus.hasAccess(to: $0) }) {
+            throw AutomationExecutionError(code: .permissionDenied, message: "Required capture permission has not been granted.")
+        }
+        var failure: Error?
+        let completed = await performCapture(request: request, minimizeAppWindow: minimizeAppWindow,
+            runOptions: runOptions, completionContext: completionContext, allowsCapturePreview: false,
+            failureHandler: { failure = $0 }, action)
+        if let failure {
+            if let automationError = failure as? AutomationExecutionError { throw automationError }
+            let code: AutomationErrorCode
+            switch failure {
+            case ScreenCaptureError.permissionDenied: code = .permissionDenied
+            case ScreenCaptureError.noWindowsAvailable, ScreenCaptureError.noDisplays,
+                 ScreenCaptureError.currentDisplayUnavailable, ScreenCaptureError.windowImageUnavailable: code = .targetUnavailable
+            case is CancellationError: code = .userCancelled
+            default: code = .outputFailed
+            }
+            throw AutomationExecutionError(code: code, message: failure.localizedDescription)
+        }
+        if !completed, !requirements.allSatisfy({ dependencies.permissions.permissionStatus.hasAccess(to: $0) }) {
+            throw AutomationExecutionError(code: .permissionDenied, message: "Required capture permission has not been granted.")
+        }
+        return completed
     }
 
     private func ensureAutomationCaptureCompleted(_ didComplete: Bool) throws {

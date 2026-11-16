@@ -1,9 +1,30 @@
 import XCTest
+import ScreenCaptureKit
 @testable import SnipSnipSnip
 
 final class CapturePermissionStatusTests: XCTestCase {
+    func testNativePermissionErrorDoesNotDependOnEnglishErrorText() {
+        let denied = NSError(domain: SCStreamErrorDomain, code: SCStreamError.Code.userDeclined.rawValue,
+                             userInfo: [NSLocalizedDescriptionKey: "Accès refusé"])
+        XCTAssertTrue(ScreenCapturePermissions.indicatesScreenRecordingPermissionFailure(denied))
+        let unrelated = NSError(domain: NSCocoaErrorDomain, code: 1, userInfo: [NSLocalizedDescriptionKey: "Operation failed"])
+        XCTAssertFalse(ScreenCapturePermissions.indicatesScreenRecordingPermissionFailure(unrelated))
+    }
+
+    func testProbePreservesNonPermissionErrorsEvenWhenTheirTextMentionsPermission() {
+        let error = NSError(domain: SCStreamErrorDomain, code: -999,
+            userInfo: [NSLocalizedDescriptionKey: "Screen recording permission query failed while TCC was unavailable"])
+        XCTAssertEqual(ScreenCapturePermissions.classifyScreenRecordingProbe(hasContent: false, error: error),
+            .unavailable(domain: SCStreamErrorDomain, code: -999))
+        XCTAssertFalse(ScreenCapturePermissions.indicatesScreenRecordingPermissionFailure(error))
+        XCTAssertEqual(ScreenCapturePermissions.classifyScreenRecordingProbe(hasContent: false,
+            error: NSError(domain: SCStreamErrorDomain, code: SCStreamError.Code.userDeclined.rawValue)), .permissionDenied)
+    }
+
     func testAppBrandingDisplayNameReflectsBuildTarget() {
         XCTAssertEqual(AppBranding.displayName(for: .release), "SnipSnipSnip")
+        XCTAssertEqual(AppBranding.displayName(for: .dev), "SnipSnipSnip Dev")
+        XCTAssertEqual(AppBranding.branded("Welcome to SnipSnipSnip Dev", for: .dev), "Welcome to SnipSnipSnip Dev")
         XCTAssertEqual(AppBranding.displayName(for: .selfRelease), "SnipSnipSnip Pro")
     }
 
@@ -22,12 +43,20 @@ final class CapturePermissionStatusTests: XCTestCase {
         )
     }
 
-    func testScrollingFeatureFlagsAreEnabledOnlyForDevAndSelfRelease() {
+    func testScrollingIsAvailableInAllEditionsAndAutomaticScrollingIsProOnly() {
         XCTAssertTrue(FeatureFlags.scrollingCaptureEnabled(for: .dev))
-        XCTAssertFalse(FeatureFlags.scrollingCaptureEnabled(for: .internalTesting))
-        XCTAssertFalse(FeatureFlags.scrollingCaptureEnabled(for: .externalTesting))
-        XCTAssertFalse(FeatureFlags.scrollingCaptureEnabled(for: .release))
+        XCTAssertTrue(FeatureFlags.scrollingCaptureEnabled(for: .internalTesting))
+        XCTAssertTrue(FeatureFlags.scrollingCaptureEnabled(for: .externalTesting))
+        XCTAssertTrue(FeatureFlags.scrollingCaptureEnabled(for: .release))
         XCTAssertTrue(FeatureFlags.scrollingCaptureEnabled(for: .selfRelease))
+
+        let provider = BuildTargetCapabilityProvider()
+        for target in [BuildTarget.release, .internalTesting, .externalTesting] {
+            let capabilities = provider.snapshot(for: target)
+            XCTAssertTrue(capabilities.isEnabled(.scrollingCapture))
+            XCTAssertFalse(capabilities.isEnabled(.automaticScrollingCapture))
+            XCTAssertEqual(CapturePermissionRequirement.availableCases(for: capabilities), [.screenRecording])
+        }
 
         XCTAssertFalse(FeatureFlags.accessibilityAutomationEnabled(for: .dev))
         XCTAssertFalse(FeatureFlags.accessibilityAutomationEnabled(for: .internalTesting))

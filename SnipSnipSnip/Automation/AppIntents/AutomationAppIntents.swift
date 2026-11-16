@@ -41,7 +41,7 @@ extension AutomationPerformingIntent {
         )
         if let error = result.error {
             ShortcutsAutomationLog.logger.error(
-                "intent.perform silent throwing requestID=\(request.id.uuidString, privacy: .public) code=\(error.code.rawValue, privacy: .public) message=\(error.message, privacy: .public)"
+                "intent.perform silent throwing requestID=\(request.id.uuidString, privacy: .public) code=\(error.code.rawValue, privacy: .public) message=\(error.message, privacy: .private)"
             )
             throw AutomationIntentFailure(message: error.message)
         }
@@ -93,7 +93,7 @@ extension AutomationPerformingIntent {
         )
         if let error = result.error {
             ShortcutsAutomationLog.logger.error(
-                "intent.perform dialog throwing requestID=\(request.id.uuidString, privacy: .public) code=\(error.code.rawValue, privacy: .public) message=\(error.message, privacy: .public)"
+                "intent.perform dialog throwing requestID=\(request.id.uuidString, privacy: .public) code=\(error.code.rawValue, privacy: .public) message=\(error.message, privacy: .private)"
             )
             throw AutomationIntentFailure(message: error.message)
         }
@@ -1062,6 +1062,14 @@ struct SetCompositionCompareModeIntent: @preconcurrency AutomationPerformingInte
 struct GuideActionIntent: @preconcurrency AutomationPerformingIntent {
     static let title: LocalizedStringResource = "Control SnipSnipSnip Guide"
     static let description = IntentDescription("Start, control, stop, or export a SnipSnipSnip Guide.")
+
+    // Keep this literal for App Intents metadata extraction. App Store editions
+    // compile out Guide capture; retain the identifier for existing requests.
+#if APP_STORE_BUILD
+    nonisolated static let isDiscoverable = false
+#else
+    nonisolated static let isDiscoverable = true
+#endif
 
     @Dependency(default: AutomationIntentClient.unavailable)
     private var client: AutomationIntentClient

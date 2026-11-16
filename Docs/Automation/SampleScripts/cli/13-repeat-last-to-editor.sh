@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Repeating a selected app dialog or utility panel retains that window target.
+
 SSSCTL="${SSSCTL:-/Applications/SnipSnipSnip.app/Contents/Library/Helpers/snipsnipsnipctl}"
 
 result="$("$SSSCTL" --json repeat-last --open-editor)"

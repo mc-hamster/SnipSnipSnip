@@ -12,6 +12,9 @@ final class GuideEditorController: ObservableObject {
     @Published var selection: Set<UUID> = []
     @Published var searchQuery = ""
     @Published var notice: String?
+    @Published private(set) var contentRevision: UInt64 = 0
+    @Published private(set) var saveFailure: String?
+    @Published var isSaving = false
     @Published private(set) var canUndo = false
     @Published private(set) var canRedo = false
     @Published private(set) var logoImage: CGImage?
@@ -41,7 +44,7 @@ final class GuideEditorController: ObservableObject {
         mediaSegmentURLs = document.mediaSegmentURLs
         advancedEdits = document.advancedEdits
         selection = Set(document.project.steps.first.map { [$0.id] } ?? [])
-        imageRevisions = Dictionary(uniqueKeysWithValues: document.project.steps.map { ($0.id, 0) })
+        imageRevisions = Dictionary(document.project.steps.map { ($0.id, 0) }, uniquingKeysWith: { first, _ in first })
         if let firstID = document.project.steps.first?.id {
             requestThumbnail(for: firstID, priority: .userInitiated)
             prefetchThumbnails(after: firstID)
@@ -54,6 +57,33 @@ final class GuideEditorController: ObservableObject {
 
     var selectedStep: GuideStep? { project.steps.first { selection.contains($0.id) } }
     var includedSteps: [GuideStep] { project.steps.filter { $0.isIncluded && !$0.isDeleted } }
+
+    var contentVersion: GuideContentVersion {
+        GuideContentVersion(sessionID: documentGeneration, revision: contentRevision)
+    }
+
+    var canReorderSteps: Bool {
+        searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    func setSaveFailure(_ message: String?) {
+        guard saveFailure != message else { return }
+        saveFailure = message
+        if let message {
+            AppAccessibility.announce(String(localized: "Guide changes not saved. \(message)"), priority: .high)
+        }
+    }
+
+    /// Rebase media after Save As without replacing authored content, selection,
+    /// or commands. Edits made during the write remain in the current session.
+    func adoptPersistedMedia(from document: EditableGuideDocument) {
+        for segment in project.timeline.segments {
+            if let url = document.mediaSegmentURLs[segment.id] {
+                mediaSegmentURLs[segment.id] = url
+            }
+        }
+        lastCommandDate = .distantPast
+    }
 
     func displayNumber(for stepID: UUID) -> Int? {
         GuideStepNumbering.activeNumber(for: stepID, in: project.steps)
@@ -113,6 +143,7 @@ final class GuideEditorController: ObservableObject {
     }
 
     func reorder(from offsets: IndexSet, to destination: Int) {
+        guard canReorderSteps else { return }
         update(name: "Reorder Steps") { $0.steps.move(fromOffsets: offsets, toOffset: destination) }
     }
 
@@ -135,8 +166,8 @@ final class GuideEditorController: ObservableObject {
     func restore(stepID: UUID) { update(name: "Restore Step") { project in if let i = project.steps.firstIndex(where: { $0.id == stepID }) { project.steps[i].isDeleted = false } } }
     func setIncluded(_ included: Bool, stepID: UUID) { update(name: included ? "Include Step" : "Exclude Step") { project in if let i = project.steps.firstIndex(where: { $0.id == stepID }) { project.steps[i].isIncluded = included } } }
 
-    func addStep(_ step: GuideStep, image: CGImage, at index: Int? = nil) {
-        execute(GuideInsertStepCommand(step: step, image: image, index: index ?? project.steps.count))
+    func addStep(_ step: GuideStep, image: CGImage, at index: Int? = nil, advancedEdit: EditableScreenshotDocument? = nil) {
+        execute(GuideInsertStepCommand(step: step, image: image, index: index ?? project.steps.count, advancedEdit: advancedEdit))
     }
 
     func addImportedImage(_ image: CGImage, caption: String = "Review this image.", advancedEdit: EditableScreenshotDocument? = nil) {
@@ -150,28 +181,28 @@ final class GuideEditorController: ObservableObject {
                 sourcePixelSize: size
             )
         )
-        addStep(step, image: image)
-        if let advancedEdit { replaceAdvancedEditWithoutCommand(advancedEdit, stepID: step.id) }
+        addStep(step, image: image, advancedEdit: advancedEdit)
     }
 
     func duplicateSelected() {
         let selected = project.steps.filter { selection.contains($0.id) }
         guard !selected.isEmpty else { return }
-        var newSelection: Set<UUID> = []
+        var insertions: [GuideInsertStepCommand] = []
         for original in selected {
             guard let image = stepImages[original.id] else { continue }
             var copy = original
             copy.id = UUID()
             copy.caption += " (Copy)"
             copy.capturedAt = Date()
-            addStep(copy, image: image, at: (project.steps.firstIndex(where: { $0.id == original.id }) ?? project.steps.count) + 1)
-            newSelection.insert(copy.id)
+            let index = (project.steps.firstIndex(where: { $0.id == original.id }) ?? project.steps.count) + 1 + insertions.count
+            insertions.append(GuideInsertStepCommand(step: copy, image: image, index: index, advancedEdit: advancedEdits[original.id]))
         }
-        selection = newSelection
+        guard !insertions.isEmpty else { return }
+        execute(GuideDuplicateStepsCommand(insertions: insertions))
     }
 
     func moveSelection(by offset: Int) {
-        guard !selection.isEmpty else { return }
+        guard canReorderSteps, !selection.isEmpty else { return }
         update(name: offset < 0 ? "Move Steps Up" : "Move Steps Down") { project in
             let indices = project.steps.indices.filter { selection.contains(project.steps[$0].id) }
             let ordered = offset < 0 ? indices : indices.reversed()
@@ -341,15 +372,22 @@ final class GuideEditorController: ObservableObject {
         updateCommandState()
     }
 
-    func replaceProjectWithoutCommand(_ project: GuideProject) { self.project = project }
+    func replaceProjectWithoutCommand(_ project: GuideProject) {
+        self.project = project
+        contentRevision &+= 1
+    }
 
-    func insertStepWithoutCommand(_ step: GuideStep, image: CGImage, at index: Int) {
+    func insertStepWithoutCommand(_ originalStep: GuideStep, image: CGImage, at index: Int, advancedEdit: EditableScreenshotDocument? = nil) {
+        var step = originalStep
+        step.session.annotationSessionAsset = advancedEdit == nil ? nil : "advanced.sss"
         project.steps.insert(step, at: min(max(index, 0), project.steps.count))
         stepImages[step.id] = image
+        advancedEdits[step.id] = advancedEdit
         imageRevisions[step.id, default: 0] += 1
         requestThumbnail(for: step.id, priority: .userInitiated)
         project.normalizeStepSequence()
         selection = [step.id]
+        contentRevision &+= 1
     }
 
     func removeStepWithoutCommand(id: UUID) {
@@ -359,8 +397,10 @@ final class GuideEditorController: ObservableObject {
         project.steps.removeAll { $0.id == id }
         stepImages[id] = nil
         stepThumbnails[id] = nil
+        advancedEdits[id] = nil
         project.normalizeStepSequence()
         selection.remove(id)
+        contentRevision &+= 1
     }
 
     private func updateCommandState() {

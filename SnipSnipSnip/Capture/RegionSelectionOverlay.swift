@@ -292,6 +292,8 @@ private final class RegionSelectionCoordinator {
     private let snapshot: DesktopCompositeSnapshot
     private let windows: [CaptureWindowSummary]
     let preferences: RegionCapturePreferences
+    private(set) var windowHoverAnimationStartTime = CACurrentMediaTime()
+    private var lastHoveredWindowID: CGWindowID?
     private let onCaptureCursorHiddenChange: (Bool) -> Void
     private let onComplete: (RegionCaptureSelection?) -> Void
     private let constraint: RegionSelectionConstraint
@@ -375,6 +377,15 @@ private final class RegionSelectionCoordinator {
         dragMode != nil
     }
 
+    var hoveredWindow: RegionSelectionWindowHover? {
+        RegionSelectionWindowHover.resolve(
+            at: cursorGlobalPoint,
+            in: windows,
+            selectionRect: selectionRect,
+            isInteracting: mouseDownGlobalPoint != nil || isActivelyDraggingSelection
+        )
+    }
+
     var showsCaptureAimingUI: Bool {
         !isAdjustingPrecisionSelection
     }
@@ -387,7 +398,8 @@ private final class RegionSelectionCoordinator {
         let base = preferences.showsRegionConfirmationControls
             ? "Drag to select a region. Click Capture or press Return when ready. Esc cancels."
             : "Drag to select a region. Release captures. Esc cancels."
-        return constraint == .singleDisplay ? "\(base) Guide regions stay on one display." : base
+        let instructions = constraint == .singleDisplay ? "\(base) Guide regions stay on one display." : base
+        return windows.isEmpty ? instructions : instructions + "\n" + String(localized: "Click an outlined window to select it.")
     }
 
     private var isAdjustingPrecisionSelection: Bool {
@@ -539,7 +551,7 @@ private final class RegionSelectionCoordinator {
         case .none:
             actionControlsDisplayID = nil
             actionControlsGlobalPoint = nil
-            if let clickedWindow = gscTopmostWindow(at: point, in: windows) {
+            if let clickedWindow = CaptureWindowTargetResolver.resolve(atCaptureGlobalPoint: point, in: windows) {
                 onComplete(.window(clickedWindow))
                 return
             }
@@ -704,6 +716,11 @@ private final class RegionSelectionCoordinator {
     }
 
     private func notifyViews() {
+        let hoveredWindowID = hoveredWindow?.window.id
+        if hoveredWindowID != lastHoveredWindowID {
+            lastHoveredWindowID = hoveredWindowID
+            windowHoverAnimationStartTime = CACurrentMediaTime()
+        }
         onCaptureCursorHiddenChange(showsCaptureAimingUI)
         views.removeAll { $0.view == nil }
         views.forEach { $0.view?.refreshSelectionState() }
@@ -728,6 +745,7 @@ private final class RegionSelectionView: NSView, NSTextFieldDelegate {
     private let displayPreview: DisplayPreview
     private let coordinator: RegionSelectionCoordinator
     private let canvasView: RegionSelectionCanvasView
+    private let selectionHighlightView: CaptureSelectionWindowHighlightView
     private let crosshairOverlayView: RegionSelectionCrosshairOverlayView?
     private let cursorOverlayView: RegionSelectionCursorOverlayView
     private var trackingAreaRef: NSTrackingArea?
@@ -738,6 +756,7 @@ private final class RegionSelectionView: NSView, NSTextFieldDelegate {
     private let captureButton = NSButton(title: "Capture", target: nil, action: nil)
     private let cancelButton = NSButton(title: "Cancel", target: nil, action: nil)
     private var lastSelectionRect: CGRect?
+    private var lastHoveredWindowRect: CGRect?
     private var lastShowsActionControls = false
     private var lastActionControlsVisible = false
     private var lastAspectRatioLocked = false
@@ -749,6 +768,7 @@ private final class RegionSelectionView: NSView, NSTextFieldDelegate {
             displayPreview: displayPreview,
             instructionText: coordinator.instructionText
         )
+        self.selectionHighlightView = CaptureSelectionWindowHighlightView(frame: CGRect(origin: .zero, size: displayPreview.snapshot.overlayFrame.size))
         self.crosshairOverlayView = coordinator.preferences.overlayMode.showsCrosshair
             ? RegionSelectionCrosshairOverlayView(displayPreview: displayPreview)
             : nil
@@ -849,20 +869,39 @@ private final class RegionSelectionView: NSView, NSTextFieldDelegate {
         }
         let showsActionControls = coordinator.shouldShowActionControls(on: displayPreview.snapshot.displayID)
         let isActivelyDraggingSelection = coordinator.isActivelyDraggingSelection
+        let hoveredWindow = coordinator.hoveredWindow
+        if let selectionRect {
+            selectionHighlightView.refreshRegion(
+                selectionRect,
+                on: displayPreview.snapshot,
+                transitionStartTime: coordinator.windowHoverAnimationStartTime
+            )
+        } else {
+            selectionHighlightView.refresh(
+                windowID: hoveredWindow?.window.id,
+                rect: hoveredWindow?.localOutlineRect(on: displayPreview.snapshot),
+                label: hoveredWindow?.window.displayTitle,
+                transitionStartTime: coordinator.windowHoverAnimationStartTime
+            )
+        }
 
+        let hoveredWindowRect = hoveredWindow?.window.frame
         if selectionRect != lastSelectionRect ||
+            hoveredWindowRect != lastHoveredWindowRect ||
             showsActionControls != lastShowsActionControls ||
             coordinator.isAspectRatioLocked != lastAspectRatioLocked {
             updateActionButtons()
             let actionControlsVisible = showsActionControls && !captureButton.isHidden
             canvasView.refresh(
                 selectionRect: selectionRect,
+                hoveredWindowRect: hoveredWindowRect,
                 showsActionControls: showsActionControls,
                 actionControlsVisible: actionControlsVisible,
                 isActivelyDraggingSelection: isActivelyDraggingSelection
             )
 
             lastSelectionRect = selectionRect
+            lastHoveredWindowRect = hoveredWindowRect
             lastShowsActionControls = showsActionControls
             lastActionControlsVisible = actionControlsVisible
             lastAspectRatioLocked = coordinator.isAspectRatioLocked
@@ -935,6 +974,10 @@ private final class RegionSelectionView: NSView, NSTextFieldDelegate {
         canvasView.frame = bounds
         canvasView.autoresizingMask = [.width, .height]
         addSubview(canvasView)
+
+        selectionHighlightView.frame = bounds
+        selectionHighlightView.autoresizingMask = [.width, .height]
+        addSubview(selectionHighlightView)
 
         if let crosshairOverlayView {
             crosshairOverlayView.frame = bounds
@@ -1096,6 +1139,7 @@ private final class RegionSelectionCanvasView: RegionSelectionPassThroughView {
     private let displayPreview: DisplayPreview
     private let instructionText: String
     private var selectionRect: CGRect?
+    private var hoveredWindowRect: CGRect?
     private var showsActionControls = false
     private var actionControlsVisible = false
     private var isActivelyDraggingSelection = false
@@ -1115,12 +1159,16 @@ private final class RegionSelectionCanvasView: RegionSelectionPassThroughView {
         true
     }
 
-    func refresh(selectionRect: CGRect?, showsActionControls: Bool, actionControlsVisible: Bool, isActivelyDraggingSelection: Bool) {
+    func refresh(selectionRect: CGRect?, hoveredWindowRect: CGRect?, showsActionControls: Bool, actionControlsVisible: Bool, isActivelyDraggingSelection: Bool) {
         let previousSelectionRect = self.selectionRect
         let previousShowsActionControls = self.showsActionControls
         let previousActionControlsVisible = self.actionControlsVisible
         let previousIsActivelyDraggingSelection = self.isActivelyDraggingSelection
 
+        if self.hoveredWindowRect != hoveredWindowRect {
+            self.hoveredWindowRect = hoveredWindowRect
+            needsDisplay = true
+        }
         self.selectionRect = selectionRect
         self.showsActionControls = showsActionControls
         self.actionControlsVisible = actionControlsVisible
@@ -1142,23 +1190,13 @@ private final class RegionSelectionCanvasView: RegionSelectionPassThroughView {
         super.draw(dirtyRect)
         NSGraphicsContext.current?.cgContext.clear(dirtyRect)
 
-        let dimPath = NSBezierPath(rect: bounds)
-
         if let selectionRect {
             let displayFrame = displayPreview.snapshot.frame
             let visibleSelection = selectionRect.intersection(displayFrame).gscIntegralStandardized
 
             if visibleSelection.width > 0, visibleSelection.height > 0 {
                 let localSelection = overlayLocalRect(fromCaptureGlobalRect: visibleSelection, display: displayPreview.snapshot)
-                dimPath.append(NSBezierPath(rect: localSelection))
-                dimPath.windingRule = .evenOdd
-                NSColor.black.withAlphaComponent(0.42).setFill()
-                dimPath.fill()
-
-                NSColor.white.setStroke()
-                let border = NSBezierPath(rect: localSelection)
-                border.lineWidth = 2
-                border.stroke()
+                CaptureSelectionAppearance.drawDimming(in: bounds, excluding: localSelection)
 
                 if isActivelyDraggingSelection {
                     drawActiveSelectionDimensions(selectionRect, localSelection: localSelection)
@@ -1175,18 +1213,14 @@ private final class RegionSelectionCanvasView: RegionSelectionPassThroughView {
                     ])
                 }
             } else {
-                NSColor.black.withAlphaComponent(0.42).setFill()
-                dimPath.fill()
+                CaptureSelectionAppearance.drawDimming(in: bounds, excluding: nil)
             }
         } else {
-            NSColor.black.withAlphaComponent(0.42).setFill()
-            dimPath.fill()
-            let info = NSString(string: instructionText)
-            let infoRect = CGRect(x: 24, y: 24, width: 520, height: 22)
-            info.draw(in: infoRect, withAttributes: [
-                .foregroundColor: NSColor.white,
-                .font: NSFont.systemFont(ofSize: 15, weight: .semibold)
-            ])
+            let hoveredRect = hoveredWindowRect.map {
+                overlayLocalRect(fromCaptureGlobalRect: $0, display: displayPreview.snapshot)
+            }
+            CaptureSelectionAppearance.drawDimming(in: bounds, excluding: hoveredRect)
+            CaptureSelectionAppearance.drawInstructions(instructionText, in: bounds)
         }
 
     }
@@ -1283,7 +1317,7 @@ private final class RegionSelectionCanvasView: RegionSelectionPassThroughView {
     }
 
     private func instructionsDirtyRect() -> CGRect {
-        CGRect(x: 16, y: 16, width: 560, height: 36)
+        CGRect(x: 16, y: 16, width: min(736, max(0, bounds.width - 32)), height: 80)
     }
 
 }
@@ -1418,6 +1452,7 @@ private final class RegionSelectionCrosshairOverlayView: RegionSelectionPassThro
 
 @MainActor
 private final class RegionSelectionCursorOverlayView: RegionSelectionPassThroughView {
+    private let dimensionCaptionRenderer = RegionSelectionDimensionCaptionRenderer()
     private let displayPreview: DisplayPreview
     private let fallbackImage: CGImage
     private weak var livePreviewSource: LiveDesktopPreviewSource?
@@ -1647,17 +1682,15 @@ private final class RegionSelectionCursorOverlayView: RegionSelectionPassThrough
     }
 
     private func drawLoupeCaption(in loupeRect: CGRect) {
-        guard isActivelyDraggingSelection, let selectionRect else {
+        guard isActivelyDraggingSelection, let selectionRect,
+              let context = NSGraphicsContext.current?.cgContext else {
             return
         }
 
-        let captionText = "\(Int(selectionRect.width.rounded())) × \(Int(selectionRect.height.rounded()))"
-        NSString(string: captionText).draw(
+        dimensionCaptionRenderer.draw(
+            size: selectionRect.size,
             in: CGRect(x: loupeRect.minX + 12, y: loupeRect.maxY - 24, width: loupeRect.width - 24, height: 14),
-            withAttributes: [
-                .foregroundColor: NSColor.white.withAlphaComponent(0.78),
-                .font: NSFont.monospacedSystemFont(ofSize: 10, weight: .semibold)
-            ]
+            context: context
         )
     }
 }

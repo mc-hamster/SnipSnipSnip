@@ -41,8 +41,14 @@ nonisolated class SSSAutomationScriptCommand: NSScriptCommand {
     }
 
     override func performDefaultImplementation() -> Any? {
+        // Validate untrusted numbers before constructing typed commands.
+        if let error = malformedArgumentError() {
+            return AutomationJSON.string(for: .failure(
+                requestID: UUID(), code: error.code, message: error.message
+            ))
+        }
         let request = request()
-        if let error = malformedArgumentError() ?? request.validationError {
+        if let error = request.validationError {
             return AutomationJSON.string(for: .failure(
                 requestID: request.id,
                 code: error.code,
@@ -219,6 +225,30 @@ nonisolated class SSSAutomationScriptCommand: NSScriptCommand {
     }
 }
 
+@objc(SSSExecuteCommandLineCommand)
+final class SSSExecuteCommandLineCommand: SSSAutomationScriptCommand {
+    private func parsed() -> AutomationCLIParseResult? {
+        guard let json = stringArgument("argumentsJSON"),
+              let data = json.data(using: .utf8),
+              let arguments = try? JSONDecoder().decode([String].self, from: data) else { return nil }
+        return AutomationCLIParser.parse(arguments)
+    }
+
+    override func malformedArgumentError() -> AutomationError? {
+        guard let result = parsed() else {
+            return AutomationError(code: .invalidRequest, message: "Command-line arguments must be a JSON array of strings.")
+        }
+        guard result.request != nil else {
+            return AutomationError(code: .invalidRequest, message: result.errorMessage ?? "Invalid command-line request.")
+        }
+        return nil
+    }
+
+    override func request() -> AutomationRequest {
+        parsed()?.request ?? super.request()
+    }
+}
+
 @objc(SSSAutomationStatusCommand)
 final class SSSAutomationStatusCommand: SSSAutomationScriptCommand {
     override func request() -> AutomationRequest {
@@ -235,6 +265,14 @@ final class SSSListCapturePresetsCommand: SSSAutomationScriptCommand {
 
 @objc(SSSRunCapturePresetCommand)
 final class SSSRunCapturePresetCommand: SSSAutomationScriptCommand {
+    override func malformedArgumentError() -> AutomationError? {
+        if let error = super.malformedArgumentError() { return error }
+        if hasArgument("id"), uuidArgument("id") == nil {
+            return AutomationError(code: .invalidRequest, message: "Preset id must be a UUID.")
+        }
+        return nil
+    }
+
     override func request() -> AutomationRequest {
         let id = stringArgument("id").flatMap(UUID.init(uuidString:))
         let name = stringArgument("name")
@@ -443,7 +481,7 @@ final class SSSSetCompositionLayoutCommand: SSSAutomationScriptCommand {
             ("stepStartIndex", "Step start index"),
         ] where hasArgument(name) {
             guard let value = doubleArgument(name),
-                  value.rounded(.towardZero) == value else {
+                  Int(exactly: value) != nil else {
                 return AutomationError(
                     code: .invalidRequest,
                     message: "\(label) must be an integer."
@@ -503,12 +541,12 @@ final class SSSSetCompositionLayoutCommand: SSSAutomationScriptCommand {
             command: .composition(.setLayout(AutomationCompositionLayoutCommand(
                 layout: layout,
                 axis: axis,
-                gridColumns: doubleArgument("gridColumns").map(Int.init),
+                gridColumns: doubleArgument("gridColumns").flatMap { Int(exactly: $0) },
                 targetAspectRatio: doubleArgument("targetAspectRatio"),
                 freeformCanvasWidth: doubleArgument("freeformWidth"),
                 freeformCanvasHeight: doubleArgument("freeformHeight"),
                 stepNumberingStyle: stepNumberingStyle,
-                stepStartIndex: doubleArgument("stepStartIndex").map(Int.init),
+                stepStartIndex: doubleArgument("stepStartIndex").flatMap { Int(exactly: $0) },
                 stepShowsCaptions: optionalBoolArgument("stepCaptions"),
                 stepConnectorStyle: stepConnectorStyle
             ))),

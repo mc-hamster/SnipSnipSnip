@@ -27,6 +27,10 @@ extension CaptureWorkflowModel {
             completionRole: completionRole,
             oneShotOptions: oneShotOptions
         )
+        presentPreparedWindowPicker()
+    }
+
+    func presentPreparedWindowPicker() {
         runWindowScreenshotCaptureWhenPermissionsReady { [weak self] in
             guard let self else {
                 return
@@ -76,14 +80,11 @@ extension CaptureWorkflowModel {
             defer { isWorking = false }
 
             do {
-                let windowOptions = windows.isEmpty ? try await captureService.listWindows(includeThumbnails: false) : windows
+                let windowOptions = try await captureService.listWindows(includeThumbnails: false)
                 let snapshot = try await captureService.captureDesktopOverlaySnapshot()
                 let session = WindowSelectionSession(
                     snapshot: snapshot,
-                    windows: windowOptions,
-                    capabilities: dependencies.capabilities,
-                    accessibility: dependencies.systemServices.accessibility,
-                    screens: dependencies.systemServices.screens
+                    windows: windowOptions
                 )
 
                 guard let selectedWindow = await session.begin() else {
@@ -94,7 +95,6 @@ extension CaptureWorkflowModel {
                 try await runCaptureDelayIfNeeded(actionName: "Capturing Window", delay: runOptions.captureDelay)
                 let resolvedWindow = try await captureService.resolveWindowTarget(selectedWindow)
                 let capture = try await captureService.captureWindow(resolvedWindow)
-                showCapturedFeedback()
                 try completeCapture(
                     capture,
                     request: .window(resolvedWindow),
@@ -206,7 +206,6 @@ extension CaptureWorkflowModel {
                 )
                 let resolvedWindow = try await captureService.resolveWindowTarget(window)
                 let capture = try await captureService.captureWindow(resolvedWindow)
-                showCapturedFeedback()
                 try completeCapture(
                     capture,
                     request: .window(resolvedWindow),

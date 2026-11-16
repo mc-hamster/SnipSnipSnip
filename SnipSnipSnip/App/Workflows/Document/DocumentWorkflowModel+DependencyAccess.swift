@@ -27,10 +27,6 @@ extension DocumentWorkflowModel {
         dependencies.capabilities.isEnabled(.uiMap) && dependencies.capture.uiMapEnabled
     }
 
-    var autoCopyEnabled: Bool {
-        dependencies.clipboard.autoCopyEnabled
-    }
-
     var clipboardMonitor: ClipboardMonitor {
         dependencies.clipboard.monitor
     }

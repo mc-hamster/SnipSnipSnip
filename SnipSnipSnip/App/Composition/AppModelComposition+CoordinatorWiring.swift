@@ -52,5 +52,7 @@ extension AppModelComposition {
         guide.outputSink = coordinator
         archive.documents = documents
         tools.outputSink = coordinator
+        tools.screenInspectorCoordinator.setPermissionWorkflow(permissions)
+        PermissionRestartCoordinator.restore(permissions: permissions, capture: capture, video: video, guide: guide)
     }
 }

@@ -5,6 +5,152 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class AutomationContractTests: XCTestCase {
+    func testGuideRegionKeepsDocumentedCommandGrammar() {
+        let request = AutomationRequest(source: AutomationSource(kind: .commandLine), command: .guide(.start(.region)), interactionPolicy: .never)
+        XCTAssertNil(request.validationError, "Interaction policy is enforced at execution after build-capability routing")
+        var interactive = request
+        interactive.interactionPolicy = .requireUserSelection
+        XCTAssertNil(interactive.validationError)
+    }
+
+    @MainActor
+    func testUnattendedGuideFailsWithoutTriggeringPermissionSetup() async {
+        let name = "AutomationContractTests.guidePermission.\(UUID())"
+        let defaults = makeDefaults(named: name)
+        defer { defaults.removePersistentDomain(forName: name) }
+        let permissionService = TestCapturePermissionService(
+            statusProvider: { CapturePermissionStatus(hasScreenRecording: false, hasAccessibility: false) },
+            requestHandler: { _ in XCTFail("Unattended Guide requested access"); return false },
+            settingsHandler: { _ in XCTFail("Unattended Guide opened System Settings") }
+        )
+        let model = retainForTestLifetime(AppModel(
+            defaults: defaults,
+            environment: AppEnvironment(defaults: defaults, buildTarget: .selfRelease, permissions: permissionService),
+            recoveryStore: DocumentRecoveryStore(baseURL: FileManager.default.temporaryDirectory.appendingPathComponent(name)),
+            shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false
+        ))
+        let request = AutomationRequest(source: AutomationSource(kind: .commandLine), command: .guide(.start(.display)), interactionPolicy: .never)
+        let result = await model.guide.guideAutomation(.start(.display), request: request)
+        XCTAssertEqual(result.error?.code, .permissionDenied)
+        let regionRequest = AutomationRequest(source: AutomationSource(kind: .commandLine), command: .guide(.start(.region)), interactionPolicy: .never)
+        let regionResult = await model.guide.guideAutomation(.start(.region), request: regionRequest)
+        XCTAssertEqual(regionResult.error?.code, .invalidRequest)
+        XCTAssertFalse(model.guide.isShowingQuickStart)
+        XCTAssertNil(model.permissions.activePermissionRequest)
+        XCTAssertNil(model.permissions.permissionSetupGuide)
+    }
+
+    func testInteractiveRegionAndWindowAutomationShareTheSamePointerTarget() throws {
+        let display = DisplaySnapshot(displayID: 1, name: "Above", frame: CGRect(x: 0, y: -900, width: 1600, height: 900), overlayFrame: CGRect(x: 0, y: 1080, width: 1600, height: 900), scale: 2)
+        let foreground = makeCaptureWindow(id: 2, focusRank: 0, frame: CGRect(x: 100, y: -800, width: 400, height: 300))
+        let background = makeCaptureWindow(id: 1, focusRank: 5, frame: display.frame)
+        let windows = [background, foreground]
+        let point = foreground.frame.center
+        for kind in ["region", "window"] {
+            let request = try XCTUnwrap(AutomationCLIParser.parse(["capture", kind, "--interactive", "--copy"]).request)
+            XCTAssertEqual(request.interactionPolicy, .requireUserSelection)
+        }
+        let regionTarget = try XCTUnwrap(RegionSelectionWindowHover.resolve(at: point, in: windows, selectionRect: nil, isInteracting: false))
+        let windowTarget = try XCTUnwrap(CaptureWindowTargetResolver.resolve(atOverlayScreenPoint: display.captureDisplayTransform.overlayGlobalPoint(fromCaptureGlobalPoint: point), in: windows, displayTransform: display.captureDisplayTransform))
+        XCTAssertEqual(regionTarget.window.id, windowTarget.id)
+        XCTAssertEqual(windowTarget.id, foreground.id)
+    }
+
+    func testExplicitWindowAutomationCanResolveDialogWhileFrontmostKeepsNormalWindow() async throws {
+        let document = makeScreenWindowSnapshot(id: 900_001, title: "Document")
+        let dialog = makeScreenWindowSnapshot(id: 900_002, title: "Reminders", layer: Int(CGWindowLevelForKey(.modalPanelWindow)))
+        let service = ScreenCaptureService(
+            permissions: TestCapturePermissionService(status: CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false)),
+            windows: [document, dialog],
+            frontmostApplicationProcessIdentifier: document.ownerPID
+        )
+        let request = try XCTUnwrap(AutomationCLIParser.parse(["capture", "window", "--interactive", "--copy"]).request)
+        XCTAssertEqual(request.interactionPolicy, .requireUserSelection)
+        let windows = try await service.listWindows(includeThumbnails: false)
+        let selected = try XCTUnwrap(windows.first { $0.id == dialog.id })
+        // Saved-window presets and repeat resolve through the same service.
+        let resolved = try await service.resolveWindowTarget(selected)
+        XCTAssertEqual(resolved.id, dialog.id)
+        let frontmost = try await service.frontmostWindow()
+        XCTAssertEqual(frontmost.id, document.id)
+    }
+
+    @MainActor
+    func testExplicitAutomationCopyPreservesContractWithoutGlobalAutoCopy() async throws {
+        let name = "AutomationContractTests.explicitCopy.\(UUID())"
+        let defaults = makeDefaults(named: name)
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set(true, forKey: "appModel.autoCopyEnabled")
+        let pasteboard = TestPasteboardService()
+        pasteboard.setString("Existing clipboard", forType: .string)
+        let app = retainForTestLifetime(AppModel(
+            defaults: defaults,
+            environment: makePasteboardTestEnvironment(defaults: defaults, pasteboard: pasteboard),
+            recoveryStore: DocumentRecoveryStore(baseURL: FileManager.default.temporaryDirectory.appendingPathComponent(name)),
+            shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false
+        ))
+        try app.capture.completeCapture(makeCapturedScreenshot(), request: .fullscreen,
+                                        isPrivateCapture: false, shouldAttemptUIMapCapture: false,
+                                        allowsCapturePreview: false)
+        let service = AutomationOutputService(port: app.automation, pasteboard: pasteboard)
+        let before = pasteboard.changeCount
+        let editorResults = try await service.write(.openEditor)
+        XCTAssertEqual(editorResults.map(\.kind), [.openedEditor])
+        try await Task.sleep(nanoseconds: 350_000_000)
+        XCTAssertEqual(pasteboard.changeCount, before)
+        XCTAssertEqual(pasteboard.string(forType: .string), "Existing clipboard")
+        let copyResults = try await service.write(.copyRenderedImage)
+        XCTAssertEqual(copyResults.map(\.kind), [.copiedClipboard])
+        XCTAssertNotNil(pasteboard.data(forType: .png))
+    }
+
+    @MainActor
+    func testConflictingCompositionCopyReturnsOutputFailureWithoutChangingClipboard() async throws {
+        let name = "AutomationContractTests.conflictingComposition.\(UUID())"
+        let defaults = makeDefaults(named: name)
+        defer { defaults.removePersistentDomain(forName: name) }
+        let pasteboard = TestPasteboardService()
+        pasteboard.setString("Existing clipboard", forType: .string)
+        let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        let app = retainForTestLifetime(AppModel(
+            defaults: defaults,
+            environment: makePasteboardTestEnvironment(defaults: defaults, pasteboard: pasteboard),
+            recoveryStore: DocumentRecoveryStore(baseURL: rootURL),
+            shouldCheckCompatibilityOnLaunch: false, shouldStartArchiveMaintenance: false
+        ))
+        try app.capture.completeCapture(makeCapturedScreenshot(), request: .fullscreen,
+                                        isPrivateCapture: false, shouldAttemptUIMapCapture: false,
+                                        allowsCapturePreview: false)
+        let controller = try XCTUnwrap(app.documents.editorController)
+        var composition = try XCTUnwrap(controller.composition)
+        composition.items.append(try XCTUnwrap(composition.items.first))
+        composition.isActivated = true
+        // Inject an invalid incoming session to exercise the final output
+        // boundary independently of command admission and package validation.
+        var snapshot = controller.snapshot
+        snapshot.composition = composition
+        let invalidController = retainForTestLifetime(EditorController(
+            capture: controller.capture,
+            session: makeEditorDocumentSession(initialSnapshot: snapshot),
+            defaults: defaults, capabilities: testCapabilities,
+            compositionStoredAssets: controller.compositionAssetRepository.storedAssets()
+        ))
+        app.documents.editorController = invalidController
+        let changeCount = pasteboard.changeCount
+        let service = AutomationOutputService(port: app.automation, pasteboard: pasteboard)
+
+        do {
+            _ = try await service.write(.copyRenderedImage)
+            XCTFail("Conflicting image entries must fail automation output")
+        } catch {
+            XCTAssertEqual((error as? AutomationExecutionError)?.code, .outputFailed)
+        }
+        XCTAssertEqual(invalidController.snapshot, snapshot)
+        XCTAssertEqual(pasteboard.changeCount, changeCount)
+        XCTAssertEqual(pasteboard.string(forType: .string), "Existing clipboard")
+    }
+
     func testAutomationValueParserParsesSharedRectangleFormat() {
         XCTAssertEqual(
             AutomationValueParser.rect(" 10, 20, 300, 200 "),
@@ -764,22 +910,22 @@ final class AutomationContractTests: XCTestCase {
     }
 
     func testURLRouterParsesEveryV1RouteAndPreservesPasteboardImportRoute() async throws {
-        assertRoute("snipsnipsnip://v1/status") { XCTAssertEqual($0.command, .status) }
-        assertRoute("snipsnipsnip://v1/presets/run?id=00000000-0000-0000-0000-000000000001&output=editor") {
+        assertRoute("\(AppImportURL.scheme)://v1/status") { XCTAssertEqual($0.command, .status) }
+        assertRoute("\(AppImportURL.scheme)://v1/presets/run?id=00000000-0000-0000-0000-000000000001&output=editor") {
             guard case .runPreset(let command) = $0.command else {
                 return XCTFail("Expected runPreset command.")
             }
             XCTAssertEqual(command.id?.uuidString, "00000000-0000-0000-0000-000000000001")
             XCTAssertEqual($0.output, .openEditor)
         }
-        assertRoute("snipsnipsnip://v1/presets/run?name=Daily%20Clip&output=clipboard") {
+        assertRoute("\(AppImportURL.scheme)://v1/presets/run?name=Daily%20Clip&output=clipboard") {
             guard case .runPreset(let command) = $0.command else {
                 return XCTFail("Expected runPreset command.")
             }
             XCTAssertEqual(command.name, "Daily Clip")
             XCTAssertEqual($0.output, .copyRenderedImage)
         }
-        assertRoute("snipsnipsnip://v1/capture/fullscreen?display=current&output=clipboard") {
+        assertRoute("\(AppImportURL.scheme)://v1/capture/fullscreen?display=current&output=clipboard") {
             guard case .capture(let command) = $0.command,
                   case .fullscreen(let target) = command.target else {
                 return XCTFail("Expected fullscreen capture command.")
@@ -788,7 +934,7 @@ final class AutomationContractTests: XCTestCase {
             XCTAssertEqual($0.output, .copyRenderedImage)
         }
         let appendAfterItemID = UUID()
-        assertRoute("snipsnipsnip://v1/capture/fullscreen?output=editor&destination=append&after=\(appendAfterItemID.uuidString)&appearance=plain") {
+        assertRoute("\(AppImportURL.scheme)://v1/capture/fullscreen?output=editor&destination=append&after=\(appendAfterItemID.uuidString)&appearance=plain") {
             XCTAssertEqual($0.captureDestination, .append)
             XCTAssertEqual(
                 $0.appendAfterCompositionItemID,
@@ -798,7 +944,7 @@ final class AutomationContractTests: XCTestCase {
             XCTAssertNil($0.validationError)
         }
         let replacementID = UUID()
-        assertRoute("snipsnipsnip://v1/capture/frontmost-window?output=editor&destination=replace&replaceItemID=\(replacementID.uuidString)&appearance=styled") {
+        assertRoute("\(AppImportURL.scheme)://v1/capture/frontmost-window?output=editor&destination=replace&replaceItemID=\(replacementID.uuidString)&appearance=styled") {
             guard case .capture(let command) = $0.command else {
                 return XCTFail("Expected capture command.")
             }
@@ -807,12 +953,12 @@ final class AutomationContractTests: XCTestCase {
             XCTAssertEqual($0.replaceCompositionItemID, replacementID)
             XCTAssertEqual($0.appearance, .styled)
         }
-        assertRoute("snipsnipsnip://v1/capture/frontmost-window?output=editor&destination=replace&item=\(replacementID.uuidString)") {
+        assertRoute("\(AppImportURL.scheme)://v1/capture/frontmost-window?output=editor&destination=replace&item=\(replacementID.uuidString)") {
             XCTAssertEqual($0.captureDestination, .replace)
             XCTAssertEqual($0.replaceCompositionItemID, replacementID)
             XCTAssertNil($0.validationError)
         }
-        assertRoute("snipsnipsnip://v1/capture/region?rect=10,20,300,200&output=editor") {
+        assertRoute("\(AppImportURL.scheme)://v1/capture/region?rect=10,20,300,200&output=editor") {
             guard case .capture(let command) = $0.command,
                   case .region(let selector) = command.target else {
                 return XCTFail("Expected region capture command.")
@@ -820,17 +966,17 @@ final class AutomationContractTests: XCTestCase {
             XCTAssertEqual(selector.rect, CGRect(x: 10, y: 20, width: 300, height: 200))
             XCTAssertEqual($0.output, .openEditor)
         }
-        assertRoute("snipsnipsnip://v1/capture/window?output=clipboard") {
+        assertRoute("\(AppImportURL.scheme)://v1/capture/window?output=clipboard") {
             guard case .capture(let command) = $0.command else {
                 return XCTFail("Expected capture command.")
             }
             XCTAssertEqual(command.target, .interactiveWindow)
             XCTAssertEqual($0.interactionPolicy, .requireUserSelection)
         }
-        assertRoute("snipsnipsnip://v1/repeat-last?output=editor") {
+        assertRoute("\(AppImportURL.scheme)://v1/repeat-last?output=editor") {
             XCTAssertEqual($0.command, .repeatLastCapture)
         }
-        assertRoute("snipsnipsnip://v1/composition/layout?layout=steps&axis=vertical&stepNumbering=uppercase-roman&stepStartIndex=3&stepCaptions=false&stepConnector=arrow") {
+        assertRoute("\(AppImportURL.scheme)://v1/composition/layout?layout=steps&axis=vertical&stepNumbering=uppercase-roman&stepStartIndex=3&stepCaptions=false&stepConnector=arrow") {
             XCTAssertEqual(
                 $0.command,
                 .composition(.setLayout(AutomationCompositionLayoutCommand(
@@ -843,7 +989,7 @@ final class AutomationContractTests: XCTestCase {
                 )))
             )
         }
-        assertRoute("snipsnipsnip://v1/composition/compare?mode=wipe&firstItemID=00000000-0000-0000-0000-000000000001&secondItemID=00000000-0000-0000-0000-000000000002&wipePosition=0.4") {
+        assertRoute("\(AppImportURL.scheme)://v1/composition/compare?mode=wipe&firstItemID=00000000-0000-0000-0000-000000000001&secondItemID=00000000-0000-0000-0000-000000000002&wipePosition=0.4") {
             XCTAssertEqual(
                 $0.command,
                 .composition(.setCompareMode(AutomationCompositionCompareCommand(
@@ -854,7 +1000,7 @@ final class AutomationContractTests: XCTestCase {
                 )))
             )
         }
-        assertRoute("snipsnipsnip://v1/composition/template?id=builtin.numbered-steps") {
+        assertRoute("\(AppImportURL.scheme)://v1/composition/template?id=builtin.numbered-steps") {
             XCTAssertEqual(
                 $0.command,
                 .composition(.applyTemplate(
@@ -864,7 +1010,7 @@ final class AutomationContractTests: XCTestCase {
                 ))
             )
         }
-        assertRoute("snipsnipsnip://v1/export/current?format=html&output=file&outputPath=/tmp/comparison.html&overwrite=true&appearance=styled") {
+        assertRoute("\(AppImportURL.scheme)://v1/export/current?format=html&output=file&outputPath=/tmp/comparison.html&overwrite=true&appearance=styled") {
             XCTAssertEqual($0.command, .exportCurrent(ExportCurrentAutomationCommand(format: .html)))
             XCTAssertEqual(
                 $0.output,
@@ -877,9 +1023,9 @@ final class AutomationContractTests: XCTestCase {
             XCTAssertEqual($0.appearance, .styled)
         }
         for unsupportedFileOutputURL in [
-            "snipsnipsnip://v1/presets/run?name=Daily&output=file&outputPath=/tmp/preset.png&format=png",
-            "snipsnipsnip://v1/capture/fullscreen?output=file&outputPath=/tmp/fullscreen.png&format=png",
-            "snipsnipsnip://v1/repeat-last?output=file&outputPath=/tmp/repeat.png&format=png",
+            "\(AppImportURL.scheme)://v1/presets/run?name=Daily&output=file&outputPath=/tmp/preset.png&format=png",
+            "\(AppImportURL.scheme)://v1/capture/fullscreen?output=file&outputPath=/tmp/fullscreen.png&format=png",
+            "\(AppImportURL.scheme)://v1/repeat-last?output=file&outputPath=/tmp/repeat.png&format=png",
         ] {
             XCTAssertNil(
                 AutomationURLRouter.request(
@@ -893,15 +1039,15 @@ final class AutomationContractTests: XCTestCase {
         XCTAssertNil(
             AutomationURLRouter.request(
                 from: try XCTUnwrap(URL(
-                    string: "snipsnipsnip://v1/capture/fullscreen?destination=append&after=not-a-uuid"
+                    string: "\(AppImportURL.scheme)://v1/capture/fullscreen?destination=append&after=not-a-uuid"
                 ))
             )
         )
         for malformedURL in [
-            "snipsnipsnip://v1/capture/fullscreen?display=bogus",
-            "snipsnipsnip://v1/capture/region?rect=10,20,bad,200",
-            "snipsnipsnip://v1/capture/fullscreen?output=bogus",
-            "snipsnipsnip://v1/composition/template",
+            "\(AppImportURL.scheme)://v1/capture/fullscreen?display=bogus",
+            "\(AppImportURL.scheme)://v1/capture/region?rect=10,20,bad,200",
+            "\(AppImportURL.scheme)://v1/capture/fullscreen?output=bogus",
+            "\(AppImportURL.scheme)://v1/composition/template",
         ] {
             XCTAssertNil(
                 AutomationURLRouter.request(
@@ -913,7 +1059,7 @@ final class AutomationContractTests: XCTestCase {
         let invalidAfterDestination = try XCTUnwrap(
             AutomationURLRouter.request(
                 from: try XCTUnwrap(URL(
-                    string: "snipsnipsnip://v1/capture/fullscreen?destination=new&after=\(appendAfterItemID.uuidString)"
+                    string: "\(AppImportURL.scheme)://v1/capture/fullscreen?destination=new&after=\(appendAfterItemID.uuidString)"
                 ))
             )
         )
@@ -922,7 +1068,7 @@ final class AutomationContractTests: XCTestCase {
             .invalidRequest
         )
 
-        let pasteboardURL = try XCTUnwrap(URL(string: "snipsnipsnip://import-pasteboard?name=com.apple.pasteboard.general&source=Share"))
+        let pasteboardURL = try XCTUnwrap(URL(string: "\(AppImportURL.scheme)://import-pasteboard?name=com.apple.pasteboard.general&source=Share"))
         let pasteboardName = await MainActor.run {
             AppImportURL.pasteboardImportRequest(from: pasteboardURL)?.pasteboardName
         }
@@ -1005,29 +1151,9 @@ final class AutomationContractTests: XCTestCase {
             encoding: .utf8
         )
 
-        for fragment in [
-            "case \"guide\":",
-            "\"start\"",
-            "\"pause\"",
-            "\"resume\"",
-            "\"add-step\"",
-            "\"stop\"",
-            "\"export\"",
-            "appleScriptCommand(\"guide\"",
-            "case \"composition\":",
-            "\"layout\"",
-            "\"compare\"",
-            "\"template\"",
-            "setCompositionLayout",
-            "setCompositionCompareMode",
-            "applyCompositionTemplate",
-            "--destination",
-            "--after-item-id",
-            "--replace-item-id",
-            "--appearance",
-        ] {
-            XCTAssertTrue(text.contains(fragment), "Bundled CLI is missing automation support for \(fragment).")
-        }
+        XCTAssertTrue(text.contains("execute command line argumentsJSON"))
+        XCTAssertTrue(text.contains("JSONSerialization.data(withJSONObject: arguments)"))
+        XCTAssertFalse(text.contains("struct ArgumentCursor"))
 
         let bridge = try String(
             contentsOf: repoRoot().appendingPathComponent(
@@ -1096,7 +1222,7 @@ final class AutomationContractTests: XCTestCase {
 
         XCTAssertEqual(
             scriptingDefinition.components(separatedBy: "com.oontz.SnipSnipSnip.automation").count - 1,
-            14,
+            15,
             "Every exposed command must belong to the CLI's narrow scripting access group."
         )
         XCTAssertTrue(entitlements.contains("com.apple.security.scripting-targets"))

@@ -5,6 +5,18 @@ import CoreImage
 nonisolated struct ScreenshotPresentationRenderResult {
     let image: CGImage
     let layout: ScreenshotPresentationRenderLayout
+    let pixelScale: CGFloat
+    let sceneGeometry: PresentationSceneGeometry?
+    let sceneMappingUnavailable: Bool
+
+    init(image: CGImage, layout: ScreenshotPresentationRenderLayout, pixelScale: CGFloat = 1,
+         sceneGeometry: PresentationSceneGeometry? = nil, sceneMappingUnavailable: Bool = false) {
+        self.image = image
+        self.layout = layout
+        self.pixelScale = pixelScale
+        self.sceneGeometry = sceneGeometry
+        self.sceneMappingUnavailable = sceneMappingUnavailable
+    }
 }
 
 nonisolated struct ScreenshotPresentationRenderLayout: Equatable {
@@ -79,7 +91,8 @@ enum ScreenshotPresentationRenderer {
     nonisolated static func renderWithLayout(
         contentImage: CGImage,
         presentation: ScreenshotPresentation,
-        maxPixelDimension: CGFloat? = nil
+        maxPixelDimension: CGFloat? = nil,
+        logicalContentSize: CGSize? = nil
     ) -> ScreenshotPresentationRenderResult? {
         PresentationPerformanceMetrics.measure(
             "renderer.presentation.total",
@@ -91,55 +104,53 @@ enum ScreenshotPresentationRenderer {
                 return PresentationSceneRenderer.renderWithLayout(
                     contentImage: contentImage,
                     scene: scene,
-                    maxPixelDimension: maxPixelDimension
+                    maxPixelDimension: maxPixelDimension,
+                    logicalContentSize: logicalContentSize
                 )
             }
 
-            let prepared = previewRenderInputs(
+            return renderWithLayoutUnscaled(
                 contentImage: contentImage,
                 presentation: presentation,
-                maxPixelDimension: maxPixelDimension
-            )
-
-            return renderWithLayoutUnscaled(
-                contentImage: prepared.contentImage,
-                presentation: prepared.presentation
+                maxPixelDimension: maxPixelDimension,
+                logicalContentSize: logicalContentSize
             )
         }
     }
 
     nonisolated private static func renderWithLayoutUnscaled(
         contentImage: CGImage,
-        presentation: ScreenshotPresentation
+        presentation: ScreenshotPresentation,
+        maxPixelDimension: CGFloat?,
+        logicalContentSize: CGSize?
     ) -> ScreenshotPresentationRenderResult? {
-        guard presentation.isEnabled else {
-            let size = CGSize(width: contentImage.width, height: contentImage.height)
-            let rect = CGRect(origin: .zero, size: size)
-            return ScreenshotPresentationRenderResult(
-                image: contentImage,
-                layout: ScreenshotPresentationRenderLayout(
-                    canvasSize: size,
-                    subjectRect: rect,
-                    screenRect: rect,
-                    contentRect: rect,
-                    subjectScale: 1,
-                    frame: .none
-                )
-            )
-        }
-
-        let contentSize = CGSize(width: contentImage.width, height: contentImage.height)
+        let contentSize = logicalContentSize ?? CGSize(width: contentImage.width, height: contentImage.height)
+        guard contentSize.width.isFinite, contentSize.height.isFinite,
+              contentSize.width > 0, contentSize.height > 0 else { return nil }
         let metrics = frameMetrics(for: contentSize, presentation: presentation)
         let layout: ScreenshotPresentationRenderLayout = PresentationPerformanceMetrics.measure(
             "renderer.layout",
             context: "content=\(PresentationPerformanceMetrics.size(contentSize)) \(PresentationPerformanceMetrics.presentationSummary(presentation))",
             warnAfterMS: 5
         ) {
-            Self.layout(contentSize: contentSize, presentation: presentation)
+            if presentation.isEnabled {
+                return Self.layout(contentSize: contentSize, presentation: presentation)
+            }
+            let rect = CGRect(origin: .zero, size: contentSize)
+            return ScreenshotPresentationRenderLayout(canvasSize: contentSize, subjectRect: rect,
+                screenRect: rect, contentRect: rect, subjectScale: 1, frame: .none)
         }
-        let width = max(Int(ceil(layout.canvasSize.width)), 1)
-        let height = max(Int(ceil(layout.canvasSize.height)), 1)
-        let canvasSize = CGSize(width: width, height: height)
+        let pixelScale = maxPixelDimension.flatMap { limit -> CGFloat? in
+            guard limit.isFinite, limit > 0 else { return nil }
+            return min(limit / max(layout.canvasSize.width, layout.canvasSize.height), 1)
+        } ?? 1
+        if !presentation.isEnabled, pixelScale == 1,
+           contentSize == CGSize(width: contentImage.width, height: contentImage.height) {
+            return ScreenshotPresentationRenderResult(image: contentImage, layout: layout)
+        }
+        let width = max(Int((layout.canvasSize.width * pixelScale).rounded()), 1)
+        let height = max(Int((layout.canvasSize.height * pixelScale).rounded()), 1)
+        let canvasSize = layout.canvasSize
 
         guard let context = SRGBBitmapContext.make(
             width: width,
@@ -149,10 +160,17 @@ enum ScreenshotPresentationRenderer {
         }
 
         let destinationRect = CGRect(origin: .zero, size: canvasSize)
+        context.scaleBy(x: pixelScale, y: pixelScale)
         context.setAllowsAntialiasing(true)
         context.setShouldAntialias(true)
         context.interpolationQuality = .high
         context.clear(destinationRect)
+
+        if !presentation.isEnabled {
+            context.draw(contentImage, in: destinationRect)
+            guard let image = context.makeImage() else { return nil }
+            return ScreenshotPresentationRenderResult(image: image, layout: scaledLayout(layout, by: pixelScale), pixelScale: pixelScale)
+        }
 
         PresentationPerformanceMetrics.measure(
             "renderer.background",
@@ -164,7 +182,8 @@ enum ScreenshotPresentationRenderer {
                 destinationRect: destinationRect,
                 subjectRect: toCGRect(layout.subjectRect, canvasSize: canvasSize),
                 background: presentation.background,
-                contentImage: contentImage
+                contentImage: contentImage,
+                contentPixelScale: CGFloat(contentImage.width) / contentSize.width
             )
         }
 
@@ -180,10 +199,12 @@ enum ScreenshotPresentationRenderer {
                     destinationRect: destinationRect,
                     shadowRect: subjectRect,
                     cornerRadius: metrics.outerCornerRadius * layout.subjectScale,
-                    presentation: presentation
+                    presentation: presentation,
+                    rasterScale: pixelScale
                 )
             }
         }
+
 
         PresentationPerformanceMetrics.measure(
             "renderer.frame",
@@ -219,6 +240,18 @@ enum ScreenshotPresentationRenderer {
             )
         }
 
+        switch presentation.frame {
+        case let .phone(style):
+            let screen = toCGRect(layout.screenRect, canvasSize: canvasSize)
+            if style.showsSensorHousing { drawPhoneSensorHousing(style: style, in: context, screen: screen) }
+            drawHomeIndicator(style: style, isTablet: false, in: context, screen: screen)
+        case let .tablet(style):
+            drawHomeIndicator(style: style, isTablet: true, in: context, screen: toCGRect(layout.screenRect, canvasSize: canvasSize))
+        case .none, .browser, .macOSWindow:
+            break
+        }
+
+
         drawEdge(
             frame: presentation.frame,
             in: context,
@@ -248,7 +281,15 @@ enum ScreenshotPresentationRenderer {
             context: "image=\(image.width)x\(image.height) subject=\(PresentationPerformanceMetrics.size(layout.subjectRect.size)) screen=\(PresentationPerformanceMetrics.size(layout.screenRect.size))"
         )
 
-        return ScreenshotPresentationRenderResult(image: image, layout: layout)
+        return ScreenshotPresentationRenderResult(image: image, layout: scaledLayout(layout, by: pixelScale), pixelScale: pixelScale)
+    }
+
+    nonisolated private static func scaledLayout(_ layout: ScreenshotPresentationRenderLayout, by scale: CGFloat) -> ScreenshotPresentationRenderLayout {
+        let transform = CGAffineTransform(scaleX: scale, y: scale)
+        return ScreenshotPresentationRenderLayout(
+            canvasSize: CGSize(width: layout.canvasSize.width * scale, height: layout.canvasSize.height * scale),
+            subjectRect: layout.subjectRect.applying(transform), screenRect: layout.screenRect.applying(transform),
+            contentRect: layout.contentRect.applying(transform), subjectScale: layout.subjectScale * scale, frame: layout.frame)
     }
 
     nonisolated static func outputSize(for cropSize: CGSize, presentation: ScreenshotPresentation) -> CGSize {
@@ -262,106 +303,6 @@ enum ScreenshotPresentationRenderer {
         }
 
         return layout(contentSize: cropSize, presentation: presentation).canvasSize
-    }
-
-    nonisolated private static func previewRenderInputs(
-        contentImage: CGImage,
-        presentation: ScreenshotPresentation,
-        maxPixelDimension: CGFloat?
-    ) -> (contentImage: CGImage, presentation: ScreenshotPresentation) {
-        guard let maxPixelDimension,
-              maxPixelDimension > 0 else {
-            return (contentImage, presentation)
-        }
-
-        var currentImage = contentImage
-        var currentPresentation = presentation
-
-        for _ in 0..<4 {
-            let contentSize = CGSize(width: currentImage.width, height: currentImage.height)
-            let canvasSize = currentPresentation.isEnabled
-                ? layout(contentSize: contentSize, presentation: currentPresentation).canvasSize
-                : contentSize
-            let longestSide = max(canvasSize.width, canvasSize.height)
-            let renderScale = min(maxPixelDimension / max(longestSide, 1), 1)
-
-            guard renderScale < 0.995 else {
-                return (currentImage, currentPresentation)
-            }
-
-            let scaledContent = PresentationPerformanceMetrics.measure(
-                "renderer.previewScale",
-                context: "from=\(currentImage.width)x\(currentImage.height) scale=\(String(format: "%.3f", Double(renderScale))) cap=\(Int(maxPixelDimension.rounded())) canvas=\(PresentationPerformanceMetrics.size(canvasSize))",
-                warnAfterMS: 12
-            ) {
-                resizedImage(currentImage, scale: renderScale)
-            }
-
-            guard let scaledContent else {
-                return (currentImage, currentPresentation)
-            }
-
-            currentImage = scaledContent
-            currentPresentation = scaledPresentation(currentPresentation, scale: renderScale)
-        }
-
-        return (currentImage, currentPresentation)
-    }
-
-    nonisolated private static func resizedImage(_ image: CGImage, scale: CGFloat) -> CGImage? {
-        let width = max(Int((CGFloat(image.width) * scale).rounded()), 1)
-        let height = max(Int((CGFloat(image.height) * scale).rounded()), 1)
-
-        guard let context = SRGBBitmapContext.make(
-            width: width,
-            height: height
-        ) else {
-            return nil
-        }
-
-        context.interpolationQuality = .medium
-        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
-        return context.makeImage()
-    }
-
-    nonisolated private static func scaledPresentation(
-        _ presentation: ScreenshotPresentation,
-        scale: CGFloat
-    ) -> ScreenshotPresentation {
-        guard scale < 0.995 else {
-            return presentation
-        }
-
-        var scaled = presentation
-        scaled.padding *= scale
-        scaled.cornerRadius *= scale
-        scaled.shadowBlurRadius *= scale
-        scaled.shadowOffsetX *= scale
-        scaled.shadowOffsetY *= scale
-        scaled.subjectPlacement.offset = CGSize(
-            width: scaled.subjectPlacement.offset.width * scale,
-            height: scaled.subjectPlacement.offset.height * scale
-        )
-
-        if case let .custom(width, height) = scaled.canvas {
-            scaled.canvas = .custom(
-                width: max(Int((CGFloat(width) * scale).rounded()), 1),
-                height: max(Int((CGFloat(height) * scale).rounded()), 1)
-            )
-        }
-
-        switch scaled.frame {
-        case var .phone(style):
-            style.screenCornerRadius *= scale
-            scaled.frame = .phone(style)
-        case var .tablet(style):
-            style.screenCornerRadius *= scale
-            scaled.frame = .tablet(style)
-        case .none, .browser, .macOSWindow:
-            break
-        }
-
-        return scaled
     }
 
     nonisolated static func layout(contentSize: CGSize, presentation: ScreenshotPresentation) -> ScreenshotPresentationRenderLayout {
@@ -395,8 +336,8 @@ enum ScreenshotPresentationRenderer {
             height: metrics.outerSize.height * subjectScale
         )
         let subjectOrigin = CGPoint(
-            x: safeRect.minX + max(safeRect.width - subjectSize.width, 0) * placement.alignment.xFactor + placement.offset.width,
-            y: safeRect.minY + max(safeRect.height - subjectSize.height, 0) * placement.alignment.yFactor + placement.offset.height
+            x: safeRect.minX + (safeRect.width - subjectSize.width) * placement.alignment.xFactor + placement.offset.width,
+            y: safeRect.minY + (safeRect.height - subjectSize.height) * placement.alignment.yFactor + placement.offset.height
         )
         let subjectRect = CGRect(origin: subjectOrigin, size: subjectSize).integral
         let screenRect = CGRect(
@@ -535,7 +476,8 @@ enum ScreenshotPresentationRenderer {
         destinationRect: CGRect,
         subjectRect: CGRect,
         background: ScreenshotPresentationBackground,
-        contentImage: CGImage
+        contentImage: CGImage,
+        contentPixelScale: CGFloat
     ) {
         switch background {
         case .transparent:
@@ -549,7 +491,7 @@ enum ScreenshotPresentationRenderer {
             context.fill(destinationRect)
             drawSpotlight(in: context, destinationRect: destinationRect, color: spotlight)
         case let .blurredScreenshot(tint):
-            drawBlurredScreenshotBackground(in: context, destinationRect: destinationRect, contentImage: contentImage, tint: tint)
+            drawBlurredScreenshotBackground(in: context, destinationRect: destinationRect, contentImage: contentImage, tint: tint, contentPixelScale: contentPixelScale)
         }
     }
 
@@ -631,7 +573,7 @@ enum ScreenshotPresentationRenderer {
         switch frame {
         case .none:
             let contentCGRect = toCGRect(contentRect, canvasSize: canvasSize)
-            let cornerRadius = min(max(presentation.cornerRadius, 0), min(contentCGRect.width, contentCGRect.height) / 2)
+            let cornerRadius = metrics.screenCornerRadius * scale
             drawCardEdge(
                 in: context,
                 cardPath: CGPath(roundedRect: contentCGRect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil),
@@ -973,11 +915,7 @@ enum ScreenshotPresentationRenderer {
                 width: cameraRadius * 2,
                 height: cameraRadius * 2
             ))
-        } else if style.showsSensorHousing {
-            drawPhoneSensorHousing(style: style, in: context, screen: screen)
         }
-
-        drawHomeIndicator(style: style, isTablet: isTablet, in: context, screen: screen)
     }
 
     nonisolated private static func drawPhoneSensorHousing(
@@ -1081,7 +1019,8 @@ enum ScreenshotPresentationRenderer {
         destinationRect: CGRect,
         shadowRect: CGRect,
         cornerRadius: CGFloat,
-        presentation: ScreenshotPresentation
+        presentation: ScreenshotPresentation,
+        rasterScale: CGFloat
     ) {
         let style = presentation.shadow
         guard style != .off,
@@ -1097,7 +1036,9 @@ enum ScreenshotPresentationRenderer {
         let offsetY = presentation.shadowOffsetY
         let opacity = min(max(presentation.shadowOpacity, 0), 1)
 
-        guard let maskImage = roundedRectMaskImage(size: destinationRect.size, rect: shadowRect, cornerRadius: cornerRadius) else {
+        let rasterTransform = CGAffineTransform(scaleX: rasterScale, y: rasterScale)
+        guard let maskImage = roundedRectMaskImage(size: destinationRect.applying(rasterTransform).size,
+            rect: shadowRect.applying(rasterTransform), cornerRadius: cornerRadius * rasterScale) else {
             return
         }
 
@@ -1301,9 +1242,10 @@ enum ScreenshotPresentationRenderer {
         in context: CGContext,
         destinationRect: CGRect,
         contentImage: CGImage,
-        tint: RGBAColor
+        tint: RGBAColor,
+        contentPixelScale: CGFloat
     ) {
-        let blurRadius = max(min(destinationRect.width, destinationRect.height) * 0.045, 18)
+        let blurRadius = max(min(destinationRect.width, destinationRect.height) * 0.045, 18) * contentPixelScale
         let input = CIImage(cgImage: contentImage)
             .clampedToExtent()
             .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: blurRadius])
@@ -1338,14 +1280,16 @@ enum ScreenshotPresentationRenderer {
             return
         }
 
+        let rasterScale = CGFloat(maskImage.width) / destinationRect.width
+        let rasterRect = CGRect(x: 0, y: 0, width: maskImage.width, height: maskImage.height)
         let blurredMask = CIImage(cgImage: maskImage)
             .clampedToExtent()
-            .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: blurRadius])
-            .cropped(to: CGRect(origin: .zero, size: destinationRect.size))
-            .transformed(by: CGAffineTransform(translationX: offsetX, y: offsetY))
-            .cropped(to: CGRect(origin: .zero, size: destinationRect.size))
+            .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: blurRadius * rasterScale])
+            .cropped(to: rasterRect)
+            .transformed(by: CGAffineTransform(translationX: offsetX * rasterScale, y: offsetY * rasterScale))
+            .cropped(to: rasterRect)
 
-        guard let shadowMask = ciContext.createCGImage(blurredMask, from: CGRect(origin: .zero, size: destinationRect.size)) else {
+        guard let shadowMask = ciContext.createCGImage(blurredMask, from: rasterRect) else {
             return
         }
 
@@ -1480,10 +1424,14 @@ enum ScreenshotPresentationRenderer {
             .paragraphStyle: paragraph,
         ]
 
+        context.saveGState()
+        context.translateBy(x: 0, y: canvasSize.height)
+        context.scaleBy(x: 1, y: -1)
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
         (text as NSString).draw(in: rect, withAttributes: attributes)
         NSGraphicsContext.restoreGraphicsState()
+        context.restoreGState()
     }
 }
 

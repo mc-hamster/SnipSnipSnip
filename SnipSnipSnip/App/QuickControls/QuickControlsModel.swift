@@ -122,11 +122,6 @@ final class QuickControlsModel: ObservableObject {
                     ? "Snip History and OCR skipped"
                     : "Snip History and OCR allowed"
             )
-        case .autoCopy:
-            QuickControlTileState(
-                isOn: clipboard.autoCopyEnabled,
-                detail: clipboard.autoCopyEnabled ? "Copies after capture" : "Manual copy"
-            )
         default:
             QuickControlTileState()
         }
@@ -295,13 +290,14 @@ final class QuickControlsModel: ObservableObject {
     }
 
     func setDockState(_ state: QuickControlsDockState) {
+        guard state != preferences.resolvedDockState else { return }
         var updated = preferences
         updated.dockState = state
         preferences = updated
     }
 
-    func toggleDockState() {
-        setDockState(preferences.resolvedDockState == .expanded ? .compact : .expanded)
+    func cycleDockState() {
+        setDockState(preferences.resolvedDockState.next)
     }
 
     func setDockEdge(_ edge: QuickControlsDockEdge) {
@@ -321,7 +317,7 @@ final class QuickControlsModel: ObservableObject {
     func restoreDefaultLayout() {
         var updated = preferences
         updated.items = QuickControlsPreferences.defaultItems
-        updated.dockState = .expanded
+        updated.dockState = .full
         updated.dockEdge = .right
         preferences = updated
     }
@@ -389,7 +385,7 @@ final class QuickControlsModel: ObservableObject {
             )
         case .openApplication:
             requestMainWindowPresentation()
-        case .capturePresets, .timer, .includeCursor, .privateCapture, .autoCopy:
+        case .capturePresets, .timer, .includeCursor, .privateCapture:
             break
         }
     }
@@ -411,7 +407,7 @@ final class QuickControlsModel: ObservableObject {
             return !capture.canChangePrivateCapture
         case .capturePresets:
             return isCaptureActionDisabled
-        case .timer, .includeCursor, .autoCopy, .clipboardHistory,
+        case .timer, .includeCursor, .clipboardHistory,
              .horizontalScreenRuler, .verticalScreenRuler,
              .screenInspector, .openApplication:
             return false

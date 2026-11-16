@@ -11,30 +11,35 @@ extension DocumentWorkflowModel {
     }
 
     func openDocumentPanel() {
-        performAfterHandlingUnsavedChanges { [weak self] in
-            self?.presentOpenDocumentPanel()
-        }
+        presentOpenDocumentPanel()
     }
 
     func importImagePanel() {
-        performAfterHandlingUnsavedChanges { [weak self] in
-            self?.presentImportImagePanel()
-        }
+        presentImportImagePanel()
     }
 
     func openDocument(at url: URL) {
+        guard let candidate = prepareDocument(from: url) else { return }
+        let isReopeningUnsavedDocument = hasUnsavedChanges
+            && currentDocumentURL?.standardizedFileURL == url.standardizedFileURL
         performAfterHandlingUnsavedChanges { [weak self] in
-            self?.loadDocument(from: url)
+            guard let self else { return }
+            // Save may have just updated this same file. Keep the saved editor
+            // rather than installing the older candidate loaded before Save.
+            if isReopeningUnsavedDocument,
+               self.currentDocumentURL?.standardizedFileURL == url.standardizedFileURL,
+               !self.hasUnsavedChanges {
+                return
+            }
+            self.installPreparedDocument(candidate, documentURL: url)
         }
     }
 
     func openExternalFile(at url: URL) {
-        performAfterHandlingUnsavedChanges { [weak self] in
-            if Self.isEditableDocumentURL(url) {
-                self?.loadDocument(from: url)
-            } else {
-                self?.importImage(from: url)
-            }
+        if Self.isEditableDocumentURL(url) {
+            openDocument(at: url)
+        } else {
+            importImage(from: url)
         }
     }
 
@@ -48,60 +53,6 @@ extension DocumentWorkflowModel {
         Task {
             _ = await saveCurrentDocumentAs()
         }
-    }
-
-    func exportAnnotatedImage() {
-        exportAnnotatedImage(as: .png, appearance: .plain)
-    }
-
-    func exportAnnotatedImage(as format: ImageExportFormat, appearance: ScreenshotOutputAppearance) {
-        if editorController?.hasComposition == true,
-           let compositionFormat = CompositionOutputFormat(imageFormat: format) {
-            exportComposition(as: compositionFormat, appearance: appearance)
-            return
-        }
-        editorController?.saveAnnotatedImage(
-            appearance: appearance,
-            format: format,
-            filenameTemplate: ScreenshotFilenameTemplate(pattern: screenshotFilenameTemplate),
-            exportOptions: screenshotImageExportOptions
-        )
-    }
-
-    func shareAnnotatedImage(appearance: ScreenshotOutputAppearance) {
-        editorController?.shareAnnotatedImage(appearance: appearance)
-    }
-
-    func promisedAnnotatedImagePayload(appearance: ScreenshotOutputAppearance) -> PromisedFilePayload? {
-        editorController?.promisedImagePayload(
-            appearance: appearance,
-            requestedFormat: screenshotDragOutFormat,
-            filenameTemplate: ScreenshotFilenameTemplate(pattern: screenshotFilenameTemplate),
-            exportOptions: screenshotImageExportOptions
-        )
-    }
-
-    var screenshotImageExportOptions: ImageExportOptions {
-        ImageExportOptions(jpegQuality: screenshotJPEGQuality)
-    }
-
-    func exportWorkflowCapture(
-        from controller: EditorController,
-        to destination: CapturePresetExportDestination
-    ) async throws -> URL {
-        let appearance = controller.automationOutputAppearance
-        if controller.exportFormatRequiresPNG(appearance: appearance), destination.format != .png {
-            throw ImageExportError.transparentPresentationRequiresPNG
-        }
-
-        let filename = ScreenshotFilenameTemplate(pattern: screenshotFilenameTemplate)
-            .resolvedFilename(for: controller.capture, formatExtension: destination.format.fileExtension)
-        let url = destination.folderURL
-            .appendingPathComponent(filename)
-            .appendingPathExtension(destination.format.fileExtension)
-        let image = try await controller.renderedImageForExport(appearance: appearance)
-        try await ImageExporter.write(image, format: destination.format, to: url, options: screenshotImageExportOptions)
-        return url
     }
 
     @discardableResult
@@ -150,6 +101,7 @@ extension DocumentWorkflowModel {
             targetURL = selectedURL
         }
 
+        guard editorController === controller else { return false }
         return await saveDocument(controller, to: targetURL)
     }
 
@@ -177,6 +129,7 @@ extension DocumentWorkflowModel {
             return false
         }
 
+        guard editorController === controller else { return false }
         return await saveDocument(controller, to: selectedURL)
     }
 
@@ -207,7 +160,9 @@ extension DocumentWorkflowModel {
     func saveDocument(_ controller: EditorController, to url: URL) async -> Bool {
         controller.commitPendingTextEdits()
 
+        let wasCurrentController = editorController === controller
         let document = controller.editableDocument
+        let savedState = AutosaveState(controller: controller, documentURL: url)
         let payload = ScreenshotDocumentWritePayload(
             document: document,
             renderInput: controller.compositionDocumentPreviewInput(),
@@ -222,12 +177,18 @@ extension DocumentWorkflowModel {
                     try await DocumentPackageWriter.saveScreenshot(payload)
                 }
             }
+            guard editorController === controller else {
+                // A background save may finish after another document opens.
+                // Its file is valid, but it must not relabel that editor or
+                // allow an old Save-and-Continue action to replace it.
+                return !wasCurrentController
+            }
             currentDocumentURL = url
-            savedDocumentSession = controller.documentSession
+            savedDocumentSession = document.session
             controller.markDocumentSavedInCurrentFormat()
-            savedEditorAutosaveState = AutosaveState(controller: controller, documentURL: url)
+            savedEditorAutosaveState = savedState
             updateDocumentChangeTracking()
-            recordRecoveryCheckpoint(for: controller, label: "Saved", pendingRecovery: false)
+            recordRecoveryCheckpoint(for: controller, label: hasUnsavedChanges ? "Autosave" : "Saved", pendingRecovery: hasUnsavedChanges)
             return true
         } catch {
             present(error)
@@ -252,6 +213,7 @@ extension DocumentWorkflowModel {
             targetURL = selectedURL
         }
 
+        guard videoEditorController === controller else { return false }
         return await saveVideoDocument(controller, to: targetURL)
     }
 
@@ -266,11 +228,13 @@ extension DocumentWorkflowModel {
             return false
         }
 
+        guard videoEditorController === controller else { return false }
         return await saveVideoDocument(controller, to: selectedURL)
     }
 
     @discardableResult
     func saveVideoDocument(_ controller: VideoEditorController, to url: URL) async -> Bool {
+        let wasCurrentController = videoEditorController === controller
         let wasRecoveryCheckpointVideo = currentVideoUsesRecoveryCheckpoint
         let payload = VideoDocumentWritePayload(
             document: EditableVideoDocument(recording: controller.recording, session: controller.documentSession),
@@ -285,14 +249,16 @@ extension DocumentWorkflowModel {
                     try await DocumentPackageWriter.saveVideo(payload)
                 }
             }
-            let persistedController = VideoEditorController(
-                recording: controller.recording.updatingSourceURL(
-                    url.appendingPathComponent(SSSVideoDocumentPackage.mediaFilename)
-                ),
-                session: controller.documentSession,
-                posterImage: controller.posterImage
-            )
-            installVideoController(persistedController, documentURL: url, savedSession: persistedController.documentSession)
+            guard videoEditorController === controller else { return !wasCurrentController }
+            let mediaURL = url.appendingPathComponent(SSSVideoDocumentPackage.mediaFilename)
+            let previousTemporarySource = currentOwnedTemporaryVideoSourceURL(replacingWith: mediaURL)
+            controller.rebaseSourceURL(mediaURL)
+            currentDocumentURL = url
+            savedVideoSession = payload.document.session
+            updateDocumentChangeTracking()
+            // An already-running export may still be consuming the old media.
+            // Otherwise the durable package now owns the source pixels.
+            if !controller.isExporting { cleanupTemporaryVideoSourceIfNeeded(previousTemporarySource) }
             completeVideoRecoveryAfterSave(wasRecoveryCheckpointVideo)
             return true
         } catch {
@@ -306,7 +272,7 @@ extension DocumentWorkflowModel {
             return
         }
 
-        loadDocument(from: url)
+        openDocument(at: url)
     }
 
     func presentImportImagePanel() {
@@ -321,34 +287,40 @@ extension DocumentWorkflowModel {
         await dependencies.panels.selectSaveDestination(suggestedFilename: suggestedFilename, contentType: contentType)
     }
 
-    func loadDocument(from url: URL) {
-        if handleIncompatibleDocumentIfNeeded(at: url) {
-            return
-        }
+    /// A complete replacement is prepared before the current document can be
+    /// discarded. Keeping the controller alive also avoids reopening the file
+    /// after the person approves the switch.
+    enum PreparedDocument {
+        case screenshot(EditorController)
+        case video(VideoEditorController)
+        case guide(GuideEditorController)
+    }
 
-        do {
+    func loadDocument(from url: URL) {
+        guard let candidate = prepareDocument(from: url) else { return }
+        installPreparedDocument(candidate, documentURL: url)
+    }
+
+    private func prepareDocument(from url: URL) -> PreparedDocument? {
+        do { return try readPreparedDocument(from: url) }
+        catch { present(error); return nil }
+    }
+
+    func readPreparedDocument(from url: URL) throws -> PreparedDocument {
+        return try withSecurityScopedAccess(to: url) {
             if url.pathExtension.lowercased() == "sssguide" {
-                let document = try withSecurityScopedAccess(to: url) {
-                    try SSSGuideDocumentPackage.load(from: url, files: systemServices.files)
-                }
-                let controller = GuideEditorController(document: document)
-                installGuideController(controller, documentURL: url, savedProject: controller.project)
-                presentGuideDocumentProNoticeIfNeeded()
+                let document = try SSSGuideDocumentPackage.load(from: url, files: systemServices.files)
+                return .guide(GuideEditorController(document: document))
             } else if url.pathExtension.lowercased() == "sssvideo" {
-                let document = try withSecurityScopedAccess(to: url) {
-                    try SSSVideoDocumentPackage.load(from: url, files: systemServices.files)
-                }
+                let document = try SSSVideoDocumentPackage.load(from: url, files: systemServices.files)
                 let posterImage = try? SSSVideoDocumentPackage.loadPosterImage(from: url, files: systemServices.files)
-                let controller = VideoEditorController(
+                return .video(VideoEditorController(
                     recording: document.recording,
                     session: document.session,
                     posterImage: posterImage
-                )
-                installVideoController(controller, documentURL: url, savedSession: controller.documentSession)
+                ))
             } else {
-                let document = try withSecurityScopedAccess(to: url) {
-                    try SSSDocumentPackage.load(from: url, files: systemServices.files)
-                }
+                let document = try SSSDocumentPackage.load(from: url, files: systemServices.files)
                 let controller = EditorController(
                     capture: document.capture,
                     session: document.session,
@@ -360,12 +332,24 @@ extension DocumentWorkflowModel {
                     compositionStoredAssets: document.compositionStoredAssets
                 )
                 controller.restoreWorkflowWorkspace()
-                installEditorController(controller, documentURL: url, savedSession: controller.documentSession)
+                return .screenshot(controller)
             }
-            requestMainWindowPresentation()
-        } catch {
-            present(error)
         }
+    }
+
+
+    func installPreparedDocument(_ candidate: PreparedDocument, documentURL: URL?) {
+        switch candidate {
+        case .screenshot(let controller):
+            installEditorController(controller, documentURL: documentURL,
+                                    savedSession: documentURL == nil ? nil : controller.documentSession)
+        case .video(let controller):
+            installVideoController(controller, documentURL: documentURL, savedSession: controller.documentSession)
+        case .guide(let controller):
+            installGuideController(controller, documentURL: documentURL, savedProject: controller.project)
+            presentGuideDocumentProNoticeIfNeeded()
+        }
+        requestMainWindowPresentation()
     }
 
     func importImage(from url: URL) {
@@ -375,12 +359,12 @@ extension DocumentWorkflowModel {
                       let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
                     throw ImportedImageLoadError()
                 }
-
                 return image
             }
-
-            let sourceName = url.deletingPathExtension().lastPathComponent
-            importImage(image, sourceName: sourceName)
+            let controller = importedImageController(image, sourceName: url.deletingPathExtension().lastPathComponent)
+            performAfterHandlingUnsavedChanges { [weak self] in
+                self?.installPreparedDocument(.screenshot(controller), documentURL: nil)
+            }
         } catch {
             present(error)
         }
@@ -388,20 +372,31 @@ extension DocumentWorkflowModel {
 
     func importImageFromPasteboard(named pasteboardName: String, sourceName: String?) {
         do {
+            let isPrivate = dependencies.pasteboardImporter.isConcealed(fromPasteboardNamed: pasteboardName)
             guard let imageData = dependencies.pasteboardImporter.imageData(fromPasteboardNamed: pasteboardName),
                   let imageSource = CGImageSourceCreateWithData(imageData as CFData, nil),
                   let image = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
                 throw ImportedImageLoadError()
             }
 
-            importImage(image, sourceName: sourceName ?? "Shared Photo")
-            dependencies.pasteboardImporter.clearPasteboard(named: pasteboardName)
+            importImage(image, sourceName: sourceName ?? "Shared Photo", isPrivate: isPrivate) { [weak self] in
+                self?.dependencies.pasteboardImporter.clearPasteboard(named: pasteboardName)
+            }
         } catch {
             present(error)
         }
     }
 
-    private func importImage(_ image: CGImage, sourceName: String?) {
+    private func importImage(_ image: CGImage, sourceName: String?, isPrivate: Bool = false, onCommit: @escaping () -> Void) {
+        let controller = importedImageController(image, sourceName: sourceName, isPrivate: isPrivate)
+        performAfterHandlingUnsavedChanges { [weak self] in
+            guard let self else { return }
+            self.installPreparedDocument(.screenshot(controller), documentURL: nil)
+            onCommit()
+        }
+    }
+
+    private func importedImageController(_ image: CGImage, sourceName: String?, isPrivate: Bool = false) -> EditorController {
         let resolvedSourceName: String
 
         if let sourceName, !sourceName.isEmpty {
@@ -417,13 +412,12 @@ extension DocumentWorkflowModel {
             sourceRect: CGRect(origin: .zero, size: CGSize(width: image.width, height: image.height)),
             capturedAt: systemServices.clock.now()
         )
-        let controller = EditorController(
+        return EditorController(
             capture: capture,
             capabilities: capabilities,
-            uiMapOverlayOptions: uiMapPinnedOverlayDefaults
+            uiMapOverlayOptions: uiMapPinnedOverlayDefaults,
+            isPrivateDocument: isPrivate
         )
-        installEditorController(controller, documentURL: nil, savedSession: nil)
-        requestMainWindowPresentation()
     }
 
     private static func isEditableDocumentURL(_ url: URL) -> Bool {

@@ -10,15 +10,11 @@ nonisolated struct AutomationCLIParseResult: Equatable {
 
 nonisolated enum AutomationCLIParser {
     static func parse(_ arguments: [String]) -> AutomationCLIParseResult {
+        if let error = AutomationCLIArgumentValidation.error(in: arguments) {
+            return failure(error, wantsJSON: arguments.contains("--json"), exitCode: 64)
+        }
         var cursor = ArgumentCursor(arguments)
         let json = cursor.consumeFlag("--json")
-        if let flag = firstFlagMissingValue(in: arguments) {
-            return failure(
-                "\(flag) requires a value.",
-                wantsJSON: json,
-                exitCode: 64
-            )
-        }
         let source = AutomationSource(kind: .commandLine, caller: "snipsnipsnipctl")
 
         guard let first = cursor.next() else {
@@ -138,7 +134,7 @@ nonisolated enum AutomationCLIParser {
             guard cursor.next() == "current" else {
                 return failure("Expected `export current`.", wantsJSON: json, exitCode: 64)
             }
-            let format = cursor.value(after: "--format").flatMap(AutomationExportFormat.init(rawValue:)) ?? .png
+            let format = cursor.value(after: "--format").flatMap { AutomationExportFormat(rawValue: $0.lowercased()) } ?? .png
             let output = parseOutput(cursor: &cursor, defaultFormat: format) ?? .saveFile(AutomationFileOutput(url: nil, format: format))
             return success(AutomationRequest(
                 source: source,
@@ -518,7 +514,7 @@ nonisolated enum AutomationCLIParser {
             return nil
         }
 
-        let format = cursor.value(after: "--format").flatMap(AutomationExportFormat.init(rawValue:)) ?? defaultFormat
+        let format = cursor.value(after: "--format").flatMap { AutomationExportFormat(rawValue: $0.lowercased()) } ?? defaultFormat
         let url = URL(fileURLWithPath: NSString(string: outputPath).expandingTildeInPath)
         let file = AutomationFileOutput(
             url: url,
@@ -552,54 +548,7 @@ nonisolated enum AutomationCLIParser {
         AutomationCLIParseResult(request: nil, wantsJSON: wantsJSON, exitCode: exitCode, errorMessage: message)
     }
 
-    private static func firstFlagMissingValue(
-        in arguments: [String]
-    ) -> String? {
-        let valueFlags: Set<String> = [
-            "--after-item-id",
-            "--appearance",
-            "--axis",
-            "--blink-interval",
-            "--delay",
-            "--destination",
-            "--difference-intensity",
-            "--display",
-            "--file",
-            "--first-item-id",
-            "--format",
-            "--freeform-height",
-            "--freeform-width",
-            "--grid-columns",
-            "--highlight-color",
-            "--highlight-threshold",
-            "--id",
-            "--layout",
-            "--mode",
-            "--name",
-            "--output",
-            "--overlay-opacity",
-            "--primary-label",
-            "--rect",
-            "--replace-item-id",
-            "--second-item-id",
-            "--secondary-label",
-            "--step-captions",
-            "--step-connector",
-            "--step-numbering",
-            "--step-start-index",
-            "--target",
-            "--target-aspect-ratio",
-            "--wipe-position",
-        ]
-        for (index, argument) in arguments.enumerated()
-        where valueFlags.contains(argument) {
-            guard arguments.indices.contains(index + 1),
-                  !arguments[index + 1].hasPrefix("--") else {
-                return argument
-            }
-        }
-        return nil
-    }
+
 }
 
 private extension AutomationOutputAppearance {

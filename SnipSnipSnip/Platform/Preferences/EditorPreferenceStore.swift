@@ -20,6 +20,14 @@ nonisolated struct EditorPreferenceStore {
         self.storage = storage
     }
 
+    func loadShowsCapturePreview() -> Bool {
+        storage.object(forKey: AppModelPreferenceKey.showsCapturePreview) as? Bool ?? false
+    }
+
+    func saveShowsCapturePreview(_ enabled: Bool) {
+        storage.set(enabled, forKey: AppModelPreferenceKey.showsCapturePreview)
+    }
+
     func loadSingleKeyToolShortcutsEnabled() -> Bool {
         storage.object(forKey: AppModelPreferenceKey.editorSingleKeyToolShortcutsEnabled) as? Bool ?? true
     }

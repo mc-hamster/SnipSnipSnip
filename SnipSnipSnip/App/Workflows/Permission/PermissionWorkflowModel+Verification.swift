@@ -94,10 +94,9 @@ extension PermissionWorkflowModel {
     }
 
     func reconcileScreenRecordingPermissionDenied(after error: Error? = nil) {
-        pendingScreenRecordingPermissionVerificationTask?.cancel()
-        pendingScreenRecordingPermissionVerificationTask = nil
         screenRecordingPermissionVerificationGeneration += 1
         hasVerifiedScreenRecordingAccess = false
+        screenRecordingVerificationMessage = nil
 
         let status = dependencies.permissions.currentStatus()
         let cachedStatus = permissionStatus
@@ -119,7 +118,7 @@ extension PermissionWorkflowModel {
             permissionStatus = reconciledStatus
         }
 
-        if status.hasScreenRecording || screenRecordingSetupStartedThisRun {
+        if status.hasScreenRecording {
             markScreenRecordingRestartRequired()
             logPermissionState(
                 "screenRecordingDeniedMarkedRestartRequired",
@@ -139,7 +138,11 @@ extension PermissionWorkflowModel {
     }
 
     func refreshPermissionsIncludingScreenRecordingProbe() async {
-        let currentStatus = dependencies.permissions.currentStatus()
+        invalidateScreenRecordingVerification()
+        var currentStatus = dependencies.permissions.currentStatus()
+        reconcileScreenRecordingPreflightChange(currentStatus)
+        refreshPermissions()
+        let generation = screenRecordingPermissionVerificationGeneration
         logPermissionState(
             "probeRefreshStarted",
             rawStatus: currentStatus
@@ -162,14 +165,27 @@ extension PermissionWorkflowModel {
             return
         }
 
-        let requiresVerifiedReadiness = requiresVerifiedScreenRecordingReadiness()
-        let hasVerifiedAccess: Bool
-        if currentStatus.hasScreenRecording && !requiresVerifiedReadiness {
-            hasVerifiedAccess = true
-        } else {
-            hasVerifiedAccess = await dependencies.permissions.verifyScreenRecordingAccess()
-        }
+        let preflightAtProbeStart = currentStatus.hasScreenRecording
+        let probe = await dependencies.permissions.probeScreenRecordingAccess()
 
+        guard !Task.isCancelled, generation == screenRecordingPermissionVerificationGeneration else { return }
+        currentStatus = dependencies.permissions.currentStatus()
+        guard currentStatus.hasScreenRecording == preflightAtProbeStart else {
+            // The OS state changed while the content query was in flight. Its
+            // earlier result cannot override a newer revocation or grant.
+            refreshPermissions()
+            return
+        }
+        if case .unavailable(let domain, let code) = probe {
+            screenRecordingVerificationMessage = String(localized: "Access could not be checked right now. Try Check Again.")
+            logPermissionState("probeUnavailable.\(domain).\(code)", rawStatus: currentStatus)
+            // Preserve the known permission state. A content-query failure does
+            // not establish that access changed or that relaunch will repair it.
+            refreshPermissions()
+            return
+        }
+        screenRecordingVerificationMessage = nil
+        let hasVerifiedAccess = probe.isAvailable
         if screenRecordingSetupRequiresRestart(for: currentStatus, verifiedAccess: hasVerifiedAccess) {
             hasVerifiedScreenRecordingAccess = false
             let reconciledStatus = CapturePermissionStatus(
@@ -188,10 +204,10 @@ extension PermissionWorkflowModel {
             return
         }
 
-        hasVerifiedScreenRecordingAccess = hasVerifiedAccess
+        hasVerifiedScreenRecordingAccess = currentStatus.hasScreenRecording && hasVerifiedAccess
 
         let reconciledStatus = CapturePermissionStatus(
-            hasScreenRecording: hasVerifiedAccess,
+            hasScreenRecording: currentStatus.hasScreenRecording && hasVerifiedAccess,
             hasAccessibility: currentStatus.hasAccessibility
         )
 
@@ -201,7 +217,7 @@ extension PermissionWorkflowModel {
 
         if reconciledStatus.hasScreenRecording {
             clearScreenRecordingRestartRequired()
-        } else if requiresVerifiedReadiness || currentStatus.hasScreenRecording {
+        } else if currentStatus.hasScreenRecording {
             markScreenRecordingRestartRequired()
         }
 
@@ -211,7 +227,7 @@ extension PermissionWorkflowModel {
         }
 
         if let requirement = permissionSetupGuide?.requirement,
-           reconciledStatus.hasAccess(to: requirement) {
+           reconciledStatus.hasAccess(to: requirement), permissionContinuation == nil {
             permissionSetupGuide = nil
         }
 
@@ -222,84 +238,26 @@ extension PermissionWorkflowModel {
         )
     }
 
-    func reconcileVerifiedScreenRecordingAccess(using status: CapturePermissionStatus) {
-        pendingScreenRecordingPermissionVerificationTask?.cancel()
-
-        guard status.hasScreenRecording else {
-            pendingScreenRecordingPermissionVerificationTask = nil
-            screenRecordingPermissionVerificationGeneration += 1
-            return
-        }
-
+    func invalidateScreenRecordingVerification() {
         screenRecordingPermissionVerificationGeneration += 1
-        let verificationGeneration = screenRecordingPermissionVerificationGeneration
+    }
 
-        pendingScreenRecordingPermissionVerificationTask = Task { [weak self] in
-            let hasVerifiedAccess = await self?.dependencies.permissions.verifyScreenRecordingAccess() ?? false
-
-            guard !Task.isCancelled else {
-                return
-            }
-
-            await MainActor.run {
-                guard let self,
-                      self.screenRecordingPermissionVerificationGeneration == verificationGeneration else {
-                    return
-                }
-
-                let currentStatus = self.dependencies.permissions.currentStatus()
-                if self.screenRecordingSetupRequiresRestart(for: currentStatus, verifiedAccess: hasVerifiedAccess) {
-                    self.hasVerifiedScreenRecordingAccess = false
-                    let reconciledStatus = CapturePermissionStatus(
-                        hasScreenRecording: false,
-                        hasAccessibility: currentStatus.hasAccessibility
-                    )
-                    if reconciledStatus != self.permissionStatus {
-                        self.permissionStatus = reconciledStatus
-                    }
-                    self.markScreenRecordingRestartRequired()
-                    self.pendingScreenRecordingPermissionVerificationTask = nil
-                    self.logPermissionState(
-                        "backgroundVerificationRestartRequired",
-                        rawStatus: currentStatus,
-                        verifiedScreenRecordingAccess: hasVerifiedAccess
-                    )
-                    return
-                }
-
-                let requiresVerifiedReadiness = self.requiresVerifiedScreenRecordingReadiness()
-                self.hasVerifiedScreenRecordingAccess = currentStatus.hasScreenRecording && hasVerifiedAccess
-                let reconciledStatus = CapturePermissionStatus(
-                    hasScreenRecording: currentStatus.hasScreenRecording && hasVerifiedAccess,
-                    hasAccessibility: currentStatus.hasAccessibility
-                )
-
-                if currentStatus.hasScreenRecording && !hasVerifiedAccess {
-                    PermissionWorkflowDiagnostics.staleReadyStateReconciled(
-                        cachedStatus: self.permissionStatus,
-                        preflightStatus: currentStatus,
-                        verifiedScreenRecordingAccess: hasVerifiedAccess
-                    )
-                }
-
-                if reconciledStatus != self.permissionStatus {
-                    self.permissionStatus = reconciledStatus
-                }
-
-                if reconciledStatus.hasScreenRecording {
-                    self.clearScreenRecordingRestartRequired()
-                } else if currentStatus.hasScreenRecording && requiresVerifiedReadiness {
-                    self.markScreenRecordingRestartRequired()
-                }
-
-                self.pendingScreenRecordingPermissionVerificationTask = nil
-            }
+    func reconcileScreenRecordingPreflightChange(_ status: CapturePermissionStatus) {
+        guard lastScreenRecordingPreflightStatus != status.hasScreenRecording else { return }
+        lastScreenRecordingPreflightStatus = status.hasScreenRecording
+        screenRecordingVerificationMessage = nil
+        invalidateScreenRecordingVerification()
+        if !status.hasScreenRecording {
+            // A transition away from a previously positive system status is a
+            // revocation. A cached verification must not keep the app Ready.
+            hasVerifiedScreenRecordingAccess = false
+            screenRecordingSetupNeedsAttention = false
+            screenRecordingSetupStartedThisRun = false
         }
     }
 
     func requiresVerifiedScreenRecordingReadiness() -> Bool {
         activePermissionRequest == .screenRecording
-            || permissionSetupGuide?.requirement == .screenRecording
             || screenRecordingSetupNeedsAttention
             || screenRecordingSetupStartedThisRun
     }

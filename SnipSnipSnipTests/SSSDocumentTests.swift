@@ -55,6 +55,23 @@ final class SSSDocumentTests: XCTestCase {
         try? FileManager.default.removeItem(at: packageURL)
     }
 
+    func testVeryTallScrollingCaptureRoundTripsWithoutLosingLastRow() throws {
+        let image = makeCoordinateImage(width: 8, height: 140_000)
+        let capture = makeCapturedScreenshot(image: image, kind: .scrolling)
+        let snapshot = makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("sss")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try SSSDocumentPackage.save(
+            document: makeEditableDocument(capture: capture, session: makeEditorDocumentSession(initialSnapshot: snapshot)),
+            previewImage: makeCoordinateImage(width: 1, height: 20), to: url
+        )
+        let loaded = try SSSDocumentPackage.load(from: url)
+        XCTAssertEqual(loaded.capture.image.width, image.width)
+        XCTAssertEqual(loaded.capture.image.height, image.height)
+        XCTAssertEqual(loaded.session.currentSnapshot.cropRect, snapshot.cropRect)
+        XCTAssertEqual(samplePixel(in: loaded.capture.image, topLeftX: 2, topLeftY: 139_999), samplePixel(in: image, topLeftX: 2, topLeftY: 139_999))
+    }
+
     func testPackageRoundTripsUIMapMetadata() throws {
         let baseImage = makeCoordinateImage(width: 80, height: 60, pattern: .weighted(xMultiplier: 5, yMultiplier: 7, includeBlueSum: true))
         let pinnedElementID = UUID()

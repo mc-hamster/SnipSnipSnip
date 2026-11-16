@@ -19,6 +19,12 @@ security-scoped access remains active throughout. Encoding failure or cancellati
 before installation preserves an existing destination and removes staging.
 No new permissions, output formats, or automation contracts are introduced.
 
+Composition PNG/JPEG/PDF, GIF/APNG, MP4, and Interactive HTML now use the same
+replacement-directory writer, including its async encoding path. Their former
+sibling-file staging had retained the same save-panel permission failure.
+Cancellation is checked again before installing every format, including
+synchronous PDF and animated-image encoding.
+
 Apple references:
 
 - [Accessing files from the macOS App Sandbox](https://developer.apple.com/documentation/security/accessing-files-from-the-macos-app-sandbox)
@@ -30,6 +36,15 @@ Apple references:
 JPEG, and PDF files, PDF page bounds matching the image size, staging outside
 the destination folder, preservation after encoding failure and cancellation,
 and cleanup after installation failure.
+The async writer also covers replacement-directory staging, installation, and
+cancellation cleanup. `CompositionOutputExporterTests` verifies that PDF and
+Print use the selected Blink poster and that Interactive HTML displays an
+already rendered Difference result without applying its intensity twice.
+Blink encoders consume a lazy frame collection: only the two endpoint images
+and the current crossfade raster are retained by the frame plan. Timing, frame
+count, and pixels remain unchanged; large animations no longer retain every
+4,096-pixel crossfade image simultaneously. Encoder-internal buffering remains
+under ImageIO or AVFoundation control.
 
 An isolated exporter probe also reproduced the original failures with writes
 denied under a fixture destination directory except for the three exact output
@@ -57,6 +72,8 @@ and staged file writers.
    remain and no encoding alert appears.
 5. Repeat with iCloud Drive, an external volume, and a network share when
    available. Record any skipped destination.
+   Repeat composition PNG/JPEG/PDF and Blink GIF/APNG/MP4 exports plus Steps
+   and Comparison Interactive HTML using a fresh save-panel destination.
 6. Check Copy and Drag separately; their in-memory/direct-write paths are
    unchanged. Run `ImageExportFileWriterTests`, `DragOutSharingTests`, and
    `EditorRendererTests` in one non-parallel app host.
@@ -65,3 +82,40 @@ For the original report, request the exact macOS version/build, app distribution
 (App Store or Pro), destination type, whether Downloads works, and whether Copy
 works. A sanitized Settings > Privacy > Export Diagnostics report is useful;
 the user's screenshot content is not needed to investigate this permission bug.
+
+The same replacement staging now covers Video MP4, GIF, and APNG, including
+size-constrained MP4 retries. The selected destination is replaced only after
+encoding succeeds; an invalid source or cancellation preserves the previous file.
+`VideoExportTransactionTests` covers failure/cancellation, and `VideoEditingTests`
+opens completed MP4/APNG outputs to verify their rendered edits.
+
+Promised-file drag delivery uses the same staging boundary. A failed writer never
+removes an existing destination, even if it failed before writing any output;
+success callbacks receive the final destination only after installation.
+
+## Long scrolling screenshots
+
+New scrolling captures and composition rasters share `ScreenshotRasterBudget`:
+262,144 pixels per side and 134,217,728 total pixels. The capture height is
+calculated from the actual pixel width, including Retina scale; increasing the
+height ceiling never bypasses the pixel budget. Composition export retains the
+1 GiB estimated working-set check. Editable screenshot and Guide packages accept
+the longer side while retaining their existing decoded-pixel import ceilings.
+
+`ScreenshotRasterBudgetTests` verifies width-dependent capacity, proportional
+long-image resizing, full-height PNG decoding, and the explicit JPEG dimension
+error. JPEG output above 65,535 pixels per side recommends PNG or a smaller output
+width. `SSSDocumentTests` and `GuideWorkflowTests` round-trip narrow images beyond
+the former package side limit. `CompositionOutputExporterTests` verifies that a
+narrow 70,000-pixel composition is not classified as oversized solely by height.
+
+For live validation, open a tall capture and verify that its initial view starts
+at the top at a readable width, Fit Width exposes the first row, Fit to Window
+shows the whole image, Actual Size reaches 100%, and scrolling reaches the final
+row. Repeat after showing/hiding the inspector and resizing the window. The
+annotation canvas backing view stays the size of the visible viewport, independent
+of document height; check annotations and crop handles near both ends of the
+capture. Export full PNG, save and reopen `.sss`, then compare the first and last
+rows. Guide review and package previews render directly into a bounded raster;
+marker handles use the full logical card geometry. `GuideRendererPreviewTests`
+checks the cap, placement, advanced-edit crop geometry, and scaled redactions. Verify that a JPEG dimension error preserves any existing destination.

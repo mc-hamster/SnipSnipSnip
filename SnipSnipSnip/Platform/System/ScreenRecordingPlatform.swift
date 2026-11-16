@@ -140,12 +140,17 @@ extension ScreenRecordingPlatformSession {
 }
 
 protocol ScreenRecordingPlatform: Sendable {
+    @MainActor func makeInteractionRecorder(target: ScreenRecordingTarget) -> VideoInteractionRecorder?
     nonisolated func shareableContent() async throws -> ScreenContentSnapshot
     nonisolated func requestMicrophoneAccess() async throws
     @MainActor func makeSession(
         target: ScreenRecordingTarget,
         configuration: ScreenRecordingConfiguration
     ) async throws -> any ScreenRecordingPlatformSession
+}
+
+extension ScreenRecordingPlatform {
+    @MainActor func makeInteractionRecorder(target: ScreenRecordingTarget) -> VideoInteractionRecorder? { nil }
 }
 
 /// ScreenCaptureKit delivers frames on a serial sample queue, while the session
@@ -177,6 +182,9 @@ nonisolated private final class ScreenRecordingFrameSinkRelay: @unchecked Sendab
 }
 
 struct LiveScreenRecordingPlatform: ScreenRecordingPlatform {
+    @MainActor func makeInteractionRecorder(target: ScreenRecordingTarget) -> VideoInteractionRecorder? {
+        VideoInteractionRecorder(target: target)
+    }
     nonisolated func shareableContent() async throws -> ScreenContentSnapshot {
         try await LiveScreenCapturePlatform().shareableContent()
     }

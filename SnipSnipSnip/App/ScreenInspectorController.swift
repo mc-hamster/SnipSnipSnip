@@ -42,6 +42,7 @@ final class ScreenInspectorCoordinator: ObservableObject {
     private let capturePlatform: any ScreenCapturePlatform
     private let screens: any ScreenTopologyProviding
     private let permissions: any CapturePermissionServicing
+    private weak var permissionWorkflow: PermissionWorkflowModel?
     private var eventHandlerRef: EventHandlerRef?
     private var hotKeyRefs: [Shortcut: EventHotKeyRef] = [:]
 
@@ -61,6 +62,10 @@ final class ScreenInspectorCoordinator: ObservableObject {
         self.capturePlatform = capturePlatform
         self.screens = screens
         self.permissions = permissions
+    }
+
+    func setPermissionWorkflow(_ workflow: PermissionWorkflowModel) {
+        permissionWorkflow = workflow
     }
 
     func setPreferencesChangeHandler(_ handler: @escaping (ScreenInspectorPreferences) -> Void) {
@@ -110,6 +115,7 @@ final class ScreenInspectorCoordinator: ObservableObject {
             capturePlatform: capturePlatform,
             screens: screens,
             permissions: permissions,
+            permissionWorkflow: permissionWorkflow,
             onSnip: { [weak self] sample in
                 self?.onSnip(sample)
             }
@@ -267,6 +273,8 @@ final class ScreenInspectorWindowModel: ObservableObject {
 
     private let sampler: ScreenInspectorSampler
     private let permissions: any CapturePermissionServicing
+    private weak var permissionWorkflow: PermissionWorkflowModel?
+    private var permissionObservation: AnyCancellable?
     private let onSnip: (ScreenInspectorSample) -> Void
     private var timer: Timer?
     private var pendingSampleTask: Task<Void, Never>?
@@ -281,12 +289,17 @@ final class ScreenInspectorWindowModel: ObservableObject {
         permissions: any CapturePermissionServicing = SystemCapturePermissionService(
             capabilities: AppCapabilitySnapshot(buildTarget: .dev, enabledCapabilities: Set(AppCapability.allCases))
         ),
+        permissionWorkflow: PermissionWorkflowModel? = nil,
         onSnip: @escaping (ScreenInspectorSample) -> Void = { _ in }
     ) {
         self.preferences = preferences.sanitized()
         self.sampler = ScreenInspectorSampler(platform: capturePlatform, screens: screens)
         self.permissions = permissions
+        self.permissionWorkflow = permissionWorkflow
         self.onSnip = onSnip
+        permissionObservation = permissionWorkflow?.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
     }
 
     var cursorCoordinateDescription: String {
@@ -314,12 +327,15 @@ final class ScreenInspectorWindowModel: ObservableObject {
     }
 
     var hasScreenRecordingAccess: Bool {
-        permissions.currentStatus().hasScreenRecording
+        permissionWorkflow?.permissionStatus.hasScreenRecording ?? permissions.currentStatus().hasScreenRecording
     }
 
     func setUpScreenRecording() {
-        _ = permissions.requestAccess(for: .screenRecording)
-        permissions.openSystemSettings(for: .screenRecording)
+        if let permissionWorkflow {
+            _ = permissionWorkflow.preflight([.screenRecording], featureName: "Screen Inspector")
+        } else {
+            _ = permissions.requestAccess(for: .screenRecording)
+        }
     }
 
     func openPermissionHelp() {
@@ -327,6 +343,7 @@ final class ScreenInspectorWindowModel: ObservableObject {
     }
 
     func checkPermissionAgain() {
+        permissionWorkflow?.checkPermissionSetupGuideStatus()
         refresh()
     }
 
@@ -422,28 +439,39 @@ final class ScreenInspectorWindowModel: ObservableObject {
         guard !isFrozen, pendingSampleTask == nil else {
             return
         }
+        guard hasScreenRecordingAccess else {
+            sample = nil
+            return
+        }
 
         let location = NSEvent.mouseLocation
         let zoomLevel = preferences.zoomLevel
         let lensDisplaySize = lensDisplaySize
         pendingSampleTask = Task { @MainActor [weak self] in
-            let sample = try? await self?.sampler.sample(
-                around: location,
-                zoomLevel: zoomLevel,
-                lensDisplaySize: lensDisplaySize
-            )
-            guard let self, !Task.isCancelled else {
-                return
-            }
-
-            self.pendingSampleTask = nil
-            guard !self.isFrozen else {
-                return
-            }
-
-            if let sample {
-                self.sample = sample
-                self.updateMeasurement(with: sample.cursorLocation)
+            do {
+                let sample = try await self?.sampler.sample(
+                    around: location,
+                    zoomLevel: zoomLevel,
+                    lensDisplaySize: lensDisplaySize
+                )
+                guard let self, !Task.isCancelled else { return }
+                self.pendingSampleTask = nil
+                guard self.hasScreenRecordingAccess else {
+                    self.sample = nil
+                    return
+                }
+                guard !self.isFrozen else { return }
+                if let sample {
+                    self.sample = sample
+                    self.updateMeasurement(with: sample.cursorLocation)
+                }
+            } catch {
+                guard let self, !Task.isCancelled else { return }
+                self.pendingSampleTask = nil
+                if self.permissions.indicatesScreenRecordingPermissionFailure(error) {
+                    self.permissionWorkflow?.reconcileScreenRecordingPermissionDenied(after: error)
+                    self.sample = nil
+                }
             }
         }
     }
@@ -493,8 +521,9 @@ final class ScreenInspectorWindowController: NSWindowController {
         )
         panel.identifier = NSUserInterfaceItemIdentifier(ScreenInspectorWindowID.prefix + UUID().uuidString)
         panel.title = "Screen Inspector"
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
+        panel.titlebarAppearsTransparent = false
+        panel.isOpaque = true
+        panel.backgroundColor = .windowBackgroundColor
         panel.hasShadow = true
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
@@ -731,6 +760,7 @@ private struct ScreenInspectorWindowView: View {
                         .frame(minWidth: 78)
                         .keyboardShortcut(.escape, modifiers: [])
                 }
+                .fixedSize(horizontal: true, vertical: false)
 
                 HStack(spacing: 8) {
                     Button("Copy HEX ⌥⌘H", action: model.copyColorAsHex)
@@ -744,7 +774,10 @@ private struct ScreenInspectorWindowView: View {
                         .disabled(model.sample == nil)
                         .keyboardShortcut("r", modifiers: [.command, .option])
                         .help("Copy the current color as RGB. Shortcut: Option-Command-R.")
+                }
+                .fixedSize(horizontal: true, vertical: false)
 
+                HStack(spacing: 8) {
                     Button("\(model.measurementButtonTitle) ⌥⌘M", action: model.toggleMeasurementPoint)
                         .frame(minWidth: 98)
                         .disabled(model.sample == nil)
@@ -756,6 +789,7 @@ private struct ScreenInspectorWindowView: View {
                         .disabled(model.measurement == nil)
                         .help("Clear the distance measurement.")
                 }
+                .fixedSize(horizontal: true, vertical: false)
             }
             .font(.caption)
         }
@@ -773,7 +807,7 @@ private struct ScreenInspectorWindowView: View {
     }
 }
 
-private struct PixelGridOverlay: Shape {
+nonisolated private struct PixelGridOverlay: Shape {
     let zoomLevel: ScreenInspectorZoomLevel
 
     func path(in rect: CGRect) -> Path {
@@ -798,7 +832,7 @@ private struct PixelGridOverlay: Shape {
     }
 }
 
-private struct CrosshairOverlay: Shape {
+nonisolated private struct CrosshairOverlay: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
         path.move(to: CGPoint(x: rect.midX, y: rect.minY))
@@ -809,7 +843,7 @@ private struct CrosshairOverlay: Shape {
     }
 }
 
-private struct MeasurementOverlay: Shape {
+nonisolated private struct MeasurementOverlay: Shape {
     let sample: ScreenInspectorSample
     let measurement: ScreenInspectorMeasurement
     let zoomLevel: ScreenInspectorZoomLevel

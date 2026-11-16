@@ -396,6 +396,7 @@ struct EditorInspectorView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
+                .accessibilityIdentifier("editor.composition.inspector.done")
             }
         }
     }
@@ -751,6 +752,12 @@ struct EditorInspectorView: View {
                     .pickerStyle(.segmented)
                 }
 
+                if controller.activeTool == .highlighter || controller.selectedAnnotation?.editorTool == .highlighter {
+                    Toggle("Fit to Text", isOn: $controller.smartHighlightEnabled)
+                        .help("Fit new highlights to recognized words and lines. Turn off to draw freely. Uncertain text keeps your freehand stroke.")
+                        .accessibilityIdentifier("editor.highlighter.fitToText")
+                }
+
                 if controller.showsFreehandTuningControls {
                     Divider()
 
@@ -1037,6 +1044,29 @@ struct EditorInspectorView: View {
             let cropRect = controller.snapshot.cropRect.gscIntegralStandardized
 
             VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Button("Auto Crop") {
+                        controller.autoCropCurrentCrop()
+                    }
+                    .buttonStyle(.glass)
+                    .help("Tighten the current crop around screenshot content and visible annotations.")
+
+                    Button("Padded") {
+                        controller.autoCropCurrentCropWithPadding()
+                    }
+                    .buttonStyle(.glass)
+                    .help("Tighten the current crop while keeping a small margin around screenshot content and visible annotations.")
+
+                    Button("Reset Crop") {
+                        controller.resetCrop()
+                    }
+                    .buttonStyle(.glass)
+                    .help("Restore the editable area to the full captured image.")
+                    .disabled(!controller.canResetCrop)
+
+                    Spacer(minLength: 0)
+                }
+
                 Text("Adjustments apply immediately and remain undoable. Crop handles stay available on the image while another annotation tool is selected.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -1089,29 +1119,6 @@ struct EditorInspectorView: View {
                     cropValueField(cropRect.height) { value in
                         controller.updateCropOrigin(height: value)
                     }
-                }
-
-                HStack {
-                    Button("Auto Crop") {
-                        controller.autoCropCurrentCrop()
-                    }
-                    .buttonStyle(.glass)
-                    .help("Tighten the current crop around screenshot content and visible annotations.")
-
-                    Button("Padded") {
-                        controller.autoCropCurrentCropWithPadding()
-                    }
-                    .buttonStyle(.glass)
-                    .help("Tighten the current crop while keeping a small margin around screenshot content and visible annotations.")
-
-                    Button("Reset Crop") {
-                        controller.resetCrop()
-                    }
-                    .buttonStyle(.glass)
-                    .help("Restore the editable area to the full captured image.")
-                    .disabled(!controller.canResetCrop)
-
-                    Spacer(minLength: 0)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1334,7 +1341,7 @@ struct ShadowDirectionPicker: View {
 }
 
 
-struct ThreeByThreeGridLines: Shape {
+nonisolated struct ThreeByThreeGridLines: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
         let thirdWidth = rect.width / 3

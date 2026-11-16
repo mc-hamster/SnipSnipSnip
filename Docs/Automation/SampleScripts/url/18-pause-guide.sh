@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 set -euo pipefail
-open "snipsnipsnip://v1/guide/pause"
+open "${SSS_URL_SCHEME:-snipsnipsnip}://v1/guide/pause"

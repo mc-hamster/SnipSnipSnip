@@ -47,6 +47,7 @@ extension DocumentWorkflowModel {
             return
         }
         let outputInput: CompositionOutputInput
+        let outputSize = controller.screenshotOutputSize
         do {
             outputInput = try controller.compositionOutputInput(
                 appearance: appearance
@@ -95,6 +96,8 @@ extension DocumentWorkflowModel {
             }
         }
 
+        let activity = controller.outputActivity
+        guard let activityID = activity.beginExport() else { return }
         let resolved = ScreenshotFilenameTemplate(
             pattern: screenshotFilenameTemplate
         ).resolvedFilename(
@@ -112,6 +115,7 @@ extension DocumentWorkflowModel {
         activeCompositionExportID = exportID
         pendingCompositionExportTask = Task {
             @MainActor [weak self, weak controller] in
+            defer { activity.finishExport(id: activityID) }
             guard let self,
                   let controller,
                   let destination = await self.dependencies.panels
@@ -126,6 +130,7 @@ extension DocumentWorkflowModel {
                 return
             }
 
+            activity.beginExportRendering(id: activityID)
             let progressHandler: CompositionOutputProgressHandler?
             if format == .html {
                 self.compositionExportProgressState =
@@ -163,6 +168,7 @@ extension DocumentWorkflowModel {
                     format: format,
                     to: destination,
                     imageOptions: screenshotImageExportOptions,
+                    stillOutputSize: outputSize,
                     maximumOutputDimension: maximumOutputDimension,
                     forcedPDFItemsPerPage: forcedPDFItemsPerPage,
                     progress: progressHandler
@@ -184,7 +190,7 @@ extension DocumentWorkflowModel {
                     EditorNotice(
                         message: message,
                         action: .reveal(destination),
-                        dismissalDelaySeconds: 7
+                        dismissalDelaySeconds: 6
                     )
                 )
             } catch is CancellationError {

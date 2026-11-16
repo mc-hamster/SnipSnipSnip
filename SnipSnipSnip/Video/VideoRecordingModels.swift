@@ -125,6 +125,7 @@ nonisolated struct VideoRecordingPreferences: Codable, Equatable {
     var recordsMicrophone = false
     var showsCursor = true
     var showsMouseClicks = true
+    var recordsKeyboardShortcuts: Bool? = nil
 }
 
 nonisolated struct CapturedVideoRecording: Identifiable, Equatable {
@@ -136,6 +137,7 @@ nonisolated struct CapturedVideoRecording: Identifiable, Equatable {
     var recordedAt: Date
     var duration: TimeInterval
     var preferences: VideoRecordingPreferences
+    var interactions: VideoInteractionTrack? = nil
 
     var defaultFilename: String {
         let formatter = DateFormatter()
@@ -154,6 +156,30 @@ nonisolated struct VideoEditorSession: Codable, Equatable {
     var trimStartSeconds: TimeInterval
     var trimEndSeconds: TimeInterval
     var posterTimeSeconds: TimeInterval
+    var effects: VideoEffects = VideoEffects()
+    var removedRanges: [VideoTimeRange] = []
+
+    private enum CodingKeys: String, CodingKey {
+        case trimStartSeconds, trimEndSeconds, posterTimeSeconds, effects, removedRanges
+    }
+
+    init(trimStartSeconds: Double, trimEndSeconds: Double, posterTimeSeconds: Double,
+         effects: VideoEffects = VideoEffects(), removedRanges: [VideoTimeRange] = []) {
+        self.trimStartSeconds = trimStartSeconds
+        self.trimEndSeconds = trimEndSeconds
+        self.posterTimeSeconds = posterTimeSeconds
+        self.effects = effects
+        self.removedRanges = removedRanges
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        trimStartSeconds = try values.decode(Double.self, forKey: .trimStartSeconds)
+        trimEndSeconds = try values.decode(Double.self, forKey: .trimEndSeconds)
+        posterTimeSeconds = try values.decode(Double.self, forKey: .posterTimeSeconds)
+        effects = try values.decodeIfPresent(VideoEffects.self, forKey: .effects) ?? VideoEffects()
+        removedRanges = try values.decodeIfPresent([VideoTimeRange].self, forKey: .removedRanges) ?? []
+    }
 
     nonisolated static func fullDuration(_ duration: TimeInterval) -> VideoEditorSession {
         VideoEditorSession(
@@ -164,15 +190,23 @@ nonisolated struct VideoEditorSession: Codable, Equatable {
     }
 
     nonisolated func normalized(for duration: TimeInterval) -> VideoEditorSession {
-        let boundedDuration = max(duration, 0)
-        let start = min(max(trimStartSeconds, 0), boundedDuration)
-        let end = min(max(trimEndSeconds, start), boundedDuration)
-        let poster = min(max(posterTimeSeconds, start), end)
+        let boundedDuration = duration.isFinite ? max(duration, 0) : 0
+        let start = min(max(trimStartSeconds.isFinite ? trimStartSeconds : 0, 0), boundedDuration)
+        let end = min(max(trimEndSeconds.isFinite ? trimEndSeconds : boundedDuration, start), boundedDuration)
+        let poster = min(max(posterTimeSeconds.isFinite ? posterTimeSeconds : start, start), end)
 
         return VideoEditorSession(
             trimStartSeconds: start,
             trimEndSeconds: end,
-            posterTimeSeconds: poster
+            posterTimeSeconds: poster,
+            effects: effects.normalized(duration: boundedDuration),
+            removedRanges: removedRanges.compactMap { range in
+                guard range.start.isFinite, range.end.isFinite else { return nil }
+                var range = range
+                range.start = min(max(range.start, 0), boundedDuration)
+                range.end = min(max(range.end, range.start), boundedDuration)
+                return range.duration >= 0.1 ? range : nil
+            }
         )
     }
 }

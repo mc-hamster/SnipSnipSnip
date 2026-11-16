@@ -41,6 +41,104 @@ final class CompositionTemplateStoreTests: XCTestCase {
         XCTAssertEqual(freeform.appearance, CompositionAppearanceTheme.dark.appearance)
     }
 
+    func testUserTemplateStorageAndExchangePreserveLayoutFramingAndComparisonSettings() throws {
+        let suiteName = "CompositionTemplateStoreTests.roundTrip.\(UUID())"
+        let defaults = makeDefaults(named: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        var template = try XCTUnwrap(CompositionTemplateStore.builtInTemplates.first)
+        template.id = "user.\(UUID())"
+        template.name = "Custom layout"
+        template.source = .user
+        template.itemCount = .exact(2)
+        template.layout = CompositionLayoutConfiguration(
+            mode: .freeform, gridColumns: 2, targetAspectRatio: 1.5,
+            freeformCanvasSize: CGSize(width: 900, height: 600), sizingMode: .weighted, orientation: .custom
+        )
+        template.appearance = CompositionAppearanceTheme.documentation.appearance
+        template.appearance.captionFontName = "Helvetica"
+        template.appearance.captionTextAlignment = .trailing
+        template.appearance.titleTextAlignment = .center
+        template.comparison.mode = .blink
+        template.comparison.primaryItemIndex = 1
+        template.comparison.secondaryItemIndex = 0
+        template.comparison.registrationMode = .manual
+        template.comparison.manualRegistrationOffset = CGSize(width: 7, height: -3)
+        template.comparison.blinkInterval = 1.5
+        template.comparison.blinkCrossfadeDuration = 0.2
+        template.comparison.blinkLoops = false
+        template.comparison.posterFrame = .primary
+        template.steps = CompositionStepsSettings(
+            flow: .grid, gridColumns: 2, numberingStyle: .uppercaseRoman,
+            startIndex: 4, showsCaptions: false, connectorStyle: .line, itemsPerPage: 1
+        )
+        template.itemSettings = [0, 1].map { index in
+            CompositionTemplateItemSettings(
+                framing: CompositionTemplateFraming(
+                    CompositionItemFraming(contentMode: .fill, scale: 1.25, offset: CGSize(width: 0.1, height: -0.2)),
+                    linkGroupIndex: 0
+                ),
+                weight: CGFloat(index + 1), opacity: 0.75,
+                normalizedFreeformFrame: CGRect(x: CGFloat(index) / 2, y: 0.1, width: 0.4, height: 0.6),
+                zIndex: 1 - index
+            )
+        }
+
+        try CompositionTemplateStore.upsert(template, in: defaults)
+        XCTAssertEqual(CompositionTemplateStore.allTemplates(in: defaults).first { $0.id == template.id }, template)
+        let exported = try CompositionTemplateStore.exportData(for: template)
+        let imported = try XCTUnwrap(CompositionTemplateStore.importedTemplates(from: exported, exactItemCount: 2).first)
+        XCTAssertNotEqual(imported.id, template.id)
+        var expected = template
+        expected.id = imported.id
+        XCTAssertEqual(imported, expected)
+        let destinationItems = [CompositionItem(assetID: UUID()), CompositionItem(assetID: UUID())]
+        let comparison = imported.comparison.settings(items: destinationItems)
+        XCTAssertEqual(comparison.primaryItemID, destinationItems[1].id)
+        XCTAssertEqual(comparison.secondaryItemID, destinationItems[0].id)
+    }
+
+    func testImportedTemplateRejectsUnsafeNumberingAndGeometryBeforeApplying() throws {
+        let base = try XCTUnwrap(CompositionTemplateStore.builtInTemplates.first)
+        let invalidSettings: [(String, (inout CompositionTemplate) -> Void)] = [
+            ("overflowing step number", { $0.steps.startIndex = Int.max }),
+            ("unbounded Roman numbering", { $0.steps.startIndex = 1_000_001 }),
+            ("empty page size", { $0.steps.itemsPerPage = 0 }),
+            ("invalid step grid", { $0.steps.gridColumns = 0 }),
+            ("unbounded canvas", { $0.layout.freeformCanvasSize = CGSize(width: 1e100, height: 600) }),
+            ("unbounded aspect ratio", { $0.layout.targetAspectRatio = 1e100 }),
+            ("unbounded font size", { $0.appearance.captionFontSize = 1e100 }),
+            ("unbounded freeform item", { template in
+                template.itemSettings = [CompositionTemplateItemSettings(
+                    framing: CompositionTemplateFraming(CompositionItemFraming(), linkGroupIndex: nil),
+                    weight: 1, opacity: 1,
+                    normalizedFreeformFrame: CGRect(x: 1e100, y: 0, width: 1, height: 1), zIndex: 0
+                )]
+            }),
+            ("invalid comparison opacity", { $0.comparison.overlayOpacity = 2 }),
+            ("crossfade longer than interval", { $0.comparison.blinkCrossfadeDuration = 20 }),
+        ]
+
+        for (name, mutate) in invalidSettings {
+            var template = base
+            mutate(&template)
+            // Encode the exchange directly: exportData correctly refuses these
+            // values, but imported files need the same check before application.
+            let object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(template))
+            let data = try JSONSerialization.data(withJSONObject: [
+                "format": "com.snipsnipsnip.composition-template", "version": 1, "templates": [object],
+            ])
+            XCTAssertThrowsError(try CompositionTemplateStore.importedTemplates(from: data, exactItemCount: 2), name) {
+                XCTAssertEqual($0 as? CompositionTemplateStoreError, .invalidTemplate, name)
+            }
+        }
+
+        for start in [-1_000_000, 1_000_000] {
+            var template = base
+            template.steps.startIndex = start
+            XCTAssertNoThrow(try CompositionTemplateStore.validate(template), "Persistable boundary values remain supported")
+        }
+    }
+
     @MainActor
     func testSavedTemplateContainsNoDocumentIdentityOrContent() throws {
         let itemID = UUID()

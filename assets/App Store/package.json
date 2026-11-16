@@ -1,0 +1,10 @@
+{
+  "name": "snipsnipsnip-app-store-assets",
+  "private": true,
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "dependencies": {
+    "sharp": "0.35.4"
+  }
+}

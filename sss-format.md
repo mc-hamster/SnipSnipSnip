@@ -542,7 +542,7 @@ The current defensive limits are implementation guardrails for untrusted
 packages, not normal-workflow UI limits:
 
 - 64 MiB manifest
-- 65,536 pixels per image side and 268,435,456 decoded pixels per image
+- 262,144 pixels per image side and 268,435,456 decoded pixels per image
 - 1 GiB encoded bytes per base, overlay, or composition image
 - 2 GiB aggregate encoded bytes across all base, overlay, and composition images
 - 1,073,741,824 aggregate decoded source pixels
@@ -551,7 +551,7 @@ packages, not normal-workflow UI limits:
 - 10,000 declared composition assets
 - 16,384 pixels per fixed custom or Scene output side and 134,217,728 pixels per
   fixed output
-- 131,072 pixels per computed Presentation output side and 536,870,912 pixels
+- 524,288 pixels per computed Presentation output side and 536,870,912 pixels
   per computed output
 - 4 MiB per embedded applied-Scene SVG
 - 4,096 undo/redo snapshots

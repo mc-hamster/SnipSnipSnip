@@ -40,14 +40,11 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
     weak var documents: (any ClipboardDocumentWorkflowPort)?
     private let pasteboard: any PasteboardServicing
     private var historyObservation: AnyCancellable?
+    private var permissionObservation: AnyCancellable?
     var monitoringResumeTask: Task<Void, Never>?
+    var foregroundReadTask: Task<Void, Never>?
+    @Published var isReadingClipboardOnce = false
     let preferenceStore: ClipboardPreferenceStore
-    @Published var autoCopyEnabled: Bool {
-        didSet {
-            preferenceStore.saveAutoCopyEnabled(autoCopyEnabled)
-            outputSink?.handle(.autoCopyChanged(autoCopyEnabled))
-        }
-    }
     @Published var preferences: ClipboardPreferences {
         didSet {
             let sanitizedPreferences = preferences.sanitized()
@@ -58,6 +55,11 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
 
             preferenceStore.savePreferences(preferences)
             monitor.update(preferences: preferences)
+            if !preferences.isEnabled {
+                foregroundReadTask?.cancel()
+                foregroundReadTask = nil
+                isReadingClipboardOnce = false
+            }
             if preferences.isEnabled {
                 historyStore.prune(using: preferences)
             }
@@ -80,8 +82,10 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
         self.monitor = monitor
         self.pasteboard = pasteboard
         self.preferenceStore = preferenceStore
-        self.autoCopyEnabled = preferenceStore.loadAutoCopyEnabled()
         self.preferences = preferenceStore.loadPreferences()
+        permissionObservation = monitor.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
         historyObservation = historyStore.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
         }
@@ -97,7 +101,34 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
         if !preferences.isEnabled { return "Monitoring Off" }
         if !historyStore.isStorageAvailable { return "Monitoring Unavailable" }
         if isClipboardMonitoringPaused { return "Monitoring Paused" }
+        if monitor.accessPolicy == .denied { return String(localized: "Monitoring Blocked") }
+        if !monitor.accessPolicy.allowsBackgroundRead { return String(localized: "Monitoring Needs Access") }
         return "Monitoring"
+    }
+
+    var needsClipboardAccess: Bool {
+        preferences.isEnabled && !monitor.accessPolicy.allowsBackgroundRead
+    }
+
+    func openClipboardPrivacySettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy") {
+            dependencies.systemServices.workspace.open(url)
+        }
+    }
+
+    func readClipboardOnce() {
+        guard preferences.isEnabled, !isReadingClipboardOnce else { return }
+        isReadingClipboardOnce = true
+        foregroundReadTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let didRead = await monitor.readClipboardOnce(preferences: preferences)
+            guard !Task.isCancelled else { return }
+            isReadingClipboardOnce = false
+            foregroundReadTask = nil
+            actionMessage = didRead
+                ? String(localized: "Clipboard item added. Background monitoring follows your macOS access setting.")
+                : String(localized: "No clipboard item was read. Copy an item and try again, or review Clipboard access in Privacy & Security.")
+        }
     }
 
     func retryClipboardStorage() { historyStore.retryStorage() }
@@ -109,11 +140,14 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
         return id
     }
 
-    func copyItem(_ item: ClipboardItem, plainTextOnly: Bool = false) {
+    @discardableResult
+    func copyItem(_ item: ClipboardItem, plainTextOnly: Bool = false) -> Bool {
         if writeItemToPasteboard(item, plainTextOnly: plainTextOnly) {
             actionMessage = plainTextOnly ? "Copied as plain text." : "Copied."
+            return true
         } else {
-            actionMessage = "This clipboard item is no longer available. Your current clipboard was preserved."
+            actionMessage = String(localized: "This item could not be copied. Try again.")
+            return false
         }
     }
 
@@ -183,7 +217,8 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
         monitor.markCurrentPasteboardChangeAsHandled()
     }
 
-    func copyEditedText(_ text: String) {
+    @discardableResult
+    func copyEditedText(_ text: String) -> Bool {
         let item = ClipboardItem(
             id: UUID(),
             kind: .text(text),
@@ -195,7 +230,7 @@ final class ClipboardWorkflowModel: ObservableObject, ClipboardAutomationPort {
             contentHash: "edited",
             byteSize: Int64(text.utf8.count)
         )
-        copyItem(item)
+        return copyItem(item)
     }
 
 }
@@ -207,7 +242,7 @@ enum ClipboardPasteboardTransaction {
         preparedItems: [PasteboardItemSnapshot]?,
         fallbackWrite: () -> Bool
     ) -> Bool {
-        let previousItems = pasteboard.itemSnapshots(acceptedTypeIdentifiers: Set(pasteboard.typeNames))
+        let previousItems = pasteboard.rollbackItemSnapshots(acceptedTypeIdentifiers: Set(pasteboard.typeNames))
         _ = pasteboard.clearContents()
         let succeeded = preparedItems.map(pasteboard.writeItemSnapshots) ?? fallbackWrite()
         guard !succeeded else { return true }

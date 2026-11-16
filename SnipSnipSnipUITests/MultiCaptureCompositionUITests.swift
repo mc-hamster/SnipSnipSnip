@@ -560,7 +560,7 @@ final class MultiCaptureCompositionUITests: XCTestCase {
                 .waitForExistence(timeout: 10),
             "Cancellation should restore focus to the composition event layer."
         )
-        app.buttons["Done"].firstMatch.click()
+        finishCompositionEditing()
     }
 
     func testStaleAppendDestinationKeepsCaptureInRecentSnips() {
@@ -895,7 +895,7 @@ final class MultiCaptureCompositionUITests: XCTestCase {
             "Add…",
             "Screenshot editing should lead with the single low-friction Add action."
         )
-        assertDiscardAvailableInCurrentDocumentStage()
+        assertBackToCaptureAvailableInCurrentDocumentStage()
         assertScreenshotInspectorIsolation()
         assertRoutineOutputUsesPlainLanguage()
     }
@@ -921,7 +921,7 @@ final class MultiCaptureCompositionUITests: XCTestCase {
             )
             assertPurposeInspectorIsolation(for: goal)
             assertRoutineOutputUsesPlainLanguage()
-            assertDiscardAvailableInCurrentDocumentStage()
+            assertBackToCaptureAvailableInCurrentDocumentStage()
             XCTAssertEqual(
                 app.staticTexts.matching(
                     NSPredicate(format: "label CONTAINS[c] %@", "Presentation")
@@ -957,18 +957,18 @@ final class MultiCaptureCompositionUITests: XCTestCase {
         }
     }
 
-    private func assertDiscardAvailableInCurrentDocumentStage(
+    private func assertBackToCaptureAvailableInCurrentDocumentStage(
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        let discard = identified("editor.discard")
+        let back = identified("editor.backToCapture")
         XCTAssertTrue(
-            discard.waitForExistence(timeout: 5),
-            "Every screenshot-document stage should expose Discard.",
+            back.waitForExistence(timeout: 5),
+            "Every screenshot-document stage should expose Back to Capture.",
             file: file,
             line: line
         )
-        XCTAssertEqual(discard.label, "Discard", file: file, line: line)
+        XCTAssertEqual(back.label, "Back to Capture", file: file, line: line)
     }
 
     private func promoteScreenshot(to goal: IntentGoal) {
@@ -1079,11 +1079,7 @@ final class MultiCaptureCompositionUITests: XCTestCase {
                     .waitForExistence(timeout: 10),
                 "The whole-composition editing scope should be visible."
             )
-            XCTAssertTrue(
-                app.buttons["Done"].firstMatch
-                    .waitForExistence(timeout: 5)
-            )
-            app.buttons["Done"].firstMatch.click()
+            finishCompositionEditing()
 
             XCTAssertTrue(
                 identified("composition.layout")
@@ -1105,7 +1101,7 @@ final class MultiCaptureCompositionUITests: XCTestCase {
                 "Scoped composition editing must not export pixels different from the visible editing canvas."
             )
             assertDocumentOutputMenusHaveEnabledState(false)
-            app.buttons["Done"].firstMatch.click()
+            finishCompositionEditing()
             XCTAssertTrue(
                 identified("composition.layout")
                     .waitForExistence(timeout: 10)
@@ -1442,7 +1438,7 @@ final class MultiCaptureCompositionUITests: XCTestCase {
                 "Return should enter Edit Selected Capture."
             )
 
-            app.buttons["Done"].firstMatch.click()
+            finishCompositionEditing()
             XCTAssertTrue(
                 identified("composition.canvas")
                     .waitForExistence(timeout: 10),
@@ -1462,7 +1458,7 @@ final class MultiCaptureCompositionUITests: XCTestCase {
                     .waitForExistence(timeout: 10),
                 "Restored focus should make Return re-enter Edit Selected Capture."
             )
-            app.buttons["Done"].firstMatch.click()
+            finishCompositionEditing()
 
             let layoutItem = canvasItem(
                 named: "UI Test Added 1"
@@ -1678,6 +1674,13 @@ final class MultiCaptureCompositionUITests: XCTestCase {
         identified("composition.privateStatus")
     }
 
+    private func finishCompositionEditing(file: StaticString = #filePath, line: UInt = #line) {
+        let done = identified("editor.composition.inspector.done")
+        revealInInspector(done, scrollingDown: false, file: file, line: line)
+        XCTAssertTrue(done.isEnabled, file: file, line: line)
+        done.click()
+    }
+
     private func identified(_ identifier: String) -> XCUIElement {
         app.descendants(matching: .any)
             .matching(identifier: identifier)
@@ -1742,12 +1745,19 @@ final class MultiCaptureCompositionUITests: XCTestCase {
                 ) else {
                     return
                 }
+                let frame = inspector.frame
+                let target = element.exists ? element.frame : .null
+                let step = max(24, min(360, frame.height / 2))
+                let delta: CGFloat
+                if !target.isNull, !target.isInfinite, !target.isEmpty,
+                   abs(target.midY - frame.midY) > 8 {
+                    delta = max(-step, min(step, frame.midY - target.midY))
+                } else {
+                    delta = direction ? -step : step
+                }
                 inspector.coordinate(
                     withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
-                ).scroll(
-                    byDeltaX: 0,
-                    deltaY: direction ? -360 : 360
-                )
+                ).scroll(byDeltaX: 0, deltaY: delta)
             }
         }
         XCTAssertTrue(

@@ -1,0 +1,18 @@
+SnipSnipSnip 1.2.0 — Mac App Store review notes
+
+No sign-in, subscription, in-app purchase, or test account is required. Requires macOS 26 or later.
+
+Allow Screen Recording when prompted to test screenshot capture and Video. Microphone access is optional and requested only for narration. The App Store edition does not request Accessibility access.
+
+Suggested review path:
+1. Capture a Region or Window. Add an arrow or text, then Copy or export PNG, JPEG, or PDF to a user-selected location.
+2. Add another image to create a Comparison, Steps, or a Combined Image. Try Polish for backgrounds and framing.
+3. Record a short Video, stop, review, trim, and export it.
+4. Opt in to Clipboard History, copy sample text in another app, then search and preview it.
+5. Use File > Print for the open screenshot or composition.
+
+Auto Copy was removed in 1.2.0. The clipboard changes only after an explicit copy action or a Capture Preset configured with Copy to Clipboard.
+
+The App Store build excludes live Guide creation/recording, Scrolling Capture, Connected Device Capture, UI Map capture, and keyboard-shortcut recording. It can open, edit, save, recover, and export existing .sssguide documents, and preserve UI Map metadata already stored in an editable screenshot.
+
+All campaign source screenshots use the real 1.2.0 UI with App Store feature gates and privacy-safe sample content. The displayed Orbit project is fictional demonstration content.

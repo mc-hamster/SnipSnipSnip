@@ -98,7 +98,17 @@ extension DocumentWorkflowModel {
         completionRole: CaptureCompletionRole,
         options: CaptureOneShotOptions
     ) -> Bool {
-        guard let image = NSImage(pasteboard: .general),
+        createDocumentFromClipboard(completionRole: completionRole, options: options, pasteboard: .general)
+    }
+
+    @discardableResult
+    func createDocumentFromClipboard(
+        completionRole: CaptureCompletionRole,
+        options: CaptureOneShotOptions,
+        pasteboard: NSPasteboard
+    ) -> Bool {
+        let isPrivatePaste = ClipboardPasteboardReader.containsConcealedType(pasteboard.types?.map(\.rawValue) ?? [])
+        guard let image = NSImage(pasteboard: pasteboard),
               let cgImage = image.cgImage(
                 forProposedRect: nil,
                 context: nil,
@@ -116,7 +126,7 @@ extension DocumentWorkflowModel {
                     .capture(
                         url: nil,
                         capture: capture,
-                        isPrivate: options.privateCapture
+                        isPrivate: options.privateCapture || isPrivatePaste
                     )
                 ]
             ),

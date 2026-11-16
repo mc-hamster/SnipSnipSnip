@@ -25,7 +25,8 @@ struct CreationQuickStartView: View {
                     .pickerStyle(.radioGroup)
                     .accessibilityIdentifier("creation.goal")
 
-                    Text(goalChoice.wrappedValue.detail)
+                    Text(goalChoice.wrappedValue.detail(supportsGuideCapture: creation.isGuideCreationAvailable))
+                        .accessibilityIdentifier("creation.goal.detail")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -448,7 +449,7 @@ private enum CreationGoalChoice: String, CaseIterable, Identifiable {
         }
     }
 
-    var detail: String {
+    func detail(supportsGuideCapture: Bool) -> String {
         switch self {
         case .screenshot:
             return String(
@@ -460,10 +461,10 @@ private enum CreationGoalChoice: String, CaseIterable, Identifiable {
                     "Show Before and After together or highlight what changed."
             )
         case .instructions:
-            return String(
+            return supportsGuideCapture ? String(
                 localized:
                     "Record a Guide or build numbered Steps manually."
-            )
+            ) : String(localized: "Build numbered Steps by capturing or importing each image.")
         case .combineImages:
             return String(
                 localized:

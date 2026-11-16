@@ -41,7 +41,7 @@ extension ArchiveWorkflowModel {
     }
 
     var usesDefaultArchiveLocation: Bool {
-        configuredArchiveLocationURL == nil
+        configuredArchiveLocationURL == nil && folderAccessError == nil
     }
 
     static func loadArchiveLocationURL(from defaults: UserDefaults) -> URL? {
@@ -53,17 +53,26 @@ extension ArchiveWorkflowModel {
     }
 
     func chooseArchiveLocation() {
-        guard let selectedURL = dependencies.locationPresenter.selectArchiveLocation(initialDirectory: directoryURL) else {
+        guard let selectedURL = dependencies.locationPresenter.selectArchiveLocation(initialDirectory: requestedArchiveLocationURL ?? directoryURL) else {
             return
         }
 
-        persistArchiveLocation(selectedURL)
-        reconfigureArchiveStore(baseURL: selectedURL)
+        do {
+            let access = ArchiveFolderAccess(url: selectedURL, client: preferenceStore.bookmarks,
+                requiresSecurityScope: preferenceStore.requiresSecurityScope)
+            guard access.isAccessible else { throw ArchiveFolderAccessError.accessUnavailable }
+            try persistArchiveLocation(selectedURL)
+            reconfigureArchiveStore(baseURL: selectedURL, access: access)
+        } catch {
+            present(error)
+        }
     }
 
     func resetArchiveLocationToDefault() {
-        persistArchiveLocation(nil)
-        reconfigureArchiveStore(baseURL: nil)
+        do {
+            try persistArchiveLocation(nil)
+            reconfigureArchiveStore(baseURL: nil)
+        } catch { present(error) }
     }
 
     func openArchiveLocationInFinder() {
@@ -180,34 +189,37 @@ extension ArchiveWorkflowModel {
     }
 
     func activateArchiveDirectoryAccess(_ url: URL?) {
-        if archiveSecurityScopedURL?.path == url?.path {
+        guard let url else { return }
+        guard folderAccess?.url.standardizedFileURL != url.standardizedFileURL else { return }
+        let access = ArchiveFolderAccess(url: url, client: preferenceStore.bookmarks,
+                                        requiresSecurityScope: preferenceStore.requiresSecurityScope)
+        guard access.isAccessible else {
+            folderAccessError = .accessUnavailable
             return
         }
-
-        if let archiveSecurityScopedURL {
-            archiveSecurityScopedURL.stopAccessingSecurityScopedResource()
-            self.archiveSecurityScopedURL = nil
-        }
-
-        guard let url else {
-            return
-        }
-
-        guard url.startAccessingSecurityScopedResource() else {
-            return
-        }
-
-        archiveSecurityScopedURL = url
+        folderAccess = access
+        archiveSecurityScopedURL = access.didStartAccess ? url : nil
     }
 
-    func persistArchiveLocation(_ url: URL?) {
-        preferenceStore.saveLocationURL(url)
+    func persistArchiveLocation(_ url: URL?) throws {
+        try preferenceStore.saveLocationURL(url)
     }
 
-    func reconfigureArchiveStore(baseURL: URL?) {
+    func reconfigureArchiveStore(baseURL: URL?, access: ArchiveFolderAccess? = nil) {
+        let resolvedAccess = access ?? baseURL.map {
+            ArchiveFolderAccess(url: $0, client: preferenceStore.bookmarks,
+                                requiresSecurityScope: preferenceStore.requiresSecurityScope)
+        }
+        guard resolvedAccess?.isAccessible != false else {
+            folderAccessError = .accessUnavailable
+            return
+        }
         configuredArchiveLocationURL = baseURL
-        activateArchiveDirectoryAccess(baseURL)
-        recoveryStore = DocumentRecoveryStore(baseURL: baseURL)
+        requestedArchiveLocationURL = baseURL
+        folderAccess = resolvedAccess
+        archiveSecurityScopedURL = resolvedAccess?.didStartAccess == true ? baseURL : nil
+        folderAccessError = nil
+        recoveryStore = DocumentRecoveryStore(baseURL: baseURL, folderAccess: resolvedAccess)
         documents?.rebindRecoveryStore(recoveryStore)
         directoryURL = recoveryStore.archiveURL
         reseedCurrentRecoverySessionIfNeeded()

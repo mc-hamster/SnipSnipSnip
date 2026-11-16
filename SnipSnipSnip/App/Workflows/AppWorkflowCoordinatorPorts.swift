@@ -15,11 +15,13 @@ protocol CoordinatorPermissionPort: AnyObject {
     var permissionStatus: CapturePermissionStatus { get }
 
     func refreshPermissions()
-    func checkPermissionSetupGuideStatus()
+    func cancelDeferredOperation(ifFeature: String?)
 }
 
 @MainActor
 protocol CoordinatorCapturePort: AnyObject {
+    func showCapturedFeedback()
+    func finishCapturePresentation(showingPreview: Bool)
     var isConnectedDeviceSessionActive: Bool { get }
     var autoRefreshWindowsEnabled: Bool { get }
     var isInteractiveCaptureActive: Bool { get }
@@ -30,7 +32,6 @@ protocol CoordinatorCapturePort: AnyObject {
     func resetCapturePreferencesToDefaults()
     func notifyPermissionsChanged()
     func cancelPendingPermissionCommand()
-    func retryPendingPermissionCommandIfSatisfied(_ status: CapturePermissionStatus)
     func recordCompletedCapture(request: LastCaptureRequest, runOptions: CaptureRunOptions)
     func scheduleUIMapCapture(
         for controller: EditorController,
@@ -49,6 +50,7 @@ protocol CoordinatorCapturePort: AnyObject {
         allowsCancellingPendingThumbnailRefresh: Bool
     )
     func captureRegion()
+    func captureText()
     func captureCurrentDisplay()
     func captureFrontmostWindow()
     func capturePreset(_ preset: CapturePreset)
@@ -63,6 +65,8 @@ protocol CoordinatorCapturePort: AnyObject {
 
 @MainActor
 protocol CoordinatorDocumentPort: AnyObject {
+    var hasCapturePreview: Bool { get }
+    func showCapturePreview()
     var editorController: EditorController? { get }
     var videoEditorController: VideoEditorController? { get }
     var guideEditorController: GuideEditorController? { get }
@@ -70,13 +74,12 @@ protocol CoordinatorDocumentPort: AnyObject {
 
     func resetDocumentPreferencesToDefaults()
     func installCapturedScreenshot(_ result: CaptureWorkflowResult) -> CaptureInstallationResult
-    func scheduleAutoCopy(for controller: EditorController)
+    func presentCapturePreview(for result: CaptureWorkflowResult, installation: CaptureInstallationResult) -> Bool
     func copyCurrentEditorImageToClipboard()
     func exportWorkflowCapture(
         from controller: EditorController,
         to destination: CapturePresetExportDestination
     ) async throws -> URL
-    func cancelPendingAutoCopy()
     func installCapturedRecording(_ recording: CapturedVideoRecording)
     func installCapturedGuide(_ document: EditableGuideDocument)
     func exportCurrentGuide()
@@ -84,6 +87,7 @@ protocol CoordinatorDocumentPort: AnyObject {
     func syncMainWindowDocumentState()
     func resizeMainWindowForEditorContentIfNeeded(animated: Bool)
     func openDocument(at url: URL)
+    func loadAutomationDocument(from url: URL, interactionPolicy: AutomationInteractionPolicy) async throws
     func saveDocument(_ controller: EditorController, to url: URL) async -> Bool
     func floatCurrentEditorReference()
     func handleIncompatibleRecoveryEntriesOnLaunch()
@@ -92,7 +96,6 @@ protocol CoordinatorDocumentPort: AnyObject {
 
 @MainActor
 protocol CoordinatorClipboardPort: AnyObject {
-    var autoCopyEnabled: Bool { get }
 
     func resetClipboardPreferencesToDefaults()
     func scheduleClipboardSnipRecording(
@@ -174,6 +177,7 @@ extension CaptureWorkflowModel: CoordinatorCapturePort {
 @MainActor
 extension DocumentWorkflowModel: CoordinatorDocumentPort {
     func resetDocumentPreferencesToDefaults() {
+        showsCapturePreview = false
         editorSingleKeyToolShortcutsEnabled = true
         editorStartupToolPreference = .default
         updateEditorCropOutsideOverlayAlpha(AppPreferenceDefaults.editorCropOutsideOverlayAlpha)
@@ -190,7 +194,6 @@ extension DocumentWorkflowModel: CoordinatorDocumentPort {
 @MainActor
 extension ClipboardWorkflowModel: CoordinatorClipboardPort {
     func resetClipboardPreferencesToDefaults() {
-        autoCopyEnabled = true
         preferences = .default
         historyStore.deactivateStorage()
         searchQuery = ""

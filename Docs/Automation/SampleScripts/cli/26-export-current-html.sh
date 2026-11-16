@@ -7,5 +7,5 @@ OUTPUT_DIR="${OUTPUT_DIR:-$HOME/Downloads}"
 "$SSSCTL" --json export current \
     --output "$OUTPUT_DIR/comparison.html" \
     --format html \
-    --appearance styled \
+    --appearance app-default \
     --overwrite

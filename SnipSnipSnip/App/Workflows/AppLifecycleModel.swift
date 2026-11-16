@@ -220,7 +220,7 @@ final class AppLifecycleModel: ObservableObject {
             }
         } else {
             alert.messageText = "SnipSnipSnip Pro is up to date"
-            alert.informativeText = "You are running \(result.currentDisplayVersion). The latest GitHub release is \(result.latestRelease.name)."
+            alert.informativeText = "You are running \(result.currentDisplayVersion). The latest stable GitHub release is \(result.latestRelease.name)."
             alert.addButton(withTitle: "OK")
             alert.runModal()
         }

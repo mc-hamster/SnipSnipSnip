@@ -1,0 +1,105 @@
+<svg width="1600" height="1000" viewBox="0 0 1600 1000" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="page" x1="110" y1="80" x2="1490" y2="930" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7F8FC"/>
+      <stop offset="1" stop-color="#E9ECF6"/>
+    </linearGradient>
+    <linearGradient id="hero" x1="335" y1="215" x2="1420" y2="485" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#167F72"/>
+      <stop offset="0.52" stop-color="#21A47E"/>
+      <stop offset="1" stop-color="#5CCB83"/>
+    </linearGradient>
+    <linearGradient id="progress" x1="395" y1="406" x2="1275" y2="406" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E6FF96"/>
+      <stop offset="1" stop-color="#FFFFFF"/>
+    </linearGradient>
+    <filter id="shadow" x="40" y="20" width="1520" height="970" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="22" stdDeviation="28" flood-color="#18213D" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="1000" fill="#DDE2F0"/>
+  <g filter="url(#shadow)">
+    <rect x="70" y="42" width="1460" height="910" rx="34" fill="url(#page)"/>
+    <rect x="70" y="42" width="1460" height="76" rx="34" fill="#FFFFFF"/>
+    <rect x="70" y="85" width="1460" height="33" fill="#FFFFFF"/>
+    <circle cx="113" cy="80" r="11" fill="#FF665E"/>
+    <circle cx="148" cy="80" r="11" fill="#FFBD45"/>
+    <circle cx="183" cy="80" r="11" fill="#38C85A"/>
+    <rect x="640" y="64" width="320" height="32" rx="16" fill="#F0F2F8"/>
+    <text x="800" y="86" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="15" font-weight="650" fill="#60677C">orbit.local / launch</text>
+  </g>
+
+  <rect x="102" y="146" width="190" height="770" rx="28" fill="#171A2A"/>
+  <circle cx="150" cy="194" r="22" fill="#3FC48D"/>
+  <path d="M139 198C147 181 163 181 171 198C160 192 150 203 139 198Z" fill="white"/>
+  <text x="185" y="203" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="25" font-weight="760" fill="#FFFFFF">Orbit</text>
+  <text x="136" y="267" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="14" font-weight="700" letter-spacing="1.5" fill="#797F98">WORKSPACE</text>
+
+  <rect x="122" y="292" width="150" height="48" rx="14" fill="#323650"/>
+  <circle cx="148" cy="316" r="7" fill="#50D49A"/>
+  <text x="167" y="323" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="17" font-weight="650" fill="#FFFFFF">Overview</text>
+  <text x="136" y="390" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="17" font-weight="560" fill="#AEB3C8">Timeline</text>
+  <text x="136" y="446" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="17" font-weight="560" fill="#AEB3C8">Assets</text>
+  <text x="136" y="502" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="17" font-weight="560" fill="#AEB3C8">Feedback</text>
+  <text x="136" y="558" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="17" font-weight="560" fill="#AEB3C8">Launch notes</text>
+  <rect x="122" y="832" width="150" height="58" rx="18" fill="#222638"/>
+  <circle cx="151" cy="861" r="17" fill="#6B5CE7"/>
+  <text x="151" y="867" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="15" font-weight="750" fill="#FFFFFF">MC</text>
+  <text x="178" y="858" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="15" font-weight="650" fill="#FFFFFF">Mia Chen</text>
+  <text x="178" y="877" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" font-weight="520" fill="#8F95AB">Design lead</text>
+
+  <text x="336" y="193" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="18" font-weight="650" fill="#656C82">ORBIT PRODUCT LAUNCH</text>
+  <text x="336" y="242" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="38" font-weight="780" fill="#1B2033">Release readiness</text>
+  <rect x="1203" y="180" width="180" height="48" rx="16" fill="#E8FFF2"/>
+  <circle cx="1231" cy="204" r="8" fill="#32B979"/>
+  <text x="1249" y="211" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="16" font-weight="650" fill="#247355">Ready to launch</text>
+
+  <rect x="336" y="276" width="1047" height="224" rx="28" fill="url(#hero)"/>
+  <text x="386" y="330" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="18" font-weight="650" fill="#E7FFF5">LAUNCH CONFIDENCE</text>
+  <text x="386" y="392" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="54" font-weight="800" fill="#FFFFFF">100%</text>
+  <rect x="386" y="424" width="870" height="14" rx="7" fill="#FFFFFF" fill-opacity="0.24"/>
+  <rect x="386" y="424" width="870" height="14" rx="7" fill="url(#progress)"/>
+  <text x="386" y="472" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="17" font-weight="550" fill="#F4FFF9">All 11 launch checks complete</text>
+  <circle cx="1314" cy="354" r="66" fill="#FFFFFF" fill-opacity="0.14"/>
+  <circle cx="1314" cy="354" r="46" fill="#FFFFFF" fill-opacity="0.12"/>
+  <path d="M1286 356L1305 375L1344 330" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <text x="336" y="556" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="23" font-weight="760" fill="#252A3E">Launch checklist</text>
+  <rect x="336" y="584" width="326" height="246" rx="24" fill="#FFFFFF"/>
+  <circle cx="384" cy="633" r="22" fill="#E9FFF1"/>
+  <path d="M373 633L381 641L396 624" stroke="#32AE62" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="418" y="629" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="14" font-weight="700" letter-spacing="1.1" fill="#3A9D61">COMPLETE</text>
+  <text x="372" y="685" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="22" font-weight="730" fill="#1F2437">Homepage review</text>
+  <text x="372" y="718" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="16" font-weight="520" fill="#747B90">Final layout approved</text>
+  <circle cx="385" cy="775" r="17" fill="#5A4CD4"/>
+  <text x="385" y="781" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="13" font-weight="750" fill="#FFFFFF">MC</text>
+  <text x="416" y="781" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="14" font-weight="600" fill="#646B7F">Mia</text>
+
+  <rect x="686" y="584" width="326" height="246" rx="24" fill="#FFFFFF"/>
+  <circle cx="734" cy="633" r="22" fill="#E9FFF1"/>
+  <path d="M723 633L731 641L746 624" stroke="#32AE62" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="768" y="629" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="14" font-weight="700" letter-spacing="1.1" fill="#3A9D61">COMPLETE</text>
+  <text x="722" y="685" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="22" font-weight="730" fill="#1F2437">Pricing copy</text>
+  <text x="722" y="718" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="16" font-weight="520" fill="#747B90">Final edit approved</text>
+  <circle cx="735" cy="775" r="17" fill="#EF7E55"/>
+  <text x="735" y="781" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="13" font-weight="750" fill="#FFFFFF">AL</text>
+  <text x="766" y="781" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="14" font-weight="600" fill="#646B7F">Alex</text>
+
+  <rect x="1036" y="584" width="347" height="246" rx="24" fill="#FFFFFF"/>
+  <circle cx="1084" cy="633" r="22" fill="#E9FFF1"/>
+  <path d="M1073 633L1081 641L1096 624" stroke="#32AE62" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="1118" y="629" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="14" font-weight="700" letter-spacing="1.1" fill="#3A9D61">COMPLETE</text>
+  <text x="1072" y="685" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="22" font-weight="730" fill="#1F2437">Launch email</text>
+  <text x="1072" y="718" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="16" font-weight="520" fill="#747B90">Scheduled and previewed</text>
+  <circle cx="1085" cy="775" r="17" fill="#2E95B7"/>
+  <text x="1085" y="781" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="13" font-weight="750" fill="#FFFFFF">SO</text>
+  <text x="1116" y="781" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="14" font-weight="600" fill="#646B7F">Sam</text>
+
+  <rect x="336" y="856" width="1047" height="60" rx="20" fill="#FFFFFF"/>
+  <text x="372" y="892" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="16" font-weight="620" fill="#4E556A">Launch approved</text>
+  <text x="524" y="892" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="16" font-weight="520" fill="#4A9470">All teams signed off</text>
+  <circle cx="1302" cy="886" r="5" fill="#5B4FD4"/>
+  <circle cx="1321" cy="886" r="5" fill="#EF7E55"/>
+  <circle cx="1340" cy="886" r="5" fill="#2E95B7"/>
+</svg>

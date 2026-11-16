@@ -77,14 +77,18 @@ final class CaptureFeedbackOverlay {
     }
 
     static func showCapturedFeedback() {
+        showFeedback(title: "Captured", duration: 0.85)
+    }
+
+    static func showFeedback(title: String, detail: String? = nil, duration: Double) {
         postCaptureOverlay?.close()
 
-        let overlay = CaptureFeedbackOverlay(title: "Captured", detail: "Opening editor")
+        let overlay = CaptureFeedbackOverlay(title: title, detail: detail)
         postCaptureOverlay = overlay
         overlay.show()
 
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 850_000_000)
+            try? await Task.sleep(for: .seconds(duration))
             guard postCaptureOverlay === overlay else {
                 return
             }

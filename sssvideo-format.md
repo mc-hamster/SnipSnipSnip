@@ -20,14 +20,14 @@ example.sssvideo/
 ## Current Version
 
 - `formatIdentifier`: `com.oontz.snipsnipsnip.video-document`
-- `formatVersion`: `1`
+- `formatVersion`: `3`
 
-The loader accepts format versions `1...1`.
+The loader accepts format versions `2...3`. Version 1 remains unsupported. Version 3 ensures older readers do not silently discard editable effects or omit a separately rendered cursor. Version 2 opens with its original trim state and no added effects.
 
 ## Top-Level `document.json`
 
 - `formatIdentifier`: stable package identifier.
-- `formatVersion`: current value is `1`.
+- `formatVersion`: current value is `3`.
 - `savedAt`: ISO-8601 timestamp for the save operation.
 - `assets`: package-relative media and poster filenames.
 - `recording`: recording metadata.
@@ -46,6 +46,7 @@ The loader accepts format versions `1...1`.
 - `recordedAt`: ISO-8601 timestamp for recording start.
 - `duration`: recording duration in seconds.
 - `preferences`: recording settings used at capture time.
+- `interactions`: optional local cursor samples (`time`, normalized top-left `position`, `visible`), clicks (`time`, `position`), and keyboard shortcut labels (`time`, `label`). Times refer to the original movie, with paused recording segments removed. Absence means the cursor may already be part of the source pixels and cannot be separately edited.
 
 #### `recording.preferences`
 
@@ -57,14 +58,17 @@ The loader accepts format versions `1...1`.
 - `recordsMicrophone`: boolean.
 - `showsCursor`: boolean.
 - `showsMouseClicks`: boolean.
+- `recordsKeyboardShortcuts`: optional boolean, off when absent. Only explicitly enabled command/control shortcut labels are retained; ordinary typing and secure input are excluded.
 
 ### `session`
 
 - `trimStartSeconds`: trim start time in seconds.
 - `trimEndSeconds`: trim end time in seconds.
 - `posterTimeSeconds`: poster-frame timestamp in seconds.
+- `removedRanges`: optional ranges (`id`, `start`, `end`) excluded non-destructively from preview playback and every export. Overlapping ranges are merged by the shared timing map.
+- `effects`: optional presentation state, zooms, cursor visibility/smoothing/scale, click and shortcut visibility, audio volume, and motion blur. Zooms store identity, source start/end times, scale, follow-cursor choice, normalized focus point, and transition duration. Presentation reuses the screenshot presentation model; all exporters use the same video frame renderer.
 
-On load, trim and poster times are normalized to the current media duration.
+On load, trim, poster, removed ranges, and zoom times are normalized to the current media duration. Source `media.mp4` is never flattened or overwritten by editing. `poster.png` is rendered with the current effects.
 
 ## Compatibility Notes
 

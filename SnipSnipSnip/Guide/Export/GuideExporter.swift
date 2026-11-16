@@ -1200,14 +1200,15 @@ nonisolated enum GuideExporter {
 
     private static func cleanupInterruptedTemporaryFiles(for destination: URL) {
         let directory = destination.deletingLastPathComponent()
-        let stem = destination.deletingPathExtension().lastPathComponent + "."
+        let stem = (destination.hasDirectoryPath ? destination.lastPathComponent : destination.deletingPathExtension().lastPathComponent) + "."
+        let suffix = destination.hasDirectoryPath || destination.pathExtension.isEmpty ? ".tmp" : ".tmp.\(destination.pathExtension)"
         let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
         guard let urls = try? FileManager.default.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: [.contentModificationDateKey],
             options: [.skipsHiddenFiles]
         ) else { return }
-        for url in urls where url.lastPathComponent.hasPrefix(stem) && url.lastPathComponent.contains(".tmp") {
+        for url in urls where isOwnedTemporaryName(url.lastPathComponent, prefix: stem, suffix: suffix) {
             let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
             if modified < cutoff { try? FileManager.default.removeItem(at: url) }
         }
@@ -1221,10 +1222,16 @@ nonisolated enum GuideExporter {
             includingPropertiesForKeys: [.contentModificationDateKey],
             options: [.skipsHiddenFiles]
         ) else { return }
-        for url in urls where url.lastPathComponent.hasPrefix("GuideImages-") || url.lastPathComponent.hasPrefix("GuideZIPExports-") {
+        for url in urls where isOwnedTemporaryName(url.lastPathComponent, prefix: "GuideImages-", suffix: "")
+            || isOwnedTemporaryName(url.lastPathComponent, prefix: "GuideZIPExports-", suffix: "") {
             let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
             if modified < cutoff { try? FileManager.default.removeItem(at: url) }
         }
+    }
+
+    private static func isOwnedTemporaryName(_ name: String, prefix: String, suffix: String) -> Bool {
+        guard name.hasPrefix(prefix), name.hasSuffix(suffix), name.count >= prefix.count + suffix.count else { return false }
+        return UUID(uuidString: String(name.dropFirst(prefix.count).dropLast(suffix.count))) != nil
     }
 }
 

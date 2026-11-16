@@ -4,6 +4,52 @@ import XCTest
 
 @MainActor
 final class SingleInstanceCoordinatorTests: XCTestCase {
+    func testDevelopmentAndShippingLeasesCanCoexistButRejectTheirOwnDuplicates() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("NamespaceLocks-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let dev = AppNamespace(bundleIdentifier: "com.oontz.SnipSnipSnip.Dev")
+        let shipping = AppNamespace(bundleIdentifier: "com.oontz.SnipSnipSnip")
+        let devURL = SingleInstanceCoordinator.lockURL(in: root, namespace: dev)
+        let shippingURL = SingleInstanceCoordinator.lockURL(in: root, namespace: shipping)
+        XCTAssertNotEqual(devURL, shippingURL)
+        XCTAssertEqual(shippingURL, root.appendingPathComponent("SnipSnipSnip/Runtime/single-instance.lock"))
+        guard case .acquired(let devLease) = try SingleInstanceLease.acquire(at: devURL),
+              case .acquired(let shippingLease) = try SingleInstanceLease.acquire(at: shippingURL) else {
+            return XCTFail("Different namespaces must run together.")
+        }
+        withExtendedLifetime((devLease, shippingLease)) {
+            for url in [devURL, shippingURL] {
+                do {
+                    guard case .alreadyRunning = try SingleInstanceLease.acquire(at: url) else {
+                        return XCTFail("Each namespace must still reject duplicate owners.")
+                    }
+                } catch { XCTFail("Unexpected lock error: \(error)") }
+            }
+        }
+    }
+
+    func testBuiltNamespaceSeparatesStorageAndRouting() throws {
+        let current = AppNamespace.current
+        let expectedID = BuildTarget.current == .dev ? "com.oontz.SnipSnipSnip.Dev" : "com.oontz.SnipSnipSnip"
+        XCTAssertEqual(Bundle.main.bundleIdentifier, expectedID)
+        if current.isDevelopment {
+            XCTAssertEqual(Bundle.main.bundleURL.lastPathComponent, "SnipSnipSnip Dev.app")
+            XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey: "CFBundleExecutable") as? String, "SnipSnipSnip Dev")
+        }
+        XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String, AppBranding.displayName)
+        let types = try XCTUnwrap(Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]])
+        XCTAssertEqual(types.first?["CFBundleURLSchemes"] as? [String], [current.urlScheme])
+        XCTAssertEqual(DocumentRecoveryStore.defaultArchiveURL().deletingLastPathComponent().lastPathComponent, current.supportDirectoryName)
+        XCTAssertEqual(ClipboardHistoryStore.defaultHistoryURL().deletingLastPathComponent().lastPathComponent, current.supportDirectoryName)
+        XCTAssertEqual(PresentationSceneStore.defaultRootURL.deletingLastPathComponent().lastPathComponent, current.supportDirectoryName)
+        XCTAssertTrue(VideoRecoveryStore().rootURL.path.contains("/" + current.supportDirectoryName + "/Recovery/Videos"))
+        XCTAssertTrue(GuideRecoveryStore().rootURL.path.contains("/" + current.supportDirectoryName + "/Recovery/Guides"))
+        let otherScheme = current.isDevelopment ? "snipsnipsnip" : "snipsnipsnip-dev"
+        XCTAssertNotNil(AutomationURLRouter.request(from: try XCTUnwrap(URL(string: "\(current.urlScheme)://v1/status"))))
+        XCTAssertNil(AutomationURLRouter.request(from: try XCTUnwrap(URL(string: "\(otherScheme)://v1/status"))))
+        XCTAssertNil(AppImportURL.pasteboardImportRequest(from: try XCTUnwrap(URL(string: "\(otherScheme)://import-pasteboard?name=test"))))
+    }
+
     func testLeaseRejectsAnotherOwnerUntilTheFirstLeaseIsReleased() throws {
         let rootURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("SingleInstanceCoordinatorTests-\(UUID().uuidString)", isDirectory: true)

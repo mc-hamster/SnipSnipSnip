@@ -111,7 +111,7 @@ nonisolated enum SSSDocumentPackage {
     static let previewImageFilename = "preview.png"
     static let imageOverlayAssetsDirectoryName = "assets/image-overlays"
     static let compositionCaptureAssetsDirectoryName = "assets/captures"
-    static let maximumImageDimension = 65_536
+    static let maximumImageDimension = ScreenshotRasterBudget.maximumDimension
     static let maximumImagePixels = 268_435_456
     static let maximumCompositionAssetCount = 10_000
     /// A single encoded source can still contain a normal long scrolling
@@ -130,7 +130,7 @@ nonisolated enum SSSDocumentPackage {
     static let maximumStoredPreviewBytes: UInt64 = 512 * 1_024 * 1_024
     static let maximumPersistedFixedOutputDimension = 16_384
     static let maximumPersistedFixedOutputPixels: UInt64 = 134_217_728
-    static let maximumComputedPresentationDimension = 131_072
+    static let maximumComputedPresentationDimension = ScreenshotRasterBudget.maximumDimension * 2
     static let maximumComputedPresentationPixels: UInt64 = 536_870_912
     static let maximumPersistedSceneBytes = 4 * 1_024 * 1_024
     static let maximumManifestBytes = 64 * 1_024 * 1_024
@@ -184,6 +184,7 @@ nonisolated enum SSSDocumentPackage {
         includeUIMapSearchText: Bool,
         files: any FileSystemServicing = SystemFileService()
     ) throws {
+        try validateIdentityIntegrity(of: document.session)
         var persistedDocument = document
         if persistedDocument.session.currentSnapshot.composition == nil {
             let lifted = try liftLegacySession(
@@ -1351,9 +1352,10 @@ nonisolated enum SSSDocumentPackage {
             files: files
         )
         let declaredAssets = Dictionary(
-            uniqueKeysWithValues: (manifest.assets.captures ?? []).map {
+            (manifest.assets.captures ?? []).map {
                 ($0.id, $0.descriptor)
-            }
+            },
+            uniquingKeysWith: { first, _ in first }
         )
         let contentSize = try resolvedSnapshotContentSize(
             manifest.session.currentSnapshot,
@@ -1489,6 +1491,14 @@ nonisolated enum SSSDocumentPackage {
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         return collapsed.isEmpty ? nil : collapsed
+    }
+
+    nonisolated static func validateIdentityIntegrity(of session: EditorDocumentSession) throws {
+        do {
+            try EditorIdentityIntegrity.validate(session)
+        } catch let violation as EditorIdentityViolation {
+            throw SSSDocumentError.invalidComposition(violation.persistenceReason)
+        }
     }
 
     nonisolated private static func validateManifest(
@@ -2842,9 +2852,9 @@ nonisolated private struct SessionRecord: Codable {
     }
 
     nonisolated func editorDocumentSession(imageOverlays: [UUID: CGImage] = [:]) throws -> EditorDocumentSession {
-        var decodedToolStyles: [EditorTool: AnnotationStyle] = Dictionary(uniqueKeysWithValues: EditorTool.allCases.map {
+        var decodedToolStyles: [EditorTool: AnnotationStyle] = Dictionary(EditorTool.allCases.map {
             ($0, .default(for: $0))
-        })
+        }, uniquingKeysWith: { first, _ in first })
 
         for record in toolStyles {
             guard let tool = EditorTool(rawValue: record.tool) else {

@@ -13,13 +13,17 @@ Thanks for helping improve SnipSnipSnip. Bug reports, focused feature proposals,
 
 SnipSnipSnip requires macOS 26 or later and a current Xcode installation. Clone the repository, open `SnipSnipSnip.xcodeproj`, and select the `SnipSnipSnip` scheme.
 
+For Codex-assisted development, see [Development Skills](Docs/DevelopmentSkills.md)
+for the repository's SSS Validation skill and pinned installation commands for
+Swift Concurrency, SwiftUI Expert, and GitHub CI troubleshooting.
+
 Run the test suite with:
 
 ```sh
 xcodebuild test -project SnipSnipSnip.xcodeproj -scheme SnipSnipSnip -destination 'platform=macOS,arch=arm64,name=My Mac' -derivedDataPath /private/tmp/SnipSnipSnip-DerivedData
 ```
 
-SnipSnipSnip permits only one app process at a time, including one app-hosted XCTest process. The shared scheme therefore runs tests in a single host. Quit any running copy before launching from Xcode or running app-hosted tests. If the current copy must remain open, use `xcodebuild build` or `xcodebuild build-for-testing` for compile-only verification, then run the tests after that copy exits. Do not use `open -n` or invoke the app executable directly to bypass the guard.
+SnipSnipSnip permits only one app process at a time per namespace, including one app-hosted XCTest process. The shared scheme therefore runs tests in a single host. Quit any running copy in the namespace being launched before launching from Xcode or running app-hosted tests. If a copy in the same namespace must remain open, use `xcodebuild build` or `xcodebuild build-for-testing` for compile-only verification, then run the tests after that copy exits. Do not use `open -n` or invoke the app executable directly to bypass the guard.
 
 ## Project Expectations
 
@@ -32,6 +36,36 @@ SnipSnipSnip permits only one app process at a time, including one app-hosted XC
 - Update the automation documentation, samples, and contract tests together when automation behavior changes.
 
 See [AGENTS.md](AGENTS.md) for the complete workspace guidance.
+
+Editor commands pass through a shared identity check before changing the
+document or undo history. Annotation IDs are unique within each editing scope;
+separate captures and history snapshots may reuse them. Document saves,
+imports, and recovery also validate identities. Keep new mutations inside
+these boundaries, and test that rejected changes preserve the previous state.
+
+For derived dictionaries, specify a duplicate-key policy. Reject ambiguous
+document or pixel identities rather than dropping content. The release test
+gate and CI check production Swift for trapping dictionary constructors:
+
+```sh
+python3 Tools/check-identity-safety.py
+```
+
+Keep generated dependencies, build products, render intermediates, and submission
+archives out of Git. Track source, original artwork, intentional app resources,
+and dependency manifests/lockfiles. Check repository hygiene before submitting:
+
+```sh
+python3 Tools/check-repository-hygiene.py
+```
+
+After staging, use `python3 Tools/check-repository-hygiene.py --staged` to check
+the exact pending commit. The working-tree check allows pending cleanup deletions;
+the staged check catches artifacts still in the index, even if deleted locally.
+CI checks every pushed branch and pull request, and the release test gate runs the
+guard before building. Ignore rules also apply to force-added files. Original
+artwork and required icon variants are allowed; identical sibling copies with
+copy-style filenames are rejected.
 
 ## Pull Requests
 
@@ -48,3 +82,7 @@ Avoid mixing cleanup with behavior changes unless the cleanup is required for th
 ## Reporting Security Problems
 
 Do not open a public issue for a suspected security or privacy vulnerability. Follow [SECURITY.md](SECURITY.md) instead.
+
+Xcode Debug builds use the stable identity `com.oontz.SnipSnipSnip.Dev` and display name **SnipSnipSnip Dev**. They may run alongside the shipping app, with independent permissions, preferences, Clipboard History, Snip History, recovery, and presentation scenes. Keep Apple Development signing and the team stable across rebuilds. Xcode Release and all Fastlane distribution archives retain the shipping identity.
+
+The Debug product is **SnipSnipSnip Dev.app**, with executable **SnipSnipSnip Dev**, so Finder and macOS permission setup can distinguish it from the shipping **SnipSnipSnip.app**. The Swift module remains `SnipSnipSnip`. When adding Dev manually to a permission list, select the Dev product in Xcode’s DerivedData.

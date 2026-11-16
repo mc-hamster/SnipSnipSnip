@@ -175,6 +175,10 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         performMenuAction { [weak self] in self?.capture?.captureRegion() }
     }
 
+    @objc private func captureText() {
+        performMenuAction { [weak self] in self?.capture?.captureText() }
+    }
+
     @objc private func captureCurrentDisplay() {
         performMenuAction { [weak self] in self?.capture?.captureCurrentDisplay() }
     }
@@ -240,6 +244,10 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         clipboard?.showClipboardManager()
     }
 
+    @objc private func showCapturePreview() {
+        performMenuAction { [weak self] in self?.workflowCoordinator?.showCapturePreview() }
+    }
+
     @objc private func addHorizontalScreenRuler() {
         tools?.presentScreenRuler(.horizontal)
         rebuildMainMenu()
@@ -247,15 +255,6 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
 
     @objc private func addVerticalScreenRuler() {
         tools?.presentScreenRuler(.vertical)
-        rebuildMainMenu()
-    }
-
-    @objc private func toggleAutoCopy() {
-        guard let clipboard else {
-            return
-        }
-
-        clipboard.autoCopyEnabled.toggle()
         rebuildMainMenu()
     }
 
@@ -363,7 +362,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     }
 
     private func rebuildMainMenu() {
-        guard let lifecycle, let capture, let clipboard, let quickControls,
+        guard let lifecycle, let capture, let quickControls,
               let floatingReferences, let capabilities else {
             return
         }
@@ -421,6 +420,12 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             systemImage: "macwindow.on.rectangle",
             action: #selector(captureFrontmostWindow),
             keyEquivalent: "4",
+            enabled: !isCaptureActionDisabled
+        ))
+
+        menu.addItem(captureItem(
+            title: "Capture Text", systemImage: "text.viewfinder", action: #selector(captureText),
+            keyEquivalent: capture.automationPreferences.textCaptureHotkey.label.lowercased(),
             enabled: !isCaptureActionDisabled
         ))
 
@@ -486,6 +491,13 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             enabled: true
         ))
 
+        menu.addItem(actionItem(
+            title: "Show Capture Preview",
+            systemImage: "photo",
+            action: #selector(showCapturePreview),
+            enabled: workflowCoordinator?.hasCapturePreview == true
+        ))
+
         let screenRulerItem = NSMenuItem(title: "Screen Ruler", action: nil, keyEquivalent: "")
         screenRulerItem.image = NSImage(systemSymbolName: "ruler", accessibilityDescription: nil)
         screenRulerItem.submenu = screenRulerMenu
@@ -543,14 +555,6 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         let regionSettingsItem = NSMenuItem(title: "Region Capture Settings", action: nil, keyEquivalent: "")
         regionSettingsItem.submenu = regionCaptureSettingsMenu
         menu.addItem(regionSettingsItem)
-
-        menu.addItem(toggleItem(
-            title: "Auto Copy",
-            action: #selector(toggleAutoCopy),
-            isOn: clipboard.autoCopyEnabled,
-            enabled: true,
-            toolTip: "Automatically copy the current rendered snip to the clipboard after each capture and after editor changes."
-        ))
 
         menu.addItem(.separator())
 

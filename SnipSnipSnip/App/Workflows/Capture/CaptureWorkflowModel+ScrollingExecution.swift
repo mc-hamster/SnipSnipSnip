@@ -9,8 +9,10 @@ extension CaptureWorkflowModel {
         runOptions: CaptureRunOptions,
         completionContext: CaptureCompletionContext
     ) async throws {
+        let mode = resolvedScrollingMode(runOptions.scrollingMode)
         let cancellation = ScrollingCaptureCancellation()
         let progressOverlay = ScrollingCaptureProgressOverlay(
+            mode: mode,
             onCancel: { cancellation.cancel() },
             onDone: { cancellation.finish() }
         )
@@ -23,12 +25,13 @@ extension CaptureWorkflowModel {
             result = try await service.capture(
                 request: ScrollingCaptureRequest(
                     viewportRect: region,
-                    isPrivateCapture: isPrivateCapture
+                    isPrivateCapture: isPrivateCapture,
+                    mode: mode
                 ),
                 cancellation: cancellation,
                 progressHandler: { progress in
                     if !progressOverlayShown {
-                        progressOverlay.show(avoiding: region)
+                        progressOverlay.show(avoiding: region, scrollTargetPoint: progress.scrollTargetPoint)
                         progressOverlayShown = true
                     }
 
@@ -53,7 +56,6 @@ extension CaptureWorkflowModel {
             runOptions: runOptions,
             completionContext: completionContext
         )
-        showCapturedFeedback()
 
         if let warning = result.warnings.last {
             dependencies.lifecycle.presentError(warning)
