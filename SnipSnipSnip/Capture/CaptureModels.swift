@@ -239,6 +239,7 @@ nonisolated struct CaptureRunOptions: Codable, Equatable {
     var selectedFullscreenDisplayID: CGDirectDisplayID?
     var regionPreferences = RegionCapturePreferences()
     var windowUIMapEnabled = false
+    var scrollingMode: ScrollingCaptureMode?
 
     init(
         captureDelay: CaptureDelay = .immediate,
@@ -246,7 +247,8 @@ nonisolated struct CaptureRunOptions: Codable, Equatable {
         fullscreenDisplayMode: ScreenshotFullscreenDisplayMode = .currentDisplay,
         selectedFullscreenDisplayID: CGDirectDisplayID? = nil,
         regionPreferences: RegionCapturePreferences = RegionCapturePreferences(),
-        windowUIMapEnabled: Bool = false
+        windowUIMapEnabled: Bool = false,
+        scrollingMode: ScrollingCaptureMode? = nil
     ) {
         self.captureDelay = captureDelay
         self.includesCursor = includesCursor
@@ -254,6 +256,7 @@ nonisolated struct CaptureRunOptions: Codable, Equatable {
         self.selectedFullscreenDisplayID = selectedFullscreenDisplayID
         self.regionPreferences = regionPreferences
         self.windowUIMapEnabled = windowUIMapEnabled
+        self.scrollingMode = scrollingMode
     }
 }
 
@@ -848,29 +851,38 @@ nonisolated struct ScreenshotFilenameTemplate: Equatable {
     }
 }
 
+nonisolated enum ScrollingCaptureMode: String, Codable, Equatable, Sendable {
+    case automatic
+    case manual
+}
+
 nonisolated struct ScrollingCaptureRequest: Equatable {
-    static let defaultMaxSegmentCount = 80
-    static let defaultMaxOutputHeight = 60_000
+    static let defaultMaxSegmentCount = 400
+    static let defaultManualMaxSegmentCount = ScreenshotRasterBudget.maximumDimension + 1
+    static let defaultMaxOutputHeight = ScreenshotRasterBudget.maximumDimension
 
     let viewportRect: CGRect
     let sourceName: String
     let maxSegmentCount: Int
     let maxOutputHeight: Int
     let isPrivateCapture: Bool
+    let mode: ScrollingCaptureMode
 
     init(
         viewportRect: CGRect,
         sourceName: String = "Scrolling Capture",
-        maxSegmentCount: Int = Self.defaultMaxSegmentCount,
+        maxSegmentCount: Int? = nil,
         maxOutputHeight: Int = Self.defaultMaxOutputHeight,
-        isPrivateCapture: Bool = false
+        isPrivateCapture: Bool = false,
+        mode: ScrollingCaptureMode = .automatic
     ) {
         let normalizedViewport = viewportRect.gscIntegralStandardized
         self.viewportRect = normalizedViewport.gscIsFinite && !normalizedViewport.isNull ? normalizedViewport : .zero
         self.sourceName = sourceName
-        self.maxSegmentCount = max(maxSegmentCount, 2)
+        self.maxSegmentCount = max(maxSegmentCount ?? (mode == .manual ? Self.defaultManualMaxSegmentCount : Self.defaultMaxSegmentCount), 2)
         self.maxOutputHeight = max(maxOutputHeight, 1)
         self.isPrivateCapture = isPrivateCapture
+        self.mode = mode
     }
 }
 
@@ -921,6 +933,7 @@ nonisolated struct ScrollingCaptureResult {
 nonisolated struct ScrollingCaptureTarget: Equatable, Sendable {
     let sourceName: String
     let viewportRect: CGRect
+    var mode: ScrollingCaptureMode = .automatic
 }
 
 nonisolated struct ScrollingCaptureInterruptedError: LocalizedError, @unchecked Sendable {

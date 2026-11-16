@@ -230,6 +230,12 @@ nonisolated struct TestScreenCapturePlatform: ScreenCapturePlatform {
     func captureScreenshot(_ request: ScreenCaptureRequest) async throws -> CGImage {
         try imageProvider(request)
     }
+    var scrollingSessionProvider: (@MainActor @Sendable (ScreenCaptureRequest) throws -> (any ScrollingFrameSession)?)?
+    @MainActor
+    func makeScrollingFrameSession(_ request: ScreenCaptureRequest) async throws -> (any ScrollingFrameSession)? {
+        try scrollingSessionProvider?(request)
+    }
+
 }
 
 @MainActor

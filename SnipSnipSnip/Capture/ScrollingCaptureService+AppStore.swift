@@ -2,63 +2,19 @@
 import CoreGraphics
 import Foundation
 
-enum ScrollingCaptureError: LocalizedError {
-    case accessibilityPermissionDenied
-    case invalidViewport
-    case noScrollableTarget
-    case firstFrameUnavailable
-    case stitchingFailed
-    case cancelled
-
-    var errorDescription: String? {
-        switch self {
-        case .accessibilityPermissionDenied:
-            return "Scrolling Capture is unavailable in this build."
-        case .invalidViewport:
-            return "The selected scrolling area was too small to capture."
-        case .noScrollableTarget:
-            return "No scrollable area was found at the selected location."
-        case .firstFrameUnavailable:
-            return "The first scrolling capture frame could not be captured."
-        case .stitchingFailed:
-            return "\(AppBranding.displayName) could not stitch the scrolling capture with enough confidence."
-        case .cancelled:
-            return "Scrolling capture was cancelled."
-        }
-    }
-}
-
-nonisolated final class ScrollingCaptureCancellation: @unchecked Sendable {
-    func cancel() {}
-    func finish() {}
-}
-
-struct ScrollingCaptureProgress: @unchecked Sendable {
-    let segmentCount: Int
-    let outputHeight: Int
-    let maxOutputHeight: Int
-    let warning: String?
-    let previewImage: CGImage?
-    var scrollTargetPoint: CGPoint? = nil
-
-    var capacityFraction: Double {
-        guard maxOutputHeight > 0 else { return 0 }
-        return min(Double(outputHeight) / Double(maxOutputHeight), 1.0)
-    }
-}
-
 struct ScrollingCaptureService {
     var captureService: any ScreenCaptureServiceType
     let permissions: any CapturePermissionServicing
-
-    init(captureService: any ScreenCaptureServiceType, permissions: any CapturePermissionServicing) {
-        self.captureService = captureService
-        self.permissions = permissions
-    }
+    var scheduler: any Scheduling = SystemScheduler()
+    var clock: any ClockProviding = SystemClock()
+    var stitcher = ScrollingStitcher()
 
     func resolveTarget(for request: ScrollingCaptureRequest) throws -> ScrollingCaptureTarget {
-        _ = request
-        throw ScrollingCaptureError.accessibilityPermissionDenied
+        guard request.viewportRect.width > 8, request.viewportRect.height > 8 else {
+            throw ScrollingCaptureError.invalidViewport
+        }
+        guard request.mode == .manual else { throw ScrollingCaptureError.accessibilityPermissionDenied }
+        return ManualScrollingCaptureService.resolveTarget(for: request)
     }
 
     func capture(
@@ -66,10 +22,15 @@ struct ScrollingCaptureService {
         cancellation: ScrollingCaptureCancellation,
         progressHandler: (@MainActor (ScrollingCaptureProgress) -> Void)? = nil
     ) async throws -> ScrollingCaptureResult {
-        _ = request
-        _ = cancellation
-        _ = progressHandler
-        throw ScrollingCaptureError.accessibilityPermissionDenied
+        try cancellation.checkCancellation()
+        guard request.mode == .manual else { throw ScrollingCaptureError.accessibilityPermissionDenied }
+        return try await CaptureContentDiagnostics.$current.withValue(
+            CaptureContentDiagnostics(isPrivateCapture: request.isPrivateCapture)
+        ) {
+            try await ManualScrollingCaptureService(
+                captureService: captureService, scheduler: scheduler, clock: clock, stitcher: stitcher
+            ).capture(request: request, cancellation: cancellation, progressHandler: progressHandler)
+        }
     }
 }
 #endif

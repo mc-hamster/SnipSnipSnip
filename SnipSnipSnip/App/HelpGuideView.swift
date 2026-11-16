@@ -94,6 +94,7 @@ struct HelpGuideView: View {
         fullscreenDisplayMode: ScreenshotFullscreenDisplayMode
     ) -> [HelpCategory] {
         let scrollingCaptureEnabled = capabilities.isEnabled(.scrollingCapture)
+        let automaticScrollingEnabled = capabilities.isEnabled(.automaticScrollingCapture)
         let connectedDeviceCaptureEnabled = capabilities.isEnabled(.connectedDeviceCapture)
         let uiMapEnabled = capabilities.isEnabled(.uiMap)
         let proUpdateCheckEnabled = capabilities.isEnabled(.proUpdateCheck)
@@ -103,8 +104,8 @@ struct HelpGuideView: View {
         if guideEnabled {
             accessibilityUses.append("Guide uses it while active to observe actions and keyboard focus, group non-secure text entry, and mask secure fields.")
         }
-        if scrollingCaptureEnabled {
-            accessibilityUses.append("Scrolling Capture uses it to scroll the selected app while collecting segments.")
+        if automaticScrollingEnabled {
+            accessibilityUses.append("Auto Scroll uses it to scroll the selected app while collecting segments.")
         }
         if uiMapEnabled {
             accessibilityUses.append("Window UI Map uses it to read visible interface element names, roles, identifiers, and locations during a user-initiated Window capture.")
@@ -153,8 +154,8 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                     important: [
                         "Screen Recording permission is required before macOS lets SnipSnipSnip capture pixels or show live window thumbnails.",
                         "Support requests and feature requests start from Help > Support."
-                    ] + (guideEnabled || scrollingCaptureEnabled || uiMapEnabled
-                        ? ["Accessibility permission is required for the enabled workflows that observe other apps, including Guide\(scrollingCaptureEnabled ? ", Scrolling Capture" : "")\(uiMapEnabled ? ", and Window UI Map" : ""). Ordinary Region and Screen screenshots do not require Accessibility."]
+                    ] + (guideEnabled || automaticScrollingEnabled || uiMapEnabled
+                        ? ["Accessibility permission is required for the enabled workflows that observe other apps, including Guide\(automaticScrollingEnabled ? ", Auto Scroll" : "")\(uiMapEnabled ? ", and Window UI Map" : ""). Ordinary Region and Screen screenshots do not require Accessibility."]
                         : []),
                     relatedIDs: ["capture-screenshot", "edit-screenshot", "copy-save-export"]
                 ),
@@ -185,7 +186,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                             title: "Camera",
                             body: "Used for connected iPhone or iPad preview, screenshots, and recording, and omitted from onboarding setup. Choose Continue in the explanation to open the macOS Camera prompt. After denial, use Open Camera Settings and then choose the device again. Settings > Privacy > Permissions also offers an explicit Camera setup action. macOS exposes trusted iPhone and iPad screens as video sources, so the system permission is named Camera even though SnipSnipSnip is using it for the connected-device screen stream."
                         )
-                    ] : []) + (guideEnabled || scrollingCaptureEnabled || uiMapEnabled
+                    ] : []) + (guideEnabled || automaticScrollingEnabled || uiMapEnabled
                         ? [
                             HelpArticleSection(
                                 title: "Accessibility",
@@ -200,7 +201,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                             )
                         ]
                         : []),
-                    important: guideEnabled || scrollingCaptureEnabled || uiMapEnabled
+                    important: guideEnabled || automaticScrollingEnabled || uiMapEnabled
                         ? [
                             guideEnabled
                                 ? "Ordinary Region and Screen screenshot capture do not require Accessibility. Guide does require it while capturing a workflow."
@@ -656,34 +657,37 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                     sections: [
                         HelpArticleSection(
                             title: "Before you begin",
-                            body: "Scrolling Capture requires Accessibility permission because SnipSnipSnip must scroll the selected app while it captures and stitches segments. It works best with stable pages, documents, and lists; highly animated content, sticky overlays, and protected windows can make it less reliable."
+                            body: automaticScrollingEnabled
+                                ? "Choose Auto Scroll to let SnipSnipSnip move the selected app, or Manual Scroll to scroll yourself. Auto Scroll is a Pro feature and requires Accessibility. Manual Scroll needs only Screen Recording. Manual Scroll follows your scrolling and keeps the connected content in order."
+                                : "Manual Scroll captures while you scroll the selected content yourself. It needs Screen Recording permission, without Accessibility. Scroll normally and choose Stop when finished."
                         ),
                         HelpArticleSection(
                             title: "Capture a scrollable area",
                             steps: [
-                                "Choose Capture Scrolling Content.",
+                                "Choose Capture Scrolling Content. In Pro, choose Auto Scroll or Manual Scroll.",
                                 "Drag over a scrollable area within one display. The selector uses the same crosshair, live loupe, and precision-control preferences as Region Capture.",
-                                "Confirm the detected app and selected viewport, or choose another area before capture starts. Turn off Show this again if you want future scrolling captures to start immediately after selection.",
-                                "Wait while SnipSnipSnip scrolls and captures segments. The progress panel shows the captured length, capacity remaining, a stitched preview, and any quality warning.",
-                                "Press Esc to cancel, or press Return or click Done to stop early and use the segments already captured. On a very small display, the panel may show Use Return: Done · Esc: Cancel and disable its buttons so it does not block scrolling."
+                                "Confirm the selected viewport, or choose another area before capture starts. Manual Scroll always shows instructions; Auto Scroll can skip future confirmations with Show this again.",
+                                "For Manual Scroll, scroll normally in the selected area. Capture follows changes in speed, pauses, and direction without duplicating revisited content. For Auto Scroll, wait while SnipSnipSnip scrolls. The panel shows captured length, capacity used, a preview, and status.",
+                                "Click Stop to keep accepted segments or Cancel to discard the capture. Auto Scroll also supports Return to stop and Esc to cancel; on small displays its panel may use keyboard-only controls. Manual Scroll keeps clickable controls available and does not require global keyboard access."
                             ]
                         ),
                         HelpArticleSection(
                             title: "Keep useful partial results",
-                            body: "If later frames cannot be stitched or capture is interrupted after useful content was collected, choose Keep Partial Result to open what was captured. Repeating content can also make stitching uncertain. Capture retries an ambiguous segment before offering a partial result, rather than guessing its alignment. SnipSnipSnip labels the kept result as partial and recommends reviewing seams before sharing. You can also retry the same area or capture only the visible area. Reaching the height or segment limit stops capture with a warning; check that the result includes all the content you need. Escape cancels capture without keeping a partial result."
+                            body: "Manual Scroll keeps capturing when a frame cannot be connected and looks for overlapping content. If you stop before it reconnects, the result includes a missing-content warning. Auto Scroll can offer Keep Partial Result after retries, and either mode can offer a partial result after a capture error. Uncertain seams are never guessed. Capacity limits stop capture with a warning. Cancel discards the active capture."
                         ),
                         HelpArticleSection(
                             title: "Best results",
                             bullets: [
                                 "Start with the content positioned at the beginning of the area you need.",
                                 "Avoid changing the target window while capture is running.",
-                                "Let capture finish to include the final short scroll. Repeated frames at the end are omitted.",
+                                "Click Stop when finished in Manual Scroll. Auto Scroll detects the end. Revisited content is not duplicated.",
                                 "If a page has heavy animation or sticky overlays, try a smaller selection."
                             ]
                         )
                     ],
                     important: [
                         "The scrolling viewport must stay within one display.",
+                        "Capture is bounded by total pixels as well as length: up to 262,144 pixels per side and 134,217,728 pixels in total. A wider selection reaches the limit sooner. Long screenshots open at Fit Width; use pan to review the full result.",
                         "Some apps, protected windows, and highly dynamic pages may not scroll or stitch reliably."
                     ],
                     relatedIDs: ["permissions", "troubleshoot-capture", "capture-screenshot"]
@@ -931,7 +935,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                         HelpArticleSection(
                             title: "Move around the canvas",
                             bullets: [
-                                "Use the lower editor command row's Zoom Out, percentage, Zoom In, Fit to Window, or Actual Size controls. Fit scales the full editable image into view.",
+                                "Use the lower editor command row's Zoom Out, percentage, Zoom In, Fit to Window, Fit Width, or Actual Size controls. Fit to Window shows the full image. Fit Width starts at the top at a readable width; tall screenshots open this way. Actual Size reaches 100% even on very long images.",
                                 "Use pinch zoom, Command-scroll, or Option-scroll to zoom.",
                                 "Use two-finger or mouse-wheel panning and the visible scroll tracks to pan."
                             ]
@@ -1071,7 +1075,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                         ),
                         HelpArticleSection(
                             title: "Export composition animation and pages",
-                            body: "Steps PDF honors Steps per Page. If a raster composition exceeds 16,384 pixels on one side, 134,217,728 output pixels, or an estimated 1 GiB working set, export offers Scale to Fit; Steps PDF also offers one-step-per-page pagination. PDF pages render and write one at a time. Compare → Blink exports GIF, APNG, or MP4 using the composition’s timing, crossfade, and loop choices. Animated files use a 4,096-pixel longest-side safety limit and the completion message discloses scaling. PNG, JPEG, PDF, Copy, and Share use the configured Blink poster, defaulting to After."
+                            body: "Steps PDF honors Steps per Page. If a raster composition exceeds 262,144 pixels on one side, 134,217,728 output pixels, or an estimated 1 GiB working set, export offers Scale to Fit; Steps PDF also offers one-step-per-page pagination. PDF pages render and write one at a time. Compare → Blink exports GIF, APNG, or MP4 using the composition’s timing, crossfade, and loop choices. Animated files use a 4,096-pixel longest-side safety limit and the completion message discloses scaling. PNG, JPEG, PDF, Copy, and Share use the configured Blink poster, defaulting to After."
                         ),
                         HelpArticleSection(
                             title: "Use Mockups",
@@ -1103,7 +1107,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                         ),
                         HelpArticleSection(
                             title: "Choose output size",
-                            body: "Choose Size beside Copy, Export, and Share. Original Size keeps full resolution; Half Size halves both pixel dimensions; Custom Width lets you enter a width and choose Apply Width while height follows the proportions. The panel shows the output dimensions. This session-only choice applies to copied, dragged, shared, and PNG, JPEG, or PDF output; paginated PDFs size each page. It does not resize the original pixels, annotations, editable files, history previews, animation, Interactive HTML, or automation output. Large compositions may still require safety scaling. Custom output is limited to 32,768 pixels per side and 64 million pixels in total."
+                            body: "Choose Size beside Copy, Export, and Share. Original Size keeps full resolution; Half Size halves both pixel dimensions; Custom Width lets you enter a width and choose Apply Width while height follows the proportions. The panel shows the output dimensions. This session-only choice applies to copied, dragged, shared, and PNG, JPEG, or PDF output; paginated PDFs size each page. It does not resize the original pixels, annotations, editable files, history previews, animation, Interactive HTML, or automation output. Large compositions may still require safety scaling. Custom output is limited to 262,144 pixels per side and 134,217,728 pixels in total. JPEG supports at most 65,535 pixels per side; choose PNG to preserve longer images or choose a smaller output width."
                         ),
                         HelpArticleSection(
                             title: "Filename suggestions",
@@ -1314,7 +1318,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                         ? [
                             HelpArticleSection(
                                 title: "Scrolling Capture does not start",
-                                body: "Allow Accessibility permission. If the app is not listed, use Reveal App from the setup guide and add the exact running app in System Settings. If the Ready to Capture panel is enabled, confirm that it names the expected app. If the selected area is not scrollable or stitching cannot continue, use the recovery panel to keep a useful partial result, choose another area, retry, or capture the visible area instead."
+                                body: "Manual Scroll needs Screen Recording access. Auto Scroll in Pro also needs Accessibility; use Reveal App in setup to add the exact running app if needed. Scroll normally in Manual Scroll and choose Stop when finished. If frames cannot be connected, capture stays active and looks for overlap. A result that still has missing content is identified when you stop."
                             )
                         ]
                         : []),

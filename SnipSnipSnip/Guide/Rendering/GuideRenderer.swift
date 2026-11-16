@@ -4,19 +4,62 @@ import CoreImage
 import CoreText
 import Foundation
 
+nonisolated struct GuideRenderedCard {
+    let image: CGImage
+    let logicalSize: CGSize
+    /// Screenshot placement in top-left card coordinates, independent of raster cap.
+    let screenshotRect: CGRect
+}
+
 nonisolated enum GuideRenderer {
     static func renderStepCard(
+        step: GuideStep, image: CGImage, theme: GuideTheme, cardWidth: Int = 1440,
+        advancedEdit: EditableScreenshotDocument? = nil, logo: CGImage? = nil, displayNumber: Int? = nil
+    ) -> CGImage? {
+        renderCard(step: step, image: image, theme: theme, cardWidth: cardWidth,
+                   advancedEdit: advancedEdit, logo: logo, displayNumber: displayNumber)?.image
+    }
+
+    static func renderStepPreview(
+        step: GuideStep, image: CGImage, theme: GuideTheme, cardWidth: Int = 1440,
+        advancedEdit: EditableScreenshotDocument? = nil, logo: CGImage? = nil, displayNumber: Int? = nil
+    ) -> GuideRenderedCard? {
+        renderCard(step: step, image: image, theme: theme, cardWidth: cardWidth,
+                   advancedEdit: advancedEdit, logo: logo, displayNumber: displayNumber,
+                   maximumPixelDimension: 2048)
+    }
+
+    private static func renderCard(
         step: GuideStep,
         image: CGImage,
         theme: GuideTheme,
         cardWidth: Int = 1440,
         advancedEdit: EditableScreenshotDocument? = nil,
         logo: CGImage? = nil,
-        displayNumber: Int? = nil
-    ) -> CGImage? {
-        let renderedImage = advancedEdit.flatMap {
-            ScreenshotPresentationRenderer.render(baseImage: image, snapshot: $0.session.currentSnapshot)
-        } ?? image
+        displayNumber: Int? = nil,
+        maximumPixelDimension: CGFloat? = nil
+    ) -> GuideRenderedCard? {
+        guard cardWidth > 144 else { return nil }
+        let renderedImage: CGImage
+        let renderedImageSize: CGSize
+        if let advancedEdit {
+            let snapshot = advancedEdit.session.currentSnapshot
+            guard let content = EditorRenderer.render(baseImage: image, snapshot: snapshot, maxPixelDimension: maximumPixelDimension),
+                  let result = ScreenshotPresentationRenderer.renderWithLayout(
+                    contentImage: content, presentation: snapshot.presentation,
+                    maxPixelDimension: maximumPixelDimension, logicalContentSize: snapshot.cropRect.gscIntegralStandardized.size
+                  ) else { return nil }
+            renderedImage = result.image
+            // Presentation results expose a raster-scaled layout. Guide marker
+            // geometry must use the uncapped canvas, including Look/Mockup.
+            renderedImageSize = ScreenshotPresentationRenderer.outputSize(
+                for: snapshot.cropRect.gscIntegralStandardized.size,
+                presentation: snapshot.presentation
+            )
+        } else {
+            renderedImage = image
+            renderedImageSize = CGSize(width: image.width, height: image.height)
+        }
         let number = displayNumber ?? step.sequence
         let margin: CGFloat = 72
         let caption = step.caption.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -48,19 +91,23 @@ nonisolated enum GuideRenderer {
         )
         let footerSpacing: CGFloat = footerCopy.isEmpty ? 0 : footerHeight + 16
         let headerHeight = max(150, captionHeight + (note.isEmpty ? 0 : noteHeight + 16) + footerSpacing + 44)
-        let scale = min((CGFloat(cardWidth) - margin * 2) / CGFloat(renderedImage.width), 1)
-        let imageSize = CGSize(width: CGFloat(renderedImage.width) * scale, height: CGFloat(renderedImage.height) * scale)
+        let scale = min((CGFloat(cardWidth) - margin * 2) / renderedImageSize.width, 1)
+        let imageSize = CGSize(width: renderedImageSize.width * scale, height: renderedImageSize.height * scale)
         let size = CGSize(width: CGFloat(cardWidth), height: imageSize.height + margin * 2 + headerHeight)
-        guard let context = CGContext(
+        guard size.width.isFinite, size.height.isFinite, size.width > 0, size.height > 0 else { return nil }
+        let rasterScale = maximumPixelDimension.map { min(1, $0 / max(size.width, size.height)) } ?? 1
+        let rasterSize = CGSize(width: max(1, (size.width * rasterScale).rounded()), height: max(1, (size.height * rasterScale).rounded()))
+        guard ScreenshotRasterBudget.contains(rasterSize), let context = CGContext(
             data: nil,
-            width: Int(size.width),
-            height: Int(size.height),
+            width: Int(rasterSize.width),
+            height: Int(rasterSize.height),
             bitsPerComponent: 8,
             bytesPerRow: 0,
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else { return nil }
 
+        context.scaleBy(x: rasterSize.width / size.width, y: rasterSize.height / size.height)
         context.setFillColor(color(theme.backgroundColorHex, fallback: CGColor(gray: 0.96, alpha: 1)))
         context.fill(CGRect(origin: .zero, size: size))
         let imageRect = CGRect(x: margin, y: headerHeight + margin, width: imageSize.width, height: imageSize.height)
@@ -127,7 +174,9 @@ nonisolated enum GuideRenderer {
             let logoHeight: CGFloat = 44
             context.draw(logo, in: CGRect(x: size.width - margin - logoHeight * ratio, y: size.height - 54, width: logoHeight * ratio, height: logoHeight))
         }
-        return context.makeImage()
+        guard let output = context.makeImage() else { return nil }
+        return GuideRenderedCard(image: output, logicalSize: size,
+                                 screenshotRect: CGRect(x: margin, y: margin, width: imageSize.width, height: imageSize.height))
     }
 
     static func renderPreview(
@@ -141,7 +190,7 @@ nonisolated enum GuideRenderer {
               let displayNumber = GuideStepNumbering.activeNumber(for: step.id, in: project.steps) else {
             return nil
         }
-        return renderStepCard(
+        return renderStepPreview(
             step: step,
             image: image,
             theme: project.theme,
@@ -149,7 +198,7 @@ nonisolated enum GuideRenderer {
             advancedEdit: advancedEdits[step.id],
             logo: logo,
             displayNumber: displayNumber
-        )
+        )?.image
     }
 
     private static func drawMarker(

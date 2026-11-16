@@ -103,6 +103,11 @@ nonisolated enum ScreenCapturePlatformError: LocalizedError, Equatable {
 protocol ScreenCapturePlatform: Sendable {
     nonisolated func shareableContent() async throws -> ScreenContentSnapshot
     nonisolated func captureScreenshot(_ request: ScreenCaptureRequest) async throws -> CGImage
+    func makeScrollingFrameSession(_ request: ScreenCaptureRequest) async throws -> (any ScrollingFrameSession)?
+}
+
+extension ScreenCapturePlatform {
+    func makeScrollingFrameSession(_ request: ScreenCaptureRequest) async throws -> (any ScrollingFrameSession)? { nil }
 }
 
 struct LiveScreenCapturePlatform: ScreenCapturePlatform {
@@ -152,6 +157,20 @@ struct LiveScreenCapturePlatform: ScreenCapturePlatform {
                 missingImageError: .imageUnavailable
             )
         }
+    }
+
+    func makeScrollingFrameSession(_ request: ScreenCaptureRequest) async throws -> (any ScrollingFrameSession)? {
+        guard case let .display(id, excludedProcess) = request.target else { return nil }
+        let content = try await rawShareableContent()
+        guard let display = content.displays.first(where: { $0.displayID == id }) else {
+            throw ScreenCapturePlatformError.displayUnavailable
+        }
+        let session = try LiveScrollingFrameSession(
+            filter: Self.displayCaptureFilter(for: display, content: content, excludingProcessID: excludedProcess),
+            configuration: request.configuration
+        )
+        do { try await session.start() } catch { await session.stop(); throw error }
+        return session
     }
 
     nonisolated private func rawShareableContent() async throws -> SCShareableContent {

@@ -87,11 +87,17 @@ enum EditorRenderer {
         baseImage: CGImage,
         snapshot: EditorSnapshot,
         pinnedUIMapElements: [UIMapElement] = [],
-        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions()
+        uiMapOverlayOptions: UIMapOverlayOptions = UIMapOverlayOptions(),
+        maxPixelDimension: CGFloat? = nil
     ) -> CGImage? {
         let crop = snapshot.cropRect.gscIntegralStandardized
-        let width = Int(crop.width)
-        let height = Int(crop.height)
+        guard crop.width.isFinite, crop.height.isFinite, crop.width > 0, crop.height > 0 else { return nil }
+        let limit = maxPixelDimension.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
+        let scale = limit.map { min(1, $0 / max(crop.width, crop.height)) } ?? 1
+        let outputSize = CGSize(width: max(1, (crop.width * scale).rounded(.down)), height: max(1, (crop.height * scale).rounded(.down)))
+        guard outputSize.width < CGFloat(Int.max), outputSize.height < CGFloat(Int.max) else { return nil }
+        let width = Int(outputSize.width)
+        let height = Int(outputSize.height)
 
         guard width > 0,
               height > 0,
@@ -103,6 +109,7 @@ enum EditorRenderer {
             return nil
         }
 
+        context.scaleBy(x: CGFloat(width) / crop.width, y: CGFloat(height) / crop.height)
         let projection = renderProjection(for: crop)
         let canvasRect = projection.destinationBounds
 
@@ -365,7 +372,14 @@ enum EditorRenderer {
 
         if case let .redaction(shape) = rendered.kind {
             let sourceImage = shape.mode == .solid ? croppedBase : (context.makeImage() ?? croppedBase)
+            let samplingTransform = TopLeftRectTransform(
+                sourceBounds: CGRect(origin: .zero, size: projection.sourceDocumentRect.size),
+                targetBounds: CGRect(x: 0, y: 0, width: sourceImage.width, height: sourceImage.height)
+            )
             drawRedactionExport(shape.mode, geometry: rendered, sourceImage: sourceImage,
+                sourceSamplingRect: samplingTransform.targetRect(fromSourceRect: rendered.samplingLocalRect),
+                sourceSamplingScale: min(CGFloat(sourceImage.width) / projection.sourceDocumentRect.width,
+                                         CGFloat(sourceImage.height) / projection.sourceDocumentRect.height),
                 rotationDegrees: -annotation.rotationDegrees, scale: renderScale, context: context)
             return
         }
@@ -1762,13 +1776,15 @@ enum EditorRenderer {
         _ mode: RedactionMode,
         geometry: RenderedAnnotation,
         sourceImage: CGImage,
+        sourceSamplingRect: CGRect,
+        sourceSamplingScale: CGFloat,
         rotationDegrees: CGFloat,
         scale: CGFloat,
         context: CGContext
     ) {
         if mode != .solid {
-            guard let focused = processedRedactionImage(for: mode, in: geometry.samplingLocalRect,
-                sourceImage: sourceImage, effectRadius: geometry.style.effectRadius) else { return }
+            guard let focused = processedRedactionImage(for: mode, in: sourceSamplingRect,
+                sourceImage: sourceImage, effectRadius: geometry.style.effectRadius * sourceSamplingScale) else { return }
             context.saveGState()
             context.addPath(redactionClipPath(in: geometry.displayRect, rotationDegrees: rotationDegrees))
             context.clip()

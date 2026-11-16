@@ -8,6 +8,7 @@ nonisolated enum AppCapability: String, CaseIterable, Hashable, Sendable {
     case repeatCapture
     case timerCapture
     case scrollingCapture
+    case automaticScrollingCapture
     case connectedDeviceCapture
     case editor
     case presentation
@@ -57,7 +58,7 @@ nonisolated struct BuildTargetCapabilityProvider: AppCapabilityProvider {
         var enabled = Self.alwaysEnabledCapabilities
 
         if isBuildGatedFeatureEnabled(.scrollingCapture, for: target) {
-            enabled.insert(.scrollingCapture)
+            enabled.insert(.automaticScrollingCapture)
         }
 
         if isBuildGatedFeatureEnabled(.accessibilityAutomation, for: target) {
@@ -97,6 +98,7 @@ nonisolated struct BuildTargetCapabilityProvider: AppCapabilityProvider {
         .fullscreenCapture,
         .repeatCapture,
         .timerCapture,
+        .scrollingCapture,
         .editor,
         .presentation,
         .composition,

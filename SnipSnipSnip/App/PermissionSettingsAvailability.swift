@@ -8,7 +8,7 @@ nonisolated enum PermissionSettingsAvailability {
         uiMapEnabled: Bool,
         recordsKeyboardShortcuts: Bool
     ) -> Bool {
-        capabilities.isEnabled(.scrollingCapture)
+        capabilities.isEnabled(.automaticScrollingCapture)
             || capabilities.isEnabled(.guideCapture)
             || (capabilities.isEnabled(.uiMap) && uiMapEnabled)
             || (capabilities.isEnabled(.videoShortcutCapture) && recordsKeyboardShortcuts)

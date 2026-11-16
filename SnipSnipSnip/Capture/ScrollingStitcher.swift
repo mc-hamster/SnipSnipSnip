@@ -17,6 +17,12 @@ nonisolated struct ScrollingStitchState: Sendable {
     private(set) var outputHeight: Int
     let maxOutputHeight: Int
 
+    var retainedSegmentBytes: Int {
+        segments.reduce(0) { total, image in
+            total + (image.dataProvider?.data.map { CFDataGetLength($0) } ?? image.bytesPerRow * image.height)
+        }
+    }
+
     var image: CGImage {
         makeImage() ?? segments[0]
     }
@@ -34,6 +40,30 @@ nonisolated struct ScrollingStitchState: Sendable {
         segments.append(image)
         outputHeight += image.height
         segmentCount += 1
+    }
+
+    mutating func prependSegment(_ image: CGImage) {
+        segments.insert(image, at: 0)
+        outputHeight += image.height
+        segmentCount += 1
+    }
+
+    mutating func prependSegment(_ image: CGImage, replacingPrefixRows count: Int, stitcher: ScrollingStitcher) -> Bool {
+        guard count >= 0, count <= outputHeight else { return false }
+        var remaining = count
+        var retained: [CGImage] = []
+        for segment in segments {
+            if remaining >= segment.height { remaining -= segment.height; continue }
+            if remaining > 0 {
+                guard let trimmed = stitcher.ownedStrip(segment, startY: remaining, height: segment.height - remaining) else { return false }
+                retained.append(trimmed)
+                remaining = 0
+            } else { retained.append(segment) }
+        }
+        segments = [image] + retained
+        outputHeight += image.height - count
+        segmentCount += 1
+        return true
     }
 
     mutating func recordCapturedFrame(_ image: CGImage) {
@@ -117,7 +147,7 @@ nonisolated struct ScrollingStitcher: Sendable {
         let limit = max(maxOutputHeight, 1)
         let outputImage: CGImage
         if image.height > limit {
-            guard let cropped = image.gscCropped(topLeftPixelRect: CGRect(x: 0, y: 0, width: image.width, height: limit)) else {
+            guard let cropped = ownedStrip(image, startY: 0, height: limit) else {
                 throw ScrollingCaptureError.stitchingFailed
             }
             outputImage = cropped
@@ -172,6 +202,11 @@ nonisolated struct ScrollingStitcher: Sendable {
     }
 
     @concurrent
+    func makeOutput(for state: ScrollingStitchState) async -> CGImage? {
+        state.makeImage()
+    }
+
+    @concurrent
     func makePreview(for state: ScrollingStitchState) async -> CGImage? {
         state.makePreviewImage()
     }
@@ -210,14 +245,13 @@ nonisolated struct ScrollingStitcher: Sendable {
         }
 
         let appendHeight = nextImage.height - match.appendStartY
-        let targetHeight = state.outputHeight + appendHeight
+        let (targetHeight, overflow) = state.outputHeight.addingReportingOverflow(appendHeight)
+        guard !overflow else { return .reachedMaximumHeight }
 
         guard targetHeight <= state.maxOutputHeight else {
             let allowedHeight = state.maxOutputHeight - state.outputHeight
             guard allowedHeight > 0,
-                  let partialAppend = nextImage.gscCropped(
-                    topLeftPixelRect: CGRect(x: 0, y: match.appendStartY, width: nextImage.width, height: allowedHeight)
-                  ) else {
+                  let partialAppend = ownedStrip(nextImage, startY: match.appendStartY, height: allowedHeight) else {
                 return .reachedMaximumHeight
             }
 
@@ -226,15 +260,26 @@ nonisolated struct ScrollingStitcher: Sendable {
             return .reachedMaximumHeight
         }
 
-        guard let appendImage = nextImage.gscCropped(
-            topLeftPixelRect: CGRect(x: 0, y: match.appendStartY, width: nextImage.width, height: appendHeight)
-        ) else {
+        guard let appendImage = ownedStrip(nextImage, startY: match.appendStartY, height: appendHeight) else {
             return .lowConfidence
         }
 
         state.appendSegment(appendImage)
         state.recordCapturedFrame(nextImage)
         return targetHeight == state.maxOutputHeight ? .reachedMaximumHeight : .appended
+    }
+
+    // CGImage crops can retain their entire source provider. A one-pixel scroll
+    // must retain one row, not another full viewport, throughout a long session.
+    func ownedStrip(_ image: CGImage, startY: Int, height: Int) -> CGImage? {
+        guard startY >= 0, height > 0, height <= image.height, startY <= image.height - height else { return nil }
+        guard let crop = image.gscCropped(topLeftPixelRect: CGRect(
+            x: 0, y: startY, width: image.width, height: height
+        )), let context = SRGBBitmapContext.make(width: image.width, height: height) else { return nil }
+        context.interpolationQuality = .none
+        context.setBlendMode(.copy)
+        context.draw(crop, in: CGRect(x: 0, y: 0, width: image.width, height: height))
+        return context.makeImage()
     }
 
     func bestMatch(previous: CGImage, next: CGImage) -> ScrollingStitchMatch? {
@@ -248,7 +293,7 @@ nonisolated struct ScrollingStitcher: Sendable {
         return bestMatch(previousSample: previousSample, nextSample: nextSample)
     }
 
-    private func bestMatch(previousSample: ScrollingSampleImage, nextSample: ScrollingSampleImage) -> ScrollingStitchMatch? {
+    func bestMatch(previousSample: ScrollingSampleImage, nextSample: ScrollingSampleImage) -> ScrollingStitchMatch? {
         let viewportHeight = min(previousSample.height, nextSample.height)
         let minimumOverlap = max(Int(Double(viewportHeight) * 0.15), min(12, max(viewportHeight / 4, 1)))
         let maximumOverlap = viewportHeight
@@ -290,7 +335,30 @@ nonisolated struct ScrollingStitcher: Sendable {
             }
         }
 
-        guard let best else { return nil }
+        guard var best, best.confidence >= minimumConfidence else { return nil }
+        if best.appendStartY < viewportHeight {
+            // Sparse sampling can make adjacent offsets through repeated text
+            // baselines appear equally perfect. Verify every row of plausible
+            // moving matches before deciding their alignment is ambiguous.
+            // Stationary/blank frames retain their conservative no-new-rows path.
+            var verified: [ScrollingStitchMatch] = []
+            for candidate in candidates {
+                let score = confidence(
+                    left: previousSample, leftY: previousSample.height - candidate.overlapHeight,
+                    right: nextSample, rightY: candidate.nextStartY,
+                    height: candidate.overlapHeight, differences: &differences,
+                    maxRows: Int.max, minConfidence: minimumConfidence
+                )
+                if score >= minimumConfidence {
+                    verified.append(ScrollingStitchMatch(overlapHeight: candidate.overlapHeight,
+                        nextStartY: candidate.nextStartY, confidence: score))
+                }
+            }
+            guard var refined = verified.first else { return nil }
+            for candidate in verified.dropFirst() where isBetterMatch(candidate, than: refined) { refined = candidate }
+            best = refined
+            candidates = verified
+        }
         // A stationary match never invents content. For movement, distinct
         // equally plausible offsets are ambiguous (for example repeated rows).
         // Let the capture service retry or offer the accepted partial result.
@@ -300,6 +368,24 @@ nonisolated struct ScrollingStitcher: Sendable {
                    && $0.confidence >= best.confidence - ambiguityMargin
            }) {
             return nil
+        }
+        // A good average can conceal a local layout shift (for example an
+        // image loading in the middle of the overlap). Independently validate
+        // three bands before accepting movement. Stationary frames can retain
+        // the accepted pixels without inventing any new content.
+        if best.appendStartY < viewportHeight {
+            let bandCount = min(3, best.overlapHeight)
+            for band in 0..<bandCount {
+                let start = best.overlapHeight * band / bandCount
+                let end = best.overlapHeight * (band + 1) / bandCount
+                let score = confidence(
+                    left: previousSample, leftY: previousSample.height - best.overlapHeight + start,
+                    right: nextSample, rightY: best.nextStartY + start,
+                    height: end - start, differences: &differences,
+                    minConfidence: minimumConfidence
+                )
+                guard score >= minimumConfidence else { return nil }
+            }
         }
         return best
     }

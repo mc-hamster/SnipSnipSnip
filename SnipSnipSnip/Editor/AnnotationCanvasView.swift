@@ -42,9 +42,9 @@ private final class AnnotationCanvasBaseImageView: NSView {
         }
     }
 
-    var imageSize: CGSize = .zero {
+    var imageRect: CGRect = .zero {
         didSet {
-            guard oldValue != imageSize else {
+            guard oldValue != imageRect else {
                 return
             }
 
@@ -65,8 +65,10 @@ private final class AnnotationCanvasBaseImageView: NSView {
             return
         }
 
-        NSImage(cgImage: image, size: imageSize).draw(
-            in: bounds,
+        // Keep the backing surface bounded by the viewport even when the
+        // document is hundreds of thousands of pixels tall at Actual Size.
+        NSImage(cgImage: image, size: CGSize(width: image.width, height: image.height)).draw(
+            in: imageRect,
             from: .zero,
             operation: .sourceOver,
             fraction: 1,
@@ -916,6 +918,8 @@ final class AnnotationCanvasView: NSView {
     }
 
     #if DEBUG
+    var debugBaseImageViewFrame: CGRect { baseImageView.frame }
+
     var debugInteractionOverlayView: NSView {
         overlayView
     }
@@ -962,7 +966,8 @@ final class AnnotationCanvasView: NSView {
 
     private func synchronizeBaseImagePresentation() {
         let canvasRect = controller.viewport.imageRect
-        baseImageView.frame = canvasRect
+        baseImageView.frame = bounds
+        baseImageView.imageRect = canvasRect
 
         guard canvasRect.width > 0, canvasRect.height > 0 else {
             displayedBaseImageCrop = nil
@@ -983,7 +988,6 @@ final class AnnotationCanvasView: NSView {
         if displayedBaseImageCrop != documentBounds {
             displayedBaseImageCrop = documentBounds
             baseImageView.image = controller.capture.image
-            baseImageView.imageSize = documentBounds.size
         }
     }
 

@@ -985,6 +985,14 @@ struct EditorCommandBar: View {
         .help("Fit to Window")
         .accessibilityLabel("Fit to Window")
 
+        Button(action: controller.zoomToWidth) {
+            Image(systemName: "arrow.left.and.right")
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.circle)
+        .help("Fit Width")
+        .accessibilityLabel("Fit Width")
+
         Button(action: controller.zoomToActualSize) {
             Image(systemName: "1.magnifyingglass")
         }

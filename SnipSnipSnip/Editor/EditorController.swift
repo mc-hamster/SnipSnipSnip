@@ -2039,6 +2039,10 @@ final class EditorController: ObservableObject {
         updateViewport(invalidationReason: .viewport) { $0.zoomedToFit() }
     }
 
+    func zoomToWidth() {
+        updateViewport(invalidationReason: .viewport) { $0.zoomedToWidth() }
+    }
+
     func zoomToInitialDisplayScale() {
         updateViewport(invalidationReason: .viewport) {
             guard workspaceMode != .presentation else {

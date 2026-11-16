@@ -131,7 +131,7 @@ Use this to create a production upload and submit it for App Review:
 
 Set the intended `x.y.z` marketing version on the app target in Xcode before running this lane. Fastlane treats that value as read-only and bumps only the build number.
 
-Fastlane builds App Store archives with `SNIP_BUILD_TARGET=Release` and adds the Swift compilation condition `APP_STORE_BUILD`. That condition is authoritative: it disables Guide capture, UI Map, scrolling capture, and all Accessibility-assisted workflows even if a runtime target is misconfigured, and compiles their live Accessibility/event-tap backends out of the App Store binary.
+Fastlane builds App Store archives with `SNIP_BUILD_TARGET=Release` and adds the Swift compilation condition `APP_STORE_BUILD`. That condition is authoritative: it disables Guide capture, UI Map, Auto Scroll, and all Accessibility-assisted workflows even if a runtime target is misconfigured, and compiles their live Accessibility/event-tap backends out of the App Store binary. Manual Scroll remains available through the shared Screen Recording-only backend.
 
 Release safety checks are now enabled by default for `release` and `submit_review`. Before either lane can continue, set these environment variables to `true`:
 
@@ -272,7 +272,7 @@ Current gated features:
 - Guide capture, Scrolling Capture, connected-device capture, and UI Map are enabled for `Dev` and `Self Release`.
 - Accessibility automation and Pro update checks are enabled only for `Self Release`.
 - `Internal`, `External`, and `Release` expose none of those gated capabilities.
-- Local Xcode `Debug` / `Dev` builds and Fastlane `Self Release` builds run without App Sandbox so Accessibility-backed Guide, scrolling, UI Map, and Pro automation can operate after user consent.
+- Local Xcode `Debug` / `Dev` builds and Fastlane `Self Release` builds run without App Sandbox so Accessibility-backed Guide, Auto Scroll, UI Map, and Pro automation can operate after user consent.
 - Fastlane `Internal`, `External`, and App Store `Release` builds all keep App Sandbox and `APP_STORE_BUILD`. Live Accessibility, UI Map capture, Guide event monitoring/caption capture, and Guide capture coordinators are replaced by unavailable implementations that make no cross-app calls.
 - After every archive, Fastlane inspects every Mach-O executable. All editions reject the private `_AXUIElementGetWindow` import. App Store archives additionally fail before packaging/upload when any executable lacks App Sandbox or imports AX client calls or `CGEventTapCreate`.
 - Sandboxed builds carry a Downloads read/write entitlement for unattended

@@ -2858,6 +2858,20 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testTallCanvasBaseImageBackingViewStaysWithinViewport() {
+        let controller = makeController(
+            snapshot: makeEditorSnapshot(cropRect: CGRect(x: 0, y: 0, width: 32, height: 70_000)),
+            captureSize: CGSize(width: 32, height: 70_000)
+        )
+        let (canvas, _, _) = makeCanvasHarness(controller: controller, frame: CGRect(x: 0, y: 0, width: 640, height: 480))
+        controller.zoomToActualSize()
+        canvas.refreshCanvasDisplay()
+        XCTAssertEqual(controller.viewport.displayScale, 1, accuracy: 0.0001)
+        XCTAssertEqual(canvas.debugBaseImageViewFrame, canvas.bounds)
+        XCTAssertLessThan(canvas.debugBaseImageViewFrame.height, controller.viewport.imageRect.height)
+    }
+
+    @MainActor
     func testCropPreviewDoesNotInvalidateStableCanvasContent() {
         let controller = makeController(
             snapshot: makeEditorSnapshot(cropRect: CGRect(x: 20, y: 15, width: 80, height: 60)),

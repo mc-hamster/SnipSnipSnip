@@ -93,7 +93,7 @@ Screenshot automation follows the same macOS permissions as the app UI:
 
 - Screen Recording is required for screenshot capture.
 - The App Store edition never requests Accessibility. SnipSnipSnip Pro requires
-  it for Guide creation, scrolling capture, UI Map, and other
+  it for Guide creation, Auto Scroll, UI Map, and other
   Accessibility-assisted workflows.
 - Apple Events permission is required for `snipsnipsnipctl` because it talks to
   SnipSnipSnip through the AppleScript suite.
@@ -486,7 +486,7 @@ and permissions before starting a capture:
           "supportsCapturePresets": true,
           "supportsPrivateCapture": true,
           "supportsUIMap": true,
-          "supportsScrollingCapture": false,
+          "supportsScrollingCapture": true,
           "supportsConnectedDeviceCapture": false,
           "supportsCurrentEditorExport": true,
           "supportsGuide": true,
@@ -612,3 +612,19 @@ The Debug bundle's CLI targets Dev; the shipping CLI targets the shipping app. S
 The disposable automation sample validator targets Dev and substitutes that identity into AppleScript fixtures. The serial XCTest gate checks the selected configuration's namespace, so a shipping copy may remain open during Debug tests. Grant Dev access once and keep Apple Development signing and team stable for subsequent rebuilds; macOS may ask again if the code-signing identity changes. No permission resets or shipping-data migration occur. The system clipboard and global shortcut registrations remain shared macOS resources; assign different shortcuts if both copies are active.
 
 The Debug product is **SnipSnipSnip Dev.app**, with executable **SnipSnipSnip Dev**, so Finder and macOS permission setup can distinguish it from the shipping **SnipSnipSnip.app**. The Swift module remains `SnipSnipSnip`. When adding Dev manually to a permission list, select the Dev product in Xcode’s DerivedData.
+
+### Manual and automatic scrolling
+
+Manual Scroll is available interactively in every edition with Screen Recording
+permission only. Auto Scroll is Pro-only and additionally requires Accessibility.
+Scrolling capture is still not a v1 automation primitive; the automation status
+capability now reports interactive scrolling availability in every edition. Sample
+procedures are unchanged; this does not introduce a scrolling automation command. JPEG cannot represent
+images beyond 65,535 pixels on either side; export those long captures as PNG or
+choose a smaller output width. Failed JPEG output uses the existing output-failure
+response rather than truncating the image.
+
+Manual Scroll follows ordinary continuous scrolling, pauses, and reversals. It
+keeps observing after alignment gaps and reports any unresolved missing content
+when stopped. This changes the interactive capture engine, not v1 command names,
+arguments, result fields, or sample-script procedures.

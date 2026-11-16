@@ -92,3 +92,30 @@ opens completed MP4/APNG outputs to verify their rendered edits.
 Promised-file drag delivery uses the same staging boundary. A failed writer never
 removes an existing destination, even if it failed before writing any output;
 success callbacks receive the final destination only after installation.
+
+## Long scrolling screenshots
+
+New scrolling captures and composition rasters share `ScreenshotRasterBudget`:
+262,144 pixels per side and 134,217,728 total pixels. The capture height is
+calculated from the actual pixel width, including Retina scale; increasing the
+height ceiling never bypasses the pixel budget. Composition export retains the
+1 GiB estimated working-set check. Editable screenshot and Guide packages accept
+the longer side while retaining their existing decoded-pixel import ceilings.
+
+`ScreenshotRasterBudgetTests` verifies width-dependent capacity, proportional
+long-image resizing, full-height PNG decoding, and the explicit JPEG dimension
+error. JPEG output above 65,535 pixels per side recommends PNG or a smaller output
+width. `SSSDocumentTests` and `GuideWorkflowTests` round-trip narrow images beyond
+the former package side limit. `CompositionOutputExporterTests` verifies that a
+narrow 70,000-pixel composition is not classified as oversized solely by height.
+
+For live validation, open a tall capture and verify that its initial view starts
+at the top at a readable width, Fit Width exposes the first row, Fit to Window
+shows the whole image, Actual Size reaches 100%, and scrolling reaches the final
+row. Repeat after showing/hiding the inspector and resizing the window. The
+annotation canvas backing view stays the size of the visible viewport, independent
+of document height; check annotations and crop handles near both ends of the
+capture. Export full PNG, save and reopen `.sss`, then compare the first and last
+rows. Guide review and package previews render directly into a bounded raster;
+marker handles use the full logical card geometry. `GuideRendererPreviewTests`
+checks the cap, placement, advanced-edit crop geometry, and scaled redactions. Verify that a JPEG dimension error preserves any existing destination.

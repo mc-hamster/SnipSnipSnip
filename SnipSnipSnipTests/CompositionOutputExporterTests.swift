@@ -7,6 +7,19 @@ import XCTest
 @testable import SnipSnipSnip
 
 final class CompositionOutputExporterTests: XCTestCase {
+    func testTallNarrowCompositionExportsAtFullHeight() throws {
+        let source = makeSolidImage(width: 8, height: 8, color: PixelSample(red: 20, green: 80, blue: 180, alpha: 255))
+        let asset = CompositionAsset(image: source)
+        let input = outputInput(
+            composition: CompositionSnapshot(items: [CompositionItem(assetID: asset.descriptor.id, freeformFrame: CGRect(x: 0, y: 0, width: 8, height: 70_000))], layout: CompositionLayoutConfiguration(mode: .freeform)),
+            assets: [asset]
+        )
+        let preflight = try CompositionOutputExporter.preflight(input, format: .png)
+        XCTAssertFalse(preflight.isOversized)
+        let rendered = try CompositionOutputExporter.staticImage(input)
+        XCTAssertGreaterThanOrEqual(rendered.height, 70_000)
+    }
+
     func testPrintAcceptsTransparentPolishWhilePDFExportStillRequiresPNG() async throws {
         let fixture = makeComparisonFixture(mode: .sideBySide)
         var snapshot = fixture.input.snapshot
@@ -506,7 +519,7 @@ final class CompositionOutputExporterTests: XCTestCase {
                     freeformFrame: CGRect(
                         x: 0,
                         y: 0,
-                        width: 20_000,
+                        width: 300_000,
                         height: 100
                     )
                 ),

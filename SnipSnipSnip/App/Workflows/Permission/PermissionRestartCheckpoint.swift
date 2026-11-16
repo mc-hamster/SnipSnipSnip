@@ -15,7 +15,7 @@ nonisolated enum PermissionRestartAction: Codable {
     var requirements: [CapturePermissionRequirement] {
         switch self {
         case .screenshot(let command, let options):
-            return command == .scrollingCapture || (options.windowUIMapEnabled && (command == .frontmostWindow || command == .windowPicker))
+            return (command == .scrollingCapture && options.scrollingMode != .manual) || (options.windowUIMapEnabled && (command == .frontmostWindow || command == .windowPicker))
                 ? [.screenRecording, .accessibility] : [.screenRecording]
         case .video: return [.screenRecording]
         case .guide: return [.screenRecording, .accessibility]

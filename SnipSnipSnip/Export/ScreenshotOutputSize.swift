@@ -6,8 +6,8 @@ nonisolated enum ScreenshotOutputSize: Equatable, Sendable {
     case half
     case customWidth(Int)
 
-    static let maximumDimension = 32_768
-    static let maximumPixelCount = 64_000_000
+    static let maximumDimension = ScreenshotRasterBudget.maximumDimension
+    static let maximumPixelCount = ScreenshotRasterBudget.maximumPixelCount
 
     func pixelSize(for original: CGSize) throws -> CGSize {
         guard original.width.isFinite, original.height.isFinite,
@@ -22,8 +22,7 @@ nonisolated enum ScreenshotOutputSize: Equatable, Sendable {
             guard width > 0, width <= Self.maximumDimension else { throw ScreenshotOutputSizeError.invalidSize }
             result = CGSize(width: CGFloat(width), height: max(1, (CGFloat(width) * source.height / source.width).rounded()))
         }
-        guard result.width <= CGFloat(Self.maximumDimension), result.height <= CGFloat(Self.maximumDimension),
-              result.width * result.height <= CGFloat(Self.maximumPixelCount) else { throw ScreenshotOutputSizeError.tooLarge }
+        guard ScreenshotRasterBudget.contains(result) else { throw ScreenshotOutputSizeError.tooLarge }
         return result
     }
 
@@ -54,8 +53,8 @@ nonisolated enum ScreenshotOutputSizeError: LocalizedError {
     case tooLarge
     var errorDescription: String? {
         switch self {
-        case .invalidSize: "Enter a width from 1 to 32,768 pixels."
-        case .tooLarge: "Choose a smaller width. Resized output is limited to 32,768 pixels per side and 64 million pixels in total."
+        case .invalidSize: "Enter a width from 1 to 262,144 pixels."
+        case .tooLarge: "Choose a smaller width. Resized output is limited to 262,144 pixels per side and 134,217,728 pixels in total."
         }
     }
 }

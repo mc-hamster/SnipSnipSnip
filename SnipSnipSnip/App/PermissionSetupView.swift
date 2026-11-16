@@ -108,9 +108,9 @@ struct PermissionSetupView: View {
         case "Window Capture with UI Map":
             return "UI Map uses Accessibility to read visible controls and their locations in the selected window."
         case "Scrolling Capture":
-            return "Scrolling Capture uses Accessibility to scroll the selected app while capturing its content."
+            return "Auto Scroll uses Accessibility to scroll the selected app while capturing its content."
         default:
-            return "Accessibility enables Scrolling Capture, UI Map, Guide, and optional keyboard-shortcut recording. Ordinary Region and Screen capture work without it."
+            return "Accessibility enables Auto Scroll, UI Map, Guide, and optional keyboard-shortcut recording. Manual Scroll, Region, and Screen capture work without it."
         }
     }
 }

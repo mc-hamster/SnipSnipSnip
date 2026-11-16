@@ -53,7 +53,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
             .canRequest(.accessibility)
         )
 
-        for capability in [AppCapability.scrollingCapture, .uiMap, .accessibilityAutomation, .guideCapture, .videoShortcutCapture] {
+        for capability in [AppCapability.automaticScrollingCapture, .uiMap, .accessibilityAutomation, .guideCapture, .videoShortcutCapture] {
             let service = SystemCapturePermissionService(
                 capabilities: capabilities([.screenRecording, capability]),
                 client: makePermissionClient()
@@ -222,7 +222,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
     func testSystemCapturePermissionServiceDelegatesSystemActionsExactlyOnce() {
         let recorder = PermissionClientRecorder()
         let service = SystemCapturePermissionService(
-            capabilities: capabilities([.screenRecording, .scrollingCapture]),
+            capabilities: capabilities([.screenRecording, .automaticScrollingCapture]),
             client: makePermissionClient(
                 screenRecordingStatus: true,
                 accessibilityStatus: true,
@@ -847,6 +847,10 @@ final class AppArchitecturePlatformTests: XCTestCase {
             contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/App/Workflows/AppWorkflowCoordinator.swift"),
             encoding: .utf8
         )
+        let captureDependencies = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("SnipSnipSnip/App/Workflows/Capture/CaptureWorkflowDependencies.swift"),
+            encoding: .utf8
+        )
         let captureModelLineCount = captureModel.split(separator: "\n", omittingEmptySubsequences: false).count
         let captureCommandLineCount = captureCommands.split(separator: "\n", omittingEmptySubsequences: false).count
         let captureScrollingLineCount = captureScrolling.split(separator: "\n", omittingEmptySubsequences: false).count
@@ -941,15 +945,15 @@ final class AppArchitecturePlatformTests: XCTestCase {
             "CaptureWorkflowModel must not regain a direct VideoWorkflowModel reference."
         )
         XCTAssertTrue(
-            captureModel.contains("let appWindowPresenter: any AppWindowPresenting"),
+            captureDependencies.contains("let appWindowPresenter: any AppWindowPresenting"),
             "CaptureWorkflowDependencies should receive app-window presentation through a narrow presenter port."
         )
         XCTAssertTrue(
-            captureModel.contains("let lifecycle: any WorkflowLifecyclePresenting"),
+            captureDependencies.contains("let lifecycle: any WorkflowLifecyclePresenting"),
             "CaptureWorkflowDependencies should receive lifecycle UI state through a narrow port."
         )
         XCTAssertFalse(
-            captureModel.contains("let lifecycle: AppLifecycleModel"),
+            (captureModel + captureDependencies).contains("let lifecycle: AppLifecycleModel"),
             "CaptureWorkflowDependencies must not regain a concrete AppLifecycleModel dependency."
         )
         for lifecycleConsumer in [
@@ -2565,6 +2569,7 @@ final class AppArchitecturePlatformTests: XCTestCase {
                 "SnipSnipSnip/Capture/ScreenCapturePermissions.swift",
                 "SnipSnipSnip/Platform/System/LiveDesktopPreviewSource.swift",
                 "SnipSnipSnip/Platform/System/ScreenRecordingPlatform.swift",
+                "SnipSnipSnip/Platform/System/ScrollingFrameSession.swift",
             ]
         )
         try assertFragment(

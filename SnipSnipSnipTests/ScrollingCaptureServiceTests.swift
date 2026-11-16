@@ -176,7 +176,7 @@ final class ScrollingCaptureServiceTests: XCTestCase {
         let first = makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 })
         let last = makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 + 60 })
 
-        let result = try await captureFrames([first, first, last, last], driver: driver)
+        let result = try await captureFrames([first, first, last, last, last, last], driver: driver, rawFrames: true)
 
         assertScrollingRows(in: result.image, expectedHeight: 140)
         XCTAssertEqual(driver.scrollDistances, [60, 60])
@@ -310,7 +310,7 @@ final class ScrollingCaptureServiceTests: XCTestCase {
 
         assertScrollingRows(in: result.image, expectedHeight: 176)
         XCTAssertEqual(driver.restoredPositions, [0])
-        XCTAssertEqual(driver.scrollDistances, [60, 36, 60, 60])
+        XCTAssertEqual(driver.scrollDistances, [60, 36, 36, 36])
         XCTAssertEqual(result.warnings.count, 1)
     }
 
@@ -337,7 +337,7 @@ final class ScrollingCaptureServiceTests: XCTestCase {
         assertScrollingRows(in: result.image, expectedHeight: 40)
         XCTAssertTrue(driver.scrollDistances.isEmpty)
         XCTAssertEqual(result.warnings.count, 1)
-        XCTAssertTrue(result.warnings[0].contains("maximum output height"))
+        XCTAssertTrue(result.warnings[0].contains("image capacity"))
     }
 
     func testSegmentLimitWarnsThatCaptureStoppedEarly() async throws {
@@ -425,17 +425,158 @@ final class ScrollingCaptureServiceTests: XCTestCase {
         }
     }
 
-    private func captureFrames(
-        _ images: [CGImage], driver: ScrollingTestDriver,
-        maxSegmentCount: Int = 10, maxOutputHeight: Int = 60_000,
+    func testAutoCaptureWaitsForMovingContentBeforeStitching() async throws {
+        let frames = [0, 20, 40, 50, 50, 50, 50].map {
+            offset in makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 + offset })
+        }
+        let driver = ScrollingTestDriver(reportedPosition: nil)
+        let result = try await captureFrames(frames, driver: driver, rawFrames: true)
+        assertScrollingRows(in: result.image, expectedHeight: 130)
+        XCTAssertEqual(driver.scrollDistances, [60, 60])
+    }
+
+    func testAutoCaptureOffersPartialWhenContentNeverSettles() async throws {
+        let frames = [0, 10, 20, 30, 40, 50].map {
+            offset in makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 + offset })
+        }
+        let driver = ScrollingTestDriver(reportedPosition: nil)
+        do {
+            _ = try await captureFrames(frames, driver: driver, rawFrames: true)
+            XCTFail("Moving content must not produce an unverified seam")
+        } catch let error as ScrollingCaptureInterruptedError {
+            assertScrollingRows(in: error.partialResult.image, expectedHeight: 80)
+            XCTAssertTrue(error.reason.contains("kept moving"))
+            XCTAssertEqual(driver.scrollDistances, [60])
+        }
+    }
+
+    func testManualContinuousMovementDoesNotRequireDuplicateFrames() async throws {
+        let frames = Array(0...10).map {
+            offset in makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 + offset * 5 })
+        }
+        let result = try await captureManualFrames(frames)
+        assertScrollingRows(in: result.image, expectedHeight: 130)
+        XCTAssertTrue(result.warnings.isEmpty)
+    }
+
+    func testManualReconnectsAfterTemporaryMismatchWithoutEndingCapture() async throws {
+        let first = makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 })
+        let mismatch = makeSolidImage(width: 48, height: 80, color: PixelSample(red: 255, green: 255, blue: 255, alpha: 255))
+        let next = makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 + 50 })
+        var sawLooking = false
+        var clearedWarning = false
+        let result = try await captureManualFrames([first, mismatch, mismatch, mismatch, mismatch, next], progressHandler: { progress in
+            if progress.warning != nil { sawLooking = true }
+            else if sawLooking { clearedWarning = true }
+        })
+        assertScrollingRows(in: result.image, expectedHeight: 130)
+        XCTAssertTrue(clearedWarning)
+        XCTAssertTrue(result.warnings.isEmpty)
+    }
+
+    func testManualSegmentBudgetAllowsSmallMovementsAndHonorsExplicitLimit() {
+        let rect = CGRect(x: 0, y: 0, width: 48, height: 80)
+        XCTAssertEqual(ScrollingCaptureRequest(viewportRect: rect, mode: .manual).maxSegmentCount, ScreenshotRasterBudget.maximumDimension + 1)
+        XCTAssertEqual(ScrollingCaptureRequest(viewportRect: rect).maxSegmentCount, 400)
+        XCTAssertEqual(ScrollingCaptureRequest(viewportRect: rect, maxSegmentCount: 12, mode: .manual).maxSegmentCount, 12)
+    }
+
+    func testManualCaptureResolvesWithoutAccessibility() throws {
+        let service = ScrollingCaptureService(
+            captureService: ScreenCaptureService(),
+            permissions: TestCapturePermissionService(status: CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false)),
+            driverFactory: { _ in
+                XCTFail("Manual capture must not resolve an Accessibility driver")
+                throw ScrollingCaptureError.noScrollableTarget
+            }
+        )
+        let target = try service.resolveTarget(for: ScrollingCaptureRequest(
+            viewportRect: CGRect(x: 0, y: 0, width: 48, height: 80), mode: .manual
+        ))
+        XCTAssertEqual(target.mode, .manual)
+    }
+
+    func testManualCaptureWaitsThroughIdleAndKeepsEveryMovement() async throws {
+        let cancellation = ScrollingCaptureCancellation()
+        let images = [0, 0, 0, 0, 0, 25, 50, 50].map {
+            offset in makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 + offset })
+        }
+        let result = try await captureManualFrames(images, cancellation: cancellation)
+        assertScrollingRows(in: result.image, expectedHeight: 130)
+        XCTAssertTrue(result.warnings.isEmpty)
+    }
+
+    func testManualStopKeepsLatestFrameWithoutWaitingForDuplicates() async throws {
+        let cancellation = ScrollingCaptureCancellation()
+        let images = [0, 50, 50].map {
+            offset in makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 + offset })
+        }
+        let result = try await captureManualFrames(
+            images, cancellation: cancellation,
+            onCapture: { if $0 == 1 { cancellation.finish() } }
+        )
+        assertScrollingRows(in: result.image, expectedHeight: 130)
+    }
+
+    func testManualCancelDuringCapturePublishesNoResult() async throws {
+        let cancellation = ScrollingCaptureCancellation()
+        let frame = makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 })
+        do {
+            _ = try await captureManualFrames(
+                [frame, frame], cancellation: cancellation,
+                onCapture: { if $0 == 1 { cancellation.cancel() } }
+            )
+            XCTFail("Expected cancellation")
+        } catch ScrollingCaptureError.cancelled {}
+    }
+
+    func testManualUnmatchedContentWaitsUntilStopAndDisclosesIncompleteResult() async throws {
+        let first = makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 })
+        let mismatch = makeSolidImage(width: 48, height: 80, color: PixelSample(red: 255, green: 255, blue: 255, alpha: 255))
+        let result = try await captureManualFrames([first] + Array(repeating: mismatch, count: 12))
+        assertScrollingRows(in: result.image, expectedHeight: 80)
+        XCTAssertTrue(result.warnings.contains { $0.contains("could not be connected") })
+    }
+
+    func testManualCapacityStopsWithoutAnotherFrame() async throws {
+        let images = [0, 50, 50].map {
+            offset in makeScrollingFrame(width: 48, height: 80, rowMapper: { $0 + offset })
+        }
+        let result = try await captureManualFrames(images, maxOutputHeight: 120)
+        assertScrollingRows(in: result.image, expectedHeight: 120)
+        XCTAssertEqual(result.warnings.count, 1)
+    }
+
+    private func captureManualFrames(
+        _ images: [CGImage], maxOutputHeight: Int = 60_000,
         cancellation: ScrollingCaptureCancellation = ScrollingCaptureCancellation(),
-        scheduler: any Scheduling = ScrollingTestScheduler(),
         onCapture: @escaping @Sendable (Int) throws -> Void = { _ in },
         progressHandler: (@MainActor (ScrollingCaptureProgress) -> Void)? = nil
     ) async throws -> ScrollingCaptureResult {
-        // The final frame remains visible for the no-movement confirmation.
-        let frames = ScrollingTestFrames(images + Array(images.suffix(1)), onCapture: onCapture)
-        let permissions = TestCapturePermissionService()
+        let permissions = TestCapturePermissionService(status: CapturePermissionStatus(hasScreenRecording: true, hasAccessibility: false))
+        let service = ScrollingCaptureService(
+            captureService: makeFrameCaptureService(images, permissions: permissions, onCapture: { index in
+                try onCapture(index)
+                if index >= images.count - 1 { cancellation.finish() }
+            }),
+            permissions: permissions, scheduler: ScrollingTestScheduler(), clock: TestClock(),
+            driverFactory: { _ in
+                XCTFail("Manual capture must not resolve an Accessibility driver")
+                throw ScrollingCaptureError.noScrollableTarget
+            }
+        )
+        return try await service.capture(
+            request: ScrollingCaptureRequest(
+                viewportRect: CGRect(x: 0, y: 0, width: 48, height: 80), maxOutputHeight: maxOutputHeight, mode: .manual
+            ), cancellation: cancellation, progressHandler: progressHandler
+        )
+    }
+
+    private func makeFrameCaptureService(
+        _ images: [CGImage], permissions: TestCapturePermissionService,
+        onCapture: @escaping @Sendable (Int) throws -> Void
+    ) -> ScreenCaptureService {
+        let frames = ScrollingTestFrames(images, onCapture: onCapture)
         let platform = TestScreenCapturePlatform(
             content: ScreenContentSnapshot(
                 displays: [DisplaySnapshot(displayID: 1, name: "Test", frame: CGRect(x: 0, y: 0, width: 48, height: 80), scale: 1)],
@@ -443,10 +584,27 @@ final class ScrollingCaptureServiceTests: XCTestCase {
             ),
             imageProvider: { _ in try frames.next() }
         )
-        let captureService = ScreenCaptureService(
+        return ScreenCaptureService(
             permissions: permissions, platform: platform, workspace: TestWorkspaceService(),
             screens: TestScreenTopologyService(), mouse: TestMouseLocationService(),
             windowFocus: TestApplicationWindowFocusService(), clock: TestClock()
+        )
+    }
+
+    private func captureFrames(
+        _ images: [CGImage], driver: ScrollingTestDriver,
+        maxSegmentCount: Int = 10, maxOutputHeight: Int = 60_000, rawFrames: Bool = false,
+        cancellation: ScrollingCaptureCancellation = ScrollingCaptureCancellation(),
+        scheduler: any Scheduling = ScrollingTestScheduler(),
+        onCapture: @escaping @Sendable (Int) throws -> Void = { _ in },
+        progressHandler: (@MainActor (ScrollingCaptureProgress) -> Void)? = nil
+    ) async throws -> ScrollingCaptureResult {
+        // The final frame remains visible for the no-movement confirmation.
+        let permissions = TestCapturePermissionService()
+        let observedFrames = rawFrames ? images : Array(images.prefix(1)) + images.dropFirst().flatMap { [$0, $0] }
+        let captureService = makeFrameCaptureService(
+            observedFrames + Array(images.suffix(1)), permissions: permissions,
+            onCapture: { index in try onCapture(rawFrames || index == 0 ? index : (index - 1) / 2 + 1) }
         )
         let service = ScrollingCaptureService(
             captureService: captureService, permissions: permissions,

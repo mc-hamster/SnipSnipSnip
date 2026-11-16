@@ -131,7 +131,7 @@ nonisolated struct SystemCapturePermissionService: CapturePermissionServicing {
             return capabilities.isEnabled(.accessibilityAutomation)
                 || capabilities.isEnabled(.videoShortcutCapture)
                 || capabilities.isEnabled(.uiMap)
-                || capabilities.isEnabled(.scrollingCapture)
+                || capabilities.isEnabled(.automaticScrollingCapture)
                 || capabilities.isEnabled(.guideCapture)
         }
     }

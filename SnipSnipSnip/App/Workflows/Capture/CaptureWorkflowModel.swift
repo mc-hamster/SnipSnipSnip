@@ -3,21 +3,6 @@ import Combine
 import Foundation
 
 @MainActor
-struct CaptureWorkflowDependencies {
-    let capabilities: AppCapabilitySnapshot
-    let systemServices: AppSystemServices
-    let appWindowPresenter: any AppWindowPresenting
-    let permissions: any PermissionGatekeeping
-    let lifecycle: any WorkflowLifecyclePresenting
-    let makeScrollingCaptureService: (any ScreenCaptureServiceType) -> ScrollingCaptureService
-    let preferenceStore: CapturePreferenceStore
-    let automationPreferenceStore: AutomationPreferenceStore
-    var confirmScrollingTarget: (ScrollingCaptureTarget) -> ScrollingCaptureTargetConfirmation.Choice = {
-        ScrollingCaptureTargetConfirmation.present(target: $0)
-    }
-}
-
-@MainActor
 final class CaptureWorkflowModel: ObservableObject, AutomationStatusPort, CaptureAutomationPort {
     let dependencies: CaptureWorkflowDependencies
     var captureService: any ScreenCaptureServiceType

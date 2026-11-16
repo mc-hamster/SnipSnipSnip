@@ -9,8 +9,10 @@ extension CaptureWorkflowModel {
         runOptions: CaptureRunOptions,
         completionContext: CaptureCompletionContext
     ) async throws {
+        let mode = resolvedScrollingMode(runOptions.scrollingMode)
         let cancellation = ScrollingCaptureCancellation()
         let progressOverlay = ScrollingCaptureProgressOverlay(
+            mode: mode,
             onCancel: { cancellation.cancel() },
             onDone: { cancellation.finish() }
         )
@@ -23,7 +25,8 @@ extension CaptureWorkflowModel {
             result = try await service.capture(
                 request: ScrollingCaptureRequest(
                     viewportRect: region,
-                    isPrivateCapture: isPrivateCapture
+                    isPrivateCapture: isPrivateCapture,
+                    mode: mode
                 ),
                 cancellation: cancellation,
                 progressHandler: { progress in

@@ -30,7 +30,7 @@ final class FeatureVisibilityTests: XCTestCase {
     func testHelpAdvertisesOnlySupportedCaptureAndAutomationFeatures() throws {
         for enabled in [false, true] {
             let capabilities = AppCapabilitySnapshot(buildTarget: enabled ? .selfRelease : .release,
-                enabledCapabilities: enabled ? [.guideCapture, .videoShortcutCapture, .scrollingCapture] : [])
+                enabledCapabilities: enabled ? [.guideCapture, .videoShortcutCapture, .scrollingCapture, .automaticScrollingCapture] : [])
             let articles = HelpGuideView.categories(for: capabilities, fullscreenDisplayMode: .currentDisplay).flatMap(\.articles)
             let shortcuts = try XCTUnwrap(articles.first { $0.id == "keyboard-shortcuts" })
             XCTAssertEqual(shortcuts.sections.flatMap(\.bullets).contains { $0.contains("Start or stop Guide") }, enabled)

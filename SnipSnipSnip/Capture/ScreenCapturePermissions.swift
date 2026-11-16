@@ -61,7 +61,7 @@ nonisolated enum CapturePermissionRequirement: CaseIterable, Identifiable {
 
     static func availableCases(for capabilities: AppCapabilitySnapshot) -> [CapturePermissionRequirement] {
         var requirements: [CapturePermissionRequirement] = [.screenRecording]
-        if capabilities.isEnabled(.scrollingCapture)
+        if capabilities.isEnabled(.automaticScrollingCapture)
             || capabilities.isEnabled(.accessibilityAutomation)
             || capabilities.isEnabled(.uiMap)
             || capabilities.isEnabled(.guideCapture) {

@@ -124,3 +124,8 @@ The Debug bundle's CLI targets Dev; the shipping CLI targets the shipping app. S
 The disposable automation sample validator targets Dev and substitutes that identity into AppleScript fixtures. The serial XCTest gate checks the selected configuration's namespace, so a shipping copy may remain open during Debug tests. Grant Dev access once and keep Apple Development signing and team stable for subsequent rebuilds; macOS may ask again if the code-signing identity changes. No permission resets or shipping-data migration occur. The system clipboard and global shortcut registrations remain shared macOS resources; assign different shortcuts if both copies are active.
 
 The Debug product is **SnipSnipSnip Dev.app**, with executable **SnipSnipSnip Dev**, so Finder and macOS permission setup can distinguish it from the shipping **SnipSnipSnip.app**. The Swift module remains `SnipSnipSnip`. When adding Dev manually to a permission list, select the Dev product in Xcode’s DerivedData.
+
+The `01-status` procedure reports `supportsScrollingCapture` for interactive
+scrolling availability in every edition (Manual Scroll). This does not add a
+scrolling automation command; Auto Scroll remains Pro-only. Sample procedure
+names and arguments are unchanged.

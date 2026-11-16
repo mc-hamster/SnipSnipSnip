@@ -325,7 +325,7 @@ extension CaptureWorkflowModel {
                 return "Window UI Map needs Accessibility access so \(AppBranding.displayName) can read visible interface element names, roles, identifiers, and locations from the selected window. If \(AppBranding.displayName) is not listed yet, click Set Up once to trigger the macOS prompt, then use the setup guide to reveal and add this exact app."
             }
 
-            return "Scrolling Capture needs Accessibility access so \(AppBranding.displayName) can scroll the selected app while capturing. If \(AppBranding.displayName) is not listed yet, click Set Up once to trigger the macOS prompt, then use the setup guide to reveal and add this exact app."
+            return "Auto Scroll needs Accessibility access so \(AppBranding.displayName) can scroll the selected app while capturing. If \(AppBranding.displayName) is not listed yet, click Set Up once to trigger the macOS prompt, then use the setup guide to reveal and add this exact app."
         }
 
         if uniqueRequirements == [.screenRecording] {

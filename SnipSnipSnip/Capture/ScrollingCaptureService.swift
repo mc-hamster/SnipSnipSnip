@@ -3,90 +3,6 @@ import AppKit
 import CoreGraphics
 import Foundation
 
-enum ScrollingCaptureError: LocalizedError {
-    case accessibilityPermissionDenied
-    case invalidViewport
-    case noScrollableTarget
-    case firstFrameUnavailable
-    case stitchingFailed
-    case cancelled
-
-    var errorDescription: String? {
-        switch self {
-        case .accessibilityPermissionDenied:
-            return "Scrolling Capture needs Accessibility access so \(AppBranding.displayName) can scroll the selected app while capturing."
-        case .invalidViewport:
-            return "The selected scrolling area was too small to capture."
-        case .noScrollableTarget:
-            return "No scrollable area was found at the selected location. Select inside a scrollable page, document, or list and try again."
-        case .firstFrameUnavailable:
-            return "The first scrolling capture frame could not be captured."
-        case .stitchingFailed:
-            return "\(AppBranding.displayName) could not stitch the scrolling capture with enough confidence."
-        case .cancelled:
-            return "Scrolling capture was cancelled."
-        }
-    }
-}
-
-nonisolated final class ScrollingCaptureCancellation: @unchecked Sendable {
-    private enum RequestedAction {
-        case none
-        case cancel
-        case finish
-    }
-
-    private let lock = NSLock()
-    private var requestedAction = RequestedAction.none
-
-    func cancel() {
-        lock.lock()
-        requestedAction = .cancel
-        lock.unlock()
-    }
-
-    func finish() {
-        lock.lock()
-        if requestedAction == .none {
-            requestedAction = .finish
-        }
-        lock.unlock()
-    }
-
-    func checkCancellation() throws {
-        lock.lock()
-        let action = requestedAction
-        lock.unlock()
-
-        if action == .cancel || Task.isCancelled {
-            throw ScrollingCaptureError.cancelled
-        }
-    }
-
-    func shouldFinish() -> Bool {
-        lock.lock()
-        let action = requestedAction
-        lock.unlock()
-
-        return action == .finish
-    }
-}
-
-struct ScrollingCaptureProgress: @unchecked Sendable {
-    let segmentCount: Int
-    let outputHeight: Int
-    let maxOutputHeight: Int
-    let warning: String?
-    let previewImage: CGImage?
-    var scrollTargetPoint: CGPoint? = nil
-
-    /// Fraction of the maximum capture capacity consumed, clamped to 0…1.
-    var capacityFraction: Double {
-        guard maxOutputHeight > 0 else { return 0 }
-        return min(Double(outputHeight) / Double(maxOutputHeight), 1.0)
-    }
-}
-
 protocol ScrollDriver {
     var sourceName: String { get }
     var scrollTargetPoint: CGPoint? { get }
@@ -618,6 +534,9 @@ struct ScrollingCaptureService {
         guard request.viewportRect.width > 8, request.viewportRect.height > 8 else {
             throw ScrollingCaptureError.invalidViewport
         }
+        if request.mode == .manual {
+            return ManualScrollingCaptureService.resolveTarget(for: request)
+        }
         guard permissions.currentStatus().hasAccessibility else {
             throw ScrollingCaptureError.accessibilityPermissionDenied
         }
@@ -636,7 +555,12 @@ struct ScrollingCaptureService {
                 isPrivateCapture: request.isPrivateCapture
             )
         ) {
-            try await captureWithDiagnostics(
+            if request.mode == .manual {
+                return try await ManualScrollingCaptureService(
+                    captureService: captureService, scheduler: scheduler, clock: clock, stitcher: stitcher
+                ).capture(request: request, cancellation: cancellation, progressHandler: progressHandler)
+            }
+            return try await captureWithDiagnostics(
                 request: request,
                 cancellation: cancellation,
                 progressHandler: progressHandler
@@ -707,6 +631,7 @@ struct ScrollingCaptureService {
         progressHandler: (@MainActor (ScrollingCaptureProgress) -> Void)?
     ) async throws -> ScrollingCaptureResult {
         var warnings: [String] = []
+        var scrollFraction = Self.primaryScrollFraction
         try cancellation.checkCancellation()
         try await scheduler.sleep(nanoseconds: Self.cursorSettleDelayNanoseconds)
         try cancellation.checkCancellation()
@@ -714,11 +639,13 @@ struct ScrollingCaptureService {
         let firstCapture = try await captureService.captureRegionWithinSingleDisplayDirect(in: request.viewportRect)
         try cancellation.checkCancellation()
         let firstCaptureDuration = Self.elapsedMilliseconds(since: firstCaptureStart)
-        var stitched = try stitcher.initialState(with: firstCapture.image, maxOutputHeight: request.maxOutputHeight)
+        let maximumHeight = ScreenshotRasterBudget.maximumHeight(forWidth: firstCapture.image.width, requestedHeight: request.maxOutputHeight)
+        guard maximumHeight > 0 else { throw ScrollingCaptureError.firstFrameUnavailable }
+        var stitched = try stitcher.initialState(with: firstCapture.image, maxOutputHeight: maximumHeight)
         var previousImage = firstCapture.image
         var previousSample = await stitcher.prepareSample(for: firstCapture.image)
-        if stitched.outputHeight >= request.maxOutputHeight {
-            warnings.append("The scrolling capture reached the maximum output height and was stopped early.")
+        if stitched.outputHeight >= maximumHeight {
+            warnings.append("The scrolling capture reached its image capacity and stopped early. Capture the remaining content separately.")
         }
         ScrollingCaptureDiagnostics.info(
             "Captured first segment pixels=\(firstCapture.image.width)x\(firstCapture.image.height) captureMs=\(firstCaptureDuration)"
@@ -729,15 +656,15 @@ struct ScrollingCaptureService {
             progressHandler?(ScrollingCaptureProgress(
                 segmentCount: stitched.segmentCount,
                 outputHeight: stitched.outputHeight,
-                maxOutputHeight: request.maxOutputHeight,
+                maxOutputHeight: maximumHeight,
                 warning: warnings.last,
                 previewImage: firstPreview,
                 scrollTargetPoint: driver.scrollTargetPoint
             ))
         }
         try cancellation.checkCancellation()
-        if stitched.outputHeight >= request.maxOutputHeight {
-            guard let image = stitched.makeImage() else { throw ScrollingCaptureError.stitchingFailed }
+        if stitched.outputHeight >= maximumHeight {
+            guard let image = await stitcher.makeOutput(for: stitched) else { throw ScrollingCaptureError.stitchingFailed }
             try cancellation.checkCancellation()
             return ScrollingCaptureResult(
                 image: image, sourceViewportRect: request.viewportRect, sourceName: sourceName,
@@ -759,7 +686,7 @@ struct ScrollingCaptureService {
                 "Preparing segment=\(segmentIndex + 1) previousPosition=\(previousPositionDescription)"
             )
             let scrollStart = DispatchTime.now()
-            driver.scrollDown(logicalDistance: request.viewportRect.height * Self.primaryScrollFraction)
+            driver.scrollDown(logicalDistance: request.viewportRect.height * scrollFraction)
             try await scheduler.sleep(nanoseconds: Self.postScrollSettleDelayNanoseconds)
             let scrollWaitDuration = Self.elapsedMilliseconds(since: scrollStart)
             try cancellation.checkCancellation()
@@ -787,7 +714,7 @@ struct ScrollingCaptureService {
             // Never discard a changed frame solely because that value stalled.
             if duplicateFrame {
                 if positionAdvanced || driver.hasMoreContent == true {
-                    throw try repeatedContentInterruption(state: stitched, request: request, sourceName: sourceName, warnings: warnings)
+                    throw try await repeatedContentInterruption(state: stitched, request: request, sourceName: sourceName, warnings: warnings)
                 }
                 ScrollingCaptureDiagnostics.info(
                     "Stopping capture at segment=\(segmentIndex + 1) duplicateFrame=\(duplicateFrame) atEnd=\(atEnd) scrollWaitMs=\(scrollWaitDuration) captureMs=\(captureDuration) duplicateMs=\(duplicateDuration)"
@@ -808,7 +735,7 @@ struct ScrollingCaptureService {
             switch appendResult {
             case .unchanged:
                 if positionAdvanced || driver.hasMoreContent == true {
-                    throw try repeatedContentInterruption(state: stitched, request: request, sourceName: sourceName, warnings: warnings)
+                    throw try await repeatedContentInterruption(state: stitched, request: request, sourceName: sourceName, warnings: warnings)
                 }
                 break captureSegments
             case .appended:
@@ -818,11 +745,11 @@ struct ScrollingCaptureService {
                     "Appended segment=\(segmentIndex + 1) stitchedSegments=\(stitched.segmentCount) outputHeight=\(stitched.outputHeight) scrollWaitMs=\(scrollWaitDuration) captureMs=\(captureDuration) duplicateMs=\(duplicateDuration) stitchMs=\(stitchDuration)"
                 )
             case .reachedMaximumHeight:
-                warnings.append("The scrolling capture reached the maximum output height and was stopped early.")
+                warnings.append("The scrolling capture reached its image capacity and stopped early. Capture the remaining content separately.")
                 ScrollingCaptureDiagnostics.info(
                     "Stopping at max output height segment=\(segmentIndex + 1) outputHeight=\(stitched.outputHeight) scrollWaitMs=\(scrollWaitDuration) captureMs=\(captureDuration) duplicateMs=\(duplicateDuration) stitchMs=\(stitchDuration)"
                 )
-                guard let outputImage = stitched.makeImage() else {
+                guard let outputImage = await stitcher.makeOutput(for: stitched) else {
                     ScrollingCaptureDiagnostics.error("Failed to compose stitched image at max output height")
                     throw ScrollingCaptureError.stitchingFailed
                 }
@@ -853,6 +780,7 @@ struct ScrollingCaptureService {
                     if let restoredPosition = driver.snapshotPosition(), abs(restoredPosition - previousPosition) <= 0.000001 {
                         driver.scrollDown(logicalDistance: request.viewportRect.height * Self.retryScrollFraction)
                         retriedWithSmallerStep = true
+                        scrollFraction = Self.retryScrollFraction
                     }
                 }
                 // Without a restorable AX position, recapture after settling;
@@ -873,7 +801,7 @@ struct ScrollingCaptureService {
                 if stitcher.imagesAreDuplicate(previousImage, nextImage) {
                     if retryPositionAdvanced || driver.hasMoreContent == true
                         || (retriedWithSmallerStep && driver.hasMoreContent == nil) {
-                        throw try repeatedContentInterruption(state: stitched, request: request, sourceName: sourceName, warnings: warnings)
+                        throw try await repeatedContentInterruption(state: stitched, request: request, sourceName: sourceName, warnings: warnings)
                     }
                     ScrollingCaptureDiagnostics.info(
                         "Stopping after retry because frame duplicated segment=\(segmentIndex + 1) retryScrollMs=\(retryScrollDuration) retryCaptureMs=\(retryCaptureDuration)"
@@ -895,24 +823,24 @@ struct ScrollingCaptureService {
                 case .unchanged:
                     if retryPositionAdvanced || driver.hasMoreContent == true
                         || (retriedWithSmallerStep && driver.hasMoreContent == nil) {
-                        throw try repeatedContentInterruption(state: stitched, request: request, sourceName: sourceName, warnings: warnings)
+                        throw try await repeatedContentInterruption(state: stitched, request: request, sourceName: sourceName, warnings: warnings)
                     }
                     break captureSegments
                 case .appended:
                     previousImage = nextImage
                     previousSample = retrySample
                     if retriedWithSmallerStep {
-                        warnings.append("\(AppBranding.displayName) reduced one scroll step to keep stitching aligned.")
+                        warnings.append("\(AppBranding.displayName) reduced the scroll distance to keep later frames aligned.")
                     }
                     ScrollingCaptureDiagnostics.info(
                         "Retry append succeeded segment=\(segmentIndex + 1) stitchedSegments=\(stitched.segmentCount) retryScrollMs=\(retryScrollDuration) retryCaptureMs=\(retryCaptureDuration) retryStitchMs=\(retryStitchDuration)"
                     )
                 case .reachedMaximumHeight:
-                    warnings.append("The scrolling capture reached the maximum output height and was stopped early.")
+                    warnings.append("The scrolling capture reached its image capacity and stopped early. Capture the remaining content separately.")
                     ScrollingCaptureDiagnostics.info(
                         "Retry append reached max output height segment=\(segmentIndex + 1) outputHeight=\(stitched.outputHeight) retryScrollMs=\(retryScrollDuration) retryCaptureMs=\(retryCaptureDuration) retryStitchMs=\(retryStitchDuration)"
                     )
-                    guard let outputImage = stitched.makeImage() else {
+                    guard let outputImage = await stitcher.makeOutput(for: stitched) else {
                         ScrollingCaptureDiagnostics.error("Failed to compose stitched image after retry max output height")
                         throw ScrollingCaptureError.stitchingFailed
                     }
@@ -930,7 +858,7 @@ struct ScrollingCaptureService {
                         ScrollingCaptureDiagnostics.info(
                             "Returning partial result after low-confidence retry stitchedSegments=\(stitched.segmentCount) retryScrollMs=\(retryScrollDuration) retryCaptureMs=\(retryCaptureDuration) retryStitchMs=\(retryStitchDuration)"
                         )
-                        guard let outputImage = stitched.makeImage() else {
+                        guard let outputImage = await stitcher.makeOutput(for: stitched) else {
                             ScrollingCaptureDiagnostics.error("Failed to compose partial stitched image")
                             throw ScrollingCaptureError.stitchingFailed
                         }
@@ -960,7 +888,7 @@ struct ScrollingCaptureService {
                 progressHandler?(ScrollingCaptureProgress(
                     segmentCount: stitched.segmentCount,
                     outputHeight: stitched.outputHeight,
-                    maxOutputHeight: request.maxOutputHeight,
+                    maxOutputHeight: maximumHeight,
                     warning: warnings.last,
                     previewImage: preview,
                     scrollTargetPoint: driver.scrollTargetPoint
@@ -976,7 +904,7 @@ struct ScrollingCaptureService {
             throw interruption
         } catch {
             try cancellation.checkCancellation()
-            guard let partialImage = stitched.makeImage() else {
+            guard let partialImage = await stitcher.makeOutput(for: stitched) else {
                 throw error
             }
             try cancellation.checkCancellation()
@@ -999,7 +927,7 @@ struct ScrollingCaptureService {
         }
 
         let composeStart = DispatchTime.now()
-        guard let outputImage = stitched.makeImage() else {
+        guard let outputImage = await stitcher.makeOutput(for: stitched) else {
             ScrollingCaptureDiagnostics.error("Failed to compose final stitched image")
             throw ScrollingCaptureError.stitchingFailed
         }
@@ -1021,18 +949,22 @@ struct ScrollingCaptureService {
     private func captureFrameConfirmingNoMovement(
         in viewport: CGRect, after previousImage: CGImage, cancellation: ScrollingCaptureCancellation
     ) async throws -> CGImage {
-        let image = try await captureService.captureRegionWithinSingleDisplayDirect(in: viewport).image
+        var candidate = try await captureService.captureRegionWithinSingleDisplayDirect(in: viewport).image
         try cancellation.checkCancellation()
-        guard !cancellation.shouldFinish(), stitcher.imagesAreDuplicate(previousImage, image) else { return image }
-        // A wheel event can be delivered before the app renders its next frame.
-        // Confirm an apparent end after another settle interval without sending
-        // a second wheel event that could skip uncaptured content.
-        try await scheduler.sleep(nanoseconds: Self.postScrollSettleDelayNanoseconds)
-        try cancellation.checkCancellation()
-        if cancellation.shouldFinish() { return image }
-        let confirmed = try await captureService.captureRegionWithinSingleDisplayDirect(in: viewport).image
-        try cancellation.checkCancellation()
-        return confirmed
+        // A delayed wheel event and an in-flight animation are both temporal
+        // uncertainty. Confirm the frame has settled before accepting a seam or
+        // claiming the end, without sending another scroll event.
+        for _ in 0..<4 {
+            if cancellation.shouldFinish() { return candidate }
+            try await scheduler.sleep(nanoseconds: Self.postScrollSettleDelayNanoseconds)
+            try cancellation.checkCancellation()
+            if cancellation.shouldFinish() { return candidate }
+            let next = try await captureService.captureRegionWithinSingleDisplayDirect(in: viewport).image
+            try cancellation.checkCancellation()
+            if stitcher.imagesAreDuplicate(candidate, next) { return next }
+            candidate = next
+        }
+        throw ScrollingCaptureError.contentDidNotSettle
     }
 
     nonisolated static func positionAdvanced(from previous: Double?, to current: Double?) -> Bool {
@@ -1042,8 +974,8 @@ struct ScrollingCaptureService {
 
     private func repeatedContentInterruption(
         state: ScrollingStitchState, request: ScrollingCaptureRequest, sourceName: String, warnings: [String]
-    ) throws -> ScrollingCaptureInterruptedError {
-        guard let image = state.makeImage() else { throw ScrollingCaptureError.stitchingFailed }
+    ) async throws -> ScrollingCaptureInterruptedError {
+        guard let image = await stitcher.makeOutput(for: state) else { throw ScrollingCaptureError.stitchingFailed }
         return ScrollingCaptureInterruptedError(
             partialResult: ScrollingCaptureResult(
                 image: image, sourceViewportRect: request.viewportRect, sourceName: sourceName,
