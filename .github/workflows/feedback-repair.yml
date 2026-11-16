@@ -1,0 +1,161 @@
+name: Plughie Feedback Repairs
+
+on:
+  schedule:
+    - cron: '17 */4 * * *'
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Allow one write operation (leave off for a dry run)
+        required: true
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: feedback-plughie
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: >-
+      github.repository == 'mc-hamster/SnipSnipSnip' && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' || vars.SSS_FEEDBACK_MODE == 'on')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      issues: read
+      pull-requests: read
+    outputs:
+      operation: ${{ steps.plan.outputs.operation }}
+      plan: ${{ steps.plan.outputs.plan }}
+      no_fix_artifact: ${{ steps.plan.outputs.no_fix_artifact }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Check for an eligible issue or branch update
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SSS_FEEDBACK_MODE: ${{ vars.SSS_FEEDBACK_MODE }}
+          SSS_FEEDBACK_APP_BOT_LOGIN: ${{ vars.SSS_FEEDBACK_APP_BOT_LOGIN }}
+          SSS_FEEDBACK_APPLY: ${{ github.event_name == 'schedule' || inputs.apply }}
+        run: python3 Tools/feedback_repair.py plan
+
+  repair:
+    needs: plan
+    if: needs.plan.outputs.operation == 'repair'
+    runs-on: macos-26
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    outputs:
+      patch: ${{ steps.collect.outputs.patch }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Prepare the repair prompt
+        env:
+          SSS_FEEDBACK_PLAN: ${{ needs.plan.outputs.plan }}
+        run: python3 Tools/feedback_repair.py prepare
+      - name: Prepare a candidate fix
+        uses: openai/codex-action@1d82a3dba7c7988ec71ecae1ed5b8e8db96495c5 # v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: ${{ runner.temp }}/feedback-prompt.md
+          output-file: ${{ runner.temp }}/feedback-result.json
+          output-schema: >-
+            {"type":"object","properties":{"decision":{"type":"string","enum":["fix","no-fix"]}},
+            "required":["decision"],"additionalProperties":false}
+          sandbox: workspace-write
+          safety-strategy: drop-sudo
+          allow-bots: true
+          codex-args: '["--ephemeral"]'
+      # These steps handle data only. They receive no GitHub write credentials
+      # and do not execute repository code after the model has edited it.
+      - name: Collect the candidate as data
+        id: collect
+        shell: bash
+        run: |
+          decision=$(jq -er '.decision' "$RUNNER_TEMP/feedback-result.json")
+          case "$decision" in
+            fix)
+              test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+              git -c core.hooksPath=/dev/null add -A
+              git diff --binary --full-index --no-ext-diff --no-textconv --cached HEAD > "$RUNNER_TEMP/fix.patch"
+              test -s "$RUNNER_TEMP/fix.patch"
+              echo 'patch=true' >> "$GITHUB_OUTPUT"
+              ;;
+            no-fix)
+              printf '%s\n' 'No verified fix for this version of the report.' > "$RUNNER_TEMP/feedback-no-fix.txt"
+              echo 'patch=false' >> "$GITHUB_OUTPUT"
+              ;;
+            *) exit 1 ;;
+          esac
+      - name: Save the candidate patch
+        if: steps.collect.outputs.patch == 'true'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: feedback-candidate
+          path: ${{ runner.temp }}/fix.patch
+          if-no-files-found: error
+          retention-days: 7
+      - name: Record that no fix was found
+        if: steps.collect.outputs.patch == 'false'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: ${{ needs.plan.outputs.no_fix_artifact }}
+          path: ${{ runner.temp }}/feedback-no-fix.txt
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    needs: [plan, repair]
+    if: >-
+      !cancelled() && needs.plan.result == 'success' &&
+      (needs.plan.outputs.operation == 'ready' || needs.plan.outputs.operation == 'sync' ||
+       (needs.plan.outputs.operation == 'repair' && needs.repair.result == 'success' && needs.repair.outputs.patch == 'true'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Download the patch from this run
+        if: needs.plan.outputs.operation == 'repair'
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: feedback-candidate
+          path: ${{ runner.temp }}/feedback-candidate
+      - name: Validate patch paths and file modes
+        if: needs.plan.outputs.operation == 'repair'
+        run: python3 Tools/feedback_repair.py stage
+      - name: Sign in as the feedback app
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
+        with:
+          client-id: ${{ vars.SSS_FEEDBACK_APP_CLIENT_ID }}
+          private-key: ${{ secrets.SSS_FEEDBACK_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Update only the feedback branch or its pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SSS_FEEDBACK_PLAN: ${{ needs.plan.outputs.plan }}
+          SSS_FEEDBACK_APP_BOT_LOGIN: ${{ vars.SSS_FEEDBACK_APP_BOT_LOGIN }}
+          SSS_FEEDBACK_PUSH_TOKEN: ${{ steps.app.outputs.token }}
+        run: python3 Tools/feedback_repair.py publish

@@ -17,5 +17,8 @@ jobs:
       - name: Test repository hygiene guard
         run: python3 -m unittest discover -s Tools/tests -p 'test_repository_hygiene.py'
 
+      - name: Test feedback repair workflow
+        run: python3 -m unittest discover -s Tools/tests -p 'test_feedback_repair.py'
+
       - name: Check committed repository files
         run: python3 Tools/check-repository-hygiene.py --staged

@@ -255,3 +255,57 @@ after an actual permission denial must retain permission setup and the saved Vid
 The disposable Debug automation fixture uses SnipSnipSnip Dev (`com.oontz.SnipSnipSnip.Dev` and `snipsnipsnip-dev://`). The validator checks only that identity and selects Dev for URL and AppleScript samples.
 
 Run `python3 -m unittest discover -s Tools/tests -p 'test_automation_namespace.py'` to verify that audit fixtures refuse a shipping CLI, a missing Dev app, or ambiguous Dev processes before dispatching commands.
+
+## Feedback repairs
+
+The [Plughie Feedback Repairs workflow](../.github/workflows/feedback-repair.yml)
+checks for open issues with the `bug` label filed by the GitHub account
+`plughie` (account ID `2028879`). It picks the oldest eligible issue, skips
+issues referenced by an open PR in this repository, and attempts one fix per
+run. It does not consume issue comments or attachments. If Codex can't verify
+a fix, it records a 30-day marker for that version of the report so the next
+run can move on. Editing the report lets the workflow retry it sooner.
+
+When the branch is idle, the workflow brings `feedback/plughie` forward to
+`main`. It publishes each fix as a draft PR against `main` and keeps that PR's
+commits stable for review. A later run marks an automation-authored PR ready
+when the current commit has passed the existing macOS CI and can merge. The
+workflow leaves issues open while a PR is pending, uses no force pushes, and
+never merges to `main`. Merge a feedback PR with a **merge commit** so the
+branch can fast-forward to `main` on the next run. If there are unmerged
+commits with no open PR, the workflow reports the branch state and preserves
+the commits for review.
+
+After the 1.2.x promotion lands on `main`, the repo owner can enable a pilot:
+
+1. Set up two active branch rulesets for `main`. In one, **Restrict updates**
+   with a **For pull requests only** bypass for the repository owner/admin
+   role; keep that role limited to the intended merger. In the other, require
+   pull requests and the existing macOS `test` status from GitHub Actions,
+   with no bypass. Keep the GitHub App off both bypass lists.
+2. Install a dedicated GitHub App on this repository with **Contents: Read
+   and write** and **Pull requests: Read and write**. Set repository variables
+   `SSS_FEEDBACK_APP_CLIENT_ID` and `SSS_FEEDBACK_APP_BOT_LOGIN` (for example,
+   `sss-feedback[bot]`), and set the app key as Actions secret
+   `SSS_FEEDBACK_APP_PRIVATE_KEY`. Set a dedicated OpenAI project key as
+   Actions secret `OPENAI_API_KEY`. Configure these in GitHub instead of
+   pasting secret values into issues, PRs, or chat.
+3. Dispatch **Plughie Feedback Repairs** on `main` with **Allow one write
+   operation** off to see what it would do. This needs no app or OpenAI
+   credentials. Set `SSS_FEEDBACK_MODE=pilot` and dispatch with the checkbox
+   on to create/sync the branch or try one eligible issue. A second write run
+   can mark the draft ready after CI passes. Set `SSS_FEEDBACK_MODE=on` when
+   ready for the four-hour schedule. Clear the variable to turn off writes
+   and scheduled runs.
+
+Patch generation gets neither the app key nor a GitHub write token. A fresh
+job verifies branch protection and the plan and accepts only small Swift and
+Markdown patches without binary files or file-mode changes. It uses the app
+token to publish without needing a maintainer to start PR checks. Changes
+requiring workflows, build settings, or wider edits need normal review.
+
+Run the offline workflow tests with:
+
+```sh
+python3 -m unittest discover -s Tools/tests -p 'test_feedback_repair.py'
+```
