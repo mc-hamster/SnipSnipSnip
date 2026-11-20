@@ -744,11 +744,11 @@ final class EditorController: ObservableObject {
     }
 
     var currentRedactionMode: RedactionMode {
-        if let mode = selectedAnnotation?.redactionMode {
-            return mode
-        }
+        selectedAnnotation?.redactionMode ?? drawingRedactionMode
+    }
 
-        return activeTool.defaultRedactionMode ?? preferredRedactionMode
+    var drawingRedactionMode: RedactionMode {
+        activeTool.defaultRedactionMode ?? preferredRedactionMode
     }
 
     var showsFontControls: Bool {
@@ -1809,6 +1809,8 @@ final class EditorController: ObservableObject {
     }
 
     func activateToolbarTool(_ tool: EditorTool) {
+        let tool = tool == .blur ? preferredRedactionMode.editorTool : tool
+
         if workspaceMode == .presentation {
             setWorkspaceMode(.edit)
         }
@@ -1821,16 +1823,10 @@ final class EditorController: ObservableObject {
 
         clearTransientToolState(clearUIMapSelection: false)
 
-        if tool == .blur {
-            selectedUIMapElementID = nil
+        if tool.defaultRedactionMode != nil {
+            clearSelection()
             hoveredUIMapElementID = nil
-            activeTool = preferredRedactionMode.editorTool
-            toolbarToolActivationHandler?(activeTool)
-            invalidateCanvas()
-            return
-        }
-
-        if tool == .uiMapInspect {
+        } else if tool == .uiMapInspect {
             guard capabilities.isEnabled(.uiMap), uiMapSnapshot != nil else {
                 activeTool = .select
                 selectedUIMapElementID = nil
@@ -1853,6 +1849,11 @@ final class EditorController: ObservableObject {
         activeTool = tool
         toolbarToolActivationHandler?(activeTool)
         invalidateCanvas()
+    }
+
+    func activateRedactionTool(_ mode: RedactionMode) {
+        storePreferredRedactionMode(mode)
+        activateToolbarTool(mode.editorTool)
     }
 
     private func clearTransientToolState(clearUIMapSelection: Bool = true) {

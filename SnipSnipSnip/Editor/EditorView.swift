@@ -1312,7 +1312,7 @@ struct EditorCommandBar: View {
 
         return HStack(spacing: 2) {
             Button {
-                controller.activateToolbarTool(.redact)
+                controller.activateRedactionTool(.solid)
             } label: {
                 Label(
                     "Redact",
@@ -1332,11 +1332,11 @@ struct EditorCommandBar: View {
             Menu {
                 ForEach(RedactionMode.allCases) { redactionMode in
                     Button {
-                        controller.updateRedactionMode(redactionMode)
+                        controller.activateRedactionTool(redactionMode)
                     } label: {
                         Label(
                             redactionMode.label,
-                            systemImage: redactionMode == controller.currentRedactionMode ? "checkmark" : redactionMode.toolbarSystemImage
+                            systemImage: redactionMode == controller.drawingRedactionMode ? "checkmark" : redactionMode.toolbarSystemImage
                         )
                     }
                 }
