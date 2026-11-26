@@ -392,7 +392,7 @@ final class ClipboardHistoryStoreTests: XCTestCase {
         XCTAssertEqual(snapshot, .text("normal copied text"))
     }
 
-    func testClipboardMonitorRecordsCopiesAfterMonitoringStarts() async {
+    func testClipboardMonitorRecordsCopiesAfterMonitoringStarts() {
         let storeName = "ClipboardHistoryStoreTests.monitorRecords"
         removeStore(named: storeName)
         defer { removeStore(named: storeName) }
@@ -404,19 +404,22 @@ final class ClipboardHistoryStoreTests: XCTestCase {
             pasteboard: pasteboard,
             workspace: TestWorkspaceService()
         )
+        let copyRecorded = expectation(description: "The monitor records the copy made after it starts")
+        let observation = store.$items.first { $0.first?.previewText == "copy after start" }.sink { _ in
+            copyRecorded.fulfill()
+        }
+        defer {
+            monitor.stop()
+            observation.cancel()
+        }
 
         monitor.start(preferences: enabledPreferences)
         pasteboard.setString("copy after start", forType: .string)
-
-        await waitUntil {
-            store.items.first?.previewText == "copy after start"
-        }
-
-        monitor.stop()
+        wait(for: [copyRecorded], timeout: 5)
         XCTAssertEqual(store.items.first?.previewText, "copy after start")
     }
 
-    func testClipboardMonitorRecordsPendingPasteboardChangeWhenMonitoringStarts() async {
+    func testClipboardMonitorRecordsPendingPasteboardChangeWhenMonitoringStarts() {
         let storeName = "ClipboardHistoryStoreTests.monitorPendingStart"
         removeStore(named: storeName)
         defer { removeStore(named: storeName) }
@@ -428,15 +431,18 @@ final class ClipboardHistoryStoreTests: XCTestCase {
             pasteboard: pasteboard,
             workspace: TestWorkspaceService()
         )
+        let copyRecorded = expectation(description: "The monitor records the pending copy when it starts")
+        let observation = store.$items.first { $0.first?.previewText == "copy before start" }.sink { _ in
+            copyRecorded.fulfill()
+        }
+        defer {
+            monitor.stop()
+            observation.cancel()
+        }
 
         pasteboard.setString("copy before start", forType: .string)
         monitor.start(preferences: enabledPreferences)
-
-        await waitUntil {
-            store.items.first?.previewText == "copy before start"
-        }
-
-        monitor.stop()
+        wait(for: [copyRecorded], timeout: 5)
         XCTAssertEqual(store.items.first?.previewText, "copy before start")
     }
 
