@@ -2693,6 +2693,45 @@ final class EditorControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testConsecutiveRedactionsReuseEachModesEffectStrength() {
+        let solid = Annotation.makeSolidRedaction(in: CGRect(x: 55, y: 45, width: 30, height: 20))
+        let controller = makeController(snapshot: makeEditorSnapshot(
+            cropRect: CGRect(x: 0, y: 0, width: 160, height: 120),
+            annotations: [solid],
+            selectedAnnotationIDs: [solid.id]
+        ), defaults: makeTestDefaults())
+        let (_, overlay, window) = makeCanvasHarness(
+            controller: controller, frame: CGRect(x: 0, y: 0, width: 640, height: 480)
+        )
+
+        for (mode, strength, y) in [(RedactionMode.blur, CGFloat(11), CGFloat(10)), (.pixelate, 19, 80)] {
+            let existingAnnotations = controller.snapshot.annotations
+            controller.activateRedactionTool(mode)
+            XCTAssertEqual(controller.activeTool, mode.editorTool)
+            XCTAssertEqual(controller.selectedCount, 0)
+            XCTAssertEqual(controller.snapshot.annotations, existingAnnotations)
+
+            for (index, x) in [CGFloat(10), 95].enumerated() {
+                let start = viewPoint(for: CGPoint(x: x, y: y), controller: controller)
+                let end = viewPoint(for: CGPoint(x: x + 35, y: y + 20), controller: controller)
+                sendMouseEvent(.leftMouseDown, at: start, to: overlay, in: window, eventNumber: 1)
+                sendMouseEvent(.leftMouseDragged, at: end, to: overlay, in: window, eventNumber: 2)
+                sendMouseEvent(.leftMouseUp, at: end, to: overlay, in: window, eventNumber: 3)
+                if index == 0 {
+                    controller.updateEffectRadius(strength)
+                }
+                XCTAssertEqual(controller.snapshot.annotations.count, existingAnnotations.count + index + 1)
+                XCTAssertEqual(controller.selectedAnnotation?.redactionMode, mode)
+                XCTAssertEqual(controller.selectedAnnotation?.style.effectRadius, strength)
+            }
+        }
+
+        controller.activateRedactionTool(.blur)
+        XCTAssertEqual(controller.inspectorStyle.effectRadius, 11)
+        XCTAssertEqual(controller.snapshot.annotations.map(\.redactionMode), [.solid, .blur, .blur, .pixelate, .pixelate])
+    }
+
+    @MainActor
     func testRedactionControlsLeaveResequencingAndAllowDrawing() {
         for useMenu in [false, true] {
             let first = Annotation.makeNumberedArrow(from: CGPoint(x: 10, y: 10), to: CGPoint(x: 80, y: 20), number: 1)
@@ -2706,9 +2745,9 @@ final class EditorControllerTests: XCTestCase {
             controller.beginNumberedArrowResequencing()
             controller.chooseNumberedArrowForResequencing(second.id)
             if useMenu {
-                controller.updateRedactionMode(.pixelate)
+                controller.activateRedactionTool(.pixelate)
             } else {
-                controller.activateToolbarTool(.blur)
+                controller.activateRedactionTool(.solid)
             }
             XCTAssertNil(controller.numberedArrowResequencingOrder)
             XCTAssertEqual(controller.snapshot.annotations, [first, second])

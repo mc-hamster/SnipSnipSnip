@@ -997,10 +997,9 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                         HelpArticleSection(
                             title: "Choose a redaction mode",
                             steps: [
-                                "Open the direct Redaction tool's menu and choose Blur, Pixelate, or Redact.",
-                                "The menu label changes to show the active redaction mode.",
+                                "Choose Redact for a solid cover, or open its menu to choose Blur or Pixelate.",
                                 "Drag over the content you want to cover.",
-                                "Use the Effect slider for Blur or Pixelate strength."
+                                "Use the Effect slider to adjust Blur or Pixelate strength. Each mode remembers its own strength for the next area you draw."
                             ]
                         ),
                         HelpArticleSection(
