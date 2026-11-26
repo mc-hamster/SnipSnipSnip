@@ -63,26 +63,39 @@ final class ClipboardManagerWindowController: NSWindowController {
             )
         }
 
-        if !hasPositionedWindow {
-            if let screen = NSScreen.screens.first(where: {
-                $0.gscDisplayID == displayID
-            }) {
-                let visibleFrame = screen.visibleFrame
-                window.setFrameOrigin(
-                    CGPoint(
-                        x: visibleFrame.midX - window.frame.width / 2,
-                        y: visibleFrame.midY - window.frame.height / 2
-                    )
-                )
-            } else {
-                window.center()
-            }
-            hasPositionedWindow = true
+        if let displayID,
+           let screen = NSScreen.screens.first(where: { $0.gscDisplayID == displayID }),
+           let frame = Self.frameForPresentation(
+               window.frame,
+               on: screen.frame,
+               visibleFrame: screen.visibleFrame,
+               hasPositionedWindow: hasPositionedWindow
+           ) {
+            window.setFrame(frame, display: true)
+        } else if !hasPositionedWindow {
+            window.center()
         }
+        hasPositionedWindow = true
 
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         NotificationCenter.default.post(name: ClipboardManagerWindowID.didShowNotification, object: window)
+    }
+
+    static func frameForPresentation(
+        _ currentFrame: CGRect,
+        on screenFrame: CGRect,
+        visibleFrame: CGRect,
+        hasPositionedWindow: Bool
+    ) -> CGRect? {
+        let center = CGPoint(x: currentFrame.midX, y: currentFrame.midY)
+        guard !hasPositionedWindow || !screenFrame.contains(center) else { return nil }
+        return CGRect(
+            x: visibleFrame.midX - currentFrame.width / 2,
+            y: visibleFrame.midY - currentFrame.height / 2,
+            width: currentFrame.width,
+            height: currentFrame.height
+        ).gscContained(in: visibleFrame)
     }
 
     @discardableResult

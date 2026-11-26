@@ -147,6 +147,7 @@ final class GuideWorkflowModel: ObservableObject {
             )
         }
         isShowingQuickStart = true
+        outputSink?.handle(GuideWorkflowOutput.requestMainWindowPresentation)
     }
 
     func resumeSetupAfterPermissionRestart(_ draft: GuideCaptureSetupDraft) {

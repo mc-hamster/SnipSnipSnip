@@ -22,7 +22,7 @@ final class ClipboardPresentationTests: XCTestCase {
         XCTAssertEqual(fixture.store.items.first?.plainTextValue, item.plainTextValue)
     }
 
-    func testBrowserControlsFitDefaultAndMinimumSizesInBothAppearances() async throws {
+    func testBrowserControlsFitDefaultAndMinimumSizesInBothAppearances() throws {
         let fixture = try Fixture()
         defer { fixture.cleanUp() }
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {
@@ -35,13 +35,11 @@ final class ClipboardPresentationTests: XCTestCase {
                 view.appearance = NSAppearance(named: resolvedAppearance)
                 let window = HostedViewTestSupport.host(view, size: size)
                 defer { window.close() }
-                try await Task.sleep(for: .milliseconds(200))
-                view.layoutSubtreeIfNeeded()
-                let visible = window.convertToScreen(view.convert(view.bounds, to: nil)).insetBy(dx: -1, dy: -1)
                 for identifier in ["clipboard.search", "clipboard.scope", "clipboard.filters", "clipboard.monitoring",
                                    "clipboard.actions", "clipboard.copy", "clipboard.copyAndReturn"] {
-                    let element = try XCTUnwrap(HostedViewTestSupport.find(identifier, in: view), identifier)
+                    let element = try control(identifier, in: view)
                     let frame = element.accessibilityFrame()
+                    let visible = window.convertToScreen(view.convert(view.bounds, to: nil)).insetBy(dx: -1, dy: -1)
                     XCTAssertGreaterThan(frame.width, 0, identifier)
                     XCTAssertGreaterThan(frame.height, 0, identifier)
                     XCTAssertTrue(visible.contains(frame), "\(identifier) outside window: \(frame), visible: \(visible)")
@@ -54,7 +52,7 @@ final class ClipboardPresentationTests: XCTestCase {
         }
     }
 
-    func testContentPreviewsInBothAppearances() async throws {
+    func testContentPreviewsInBothAppearances() throws {
         let fixture = try Fixture()
         defer { fixture.cleanUp() }
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {
@@ -67,83 +65,109 @@ final class ClipboardPresentationTests: XCTestCase {
                 view.appearance = NSAppearance(named: appearance)
                 let window = HostedViewTestSupport.host(view, size: CGSize(width: 520, height: 720))
                 defer { window.close() }
-                try await Task.sleep(for: .milliseconds(150))
-                view.layoutSubtreeIfNeeded()
-                let preview = try XCTUnwrap(HostedViewTestSupport.find("clipboard.preview", in: view))
+                let preview = try control("clipboard.preview", in: view)
                 XCTAssertTrue(preview.accessibilityPerformPress())
-                try await Task.sleep(for: .milliseconds(250))
-                XCTAssertNotNil(HostedViewTestSupport.find("clipboard.inspector", in: view))
+                _ = try control("clipboard.inspector", in: view)
                 XCTAssertNil(HostedViewTestSupport.find("clipboard.textEditor", in: view))
                 add(try HostedViewTestSupport.attachment(of: view, name: "Clipboard \(name) \(appearance.rawValue)"))
             }
         }
     }
 
-    func testFilterPopoverKeepsSelectedValuesAfterTheirLastItemDisappears() async throws {
+    func testFilterPopoverKeepsSelectedValuesAfterTheirLastItemDisappears() throws {
         let view = NSHostingView(rootView: ClipboardFilterPopover(
             time: .constant(.sevenDays), source: .constant("Removed Source"), collection: .constant("Removed Collection"),
             sources: [], collections: [], dismiss: {}))
         let window = HostedViewTestSupport.host(view, size: CGSize(width: 370, height: 270))
         defer { window.close() }
-        try await Task.sleep(for: .milliseconds(100))
         view.layoutSubtreeIfNeeded()
         add(try HostedViewTestSupport.attachment(of: view, name: "Clipboard active filters"))
         XCTAssertLessThanOrEqual(view.fittingSize.width, 370)
         XCTAssertLessThanOrEqual(view.fittingSize.height, 270)
     }
 
-    func testEditingFilteringCopyingAndResetUseTheSamePerItemDraft() async throws {
+    func testEditingFilteringCopyingAndResetUseTheSamePerItemDraft() throws {
         let fixture = try Fixture()
         defer { fixture.cleanUp() }
         let original = try XCTUnwrap(fixture.store.items.first)
         let view = NSHostingView(rootView: ClipboardManagerView(clipboard: fixture.model))
         let window = HostedViewTestSupport.host(view, size: CGSize(width: 520, height: 720))
         defer { window.close() }
-        try await Task.sleep(for: .milliseconds(150))
-        let preview = try XCTUnwrap(HostedViewTestSupport.find("clipboard.preview", in: view))
+        let preview = try control("clipboard.preview", in: view)
         XCTAssertTrue(preview.accessibilityPerformPress())
-        try await Task.sleep(for: .milliseconds(250))
-        let edit = try XCTUnwrap(HostedViewTestSupport.find("clipboard.editText", in: view))
+        let edit = try control("clipboard.editText", in: view)
         XCTAssertTrue(edit.accessibilityPerformPress())
-        try await Task.sleep(for: .milliseconds(100))
-        let editor = try XCTUnwrap(HostedViewTestSupport.descendants(NSTextView.self, in: view).first { !$0.isFieldEditor })
+        let editor = try presented(in: view, "Clipboard text editor") {
+            HostedViewTestSupport.descendants(NSTextView.self, in: view).first { !$0.isFieldEditor }
+        }
         editor.string = "A temporary draft"
         editor.didChangeText()
-        try await Task.sleep(for: .milliseconds(100))
-        let copy = try XCTUnwrap(HostedViewTestSupport.find("clipboard.copy", in: view))
+        _ = try presented(in: view, "Reset becomes available for an edited draft") {
+            let button = HostedViewTestSupport.find("clipboard.resetDraft", in: view)
+            return button?.isAccessibilityEnabled() == true ? button : nil
+        }
+        let copy = try control("clipboard.copy", in: view)
         XCTAssertTrue(copy.accessibilityPerformPress())
         XCTAssertEqual(fixture.pasteboard.string(forType: .string), "A temporary draft")
         XCTAssertEqual(fixture.store.items.first?.plainTextValue, original.plainTextValue)
 
-        let done = try XCTUnwrap(HostedViewTestSupport.find("clipboard.finishEditing", in: view))
+        let done = try control("clipboard.finishEditing", in: view)
         XCTAssertTrue(done.accessibilityPerformPress())
-        try await Task.sleep(for: .milliseconds(100))
+        _ = try control("clipboard.textPreview", in: view)
         XCTAssertNil(HostedViewTestSupport.find("clipboard.textEditor", in: view))
-        XCTAssertTrue(copy.accessibilityPerformPress())
+        XCTAssertTrue(try control("clipboard.copy", in: view).accessibilityPerformPress())
         XCTAssertEqual(fixture.pasteboard.string(forType: .string), "A temporary draft")
 
-        let back = try XCTUnwrap(HostedViewTestSupport.find("clipboard.back", in: view))
+        let back = try control("clipboard.back", in: view)
         XCTAssertTrue(back.accessibilityPerformPress())
-        try await Task.sleep(for: .milliseconds(250))
-        let card = try XCTUnwrap(HostedViewTestSupport.find("clipboard.item.\(original.id.uuidString)", in: view))
+        let cardID = "clipboard.item.\(original.id.uuidString)"
+        let card = try control(cardID, in: view)
         XCTAssertTrue(card.accessibilityPerformPress())
         XCTAssertEqual(fixture.pasteboard.string(forType: .string), "A temporary draft")
         fixture.model.searchQuery = "#A3B18A"
-        try await Task.sleep(for: .milliseconds(100))
+        let color = try XCTUnwrap(fixture.store.items.first { $0.plainTextValue == "#A3B18A" })
+        _ = try control("clipboard.item.\(color.id.uuidString)", in: view)
         fixture.model.searchQuery = "let count"
-        try await Task.sleep(for: .milliseconds(100))
-        let previewAgain = try XCTUnwrap(HostedViewTestSupport.find("clipboard.preview", in: view))
+        _ = try control(cardID, in: view)
+        let previewAgain = try control("clipboard.preview", in: view)
         XCTAssertTrue(previewAgain.accessibilityPerformPress())
-        try await Task.sleep(for: .milliseconds(250))
-        let editAgain = try XCTUnwrap(HostedViewTestSupport.find("clipboard.editText", in: view))
+        let editAgain = try control("clipboard.editText", in: view)
         XCTAssertTrue(editAgain.accessibilityPerformPress())
-        try await Task.sleep(for: .milliseconds(100))
-        let restored = try XCTUnwrap(HostedViewTestSupport.descendants(NSTextView.self, in: view).first { !$0.isFieldEditor })
+        let restored = try presented(in: view, "Reopened clipboard text editor") {
+            HostedViewTestSupport.descendants(NSTextView.self, in: view).first { !$0.isFieldEditor }
+        }
         XCTAssertEqual(restored.string, "A temporary draft")
-        let reset = try XCTUnwrap(HostedViewTestSupport.find("clipboard.resetDraft", in: view))
-        XCTAssertTrue(reset.accessibilityPerformPress())
-        try await Task.sleep(for: .milliseconds(100))
-        XCTAssertEqual(restored.string, original.plainTextValue)
+        XCTAssertTrue(try control("clipboard.resetDraft", in: view).accessibilityPerformPress())
+        _ = try presented(in: view, "Reset restores the original clipboard text") {
+            restored.string == original.plainTextValue ? restored : nil
+        }
+    }
+
+    private func control(
+        _ identifier: String,
+        in view: NSView,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws -> any NSAccessibilityProtocol {
+        try presented(in: view, identifier, file: file, line: line) {
+            HostedViewTestSupport.find(identifier, in: view)
+        }
+    }
+
+    private func presented<T>(
+        in view: NSView,
+        _ description: String,
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        value: () -> T?
+    ) throws -> T {
+        let deadline = ContinuousClock.now + .seconds(3)
+        repeat {
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+            view.layoutSubtreeIfNeeded()
+            if let result = value() { return result }
+        } while ContinuousClock.now < deadline
+        return try XCTUnwrap(nil as T?, description, file: file, line: line)
     }
 
     @MainActor private final class Fixture {

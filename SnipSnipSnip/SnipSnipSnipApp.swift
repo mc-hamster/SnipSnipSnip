@@ -820,11 +820,12 @@ struct SnipSnipSnipApp: App {
                     creation: model.creation,
                     capabilities: model.capabilities,
                     workflowCoordinator: model.workflowCoordinator,
-                    presentWindowQuickCaptureMenu: {
+                    presentWindowQuickCaptureMenu: { anchor in
                         WindowCaptureQuickMenuPresenter.shared.present(
                             capture: model.capture,
                             video: model.video,
-                            capabilities: model.capabilities
+                            capabilities: model.capabilities,
+                            attachedTo: anchor
                         )
                     },
                     performAutomationRequest: { request in

@@ -38,6 +38,31 @@ final class ScrollingCaptureWorkflowTests: XCTestCase {
         XCTAssertNil(try JSONDecoder().decode(CaptureOneShotOptions.self, from: data).scrollingMode)
     }
 
+    func testCancellingModeChoiceReleasesBusyStateWithoutStartingCapture() async {
+        let (choices, response) = AsyncStream<ScrollingCaptureMode>.makeStream()
+        defer { response.finish() }
+        var presentedOn: [CGDirectDisplayID?] = []
+        let fixture = ScrollingWorkflowFixture(chooseMode: { displayID in
+            presentedOn.append(displayID)
+            var iterator = choices.makeAsyncIterator()
+            return await iterator.next()
+        })
+        defer { fixture.cleanUp() }
+
+        fixture.workflow.captureScrollingArea(presentationContext: origin)
+        await waitUntil { !presentedOn.isEmpty }
+        XCTAssertTrue(fixture.workflow.isWorking)
+
+        fixture.workflow.captureScrollingArea(presentationContext: origin)
+        response.finish()
+        await waitUntil { !fixture.workflow.isWorking }
+
+        XCTAssertEqual(presentedOn, [origin.displayID])
+        XCTAssertFalse(fixture.workflow.isWorking)
+        XCTAssertTrue(fixture.windows.hiddenContexts.isEmpty)
+        XCTAssertEqual(fixture.probe.serviceCount, 0)
+    }
+
     func testRepeatProtectsEditingAndRestoresPresentationAfterTargetFailure() async {
         let fixture = ScrollingWorkflowFixture()
         defer { fixture.cleanUp() }
@@ -110,7 +135,12 @@ private final class ScrollingWorkflowFixture {
     private let suite: String
     private let defaults: UserDefaults
 
-    init(buildTarget: BuildTarget = .dev, failsTarget: Bool = true, confirmation: ScrollingCaptureTargetConfirmation.Choice = .cancel) {
+    init(
+        buildTarget: BuildTarget = .dev,
+        failsTarget: Bool = true,
+        confirmation: ScrollingCaptureTargetConfirmation.Choice = .cancel,
+        chooseMode: @escaping @MainActor (CGDirectDisplayID?) async -> ScrollingCaptureMode? = { _ in .automatic }
+    ) {
         let suite = "ScrollingWorkflowTests.\(UUID().uuidString)"
         let defaults = makeDefaults(named: suite)
         let windows = ScrollingWorkflowWindowPresenter()
@@ -142,7 +172,7 @@ private final class ScrollingWorkflowFixture {
                 },
                 preferenceStore: environment.preferenceStores.capture,
                 automationPreferenceStore: environment.preferenceStores.automation,
-                chooseScrollingMode: { .automatic },
+                chooseScrollingMode: chooseMode,
                 confirmScrollingTarget: { _ in confirmation }
             ),
             captureService: ScreenCaptureService(), uiMapCaptureService: environment.makeUIMapCaptureService(),

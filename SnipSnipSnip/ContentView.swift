@@ -15,13 +15,14 @@ struct ContentView: View {
     @ObservedObject var creation: CreationWorkflowModel
     let capabilities: AppCapabilitySnapshot
     let workflowCoordinator: AppWorkflowCoordinator
-    let presentWindowQuickCaptureMenu: () -> Void
+    let presentWindowQuickCaptureMenu: (NSView) -> Void
     let performAutomationRequest: (AutomationRequest) async -> Void
     @Environment(\.openURL) private var openURL
     @Environment(\.openWindow) private var openWindow
     @State private var isPermissionDiagnosticExpanded = false
     @State private var hoveredCaptureDiscovery: CaptureDiscoveryItem?
     @State private var selectedCaptureDiscovery: CaptureDiscoveryItem = .overview
+    @State private var windowCaptureMenuAnchor = NSView()
     @FocusState private var focusedCaptureDiscovery: CaptureDiscoveryItem?
     @SceneStorage("editor.inspector.isPresented")
     private var isEditorInspectorPresented = true
@@ -922,8 +923,13 @@ struct ContentView: View {
                     title: WorkflowVocabulary.Source.window,
                     systemImage: "rectangle.on.rectangle",
                     discoveryItem: .captureWindow,
-                    action: captureWindowFromHeader
+                    action: { presentWindowQuickCaptureMenu(windowCaptureMenuAnchor) }
                 )
+                .background {
+                    WindowCaptureMenuAnchor(view: windowCaptureMenuAnchor)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
                 captureButton(
                     title: WorkflowVocabulary.Source.screen,
                     systemImage: "macwindow",
@@ -2056,10 +2062,6 @@ struct ContentView: View {
             .disabled(capture.isWorking || isRecordingVideo || guide.isActive)
             .help(captureButtonHelpText(for: title))
         }
-    }
-
-    private func captureWindowFromHeader() {
-        presentWindowQuickCaptureMenu()
     }
 
     private func recordingActionButton(

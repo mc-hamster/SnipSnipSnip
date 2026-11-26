@@ -17,6 +17,7 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     private let timerMenu = NSMenu(title: "Timer")
     private let regionCaptureSettingsMenu = NSMenu(title: "Region Capture Settings")
     private var cancellables: Set<AnyCancellable> = []
+    private var isMainMenuOpen = false
     private weak var lifecycle: AppLifecycleModel?
     private weak var capture: CaptureWorkflowModel?
     private weak var clipboard: ClipboardWorkflowModel?
@@ -122,14 +123,20 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             }
             .store(in: &cancellables)
 
+        // The menu refreshes on demand; the Guide badge follows capture state.
+        let guideStepCountChanges = guide.captureCoordinator.$project
+            .map { $0?.steps.count ?? 0 }
+            .removeDuplicates()
+            .dropFirst()
+            .map { _ in () }
+
         guide.objectWillChange
-            .sink { [weak self] _ in DispatchQueue.main.async { self?.rebuildMainMenu() } }
+            .merge(with: guideStepCountChanges)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.updateStatusItemForGuide() }
             .store(in: &cancellables)
 
-        quickControls.objectWillChange
-            .sink { [weak self] _ in DispatchQueue.main.async { self?.rebuildMainMenu() } }
-            .store(in: &cancellables)
-
+        updateStatusItemForGuide()
         rebuildMainMenu()
         capture.refreshAvailableWindows(includeThumbnails: true)
     }
@@ -169,6 +176,18 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         default:
             break
         }
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        if menu === self.menu {
+            isMainMenuOpen = true
+        }
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        guard menu === self.menu else { return }
+        isMainMenuOpen = false
+        DispatchQueue.main.async { [weak self] in self?.updateStatusItemForGuide() }
     }
 
     @objc private func captureRegion() {
@@ -368,7 +387,6 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         }
 
         menu.removeAllItems()
-        updateStatusItemForGuide()
 
         menu.addItem(actionItem(
             title: "Open \(AppBranding.displayName)",
@@ -663,21 +681,26 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     }
 
     private func updateStatusItemForGuide() {
-        guard let button = statusItem.button else { return }
-        if guide?.isActive == true {
+        // Keep the menu's anchor stable while AppKit tracks it, including in full-screen Spaces.
+        guard !isMainMenuOpen, let button = statusItem.button else { return }
+        // The live capture can return to idle before the Guide editor receives the result.
+        let showsGuideStatus = guide.map { $0.captureCoordinator.state != .idle || $0.isDiscarding } ?? false
+        let toolTip = showsGuideStatus ? guideStatusTitle : AppBranding.displayName
+        guard button.toolTip != toolTip else { return }
+
+        if showsGuideStatus {
             statusItem.length = NSStatusItem.variableLength
             button.image = NSImage(
                 systemSymbolName: "list.number",
                 accessibilityDescription: guideStatusName
             )
             button.title = " \(guide?.stepCount ?? 0)"
-            button.toolTip = guideStatusTitle
         } else {
             statusItem.length = NSStatusItem.squareLength
             button.image = NSImage(systemSymbolName: "scissors", accessibilityDescription: AppBranding.displayName)
             button.title = ""
-            button.toolTip = AppBranding.displayName
         }
+        button.toolTip = toolTip
     }
 
     private var guideStatusName: String {

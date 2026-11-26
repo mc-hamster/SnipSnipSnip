@@ -94,6 +94,7 @@ Use one product vocabulary across the main window, setup flows, menus, editors, 
 - Expose Scrolling Content in every edition. Pro offers a native Auto Scroll / Manual Scroll choice before permission setup. Manual Scroll requires only Screen Recording, with the concise instruction “Scroll normally. Click Stop when finished.” Do not require a special scrolling rhythm. Auto Scroll also requires Accessibility.
 - Keep Stop and Cancel explicit: Stop keeps accepted content; Cancel discards it. Manual Scroll uses a nonactivating progress panel that remains visible when the target app is active and always keeps pointer controls available, even on small displays. It does not depend on global key monitoring. Automatic capture may retain keyboard-only controls when the progress panel would intercept its scroll target.
 - Confirm the region and show manual instructions before every manual capture. Preserve mode across repeat, recovery, and permission continuations.
+- Present the scrolling mode choice and region confirmation in native panels that can take keyboard focus without activating SnipSnipSnip. Place the confirmation on the selected display so the underlying content stays visible in its Space.
 
 ### Sheets and setup flows
 

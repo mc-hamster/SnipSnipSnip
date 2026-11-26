@@ -86,7 +86,7 @@ final class VideoEditorLayoutTests: XCTestCase {
             documents: model.documents, clipboard: model.clipboard, video: model.video,
             guide: model.guide, tools: model.tools, quickControls: model.quickControls,
             creation: model.creation, capabilities: model.capabilities,
-            workflowCoordinator: model.workflowCoordinator, presentWindowQuickCaptureMenu: {},
+            workflowCoordinator: model.workflowCoordinator, presentWindowQuickCaptureMenu: { _ in },
             performAutomationRequest: { _ in })
         let view = FirstMouseHostingView(rootView: content)
         let window = host(view, size: MainWindowLayout.minimumContentSize(for: .video))

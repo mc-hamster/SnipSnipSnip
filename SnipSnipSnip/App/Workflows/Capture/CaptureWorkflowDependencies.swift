@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 @MainActor
@@ -10,10 +11,10 @@ struct CaptureWorkflowDependencies {
     let makeScrollingCaptureService: (any ScreenCaptureServiceType) -> ScrollingCaptureService
     let preferenceStore: CapturePreferenceStore
     let automationPreferenceStore: AutomationPreferenceStore
-    var chooseScrollingMode: () -> ScrollingCaptureMode? = {
-        ScrollingCaptureModeSelection.present()
+    var chooseScrollingMode: @MainActor (CGDirectDisplayID?) async -> ScrollingCaptureMode? = {
+        await ScrollingCaptureModeSelection.present(on: $0)
     }
-    var confirmScrollingTarget: (ScrollingCaptureTarget) -> ScrollingCaptureTargetConfirmation.Choice = {
-        ScrollingCaptureTargetConfirmation.present(target: $0)
+    var confirmScrollingTarget: @MainActor (ScrollingCaptureTarget) async -> ScrollingCaptureTargetConfirmation.Choice = {
+        await ScrollingCaptureTargetConfirmation.present(target: $0)
     }
 }
