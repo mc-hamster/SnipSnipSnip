@@ -402,7 +402,8 @@ final class ClipboardHistoryStoreTests: XCTestCase {
         let monitor = ClipboardMonitor(
             store: store,
             pasteboard: pasteboard,
-            workspace: TestWorkspaceService()
+            workspace: TestWorkspaceService(),
+            snapshotResolver: { $0.text.map(ClipboardPasteboardSnapshot.text) }
         )
         let copyRecorded = expectation(description: "The monitor records the copy made after it starts")
         let observation = store.$items.first { $0.first?.previewText == "copy after start" }.sink { _ in
@@ -429,7 +430,8 @@ final class ClipboardHistoryStoreTests: XCTestCase {
         let monitor = ClipboardMonitor(
             store: store,
             pasteboard: pasteboard,
-            workspace: TestWorkspaceService()
+            workspace: TestWorkspaceService(),
+            snapshotResolver: { $0.text.map(ClipboardPasteboardSnapshot.text) }
         )
         let copyRecorded = expectation(description: "The monitor records the pending copy when it starts")
         let observation = store.$items.first { $0.first?.previewText == "copy before start" }.sink { _ in
