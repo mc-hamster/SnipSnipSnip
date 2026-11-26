@@ -114,6 +114,24 @@ final class ClipboardInteractionTests: XCTestCase {
         XCTAssertNil(ClipboardReturnTarget(application: accessory, ownProcessIdentifier: 200))
     }
 
+    func testClipboardHistoryFollowsInvokingDisplayAndKeepsPlacementOnThatDisplay() throws {
+        let frameOnPrimary = CGRect(x: 80, y: 120, width: 520, height: 720)
+        let secondaryDisplay = CGRect(x: -1_280, y: 120, width: 1_280, height: 900)
+        let visibleFrame = secondaryDisplay.insetBy(dx: 0, dy: 30)
+        let reopenedFrame = try XCTUnwrap(ClipboardManagerWindowController.frameForPresentation(
+            frameOnPrimary, on: secondaryDisplay, visibleFrame: visibleFrame, hasPositionedWindow: true
+        ))
+
+        XCTAssertEqual(reopenedFrame.size, frameOnPrimary.size)
+        XCTAssertTrue(visibleFrame.contains(reopenedFrame))
+        XCTAssertEqual(reopenedFrame.midX, visibleFrame.midX)
+        XCTAssertEqual(reopenedFrame.midY, visibleFrame.midY)
+        XCTAssertNil(ClipboardManagerWindowController.frameForPresentation(
+            reopenedFrame.offsetBy(dx: 20, dy: -18),
+            on: secondaryDisplay, visibleFrame: visibleFrame, hasPositionedWindow: true
+        ), "Reopening on the same display preserves the user's position.")
+    }
+
     func testSpacePreviewsOnlyWhileBrowsing() {
         XCTAssertEqual(ClipboardShortcutPolicy.action(keyCode: 49, characters: " ", modifiers: [],
             focus: .browsing, hasDeletionUndo: false), .preview)

@@ -82,7 +82,7 @@ extension CaptureWorkflowModel {
                             mode: mode
                         )
                     )
-                    switch dependencies.confirmScrollingTarget(target) {
+                    switch await dependencies.confirmScrollingTarget(target) {
                     case .start:
                         selectedRegion = region
                     case .chooseAnotherArea:

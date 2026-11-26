@@ -276,6 +276,22 @@ final class TransactionalIntakeTests: XCTestCase {
         XCTAssertEqual(fixture.revealRecorder.selections.count, 1, "Reveal must reject stale output")
     }
 
+    func testGuideShortcutAndQuickControlsEachRequestOneMainWindowForSetup() throws {
+        let fixture = try TransactionalIntakeFixture()
+        defer { fixture.cleanUp() }
+        let model = fixture.model
+        let initialRequest = model.lifecycle.mainWindowPresentationRequest
+
+        model.workflowCoordinator.handleGlobalHotKeyAction(.guide)
+        XCTAssertTrue(model.guide.isShowingQuickStart)
+        XCTAssertEqual(model.lifecycle.mainWindowPresentationRequest, initialRequest + 1)
+
+        model.guide.cancelQuickStart()
+        model.quickControls.perform(.recordGuide)
+        XCTAssertTrue(model.guide.isShowingQuickStart)
+        XCTAssertEqual(model.lifecycle.mainWindowPresentationRequest, initialRequest + 2)
+    }
+
     func testGuideSetupAndTargetCancellationPreserveSavedPreferencesAndSource() throws {
         let fixture = try TransactionalIntakeFixture(permissionsGranted: false)
         defer { fixture.cleanUp() }

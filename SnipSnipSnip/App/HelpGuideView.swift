@@ -252,7 +252,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                             bullets: [
                                 "Quick Controls calls the same actions used by the main window, Capture menu, menu bar icon, and existing shared Presets and Timer menus.",
                                 "Capture Window and Record Window use the on-screen Window chooser so the main window stays out of the way. Cancel Region or Window selection to return to the app you were using with Quick Controls still available.",
-                                "The dock keeps its display when you switch modes. Clipboard History and Screen Inspector open on that display the first time you choose them from Quick Controls.",
+                                "The dock keeps its display when you switch modes. Clipboard History opens on the dock’s current display. Screen Inspector opens there the first time you choose it from Quick Controls.",
                                 "A completed capture opens its editor. Permission setup and capture problems may open the main window when they need your attention.",
                                 "Capture and recording actions become unavailable while another capture, recording, Guide, or connected-device session blocks a new one.",
                                 "The dock follows across Spaces and stays above ordinary windows until hidden.",
@@ -472,6 +472,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                             title: "Capture a workflow",
                             steps: [
                                 "Choose Record a Guide from the main window or Capture menu, choose Guide > Record a Guide from the menu bar, or press Command-Shift-9.",
+                                "The menu bar command and shortcut open the main window with Guide setup if the window is closed.",
                                 "Choose what you want to make: an editable step-by-step Guide, or a Guide that also keeps full-motion video for a complete walkthrough or action highlights.",
                                 "If you keep video, choose whether it should be silent, use your microphone narration, include app audio, or record narration and app audio together. Guide derives the recording settings from that choice. Audio is captured live; a silent source video cannot be given audio later in the Guide editor.",
                                 "Choose Number each step to make every captured step start with a visible number. Leave it off for unnumbered steps. In either case, you can show or hide the number later for any individual step in the Step inspector.",
@@ -592,6 +593,10 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                     summary: "Capture a region, window, screen image, or repeat a previous capture.",
                     sections: [
                         HelpArticleSection(
+                            title: "Capture while another app is in full screen",
+                            body: "If the menu bar is hidden, move the pointer to the top of the screen to reveal it. Click the SnipSnipSnip scissors icon, then choose a capture action."
+                        ),
+                        HelpArticleSection(
                             title: "Find a window",
                             body: "The Choose Window list can search application names and window titles. No Matching Windows means the search hides available windows; clear the search to see them. No Available Windows means there are no eligible windows to choose. Pick On Screen remains available, with instructions for Screenshot or Video as appropriate. Window and Region selection share the same thin neutral outline, clear target against a dimmed desktop, and compact window-name label. The outline settles into view while three graphite markers with bright tips glide around its border, evenly spaced around the border; Reduce Motion keeps it static. Reduce Transparency keeps the target label opaque and preserves the crawl. Window selects a whole window, while Region also lets you drag a custom area. Both modes refresh the window list when selection starts and use the same window bounds and front-to-back order to identify the window under the pointer. Their outlines also stay aligned on scaled displays. Window choices include visible app dialogs, floating panels, and utility windows, including untitled panels. Very small popups, menus, desktop surfaces, the Dock, and system overlays are not offered. Capture Frontmost Window selects an ordinary application window. These exclusions apply to Window choices; drawn regions and Screen capture can still include those surfaces in the visible result."
                         ),
@@ -613,7 +618,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                             title: "Capture a window",
                             steps: [
                                 "Choose Window.",
-                                "From Window in the capture header or from the menu bar, use the quick menu to choose Pick On Screen, a suggested window, or More Windows.",
+                                "Choose Window in the capture header to open its menu beside the button. Use that menu or the menu bar to choose Pick On Screen, a suggested window, or More Windows.",
                                 "The startup screen keeps the live-window carousel visible for one-click capture. Pick a thumbnail directly or use Pick On Screen for crowded desktops.",
                                 "Use Refresh or Auto Refresh if the target window is visible but not listed. With Auto Refresh off, SnipSnipSnip still refreshes once whenever the app returns to the foreground."
                             ]
@@ -666,7 +671,7 @@ body: "Ordinary screenshots open in the editor immediately so you can annotate, 
                             steps: [
                                 "Choose Capture Scrolling Content. In Pro, choose Auto Scroll or Manual Scroll.",
                                 "Drag over a scrollable area within one display. The selector uses the same crosshair, live loupe, and precision-control preferences as Region Capture.",
-                                "Confirm the selected viewport, or choose another area before capture starts. Manual Scroll always shows instructions; Auto Scroll can skip future confirmations with Show this again.",
+                                "Confirm the selected area on the same display, or choose another area before capture starts. The confirmation stays with the app you’re capturing in full screen. Manual Scroll always shows instructions. Auto Scroll can skip future confirmations with Show this again.",
                                 "For Manual Scroll, scroll normally in the selected area. Capture follows changes in speed, pauses, and direction without duplicating revisited content. For Auto Scroll, wait while SnipSnipSnip scrolls. The panel shows captured length, capacity used, a preview, and status.",
                                 "Click Stop to keep accepted segments or Cancel to discard the capture. Auto Scroll also supports Return to stop and Esc to cancel; on small displays its panel may use keyboard-only controls. Manual Scroll keeps clickable controls available and does not require global keyboard access."
                             ]

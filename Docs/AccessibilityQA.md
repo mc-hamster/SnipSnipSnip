@@ -43,6 +43,9 @@ Repeat the essential workflow pass with:
 
 ## Capture surfaces
 
+- [ ] With another app in full screen, reveal the menu bar and click the SnipSnipSnip scissors icon. Open a submenu, then press Escape. The first click opens the menu and dismissal leaves the full-screen app in place. Repeat with the SnipSnipSnip main window closed.
+- [ ] With the main window closed in Pro, choose Guide > Record a Guide… from the scissors menu. The main window opens with Guide setup. Repeat with the global Guide shortcut.
+- [ ] With the pointer on a second display, focus Window in the capture header by keyboard and open its menu. It appears beside the Window button and supports selection and Escape.
 - [ ] Region capture announces instructions, dimensions, commit mode, Capture, and Cancel or precision controls.
 - [ ] Keyboard creation, movement, and resizing remain usable in each region commit mode.
 - [ ] Window and display targets expose names, selected state, and capture actions.
@@ -129,6 +132,7 @@ Repeat the essential workflow pass with:
 - [ ] Known macOS shortcut conflicts produce nonblocking text warnings.
 - [ ] Native Open and Save panel shortcuts win while a panel is active.
 - [ ] Command-W minimizes eligible windows, orders out stateless auxiliary windows, closes Clipboard History and active Screen Tools, and never terminates or discards a document.
+- [ ] Open and close Clipboard History from Quick Controls, move the dock to a second display, then reopen Clipboard History. The window opens on the dock’s display.
 - [ ] History and Clipboard previews expose semantic content, pin or collection state, filters, restore, and destructive-action context.
 
 ## Sign-off

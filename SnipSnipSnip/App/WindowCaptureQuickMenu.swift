@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 @MainActor
 struct WindowCaptureMenuContext {
@@ -133,6 +134,14 @@ enum WindowCaptureMenuBuilder {
 }
 
 @MainActor
+struct WindowCaptureMenuAnchor: NSViewRepresentable {
+    let view: NSView
+
+    func makeNSView(context: Context) -> NSView { view }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+@MainActor
 final class WindowCaptureQuickMenuPresenter: NSObject {
     static let shared = WindowCaptureQuickMenuPresenter()
 
@@ -143,7 +152,8 @@ final class WindowCaptureQuickMenuPresenter: NSObject {
     func present(
         capture: CaptureWorkflowModel,
         video: VideoWorkflowModel,
-        capabilities: AppCapabilitySnapshot
+        capabilities: AppCapabilitySnapshot,
+        attachedTo anchor: NSView
     ) {
         guard !isPresenting else {
             return
@@ -171,14 +181,16 @@ final class WindowCaptureQuickMenuPresenter: NSObject {
         )
         activeMenu = menu
 
-        DispatchQueue.main.async { [weak self] in
-            guard let self else {
-                return
+        DispatchQueue.main.async { [weak self, weak anchor] in
+            guard let self else { return }
+            defer {
+                self.activeMenu = nil
+                self.isPresenting = false
             }
-
-            menu.popUp(positioning: nil, at: self.popupOrigin, in: nil)
-            self.activeMenu = nil
-            self.isPresenting = false
+            guard let anchor, anchor.window?.isVisible == true else { return }
+            let bounds = anchor.bounds
+            let origin = NSPoint(x: bounds.minX, y: anchor.isFlipped ? bounds.maxY : bounds.minY)
+            menu.popUp(positioning: nil, at: origin, in: anchor)
         }
     }
 
@@ -196,10 +208,5 @@ final class WindowCaptureQuickMenuPresenter: NSObject {
 
     @objc private func presentWindowPicker() {
         capture?.presentWindowPicker()
-    }
-
-    private var popupOrigin: NSPoint {
-        let location = NSEvent.mouseLocation
-        return NSPoint(x: location.x + 14, y: location.y + 8)
     }
 }

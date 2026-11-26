@@ -70,6 +70,7 @@ by the deterministic replay suite alone.
 | Pro Auto Scroll | Non-settable AX scrollbar, delayed positions | Safe retries without skipping accepted content |
 | Long captures | Narrow result beyond 65,536 px; wide result at pixel budget | Readable navigation, editable save/reopen, supported exports |
 | Multiple displays | Retina/non-Retina and negative display origins | Stable viewport geometry and correct pixel coordinates |
+| Full-screen source | Start from the menu bar or Quick Controls with the source app in full screen. Select a region and confirm it, then repeat and cancel by keyboard. | The mode choice and confirmation stay in the source Space. The confirmation appears on the selected display, and the first captured frame shows the selected content. |
 
 App Store and Pro builds must both compile. Signed-candidate Screen Recording
 consent and sandboxed export checks require live validation; do not reset the

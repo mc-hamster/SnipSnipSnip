@@ -370,7 +370,6 @@ final class QuickControlsModel: ObservableObject {
             )
         case .recordGuide:
             guide.presentQuickStart()
-            requestMainWindowPresentation()
         case .clipboardHistory:
             clipboard.showClipboardManager(
                 presentationContext: presentationContext

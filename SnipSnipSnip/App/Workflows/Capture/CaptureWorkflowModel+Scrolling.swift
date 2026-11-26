@@ -36,32 +36,40 @@ extension CaptureWorkflowModel {
         presentationContext: WorkflowPresentationContext
     ) {
         guard dependencies.capabilities.isEnabled(.scrollingCapture), !isWorking, !isInteractiveCaptureActive else { return }
-        let mode: ScrollingCaptureMode
-        if let requested = oneShotOptions?.scrollingMode {
-            mode = resolvedScrollingMode(requested)
-        } else if dependencies.capabilities.isEnabled(.automaticScrollingCapture) {
-            guard let selected = dependencies.chooseScrollingMode() else { return }
-            mode = selected
-        } else {
-            mode = .manual
+        func start(_ mode: ScrollingCaptureMode) {
+            var options = oneShotOptions ?? CaptureOneShotOptions(
+                captureDelay: captureDelay, includesCursor: screenshotIncludesCursor,
+                privateCapture: privateCaptureEnabled, windowUIMapEnabled: windowUIMapEnabled
+            )
+            options.scrollingMode = mode
+            prepareCaptureIntent(
+                intent,
+                completionRole: completionRole,
+                oneShotOptions: options,
+                presentationContext: presentationContext
+            )
+            runActionWhenPermissionsReady(
+                scrollingPermissionRequirements(for: mode),
+                featureName: "Scrolling Capture",
+                pendingCommand: .scrollingCapture
+            ) { [weak self] in
+                self?.beginScrollingCapture()
+            }
         }
-        var options = oneShotOptions ?? CaptureOneShotOptions(
-            captureDelay: captureDelay, includesCursor: screenshotIncludesCursor,
-            privateCapture: privateCaptureEnabled, windowUIMapEnabled: windowUIMapEnabled
-        )
-        options.scrollingMode = mode
-        prepareCaptureIntent(
-            intent,
-            completionRole: completionRole,
-            oneShotOptions: options,
-            presentationContext: presentationContext
-        )
-        runActionWhenPermissionsReady(
-            scrollingPermissionRequirements(for: mode),
-            featureName: "Scrolling Capture",
-            pendingCommand: .scrollingCapture
-        ) { [weak self] in
-            self?.beginScrollingCapture()
+
+        let requestedMode = oneShotOptions?.scrollingMode
+        guard requestedMode == nil, dependencies.capabilities.isEnabled(.automaticScrollingCapture) else {
+            start(resolvedScrollingMode(requestedMode))
+            return
+        }
+
+        isWorking = true
+        dependencies.lifecycle.updateWorkingMessage("Scrolling Capture")
+        Task {
+            let mode = await dependencies.chooseScrollingMode(presentationContext.displayID)
+            isWorking = false
+            guard let mode, !Task.isCancelled else { return }
+            start(mode)
         }
     }
 
